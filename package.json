@@ -1,0 +1,14 @@
+{
+  "name": "drift-next",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.22.0",
+  "scripts": {
+    "dev": "pnpm --filter console dev",
+    "build": "pnpm --filter console build",
+    "typecheck": "pnpm --filter console typecheck",
+    "lint": "pnpm --filter console lint",
+    "test": "pnpm --filter console test",
+    "tauri": "pnpm --filter console tauri"
+  }
+}
