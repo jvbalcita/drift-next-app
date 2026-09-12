@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-  drift_command_center_lib::run();
+    drift_command_center_lib::run();
 }

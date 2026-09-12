@@ -1,0 +1,18 @@
+name: drift-next-artifacts
+
+services:
+  minio:
+    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+    profiles: ["artifacts"]
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?export MINIO_ROOT_USER before starting MinIO}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?export MINIO_ROOT_PASSWORD before starting MinIO}"
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio-data:/data
+
+volumes:
+  minio-data:

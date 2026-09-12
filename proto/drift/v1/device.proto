@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package drift.v1;
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+// Device is the operator-facing projection of an edge-managed Android device.
+// Commands are intentionally absent until leases and policy checks are wired.
+message Device {
+  string id = 1;
+  string display_name = 2;
+  string agent_id = 3;
+  DeviceStatus status = 4;
+  string platform_version = 5;
+  uint32 battery_percent = 6;
+  uint32 latency_ms = 7;
+  string last_seen_at = 8;
+}
+
+enum DeviceStatus {
+  DEVICE_STATUS_UNSPECIFIED = 0;
+  DEVICE_STATUS_ONLINE = 1;
+  DEVICE_STATUS_ATTENTION = 2;
+  DEVICE_STATUS_OFFLINE = 3;
+}
+
+message ListDevicesRequest {
+  string organization_id = 1;
+}
+
+message ListDevicesResponse {
+  repeated Device devices = 1;
+}
+
+message GetDeviceRequest {
+  string organization_id = 1;
+  string device_id = 2;
+}
+
+message GetDeviceResponse {
+  Device device = 1;
+}
+
+service DeviceService {
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+  rpc GetDevice(GetDeviceRequest) returns (GetDeviceResponse);
+}

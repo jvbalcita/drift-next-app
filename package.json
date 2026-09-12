@@ -9,6 +9,12 @@
     "typecheck": "pnpm --filter console typecheck",
     "lint": "pnpm --filter console lint",
     "test": "pnpm --filter console test",
-    "tauri": "pnpm --filter console tauri"
+    "tauri": "pnpm --filter console tauri",
+    "go:test": "go test ./...",
+    "go:vet": "go vet ./...",
+    "contracts:lint": "buf lint",
+    "contracts:build": "buf build",
+    "contracts:generate": "buf generate",
+    "infra:config": "docker compose -f deploy/compose/docker-compose.yml config --quiet"
   }
 }
