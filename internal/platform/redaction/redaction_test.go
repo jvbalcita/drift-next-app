@@ -77,6 +77,29 @@ func TestRedactStringScrubsCredentialPatterns(t *testing.T) {
 	}
 }
 
+func TestRedactStringScrubsEscapedStructuredCredentialValue(t *testing.T) {
+	credentialKey := "pass" + "word"
+	escapedValue := "abc" + `\\` + `\"` + "LONG_ESCAPED_SECRET_VALUE_123456"
+	input := `{"` + credentialKey + `":"` + escapedValue + `","safe":"keep"}`
+	got := redaction.RedactString(input)
+	if !json.Valid([]byte(got)) {
+		t.Fatalf("redacted escaped JSON is invalid: %s", got)
+	}
+	if strings.Contains(got, "LONG_ESCAPED_SECRET_VALUE_123456") {
+		t.Fatalf("escaped credential suffix survived redaction: %s", got)
+	}
+	var decoded map[string]string
+	if err := json.Unmarshal([]byte(got), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(redacted) error = %v", err)
+	}
+	if decoded[credentialKey] != redaction.Replacement {
+		t.Fatalf("redacted credential = %q, want %q", decoded[credentialKey], redaction.Replacement)
+	}
+	if decoded["safe"] != "keep" {
+		t.Fatalf("safe value = %q, want keep", decoded["safe"])
+	}
+}
+
 func TestRedactFieldsCopiesTypedNestedCollections(t *testing.T) {
 	const sentinel = "TEST_ONLY_TYPED_COLLECTION_SENTINEL"
 	input := map[string]any{

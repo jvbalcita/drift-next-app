@@ -16,7 +16,7 @@ var (
 	bearerPattern     = regexp.MustCompile(`(?i)(\bauthorization\s*[:=]\s*(?:bearer|basic)\s+)[^\s,;]+`)
 	cookiePattern     = regexp.MustCompile(`(?i)(\bcookie\s*:\s*)[^\r\n]+`)
 	dsnPattern        = regexp.MustCompile(`(?i)(\b[a-z][a-z0-9+.-]*://[^/\s:@]+:)[^@\s/]+(@)`)
-	credentialPattern = regexp.MustCompile(`(?i)(^|[^A-Za-z0-9_])(["']?(?:[a-z0-9]+[_-])*(?:password|passwd|passphrase|token|api[_-]?key|apikey|authorization|cookie|private[_-]?key|dsn|connection[_-]?string|secret|credential)(?:[_-][a-z0-9]+)*["']?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^,\s;&}\]]+)`)
+	credentialPattern = regexp.MustCompile(`(?i)(^|[^A-Za-z0-9_])(["']?(?:[a-z0-9]+[_-])*(?:password|passwd|passphrase|token|api[_-]?key|apikey|authorization|cookie|private[_-]?key|dsn|connection[_-]?string|secret|credential)(?:[_-][a-z0-9]+)*["']?)(\s*[:=]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^,\s;&}\]]+)`)
 )
 
 // RedactString removes recognized credential material from a free-form
