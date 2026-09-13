@@ -16,7 +16,7 @@ var (
 	bearerPattern     = regexp.MustCompile(`(?i)(\bauthorization\s*[:=]\s*(?:bearer|basic)\s+)[^\s,;]+`)
 	cookiePattern     = regexp.MustCompile(`(?i)(\bcookie\s*:\s*)[^\r\n]+`)
 	dsnPattern        = regexp.MustCompile(`(?i)(\b[a-z][a-z0-9+.-]*://[^/\s:@]+:)[^@\s/]+(@)`)
-	credentialPattern = regexp.MustCompile(`(?i)\b(password|passwd|passphrase|token|api[_-]?key|apikey|authorization|cookie|private[_-]?key|dsn|connection[_-]?string|secret)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^,\s;&}]+)`)
+	credentialPattern = regexp.MustCompile(`(?i)(^|[^A-Za-z0-9_])(["']?(?:[a-z0-9]+[_-])*(?:password|passwd|passphrase|token|api[_-]?key|apikey|authorization|cookie|private[_-]?key|dsn|connection[_-]?string|secret|credential)(?:[_-][a-z0-9]+)*["']?)(\s*[:=]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^,\s;&}\]]+)`)
 )
 
 // RedactString removes recognized credential material from a free-form
@@ -27,7 +27,13 @@ func RedactString(input string) string {
 	redacted = cookiePattern.ReplaceAllString(redacted, `$1`+Replacement)
 	redacted = credentialPattern.ReplaceAllStringFunc(redacted, func(match string) string {
 		parts := credentialPattern.FindStringSubmatch(match)
-		return parts[1] + parts[2] + Replacement
+		value := parts[4]
+		if len(value) >= 2 && ((value[0] == '"' && value[len(value)-1] == '"') || (value[0] == '\'' && value[len(value)-1] == '\'')) {
+			value = value[:1] + Replacement + value[len(value)-1:]
+		} else {
+			value = Replacement
+		}
+		return parts[1] + parts[2] + parts[3] + value
 	})
 	return dsnPattern.ReplaceAllString(redacted, `$1`+Replacement+`$2`)
 }
@@ -108,11 +114,29 @@ func copyReflect(value reflect.Value) reflect.Value {
 	}
 }
 
+type redactedInterfaceValue struct{}
+
+func (redactedInterfaceValue) Error() string {
+	return Replacement
+}
+
+func (redactedInterfaceValue) String() string {
+	return Replacement
+}
+
 func replacementFor(valueType reflect.Type) reflect.Value {
 	if valueType.Kind() == reflect.Interface {
-		result := reflect.New(valueType).Elem()
-		result.Set(reflect.ValueOf(Replacement))
-		return result
+		for _, candidate := range []reflect.Value{
+			reflect.ValueOf(Replacement),
+			reflect.ValueOf(redactedInterfaceValue{}),
+		} {
+			if candidate.Type().Implements(valueType) {
+				result := reflect.New(valueType).Elem()
+				result.Set(candidate)
+				return result
+			}
+		}
+		return reflect.Zero(valueType)
 	}
 	if valueType.Kind() == reflect.String {
 		result := reflect.New(valueType).Elem()

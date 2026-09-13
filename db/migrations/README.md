@@ -70,10 +70,11 @@ forward migrations.
 
 Migration tests use temporary SQLite files and `testing/fstest.MapFS` so SQL
 fixtures are injected rather than loaded from production data. They cover
-fresh and incremental application, ordering/idempotence, malformed and
-duplicate loading, the PostgreSQL `0001` boundary, checksum/name mutation,
-transaction rollback, dirty refusal, explicit repair, bounded lock
-contention, and context cancellation. Testdata is disposable and must contain
+fresh and incremental application, ordering/idempotence, concurrent runner
+convergence, malformed and duplicate loading, the PostgreSQL `0001` boundary,
+checksum/name mutation, transaction rollback, dirty refusal, explicit repair,
+bounded lock contention, committed-marker interruption recovery, and typed
+context cancellation/deadline handling. Testdata is disposable and must contain
 no credentials or production records; see `testdata/README.md`.
 
 Run the focused migration gate from the repository root:

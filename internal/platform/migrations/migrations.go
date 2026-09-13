@@ -82,7 +82,7 @@ func Open(ctx context.Context, dsn string, options OpenOptions) (*sql.DB, error)
 	db := sql.OpenDB(connector)
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
-		return nil, platformerrors.Wrap(platformerrors.CodeInternal, "open SQLite database", err)
+		return nil, wrapContextOrError(ctx, platformerrors.CodeInternal, "open SQLite database", err)
 	}
 	return db, nil
 }
@@ -94,6 +94,10 @@ type Runner struct {
 	source      fs.FS
 	clock       platformclock.Clock
 	busyTimeout time.Duration
+
+	// afterLedgerRead is nil in production and only lets package tests hold two
+	// real runners at the empty-ledger race boundary.
+	afterLedgerRead func()
 }
 
 type migration struct {
@@ -150,7 +154,7 @@ func (r *Runner) Apply(ctx context.Context) error {
 	}
 	conn, err := r.db.Conn(ctx)
 	if err != nil {
-		return fmt.Errorf("get migration database connection: %w", err)
+		return wrapContextOrError(ctx, platformerrors.CodeInternal, "get migration database connection", err)
 	}
 	defer conn.Close()
 	if err := r.configureConnection(ctx, conn); err != nil {
@@ -161,18 +165,30 @@ func (r *Runner) Apply(ctx context.Context) error {
 	}
 	ledger, err := readLedger(ctx, conn)
 	if err != nil {
-		return platformerrors.Wrap(platformerrors.CodeInternal, "read migration ledger", err)
+		return wrapContextOrError(ctx, platformerrors.CodeInternal, "read migration ledger", err)
 	}
 	if err := validateLedger(ledger, migrations); err != nil {
 		return err
+	}
+	if r.afterLedgerRead != nil {
+		r.afterLedgerRead()
 	}
 
 	for _, next := range migrations {
 		if _, applied := ledger[next.version]; applied {
 			continue
 		}
-		if err := r.markDirty(ctx, conn, next); err != nil {
+		markedDirty, err := r.markDirty(ctx, conn, next)
+		if err != nil {
 			return err
+		}
+		if !markedDirty {
+			ledger[next.version] = ledgerEntry{
+				version:  next.version,
+				name:     next.name,
+				checksum: next.checksum,
+			}
+			continue
 		}
 		if err := r.applyOne(ctx, conn, next); err != nil {
 			return err
@@ -208,7 +224,7 @@ func (r *Runner) Repair(ctx context.Context, version int64) error {
 	}
 	conn, err := r.db.Conn(ctx)
 	if err != nil {
-		return fmt.Errorf("get migration database connection: %w", err)
+		return wrapContextOrError(ctx, platformerrors.CodeInternal, "get migration database connection", err)
 	}
 	defer conn.Close()
 	if err := r.configureConnection(ctx, conn); err != nil {
@@ -226,10 +242,13 @@ FROM drift_schema_migrations
 WHERE version = ?`, version))
 	if err != nil {
 		r.rollback(conn)
+		if ctxErr := contextErrorWithCause(ctx, err); ctxErr != nil {
+			return ctxErr
+		}
 		if stderrors.Is(err, sql.ErrNoRows) {
 			return platformerrors.New(platformerrors.CodeInvalidInput, "migration version is not dirty")
 		}
-		return platformerrors.Wrap(platformerrors.CodeInternal, "read migration before repair", err)
+		return wrapContextOrError(ctx, platformerrors.CodeInternal, "read migration before repair", err)
 	}
 	if !entry.dirty {
 		r.rollback(conn)
@@ -242,7 +261,7 @@ WHERE version = ?`, version))
 	}
 	if _, err := conn.ExecContext(ctx, `DELETE FROM drift_schema_migrations WHERE version = ? AND dirty = 1`, version); err != nil {
 		r.rollback(conn)
-		return platformerrors.Wrap(platformerrors.CodeInternal, "remove dirty migration during repair", err)
+		return wrapContextOrError(ctx, platformerrors.CodeInternal, "remove dirty migration during repair", err)
 	}
 	if err := commit(ctx, conn); err != nil {
 		return err
@@ -253,7 +272,7 @@ WHERE version = ?`, version))
 func (r *Runner) configureConnection(ctx context.Context, conn *sql.Conn) error {
 	milliseconds := (r.busyTimeout + time.Millisecond - 1) / time.Millisecond
 	if _, err := conn.ExecContext(ctx, fmt.Sprintf("PRAGMA busy_timeout = %d", milliseconds)); err != nil {
-		return platformerrors.Wrap(platformerrors.CodeInternal, "configure migration busy timeout", err)
+		return wrapContextOrError(ctx, platformerrors.CodeInternal, "configure migration busy timeout", err)
 	}
 	return nil
 }
@@ -264,26 +283,49 @@ func (r *Runner) bootstrapLedger(ctx context.Context, conn *sql.Conn) error {
 	}
 	if _, err := conn.ExecContext(ctx, createLedgerSQL); err != nil {
 		r.rollback(conn)
-		return platformerrors.Wrap(platformerrors.CodeInternal, "create migration ledger", err)
+		return wrapContextOrError(ctx, platformerrors.CodeInternal, "create migration ledger", err)
 	}
 	return commit(ctx, conn)
 }
 
-func (r *Runner) markDirty(ctx context.Context, conn *sql.Conn, item migration) error {
+func (r *Runner) markDirty(ctx context.Context, conn *sql.Conn, item migration) (bool, error) {
 	if err := beginImmediate(ctx, conn); err != nil {
-		return err
+		return false, err
 	}
 	_, err := conn.ExecContext(ctx, `
 INSERT INTO drift_schema_migrations (version, name, checksum, applied_at, dirty)
 VALUES (?, ?, ?, ?, 1)`, item.version, item.name, item.checksum, r.clock.Now().UTC().Format(time.RFC3339Nano))
-	if err != nil {
-		r.rollback(conn)
-		if isSQLiteConstraint(err) {
-			return platformerrors.Wrap(platformerrors.CodeMigrationDirty, "another migration attempt is already dirty", err)
-		}
-		return platformerrors.Wrap(platformerrors.CodeInternal, "mark migration dirty", err)
+	if err == nil {
+		return true, commit(ctx, conn)
 	}
-	return commit(ctx, conn)
+	if !isSQLiteConstraint(err) {
+		r.rollback(conn)
+		return false, wrapContextOrError(ctx, platformerrors.CodeInternal, "mark migration dirty", err)
+	}
+
+	entry, readErr := scanLedgerEntry(conn.QueryRowContext(ctx, `
+SELECT version, name, checksum, applied_at, dirty
+FROM drift_schema_migrations
+WHERE version = ?`, item.version))
+	if readErr != nil {
+		r.rollback(conn)
+		return false, wrapContextOrError(ctx, platformerrors.CodeInternal, "read migration after duplicate dirty marker", readErr)
+	}
+	if entry.dirty {
+		r.rollback(conn)
+		if ctxErr := contextErrorWithCause(ctx, err); ctxErr != nil {
+			return false, ctxErr
+		}
+		return false, platformerrors.Wrap(platformerrors.CodeMigrationDirty, "another migration attempt is already dirty", err)
+	}
+	if entry.name != item.name || entry.checksum != item.checksum {
+		r.rollback(conn)
+		return false, platformerrors.New(platformerrors.CodeMigrationChecksumMismatch, "applied migration version does not match its immutable file")
+	}
+	if err := commit(ctx, conn); err != nil {
+		return false, err
+	}
+	return false, nil
 }
 
 func (r *Runner) applyOne(ctx context.Context, conn *sql.Conn, item migration) error {
@@ -292,10 +334,7 @@ func (r *Runner) applyOne(ctx context.Context, conn *sql.Conn, item migration) e
 	}
 	if _, err := conn.ExecContext(ctx, string(item.sql)); err != nil {
 		r.rollback(conn)
-		if ctxErr := contextError(ctx); ctxErr != nil {
-			return ctxErr
-		}
-		return platformerrors.Wrap(platformerrors.CodeInternal, "migration SQL failed", fmt.Errorf("%s: %w", item.filename, err))
+		return wrapContextOrError(ctx, platformerrors.CodeInternal, "migration SQL failed", fmt.Errorf("%s: %w", item.filename, err))
 	}
 	result, err := conn.ExecContext(ctx, `
 UPDATE drift_schema_migrations
@@ -303,12 +342,17 @@ SET checksum = ?, name = ?, applied_at = ?, dirty = 0
 WHERE version = ? AND dirty = 1`, item.checksum, item.name, r.clock.Now().UTC().Format(time.RFC3339Nano), item.version)
 	if err != nil {
 		r.rollback(conn)
-		return platformerrors.Wrap(platformerrors.CodeInternal, "clear migration dirty state", err)
+		return wrapContextOrError(ctx, platformerrors.CodeInternal, "clear migration dirty state", err)
 	}
-	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+	affected, err := result.RowsAffected()
+	if err != nil {
 		r.rollback(conn)
-		if err != nil {
-			return platformerrors.Wrap(platformerrors.CodeInternal, "check migration ledger update", err)
+		return wrapContextOrError(ctx, platformerrors.CodeInternal, "check migration ledger update", err)
+	}
+	if affected != 1 {
+		r.rollback(conn)
+		if ctxErr := contextError(ctx); ctxErr != nil {
+			return ctxErr
 		}
 		return platformerrors.New(platformerrors.CodeInternal, "migration ledger update affected an unexpected row count")
 	}
@@ -423,7 +467,7 @@ func beginImmediate(ctx context.Context, conn *sql.Conn) error {
 		return err
 	}
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		if ctxErr := contextError(ctx); ctxErr != nil {
+		if ctxErr := contextErrorWithCause(ctx, err); ctxErr != nil {
 			return ctxErr
 		}
 		if isSQLiteBusy(err) {
@@ -437,7 +481,7 @@ func beginImmediate(ctx context.Context, conn *sql.Conn) error {
 func commit(ctx context.Context, conn *sql.Conn) error {
 	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
 		_, _ = conn.ExecContext(context.Background(), "ROLLBACK")
-		if ctxErr := contextError(ctx); ctxErr != nil {
+		if ctxErr := contextErrorWithCause(ctx, err); ctxErr != nil {
 			return ctxErr
 		}
 		return platformerrors.Wrap(platformerrors.CodeInternal, "commit migration transaction", err)
@@ -456,26 +500,59 @@ func normalizeBusyTimeout(timeout time.Duration) (time.Duration, error) {
 }
 
 func sqliteDSNWithPragmas(dsn string, timeout time.Duration) (string, error) {
+	pragmas := url.Values{}
+	pragmas.Add("_pragma", "journal_mode=wal")
+	pragmas.Add("_pragma", "foreign_keys=on")
+	pragmas.Add("_pragma", fmt.Sprintf("busy_timeout=%d", timeout/time.Millisecond))
+	if !strings.HasPrefix(strings.ToLower(dsn), "file:") {
+		separator := "?"
+		if strings.ContainsRune(dsn, '?') {
+			separator = "&"
+		}
+		return dsn + separator + pragmas.Encode(), nil
+	}
+
 	parsed, err := url.Parse(dsn)
 	if err != nil {
 		return "", err
 	}
 	query := parsed.Query()
-	query.Add("_pragma", "journal_mode=wal")
-	query.Add("_pragma", "foreign_keys=on")
-	query.Add("_pragma", fmt.Sprintf("busy_timeout=%d", timeout/time.Millisecond))
+	for key, values := range pragmas {
+		for _, value := range values {
+			query.Add(key, value)
+		}
+	}
 	parsed.RawQuery = query.Encode()
 	return parsed.String(), nil
 }
 
 func contextError(ctx context.Context) error {
+	return contextErrorWithCause(ctx, nil)
+}
+
+func contextErrorWithCause(ctx context.Context, cause error) error {
 	if ctx == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "migration context is required")
 	}
-	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("migration operation canceled: %w", err)
+	err := ctx.Err()
+	if err == nil {
+		err = cause
 	}
-	return nil
+	switch {
+	case stderrors.Is(err, context.Canceled):
+		return platformerrors.Wrap(platformerrors.CodeCanceled, "migration operation canceled", err)
+	case stderrors.Is(err, context.DeadlineExceeded):
+		return platformerrors.Wrap(platformerrors.CodeDeadlineExceeded, "migration operation deadline exceeded", err)
+	default:
+		return nil
+	}
+}
+
+func wrapContextOrError(ctx context.Context, code platformerrors.Code, message string, cause error) error {
+	if ctxErr := contextErrorWithCause(ctx, cause); ctxErr != nil {
+		return ctxErr
+	}
+	return platformerrors.Wrap(code, message, cause)
 }
 
 func isSQLiteBusy(err error) bool {

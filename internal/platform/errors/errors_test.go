@@ -19,6 +19,8 @@ func TestCodeTaxonomyIsStable(t *testing.T) {
 		{name: "conflict", code: errplatform.CodeConflict, want: "conflict"},
 		{name: "unavailable", code: errplatform.CodeUnavailable, want: "unavailable"},
 		{name: "timeout", code: errplatform.CodeTimeout, want: "timeout"},
+		{name: "canceled", code: errplatform.CodeCanceled, want: "canceled"},
+		{name: "deadline exceeded", code: errplatform.CodeDeadlineExceeded, want: "deadline_exceeded"},
 		{name: "policy denied", code: errplatform.CodePolicyDenied, want: "policy_denied"},
 		{name: "lease conflict", code: errplatform.CodeLeaseConflict, want: "lease_conflict"},
 		{name: "migration dirty", code: errplatform.CodeMigrationDirty, want: "migration_dirty"},
