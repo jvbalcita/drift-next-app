@@ -77,8 +77,12 @@ func (r *OutboxRepository) ListPending(ctx context.Context, workspace organizati
 		var m outbox.Message
 		var created string
 		var delivered sql.NullString
-		if err := rows.Scan(&m.ID, &m.WorkspaceID, &m.EventName, &m.SchemaVersion, &m.CorrelationID, &m.CausationID, &m.PayloadJSON, &m.State, &m.Attempts, &m.LastErrorClass, &created, &delivered); err != nil {
+		var lastError sql.NullString
+		if err := rows.Scan(&m.ID, &m.WorkspaceID, &m.EventName, &m.SchemaVersion, &m.CorrelationID, &m.CausationID, &m.PayloadJSON, &m.State, &m.Attempts, &lastError, &created, &delivered); err != nil {
 			return nil, err
+		}
+		if lastError.Valid {
+			m.LastErrorClass = lastError.String
 		}
 		m.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
 		if delivered.Valid {
@@ -89,15 +93,33 @@ func (r *OutboxRepository) ListPending(ctx context.Context, workspace organizati
 	}
 	return result, rows.Err()
 }
-func (r *OutboxRepository) MarkDelivered(ctx context.Context, id outbox.MessageID, expectedAttempts int) error {
+func (r *OutboxRepository) MarkDelivered(ctx context.Context, workspace organizations.WorkspaceID, id outbox.MessageID, expectedAttempts int) error {
+	if err := validateWorkspace(string(workspace)); err != nil {
+		return err
+	}
 	if expectedAttempts < 0 {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "attempt count is invalid")
 	}
 	return WithTx(ctx, r.store.db, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `UPDATE outbox_messages SET state='delivered', delivered_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), attempts=attempts+1 WHERE id=? AND state IN ('recorded','retryable') AND attempts=?`, id, expectedAttempts)
+		res, err := tx.ExecContext(ctx, `UPDATE outbox_messages SET state='delivered', delivered_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'), attempts=attempts+1 WHERE workspace_id=? AND id=? AND state IN ('recorded','retryable') AND attempts=?`, workspace, id, expectedAttempts)
 		if err != nil {
 			return err
 		}
-		return RequireAffected(res, "outbox message")
+		changed, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if changed == 1 {
+			return nil
+		}
+		var exists int
+		err = tx.QueryRowContext(ctx, `SELECT 1 FROM outbox_messages WHERE workspace_id=? AND id=?`, workspace, id).Scan(&exists)
+		if err == sql.ErrNoRows {
+			return platformerrors.New(platformerrors.CodeNotFound, "outbox message not found")
+		}
+		if err != nil {
+			return err
+		}
+		return platformerrors.New(platformerrors.CodeConflict, "outbox message is not deliverable at the expected attempt")
 	})
 }

@@ -55,4 +55,5 @@ type AuditReader interface {
 }
 type OutboxReader interface {
 	ListPending(context.Context, organizations.WorkspaceID, int) ([]outbox.Message, error)
+	MarkDelivered(context.Context, organizations.WorkspaceID, outbox.MessageID, int) error
 }
