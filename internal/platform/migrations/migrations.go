@@ -94,6 +94,10 @@ type Runner struct {
 	source      fs.FS
 	clock       platformclock.Clock
 	busyTimeout time.Duration
+
+	// afterLedgerRead is nil in production and only lets package tests hold two
+	// real runners at the empty-ledger race boundary.
+	afterLedgerRead func()
 }
 
 type migration struct {
@@ -166,13 +170,25 @@ func (r *Runner) Apply(ctx context.Context) error {
 	if err := validateLedger(ledger, migrations); err != nil {
 		return err
 	}
+	if r.afterLedgerRead != nil {
+		r.afterLedgerRead()
+	}
 
 	for _, next := range migrations {
 		if _, applied := ledger[next.version]; applied {
 			continue
 		}
-		if err := r.markDirty(ctx, conn, next); err != nil {
+		markedDirty, err := r.markDirty(ctx, conn, next)
+		if err != nil {
 			return err
+		}
+		if !markedDirty {
+			ledger[next.version] = ledgerEntry{
+				version:  next.version,
+				name:     next.name,
+				checksum: next.checksum,
+			}
+			continue
 		}
 		if err := r.applyOne(ctx, conn, next); err != nil {
 			return err
@@ -269,21 +285,47 @@ func (r *Runner) bootstrapLedger(ctx context.Context, conn *sql.Conn) error {
 	return commit(ctx, conn)
 }
 
-func (r *Runner) markDirty(ctx context.Context, conn *sql.Conn, item migration) error {
+func (r *Runner) markDirty(ctx context.Context, conn *sql.Conn, item migration) (bool, error) {
 	if err := beginImmediate(ctx, conn); err != nil {
-		return err
+		return false, err
 	}
 	_, err := conn.ExecContext(ctx, `
 INSERT INTO drift_schema_migrations (version, name, checksum, applied_at, dirty)
 VALUES (?, ?, ?, ?, 1)`, item.version, item.name, item.checksum, r.clock.Now().UTC().Format(time.RFC3339Nano))
-	if err != nil {
-		r.rollback(conn)
-		if isSQLiteConstraint(err) {
-			return platformerrors.Wrap(platformerrors.CodeMigrationDirty, "another migration attempt is already dirty", err)
-		}
-		return platformerrors.Wrap(platformerrors.CodeInternal, "mark migration dirty", err)
+	if err == nil {
+		return true, commit(ctx, conn)
 	}
-	return commit(ctx, conn)
+	if !isSQLiteConstraint(err) {
+		r.rollback(conn)
+		if ctxErr := contextError(ctx); ctxErr != nil {
+			return false, ctxErr
+		}
+		return false, platformerrors.Wrap(platformerrors.CodeInternal, "mark migration dirty", err)
+	}
+
+	entry, readErr := scanLedgerEntry(conn.QueryRowContext(ctx, `
+SELECT version, name, checksum, applied_at, dirty
+FROM drift_schema_migrations
+WHERE version = ?`, item.version))
+	if readErr != nil {
+		r.rollback(conn)
+		if ctxErr := contextError(ctx); ctxErr != nil {
+			return false, ctxErr
+		}
+		return false, platformerrors.Wrap(platformerrors.CodeInternal, "read migration after duplicate dirty marker", readErr)
+	}
+	if entry.dirty {
+		r.rollback(conn)
+		return false, platformerrors.Wrap(platformerrors.CodeMigrationDirty, "another migration attempt is already dirty", err)
+	}
+	if entry.name != item.name || entry.checksum != item.checksum {
+		r.rollback(conn)
+		return false, platformerrors.New(platformerrors.CodeMigrationChecksumMismatch, "applied migration version does not match its immutable file")
+	}
+	if err := commit(ctx, conn); err != nil {
+		return false, err
+	}
+	return false, nil
 }
 
 func (r *Runner) applyOne(ctx context.Context, conn *sql.Conn, item migration) error {
@@ -472,10 +514,15 @@ func contextError(ctx context.Context) error {
 	if ctx == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "migration context is required")
 	}
-	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("migration operation canceled: %w", err)
+	err := ctx.Err()
+	switch {
+	case stderrors.Is(err, context.Canceled):
+		return platformerrors.Wrap(platformerrors.CodeCanceled, "migration operation canceled", err)
+	case stderrors.Is(err, context.DeadlineExceeded):
+		return platformerrors.Wrap(platformerrors.CodeDeadlineExceeded, "migration operation deadline exceeded", err)
+	default:
+		return nil
 	}
-	return nil
 }
 
 func isSQLiteBusy(err error) bool {

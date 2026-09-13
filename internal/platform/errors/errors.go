@@ -16,6 +16,8 @@ const (
 	CodeConflict                  Code = "conflict"
 	CodeUnavailable               Code = "unavailable"
 	CodeTimeout                   Code = "timeout"
+	CodeCanceled                  Code = "canceled"
+	CodeDeadlineExceeded          Code = "deadline_exceeded"
 	CodePolicyDenied              Code = "policy_denied"
 	CodeLeaseConflict             Code = "lease_conflict"
 	CodeMigrationDirty            Code = "migration_dirty"

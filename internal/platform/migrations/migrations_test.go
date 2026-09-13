@@ -271,8 +271,45 @@ func TestApplyHonorsCanceledContextBeforeDatabaseWork(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := runner.Apply(ctx); !errors.Is(err, context.Canceled) {
+	err = runner.Apply(ctx)
+	if got := platformerrors.CodeOf(err); got != platformerrors.CodeCanceled {
+		t.Fatalf("CodeOf(Apply()) = %q, want %q (%v)", got, platformerrors.CodeCanceled, err)
+	}
+	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Apply() error = %v, want context.Canceled", err)
+	}
+}
+
+func TestApplyHonorsDeadlineContextBeforeDatabaseWork(t *testing.T) {
+	db := openSQLite(t)
+	runner, err := migrations.NewRunner(db, fstest.MapFS{
+		"0002_deadline.sql": &fstest.MapFile{Data: []byte("CREATE TABLE should_not_run (id INTEGER);\n")},
+	}, migrations.Options{})
+	if err != nil {
+		t.Fatalf("NewRunner() error = %v", err)
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	err = runner.Apply(ctx)
+	if got := platformerrors.CodeOf(err); got != platformerrors.CodeDeadlineExceeded {
+		t.Fatalf("CodeOf(Apply()) = %q, want %q (%v)", got, platformerrors.CodeDeadlineExceeded, err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Apply() error = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestApplyKeepsNilContextAsInvalidInput(t *testing.T) {
+	db := openSQLite(t)
+	runner, err := migrations.NewRunner(db, fstest.MapFS{
+		"0002_nil_context.sql": &fstest.MapFile{Data: []byte("CREATE TABLE should_not_run (id INTEGER);\n")},
+	}, migrations.Options{})
+	if err != nil {
+		t.Fatalf("NewRunner() error = %v", err)
+	}
+	err = runner.Apply(nil)
+	if got := platformerrors.CodeOf(err); got != platformerrors.CodeInvalidInput {
+		t.Fatalf("CodeOf(Apply(nil)) = %q, want %q (%v)", got, platformerrors.CodeInvalidInput, err)
 	}
 }
 
@@ -302,7 +339,7 @@ func TestApplyRejectsAppliedNameMutation(t *testing.T) {
 
 func openSQLite(t *testing.T) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite", t.TempDir()+"/test.db")
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}

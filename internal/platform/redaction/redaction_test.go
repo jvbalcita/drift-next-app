@@ -97,3 +97,17 @@ func TestRedactFieldsCopiesTypedNestedCollections(t *testing.T) {
 		t.Fatal("typed items input was mutated")
 	}
 }
+
+func TestRedactStringScrubsStructuredUnderscoreCredentialKeys(t *testing.T) {
+	input := `{"client_secret":"TEST_ONLY_CLIENT_SECRET_SENTINEL","access_token":"TEST_ONLY_ACCESS_TOKEN_SENTINEL","safe":"keep"}`
+	got := redaction.RedactString(input)
+	if strings.Contains(got, "TEST_ONLY_CLIENT_SECRET_SENTINEL") || strings.Contains(got, "TEST_ONLY_ACCESS_TOKEN_SENTINEL") {
+		t.Fatalf("structured credential values survived redaction: %s", got)
+	}
+	if !strings.Contains(got, `"client_secret":"[REDACTED]"`) || !strings.Contains(got, `"access_token":"[REDACTED]"`) {
+		t.Fatalf("structured credential keys were not replaced with valid JSON placeholders: %s", got)
+	}
+	if !strings.Contains(got, `"safe":"keep"`) {
+		t.Fatalf("safe structured value changed unexpectedly: %s", got)
+	}
+}
