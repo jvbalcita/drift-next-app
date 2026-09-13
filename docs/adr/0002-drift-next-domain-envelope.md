@@ -1,7 +1,7 @@
 # ADR-0002: Drift Next domain envelope
 
-- Status: Proposed
-- Date: 2026-09-13
+- Status: Accepted — owner-approved 2026-09-14
+- Date: 2026-09-13; approved 2026-09-14
 
 ## Context
 
@@ -67,12 +67,13 @@ The foundation excludes arbitrary shell execution; Android/ADB/scrcpy or device 
 - Phase 6 through Phase 8 may use deterministic fakes only until an independently authorized adapter gate is approved.
 - The first responsible vertical slice is more explicit than a CRUD-first model, but it provides durable safety and recovery boundaries for later work.
 
-## Unresolved decisions requiring explicit approval
+## Remaining decisions requiring later approval
 
-- The exact first low-risk action set beyond observe, health, and capture.
-- Network Profile range limits, permitted ports, and candidate-expiry duration.
-- The precise policy for high-risk mirror actions and the default mirror failure policy.
+- Network Profile range limits, permitted ports, and candidate-expiry duration before discovery implementation.
+- The precise policy for high-risk mirror actions before mutating mirror behavior.
 - The operator and authorization model required before a non-local or multi-workspace deployment.
+
+The owner-approved first low-risk action set is `observe`, `health_check`, and `capture`. Accounts remain metadata-only, the selective ARTEMIS boundary is recorded in ADR-0005, model assistance is bounded by ADR-0006, and documented retention classes are approved while exact durations remain an operational-policy decision.
 
 ## Validation
 
