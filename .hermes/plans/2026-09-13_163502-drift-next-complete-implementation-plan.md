@@ -2,15 +2,15 @@
 
 ## Delivery status
 
-**Last reconciled:** 2026-09-13
+**Last reconciled:** 2026-09-14
 **Status vocabulary:** `not started` = no phase deliverable verified; `in progress` = work has an owner but exit criteria are not met; `blocked` = an explicit prerequisite prevents work; `complete` = every phase exit criterion is independently verified. A baseline or a mock UI is not completion of a later control-plane phase.
 
 | Phase | Status | Verified evidence / remaining work |
 | --- | --- | --- |
-| P0 — scope, decisions, non-goals | in progress | Required artifacts merged through [PR #1](https://github.com/jvbalcita/drift-next-app/pull/1) at `f4fb96e`; GitHub frontend, Go, contract, and Tauri checks passed. Boss approval of the proposed Phase 0 decisions remains the final exit gate. |
+| P0 — scope, decisions, non-goals | complete | Owner approved the recommended Phase 0 defaults on 2026-09-14. ADR-0002/0003 are accepted; ADR-0005/0006 record the selective ARTEMIS and model-neutral AI boundaries; `CONTEXT.md` and the lifecycle model are aligned. |
 | P1 — build and migration discipline | complete | Repository-owned SQLite runner over pinned pure-Go `modernc.org/sqlite v1.58.0`, immutable checksums, `BEGIN IMMEDIATE` locking, durable dirty-state refusal/repair, deterministic clock/ID seams, typed errors, redaction, reproducible generation checking, secret scan, and CI gates merged through [PR #4](https://github.com/jvbalcita/drift-next-app/pull/4) at `9b00f3a`. All five GitHub checks and post-merge local gates passed. Boss authorized the merge while Sentinel's exact-head review was pending; that is an owner override, not reviewer approval. A subprocess-kill crash harness remains a follow-up limitation. |
-| P2 — domain vocabulary and state machines | not started | No domain model/state-machine package or transition test is present. |
-| P3 — normalized SQLite schema and harness | not started | `0001_initial.sql` is a bootstrap sketch only; the required SQLite migration series and integration harness are absent. |
+| P2 — domain vocabulary and state machines | complete | Typed domain models for the reviewed resources, lifecycle vocabulary, failure classes, action risk/retry policy, and table-driven legal/illegal transition tests are present under `internal/`. |
+| P3 — normalized SQLite schema and harness | complete | Immutable SQLite migrations `0002`–`0009`, embedded migration input, and integration tests cover fresh/incremental apply, the intentional PostgreSQL `0001` rejection boundary, dirty state, restore, workspace isolation, cardinality, mirror targets, retirement, idempotency/outbox atomicity, and secret-bearing fixture rejection. |
 | P4 — repositories and transaction services | not started | No typed SQLite repository/service boundary has been verified. |
 | P5 — protobuf/Connect resource contracts | not started | Bootstrap device protobuf exists; versioned resource contracts and handlers are not implemented. |
 | P6 — mock registry and discovery | not started | Console mock data is not a registry/discovery implementation. |
@@ -18,11 +18,12 @@
 | P8 — fake edge/device actors | not started | No deterministic fake edge agent or serialized per-device actor is implemented. |
 | P9 — observations/inventory/health/events/artifacts | not started | UI sample telemetry is presentation data, not persisted operational state. |
 | P10 — workflows/runs/replay evidence | not started | No versioned workflow, target-set, per-target run, or evidence execution model is implemented. |
+| P10.5 — Android interaction recorder and skill compiler | not started | The owner-approved recorder direction is specified, but no recording session/event domain, evidence capture pipeline, reviewed skill promotion, or fake-device replay implementation exists. |
 | P11 — typed console integration | not started | The current console is a mock/read-only prototype; it has no typed control-plane integration. |
 | P12 — accounts/settings/policy UX | not started | No bounded domain implementation is present. |
-| P13 — one-device adapter spike | blocked | Requires completion of the preceding safety/fake-runtime gates and a separate explicit authorization; no device operations are authorized. |
-| P14 — registration/runtime spool | not started | Depends on P13 evidence. |
-| P15 — artifacts/media transport | not started | Depends on P9/P10 and explicit transport design. |
+| P13 — one-device adapter spike | blocked | Requires completion of the preceding safety/fake-runtime and recorder/skill gates, plus a separate explicit authorization; no device operations are authorized. |
+| P14 — registration/runtime spool | not started | Depends on P13 adapter evidence and explicit onboarding/port-provisioning approval. |
+| P15 — artifacts/media transport | not started | Depends on P9/P10/P10.5 and explicit transport design. |
 | P16 — production hardening | not started | Deferred until a local runtime exists and its realistic risks can be measured. |
 | P17 — sanitized legacy parity/migration | not started | Deferred until the new normalized runtime is viable. |
 | P18 — scale/scheduling/AI/packaging | not started | Deferred until lower phases have evidence. |
@@ -35,6 +36,7 @@
 - [x] Define source control with multiple/all eligible mirror followers and independent per-target outcomes.
 - [x] Define multi-device workflow/skill targeting and target-set snapshots.
 - [x] Establish the metadata-only account boundary, scoped settings, retention classes, and excluded capabilities.
+- [x] Owner-approve the recommended defaults while leaving exact retention durations, helper threat-model details, and real-adapter authorization as later gates.
 
 > **Implementation discipline:** Use the available test-driven-development and engineering-gate-discipline skills for every behavior-changing slice. Each phase gate requires independently verified evidence before the next phase begins.
 
@@ -62,6 +64,7 @@
 - Device identity separate from mutable ADB/network endpoint identity.
 - Deterministic typed actions, observations, postconditions, leases, fencing, audit, and evidence.
 - Official ADB/Platform-Tools and scrcpy as the initial real adapter boundary after the lab gate.
+- Android interaction recording as a first-class input to versioned deterministic skills: device-authoritative state, logical events, raw and annotated evidence, review, redaction, and replay.
 - Existing Swiss Editorial Operations console shell; do not restart visual work while the domain foundation is being built.
 
 ### Change from the earlier phase order
@@ -71,7 +74,127 @@
 - Add Network Profiles, scan runs, candidates, approval decisions, registration events, groups, assignment history, inventory, health, observations, accounts, settings, policies, and outbox as explicit domains.
 - Make scan discovery non-authoritative until a separate approval/registration transition succeeds.
 - Keep account workbook/Drive access, credential handling, LLM runtime, proxy rotation, anti-detect identity mutation, NATS, SFU/WebRTC production media, and broad scheduling outside the foundation gate.
+- Treat recorded Android demonstrations as evidence first and executable automation only after normalization, review, capability/policy validation, versioning, and fake-device replay; do not make runtime AI a prerequisite for deterministic skills.
 - Use vertical slices that each produce a durable behavior and tests instead of adding every future table or page at once.
+
+---
+
+## 2a. Owner-approved Android interaction recorder and deterministic skill direction
+
+The Android Automation Interaction Recorder specification (Version 4, supplied by Boss on 2026-09-14) is adopted as a product direction for Drift Next. Its functional model is authoritative; its standalone Python/Tkinter/Appium/SQLite implementation is not. Drift Next keeps the Go local service, typed Connect boundary, React/Tauri console, SQLite WAL metadata store, and content-addressed artifact store defined above.
+
+### Product purpose
+
+The recorder captures a human demonstration once, preserves enough evidence to understand what happened, and produces a reviewed, versioned skill that Hermes can execute deterministically without requiring an LLM at runtime. AI/Vision may later help interpret or propose a normalized step, but it is never allowed to bypass validation, policy, leases, redaction, audit, or postcondition checks.
+
+### Source of truth and storage
+
+- The Android device is the preferred source for screenshots, UI hierarchy, package/activity, device state, display geometry, and touch coordinates whenever reliable device-side capture is available.
+- The PC mirror is a manual control and display surface, not the authoritative Android coordinate system. PC-to-device mapping is an isolated fallback when device-side input capture is unavailable.
+- SQLite stores bounded, queryable session/event metadata and relative artifact references. Raw screenshots, annotated screenshots, UI trees, logs, and other large evidence remain in the application-managed content-addressed artifact store, with hashes, retention, authorization, and audit metadata in SQLite.
+- Raw evidence is immutable. An annotated screenshot is a separate review artifact and must never overwrite the untouched Android screenshot.
+
+### Event model
+
+The durable hierarchy is `Automation → Recording Session → ordered logical Interaction Event`. Each logical event is a state transition:
+
+```text
+BEFORE state → ACTION → AFTER state
+```
+
+Each event should preserve, when available:
+
+- raw Android screenshot and separate annotated review screenshot;
+- Android UI hierarchy/page source;
+- package and activity before and after;
+- Android coordinate or gesture path, with optional mirror coordinates as diagnostics;
+- target metadata: resource ID, content description, text, class, bounds, clickable/enabled/selected/checked state, source, and confidence;
+- timestamps, duration, sequence, capture errors, and correlation/session identity.
+
+The schema must support meaningful logical actions rather than one row per input primitive: `TAP`, `DOUBLE_TAP`, `LONG_PRESS`, `TEXT_INPUT`, `TEXT_DELETE`, `CLEAR`, `SWIPE`, `SCROLL`, `DRAG`, `BACK`, `HOME`, `ENTER`, `KEY_EVENT`, and optional `UI_CHANGE`/`STATE_CHANGE`. Typing is grouped into one logical `TEXT_INPUT`; gestures retain start/end coordinates and duration.
+
+### Capture and review rules
+
+- Maintain the most recent valid Android state as the candidate BEFORE state, capture the resulting AFTER state, and allow stability timing to be configurable rather than assuming one universal delay.
+- Capture first and interpret later: failure to obtain optional UI metadata or annotation must not discard the action, coordinates, timestamps, screenshots, or other available evidence.
+- Sensitive input is redacted before persistence, logging, annotation, review display, or promotion. Password values and uncertain-sensitive fields are never stored in plaintext; the safe representation is a null secret value plus `[REDACTED]` display metadata.
+- Only one active recording session is permitted per local installation in the initial slice. Stop/save, discard, and confirmed completed-session deletion must have explicit lifecycle and artifact-cleanup semantics; discarded session numbers are never reused.
+- A worker/queue boundary keeps screenshot, UI-tree, filesystem, and database work out of the UI/input callback path. Shutdown must preserve partial events and cleanly close pending work.
+
+### From recording to a Hermes skill
+
+Recording is not automatically executable. The reviewed promotion path is:
+
+```text
+raw input → logical event grouping → state/evidence enrichment
+          → semantic-step normalization → human review/redaction
+          → capability/policy validation → immutable skill version
+          → fake-device replay → Hermes deterministic execution
+```
+
+Replay resolution is attempted in this order: resource ID, accessibility/content description, stable text, UI hierarchy/context, approved vision interpretation, then Android coordinates as a constrained fallback. A recorded coordinate or target must never authorize an action by itself. Every replayed action still requires the current observation, capability/policy decision, lease/fencing token, idempotency key, timeout, postcondition, evidence, and cleanup defined by P7/P10.
+
+The shared skill package must declare its version, compatibility, typed steps, requested capabilities, fixtures, risk/retry class, trust/approval state, and rollback/version history. The shared brain is a separate validated knowledge layer for screen signatures, target aliases, compatibility, and recovery patterns; failed or unreviewed recordings do not become fleet-wide behavior automatically.
+
+### Phase placement and acceptance path
+
+- P9 owns normalized observations and evidence metadata.
+- P10 owns logical event-to-workflow normalization, immutable skill versions, replay metadata, fake-device replay, and durable run evidence.
+- P10.5 owns the recorder session/event lifecycle, logical input grouping, BEFORE/ACTION/AFTER capture pipeline, raw/annotated evidence association, review/redaction, and recording-to-skill compilation against fake sources. It is a dedicated gate, not a patch to a completed phase.
+- P13 owns the real Android/ADB/UIAutomator source adapter and explicit onboarding/port-provisioning authorization.
+- P15 owns raw/annotated screenshot, UI-tree, and recording artifact storage plus authorized review/media access.
+
+The recorder direction does not relax the real-device gate. The first end-to-end acceptance path is: pair/register one authorized lab device; capture a sanitized demonstration; review and promote it to a typed skill; replay it on fake devices; then execute it on the lab device only after the P13 adapter gate and Sentinel review. The system must preserve evidence and fail closed when target resolution, app identity, sensitivity, policy, or postconditions are ambiguous.
+
+### Remaining explicit requirements from the capability review
+
+The following requirements are now part of the planned direction and must be specified before their implementation phase begins. They are not claims about current implementation:
+
+- **Android onboarding and port provisioning:** Define USB discovery, wireless-debugging pairing, ADB server ownership, platform-tools version checks, device authorization prompts, port exposure/firewall policy, connect/disconnect/reconnect behavior, endpoint ownership, and operator-visible confirmation. Enabling an ADB network port is a controlled provisioning action, never an implicit side effect of discovery.
+- **Typed Android action catalog:** Define the first supported action set, capability negotiation, command/result envelopes, preconditions, postconditions, risk levels, retry classes, evidence requirements, and whether each action is allowed for manual control, deterministic workflows, mirroring, or recorder capture. “Send commands” means typed allow-listed intents by default; any future diagnostic command surface requires a separate authorization and audit contract and never arbitrary shell interpolation.
+- **Hermes execution boundary:** Define the Go-service handoff, skill import/export/package format, shared-brain references, compatibility fixtures, trust/approval states, version promotion, rollback, and deterministic replay contract. Hermes executes validated skills; it does not receive direct database, filesystem, ADB, credential, or arbitrary-shell access.
+- **Logical agent identity:** Define versioned personality/profile, goals, rules, memory, capabilities, assignment precedence, retention/isolation, and multi-device coordination semantics. Personality may guide optional reasoning and operator presentation but cannot bypass deterministic workflow, policy, lease, fencing, audit, or redaction controls.
+- **Automation lifecycle:** Define manual approval, schedules/intervals, device/event triggers, workflow dependencies, pause/resume/cancel, retry and concurrency budgets, missed-run behavior, restart recovery, and per-device outcomes. Broad scheduling remains deferred until its phase and safety requirements are specified.
+- **Replay drift and recovery:** Define app/version compatibility, foreground-package/activity validation, permission-dialog handling, locator repair policy, semantic-target fallback, coordinate fallback constraints, sensitive-input handling, and human confirmation for irreversible steps. An ambiguous or stale target fails closed.
+
+These requirements are part of the P0 decision envelope and are mapped to P2/P7/P10/P10.5/P11/P13/P14/P15/P18 as appropriate. They do not authorize real Android operations; the existing fake-runtime and explicit lab-adapter gates remain mandatory.
+
+## 2b. Approved ARTEMIS-derived Android edge and perception direction
+
+The read-only assessment at `.hermes/plans/2026-09-14_drift-next-artemis-integration-assessment.md` is accepted as architecture input for Drift Next. The decision is **selective adaptation, not wholesale integration**. ARTEMIS may contribute reviewed helper/protocol and observation/perception concepts, but Drift Next remains the authority for persistence, authorization, leases/fencing, idempotency, workflows, audit/outbox, multi-device execution, artifacts, and operator control.
+
+### Adopt as Drift-owned contracts and behavior
+
+- Use an `ObservationSnapshot` model containing capture time, explicit coordinate/display space, package/activity, orientation/dimensions, UI-tree and screenshot hashes, source/protocol/model versions, truncation/error state, and safe artifact references.
+- Use typed `ActionIntent`, `ActionAttempt`, `ActionResult`, `CapabilitySet`, and `OperationStatus` values with stable failure codes, retryability, operation/idempotency IDs, lease/fence metadata, postcondition status, and safe diagnostic references.
+- Use exact-first, XML/accessibility-first semantic target resolution with source provenance, actionable/enabled/bounds checks, ambiguity and stale-observation failures, and constrained coordinate fallback only when policy permits.
+- Keep one serialized actor/action queue per device and distinguish observation failure, action failure, transport failure, and indeterminate action completion. An uncertain transport result is reconciled by fresh observation or explicit operator decision; it is never timeout-retried blindly.
+- Preserve atomic-capture semantics as a consistency contract: screenshot and hierarchy references must record capture correlation, time/skew, hashes, truncation, and partial failure rather than claiming stronger atomicity than the adapter proves.
+- Adapt readiness/doctor diagnostics as non-mutating reports. Suggestions are data; installation, repair, helper enablement, and device changes require separate explicit approval.
+
+### Do not adopt as Drift Next foundations
+
+- Do not import ARTEMIS’s Python application, database/DataEngine, daemon, scheduler, LangGraph/LangChain runtime, provider router, Angular console, global installer, or cloud deployment.
+- Do not add a mandatory Python dependency, `artemis-client`, MCP server, VLM, Gemini/other model provider, or sidecar during foundation phases. A future AI/provider decision is separate from this ARTEMIS decision and remains evidence-gated in P18.
+- Do not use ARTEMIS status files, lock files, traces, database rows, model output, or helper tokens as canonical control-plane authority. The helper token authenticates helper traffic; it is not a Drift lease/fencing token.
+- Do not import raw ADB shell, `global`, clipboard, arbitrary coordinates, automatic package installation/uninstallation, shell notifications, raw credential diagnostics, or debug signing keys.
+- Do not inherit ARTEMIS fail-open behavior. Pixel/model uncertainty, lock timeout, missing evidence, stale targets, and indeterminate action completion must block or remain explicitly inconclusive.
+
+### Phase ownership and gates
+
+| Existing phase | ARTEMIS-derived addition | Required gate |
+|---|---|---|
+| P0 | Record the boundary, source revision/provenance, ownership, replacement path, and no-runtime-dependency decision in an ADR. | Boss decision plus legal/security/provenance scope is explicit; no code acquisition is implied. |
+| P5 | Define Drift-owned observation/action/capability/operation contracts and helper protocol versioning. | Buf compatibility tests cover coordinate space, additive evolution, unknown/indeterminate outcomes, and secret-safe errors. |
+| P7 | Add action manifests, capability negotiation, invocation surfaces, risk classes, and safety preconditions/postconditions. | Manual, recorder, replay, mirror, and future AI surfaces cannot bypass policy, lease/fence, idempotency, audit, or evidence. |
+| P8 | Extend the fake actor with scripted hierarchy/OCR/screenshot sources, transport loss, and indeterminate completion. | Fake tests prove no blind replay after uncertain transport and no direct UI/device bypass. |
+| P9 | Normalize snapshot metadata, provenance, freshness, semantic target candidates, and sanitized XML/OCR/pixel fixtures. | Missing, stale, shifted, occupied, ambiguous, wrong-package, and capture-partial cases are queryable and fail safely. |
+| P10/P10.5 | Use the observation/target contract for deterministic replay, recorder evidence, redaction, skill compilation, and review. | Skills cannot promote raw coordinates, credentials, ambiguous targets, or unreviewed model suggestions. |
+| P13/P14 | Compare built-in ADB/UIAutomator with an optional ARTEMIS-derived helper; validate token, consent, transport, API-level, port, lifecycle, signing, and rollback behavior on one authorized lab target only. | No helper is made primary by assumption; helper adoption requires measured capability gain, Sentinel review, and explicit Boss authorization. |
+| P15/P16 | Store redacted evidence in Drift CAS with retention/access audit; add provenance, SBOM/CVE, artifact-signing, diagnostics, backup, and recovery controls. | Sensitive evidence is rejected before CAS admission; copied code and binaries are reproducible, attributable, signed, and rollback-capable. |
+| P18 | Consider an optional SDK/MCP/sidecar or AI/VLM assistance only after the native Go path is proven and a product gap is measured. | Optional integrations are failure-isolated, do not own state or scheduling, and have their own security, cost, privacy, rollback, and go/no-go review. |
+
+The assessment is a historical read-only snapshot at Drift Next `79e8f9b`; the current canonical repository is later than that snapshot. Refresh upstream revision, dependency, license, and compatibility evidence before copying any source or installing any artifact. The assessment’s test counts and AndroidWorld claim are research context, not Drift Next acceptance evidence.
 
 ---
 
@@ -139,6 +262,8 @@ P9  observations, inventory, health, events, artifacts metadata
  ↓
 P10 workflow versions, runs, steps, replay evidence
  ↓
+P10.5 Android interaction recorder, review, and skill compiler
+ ↓
 P11 console typed integration and domain CRUD
  ↓
 P12 accounts/settings/policy UX boundaries (no external connector)
@@ -170,6 +295,8 @@ The first meaningful vertical slice is **P0–P8**, not a real device. Its defin
 
 - Create: `docs/adr/0002-drift-next-domain-envelope.md`
 - Create: `docs/adr/0003-local-storage-and-migration.md`
+- Create: `docs/adr/0005-artemis-derived-edge-boundary.md`
+- Create: `docs/adr/0006-ai-assistance-boundary.md`
 - Create: `docs/domain/resource-lifecycle.md`
 - Modify: `README.md` (current scope and phase-gate reference)
 
@@ -187,6 +314,9 @@ The first meaningful vertical slice is **P0–P8**, not a real device. Its defin
 10. Define setting scopes: workspace/control-plane, edge-host, device, automation-agent, and operator preference; secrets stay outside ordinary rows.
 11. Define retention classes for health, inventory, observations, artifacts, run events, mirror sessions, and audit records.
 12. Record explicitly excluded capabilities: proxies, anti-detect identity mutation, arbitrary shell, CAPTCHA bypass, public-engagement automation, and unbounded LLM execution.
+13. Record the selective ARTEMIS boundary in `docs/adr/0005-artemis-derived-edge-boundary.md`: Drift-owned contracts and authority, no mandatory ARTEMIS/Python runtime, helper ownership/replacement path, pinned-source/provenance requirements, and P13/P14 adapter-gate conditions.
+14. Define the unresolved helper threat-model decisions before P13: AccessibilityService consent/privilege, exported components and token permissions, token lifecycle, ADB-forward exposure, API-level support, process death, signer ownership, and rollback.
+15. Record the model-neutral AI boundary in `docs/adr/0006-ai-assistance-boundary.md`: deterministic operation without AI, sanitized typed suggestions only, provider/model ownership, no direct device or data authority, evaluation gates, privacy/cost limits, disablement, and rollback.
 
 **Exit criteria:** ADRs are approved by Boss; unresolved choices are labelled rather than silently assumed; no implementation phase begins with a hidden cardinality or data-retention decision.
 
@@ -254,6 +384,7 @@ git diff --check
 - Create: `internal/discovery/model.go`
 - Create: `internal/groups/model.go`
 - Create: `internal/assignments/model.go`
+- Create: `internal/automationagents/model.go`
 - Create: `internal/leases/model.go`
 - Create: `internal/observations/model.go`
 - Create: `internal/runs/model.go`
@@ -261,6 +392,13 @@ git diff --check
 - Create: `internal/settings/model.go`
 - Create: `internal/policies/model.go`
 - Create: `internal/events/model.go`
+- Create: `internal/domain/state_machines_test.go`
+- Create: `internal/mirrors/model.go`
+- Create: `internal/artifacts/model.go`
+- Create: `internal/recordings/model.go`
+- Create: `internal/skills/model.go`
+- Create: `internal/packages/model.go`
+- Create: `internal/automationagents/state_machine_test.go`
 - Create: `internal/domain/failure.go` only if a genuinely shared failure value is needed; avoid a generic domain dumping ground.
 
 **Tasks:**
@@ -270,8 +408,9 @@ git diff --check
 3. Define failure classifications: `device_offline`, `agent_unhealthy`, `lease_conflict`, `timeout`, `unknown_screen`, `postcondition_failed`, `policy_denied`, `operator_cancelled`, `cleanup_failed`, and infrastructure-specific errors.
 4. Define current projection versus append history for each resource.
 5. Define action risk classes and which actions may be retried, retried only after verification, or never blindly retried.
-6. Define event names, schema versions, correlation IDs, causation IDs, idempotency keys, and actor/source metadata.
-7. Add table-driven transition tests and invalid-transition tests before SQL or transport code.
+6. Define versioned logical automation-agent profiles, including personality, goals, rules, capabilities, memory scope/retention, assignment precedence, and multi-device coordination behavior.
+7. Define event names, schema versions, correlation IDs, causation IDs, idempotency keys, and actor/source metadata.
+8. Add table-driven transition tests and invalid-transition tests before SQL or transport code.
 
 **Exit criteria:** Every phase-3 table has an owning state machine and every safety-relevant transition has a failure outcome; unknown/ambiguous states fail closed.
 
@@ -292,6 +431,7 @@ git diff --check
 - Create: `db/migrations/0007_leases_sessions_mirrors_workflows_runs.sql`
 - Create: `db/migrations/0008_accounts_sources_service_states.sql`
 - Create: `db/migrations/0009_settings_policies_artifacts_outbox_packages.sql`
+- Create: `db/migrations/sqlite_files.go`
 - Create: `db/migrations/0010_indexes_constraints_and_retention.sql` only if measured/verified separation is useful.
 - Create: `db/migrations/integration_test.go` or the repository’s chosen integration-test location.
 - Create: `db/sqlc.yaml` if typed SQL generation remains the best fit for SQLite.
@@ -303,12 +443,12 @@ git diff --check
 2. Edge/local runtimes, capabilities, enrollment/lifecycle, and heartbeats.
 3. Devices, endpoint history, runtime bindings, current inventory, inventory snapshots, health samples, and device capabilities.
 4. Network Profiles, scan runs, scan candidates, approval decisions, and registration events.
-5. Device groups, membership history, order positions, logical automation agents, capabilities/rules/goals/memory, and many-device assignments.
+5. Device groups, membership history, order positions, logical automation agents, versioned personality profiles, capabilities/rules/goals/memory with retention/isolation, and many-device assignments.
 6. Control sessions, per-device leases, lease events, fencing tokens, and idempotency records.
 7. Workflows, immutable versions, typed steps, parent runs, target-set snapshots, per-device target executions, action attempts, observations, and run/mirror events.
 8. Mirror sessions, source device, follower targets, per-target lease/result state, action fan-out batches, and failure policy.
 9. Account sources, non-secret accounts, service states, runs, account-device assignments, and sync events.
-10. Settings, policies, policy decisions, local artifact metadata, operational events, audit events, package manifests, and local outbox.
+10. Settings, policies, policy decisions, local artifact metadata, recording sessions/events, versioned skills and promotion/trust state, validated shared-brain knowledge references, operational events, audit events, package manifests, and local outbox.
 
 **Constraint requirements:**
 
@@ -326,7 +466,7 @@ git diff --check
 **Migration tests:**
 
 1. Apply all migrations to an empty SQLite workspace.
-2. Apply each migration incrementally from `0001` and verify the upgrade path.
+2. Verify the historical PostgreSQL `0001` boundary, then apply each SQLite migration incrementally from `0002` and verify the upgrade path.
 3. Simulate an interrupted/dirty migration and verify refusal/recovery behavior.
 4. Verify foreign-key enforcement and cross-workspace rejection.
 5. Verify active-row uniqueness under concurrent local-service calls.
@@ -393,11 +533,16 @@ git diff --check
 - Create: `proto/drift/v1/lease.proto`
 - Create: `proto/drift/v1/workflow.proto`
 - Create: `proto/drift/v1/run.proto`
+- Create: `proto/drift/v1/action.proto`
+- Create: `proto/drift/v1/automation_agent.proto`
 - Create: `proto/drift/v1/observation.proto`
 - Create: `proto/drift/v1/event.proto`
+- Create: `proto/drift/v1/recording.proto`
+- Create: `proto/drift/v1/skill.proto`
 - Create: `proto/drift/v1/account.proto`
 - Create: `proto/drift/v1/settings.proto`
 - Create: `proto/drift/v1/policy.proto`
+- Create: `proto/drift/v1/assistance.proto`
 - Create: `internal/transport/connect/` handlers and adapters.
 - Create: `apps/console/src/lib/api/` client seam only after generated client review.
 
@@ -409,6 +554,14 @@ git diff --check
 - Device, edge-agent, lease, workflow, and account states are distinct message fields.
 - Error responses map typed failure classifications without leaking secrets or raw subprocess output.
 - No raw ADB serial endpoint grants authority by itself.
+- Hermes invokes validated workflow/skill intents through the local service boundary; it has no direct database, filesystem, ADB, credential, or arbitrary-shell access.
+- Action, recording, skill, and logical-agent contracts carry explicit version, capability, trust/approval, and compatibility semantics.
+- Observation snapshots carry explicit coordinate/display space, capture correlation/time skew, source/protocol/model versions, truncation, partial-capture state, freshness, and safe artifact references; they do not claim adapter guarantees they cannot prove.
+- Action outcomes distinguish protocol, observation, action, transport, and indeterminate-completion failures; unknown and indeterminate outcomes are representable and never silently converted to success.
+- Any helper-local session token is separate from the control-plane lease/fencing token, and helper protocol/version negotiation does not grant authorization.
+- Optional AI assistance uses a model-neutral contract: requests reference bounded, sanitized observations/artifacts; responses are typed suggestions with model/provider/version, prompt-template version, confidence/uncertainty, evidence, expiry, and disposition metadata.
+- AI/provider contracts have no device-action, database, filesystem, credential, arbitrary-shell, or silent-approval capability; provider failures are typed and deterministic execution remains possible without a model.
+- Model output and untrusted UI text are data, not instructions; schema validation, size limits, redaction, policy, audit, and human review apply before any suggestion can be considered.
 - No arbitrary shell, credentials, natural-language action, or provider-specific social command exists in the foundation contract.
 
 **Verification:**
@@ -421,7 +574,9 @@ buf generate
 
 Add compatibility tests for additive field evolution and generated Go/TypeScript client drift.
 
-**Exit criteria:** Contract review approves resource/cardinality/error semantics; generated code is reproducible; no UI or edge implementation bypasses the contract.
+Add assistance-contract tests proving bounded sanitized input references, typed suggestion kinds, model/provider/prompt provenance, uncertainty and expiry, typed provider failures, schema/size rejection, and absence of device/database/filesystem/credential/shell authority.
+
+**Exit criteria:** Contract review approves resource/cardinality/error semantics; generated code is reproducible; no UI or edge implementation bypasses the contract; deterministic operation has no provider dependency.
 
 ---
 
@@ -478,6 +633,10 @@ create/update Network Profile
 - Modify/create: `internal/outbox/*`
 - Create: `internal/leases/concurrency_test.go`
 - Create: `internal/action/idempotency_test.go`
+- Create: `internal/action/catalog.go`
+- Create: `internal/action/target_validation.go`
+- Create: `internal/action/catalog_test.go`
+- Create: `internal/action/uncertain_completion_test.go`
 - Create: `internal/policies/decision_test.go`
 
 **Required guarantees:**
@@ -492,10 +651,14 @@ create/update Network Profile
 8. Every action has timeout, retry class, precondition, postcondition, and cleanup semantics.
 9. Ambiguous/unknown targets fail closed.
 10. State mutation, audit event, and outbox message commit atomically.
+11. The typed action catalog declares supported operations, capability requirements, preconditions, postconditions, risk level, retry class, evidence requirements, and allowed invocation surfaces; it is not a raw-command channel.
+12. Capability negotiation is explicit and fail-closed: unavailable actions are not advertised as executable, and helper protocol/version compatibility never grants permission.
+13. Actions that may affect clipboard, text input, accessibility enablement, or irreversible state have explicit invocation-surface and approval rules for manual control, recording, replay, mirroring, and future AI suggestions.
+14. Transport loss after dispatch produces an indeterminate action outcome that requires reconciliation; timeout alone cannot authorize retry or success.
 
-**Concurrency verification:** Run two callers against one mock device and prove one receives a typed `lease_conflict`; attempt stale-token dispatch and stale-token completion; expire a lease while work is pending; replay a duplicate delivery.
+**Concurrency verification:** Run two callers against one mock device and prove one receives a typed `lease_conflict`; attempt stale-token dispatch and stale-token completion; expire a lease while work is pending; replay a duplicate delivery; lose transport after dispatch and prove the result remains indeterminate until observation or operator confirmation.
 
-**Exit criteria:** Safety properties pass under concurrent tests without a process-local mutex being the only protection.
+**Exit criteria:** Safety properties pass under concurrent tests without a process-local mutex being the only protection; capability and invocation-surface checks reject unsupported or unauthorized action paths.
 
 ### Multi-device control semantics
 
@@ -554,9 +717,10 @@ A logical automation agent may have many active device assignments. The safe def
 4. Create a fake mirror session with one source and multiple/all eligible followers, acquiring independent per-device lease/fencing tokens.
 5. Accept only typed authorized intents with lease/fencing/idempotency metadata.
 6. Simulate observe, health, capture, and one low-risk action.
-7. Simulate source-action fan-out with per-follower success, timeout, offline, incompatibility, policy denial, and target-resolution failure.
-8. Simulate timeout, disconnect, postcondition failure, cancellation, duplicate delivery, actor restart, and cleanup failure on both single-target and multi-target runs.
-9. Persist results and events through the control plane; never let the browser call the fake adapter directly.
+7. Serve scripted sanitized XML/accessibility, OCR, screenshot, and partial-capture outcomes so target resolution can be tested without Android.
+8. Simulate source-action fan-out with per-follower success, timeout, offline, incompatibility, policy denial, and target-resolution failure.
+9. Simulate timeout, disconnect, transport loss after dispatch, indeterminate completion, postcondition failure, cancellation, duplicate delivery, actor restart, and cleanup failure on both single-target and multi-target runs.
+10. Persist results and events through the control plane; never let the browser call the fake adapter directly.
 
 **Exit criteria:** The P0–P8 vertical slice is demonstrable end-to-end with no Android process, ADB dependency, credential path, or production data.
 
@@ -573,7 +737,10 @@ A logical automation agent may have many active device assignments. The safe def
 - Create/modify: `internal/health/*`
 - Create/modify: `internal/events/*`
 - Create/modify: `internal/artifacts/*`
+- Create: `internal/observations/snapshot.go`
+- Create: `internal/observations/target_index.go`
 - Create: sanitized fixtures under `tests/fixtures/observations/`.
+- Create: sanitized model-evaluation fixtures under `tests/fixtures/ai-assistance/`.
 
 **Tasks:**
 
@@ -582,10 +749,13 @@ A logical automation agent may have many active device assignments. The safe def
 3. Store health samples append-only and define retention/index strategy.
 4. Keep operational device events separate from security/audit events.
 5. Add artifact metadata, hash, size, retention, and authorization fields without storing blobs yet.
-6. Add fake screenshot/UI-tree fixtures with all sensitive values redacted.
-7. Add query projections for current state and historical timelines.
+6. Normalize `ObservationSnapshot` metadata: package/activity, orientation/dimensions, explicit coordinate space, capture correlation/time skew, source/protocol/model versions, truncation, partial-capture errors, freshness, and safe artifact references.
+7. Build an exact-first XML/accessibility and OCR target index that preserves source provenance, bounds, resource identifiers, class, actionable/enabled/editable state, and ambiguity rather than silently selecting a fuzzy match.
+8. Add fake screenshot/UI-tree/OCR/pixel fixtures for missing, stale, shifted, occupied, wrong-package, ambiguous, and partial capture cases; redact before persistence and CAS admission.
+9. Add query projections for current state and historical timelines.
+10. Add sanitized AI-evaluation fixtures for run explanation, failure clustering, unknown-screen summaries, UI-drift reports, semantic locator proposals, malformed output, prompt-injection text, sensitive screens, stale targets, and expected abstention; do not call a real model in this phase.
 
-**Exit criteria:** The system can explain a simulated action from observation through postcondition and evidence; retention and redaction rules are testable.
+**Exit criteria:** The system can explain a simulated action from observation through postcondition and evidence; snapshot consistency, partial capture, target ambiguity, retention, redaction, and model-evaluation fixture safety are testable.
 
 ---
 
@@ -608,14 +778,80 @@ A logical automation agent may have many active device assignments. The safe def
 2. Model parent runs, target-set snapshots, and independent per-device target executions; a workflow/skill is not limited to one device.
 3. Resolve targets from explicit selections, groups, automation-agent assignments, or approved capability selectors at run creation by default; do not silently add devices after start.
 4. Implement a bounded concurrency policy so all eligible assigned devices can run without overwhelming the local host.
-5. Implement per-target preconditions, semantic targets, bounded locators, timeouts, retries, postconditions, evidence requirements, and cancellation.
-6. Distinguish safe observation retries from actions requiring verification and actions that must never be blindly retried.
+5. Implement per-target preconditions, fresh observation requirements, exact-first semantic targets, bounded locators, explicit coordinate space, timeouts, retries, postconditions, evidence requirements, and cancellation.
+6. Distinguish safe observation retries from actions requiring verification and actions that must never be blindly retried; transport loss after dispatch remains indeterminate until reconciliation.
 7. Persist action attempts with sequence/fencing/idempotency data for every target.
 8. Implement conditional branches that stop on unknown/ambiguous screens.
-9. Add replay metadata and fixture-driven tests; do not copy unsafe coordinate/credential behavior automatically.
-10. Keep AI output, if any, as a typed candidate suggestion requiring normal validation/policy; no runtime LLM execution.
+9. Add replay metadata and fixture-driven tests for hierarchy/OCR/pixel provenance, capture partials, stale observations, and target shifts; do not copy unsafe coordinate/credential behavior automatically.
+10. Keep AI output, if any, as a bounded, schema-validated typed candidate suggestion with model/provider/prompt provenance, confidence/uncertainty, evidence, expiry, and disposition; it never directly executes, approves, mutates, or selects an action. Deterministic execution must remain complete when no model is available.
+11. Define deterministic run lifecycle for manual approval, pause/resume/cancel, restart recovery, retry/concurrency budgets, and per-target outcomes; schedule and device-event triggers remain P18 work.
+12. Define replay compatibility gates for foreground package/activity, app/version identity, permission dialogs, stale/ambiguous targets, locator repair, and irreversible-step confirmation.
+13. Define reconnect reconciliation for indeterminate action completion; require fresh observation or explicit operator confirmation before continuing, retrying, or marking success.
+14. Add fake-assistance tests that consume sanitized candidate responses and prove malformed, oversized, expired, uncertain, prompt-injected, sensitive, or provider-error outputs are rejected or remain non-executable.
 
 **Exit criteria:** A complete fake run is durable and inspectable; invalid workflow definitions fail before dispatch; failed postconditions cannot become successful runs.
+
+---
+
+## Phase 10.5 — Implement the Android interaction recorder and skill compiler
+
+**Objective:** Turn a sanitized manual Android demonstration into durable, reviewable evidence and an immutable deterministic skill without requiring runtime AI or real-device execution in this phase.
+
+**Prerequisites:** P9 observation/evidence metadata and P10 workflow/run state machines are complete. The recorder consumes typed fake edge observations and actions first. Real Android input, ADB, UIAutomator, Appium, scrcpy, or device operations remain gated behind P13.
+
+**Files:**
+
+- Create: `internal/recordings/model.go`
+- Create: `internal/recordings/state_machine.go`
+- Create: `internal/recordings/recorder.go`
+- Create: `internal/recordings/event_grouping.go`
+- Create: `internal/recordings/normalization.go`
+- Create: `internal/recordings/redaction.go`
+- Create: `internal/recordings/replay.go`
+- Create: `internal/skills/model.go`
+- Create: `internal/skills/validation.go`
+- Create: `internal/skills/promotion.go`
+- Create: `internal/recordings/recordings_test.go`
+- Create: `internal/recordings/event_grouping_test.go`
+- Create: `internal/recordings/replay_test.go`
+- Create: `internal/skills/promotion_test.go`
+- Modify: `proto/drift/v1/recording.proto`
+- Modify: `proto/drift/v1/skill.proto`
+- Create: `tests/fixtures/recordings/` with sanitized fake-device demonstrations.
+- Create: `apps/console/src/pages/RecordingsPage.tsx` only if the typed console slice is ready; otherwise expose the domain through the approved mock transport and reserve the full console integration for P11.
+
+**Tasks:**
+
+1. Model `Automation → Recording Session → ordered logical Interaction Event` with UUID identity, monotonic human-readable session numbers, one active session per local workspace, and explicit start/stop/save/discard/delete transitions.
+2. Ingest raw fake input events and group them into logical actions: tap, double tap, long press, text input/delete/clear, swipe, scroll, drag, back, home, enter, key event, and optional UI/state change. Do not persist one event per typed character or touch sample.
+3. Associate each logical event with candidate BEFORE state, ACTION metadata, and AFTER state, preserving partial evidence when optional capture or enrichment fails.
+4. Define typed observation/evidence references for raw screenshots, separate annotated screenshots, UI hierarchy, package/activity, display geometry, coordinates or gesture paths, target metadata, timestamps, duration, sequence, correlation, and capture errors.
+5. Add an isolated annotation pipeline that marks tap targets or gesture paths on review copies only; raw evidence remains untouched and authoritative.
+6. Enforce conservative sensitive-input handling: password and uncertain-sensitive values are not persisted, logged, annotated, or returned to the review UI; retain only safe display metadata such as `[REDACTED]` and a sensitivity flag. If a raw screenshot, UI tree, OCR result, or trace cannot be reliably sanitized before CAS admission, omit the sensitive bytes and persist only the capture-error/omission metadata; never label a redacted derivative as untouched raw evidence.
+7. Add a bounded recorder worker/queue contract so input callbacks remain non-blocking and shutdown preserves partial events while cleaning pending work safely.
+8. Compile only reviewed recordings into immutable versioned skills with manifests for compatibility, typed steps, requested capabilities, fixtures, risk/retry class, trust/approval state, and rollback history.
+9. Validate skills against the typed action catalog and policy before promotion; reject arbitrary shell, raw transport commands, credentials, unbounded coordinates, and ambiguous targets.
+10. Implement replay resolution in this order: resource ID, accessibility/content description, stable text, UI hierarchy/context, an approved and policy-enabled vision candidate treated as untrusted input, then constrained Android-coordinate fallback. Every replayed step still requires current observation, app identity, lease/fencing, idempotency, timeout, postcondition, evidence, and cleanup.
+11. Add fake-device tests for successful capture, grouped text/gesture events, missing optional metadata, unsanitizable sensitive capture omission, annotation failure, redaction, session lifecycle, review/promotion rejection, semantic replay, coordinate fallback, ambiguous target failure, indeterminate action completion, cancellation, and fake multi-device execution.
+12. Keep the shared brain separate from executable skills: store only validated screen signatures, target aliases, compatibility facts, and recovery patterns, with explicit promotion and rollback rather than automatic learning from failed runs.
+13. Use only fake/sanitized assistance fixtures when testing candidate handling in this phase; do not call a hosted or local model. Concrete provider/model evaluation belongs to P18.3.
+
+**Verification:**
+
+```bash
+go test ./internal/recordings ./internal/skills ./internal/platform/... -count=1
+go test -race ./internal/recordings ./internal/skills -count=1
+go vet ./...
+go build ./...
+buf lint
+buf build
+pnpm typecheck
+pnpm test -- --reporter=dot
+pnpm build
+git diff --check
+```
+
+**Exit criteria:** A sanitized fake-device demonstration can be captured as ordered BEFORE/ACTION/AFTER events, reviewed with raw and annotated evidence, safely redacted, promoted to an immutable versioned skill, replayed deterministically on fake devices, and inspected with per-event outcomes. Optional enrichment failure cannot lose the event. No real Android process, ADB connection, credential, production data, or runtime LLM is required or used.
 
 ---
 
@@ -669,6 +905,7 @@ Build a dedicated **Control** page in the console now rather than overloading Ov
 10. Add optimistic-concurrency conflict UI for CRUD edits.
 11. Keep the existing sidebar-07 structure and Swiss Editorial visual contract; do not reintroduce glow, glass, or decorative shadow effects.
 12. Add keyboard, screen-reader, reduced-motion, responsive, and loading/error state coverage.
+13. Expose logical automation-agent personality/profile, goals, rules, capabilities, memory scope, assignment state, and trust/approval state without implying that a profile bypasses deterministic execution controls.
 
 **Exit criteria:** A browser-only operator can manage and inspect the mock domain through typed intents; no console bundle imports database, ADB, shell, credential, or device libraries.
 
@@ -726,8 +963,14 @@ Build a dedicated **Control** page in the console now rather than overloading Ov
 4. Measure discovery, health, screenshot/UI-tree latency, semantic targeting, postcondition verification, reconnect, unplug/replug, process supervision, and cleanup.
 5. Keep raw ADB ports private and expose only the typed edge adapter.
 6. Classify errors as infrastructure versus workflow/account outcomes.
+7. Define and evaluate the controlled onboarding boundary for USB and wireless debugging: ADB server ownership, platform-tools provenance/version, authorization prompts, port exposure/firewall policy, connect/disconnect semantics, and explicit operator confirmation before enabling or using a network port.
+8. Compare the built-in ADB/UIAutomator observation path with the optional ARTEMIS-derived Accessibility Helper only after the native baseline is measured; record the capability gap, maintenance cost, and replacement path before choosing a helper.
+9. If the helper is evaluated, use a pinned source revision and rebuilt artifact only: preserve Apache-2.0/Minitap attribution, exclude debug signing material, verify package/protocol/version/hash/signature, and record reproducible build inputs and rollback ownership.
+10. Validate the helper threat model: AccessibilityService consent/privilege, exported components and token permissions, token issuance/expiry/rotation/revocation, ADB-forward direction and exposure, API-level compatibility, process death, detach cleanup, and control-plane versus helper-token separation.
+11. Validate one read-only transport reattach after transport-id change; after an action may have been dispatched, require indeterminate completion and fresh observation or operator confirmation rather than automatic replay.
+12. Keep helper commands narrow and typed: exclude global actions, clipboard, raw shell, arbitrary coordinates, app installation, implicit third-party removal, and unapproved accessibility enablement.
 
-**Exit criteria:** A written adapter decision records evidence, compatibility matrix, security review, failure behavior, and a go/no-go for expanding beyond one lab device.
+**Exit criteria:** A written adapter decision records evidence, compatibility matrix, security review, failure behavior, provenance/signing, and a go/no-go for expanding beyond one lab device. Helper adoption is allowed only when it provides a measured capability gain over the native baseline and Sentinel plus Boss approve the boundary.
 
 ---
 
@@ -744,11 +987,15 @@ Build a dedicated **Control** page in the console now rather than overloading Ov
 **Tasks:**
 
 1. Execute Network Profile scans only through an authorized local runtime in a lab network.
-2. Persist candidates and require operator approval before registration.
-3. Keep canonical state in the bundled local service’s SQLite database. If a separate runtime needs buffering, add only a bounded local spool for reconnect cursors, low-risk outbox messages, and observations waiting to upload.
-4. Enforce queue size, retention, sequence numbers, and fencing in any optional spool.
-5. Refuse high-risk or stale-policy actions while disconnected.
-6. Test process restart, host restart, network loss, device disappearance, reconnect, duplicate upload, and queue exhaustion.
+2. Provision one explicitly authorized lab endpoint through the reviewed USB or wireless-debugging path; verify pairing/authorization, ADB server ownership, port policy, endpoint identity, and rollback before registration.
+3. Persist candidates and require operator approval before registration.
+4. Keep canonical state in the bundled local service’s SQLite database. If a separate runtime needs buffering, add only a bounded local spool for reconnect cursors, low-risk outbox messages, and observations waiting to upload.
+5. Enforce queue size, retention, sequence numbers, and fencing in any optional spool.
+6. Refuse high-risk or stale-policy actions while disconnected.
+7. Test process restart, host restart, network loss, device disappearance, reconnect, duplicate upload, and queue exhaustion.
+8. Preserve helper attach/detach, protocol/version, token rotation/revocation, and transport-id state as edge-runtime observations; never treat a helper token or spool cursor as a control-plane lease.
+9. Reconcile any action that may have been dispatched before reconnect; do not retry from timeout or queue replay until fresh observation or explicit operator confirmation resolves the outcome.
+10. Report incompatible tools or missing prerequisites without implicit installation, accessibility enablement, package removal, or repair.
 
 **Exit criteria:** One lab runtime can reconnect without duplicate non-idempotent actions; offline behavior is bounded and never silently bypasses local-service authorization. No second database is required for a normal local installation.
 
@@ -775,7 +1022,9 @@ Build a dedicated **Control** page in the console now rather than overloading Ov
 5. Use scrcpy at the edge for capture and recordings only after the real-adapter gate.
 6. Add WebRTC signaling/session authorization only after the selected-device control and mirror paths are stable.
 7. Use low-resolution previews for the grid and full resolution only for a selected source/follower device as appropriate.
-8. Defer remote object storage, SFU, and TURN complexity until hosted/remote topology and network evidence require it.
+8. Reject screenshots, UI trees, OCR, annotations, traces, and recordings containing sensitive or uncertain-sensitive content before CAS admission; store omission/error metadata rather than unsafe bytes.
+9. Enforce artifact quotas, retention classes, reference/deletion semantics, storage-failure recovery, and backup/export behavior without allowing orphaned or unauthorized bytes.
+10. Defer remote object storage, SFU, and TURN complexity until hosted/remote topology and network evidence require it.
 
 **Exit criteria:** Artifact access is authorized/audited, retention is enforced, and media failure cannot corrupt run state or bypass device leases.
 
@@ -808,8 +1057,12 @@ Build a dedicated **Control** page in the console now rather than overloading Ov
 6. Define local SQLite backup/export frequency, restore tests, local artifact retention, edge queue bounds, release rollback, and emergency stop procedures.
 7. Generate SBOMs and scan dependencies, release artifacts, and Tauri/edge binaries.
 8. Verify Tauri permissions remain narrow and contain no broad shell/filesystem capability.
+9. Review any ARTEMIS-derived helper threat model and supply chain: source revision/provenance, Apache-2.0/Minitap attribution, transitive dependency inventory, SBOM/CVE evidence, reproducible build inputs, release-key ownership, artifact hash/signature verification, update, revocation, and rollback.
+10. Verify redaction and CAS admission for screenshots, UI trees, OCR, annotations, traces, recordings, diagnostics, and model/provider-related metadata; no raw secret or sensitive screen content may survive a rejected admission.
+11. Verify indeterminate action reconciliation, helper token lifecycle, attach/detach/process death, ADB-forward exposure, and recovery without blind replay or implicit repair.
+12. Define the AI/provider security boundary before any provider evaluation: secret-manager ownership, egress allow-list, input/output retention, sensitive-content handling, provider/model allow-list, prompt/template provenance, request/response audit metadata, quota/cost controls, timeout/cancellation, outage behavior, disablement, and rollback.
 
-**Exit criteria:** Threat model, authorization, enrollment/revocation, backup/restore, observability, emergency stop, rollback, and supply-chain checks pass in a disposable deployment.
+**Exit criteria:** Threat model, authorization, enrollment/revocation, backup/restore, observability, emergency stop, rollback, and supply-chain checks pass in a disposable deployment; any acquired helper artifact has attributable, reproducible, signed, and revocable provenance; a future model integration has an approved data-egress and operational-control boundary.
 
 ---
 
@@ -857,20 +1110,58 @@ Add only after current run/lease behavior is stable:
 - agent upgrade management;
 - scheduling persistence and recovery.
 
+Scheduling semantics must also define manual approval gates, interval/cron behavior, device/event triggers, workflow dependencies, pause/resume/cancel, missed-run handling, restart recovery, and per-device outcomes. Scheduling is not required for the deterministic on-demand workflow gate.
+
 ### 18.2 Durable messaging
 
 Add NATS JetStream only when multiple remote control-plane instances, remote regions, many paired installations, durable fan-out, or reconnect replay cannot be handled by the local service/local outbox and direct authenticated connections. Document the measured bottleneck and migration/rollback path first.
 
-### 18.3 AI assistance
+### 18.3 AI assistance and model evaluation
 
-Start read-only:
+**Objective:** Evaluate an optional AI model/provider as a bounded assistant that improves understanding and reviewed suggestions without becoming an execution authority or a prerequisite for deterministic automation.
 
-- run explanation;
-- failure clustering;
-- unknown-screen summaries;
-- UI drift reports.
+**Prerequisites:** P5 assistance contracts, P7 safety kernel, P9 sanitized observation/evaluation fixtures, P10/P10.5 deterministic workflows and skills, and P16 security/provider controls are complete. No model integration is required for the first responsible release.
 
-Then allow reviewed suggestions for semantic locators, branches, and repair proposals. Every suggestion must become a typed, validated, policy-checked candidate. No arbitrary shell, credential access, silent approval, or unreviewed production workflow mutation.
+**Files:**
+
+- Modify: `docs/adr/0006-ai-assistance-boundary.md`
+- Create: `internal/ai/provider.go` (model-neutral provider seam)
+- Create: `internal/ai/adapter.go` (bounded local-service adapter)
+- Create: `internal/ai/evaluator.go`
+- Create: `internal/ai/guard.go`
+- Create: `internal/ai/provider_test.go`
+- Create: `internal/ai/evaluator_test.go`
+- Create: `internal/ai/guard_test.go`
+- Reuse: sanitized fixtures under `tests/fixtures/ai-assistance/`
+
+**Boundary rules:**
+
+1. The model is optional. The Go local service remains the only admission point; deterministic workflows, reviewed skills, recorder capture, and fake replay remain usable with no provider configured.
+2. Requests contain bounded, redacted, structured observation/artifact references and an explicit assistance purpose. They never contain credentials, raw secrets, arbitrary filesystem paths, direct device handles, or unrestricted historical data.
+3. Responses use the P5 typed assistance contract: a bounded suggestion kind, structured payload, model/provider/version, prompt/template version, confidence/uncertainty, evidence references, expiry, and disposition. Free-form model text is diagnostic data only.
+4. Model output and UI text are untrusted data, not instructions. Schema validation, size limits, redaction, provenance, policy, audit, and human review occur before a suggestion is considered.
+5. A suggestion cannot acquire leases, dispatch actions, approve workflows, change policy, access SQLite/CAS directly, call ADB, invoke shell, retrieve credentials, or select an escalation tier. Any eventual action remains a P7/P10 typed intent with fresh observation, policy, lease/fencing, idempotency, postcondition, evidence, and cleanup.
+6. Provider credentials are owned by an approved secret-management boundary and are never persisted in ordinary rows, prompts, logs, traces, fixtures, or artifacts. Provider egress, retention, and training-use terms require explicit review.
+7. Provider timeout, quota, outage, malformed output, uncertainty, or policy denial produces a typed failure/inconclusive result. It never silently authorizes coordinate fallback or changes deterministic run state.
+8. Provider/model selection is explicit and pinned. There is no model-selected tier escalation, unbounded planner loop, hidden fallback provider, or runtime dependency on Python/LangGraph/LangChain.
+
+**Staged implementation and verification:**
+
+1. **18.3a — Decision and selection:** Compare hosted versus local serving and candidate models using task-relevant quality, abstention/safety, latency, cost, privacy/egress, availability, platform support, operational burden, and replacement criteria. Record the selected model/provider, version, prompt/template policy, data boundary, quotas, and rollback in the ADR. This stage does not install or call a model.
+2. **18.3b — Offline read-only evaluation:** Run a deterministic fake provider against sanitized fixtures for run explanation, failure clustering, unknown-screen summaries, and UI-drift reports. Add golden outputs, malformed/oversized responses, prompt-injection text, sensitive screens, stale/wrong-package observations, missing evidence, and expected abstention. Define acceptance thresholds before evaluating a real provider.
+3. **18.3c — Controlled provider adapter:** If 18.3b justifies it, connect one explicitly approved provider or local model through the Go adapter using bounded requests, secret-manager access, egress controls, timeouts, cancellation, quotas, cost accounting, and audit metadata. Compare real results with the fake baseline and retain only safe evaluation metadata.
+4. **18.3d — Reviewed suggestions:** Enable semantic-locator, branch, or repair proposals only as reviewable typed candidates. Require human disposition, compatibility/policy validation, evidence links, expiry, and rollback; never auto-promote a model proposal into a skill or shared-brain fact.
+5. **18.3e — Optional bounded execution assistance:** Consider only after a separate Boss/Sentinel go/no-go and measured product gap. A model may propose one typed step or bounded candidate plan for normal P7/P10 execution; it may not run an autonomous loop, issue raw commands, bypass confirmation, or continue after an indeterminate action.
+
+**Evaluation requirements:**
+
+- Functional: task-specific quality, semantic-target precision/recall, useful abstention, false-positive/unsafe-suggestion rate, and compatibility across sanitized app/version fixtures. Thresholds are declared before the run; ARTEMIS benchmark claims are not acceptance evidence.
+- Safety: prompt injection through UI text, hallucinated coordinates, stale/ambiguous/shifted targets, wrong package/activity, permission dialogs, credential-adjacent screens, irreversible actions, malformed output, and model/provider uncertainty.
+- Reliability: timeout, cancellation, rate limit, quota exhaustion, provider outage, duplicate request, reconnect, partial response, and deterministic fallback without duplicate or unauthorized actions.
+- Privacy/security: redaction before egress, no secret retention, provider access audit, data-retention/training-use controls, bounded artifact references, dependency/SBOM review, and no direct device/filesystem/database authority.
+- Operations: latency, CPU/memory or network cost, token/request budget, concurrency limits, observability, disablement, version pinning, canary rollout, and tested rollback to deterministic-only operation.
+
+**Exit criteria:** The selected model/provider, if any, is optional, versioned, cost/privacy bounded, independently security-reviewed, and disableable; evaluation thresholds and failure behavior are evidenced; deterministic operation remains complete without it; no model output can directly mutate a device, workflow, policy, skill, shared-brain record, or production data.
 
 ### 18.4 Tauri packaging
 
@@ -971,11 +1262,16 @@ git diff --check
 - Stale observation cannot authorize an action.
 - Unknown/ambiguous screen fails closed.
 - Duplicate delivery cannot repeat a non-idempotent action.
+- Transport loss after dispatch remains indeterminate until fresh observation or explicit operator confirmation; timeout never authorizes blind replay.
 - Timeout, disconnect, cancellation, and evidence failure all reach cleanup.
 - Device infrastructure failures remain distinct from account/workflow outcomes.
+- Semantic target candidates preserve source provenance and ambiguous/shifted/occupied results fail closed.
 - Emergency stop blocks new work.
 - Browser cannot invoke ADB/shell/device protocols directly.
 - No secrets occur in source, fixtures, logs, artifacts, or database payloads.
+- No ARTEMIS/Python/model-provider dependency or helper artifact is introduced before its phase, provenance, security, and approval gate.
+- AI/provider input is redacted and bounded before egress; provider failure, uncertainty, or disablement leaves deterministic operation safe and usable.
+- Model output cannot directly mutate devices, workflows, policy, skills, shared-brain records, or production data; every suggestion remains typed, auditable, and reviewable.
 
 ### Required repository safety verification
 
@@ -1000,6 +1296,12 @@ git diff --check
 | Migration runner and startup DDL diverge | One pinned runner, immutable migrations, blank/upgrade/dirty tests. |
 | UI expands before contracts stabilize | Typed mock transport first; CRUD page follows a domain service, not the reverse. |
 | Edge offline queue becomes an autonomous runner | Bounded low-risk spool; fresh authorization required for high-risk work. |
+| ARTEMIS helper becomes an unowned privileged dependency | Pinned source, complete attribution/SBOM, explicit helper owner, Android threat-model review, signed artifacts, and measured capability-gain gate before P13 adoption. |
+| ARTEMIS transport uncertainty duplicates a real-world action | Persist indeterminate completion; reconcile by observation or operator confirmation; never retry solely from timeout or reconnect. |
+| Sensitive recorder/evidence bytes survive into CAS | Redact before admission; omit untrusted raw bytes and retain only safe omission/error metadata; test retention and access audit. |
+| AI model egress exposes sensitive observations | Redact and bound requests before provider access; allow-list destinations; keep provider data-retention/training terms explicit; audit safe metadata only. |
+| AI provider outage or hallucination changes execution | Use typed failures and abstention; keep deterministic fallback; require fresh observation, policy, lease/fence, postcondition, and review for every candidate. |
+| AI cost or latency becomes an unbounded operational burden | Set quotas, budgets, concurrency/time limits, model/version pins, observability, disablement, and rollback before rollout. |
 | Premature distributed infrastructure | Local modular service + SQLite/outbox/direct connections first; add remote PostgreSQL/S3/NATS/SFU/Kubernetes only with measured evidence. |
 | AI bypasses control policy | AI suggestions are typed candidates; policy/approval/audit remain mandatory. |
 | Real adapter masks foundation defects | One-device lab spike is blocked until fake safety gates pass and receives its own review. |
@@ -1023,6 +1325,7 @@ A first responsible Drift Next release is not “all CRUD pages exist.” It mus
 - cleanup after success, timeout, disconnect, cancellation, and failure;
 - console state that visibly distinguishes device, agent, lease, workflow, and account truth;
 - account/settings/policy boundaries with no credential persistence;
+- deterministic operation and reviewed skills remain usable with no AI model/provider configured;
 - migration, repository, contract, concurrency, redaction, and console tests passing;
 - no real Android operation required to validate the foundation.
 
@@ -1032,18 +1335,7 @@ Real ADB, UI tree, scrcpy, external authentication, remote sync, remote artifact
 
 ## 10. Immediate next action
 
-Do not implement more CRUD yet. First obtain Boss approval for Phase 0 decisions, especially:
-
-1. organization/multi-tenant scope;
-2. one-group versus many-group membership;
-3. automation-agent assignment cardinality;
-4. Network Profile range/CIDR semantics and candidate retention;
-5. first real action set;
-6. settings scopes and retention;
-7. account connector requirement;
-8. first-adapter authorization threshold.
-
-After approval, implement **Phase 1–3** only: repository/migration discipline, domain state machines, and the normalized SQLite schema plus empty/upgrade/interruption/restore tests. Stop at that gate before repositories, APIs, console CRUD, or Android integration expand further.
+Phase 0 is approved and P1–P3 are now implemented and verified. Stop here before repositories, APIs, console CRUD, or Android integration expand further. The next separately reviewed gate is P4/P5: typed repositories/transaction services and versioned protobuf/Connect contracts, with real-device work still blocked.
 
 ---
 
@@ -1058,6 +1350,8 @@ This revision incorporates:
 - group and assignment history requirements;
 - device events, health, inventory, observations, workflows, accounts, settings, and audit findings;
 - the existing Drift Next bootstrap constraints;
-- the existing Swiss Editorial Operations console direction.
+- the existing Swiss Editorial Operations console direction;
+- the read-only `google/artemis` integration assessment and independent reconciliation, adopted selectively as an edge/perception reference with explicit provenance, security, and real-adapter gates;
+- the model-neutral AI assistance boundary and staged P18.3 evaluation direction, without selecting a provider or model.
 
 It intentionally does not copy old secrets, production records, proxy architecture, anti-detect identity changes, or unsafe provider-specific automation into Drift Next.

@@ -77,7 +77,8 @@ bounded lock contention, committed-marker interruption recovery, and typed
 context cancellation/deadline handling. Testdata is disposable and must contain
 no credentials or production records; see `testdata/README.md`.
 
-Run the focused migration gate from the repository root:
+The focused migration gate runs both the platform runner tests and the
+normalized-domain integration tests:
 
 ```bash
 pnpm go:migrations

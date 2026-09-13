@@ -1,7 +1,7 @@
 # ADR-0003: Local storage and forward-only migration discipline
 
-- Status: Proposed
-- Date: 2026-09-13
+- Status: Accepted — owner-approved 2026-09-14
+- Date: 2026-09-13; approved 2026-09-14
 
 ## Context
 
@@ -71,16 +71,15 @@ Backups and restores include the SQLite database and referenced artifact store a
 - Future centralized storage requires a separate ADR with data migration, dual-read/write or cutover plan, verification, rollback, and retention reconciliation.
 - The control plane owns database access and artifact authorization, preserving a narrow trust boundary for the console, Tauri shell, packages, and future edge adapters.
 
-## Unresolved decisions requiring explicit approval
+## Remaining decisions requiring later approval
 
-- Exact operational-history and execution-evidence retention durations.
 - Artifact size quotas, storage-location policy, encryption-at-rest requirements, and backup/restore cadence.
 - Legal-hold, export, and deletion obligations for audit records.
-- The pinned SQL migration runner, after the Phase 1 disposable lock and dirty-state spike.
+- Exact operational-history and execution-evidence retention durations.
 
 ## Validation
 
 - Phase 1 must test clean bootstrap, migration ledger checksums, lock behavior, dirty-state refusal, and explicit repair handling.
-- Phase 3 must test fresh install, incremental upgrade from `0001`, interruption/recovery, foreign-key enforcement, workspace isolation, and concurrent conditional updates.
+- Phase 3 must test fresh install, the explicit historical `0001` PostgreSQL boundary, incremental SQLite upgrade from `0002`, interruption/recovery, foreign-key enforcement, workspace isolation, and concurrent conditional updates.
 - Artifact tests must prove atomic write/rename, hash verification, bounded metadata, path authorization, retention classification, and cleanup failure visibility.
 - Backup/restore verification must prove database/artifact consistency and reject unsafe resumption from stale control state.

@@ -9,17 +9,19 @@ Greenfield control platform for supervised Android device automation. This repos
 - `cmd/control-plane`: loopback-only Go control-plane placeholder
 - `cmd/edge-agent`: loopback-only Go edge-agent placeholder
 - `proto`: Buf-managed versioned protobuf contracts
-- `db/migrations`: historical PostgreSQL bootstrap plus the documented SQLite migration boundary and runner tests
+- `db/migrations`: immutable SQLite domain migrations from `0002`, integration tests, and the preserved historical PostgreSQL bootstrap
+- `internal/*`: typed domain vocabulary and tested lifecycle state machines; see `CONTEXT.md` and `docs/domain/resource-lifecycle.md`
 - `deploy/compose`: local PostgreSQL, opt-in NATS, and opt-in MinIO definitions
 
 The console uses deterministic mock devices. No ADB, scrcpy, accounts, production sync, or credential workflow is part of this bootstrap.
 
-The local-first SQLite boundary is being established before domain schema work:
-the pure-Go `modernc.org/sqlite` driver is pinned to `v1.58.0`, migration files
-are immutable and forward-only from `0002`, and the historical PostgreSQL
-`db/migrations/0001_initial.sql` remains untouched and is never loaded as
-SQLite. Migration failures leave a durable dirty ledger row until an explicit
-versioned repair.
+The local-first SQLite boundary and first normalized domain schema are now in
+place. The pure-Go `modernc.org/sqlite` driver is pinned to `v1.58.0`, migration
+files are immutable and forward-only from `0002`, and the historical
+PostgreSQL `db/migrations/0001_initial.sql` remains untouched and is never
+loaded as SQLite. Migration failures leave a durable dirty ledger row until an
+explicit versioned repair. P0–P3 are complete; repositories, API integration,
+console CRUD, external connectors, and real-device adapters remain gated.
 
 ## Prerequisites
 
@@ -42,7 +44,7 @@ pnpm test
 pnpm build
 
 go test ./...
-go test ./internal/platform/migrations -count=1
+pnpm go:migrations
 go vet ./...
 go build ./...
 
