@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"time"
 
 	dbmigrations "drift.local/drift-next/db/migrations"
 	"drift.local/drift-next/internal/platform/clock"
@@ -73,7 +74,8 @@ func Open(ctx context.Context, dsn string, options Options) (*DB, error) {
 	if ctx == nil {
 		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "context is required")
 	}
-	raw, err := migrationrunner.Open(ctx, dsn, migrationrunner.OpenOptions{})
+	busyTimeout := time.Duration(options.BusyTimeoutSeconds) * time.Second
+	raw, err := migrationrunner.Open(ctx, dsn, migrationrunner.OpenOptions{BusyTimeout: busyTimeout})
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +88,7 @@ func Open(ctx context.Context, dsn string, options Options) (*DB, error) {
 	if err := raw.PingContext(ctx); err != nil {
 		return nil, platformerrors.Wrap(platformerrors.CodeInternal, "ping SQLite database", err)
 	}
-	runner, err := migrationrunner.NewRunner(raw, dbmigrations.SQLiteFiles, migrationrunner.Options{Clock: options.Clock})
+	runner, err := migrationrunner.NewRunner(raw, dbmigrations.SQLiteFiles, migrationrunner.Options{Clock: options.Clock, BusyTimeout: busyTimeout})
 	if err != nil {
 		return nil, err
 	}

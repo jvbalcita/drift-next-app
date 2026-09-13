@@ -15,7 +15,7 @@ import (
 type DeviceRepository struct{ store *DB }
 
 func NewDeviceRepository(store *DB) *DeviceRepository { return &DeviceRepository{store: store} }
-func (r *DeviceRepository) Get(ctx context.Context, id devices.DeviceID) (devices.Device, error) {
+func (r *DeviceRepository) Get(ctx context.Context, workspace organizations.WorkspaceID, id devices.DeviceID) (devices.Device, error) {
 	var d devices.Device
 	var state string
 	var last sql.NullString
@@ -29,7 +29,10 @@ func (r *DeviceRepository) Get(ctx context.Context, id devices.DeviceID) (device
 	if strings.TrimSpace(string(id)) == "" {
 		return d, platformerrors.New(platformerrors.CodeInvalidInput, "device ID is required")
 	}
-	err := r.store.db.QueryRowContext(ctx, `SELECT id, workspace_id, display_name, platform_version, state, last_seen_at, row_version FROM devices WHERE id = ?`, string(id)).Scan(&d.ID, &d.Workspace, &d.DisplayName, &d.PlatformVersion, &state, &last, &version)
+	if err := validateWorkspace(string(workspace)); err != nil {
+		return d, err
+	}
+	err := r.store.db.QueryRowContext(ctx, `SELECT id, workspace_id, display_name, platform_version, state, last_seen_at, row_version FROM devices WHERE workspace_id = ? AND id = ?`, string(workspace), string(id)).Scan(&d.ID, &d.Workspace, &d.DisplayName, &d.PlatformVersion, &state, &last, &version)
 	if err == sql.ErrNoRows {
 		return d, platformerrors.New(platformerrors.CodeNotFound, "device not found")
 	}
@@ -96,13 +99,16 @@ func (s *DeviceService) Create(ctx context.Context, d devices.Device, actorType,
 		return s.record(ctx, tx, string(d.Workspace), string(d.ID), "device.created", actorType, actorID)
 	})
 }
-func (s *DeviceService) Transition(ctx context.Context, id devices.DeviceID, next devices.State, expected uint64, actorType, actorID string) error {
+func (s *DeviceService) Transition(ctx context.Context, workspace organizations.WorkspaceID, id devices.DeviceID, next devices.State, expected uint64, actorType, actorID string) error {
 	if ctx == nil || s == nil || s.store == nil || s.store.db == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite store are required")
 	}
+	if err := validateWorkspace(string(workspace)); err != nil {
+		return err
+	}
 	return WithTx(ctx, s.store.db, func(tx *sql.Tx) error {
-		var current, workspace string
-		if err := tx.QueryRowContext(ctx, `SELECT workspace_id, state FROM devices WHERE id = ?`, id).Scan(&workspace, &current); err == sql.ErrNoRows {
+		var current, workspaceID string
+		if err := tx.QueryRowContext(ctx, `SELECT workspace_id, state FROM devices WHERE workspace_id = ? AND id = ?`, workspace, id).Scan(&workspaceID, &current); err == sql.ErrNoRows {
 			return platformerrors.New(platformerrors.CodeNotFound, "device not found")
 		} else if err != nil {
 			return err
@@ -110,14 +116,14 @@ func (s *DeviceService) Transition(ctx context.Context, id devices.DeviceID, nex
 		if err := devices.Transition(devices.State(current), next); err != nil {
 			return err
 		}
-		result, err := tx.ExecContext(ctx, `UPDATE devices SET state = ?, updated_at = ?, row_version = row_version + 1 WHERE id = ? AND row_version = ?`, next, s.store.clock.Now().UTC().Format(time.RFC3339Nano), id, expected)
+		result, err := tx.ExecContext(ctx, `UPDATE devices SET state = ?, updated_at = ?, row_version = row_version + 1 WHERE workspace_id = ? AND id = ? AND row_version = ?`, next, s.store.clock.Now().UTC().Format(time.RFC3339Nano), workspace, id, expected)
 		if err != nil {
 			return err
 		}
 		if err := RequireAffected(result, "device"); err != nil {
 			return err
 		}
-		return s.record(ctx, tx, workspace, string(id), "device.transitioned", actorType, actorID)
+		return s.record(ctx, tx, workspaceID, string(id), "device.transitioned", actorType, actorID)
 	})
 }
 func (s *DeviceService) record(ctx context.Context, tx *sql.Tx, workspace, id, event, actorType, actorID string) error {
@@ -141,12 +147,15 @@ type EdgeAgentRepository struct{ store *DB }
 func NewEdgeAgentRepository(store *DB) *EdgeAgentRepository {
 	return &EdgeAgentRepository{store: store}
 }
-func (r *EdgeAgentRepository) Get(ctx context.Context, id edgeagents.EdgeAgentID) (edgeagents.EdgeAgent, error) {
+func (r *EdgeAgentRepository) Get(ctx context.Context, workspace organizations.WorkspaceID, id edgeagents.EdgeAgentID) (edgeagents.EdgeAgent, error) {
 	var a edgeagents.EdgeAgent
 	var state string
 	var last sql.NullString
 	var version int64
-	err := r.store.db.QueryRowContext(ctx, `SELECT id,workspace_id,display_name,version,state,last_seen_at,row_version FROM edge_agents WHERE id = ?`, id).Scan(&a.ID, &a.Workspace, &a.DisplayName, &a.Version, &state, &last, &version)
+	if err := validateWorkspace(string(workspace)); err != nil {
+		return a, err
+	}
+	err := r.store.db.QueryRowContext(ctx, `SELECT id,workspace_id,display_name,version,state,last_seen_at,row_version FROM edge_agents WHERE workspace_id = ? AND id = ?`, workspace, id).Scan(&a.ID, &a.Workspace, &a.DisplayName, &a.Version, &state, &last, &version)
 	if err == sql.ErrNoRows {
 		return a, platformerrors.New(platformerrors.CodeNotFound, "edge agent not found")
 	}

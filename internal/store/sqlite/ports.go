@@ -23,11 +23,11 @@ type WorkspaceReader interface {
 	List(context.Context) ([]organizations.Workspace, error)
 }
 type EdgeAgentReader interface {
-	Get(context.Context, edgeagents.EdgeAgentID) (edgeagents.EdgeAgent, error)
+	Get(context.Context, organizations.WorkspaceID, edgeagents.EdgeAgentID) (edgeagents.EdgeAgent, error)
 	List(context.Context, organizations.WorkspaceID) ([]edgeagents.EdgeAgent, error)
 }
 type DeviceReader interface {
-	Get(context.Context, devices.DeviceID) (devices.Device, error)
+	Get(context.Context, organizations.WorkspaceID, devices.DeviceID) (devices.Device, error)
 	List(context.Context, organizations.WorkspaceID) ([]devices.Device, error)
 }
 type EndpointReader interface {

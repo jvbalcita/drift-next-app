@@ -9,8 +9,8 @@ import (
 )
 
 // ReserveIdempotency atomically reserves a command key. A same-key/same-hash
-// retry returns duplicate=false with CodeConflict so callers do not replay a
-// side effect; a different hash is always a hard conflict.
+// retry returns (false, nil) and must not replay the side effect; a different
+// hash is always a hard typed conflict.
 func (s *DB) ReserveIdempotency(ctx context.Context, workspace, key, operation, requestHash string) (bool, error) {
 	if ctx == nil || s == nil || s.db == nil {
 		return false, platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite store are required")
