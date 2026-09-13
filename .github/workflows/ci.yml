@@ -59,6 +59,7 @@ jobs:
       - run: buf format --diff --exit-code
       - run: buf lint
       - run: buf build
+      - run: bash scripts/check-generated.sh
 
   tauri:
     name: Tauri compile check

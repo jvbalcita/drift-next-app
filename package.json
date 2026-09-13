@@ -20,6 +20,7 @@
     "contracts:lint": "buf lint",
     "contracts:build": "buf build",
     "contracts:generate": "buf generate",
+    "contracts:generate:check": "bash scripts/check-generated.sh",
     "infra:config": "docker compose -f deploy/compose/docker-compose.yml config --quiet"
   }
 }
