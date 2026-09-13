@@ -114,11 +114,29 @@ func copyReflect(value reflect.Value) reflect.Value {
 	}
 }
 
+type redactedInterfaceValue struct{}
+
+func (redactedInterfaceValue) Error() string {
+	return Replacement
+}
+
+func (redactedInterfaceValue) String() string {
+	return Replacement
+}
+
 func replacementFor(valueType reflect.Type) reflect.Value {
 	if valueType.Kind() == reflect.Interface {
-		result := reflect.New(valueType).Elem()
-		result.Set(reflect.ValueOf(Replacement))
-		return result
+		for _, candidate := range []reflect.Value{
+			reflect.ValueOf(Replacement),
+			reflect.ValueOf(redactedInterfaceValue{}),
+		} {
+			if candidate.Type().Implements(valueType) {
+				result := reflect.New(valueType).Elem()
+				result.Set(candidate)
+				return result
+			}
+		}
+		return reflect.Zero(valueType)
 	}
 	if valueType.Kind() == reflect.String {
 		result := reflect.New(valueType).Elem()

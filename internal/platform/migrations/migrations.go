@@ -498,14 +498,28 @@ func normalizeBusyTimeout(timeout time.Duration) (time.Duration, error) {
 }
 
 func sqliteDSNWithPragmas(dsn string, timeout time.Duration) (string, error) {
+	pragmas := url.Values{}
+	pragmas.Add("_pragma", "journal_mode=wal")
+	pragmas.Add("_pragma", "foreign_keys=on")
+	pragmas.Add("_pragma", fmt.Sprintf("busy_timeout=%d", timeout/time.Millisecond))
+	if !strings.HasPrefix(strings.ToLower(dsn), "file:") {
+		separator := "?"
+		if strings.ContainsRune(dsn, '?') {
+			separator = "&"
+		}
+		return dsn + separator + pragmas.Encode(), nil
+	}
+
 	parsed, err := url.Parse(dsn)
 	if err != nil {
 		return "", err
 	}
 	query := parsed.Query()
-	query.Add("_pragma", "journal_mode=wal")
-	query.Add("_pragma", "foreign_keys=on")
-	query.Add("_pragma", fmt.Sprintf("busy_timeout=%d", timeout/time.Millisecond))
+	for key, values := range pragmas {
+		for _, value := range values {
+			query.Add(key, value)
+		}
+	}
 	parsed.RawQuery = query.Encode()
 	return parsed.String(), nil
 }
