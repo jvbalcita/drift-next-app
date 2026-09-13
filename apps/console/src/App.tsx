@@ -6,13 +6,10 @@ import {
   BatteryCharging,
   Bell,
   Check,
-  ChevronRight,
   CircleHelp,
   Clock3,
-  Command,
   Cpu,
   Grid2X2,
-  LayoutDashboard,
   MoreHorizontal,
   Network,
   Play,
@@ -20,7 +17,6 @@ import {
   Search,
   Server,
   Settings2,
-  ShieldCheck,
   Smartphone,
   Wifi,
   XCircle,
@@ -40,6 +36,22 @@ import {
   TabsList,
   TabsTrigger,
 } from "./components/ui/tabs"
+import { AppSidebar } from "./components/app-sidebar"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./components/ui/breadcrumb"
+import { Separator } from "./components/ui/separator"
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "./components/ui/sidebar"
+import { TooltipProvider } from "./components/ui/tooltip"
 
 type DeviceStatus = "online" | "attention" | "offline"
 
@@ -138,14 +150,6 @@ const devices: Device[] = [
   },
 ]
 
-const navigation = [
-  { label: "Overview", icon: LayoutDashboard },
-  { label: "Devices", icon: Smartphone, count: devices.length },
-  { label: "Workflows", icon: Command },
-  { label: "Runs", icon: Activity },
-  { label: "Policies", icon: ShieldCheck },
-]
-
 const activityEvents = [
   { time: "09:42:18", title: "Workflow checkpoint passed", detail: "Content validation · step 08", tone: "success" },
   { time: "09:41:57", title: "Screenshot artifact captured", detail: "Stored in local demo workspace", tone: "info" },
@@ -159,14 +163,22 @@ function statusLabel(status: DeviceStatus) {
 
 function statusClasses(status: DeviceStatus) {
   return status === "online"
-    ? "bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.85)]"
+    ? "bg-emerald-600"
     : status === "attention"
-      ? "bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.8)]"
+      ? "bg-amber-600"
       : "bg-slate-500"
 }
 
 function statusBadge(status: DeviceStatus) {
   return status === "online" ? "default" : status === "attention" ? "secondary" : "outline"
+}
+
+function statusBadgeClass(status: DeviceStatus) {
+  return status === "online"
+    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+    : status === "attention"
+      ? "border-amber-200 bg-amber-50 text-amber-800"
+      : "border-slate-300 bg-slate-100 text-slate-700"
 }
 
 function App() {
@@ -188,113 +200,86 @@ function App() {
   const activeRuns = devices.filter((device) => device.taskProgress > 0 && device.taskProgress < 100).length
 
   return (
-    <div className="drift-theme min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border/70 bg-sidebar/95 px-5 backdrop-blur-xl lg:px-7">
-        <div className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 text-primary shadow-[0_0_20px_rgba(0,255,255,0.12)]">
-            <Command className="size-4" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold tracking-[0.22em] text-foreground">DRIFT</p>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Command Center</p>
-          </div>
-          <span className="hidden h-5 w-px bg-border sm:block" />
-          <Badge variant="outline" className="hidden border-primary/30 bg-primary/5 text-primary sm:inline-flex">
-            <span className="mr-1.5 size-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(0,255,255,0.9)]" />
-            Demo control plane
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon-sm" aria-label="Notifications">
-            <Bell className="size-4" aria-hidden="true" />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Settings">
-            <Settings2 className="size-4" aria-hidden="true" />
-          </Button>
-          <div className="ml-1 hidden items-center gap-2 border-l border-border pl-3 sm:flex">
-            <div className="flex size-7 items-center justify-center rounded-full bg-cyan-300/15 text-xs font-semibold text-primary">VC</div>
-            <div className="leading-tight">
-              <p className="text-xs font-medium">Operator</p>
-              <p className="text-[10px] text-muted-foreground">Local session</p>
+    <TooltipProvider>
+      <SidebarProvider
+        defaultOpen
+        data-visual-style="swiss-editorial"
+        className="drift-theme min-h-svh bg-background text-foreground"
+      >
+        <AppSidebar activeSection={activeSection} onSectionChange={setActiveSection} />
+        <SidebarInset className="min-w-0">
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+            <div className="flex items-center gap-2 px-4">
+              <SidebarTrigger aria-label="Toggle sidebar" className="-ml-1" />
+              <Separator
+                orientation="vertical"
+                className="mr-2 h-4 shrink-0 self-center data-[orientation=vertical]:h-4 data-[orientation=vertical]:self-center"
+              />
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem className="hidden md:block">
+                    <BreadcrumbLink href="#workspace">Workspace</BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator className="hidden md:block" />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{activeSection}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
             </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto flex max-w-[1800px]">
-        <aside className="hidden min-h-[calc(100vh-4rem)] w-56 shrink-0 border-r border-border/60 bg-sidebar/40 p-3 lg:block">
-          <p className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Workspace</p>
-          <nav aria-label="Primary navigation" className="space-y-1">
-            {navigation.map(({ label, icon: Icon, count }) => (
-              <button
-                key={label}
-                type="button"
-                aria-current={activeSection === label ? "page" : undefined}
-                onClick={() => setActiveSection(label)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-                  activeSection === label ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                }`}
-              >
-                <Icon className="size-4" aria-hidden="true" />
-                <span className="flex-1">{label}</span>
-                {count ? <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{count}</span> : null}
-              </button>
-            ))}
-          </nav>
-          <div className="mt-auto pt-8">
-            <div className="rounded-xl border border-border/70 bg-card/60 p-3">
-              <div className="mb-2 flex items-center gap-2 text-xs font-medium text-foreground">
-                <Network className="size-3.5 text-primary" aria-hidden="true" />
-                Transport health
-              </div>
-              <div className="mb-2 flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground">Control plane</span>
-                <span className="text-emerald-300">Connected</span>
-              </div>
-              <div className="h-1 overflow-hidden rounded-full bg-muted"><div className="h-full w-[94%] rounded-full bg-primary" /></div>
-              <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">Mock telemetry only. No device commands are enabled.</p>
-            </div>
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground"><span>Workspace</span><ChevronRight className="size-3" aria-hidden="true" /><span className="text-primary">Overview</span></div>
-              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Fleet overview</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Monitor device health, active work, and operator events from one surface.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="mr-1 hidden text-xs text-muted-foreground sm:inline">Updated {lastRefresh}</span>
-              <Button variant="outline" size="sm" onClick={() => setLastRefresh("just now")}>
-                <RefreshCw className="size-3.5" aria-hidden="true" />
-                Refresh
+            <div className="ml-auto flex items-center gap-1 px-4">
+              <Button variant="ghost" size="icon-sm" aria-label="Notifications">
+                <Bell className="size-4" aria-hidden="true" />
               </Button>
-              <Button size="sm" disabled title="Actions are disabled in demo mode">
-                <Play className="size-3.5" aria-hidden="true" />
-                Run workflow
+              <Button variant="ghost" size="icon-sm" aria-label="Settings">
+                <Settings2 className="size-4" aria-hidden="true" />
               </Button>
             </div>
-          </div>
+          </header>
+
+          <div className="drift-editorial-grid mx-auto w-full max-w-[1800px] flex-1 p-4 sm:p-6 lg:p-8">
+            <div className="mb-8 flex flex-col justify-between gap-6 md:flex-row md:items-end">
+              <div>
+                <div className="drift-kicker flex items-center gap-3">
+                  <span className="h-px w-8 bg-primary" aria-hidden="true" />
+                  <span>OPERATIONS / FLEET CONTROL</span>
+                </div>
+                <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] sm:text-5xl">Fleet overview</h1>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Monitor device health, active work, and operator events from one surface.</p>
+              </div>
+              <div className="flex flex-col items-start gap-3 md:items-end">
+                <span className="font-mono drift-data text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Updated {lastRefresh}</span>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setLastRefresh("just now")}>
+                    <RefreshCw className="size-3.5" aria-hidden="true" />
+                    Refresh
+                  </Button>
+                  <Button size="sm" disabled title="Actions are disabled in demo mode">
+                    <Play className="size-3.5" aria-hidden="true" />
+                    Run workflow
+                  </Button>
+                </div>
+              </div>
+            </div>
 
           <section aria-label="Fleet metrics" className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Devices online" value={`${onlineCount}/${devices.length}`} detail="All agents reporting" icon={Wifi} accent="cyan" />
+            <MetricCard label="Devices online" value={`${onlineCount}/${devices.length}`} detail="All agents reporting" icon={Wifi} accent="cobalt" />
             <MetricCard label="Needs attention" value={String(attentionCount)} detail="1 reconnecting · 1 offline" icon={AlertTriangle} accent="amber" />
             <MetricCard label="Active runs" value={String(activeRuns)} detail="Across 2 workflows" icon={Activity} accent="violet" />
             <MetricCard label="Median latency" value="48 ms" detail="Last 15 minutes" icon={Network} accent="emerald" />
           </section>
 
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
-            <Card className="border-border/70 bg-card/70">
-              <CardHeader className="border-b border-border/60 pb-4">
+            <Card className="border-border bg-card">
+              <CardHeader className="border-b border-border pb-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <CardTitle className="flex items-center gap-2 text-base"><Grid2X2 className="size-4 text-primary" aria-hidden="true" /><h2>Device fleet</h2></CardTitle>
-                    <CardDescription className="mt-1">{devices.length} registered endpoints · sorted by status</CardDescription>
+                    <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Grid2X2 className="size-4 text-primary" aria-hidden="true" /><h2>Device fleet</h2></CardTitle>
+                    <CardDescription className="mt-2 text-xs">{devices.length} registered endpoints · sorted by status</CardDescription>
                   </div>
                   <div className="relative w-full sm:w-52">
                     <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                    <input aria-label="Search devices" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search devices" className="h-8 w-full rounded-lg border border-border bg-background/60 pl-8 pr-3 text-xs outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20" />
+                    <input aria-label="Search devices" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search devices" className="h-8 w-full rounded-none border border-input bg-background px-3 pl-8 text-xs outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20" />
                   </div>
                 </div>
               </CardHeader>
@@ -308,21 +293,21 @@ function App() {
               </CardContent>
             </Card>
 
-            <Card className="border-border/70 bg-card/70">
-              <CardHeader className="border-b border-border/60 pb-4">
+            <Card className="border-border bg-card">
+              <CardHeader className="border-b border-border pb-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <CardTitle className="flex items-center gap-2 text-base"><Smartphone className="size-4 text-primary" aria-hidden="true" /><h2>Selected device</h2></CardTitle>
-                    <CardDescription className="mt-1">Live inspector · read-only demo</CardDescription>
+                    <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Smartphone className="size-4 text-primary" aria-hidden="true" /><h2>Selected device</h2></CardTitle>
+                    <CardDescription className="mt-2 text-xs">Live inspector · read-only demo</CardDescription>
                   </div>
                   <Button variant="ghost" size="icon-sm" aria-label="More device options" disabled><MoreHorizontal className="size-4" aria-hidden="true" /></Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="flex items-center gap-3 border-b border-border/60 px-4 py-4">
-                  <div className="flex size-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary"><Smartphone className="size-5" aria-hidden="true" /></div>
+                <div className="flex items-center gap-3 border-b border-border px-4 py-4">
+                  <div className="flex size-11 items-center justify-center rounded-none border-l-2 border-primary bg-secondary text-primary"><Smartphone className="size-5" aria-hidden="true" /></div>
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{selectedDevice.name}</p><p className="truncate text-xs text-muted-foreground">{selectedDevice.location} · {selectedDevice.platform}</p></div>
-                  <Badge variant={statusBadge(selectedDevice.status)}><span className={`mr-1.5 size-1.5 rounded-full ${statusClasses(selectedDevice.status)}`} />{statusLabel(selectedDevice.status)}</Badge>
+                  <Badge variant={statusBadge(selectedDevice.status)} className={statusBadgeClass(selectedDevice.status)}><span className={`mr-1.5 size-1.5 rounded-full ${statusClasses(selectedDevice.status)}`} />{statusLabel(selectedDevice.status)}</Badge>
                 </div>
                 <Tabs defaultValue="overview" className="w-full">
                   <TabsList className="mx-4 mt-4 w-[calc(100%-2rem)]" variant="line">
@@ -336,12 +321,12 @@ function App() {
                       <InspectorMetric icon={BatteryCharging} label="Battery" value={`${selectedDevice.battery}%`} />
                       <InspectorMetric icon={Network} label="Latency" value={selectedDevice.latency ? `${selectedDevice.latency} ms` : "—"} />
                     </div>
-                    <div className="mt-4 rounded-lg border border-border/60 bg-background/50 p-3">
-                      <div className="mb-2 flex items-center justify-between"><span className="text-xs font-medium">Current task</span><span className="text-[11px] text-muted-foreground">{selectedDevice.taskProgress}%</span></div>
+                    <div className="mt-4 rounded-none border border-border bg-muted p-3">
+                      <div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-[0.08em]">Current task</span><span className="drift-data text-[11px] text-muted-foreground">{selectedDevice.taskProgress}%</span></div>
                       <p className="mb-2 text-xs text-muted-foreground">{selectedDevice.task}</p>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${selectedDevice.taskProgress}%` }} /></div>
+                      <div className="h-1.5 overflow-hidden rounded-none bg-background"><div className="h-full rounded-none bg-primary transition-all" style={{ width: `${selectedDevice.taskProgress}%` }} /></div>
                     </div>
-                    <div className="mt-4 flex items-start gap-2 rounded-lg border border-primary/15 bg-primary/5 p-3 text-[11px] leading-relaxed text-muted-foreground"><CircleHelp className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />This inspector is backed by deterministic mock data until the control-plane API is connected.</div>
+                    <div className="mt-4 flex items-start gap-2 rounded-none border-l-2 border-primary bg-secondary/70 p-3 text-[11px] leading-relaxed text-muted-foreground"><CircleHelp className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />This inspector is backed by deterministic mock data until the control-plane API is connected.</div>
                   </TabsContent>
                   <TabsContent value="activity" className="px-4 pb-4 pt-4"><ActivityTimeline compact /></TabsContent>
                 </Tabs>
@@ -350,43 +335,144 @@ function App() {
           </div>
 
           <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.42fr)]">
-            <Card className="border-border/70 bg-card/70">
-              <CardHeader className="border-b border-border/60 pb-4"><CardTitle className="flex items-center gap-2 text-base"><Activity className="size-4 text-primary" aria-hidden="true" />Recent activity</CardTitle><CardDescription className="mt-1">Auditable events from this demo session</CardDescription></CardHeader>
+            <Card className="border-border bg-card">
+              <CardHeader className="border-b border-border pb-4"><CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Activity className="size-4 text-primary" aria-hidden="true" />Recent activity</CardTitle><CardDescription className="mt-2 text-xs">Auditable events from this demo session</CardDescription></CardHeader>
               <CardContent className="pt-4"><ActivityTimeline /></CardContent>
             </Card>
-            <Card className="border-border/70 bg-card/70">
-              <CardHeader className="border-b border-border/60 pb-4"><CardTitle className="flex items-center gap-2 text-base"><Server className="size-4 text-primary" aria-hidden="true" />Control plane</CardTitle><CardDescription className="mt-1">Local bootstrap readiness</CardDescription></CardHeader>
+            <Card className="border-border bg-card">
+              <CardHeader className="border-b border-border pb-4"><CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Server className="size-4 text-primary" aria-hidden="true" />Control plane</CardTitle><CardDescription className="mt-2 text-xs">Local bootstrap readiness</CardDescription></CardHeader>
               <CardContent className="space-y-3 pt-4"><ReadinessRow label="Web console" state="Ready" /><ReadinessRow label="API contract" state="Planned" muted /><ReadinessRow label="Go services" state="Planned" muted /><ReadinessRow label="Device adapters" state="Disabled" muted /></CardContent>
             </Card>
           </section>
 
-          <footer className="mt-6 flex flex-col gap-2 border-t border-border/60 pt-4 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>Drift Command Center · local bootstrap</span><span className="flex items-center gap-1.5 text-amber-200/80"><XCircle className="size-3" aria-hidden="true" />Demo mode · actions disabled</span></footer>
-        </main>
+          <footer className="mt-6 flex flex-col gap-2 border-t border-border pt-4 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>Drift Command Center · local bootstrap</span><span className="flex items-center gap-1.5 font-mono uppercase tracking-[0.08em] text-amber-700"><XCircle className="size-3" aria-hidden="true" />Demo mode · actions disabled</span></footer>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </TooltipProvider>
+  )
+}
+
+function MetricCard({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  accent,
+}: {
+  label: string
+  value: string
+  detail: string
+  icon: typeof Wifi
+  accent: "cobalt" | "amber" | "violet" | "emerald"
+}) {
+  const accentClass = {
+    cobalt: "border-l-2 border-primary bg-secondary text-primary",
+    amber: "border-l-2 border-amber-600 bg-amber-50 text-amber-800",
+    violet: "border-l-2 border-violet-600 bg-violet-50 text-violet-800",
+    emerald: "border-l-2 border-emerald-600 bg-emerald-50 text-emerald-800",
+  }[accent]
+
+  return (
+    <Card className="border-border bg-card">
+      <CardContent className="flex items-start gap-3 p-4">
+        <div className={`flex size-9 shrink-0 items-center justify-center rounded-none ${accentClass}`}>
+          <Icon className="size-4" aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+          <p className="drift-data mt-1 text-xl font-semibold tracking-tight">{value}</p>
+          <p className="mt-1 truncate text-[11px] text-muted-foreground">{detail}</p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function DeviceCard({ device, selected, onSelect }: { device: Device; selected: boolean; onSelect: () => void }) {
+  const selectionClass = selected
+    ? "border-primary border-l-4 bg-secondary/80"
+    : "border-border bg-card hover:border-primary/60 hover:bg-muted"
+  const progressClass = device.status === "attention" ? "bg-amber-600" : device.status === "offline" ? "bg-slate-500" : "bg-primary"
+
+  return (
+    <button type="button" aria-pressed={selected} onClick={onSelect} className={`group w-full rounded-none border p-4 text-left transition-colors ${selectionClass}`}>
+      <div className="mb-3 flex items-start gap-3">
+        <div className={`mt-1 size-2 shrink-0 rounded-full ${statusClasses(device.status)}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-sm font-medium">{device.name}</p>
+            <Badge variant={statusBadge(device.status)} className={`shrink-0 text-[10px] ${statusBadgeClass(device.status)}`}>
+              {statusLabel(device.status)}
+            </Badge>
+          </div>
+          <p className="mt-1 truncate text-[11px] text-muted-foreground">{device.location}</p>
+        </div>
       </div>
+      <div className="mb-3 flex items-center justify-between gap-2 text-[11px]">
+        <span className="truncate text-muted-foreground">{device.task}</span>
+        <span className="drift-data shrink-0 text-muted-foreground">{device.taskProgress}%</span>
+      </div>
+      <div className="h-1 overflow-hidden rounded-none bg-muted">
+        <div className={`h-full rounded-none ${progressClass}`} style={{ width: `${device.taskProgress}%` }} />
+      </div>
+      <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-1"><BatteryCharging className="size-3" aria-hidden="true" />{device.battery}%</span>
+        <span className="flex items-center gap-1"><Clock3 className="size-3" aria-hidden="true" />{device.lastSeen}</span>
+        <ArrowUpRight className={`size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 ${selected ? "text-primary" : ""}`} aria-hidden="true" />
+      </div>
+    </button>
+  )
+}
+
+function InspectorMetric({ icon: Icon, label, value }: { icon: typeof Cpu; label: string; value: string }) {
+  return (
+    <div className="rounded-none border border-border bg-background p-3">
+      <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+        <Icon className="size-3 text-primary" aria-hidden="true" />
+        {label}
+      </div>
+      <p className="drift-data truncate text-xs font-medium">{value}</p>
     </div>
   )
 }
 
-function MetricCard({ label, value, detail, icon: Icon, accent }: { label: string; value: string; detail: string; icon: typeof Wifi; accent: "cyan" | "amber" | "violet" | "emerald" }) {
-  const accentClass = { cyan: "text-primary bg-primary/10", amber: "text-amber-300 bg-amber-300/10", violet: "text-violet-300 bg-violet-300/10", emerald: "text-emerald-300 bg-emerald-300/10" }[accent]
-  return <Card className="border-border/70 bg-card/70"><CardContent className="flex items-start gap-3 p-4"><div className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${accentClass}`}><Icon className="size-4" aria-hidden="true" /></div><div className="min-w-0"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-xl font-semibold tracking-tight">{value}</p><p className="mt-1 truncate text-[11px] text-muted-foreground">{detail}</p></div></CardContent></Card>
-}
-
-function DeviceCard({ device, selected, onSelect }: { device: Device; selected: boolean; onSelect: () => void }) {
-  return <button type="button" aria-pressed={selected} onClick={onSelect} className={`group w-full rounded-xl border p-3 text-left transition-all ${selected ? "border-primary/55 bg-primary/[0.07] shadow-[0_0_24px_rgba(0,255,255,0.08)]" : "border-border/60 bg-background/30 hover:border-primary/30 hover:bg-muted/40"}`}><div className="mb-3 flex items-start gap-3"><div className={`mt-1 size-2 shrink-0 rounded-full ${statusClasses(device.status)}`} /><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-sm font-medium">{device.name}</p><Badge variant={statusBadge(device.status)} className="shrink-0 text-[10px]">{statusLabel(device.status)}</Badge></div><p className="mt-1 truncate text-[11px] text-muted-foreground">{device.location}</p></div></div><div className="mb-3 flex items-center justify-between gap-2 text-[11px]"><span className="truncate text-muted-foreground">{device.task}</span><span className="shrink-0 text-muted-foreground">{device.taskProgress}%</span></div><div className="h-1 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${device.status === "attention" ? "bg-amber-300" : device.status === "offline" ? "bg-slate-500" : "bg-primary"}`} style={{ width: `${device.taskProgress}%` }} /></div><div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground"><span className="flex items-center gap-1"><BatteryCharging className="size-3" aria-hidden="true" />{device.battery}%</span><span className="flex items-center gap-1"><Clock3 className="size-3" aria-hidden="true" />{device.lastSeen}</span><ArrowUpRight className={`size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 ${selected ? "text-primary" : ""}`} aria-hidden="true" /></div></button>
-}
-
-function InspectorMetric({ icon: Icon, label, value }: { icon: typeof Cpu; label: string; value: string }) {
-  return <div className="rounded-lg border border-border/60 bg-background/40 p-3"><div className="mb-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground"><Icon className="size-3 text-primary" aria-hidden="true" />{label}</div><p className="truncate text-xs font-medium">{value}</p></div>
-}
-
 function ActivityTimeline({ compact = false }: { compact?: boolean }) {
   const events = compact ? activityEvents.slice(0, 3) : activityEvents
-  return <div className="space-y-4">{events.map((event, index) => <div key={`${event.time}-${event.title}`} className="flex gap-3"><div className="flex flex-col items-center"><span className={`mt-1.5 flex size-5 items-center justify-center rounded-full ${event.tone === "success" ? "bg-emerald-400/15 text-emerald-300" : "bg-primary/10 text-primary"}`}>{event.tone === "success" ? <Check className="size-3" aria-hidden="true" /> : <Activity className="size-3" aria-hidden="true" />}</span>{index < events.length - 1 ? <span className="mt-1 h-full w-px bg-border/70" /> : null}</div><div className="min-w-0 flex-1 pb-1"><div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1"><p className="text-xs font-medium">{event.title}</p><span className="font-mono text-[10px] text-muted-foreground">{event.time}</span></div><p className="mt-1 text-[11px] text-muted-foreground">{event.detail}</p></div></div>)}</div>
+
+  return (
+    <div className="space-y-4">
+      {events.map((event, index) => (
+        <div key={`${event.time}-${event.title}`} className="flex gap-3">
+          <div className="flex flex-col items-center">
+            <span className={`mt-1.5 flex size-5 items-center justify-center rounded-full border ${event.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-primary/20 bg-secondary text-primary"}`}>
+              {event.tone === "success" ? <Check className="size-3" aria-hidden="true" /> : <Activity className="size-3" aria-hidden="true" />}
+            </span>
+            {index < events.length - 1 ? <span className="mt-1 h-full w-px bg-border" /> : null}
+          </div>
+          <div className="min-w-0 flex-1 pb-1">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <p className="text-xs font-medium">{event.title}</p>
+              <span className="drift-data text-[10px] text-muted-foreground">{event.time}</span>
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">{event.detail}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function ReadinessRow({ label, state, muted = false }: { label: string; state: string; muted?: boolean }) {
-  return <div className="flex items-center justify-between rounded-lg border border-border/50 bg-background/30 px-3 py-2.5"><span className="text-xs text-muted-foreground">{label}</span><span className={`flex items-center gap-1.5 text-[11px] ${muted ? "text-muted-foreground" : "text-emerald-300"}`}><span className={`size-1.5 rounded-full ${muted ? "bg-muted-foreground/50" : "bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.8)]"}`} />{state}</span></div>
+  return (
+    <div className="flex items-center justify-between rounded-none border border-border bg-card px-3 py-2.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={`flex items-center gap-1.5 text-[11px] ${muted ? "text-muted-foreground" : "text-emerald-700"}`}>
+        <span className={`size-1.5 rounded-full ${muted ? "bg-slate-400" : "bg-emerald-600"}`} />
+        {state}
+      </span>
+    </div>
+  )
 }
 
 export default App
