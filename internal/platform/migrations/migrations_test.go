@@ -299,6 +299,118 @@ func TestApplyHonorsDeadlineContextBeforeDatabaseWork(t *testing.T) {
 	}
 }
 
+func TestApplyClassifiesInFlightConnectionDeadline(t *testing.T) {
+	db := openSQLite(t)
+	db.SetMaxOpenConns(1)
+	held, err := db.Conn(context.Background())
+	if err != nil {
+		t.Fatalf("db.Conn(held) error = %v", err)
+	}
+	defer held.Close()
+	if err := held.PingContext(context.Background()); err != nil {
+		t.Fatalf("held connection ping error = %v", err)
+	}
+
+	runner, err := migrations.NewRunner(db, fstest.MapFS{
+		"0002_in_flight.sql": &fstest.MapFile{Data: []byte("CREATE TABLE should_not_run (id INTEGER);\n")},
+	}, migrations.Options{})
+	if err != nil {
+		t.Fatalf("NewRunner() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err = runner.Apply(ctx)
+	if got := platformerrors.CodeOf(err); got != platformerrors.CodeDeadlineExceeded {
+		t.Fatalf("CodeOf(in-flight Apply()) = %q, want %q (%v)", got, platformerrors.CodeDeadlineExceeded, err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("in-flight Apply() error = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestRepairClassifiesInFlightConnectionDeadline(t *testing.T) {
+	db := openSQLite(t)
+	db.SetMaxOpenConns(1)
+	held, err := db.Conn(context.Background())
+	if err != nil {
+		t.Fatalf("db.Conn(held) error = %v", err)
+	}
+	defer held.Close()
+	if err := held.PingContext(context.Background()); err != nil {
+		t.Fatalf("held connection ping error = %v", err)
+	}
+
+	runner, err := migrations.NewRunner(db, fstest.MapFS{
+		"0002_in_flight_repair.sql": &fstest.MapFile{Data: []byte("CREATE TABLE should_not_run (id INTEGER);\n")},
+	}, migrations.Options{})
+	if err != nil {
+		t.Fatalf("NewRunner() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err = runner.Repair(ctx, 2)
+	if got := platformerrors.CodeOf(err); got != platformerrors.CodeDeadlineExceeded {
+		t.Fatalf("CodeOf(in-flight Repair()) = %q, want %q (%v)", got, platformerrors.CodeDeadlineExceeded, err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("in-flight Repair() error = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestMigrationOperationsClassifyInFlightConnectionCancellation(t *testing.T) {
+	operations := []struct {
+		name   string
+		repair bool
+	}{
+		{name: "Apply"},
+		{name: "Repair", repair: true},
+	}
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			db := openSQLite(t)
+			db.SetMaxOpenConns(1)
+			held, err := db.Conn(context.Background())
+			if err != nil {
+				t.Fatalf("db.Conn(held) error = %v", err)
+			}
+			defer held.Close()
+			if err := held.PingContext(context.Background()); err != nil {
+				t.Fatalf("held connection ping error = %v", err)
+			}
+
+			runner, err := migrations.NewRunner(db, fstest.MapFS{
+				"0002_in_flight_cancel.sql": &fstest.MapFile{Data: []byte("CREATE TABLE should_not_run (id INTEGER);\n")},
+			}, migrations.Options{})
+			if err != nil {
+				t.Fatalf("NewRunner() error = %v", err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			result := make(chan error, 1)
+			go func() {
+				if operation.repair {
+					result <- runner.Repair(ctx, 2)
+					return
+				}
+				result <- runner.Apply(ctx)
+			}()
+			select {
+			case err := <-result:
+				t.Fatalf("operation returned before cancellation: %v", err)
+			case <-time.After(20 * time.Millisecond):
+			}
+			cancel()
+			err = <-result
+			if got := platformerrors.CodeOf(err); got != platformerrors.CodeCanceled {
+				t.Fatalf("CodeOf(in-flight %s()) = %q, want %q (%v)", operation.name, got, platformerrors.CodeCanceled, err)
+			}
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("in-flight %s() error = %v, want context.Canceled", operation.name, err)
+			}
+		})
+	}
+}
+
 func TestApplyKeepsNilContextAsInvalidInput(t *testing.T) {
 	db := openSQLite(t)
 	runner, err := migrations.NewRunner(db, fstest.MapFS{

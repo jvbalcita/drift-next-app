@@ -46,8 +46,8 @@ func TestApplyConcurrentRunnersDoNotReportFalseDirty(t *testing.T) {
 	waitForConcurrentRead(t, firstRead)
 	waitForConcurrentRead(t, secondRead)
 	close(releaseFirst)
-	firstErr := <-firstResult
 	close(releaseSecond)
+	firstErr := <-firstResult
 	secondErr := <-secondResult
 	if firstErr != nil {
 		t.Fatalf("first Apply() error = %v", firstErr)
