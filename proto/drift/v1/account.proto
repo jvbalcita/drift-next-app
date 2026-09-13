@@ -1,0 +1,31 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum AccountState {
+  ACCOUNT_STATE_UNSPECIFIED = 0;
+  ACCOUNT_STATE_ACTIVE = 1;
+  ACCOUNT_STATE_SUSPENDED = 2;
+  ACCOUNT_STATE_RETIRED = 3;
+}
+message AccountReference {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string source_id = 3;
+  string external_reference = 4;
+  AccountState state = 5;
+}
+message ListAccountReferencesRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListAccountReferencesResponse {
+  repeated AccountReference accounts = 1;
+  PageResponse page = 2;
+}
+service AccountService {
+  rpc ListAccountReferences(ListAccountReferencesRequest) returns (ListAccountReferencesResponse);
+}

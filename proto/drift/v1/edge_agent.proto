@@ -1,0 +1,42 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum EdgeAgentState {
+  EDGE_AGENT_STATE_UNSPECIFIED = 0;
+  EDGE_AGENT_STATE_PENDING = 1;
+  EDGE_AGENT_STATE_ACTIVE = 2;
+  EDGE_AGENT_STATE_UNHEALTHY = 3;
+  EDGE_AGENT_STATE_OFFLINE = 4;
+  EDGE_AGENT_STATE_RETIRED = 5;
+}
+message EdgeAgent {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string display_name = 3;
+  string version = 4;
+  EdgeAgentState state = 5;
+  string last_seen_at = 6;
+  uint64 row_version = 7;
+}
+message ListEdgeAgentsRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListEdgeAgentsResponse {
+  repeated EdgeAgent edge_agents = 1;
+  PageResponse page = 2;
+}
+message GetEdgeAgentRequest {
+  ResourceRef edge_agent = 1;
+}
+message GetEdgeAgentResponse {
+  EdgeAgent edge_agent = 1;
+}
+service EdgeAgentService {
+  rpc ListEdgeAgents(ListEdgeAgentsRequest) returns (ListEdgeAgentsResponse);
+  rpc GetEdgeAgent(GetEdgeAgentRequest) returns (GetEdgeAgentResponse);
+}

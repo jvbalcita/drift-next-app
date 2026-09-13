@@ -1,0 +1,56 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum ActionKind {
+  ACTION_KIND_UNSPECIFIED = 0;
+  ACTION_KIND_OBSERVE = 1;
+  ACTION_KIND_HEALTH_CHECK = 2;
+  ACTION_KIND_CAPTURE = 3;
+  ACTION_KIND_TAP = 4;
+  ACTION_KIND_TEXT_INPUT = 5;
+  ACTION_KIND_BACK = 6;
+}
+enum ActionOutcome {
+  ACTION_OUTCOME_UNSPECIFIED = 0;
+  ACTION_OUTCOME_PENDING = 1;
+  ACTION_OUTCOME_VERIFIED = 2;
+  ACTION_OUTCOME_FAILED = 3;
+  ACTION_OUTCOME_CANCELLED = 4;
+  ACTION_OUTCOME_TIMED_OUT = 5;
+  ACTION_OUTCOME_UNKNOWN = 6;
+  ACTION_OUTCOME_INDETERMINATE = 7;
+}
+message SemanticTarget {
+  string resource_id = 1;
+  string accessibility_label = 2;
+  string stable_text = 3;
+  string context_fingerprint = 4;
+}
+message ActionIntent {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  ActionKind kind = 4;
+  SemanticTarget target = 5;
+  string idempotency_key = 6;
+}
+message ActionResult {
+  string action_id = 1;
+  ActionOutcome outcome = 2;
+  Failure failure = 3;
+  ArtifactReference evidence = 4;
+}
+message SubmitActionRequest {
+  RequestContext context = 1;
+  ActionIntent intent = 2;
+}
+message SubmitActionResponse {
+  ActionResult result = 1;
+}
+service ActionService {
+  rpc SubmitAction(SubmitActionRequest) returns (SubmitActionResponse);
+}

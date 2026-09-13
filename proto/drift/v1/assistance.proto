@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+// AssistanceUseCase describes a read-only, non-executing request for bounded analysis.
+enum AssistanceUseCase {
+  ASSISTANCE_USE_CASE_UNSPECIFIED = 0;
+  ASSISTANCE_USE_CASE_RUN_EXPLANATION = 1;
+  ASSISTANCE_USE_CASE_FAILURE_CLUSTERING = 2;
+  ASSISTANCE_USE_CASE_UNKNOWN_SCREEN_SUMMARY = 3;
+  ASSISTANCE_USE_CASE_UI_DRIFT_REPORT = 4;
+  ASSISTANCE_USE_CASE_LOCATOR_PROPOSAL = 5;
+}
+
+// SuggestionKind distinguishes read-only explanations from candidates requiring normal review.
+enum SuggestionKind {
+  SUGGESTION_KIND_UNSPECIFIED = 0;
+  SUGGESTION_KIND_EXPLANATION = 1;
+  SUGGESTION_KIND_CLUSTER = 2;
+  SUGGESTION_KIND_SUMMARY = 3;
+  SUGGESTION_KIND_LOCATOR_CANDIDATE = 4;
+  SUGGESTION_KIND_BRANCH_CANDIDATE = 5;
+}
+
+// SuggestionDisposition records review without granting execution or approval authority.
+enum SuggestionDisposition {
+  SUGGESTION_DISPOSITION_UNSPECIFIED = 0;
+  SUGGESTION_DISPOSITION_PENDING_REVIEW = 1;
+  SUGGESTION_DISPOSITION_ACCEPTED = 2;
+  SUGGESTION_DISPOSITION_REJECTED = 3;
+  SUGGESTION_DISPOSITION_EXPIRED = 4;
+}
+
+// SanitizedEvidenceReference permits only bounded metadata references, never raw screen or credential bytes.
+message SanitizedEvidenceReference {
+  string artifact_id = 1;
+  string content_hash = 2;
+  string media_type = 3;
+  uint32 schema_version = 4;
+}
+
+// AssistanceRequest contains no action, provider credential, filesystem path, or device command authority.
+message ProposeRequest {
+  WorkspaceRef workspace = 1;
+  string request_id = 2;
+  AssistanceUseCase use_case = 3;
+  repeated SanitizedEvidenceReference evidence = 4;
+  uint32 max_response_bytes = 5;
+}
+
+// AssistanceSuggestion is a typed non-executable candidate with provenance and uncertainty.
+message AssistanceSuggestion {
+  string suggestion_id = 1;
+  SuggestionKind kind = 2;
+  string proposal_json = 3;
+  string provider = 4;
+  string model = 5;
+  string model_version = 6;
+  string prompt_template_version = 7;
+  double confidence = 8;
+  string uncertainty = 9;
+  string expires_at = 10;
+  repeated SanitizedEvidenceReference evidence = 11;
+  SuggestionDisposition disposition = 12;
+}
+
+message ProposeResponse {
+  AssistanceSuggestion suggestion = 1;
+  Failure failure = 2;
+}
+
+// AssistanceService returns typed candidates only; it cannot execute, approve, or mutate control-plane state.
+service AssistanceService {
+  rpc Propose(ProposeRequest) returns (ProposeResponse);
+}

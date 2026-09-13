@@ -1,0 +1,42 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum ObservationCaptureState {
+  OBSERVATION_CAPTURE_STATE_UNSPECIFIED = 0;
+  OBSERVATION_CAPTURE_STATE_COMPLETE = 1;
+  OBSERVATION_CAPTURE_STATE_PARTIAL = 2;
+  OBSERVATION_CAPTURE_STATE_FAILED = 3;
+}
+message ObservationSnapshot {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string captured_at = 4;
+  string capture_correlation_id = 5;
+  string coordinate_space = 6;
+  string package_name = 7;
+  string activity_name = 8;
+  uint32 display_width = 9;
+  uint32 display_height = 10;
+  string source = 11;
+  string protocol_version = 12;
+  string model_version = 13;
+  ObservationCaptureState capture_state = 14;
+  bool truncated = 15;
+  string freshness_token = 16;
+  repeated ArtifactReference artifacts = 17;
+  Failure failure = 18;
+}
+message GetObservationSnapshotRequest {
+  ResourceRef observation = 1;
+}
+message GetObservationSnapshotResponse {
+  ObservationSnapshot observation = 1;
+}
+service ObservationService {
+  rpc GetObservationSnapshot(GetObservationSnapshotRequest) returns (GetObservationSnapshotResponse);
+}

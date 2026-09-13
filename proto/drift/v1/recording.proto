@@ -1,0 +1,36 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum RecordingState {
+  RECORDING_STATE_UNSPECIFIED = 0;
+  RECORDING_STATE_REQUESTED = 1;
+  RECORDING_STATE_RECORDING = 2;
+  RECORDING_STATE_STOPPING = 3;
+  RECORDING_STATE_COMPLETED = 4;
+  RECORDING_STATE_DISCARDED = 5;
+  RECORDING_STATE_FAILED = 6;
+}
+message RecordingSession {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  RecordingState state = 4;
+  string source = 5;
+  string started_at = 6;
+  string finished_at = 7;
+}
+message ListRecordingSessionsRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListRecordingSessionsResponse {
+  repeated RecordingSession sessions = 1;
+  PageResponse page = 2;
+}
+service RecordingService {
+  rpc ListRecordingSessions(ListRecordingSessionsRequest) returns (ListRecordingSessionsResponse);
+}

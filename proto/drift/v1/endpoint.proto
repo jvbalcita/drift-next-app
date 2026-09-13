@@ -1,0 +1,38 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum EndpointState {
+  ENDPOINT_STATE_UNSPECIFIED = 0;
+  ENDPOINT_STATE_OBSERVED = 1;
+  ENDPOINT_STATE_CURRENT = 2;
+  ENDPOINT_STATE_SUPERSEDED = 3;
+  ENDPOINT_STATE_RETIRED = 4;
+}
+message DeviceEndpoint {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string endpoint_type = 4;
+  string serial = 5;
+  string host = 6;
+  uint32 port = 7;
+  EndpointState state = 8;
+  string observed_at = 9;
+}
+message ListDeviceEndpointsRequest {
+  WorkspaceRef workspace = 1;
+  string device_id = 2;
+  bool current_only = 3;
+  PageRequest page = 4;
+}
+message ListDeviceEndpointsResponse {
+  repeated DeviceEndpoint endpoints = 1;
+  PageResponse page = 2;
+}
+service EndpointService {
+  rpc ListDeviceEndpoints(ListDeviceEndpointsRequest) returns (ListDeviceEndpointsResponse);
+}

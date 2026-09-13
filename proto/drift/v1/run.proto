@@ -1,0 +1,64 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum RunState {
+  RUN_STATE_UNSPECIFIED = 0;
+  RUN_STATE_REQUESTED = 1;
+  RUN_STATE_VALIDATING = 2;
+  RUN_STATE_QUEUED = 3;
+  RUN_STATE_RUNNING = 4;
+  RUN_STATE_COMPLETING = 5;
+  RUN_STATE_COMPLETED = 6;
+  RUN_STATE_FAILED = 7;
+  RUN_STATE_CANCELLED = 8;
+}
+enum RunTargetState {
+  RUN_TARGET_STATE_UNSPECIFIED = 0;
+  RUN_TARGET_STATE_PENDING = 1;
+  RUN_TARGET_STATE_LEASED = 2;
+  RUN_TARGET_STATE_QUEUED = 3;
+  RUN_TARGET_STATE_RUNNING = 4;
+  RUN_TARGET_STATE_VERIFYING = 5;
+  RUN_TARGET_STATE_SUCCEEDED = 6;
+  RUN_TARGET_STATE_FAILED = 7;
+  RUN_TARGET_STATE_CANCELLED = 8;
+  RUN_TARGET_STATE_CLEANUP_FAILED = 9;
+}
+message WorkflowRun {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string workflow_version_id = 3;
+  RunState state = 4;
+  uint32 concurrency_limit = 5;
+  Failure failure = 6;
+}
+message RunTarget {
+  string id = 1;
+  string run_id = 2;
+  string device_id = 3;
+  RunTargetState state = 4;
+  Failure failure = 5;
+}
+message ListWorkflowRunsRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListWorkflowRunsResponse {
+  repeated WorkflowRun runs = 1;
+  PageResponse page = 2;
+}
+message CancelWorkflowRunRequest {
+  RequestContext context = 1;
+  ResourceRef run = 2;
+}
+message CancelWorkflowRunResponse {
+  WorkflowRun run = 1;
+}
+service RunService {
+  rpc ListWorkflowRuns(ListWorkflowRunsRequest) returns (ListWorkflowRunsResponse);
+  rpc CancelWorkflowRun(CancelWorkflowRunRequest) returns (CancelWorkflowRunResponse);
+}

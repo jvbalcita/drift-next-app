@@ -1,0 +1,39 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum AutomationAgentState {
+  AUTOMATION_AGENT_STATE_UNSPECIFIED = 0;
+  AUTOMATION_AGENT_STATE_ACTIVE = 1;
+  AUTOMATION_AGENT_STATE_SUSPENDED = 2;
+  AUTOMATION_AGENT_STATE_RETIRED = 3;
+}
+message AutomationAgent {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string display_name = 3;
+  AutomationAgentState state = 4;
+  uint64 row_version = 5;
+}
+message AutomationAgentProfile {
+  string id = 1;
+  string automation_agent_id = 2;
+  uint32 version = 3;
+  string state = 4;
+  repeated string capabilities = 5;
+  string trust_state = 6;
+}
+message ListAutomationAgentsRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListAutomationAgentsResponse {
+  repeated AutomationAgent agents = 1;
+  PageResponse page = 2;
+}
+service AutomationAgentService {
+  rpc ListAutomationAgents(ListAutomationAgentsRequest) returns (ListAutomationAgentsResponse);
+}
