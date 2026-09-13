@@ -7,7 +7,7 @@
 
 | Phase | Status | Verified evidence / remaining work |
 | --- | --- | --- |
-| P0 — scope, decisions, non-goals | in progress | The decision set and required artifacts are committed locally in isolated branch `feat/drift-next-phase0-domain-envelope` at `ac14040`; independent local validation passed. The repository has no configured remote, so the commit is unpushed/unreviewed; Boss approval and merge remain exit gates. |
+| P0 — scope, decisions, non-goals | in progress | Required artifacts merged through [PR #1](https://github.com/jvbalcita/drift-next-app/pull/1) at `f4fb96e`; GitHub frontend, Go, contract, and Tauri checks passed. Boss approval of the proposed Phase 0 decisions remains the final exit gate. |
 | P1 — build and migration discipline | not started | Bootstrap toolchain files exist, but no approved migration runner, clock/ID/error/redaction seams, migration contract, or full CI gate has been verified. |
 | P2 — domain vocabulary and state machines | not started | No domain model/state-machine package or transition test is present. |
 | P3 — normalized SQLite schema and harness | not started | `0001_initial.sql` is a bootstrap sketch only; the required SQLite migration series and integration harness are absent. |
