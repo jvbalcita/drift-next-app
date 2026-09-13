@@ -30,10 +30,10 @@ func TestEndpointServicePreservesCurrentHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	var oldState, newState string
-	if err := db.SQL().QueryRow(`SELECT state FROM device_endpoints WHERE id = ?`, first.ID).Scan(&oldState); err != nil {
+	if err := store.SQLForTest(db).QueryRow(`SELECT state FROM device_endpoints WHERE id = ?`, first.ID).Scan(&oldState); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SQL().QueryRow(`SELECT state FROM device_endpoints WHERE id = ?`, second.ID).Scan(&newState); err != nil {
+	if err := store.SQLForTest(db).QueryRow(`SELECT state FROM device_endpoints WHERE id = ?`, second.ID).Scan(&newState); err != nil {
 		t.Fatal(err)
 	}
 	if oldState != string(endpoints.Superseded) || newState != string(endpoints.Current) {

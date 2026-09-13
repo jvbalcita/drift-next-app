@@ -20,26 +20,29 @@ func (s *DB) ReserveIdempotency(ctx context.Context, workspace, key, operation, 
 	}
 	reserved := false
 	err := WithTx(ctx, s.db, func(tx *sql.Tx) error {
-		var existingHash string
-		err := tx.QueryRowContext(ctx, `SELECT request_hash FROM idempotency_keys WHERE workspace_id=? AND key=?`, workspace, key).Scan(&existingHash)
-		if err == nil {
-			if existingHash != requestHash {
-				return platformerrors.New(platformerrors.CodeConflict, "idempotency key was reused with a different request")
-			}
-			return nil
-		}
-		if err != sql.ErrNoRows {
-			return err
-		}
 		id, err := s.ids.NewID()
 		if err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO idempotency_keys (id,workspace_id,key,operation_type,operation_id,request_hash,outcome,created_at) VALUES (?,?,?,?,?,?, 'reserved', ?)`, id, workspace, key, operation, operation, requestHash, s.clock.Now().UTC().Format(time.RFC3339Nano))
+		result, err := tx.ExecContext(ctx, `INSERT INTO idempotency_keys (id,workspace_id,key,operation_type,operation_id,request_hash,outcome,created_at) VALUES (?,?,?,?,?,?, 'reserved', ?) ON CONFLICT (workspace_id, key) DO NOTHING`, id, workspace, key, operation, operation, requestHash, s.clock.Now().UTC().Format(time.RFC3339Nano))
 		if err != nil {
-			return mapConstraint(err)
+			return err
 		}
-		reserved = true
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows == 1 {
+			reserved = true
+			return nil
+		}
+		var existingHash string
+		if err := tx.QueryRowContext(ctx, `SELECT request_hash FROM idempotency_keys WHERE workspace_id=? AND key=?`, workspace, key).Scan(&existingHash); err != nil {
+			return err
+		}
+		if existingHash != requestHash {
+			return platformerrors.New(platformerrors.CodeConflict, "idempotency key was reused with a different request")
+		}
 		return nil
 	})
 	return reserved, err

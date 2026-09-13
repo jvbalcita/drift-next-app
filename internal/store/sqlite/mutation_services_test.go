@@ -42,8 +42,24 @@ func TestIdempotencySameHashIsDuplicateAndDifferentHashConflicts(t *testing.T) {
 }
 
 func TestAuditFailureRollsBackWorkspaceMutation(t *testing.T) {
+	assertWorkspaceCreateRollsBack(t, failingAuditWriter{})
+}
+
+func TestOutboxFailureRollsBackWorkspaceMutation(t *testing.T) {
+	assertWorkspaceCreateRollsBack(t, failingOutboxWriter{})
+}
+
+func assertWorkspaceCreateRollsBack(t *testing.T, auditOrOutbox any) {
+	t.Helper()
 	good := openTestDB(t)
-	injected, err := store.FromDB(good.SQL(), store.Options{Audit: failingAuditWriter{}})
+	options := store.Options{}
+	if writer, ok := auditOrOutbox.(failingAuditWriter); ok {
+		options.Audit = writer
+	}
+	if writer, ok := auditOrOutbox.(failingOutboxWriter); ok {
+		options.Outbox = writer
+	}
+	injected, err := store.FromDB(store.SQLForTest(good), options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,6 +68,6 @@ func TestAuditFailureRollsBackWorkspaceMutation(t *testing.T) {
 		t.Fatal("Create() unexpectedly succeeded")
 	}
 	if _, err := store.NewWorkspaceRepository(injected).Get(context.Background(), "rollback-w"); platformerrors.CodeOf(err) != platformerrors.CodeNotFound {
-		t.Fatalf("workspace after audit failure code = %v, want not_found", platformerrors.CodeOf(err))
+		t.Fatalf("workspace after writer failure code = %v, want not_found", platformerrors.CodeOf(err))
 	}
 }

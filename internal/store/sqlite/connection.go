@@ -134,12 +134,6 @@ func FromDB(raw *sql.DB, options Options) (*DB, error) {
 	return result, nil
 }
 
-func (d *DB) SQL() *sql.DB {
-	if d == nil {
-		return nil
-	}
-	return d.db
-}
 func (d *DB) Clock() clock.Clock   { return d.clock }
 func (d *DB) IDs() ids.IDGenerator { return d.ids }
 func (d *DB) Audit() AuditWriter   { return d.audit }
