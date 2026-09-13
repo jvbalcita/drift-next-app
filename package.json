@@ -11,10 +11,16 @@
     "test": "pnpm --filter console test",
     "tauri": "pnpm --filter console tauri",
     "go:test": "go test ./...",
+    "go:migrations": "go test ./internal/platform/migrations -count=1",
     "go:vet": "go vet ./...",
+    "go:build": "go build ./...",
+    "security:scan": "bash scripts/secret-scan.sh",
+    "check:diff": "git diff --check",
+    "contracts:format:check": "buf format --diff --exit-code",
     "contracts:lint": "buf lint",
     "contracts:build": "buf build",
     "contracts:generate": "buf generate",
+    "contracts:generate:check": "bash scripts/check-generated.sh",
     "infra:config": "docker compose -f deploy/compose/docker-compose.yml config --quiet"
   }
 }
