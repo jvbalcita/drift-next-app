@@ -8,7 +8,7 @@
 | Phase | Status | Verified evidence / remaining work |
 | --- | --- | --- |
 | P0 — scope, decisions, non-goals | in progress | Required artifacts merged through [PR #1](https://github.com/jvbalcita/drift-next-app/pull/1) at `f4fb96e`; GitHub frontend, Go, contract, and Tauri checks passed. Boss approval of the proposed Phase 0 decisions remains the final exit gate. |
-| P1 — build and migration discipline | not started | Bootstrap toolchain files exist, but no approved migration runner, clock/ID/error/redaction seams, migration contract, or full CI gate has been verified. |
+| P1 — build and migration discipline | complete | Repository-owned SQLite runner over pinned pure-Go `modernc.org/sqlite v1.58.0`, immutable checksums, `BEGIN IMMEDIATE` locking, durable dirty-state refusal/repair, deterministic clock/ID seams, typed errors, redaction, reproducible generation checking, secret scan, and CI gates merged through [PR #4](https://github.com/jvbalcita/drift-next-app/pull/4) at `9b00f3a`. All five GitHub checks and post-merge local gates passed. Boss authorized the merge while Sentinel's exact-head review was pending; that is an owner override, not reviewer approval. A subprocess-kill crash harness remains a follow-up limitation. |
 | P2 — domain vocabulary and state machines | not started | No domain model/state-machine package or transition test is present. |
 | P3 — normalized SQLite schema and harness | not started | `0001_initial.sql` is a bootstrap sketch only; the required SQLite migration series and integration harness are absent. |
 | P4 — repositories and transaction services | not started | No typed SQLite repository/service boundary has been verified. |
