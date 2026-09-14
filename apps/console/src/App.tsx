@@ -29,6 +29,7 @@ const GroupsPage = lazy(async () => ({ default: (await import("./pages/GroupsPag
 const NetworkProfilesPage = lazy(async () => ({ default: (await import("./pages/NetworkProfilesPage")).NetworkProfilesPage }))
 const PoliciesPage = lazy(async () => ({ default: (await import("./pages/PoliciesPage")).PoliciesPage }))
 const RunsPage = lazy(async () => ({ default: (await import("./pages/RunsPage")).RunsPage }))
+const WorkflowsPage = lazy(async () => ({ default: (await import("./pages/WorkflowsPage")).WorkflowsPage }))
 const SettingsPage = lazy(async () => ({ default: (await import("./pages/SettingsPage")).SettingsPage }))
 
 function App() {
@@ -80,7 +81,7 @@ function renderSection(section: string, snapshot: ReturnType<typeof useControlPl
     case "Network Profiles": return <NetworkProfilesPage snapshot={snapshot} dispatch={dispatch} />
     case "Groups": return <GroupsPage snapshot={snapshot} dispatch={dispatch} />
     case "Agents": return <AgentsPage snapshot={snapshot} dispatch={dispatch} />
-    case "Workflows":
+    case "Workflows": return <WorkflowsPage snapshot={snapshot} dispatch={dispatch} />
     case "Runs": return <RunsPage snapshot={snapshot} dispatch={dispatch} />
     case "Events": return <EventsPage snapshot={snapshot} />
     case "Policies": return <PoliciesPage snapshot={snapshot} dispatch={dispatch} />
