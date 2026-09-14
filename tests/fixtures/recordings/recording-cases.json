@@ -1,0 +1,55 @@
+{
+  "source": "fake",
+  "session_number": 1,
+  "workspace_id": "workspace-fixture",
+  "device_id": "fake-device-a",
+  "events": [
+    {
+      "sequence": 0,
+      "action": "tap",
+      "target": {
+        "resource_id": "save-item",
+        "candidate_count": 1,
+        "confidence": 1
+      },
+      "before": {
+        "package_name": "com.example.fake",
+        "activity_name": ".MainActivity",
+        "app_version": "1.0.0",
+        "coordinate_space": "display:1080x1920",
+        "status": "complete",
+        "sanitization": "sanitized",
+        "evidence": ["sha256:before-image"]
+      },
+      "after": {
+        "package_name": "com.example.fake",
+        "activity_name": ".MainActivity",
+        "app_version": "1.0.0",
+        "coordinate_space": "display:1080x1920",
+        "status": "complete",
+        "sanitization": "sanitized",
+        "evidence": ["sha256:after-image", "sha256:after-tree"]
+      }
+    },
+    {
+      "sequence": 1,
+      "action": "text_input",
+      "target": {
+        "resource_id": "search-field",
+        "candidate_count": 1,
+        "confidence": 1
+      },
+      "display_value": "sample query",
+      "value_length": 12,
+      "sensitivity": "none",
+      "capture_errors": [
+        {
+          "phase": "review",
+          "failure_class": "observation",
+          "message": "annotation unavailable",
+          "omitted": true
+        }
+      ]
+    }
+  ]
+}

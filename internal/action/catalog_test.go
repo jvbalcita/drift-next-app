@@ -53,3 +53,10 @@ func TestSemanticTargetValidationFailsClosedOnAmbiguity(t *testing.T) {
 		t.Fatalf("valid semantic target rejected: %v", err)
 	}
 }
+
+func TestIntentAcceptsTypedReplayMetadata(t *testing.T) {
+	intent := Intent{ID: "event-1", Workspace: "workspace-1", DeviceID: "device-1", LeaseID: "lease-1", HolderID: "holder-1", FencingToken: 1, Kind: Tap, Target: SemanticTarget{ResourceID: "save"}, IdempotencyKey: "replay:skill-1:0", ObservationToken: "before", InvocationSurface: SurfaceReplay, Capabilities: []Capability{CapabilityTap}, ApprovalGranted: true, Timeout: time.Second}
+	if err := intent.Validate(); err != nil {
+		t.Fatalf("typed replay intent rejected: %v", err)
+	}
+}

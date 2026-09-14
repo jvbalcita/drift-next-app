@@ -35,11 +35,31 @@ const (
 const (
 	// SkillServiceListSkillsProcedure is the fully-qualified name of the SkillService's ListSkills RPC.
 	SkillServiceListSkillsProcedure = "/drift.v1.SkillService/ListSkills"
+	// SkillServiceListSkillVersionsProcedure is the fully-qualified name of the SkillService's
+	// ListSkillVersions RPC.
+	SkillServiceListSkillVersionsProcedure = "/drift.v1.SkillService/ListSkillVersions"
+	// SkillServiceGetSkillVersionProcedure is the fully-qualified name of the SkillService's
+	// GetSkillVersion RPC.
+	SkillServiceGetSkillVersionProcedure = "/drift.v1.SkillService/GetSkillVersion"
+	// SkillServiceReviewSkillVersionProcedure is the fully-qualified name of the SkillService's
+	// ReviewSkillVersion RPC.
+	SkillServiceReviewSkillVersionProcedure = "/drift.v1.SkillService/ReviewSkillVersion"
+	// SkillServicePublishSkillVersionProcedure is the fully-qualified name of the SkillService's
+	// PublishSkillVersion RPC.
+	SkillServicePublishSkillVersionProcedure = "/drift.v1.SkillService/PublishSkillVersion"
+	// SkillServiceListSharedBrainKnowledgeProcedure is the fully-qualified name of the SkillService's
+	// ListSharedBrainKnowledge RPC.
+	SkillServiceListSharedBrainKnowledgeProcedure = "/drift.v1.SkillService/ListSharedBrainKnowledge"
 )
 
 // SkillServiceClient is a client for the drift.v1.SkillService service.
 type SkillServiceClient interface {
 	ListSkills(context.Context, *connect.Request[v1.ListSkillsRequest]) (*connect.Response[v1.ListSkillsResponse], error)
+	ListSkillVersions(context.Context, *connect.Request[v1.ListSkillVersionsRequest]) (*connect.Response[v1.ListSkillVersionsResponse], error)
+	GetSkillVersion(context.Context, *connect.Request[v1.GetSkillVersionRequest]) (*connect.Response[v1.GetSkillVersionResponse], error)
+	ReviewSkillVersion(context.Context, *connect.Request[v1.ReviewSkillVersionRequest]) (*connect.Response[v1.ReviewSkillVersionResponse], error)
+	PublishSkillVersion(context.Context, *connect.Request[v1.PublishSkillVersionRequest]) (*connect.Response[v1.PublishSkillVersionResponse], error)
+	ListSharedBrainKnowledge(context.Context, *connect.Request[v1.ListSharedBrainKnowledgeRequest]) (*connect.Response[v1.ListSharedBrainKnowledgeResponse], error)
 }
 
 // NewSkillServiceClient constructs a client for the drift.v1.SkillService service. By default, it
@@ -59,12 +79,47 @@ func NewSkillServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(skillServiceMethods.ByName("ListSkills")),
 			connect.WithClientOptions(opts...),
 		),
+		listSkillVersions: connect.NewClient[v1.ListSkillVersionsRequest, v1.ListSkillVersionsResponse](
+			httpClient,
+			baseURL+SkillServiceListSkillVersionsProcedure,
+			connect.WithSchema(skillServiceMethods.ByName("ListSkillVersions")),
+			connect.WithClientOptions(opts...),
+		),
+		getSkillVersion: connect.NewClient[v1.GetSkillVersionRequest, v1.GetSkillVersionResponse](
+			httpClient,
+			baseURL+SkillServiceGetSkillVersionProcedure,
+			connect.WithSchema(skillServiceMethods.ByName("GetSkillVersion")),
+			connect.WithClientOptions(opts...),
+		),
+		reviewSkillVersion: connect.NewClient[v1.ReviewSkillVersionRequest, v1.ReviewSkillVersionResponse](
+			httpClient,
+			baseURL+SkillServiceReviewSkillVersionProcedure,
+			connect.WithSchema(skillServiceMethods.ByName("ReviewSkillVersion")),
+			connect.WithClientOptions(opts...),
+		),
+		publishSkillVersion: connect.NewClient[v1.PublishSkillVersionRequest, v1.PublishSkillVersionResponse](
+			httpClient,
+			baseURL+SkillServicePublishSkillVersionProcedure,
+			connect.WithSchema(skillServiceMethods.ByName("PublishSkillVersion")),
+			connect.WithClientOptions(opts...),
+		),
+		listSharedBrainKnowledge: connect.NewClient[v1.ListSharedBrainKnowledgeRequest, v1.ListSharedBrainKnowledgeResponse](
+			httpClient,
+			baseURL+SkillServiceListSharedBrainKnowledgeProcedure,
+			connect.WithSchema(skillServiceMethods.ByName("ListSharedBrainKnowledge")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // skillServiceClient implements SkillServiceClient.
 type skillServiceClient struct {
-	listSkills *connect.Client[v1.ListSkillsRequest, v1.ListSkillsResponse]
+	listSkills               *connect.Client[v1.ListSkillsRequest, v1.ListSkillsResponse]
+	listSkillVersions        *connect.Client[v1.ListSkillVersionsRequest, v1.ListSkillVersionsResponse]
+	getSkillVersion          *connect.Client[v1.GetSkillVersionRequest, v1.GetSkillVersionResponse]
+	reviewSkillVersion       *connect.Client[v1.ReviewSkillVersionRequest, v1.ReviewSkillVersionResponse]
+	publishSkillVersion      *connect.Client[v1.PublishSkillVersionRequest, v1.PublishSkillVersionResponse]
+	listSharedBrainKnowledge *connect.Client[v1.ListSharedBrainKnowledgeRequest, v1.ListSharedBrainKnowledgeResponse]
 }
 
 // ListSkills calls drift.v1.SkillService.ListSkills.
@@ -72,9 +127,39 @@ func (c *skillServiceClient) ListSkills(ctx context.Context, req *connect.Reques
 	return c.listSkills.CallUnary(ctx, req)
 }
 
+// ListSkillVersions calls drift.v1.SkillService.ListSkillVersions.
+func (c *skillServiceClient) ListSkillVersions(ctx context.Context, req *connect.Request[v1.ListSkillVersionsRequest]) (*connect.Response[v1.ListSkillVersionsResponse], error) {
+	return c.listSkillVersions.CallUnary(ctx, req)
+}
+
+// GetSkillVersion calls drift.v1.SkillService.GetSkillVersion.
+func (c *skillServiceClient) GetSkillVersion(ctx context.Context, req *connect.Request[v1.GetSkillVersionRequest]) (*connect.Response[v1.GetSkillVersionResponse], error) {
+	return c.getSkillVersion.CallUnary(ctx, req)
+}
+
+// ReviewSkillVersion calls drift.v1.SkillService.ReviewSkillVersion.
+func (c *skillServiceClient) ReviewSkillVersion(ctx context.Context, req *connect.Request[v1.ReviewSkillVersionRequest]) (*connect.Response[v1.ReviewSkillVersionResponse], error) {
+	return c.reviewSkillVersion.CallUnary(ctx, req)
+}
+
+// PublishSkillVersion calls drift.v1.SkillService.PublishSkillVersion.
+func (c *skillServiceClient) PublishSkillVersion(ctx context.Context, req *connect.Request[v1.PublishSkillVersionRequest]) (*connect.Response[v1.PublishSkillVersionResponse], error) {
+	return c.publishSkillVersion.CallUnary(ctx, req)
+}
+
+// ListSharedBrainKnowledge calls drift.v1.SkillService.ListSharedBrainKnowledge.
+func (c *skillServiceClient) ListSharedBrainKnowledge(ctx context.Context, req *connect.Request[v1.ListSharedBrainKnowledgeRequest]) (*connect.Response[v1.ListSharedBrainKnowledgeResponse], error) {
+	return c.listSharedBrainKnowledge.CallUnary(ctx, req)
+}
+
 // SkillServiceHandler is an implementation of the drift.v1.SkillService service.
 type SkillServiceHandler interface {
 	ListSkills(context.Context, *connect.Request[v1.ListSkillsRequest]) (*connect.Response[v1.ListSkillsResponse], error)
+	ListSkillVersions(context.Context, *connect.Request[v1.ListSkillVersionsRequest]) (*connect.Response[v1.ListSkillVersionsResponse], error)
+	GetSkillVersion(context.Context, *connect.Request[v1.GetSkillVersionRequest]) (*connect.Response[v1.GetSkillVersionResponse], error)
+	ReviewSkillVersion(context.Context, *connect.Request[v1.ReviewSkillVersionRequest]) (*connect.Response[v1.ReviewSkillVersionResponse], error)
+	PublishSkillVersion(context.Context, *connect.Request[v1.PublishSkillVersionRequest]) (*connect.Response[v1.PublishSkillVersionResponse], error)
+	ListSharedBrainKnowledge(context.Context, *connect.Request[v1.ListSharedBrainKnowledgeRequest]) (*connect.Response[v1.ListSharedBrainKnowledgeResponse], error)
 }
 
 // NewSkillServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -90,10 +175,50 @@ func NewSkillServiceHandler(svc SkillServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(skillServiceMethods.ByName("ListSkills")),
 		connect.WithHandlerOptions(opts...),
 	)
+	skillServiceListSkillVersionsHandler := connect.NewUnaryHandler(
+		SkillServiceListSkillVersionsProcedure,
+		svc.ListSkillVersions,
+		connect.WithSchema(skillServiceMethods.ByName("ListSkillVersions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	skillServiceGetSkillVersionHandler := connect.NewUnaryHandler(
+		SkillServiceGetSkillVersionProcedure,
+		svc.GetSkillVersion,
+		connect.WithSchema(skillServiceMethods.ByName("GetSkillVersion")),
+		connect.WithHandlerOptions(opts...),
+	)
+	skillServiceReviewSkillVersionHandler := connect.NewUnaryHandler(
+		SkillServiceReviewSkillVersionProcedure,
+		svc.ReviewSkillVersion,
+		connect.WithSchema(skillServiceMethods.ByName("ReviewSkillVersion")),
+		connect.WithHandlerOptions(opts...),
+	)
+	skillServicePublishSkillVersionHandler := connect.NewUnaryHandler(
+		SkillServicePublishSkillVersionProcedure,
+		svc.PublishSkillVersion,
+		connect.WithSchema(skillServiceMethods.ByName("PublishSkillVersion")),
+		connect.WithHandlerOptions(opts...),
+	)
+	skillServiceListSharedBrainKnowledgeHandler := connect.NewUnaryHandler(
+		SkillServiceListSharedBrainKnowledgeProcedure,
+		svc.ListSharedBrainKnowledge,
+		connect.WithSchema(skillServiceMethods.ByName("ListSharedBrainKnowledge")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.SkillService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SkillServiceListSkillsProcedure:
 			skillServiceListSkillsHandler.ServeHTTP(w, r)
+		case SkillServiceListSkillVersionsProcedure:
+			skillServiceListSkillVersionsHandler.ServeHTTP(w, r)
+		case SkillServiceGetSkillVersionProcedure:
+			skillServiceGetSkillVersionHandler.ServeHTTP(w, r)
+		case SkillServiceReviewSkillVersionProcedure:
+			skillServiceReviewSkillVersionHandler.ServeHTTP(w, r)
+		case SkillServicePublishSkillVersionProcedure:
+			skillServicePublishSkillVersionHandler.ServeHTTP(w, r)
+		case SkillServiceListSharedBrainKnowledgeProcedure:
+			skillServiceListSharedBrainKnowledgeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -105,4 +230,24 @@ type UnimplementedSkillServiceHandler struct{}
 
 func (UnimplementedSkillServiceHandler) ListSkills(context.Context, *connect.Request[v1.ListSkillsRequest]) (*connect.Response[v1.ListSkillsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.SkillService.ListSkills is not implemented"))
+}
+
+func (UnimplementedSkillServiceHandler) ListSkillVersions(context.Context, *connect.Request[v1.ListSkillVersionsRequest]) (*connect.Response[v1.ListSkillVersionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.SkillService.ListSkillVersions is not implemented"))
+}
+
+func (UnimplementedSkillServiceHandler) GetSkillVersion(context.Context, *connect.Request[v1.GetSkillVersionRequest]) (*connect.Response[v1.GetSkillVersionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.SkillService.GetSkillVersion is not implemented"))
+}
+
+func (UnimplementedSkillServiceHandler) ReviewSkillVersion(context.Context, *connect.Request[v1.ReviewSkillVersionRequest]) (*connect.Response[v1.ReviewSkillVersionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.SkillService.ReviewSkillVersion is not implemented"))
+}
+
+func (UnimplementedSkillServiceHandler) PublishSkillVersion(context.Context, *connect.Request[v1.PublishSkillVersionRequest]) (*connect.Response[v1.PublishSkillVersionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.SkillService.PublishSkillVersion is not implemented"))
+}
+
+func (UnimplementedSkillServiceHandler) ListSharedBrainKnowledge(context.Context, *connect.Request[v1.ListSharedBrainKnowledgeRequest]) (*connect.Response[v1.ListSharedBrainKnowledgeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.SkillService.ListSharedBrainKnowledge is not implemented"))
 }

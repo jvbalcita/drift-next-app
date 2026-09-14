@@ -4,7 +4,9 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { PageRequest, PageResponse, WorkspaceRef } from "./common_pb";
+import type { ActionCapability, ActionGesturePath, ActionKind, ActionRetryClass, ActionRiskClass, SemanticTarget } from "./action_pb";
+import { file_drift_v1_action } from "./action_pb";
+import type { PageRequest, PageResponse, RequestContext, ResourceRef, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/skill.proto.
  */
 export const file_drift_v1_skill: GenFile = /*@__PURE__*/
-  fileDesc("ChRkcmlmdC92MS9za2lsbC5wcm90bxIIZHJpZnQudjEieQoFU2tpbGwSCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIjCgVzdGF0ZRgEIAEoDjIULmRyaWZ0LnYxLlNraWxsU3RhdGUiowEKDFNraWxsVmVyc2lvbhIKCgJpZBgBIAEoCRIQCghza2lsbF9pZBgCIAEoCRIPCgd2ZXJzaW9uGAMgASgNEiMKBXN0YXRlGAQgASgOMhQuZHJpZnQudjEuU2tpbGxTdGF0ZRIpCgt0cnVzdF9zdGF0ZRgFIAEoDjIULmRyaWZ0LnYxLlRydXN0U3RhdGUSFAoMY2FwYWJpbGl0aWVzGAYgAygJImMKEUxpc3RTa2lsbHNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QiWwoSTGlzdFNraWxsc1Jlc3BvbnNlEh8KBnNraWxscxgBIAMoCzIPLmRyaWZ0LnYxLlNraWxsEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UqqwEKClNraWxsU3RhdGUSGwoXU0tJTExfU1RBVEVfVU5TUEVDSUZJRUQQABIVChFTS0lMTF9TVEFURV9EUkFGVBABEhkKFVNLSUxMX1NUQVRFX1ZBTElEQVRFRBACEhkKFVNLSUxMX1NUQVRFX1BVQkxJU0hFRBADEhoKFlNLSUxMX1NUQVRFX0RFUFJFQ0FURUQQBBIXChNTS0lMTF9TVEFURV9SRVRJUkVEEAUqkgEKClRydXN0U3RhdGUSGwoXVFJVU1RfU1RBVEVfVU5TUEVDSUZJRUQQABIaChZUUlVTVF9TVEFURV9VTlJFVklFV0VEEAESGAoUVFJVU1RfU1RBVEVfUkVWSUVXRUQQAhIYChRUUlVTVF9TVEFURV9BUFBST1ZFRBADEhcKE1RSVVNUX1NUQVRFX1JFVk9LRUQQBDJXCgxTa2lsbFNlcnZpY2USRwoKTGlzdFNraWxscxIbLmRyaWZ0LnYxLkxpc3RTa2lsbHNSZXF1ZXN0GhwuZHJpZnQudjEuTGlzdFNraWxsc1Jlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChRkcmlmdC92MS9za2lsbC5wcm90bxIIZHJpZnQudjEieQoFU2tpbGwSCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIjCgVzdGF0ZRgEIAEoDjIULmRyaWZ0LnYxLlNraWxsU3RhdGUi8gIKDFNraWxsVmVyc2lvbhIKCgJpZBgBIAEoCRIQCghza2lsbF9pZBgCIAEoCRIPCgd2ZXJzaW9uGAMgASgNEiMKBXN0YXRlGAQgASgOMhQuZHJpZnQudjEuU2tpbGxTdGF0ZRIpCgt0cnVzdF9zdGF0ZRgFIAEoDjIULmRyaWZ0LnYxLlRydXN0U3RhdGUSFAoMY2FwYWJpbGl0aWVzGAYgAygJEiIKBXN0ZXBzGAcgAygLMhMuZHJpZnQudjEuU2tpbGxTdGVwEikKCG1hbmlmZXN0GAggASgLMhcuZHJpZnQudjEuU2tpbGxNYW5pZmVzdBIjChtzb3VyY2VfcmVjb3JkaW5nX3Nlc3Npb25faWQYCSABKAkSGwoTcm9sbGJhY2tfdmVyc2lvbl9pZBgKIAEoCRISCgpjcmVhdGVkX2F0GAsgASgJEhMKC3Jldmlld2VyX2lkGAwgASgJEhMKC3Jldmlld2VkX2F0GA0gASgJInQKElNraWxsQ29tcGF0aWJpbGl0eRIVCg1wYWNrYWdlX25hbWVzGAEgAygJEhYKDmFjdGl2aXR5X25hbWVzGAIgAygJEhQKDGFwcF92ZXJzaW9ucxgDIAMoCRIZChFjb29yZGluYXRlX3NwYWNlcxgEIAMoCSLyAQoNU2tpbGxNYW5pZmVzdBIzCg1jb21wYXRpYmlsaXR5GAEgASgLMhwuZHJpZnQudjEuU2tpbGxDb21wYXRpYmlsaXR5EjoKFnJlcXVlc3RlZF9jYXBhYmlsaXRpZXMYAiADKA4yGi5kcmlmdC52MS5BY3Rpb25DYXBhYmlsaXR5EhAKCGZpeHR1cmVzGAMgAygJEi0KCnJpc2tfY2xhc3MYBCABKA4yGS5kcmlmdC52MS5BY3Rpb25SaXNrQ2xhc3MSLwoLcmV0cnlfY2xhc3MYBSABKA4yGi5kcmlmdC52MS5BY3Rpb25SZXRyeUNsYXNzIqcDCglTa2lsbFN0ZXASCgoCaWQYASABKAkSEAoIc2VxdWVuY2UYAiABKA0SJAoGYWN0aW9uGAMgASgOMhQuZHJpZnQudjEuQWN0aW9uS2luZBItCgpyaXNrX2NsYXNzGAQgASgOMhkuZHJpZnQudjEuQWN0aW9uUmlza0NsYXNzEi8KC3JldHJ5X2NsYXNzGAUgASgOMhouZHJpZnQudjEuQWN0aW9uUmV0cnlDbGFzcxIoCgZ0YXJnZXQYBiABKAsyGC5kcmlmdC52MS5TZW1hbnRpY1RhcmdldBISCgp0aW1lb3V0X21zGAcgASgEEhwKFHJlcXVpcmVzX29ic2VydmF0aW9uGAggASgIEhkKEWV2aWRlbmNlX3JlcXVpcmVkGAkgASgIEhUKDXBvc3Rjb25kaXRpb24YCiABKAkSEgoKdGV4dF92YWx1ZRgLIAEoCRIQCghrZXlfY29kZRgMIAEoDRIsCgdnZXN0dXJlGA0gASgLMhsuZHJpZnQudjEuQWN0aW9uR2VzdHVyZVBhdGgSFAoMdmFsdWVfbGVuZ3RoGA4gASgNItMBChRTaGFyZWRCcmFpbktub3dsZWRnZRIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSFQoNa25vd2xlZGdlX2tleRgDIAEoCRIPCgd2ZXJzaW9uGAQgASgNEiMKBXN0YXRlGAUgASgOMhQuZHJpZnQudjEuU2tpbGxTdGF0ZRIWCg5rbm93bGVkZ2VfanNvbhgGIAEoCRIfChdzb3VyY2Vfc2tpbGxfdmVyc2lvbl9pZBgHIAEoCSJjChFMaXN0U2tpbGxzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgCIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0IlsKEkxpc3RTa2lsbHNSZXNwb25zZRIfCgZza2lsbHMYASADKAsyDy5kcmlmdC52MS5Ta2lsbBIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlImUKGExpc3RTa2lsbFZlcnNpb25zUmVxdWVzdBIkCgVza2lsbBgBIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJrChlMaXN0U2tpbGxWZXJzaW9uc1Jlc3BvbnNlEigKCHZlcnNpb25zGAEgAygLMhYuZHJpZnQudjEuU2tpbGxWZXJzaW9uEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UiQAoWR2V0U2tpbGxWZXJzaW9uUmVxdWVzdBImCgd2ZXJzaW9uGAEgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYiQgoXR2V0U2tpbGxWZXJzaW9uUmVzcG9uc2USJwoHdmVyc2lvbhgBIAEoCzIWLmRyaWZ0LnYxLlNraWxsVmVyc2lvbiJ+ChlSZXZpZXdTa2lsbFZlcnNpb25SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBImCgd2ZXJzaW9uGAIgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYSDgoGcmVhc29uGAMgASgJIkUKGlJldmlld1NraWxsVmVyc2lvblJlc3BvbnNlEicKB3ZlcnNpb24YASABKAsyFi5kcmlmdC52MS5Ta2lsbFZlcnNpb24ifwoaUHVibGlzaFNraWxsVmVyc2lvblJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EiYKB3ZlcnNpb24YAiABKAsyFS5kcmlmdC52MS5SZXNvdXJjZVJlZhIOCgZyZWFzb24YAyABKAkiRgobUHVibGlzaFNraWxsVmVyc2lvblJlc3BvbnNlEicKB3ZlcnNpb24YASABKAsyFi5kcmlmdC52MS5Ta2lsbFZlcnNpb24icQofTGlzdFNoYXJlZEJyYWluS25vd2xlZGdlUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgCIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0InsKIExpc3RTaGFyZWRCcmFpbktub3dsZWRnZVJlc3BvbnNlEjEKCWtub3dsZWRnZRgBIAMoCzIeLmRyaWZ0LnYxLlNoYXJlZEJyYWluS25vd2xlZGdlEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UqqwEKClNraWxsU3RhdGUSGwoXU0tJTExfU1RBVEVfVU5TUEVDSUZJRUQQABIVChFTS0lMTF9TVEFURV9EUkFGVBABEhkKFVNLSUxMX1NUQVRFX1ZBTElEQVRFRBACEhkKFVNLSUxMX1NUQVRFX1BVQkxJU0hFRBADEhoKFlNLSUxMX1NUQVRFX0RFUFJFQ0FURUQQBBIXChNTS0lMTF9TVEFURV9SRVRJUkVEEAUqkgEKClRydXN0U3RhdGUSGwoXVFJVU1RfU1RBVEVfVU5TUEVDSUZJRUQQABIaChZUUlVTVF9TVEFURV9VTlJFVklFV0VEEAESGAoUVFJVU1RfU1RBVEVfUkVWSUVXRUQQAhIYChRUUlVTVF9TVEFURV9BUFBST1ZFRBADEhcKE1RSVVNUX1NUQVRFX1JFVk9LRUQQBDLFBAoMU2tpbGxTZXJ2aWNlEkcKCkxpc3RTa2lsbHMSGy5kcmlmdC52MS5MaXN0U2tpbGxzUmVxdWVzdBocLmRyaWZ0LnYxLkxpc3RTa2lsbHNSZXNwb25zZRJcChFMaXN0U2tpbGxWZXJzaW9ucxIiLmRyaWZ0LnYxLkxpc3RTa2lsbFZlcnNpb25zUmVxdWVzdBojLmRyaWZ0LnYxLkxpc3RTa2lsbFZlcnNpb25zUmVzcG9uc2USVgoPR2V0U2tpbGxWZXJzaW9uEiAuZHJpZnQudjEuR2V0U2tpbGxWZXJzaW9uUmVxdWVzdBohLmRyaWZ0LnYxLkdldFNraWxsVmVyc2lvblJlc3BvbnNlEl8KElJldmlld1NraWxsVmVyc2lvbhIjLmRyaWZ0LnYxLlJldmlld1NraWxsVmVyc2lvblJlcXVlc3QaJC5kcmlmdC52MS5SZXZpZXdTa2lsbFZlcnNpb25SZXNwb25zZRJiChNQdWJsaXNoU2tpbGxWZXJzaW9uEiQuZHJpZnQudjEuUHVibGlzaFNraWxsVmVyc2lvblJlcXVlc3QaJS5kcmlmdC52MS5QdWJsaXNoU2tpbGxWZXJzaW9uUmVzcG9uc2UScQoYTGlzdFNoYXJlZEJyYWluS25vd2xlZGdlEikuZHJpZnQudjEuTGlzdFNoYXJlZEJyYWluS25vd2xlZGdlUmVxdWVzdBoqLmRyaWZ0LnYxLkxpc3RTaGFyZWRCcmFpbktub3dsZWRnZVJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_action, file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.Skill
@@ -79,6 +81,41 @@ export type SkillVersion = Message<"drift.v1.SkillVersion"> & {
    * @generated from field: repeated string capabilities = 6;
    */
   capabilities: string[];
+
+  /**
+   * @generated from field: repeated drift.v1.SkillStep steps = 7;
+   */
+  steps: SkillStep[];
+
+  /**
+   * @generated from field: drift.v1.SkillManifest manifest = 8;
+   */
+  manifest?: SkillManifest;
+
+  /**
+   * @generated from field: string source_recording_session_id = 9;
+   */
+  sourceRecordingSessionId: string;
+
+  /**
+   * @generated from field: string rollback_version_id = 10;
+   */
+  rollbackVersionId: string;
+
+  /**
+   * @generated from field: string created_at = 11;
+   */
+  createdAt: string;
+
+  /**
+   * @generated from field: string reviewer_id = 12;
+   */
+  reviewerId: string;
+
+  /**
+   * @generated from field: string reviewed_at = 13;
+   */
+  reviewedAt: string;
 };
 
 /**
@@ -87,6 +124,204 @@ export type SkillVersion = Message<"drift.v1.SkillVersion"> & {
  */
 export const SkillVersionSchema: GenMessage<SkillVersion> = /*@__PURE__*/
   messageDesc(file_drift_v1_skill, 1);
+
+/**
+ * @generated from message drift.v1.SkillCompatibility
+ */
+export type SkillCompatibility = Message<"drift.v1.SkillCompatibility"> & {
+  /**
+   * @generated from field: repeated string package_names = 1;
+   */
+  packageNames: string[];
+
+  /**
+   * @generated from field: repeated string activity_names = 2;
+   */
+  activityNames: string[];
+
+  /**
+   * @generated from field: repeated string app_versions = 3;
+   */
+  appVersions: string[];
+
+  /**
+   * @generated from field: repeated string coordinate_spaces = 4;
+   */
+  coordinateSpaces: string[];
+};
+
+/**
+ * Describes the message drift.v1.SkillCompatibility.
+ * Use `create(SkillCompatibilitySchema)` to create a new message.
+ */
+export const SkillCompatibilitySchema: GenMessage<SkillCompatibility> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 2);
+
+/**
+ * @generated from message drift.v1.SkillManifest
+ */
+export type SkillManifest = Message<"drift.v1.SkillManifest"> & {
+  /**
+   * @generated from field: drift.v1.SkillCompatibility compatibility = 1;
+   */
+  compatibility?: SkillCompatibility;
+
+  /**
+   * @generated from field: repeated drift.v1.ActionCapability requested_capabilities = 2;
+   */
+  requestedCapabilities: ActionCapability[];
+
+  /**
+   * @generated from field: repeated string fixtures = 3;
+   */
+  fixtures: string[];
+
+  /**
+   * @generated from field: drift.v1.ActionRiskClass risk_class = 4;
+   */
+  riskClass: ActionRiskClass;
+
+  /**
+   * @generated from field: drift.v1.ActionRetryClass retry_class = 5;
+   */
+  retryClass: ActionRetryClass;
+};
+
+/**
+ * Describes the message drift.v1.SkillManifest.
+ * Use `create(SkillManifestSchema)` to create a new message.
+ */
+export const SkillManifestSchema: GenMessage<SkillManifest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 3);
+
+/**
+ * @generated from message drift.v1.SkillStep
+ */
+export type SkillStep = Message<"drift.v1.SkillStep"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: uint32 sequence = 2;
+   */
+  sequence: number;
+
+  /**
+   * @generated from field: drift.v1.ActionKind action = 3;
+   */
+  action: ActionKind;
+
+  /**
+   * @generated from field: drift.v1.ActionRiskClass risk_class = 4;
+   */
+  riskClass: ActionRiskClass;
+
+  /**
+   * @generated from field: drift.v1.ActionRetryClass retry_class = 5;
+   */
+  retryClass: ActionRetryClass;
+
+  /**
+   * @generated from field: drift.v1.SemanticTarget target = 6;
+   */
+  target?: SemanticTarget;
+
+  /**
+   * @generated from field: uint64 timeout_ms = 7;
+   */
+  timeoutMs: bigint;
+
+  /**
+   * @generated from field: bool requires_observation = 8;
+   */
+  requiresObservation: boolean;
+
+  /**
+   * @generated from field: bool evidence_required = 9;
+   */
+  evidenceRequired: boolean;
+
+  /**
+   * @generated from field: string postcondition = 10;
+   */
+  postcondition: string;
+
+  /**
+   * @generated from field: string text_value = 11;
+   */
+  textValue: string;
+
+  /**
+   * @generated from field: uint32 key_code = 12;
+   */
+  keyCode: number;
+
+  /**
+   * @generated from field: drift.v1.ActionGesturePath gesture = 13;
+   */
+  gesture?: ActionGesturePath;
+
+  /**
+   * @generated from field: uint32 value_length = 14;
+   */
+  valueLength: number;
+};
+
+/**
+ * Describes the message drift.v1.SkillStep.
+ * Use `create(SkillStepSchema)` to create a new message.
+ */
+export const SkillStepSchema: GenMessage<SkillStep> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 4);
+
+/**
+ * @generated from message drift.v1.SharedBrainKnowledge
+ */
+export type SharedBrainKnowledge = Message<"drift.v1.SharedBrainKnowledge"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string knowledge_key = 3;
+   */
+  knowledgeKey: string;
+
+  /**
+   * @generated from field: uint32 version = 4;
+   */
+  version: number;
+
+  /**
+   * @generated from field: drift.v1.SkillState state = 5;
+   */
+  state: SkillState;
+
+  /**
+   * @generated from field: string knowledge_json = 6;
+   */
+  knowledgeJson: string;
+
+  /**
+   * @generated from field: string source_skill_version_id = 7;
+   */
+  sourceSkillVersionId: string;
+};
+
+/**
+ * Describes the message drift.v1.SharedBrainKnowledge.
+ * Use `create(SharedBrainKnowledgeSchema)` to create a new message.
+ */
+export const SharedBrainKnowledgeSchema: GenMessage<SharedBrainKnowledge> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 5);
 
 /**
  * @generated from message drift.v1.ListSkillsRequest
@@ -108,7 +343,7 @@ export type ListSkillsRequest = Message<"drift.v1.ListSkillsRequest"> & {
  * Use `create(ListSkillsRequestSchema)` to create a new message.
  */
 export const ListSkillsRequestSchema: GenMessage<ListSkillsRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_skill, 2);
+  messageDesc(file_drift_v1_skill, 6);
 
 /**
  * @generated from message drift.v1.ListSkillsResponse
@@ -130,7 +365,217 @@ export type ListSkillsResponse = Message<"drift.v1.ListSkillsResponse"> & {
  * Use `create(ListSkillsResponseSchema)` to create a new message.
  */
 export const ListSkillsResponseSchema: GenMessage<ListSkillsResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_skill, 3);
+  messageDesc(file_drift_v1_skill, 7);
+
+/**
+ * @generated from message drift.v1.ListSkillVersionsRequest
+ */
+export type ListSkillVersionsRequest = Message<"drift.v1.ListSkillVersionsRequest"> & {
+  /**
+   * @generated from field: drift.v1.ResourceRef skill = 1;
+   */
+  skill?: ResourceRef;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 2;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListSkillVersionsRequest.
+ * Use `create(ListSkillVersionsRequestSchema)` to create a new message.
+ */
+export const ListSkillVersionsRequestSchema: GenMessage<ListSkillVersionsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 8);
+
+/**
+ * @generated from message drift.v1.ListSkillVersionsResponse
+ */
+export type ListSkillVersionsResponse = Message<"drift.v1.ListSkillVersionsResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.SkillVersion versions = 1;
+   */
+  versions: SkillVersion[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListSkillVersionsResponse.
+ * Use `create(ListSkillVersionsResponseSchema)` to create a new message.
+ */
+export const ListSkillVersionsResponseSchema: GenMessage<ListSkillVersionsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 9);
+
+/**
+ * @generated from message drift.v1.GetSkillVersionRequest
+ */
+export type GetSkillVersionRequest = Message<"drift.v1.GetSkillVersionRequest"> & {
+  /**
+   * @generated from field: drift.v1.ResourceRef version = 1;
+   */
+  version?: ResourceRef;
+};
+
+/**
+ * Describes the message drift.v1.GetSkillVersionRequest.
+ * Use `create(GetSkillVersionRequestSchema)` to create a new message.
+ */
+export const GetSkillVersionRequestSchema: GenMessage<GetSkillVersionRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 10);
+
+/**
+ * @generated from message drift.v1.GetSkillVersionResponse
+ */
+export type GetSkillVersionResponse = Message<"drift.v1.GetSkillVersionResponse"> & {
+  /**
+   * @generated from field: drift.v1.SkillVersion version = 1;
+   */
+  version?: SkillVersion;
+};
+
+/**
+ * Describes the message drift.v1.GetSkillVersionResponse.
+ * Use `create(GetSkillVersionResponseSchema)` to create a new message.
+ */
+export const GetSkillVersionResponseSchema: GenMessage<GetSkillVersionResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 11);
+
+/**
+ * @generated from message drift.v1.ReviewSkillVersionRequest
+ */
+export type ReviewSkillVersionRequest = Message<"drift.v1.ReviewSkillVersionRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef version = 2;
+   */
+  version?: ResourceRef;
+
+  /**
+   * @generated from field: string reason = 3;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message drift.v1.ReviewSkillVersionRequest.
+ * Use `create(ReviewSkillVersionRequestSchema)` to create a new message.
+ */
+export const ReviewSkillVersionRequestSchema: GenMessage<ReviewSkillVersionRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 12);
+
+/**
+ * @generated from message drift.v1.ReviewSkillVersionResponse
+ */
+export type ReviewSkillVersionResponse = Message<"drift.v1.ReviewSkillVersionResponse"> & {
+  /**
+   * @generated from field: drift.v1.SkillVersion version = 1;
+   */
+  version?: SkillVersion;
+};
+
+/**
+ * Describes the message drift.v1.ReviewSkillVersionResponse.
+ * Use `create(ReviewSkillVersionResponseSchema)` to create a new message.
+ */
+export const ReviewSkillVersionResponseSchema: GenMessage<ReviewSkillVersionResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 13);
+
+/**
+ * @generated from message drift.v1.PublishSkillVersionRequest
+ */
+export type PublishSkillVersionRequest = Message<"drift.v1.PublishSkillVersionRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef version = 2;
+   */
+  version?: ResourceRef;
+
+  /**
+   * @generated from field: string reason = 3;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message drift.v1.PublishSkillVersionRequest.
+ * Use `create(PublishSkillVersionRequestSchema)` to create a new message.
+ */
+export const PublishSkillVersionRequestSchema: GenMessage<PublishSkillVersionRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 14);
+
+/**
+ * @generated from message drift.v1.PublishSkillVersionResponse
+ */
+export type PublishSkillVersionResponse = Message<"drift.v1.PublishSkillVersionResponse"> & {
+  /**
+   * @generated from field: drift.v1.SkillVersion version = 1;
+   */
+  version?: SkillVersion;
+};
+
+/**
+ * Describes the message drift.v1.PublishSkillVersionResponse.
+ * Use `create(PublishSkillVersionResponseSchema)` to create a new message.
+ */
+export const PublishSkillVersionResponseSchema: GenMessage<PublishSkillVersionResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 15);
+
+/**
+ * @generated from message drift.v1.ListSharedBrainKnowledgeRequest
+ */
+export type ListSharedBrainKnowledgeRequest = Message<"drift.v1.ListSharedBrainKnowledgeRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 2;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListSharedBrainKnowledgeRequest.
+ * Use `create(ListSharedBrainKnowledgeRequestSchema)` to create a new message.
+ */
+export const ListSharedBrainKnowledgeRequestSchema: GenMessage<ListSharedBrainKnowledgeRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 16);
+
+/**
+ * @generated from message drift.v1.ListSharedBrainKnowledgeResponse
+ */
+export type ListSharedBrainKnowledgeResponse = Message<"drift.v1.ListSharedBrainKnowledgeResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.SharedBrainKnowledge knowledge = 1;
+   */
+  knowledge: SharedBrainKnowledge[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListSharedBrainKnowledgeResponse.
+ * Use `create(ListSharedBrainKnowledgeResponseSchema)` to create a new message.
+ */
+export const ListSharedBrainKnowledgeResponseSchema: GenMessage<ListSharedBrainKnowledgeResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_skill, 17);
 
 /**
  * @generated from enum drift.v1.SkillState
@@ -220,6 +665,46 @@ export const SkillService: GenService<{
     methodKind: "unary";
     input: typeof ListSkillsRequestSchema;
     output: typeof ListSkillsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.SkillService.ListSkillVersions
+   */
+  listSkillVersions: {
+    methodKind: "unary";
+    input: typeof ListSkillVersionsRequestSchema;
+    output: typeof ListSkillVersionsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.SkillService.GetSkillVersion
+   */
+  getSkillVersion: {
+    methodKind: "unary";
+    input: typeof GetSkillVersionRequestSchema;
+    output: typeof GetSkillVersionResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.SkillService.ReviewSkillVersion
+   */
+  reviewSkillVersion: {
+    methodKind: "unary";
+    input: typeof ReviewSkillVersionRequestSchema;
+    output: typeof ReviewSkillVersionResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.SkillService.PublishSkillVersion
+   */
+  publishSkillVersion: {
+    methodKind: "unary";
+    input: typeof PublishSkillVersionRequestSchema;
+    output: typeof PublishSkillVersionResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.SkillService.ListSharedBrainKnowledge
+   */
+  listSharedBrainKnowledge: {
+    methodKind: "unary";
+    input: typeof ListSharedBrainKnowledgeRequestSchema;
+    output: typeof ListSharedBrainKnowledgeResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_skill, 0);

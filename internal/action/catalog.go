@@ -71,6 +71,15 @@ const (
 	CapabilitySystemInput Capability = "device.input.system"
 )
 
+func (c Capability) Valid() bool {
+	switch c {
+	case CapabilityObserve, CapabilityHealth, CapabilityCapture, CapabilityTap, CapabilityGesture, CapabilityTextInput, CapabilitySystemInput:
+		return true
+	default:
+		return false
+	}
+}
+
 type SemanticTarget struct {
 	ResourceID         string
 	AccessibilityLabel string
@@ -82,22 +91,71 @@ func (t SemanticTarget) Empty() bool {
 	return strings.TrimSpace(t.ResourceID) == "" && strings.TrimSpace(t.AccessibilityLabel) == "" && strings.TrimSpace(t.StableText) == "" && strings.TrimSpace(t.ContextFingerprint) == ""
 }
 
+// Coordinate is a bounded, explicitly scoped fallback input. It is never a
+// substitute for a semantic target during skill promotion; replay may use it
+// only after semantic resolution failed and an operator has confirmed the
+// constrained fallback.
+type Coordinate struct {
+	Space string
+	X     int
+	Y     int
+}
+
+// CoordinateFallback carries a typed coordinate or gesture endpoint for the
+// last-resort replay path. It contains no raw protocol payload or shell data.
+type CoordinateFallback struct {
+	Start     Coordinate
+	End       *Coordinate
+	Path      []Coordinate
+	Duration  time.Duration
+	Confirmed bool
+}
+
+// GesturePath is the typed representation of a swipe, scroll, or drag. It
+// is retained as evidence and as a compiled skill payload, never as an
+// unbounded raw input stream.
+type GesturePath struct {
+	Points     []Coordinate
+	DurationMs int64
+}
+
+func (g GesturePath) Validate() error {
+	if len(g.Points) < 2 || len(g.Points) > 128 || g.DurationMs < 0 || g.DurationMs > 5*60*1000 {
+		return fmt.Errorf("gesture path is invalid")
+	}
+	space := strings.TrimSpace(g.Points[0].Space)
+	if space == "" {
+		return fmt.Errorf("gesture coordinate space is required")
+	}
+	for _, point := range g.Points {
+		if point.Space != space || !validCoordinate(point) {
+			return fmt.Errorf("gesture coordinates are invalid")
+		}
+	}
+	return nil
+}
+
 type Intent struct {
-	ID                string
-	Workspace         string
-	DeviceID          string
-	LeaseID           string
-	HolderID          string
-	FencingToken      uint64
-	Kind              Kind
-	Target            SemanticTarget
-	IdempotencyKey    string
-	ObservationToken  string
-	InvocationSurface InvocationSurface
-	Capabilities      []Capability
-	ApprovalGranted   bool
-	Timeout           time.Duration
-	RequestHash       string
+	ID                 string
+	Workspace          string
+	DeviceID           string
+	LeaseID            string
+	HolderID           string
+	FencingToken       uint64
+	Kind               Kind
+	Target             SemanticTarget
+	TextValue          string
+	ValueLength        int
+	Gesture            *GesturePath
+	KeyCode            int
+	IdempotencyKey     string
+	ObservationToken   string
+	InvocationSurface  InvocationSurface
+	Capabilities       []Capability
+	ApprovalGranted    bool
+	Timeout            time.Duration
+	RequestHash        string
+	CoordinateFallback *CoordinateFallback
 }
 
 type Specification struct {
@@ -191,7 +249,7 @@ func (i Intent) Validate() error {
 	if !ContainsSurface(spec.AllowedSurfaces, i.InvocationSurface) {
 		return fmt.Errorf("action %q is not allowed from %q", i.Kind, i.InvocationSurface)
 	}
-	if spec.RequiresTarget && i.Target.Empty() {
+	if spec.RequiresTarget && i.Target.Empty() && !validConfirmedCoordinateFallback(i.CoordinateFallback) {
 		return fmt.Errorf("action %q requires a semantic target", i.Kind)
 	}
 	if spec.RequiresObservation && strings.TrimSpace(i.ObservationToken) == "" {
@@ -203,8 +261,54 @@ func (i Intent) Validate() error {
 	if len(i.IdempotencyKey) > 256 || len(i.ObservationToken) > 256 {
 		return fmt.Errorf("action metadata is too long")
 	}
+	if len(i.TextValue) > 1<<20 || i.ValueLength < 0 || i.ValueLength > 1<<20 || i.KeyCode < 0 || i.KeyCode > 10000 {
+		return fmt.Errorf("typed action payload is invalid or unbounded")
+	}
+	if i.Gesture != nil {
+		if err := i.Gesture.Validate(); err != nil {
+			return err
+		}
+	}
+	if i.CoordinateFallback != nil {
+		if !validConfirmedCoordinateFallback(i.CoordinateFallback) || !i.ApprovalGranted {
+			return fmt.Errorf("coordinate fallback requires bounded coordinates and explicit approval")
+		}
+	}
+	for _, capability := range i.Capabilities {
+		if !capability.Valid() {
+			return fmt.Errorf("action capability %q is not allow-listed", capability)
+		}
+	}
 	if !Supports(i.Capabilities, spec.RequiredCapabilities) {
 		return fmt.Errorf("action %q requires unavailable capability", i.Kind)
 	}
 	return nil
+}
+
+func validConfirmedCoordinateFallback(fallback *CoordinateFallback) bool {
+	if fallback == nil || !fallback.Confirmed || strings.TrimSpace(fallback.Start.Space) == "" || !validCoordinate(fallback.Start) || fallback.Duration < 0 || fallback.Duration > 5*time.Minute {
+		return false
+	}
+	if fallback.End != nil && (strings.TrimSpace(fallback.End.Space) == "" || !validCoordinate(*fallback.End) || fallback.End.Space != fallback.Start.Space) {
+		return false
+	}
+	if len(fallback.Path) > 0 {
+		if len(fallback.Path) < 2 || len(fallback.Path) > 128 {
+			return false
+		}
+		for index, point := range fallback.Path {
+			if point.Space != fallback.Start.Space || !validCoordinate(point) || index == 0 && point != fallback.Start {
+				return false
+			}
+		}
+		last := fallback.Path[len(fallback.Path)-1]
+		if fallback.End == nil || last != *fallback.End {
+			return false
+		}
+	}
+	return true
+}
+
+func validCoordinate(coordinate Coordinate) bool {
+	return coordinate.X >= 0 && coordinate.X <= 10000 && coordinate.Y >= 0 && coordinate.Y <= 10000 && len(coordinate.Space) <= 128
 }

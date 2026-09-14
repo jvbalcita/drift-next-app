@@ -15,6 +15,7 @@ type TargetNode struct {
 	ResourceID         string
 	AccessibilityLabel string
 	StableText         string
+	ContextFingerprint string
 	ClassName          string
 	Bounds             [4]int
 	Actionable         bool
@@ -32,7 +33,10 @@ type Observation struct {
 	Token           string
 	PackageName     string
 	ActivityName    string
+	AppVersion      string
 	CoordinateSpace string
+	DisplayWidth    int
+	DisplayHeight   int
 	Nodes           []TargetNode
 	OCR             []OCRToken
 	ScreenshotHash  string

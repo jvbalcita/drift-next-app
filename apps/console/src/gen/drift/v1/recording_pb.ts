@@ -4,7 +4,9 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { PageRequest, PageResponse, WorkspaceRef } from "./common_pb";
+import type { ActionCoordinate, ActionGesturePath, ActionKind, SemanticTarget } from "./action_pb";
+import { file_drift_v1_action } from "./action_pb";
+import type { ArtifactReference, Failure, FailureCode, PageRequest, PageResponse, RequestContext, ResourceRef, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/recording.proto.
  */
 export const file_drift_v1_recording: GenFile = /*@__PURE__*/
-  fileDesc("ChhkcmlmdC92MS9yZWNvcmRpbmcucHJvdG8SCGRyaWZ0LnYxIr4BChBSZWNvcmRpbmdTZXNzaW9uEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSJwoFc3RhdGUYBCABKA4yGC5kcmlmdC52MS5SZWNvcmRpbmdTdGF0ZRIOCgZzb3VyY2UYBSABKAkSEgoKc3RhcnRlZF9hdBgGIAEoCRITCgtmaW5pc2hlZF9hdBgHIAEoCSJuChxMaXN0UmVjb3JkaW5nU2Vzc2lvbnNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QicwodTGlzdFJlY29yZGluZ1Nlc3Npb25zUmVzcG9uc2USLAoIc2Vzc2lvbnMYASADKAsyGi5kcmlmdC52MS5SZWNvcmRpbmdTZXNzaW9uEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2Uq5wEKDlJlY29yZGluZ1N0YXRlEh8KG1JFQ09SRElOR19TVEFURV9VTlNQRUNJRklFRBAAEh0KGVJFQ09SRElOR19TVEFURV9SRVFVRVNURUQQARIdChlSRUNPUkRJTkdfU1RBVEVfUkVDT1JESU5HEAISHAoYUkVDT1JESU5HX1NUQVRFX1NUT1BQSU5HEAMSHQoZUkVDT1JESU5HX1NUQVRFX0NPTVBMRVRFRBAEEh0KGVJFQ09SRElOR19TVEFURV9ESVNDQVJERUQQBRIaChZSRUNPUkRJTkdfU1RBVEVfRkFJTEVEEAYyfAoQUmVjb3JkaW5nU2VydmljZRJoChVMaXN0UmVjb3JkaW5nU2Vzc2lvbnMSJi5kcmlmdC52MS5MaXN0UmVjb3JkaW5nU2Vzc2lvbnNSZXF1ZXN0GicuZHJpZnQudjEuTGlzdFJlY29yZGluZ1Nlc3Npb25zUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChhkcmlmdC92MS9yZWNvcmRpbmcucHJvdG8SCGRyaWZ0LnYxIu8CChBSZWNvcmRpbmdTZXNzaW9uEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSJwoFc3RhdGUYBCABKA4yGC5kcmlmdC52MS5SZWNvcmRpbmdTdGF0ZRIOCgZzb3VyY2UYBSABKAkSEgoKc3RhcnRlZF9hdBgGIAEoCRITCgtmaW5pc2hlZF9hdBgHIAEoCRIWCg5zZXNzaW9uX251bWJlchgIIAEoAxIVCg1hdXRvbWF0aW9uX2lkGAkgASgJEhIKCmRlbGV0ZWRfYXQYCiABKAkSNgoNY2xlYW51cF9zdGF0ZRgLIAEoDjIfLmRyaWZ0LnYxLlJlY29yZGluZ0NsZWFudXBTdGF0ZRI0CgxyZXZpZXdfc3RhdGUYDCABKA4yHi5kcmlmdC52MS5SZWNvcmRpbmdSZXZpZXdTdGF0ZSKhAgoOUmVjb3JkZWRUYXJnZXQSKgoIc2VtYW50aWMYASABKAsyGC5kcmlmdC52MS5TZW1hbnRpY1RhcmdldBISCgpjbGFzc19uYW1lGAIgASgJEgwKBGxlZnQYAyABKA0SCwoDdG9wGAQgASgNEg0KBXJpZ2h0GAUgASgNEg4KBmJvdHRvbRgGIAEoDRISCgphY3Rpb25hYmxlGAcgASgIEg8KB2VuYWJsZWQYCCABKAgSEAoIZWRpdGFibGUYCSABKAgSEAoIc2VsZWN0ZWQYCiABKAgSDwoHY2hlY2tlZBgLIAEoCBIOCgZzb3VyY2UYDCABKAkSEgoKY29uZmlkZW5jZRgNIAEoARIXCg9jYW5kaWRhdGVfY291bnQYDiABKA0igwIKGlJlY29yZGluZ0V2aWRlbmNlUmVmZXJlbmNlEi4KBXBoYXNlGAEgASgOMh8uZHJpZnQudjEuUmVjb3JkaW5nQ2FwdHVyZVBoYXNlEi0KBGtpbmQYAiABKA4yHy5kcmlmdC52MS5SZWNvcmRpbmdFdmlkZW5jZUtpbmQSLQoIYXJ0aWZhY3QYAyABKAsyGy5kcmlmdC52MS5BcnRpZmFjdFJlZmVyZW5jZRIWCg5zY2hlbWFfdmVyc2lvbhgEIAEoDRIVCg1hdXRob3JpdGF0aXZlGAUgASgIEg8KB29taXR0ZWQYBiABKAgSFwoPb21pc3Npb25fcmVhc29uGAcgASgJIqwEChBSZWNvcmRpbmdDYXB0dXJlEhYKDm9ic2VydmF0aW9uX2lkGAEgASgJEhcKD2ZyZXNobmVzc190b2tlbhgCIAEoCRITCgtjYXB0dXJlZF9hdBgDIAEoCRIYChBjb29yZGluYXRlX3NwYWNlGAQgASgJEhQKDHBhY2thZ2VfbmFtZRgFIAEoCRIVCg1hY3Rpdml0eV9uYW1lGAYgASgJEhMKC2FwcF92ZXJzaW9uGAcgASgJEhUKDWRpc3BsYXlfd2lkdGgYCCABKA0SFgoOZGlzcGxheV9oZWlnaHQYCSABKA0SEwoLb3JpZW50YXRpb24YCiABKAkSFwoPc2NyZWVuc2hvdF9oYXNoGAsgASgJEhQKDHVpX3RyZWVfaGFzaBgMIAEoCRIwCgZzdGF0dXMYDSABKA4yIC5kcmlmdC52MS5SZWNvcmRpbmdDYXB0dXJlU3RhdHVzEjoKDHNhbml0aXphdGlvbhgOIAEoDjIkLmRyaWZ0LnYxLlJlY29yZGluZ1Nhbml0aXphdGlvblN0YXRlEg8KB3BhcnRpYWwYDyABKAgSKAoGdGFyZ2V0GBAgASgLMhguZHJpZnQudjEuUmVjb3JkZWRUYXJnZXQSNgoIZXZpZGVuY2UYESADKAsyJC5kcmlmdC52MS5SZWNvcmRpbmdFdmlkZW5jZVJlZmVyZW5jZRIiCgdmYWlsdXJlGBIgASgLMhEuZHJpZnQudjEuRmFpbHVyZSL8AgoPUmVjb3JkaW5nQWN0aW9uEiIKBGtpbmQYASABKA4yFC5kcmlmdC52MS5BY3Rpb25LaW5kEigKBnRhcmdldBgCIAEoCzIYLmRyaWZ0LnYxLlJlY29yZGVkVGFyZ2V0Ei4KCmNvb3JkaW5hdGUYAyABKAsyGi5kcmlmdC52MS5BY3Rpb25Db29yZGluYXRlEhUKDWRpc3BsYXlfdmFsdWUYBCABKAkSFAoMdmFsdWVfbGVuZ3RoGAUgASgNEjMKC3NlbnNpdGl2aXR5GAYgASgOMh4uZHJpZnQudjEuUmVjb3JkaW5nU2Vuc2l0aXZpdHkSLAoHZ2VzdHVyZRgHIAEoCzIbLmRyaWZ0LnYxLkFjdGlvbkdlc3R1cmVQYXRoEhAKCGtleV9jb2RlGAggASgNEh4KFmlycmV2ZXJzaWJsZV9jb25maXJtZWQYCSABKAgSEgoKdGltZW91dF9tcxgKIAEoBBIVCg1wb3N0Y29uZGl0aW9uGAsgASgJIpYBChVSZWNvcmRpbmdDYXB0dXJlRXJyb3ISLgoFcGhhc2UYASABKA4yHy5kcmlmdC52MS5SZWNvcmRpbmdDYXB0dXJlUGhhc2USKwoMZmFpbHVyZV9jb2RlGAIgASgOMhUuZHJpZnQudjEuRmFpbHVyZUNvZGUSDwoHbWVzc2FnZRgDIAEoCRIPCgdvbWl0dGVkGAQgASgIIu4ECg5SZWNvcmRpbmdFdmVudBIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSHAoUcmVjb3JkaW5nX3Nlc3Npb25faWQYAyABKAkSEAoIc2VxdWVuY2UYBCABKA0SFgoOY29ycmVsYXRpb25faWQYBSABKAkSKQoGYWN0aW9uGAYgASgLMhkuZHJpZnQudjEuUmVjb3JkaW5nQWN0aW9uEioKBmJlZm9yZRgHIAEoCzIaLmRyaWZ0LnYxLlJlY29yZGluZ0NhcHR1cmUSKQoFYWZ0ZXIYCCABKAsyGi5kcmlmdC52MS5SZWNvcmRpbmdDYXB0dXJlEjYKCGV2aWRlbmNlGAkgAygLMiQuZHJpZnQudjEuUmVjb3JkaW5nRXZpZGVuY2VSZWZlcmVuY2USNwoOY2FwdHVyZV9lcnJvcnMYCiADKAsyHy5kcmlmdC52MS5SZWNvcmRpbmdDYXB0dXJlRXJyb3ISOgoPcmVkYWN0aW9uX3N0YXRlGAsgASgOMiEuZHJpZnQudjEuUmVjb3JkaW5nUmVkYWN0aW9uU3RhdGUSEQoJc2Vuc2l0aXZlGAwgASgIEjQKDHJldmlld19zdGF0ZRgNIAEoDjIeLmRyaWZ0LnYxLlJlY29yZGluZ1Jldmlld1N0YXRlEhMKC3Jldmlld2VyX2lkGA4gASgJEhMKC3Jldmlld2VkX2F0GA8gASgJEhIKCnN0YXJ0ZWRfYXQYECABKAkSEwoLZmluaXNoZWRfYXQYESABKAkSEgoKY3JlYXRlZF9hdBgSIAEoCSJuChxMaXN0UmVjb3JkaW5nU2Vzc2lvbnNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QicwodTGlzdFJlY29yZGluZ1Nlc3Npb25zUmVzcG9uc2USLAoIc2Vzc2lvbnMYASADKAsyGi5kcmlmdC52MS5SZWNvcmRpbmdTZXNzaW9uEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UicQocU3RhcnRSZWNvcmRpbmdTZXNzaW9uUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSJgoHc2Vzc2lvbhgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmIkwKHVN0YXJ0UmVjb3JkaW5nU2Vzc2lvblJlc3BvbnNlEisKB3Nlc3Npb24YASABKAsyGi5kcmlmdC52MS5SZWNvcmRpbmdTZXNzaW9uInAKG1N0b3BSZWNvcmRpbmdTZXNzaW9uUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSJgoHc2Vzc2lvbhgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmIksKHFN0b3BSZWNvcmRpbmdTZXNzaW9uUmVzcG9uc2USKwoHc2Vzc2lvbhgBIAEoCzIaLmRyaWZ0LnYxLlJlY29yZGluZ1Nlc3Npb24icwoeRGlzY2FyZFJlY29yZGluZ1Nlc3Npb25SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBImCgdzZXNzaW9uGAIgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYiTgofRGlzY2FyZFJlY29yZGluZ1Nlc3Npb25SZXNwb25zZRIrCgdzZXNzaW9uGAEgASgLMhouZHJpZnQudjEuUmVjb3JkaW5nU2Vzc2lvbiKFAQodRGVsZXRlUmVjb3JkaW5nU2Vzc2lvblJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EiYKB3Nlc3Npb24YAiABKAsyFS5kcmlmdC52MS5SZXNvdXJjZVJlZhIRCgljb25maXJtZWQYAyABKAgiTQoeRGVsZXRlUmVjb3JkaW5nU2Vzc2lvblJlc3BvbnNlEisKB3Nlc3Npb24YASABKAsyGi5kcmlmdC52MS5SZWNvcmRpbmdTZXNzaW9uImkKGkxpc3RSZWNvcmRpbmdFdmVudHNSZXF1ZXN0EiYKB3Nlc3Npb24YASABKAsyFS5kcmlmdC52MS5SZXNvdXJjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QibQobTGlzdFJlY29yZGluZ0V2ZW50c1Jlc3BvbnNlEigKBmV2ZW50cxgBIAMoCzIYLmRyaWZ0LnYxLlJlY29yZGluZ0V2ZW50EiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UikAEKG1Jldmlld1JlY29yZGluZ0V2ZW50UmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSJAoFZXZlbnQYAiABKAsyFS5kcmlmdC52MS5SZXNvdXJjZVJlZhIQCghhcHByb3ZlZBgDIAEoCBIOCgZyZWFzb24YBCABKAkiRwocUmV2aWV3UmVjb3JkaW5nRXZlbnRSZXNwb25zZRInCgVldmVudBgBIAEoCzIYLmRyaWZ0LnYxLlJlY29yZGluZ0V2ZW50KucBCg5SZWNvcmRpbmdTdGF0ZRIfChtSRUNPUkRJTkdfU1RBVEVfVU5TUEVDSUZJRUQQABIdChlSRUNPUkRJTkdfU1RBVEVfUkVRVUVTVEVEEAESHQoZUkVDT1JESU5HX1NUQVRFX1JFQ09SRElORxACEhwKGFJFQ09SRElOR19TVEFURV9TVE9QUElORxADEh0KGVJFQ09SRElOR19TVEFURV9DT01QTEVURUQQBBIdChlSRUNPUkRJTkdfU1RBVEVfRElTQ0FSREVEEAUSGgoWUkVDT1JESU5HX1NUQVRFX0ZBSUxFRBAGKs0BChVSZWNvcmRpbmdDbGVhbnVwU3RhdGUSJwojUkVDT1JESU5HX0NMRUFOVVBfU1RBVEVfVU5TUEVDSUZJRUQQABIgChxSRUNPUkRJTkdfQ0xFQU5VUF9TVEFURV9OT05FEAESIwofUkVDT1JESU5HX0NMRUFOVVBfU1RBVEVfUEVORElORxACEiAKHFJFQ09SRElOR19DTEVBTlVQX1NUQVRFX0RPTkUQAxIiCh5SRUNPUkRJTkdfQ0xFQU5VUF9TVEFURV9GQUlMRUQQBCqvAQoUUmVjb3JkaW5nUmV2aWV3U3RhdGUSJgoiUkVDT1JESU5HX1JFVklFV19TVEFURV9VTlNQRUNJRklFRBAAEiUKIVJFQ09SRElOR19SRVZJRVdfU1RBVEVfVU5SRVZJRVdFRBABEiMKH1JFQ09SRElOR19SRVZJRVdfU1RBVEVfQVBQUk9WRUQQAhIjCh9SRUNPUkRJTkdfUkVWSUVXX1NUQVRFX1JFSkVDVEVEEAMq6AEKF1JlY29yZGluZ1JlZGFjdGlvblN0YXRlEikKJVJFQ09SRElOR19SRURBQ1RJT05fU1RBVEVfVU5TUEVDSUZJRUQQABIqCiZSRUNPUkRJTkdfUkVEQUNUSU9OX1NUQVRFX05PVF9SRVFVSVJFRBABEiYKIlJFQ09SRElOR19SRURBQ1RJT05fU1RBVEVfUkVRVUlSRUQQAhImCiJSRUNPUkRJTkdfUkVEQUNUSU9OX1NUQVRFX1JFREFDVEVEEAMSJgoiUkVDT1JESU5HX1JFREFDVElPTl9TVEFURV9SRUpFQ1RFRBAEKrQBChZSZWNvcmRpbmdDYXB0dXJlU3RhdHVzEigKJFJFQ09SRElOR19DQVBUVVJFX1NUQVRVU19VTlNQRUNJRklFRBAAEiUKIVJFQ09SRElOR19DQVBUVVJFX1NUQVRVU19DT01QTEVURRABEiQKIFJFQ09SRElOR19DQVBUVVJFX1NUQVRVU19QQVJUSUFMEAISIwofUkVDT1JESU5HX0NBUFRVUkVfU1RBVFVTX0ZBSUxFRBADKtMBChpSZWNvcmRpbmdTYW5pdGl6YXRpb25TdGF0ZRIsCihSRUNPUkRJTkdfU0FOSVRJWkFUSU9OX1NUQVRFX1VOU1BFQ0lGSUVEEAASKgomUkVDT1JESU5HX1NBTklUSVpBVElPTl9TVEFURV9TQU5JVElaRUQQARIrCidSRUNPUkRJTkdfU0FOSVRJWkFUSU9OX1NUQVRFX05PVF9ORUVERUQQAhIuCipSRUNPUkRJTkdfU0FOSVRJWkFUSU9OX1NUQVRFX1VOU0FOSVRJWkFCTEUQAyrPAQoVUmVjb3JkaW5nQ2FwdHVyZVBoYXNlEicKI1JFQ09SRElOR19DQVBUVVJFX1BIQVNFX1VOU1BFQ0lGSUVEEAASIgoeUkVDT1JESU5HX0NBUFRVUkVfUEhBU0VfQkVGT1JFEAESIgoeUkVDT1JESU5HX0NBUFRVUkVfUEhBU0VfQUNUSU9OEAISIQodUkVDT1JESU5HX0NBUFRVUkVfUEhBU0VfQUZURVIQAxIiCh5SRUNPUkRJTkdfQ0FQVFVSRV9QSEFTRV9SRVZJRVcQBCqoAgoVUmVjb3JkaW5nRXZpZGVuY2VLaW5kEicKI1JFQ09SRElOR19FVklERU5DRV9LSU5EX1VOU1BFQ0lGSUVEEAASKgomUkVDT1JESU5HX0VWSURFTkNFX0tJTkRfUkFXX1NDUkVFTlNIT1QQARIwCixSRUNPUkRJTkdfRVZJREVOQ0VfS0lORF9BTk5PVEFURURfU0NSRUVOU0hPVBACEiMKH1JFQ09SRElOR19FVklERU5DRV9LSU5EX1VJX1RSRUUQAxIfChtSRUNPUkRJTkdfRVZJREVOQ0VfS0lORF9PQ1IQBBIhCh1SRUNPUkRJTkdfRVZJREVOQ0VfS0lORF9UUkFDRRAFEh8KG1JFQ09SRElOR19FVklERU5DRV9LSU5EX0xPRxAGKqcBChRSZWNvcmRpbmdTZW5zaXRpdml0eRIlCiFSRUNPUkRJTkdfU0VOU0lUSVZJVFlfVU5TUEVDSUZJRUQQABIeChpSRUNPUkRJTkdfU0VOU0lUSVZJVFlfTk9ORRABEiMKH1JFQ09SRElOR19TRU5TSVRJVklUWV9TRU5TSVRJVkUQAhIjCh9SRUNPUkRJTkdfU0VOU0lUSVZJVFlfVU5DRVJUQUlOEAMy9QUKEFJlY29yZGluZ1NlcnZpY2USaAoVTGlzdFJlY29yZGluZ1Nlc3Npb25zEiYuZHJpZnQudjEuTGlzdFJlY29yZGluZ1Nlc3Npb25zUmVxdWVzdBonLmRyaWZ0LnYxLkxpc3RSZWNvcmRpbmdTZXNzaW9uc1Jlc3BvbnNlEmgKFVN0YXJ0UmVjb3JkaW5nU2Vzc2lvbhImLmRyaWZ0LnYxLlN0YXJ0UmVjb3JkaW5nU2Vzc2lvblJlcXVlc3QaJy5kcmlmdC52MS5TdGFydFJlY29yZGluZ1Nlc3Npb25SZXNwb25zZRJlChRTdG9wUmVjb3JkaW5nU2Vzc2lvbhIlLmRyaWZ0LnYxLlN0b3BSZWNvcmRpbmdTZXNzaW9uUmVxdWVzdBomLmRyaWZ0LnYxLlN0b3BSZWNvcmRpbmdTZXNzaW9uUmVzcG9uc2USbgoXRGlzY2FyZFJlY29yZGluZ1Nlc3Npb24SKC5kcmlmdC52MS5EaXNjYXJkUmVjb3JkaW5nU2Vzc2lvblJlcXVlc3QaKS5kcmlmdC52MS5EaXNjYXJkUmVjb3JkaW5nU2Vzc2lvblJlc3BvbnNlEmsKFkRlbGV0ZVJlY29yZGluZ1Nlc3Npb24SJy5kcmlmdC52MS5EZWxldGVSZWNvcmRpbmdTZXNzaW9uUmVxdWVzdBooLmRyaWZ0LnYxLkRlbGV0ZVJlY29yZGluZ1Nlc3Npb25SZXNwb25zZRJiChNMaXN0UmVjb3JkaW5nRXZlbnRzEiQuZHJpZnQudjEuTGlzdFJlY29yZGluZ0V2ZW50c1JlcXVlc3QaJS5kcmlmdC52MS5MaXN0UmVjb3JkaW5nRXZlbnRzUmVzcG9uc2USZQoUUmV2aWV3UmVjb3JkaW5nRXZlbnQSJS5kcmlmdC52MS5SZXZpZXdSZWNvcmRpbmdFdmVudFJlcXVlc3QaJi5kcmlmdC52MS5SZXZpZXdSZWNvcmRpbmdFdmVudFJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_action, file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.RecordingSession
@@ -52,6 +54,31 @@ export type RecordingSession = Message<"drift.v1.RecordingSession"> & {
    * @generated from field: string finished_at = 7;
    */
   finishedAt: string;
+
+  /**
+   * @generated from field: int64 session_number = 8;
+   */
+  sessionNumber: bigint;
+
+  /**
+   * @generated from field: string automation_id = 9;
+   */
+  automationId: string;
+
+  /**
+   * @generated from field: string deleted_at = 10;
+   */
+  deletedAt: string;
+
+  /**
+   * @generated from field: drift.v1.RecordingCleanupState cleanup_state = 11;
+   */
+  cleanupState: RecordingCleanupState;
+
+  /**
+   * @generated from field: drift.v1.RecordingReviewState review_state = 12;
+   */
+  reviewState: RecordingReviewState;
 };
 
 /**
@@ -60,6 +87,438 @@ export type RecordingSession = Message<"drift.v1.RecordingSession"> & {
  */
 export const RecordingSessionSchema: GenMessage<RecordingSession> = /*@__PURE__*/
   messageDesc(file_drift_v1_recording, 0);
+
+/**
+ * @generated from message drift.v1.RecordedTarget
+ */
+export type RecordedTarget = Message<"drift.v1.RecordedTarget"> & {
+  /**
+   * @generated from field: drift.v1.SemanticTarget semantic = 1;
+   */
+  semantic?: SemanticTarget;
+
+  /**
+   * @generated from field: string class_name = 2;
+   */
+  className: string;
+
+  /**
+   * @generated from field: uint32 left = 3;
+   */
+  left: number;
+
+  /**
+   * @generated from field: uint32 top = 4;
+   */
+  top: number;
+
+  /**
+   * @generated from field: uint32 right = 5;
+   */
+  right: number;
+
+  /**
+   * @generated from field: uint32 bottom = 6;
+   */
+  bottom: number;
+
+  /**
+   * @generated from field: bool actionable = 7;
+   */
+  actionable: boolean;
+
+  /**
+   * @generated from field: bool enabled = 8;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: bool editable = 9;
+   */
+  editable: boolean;
+
+  /**
+   * @generated from field: bool selected = 10;
+   */
+  selected: boolean;
+
+  /**
+   * @generated from field: bool checked = 11;
+   */
+  checked: boolean;
+
+  /**
+   * @generated from field: string source = 12;
+   */
+  source: string;
+
+  /**
+   * @generated from field: double confidence = 13;
+   */
+  confidence: number;
+
+  /**
+   * @generated from field: uint32 candidate_count = 14;
+   */
+  candidateCount: number;
+};
+
+/**
+ * Describes the message drift.v1.RecordedTarget.
+ * Use `create(RecordedTargetSchema)` to create a new message.
+ */
+export const RecordedTargetSchema: GenMessage<RecordedTarget> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 1);
+
+/**
+ * @generated from message drift.v1.RecordingEvidenceReference
+ */
+export type RecordingEvidenceReference = Message<"drift.v1.RecordingEvidenceReference"> & {
+  /**
+   * @generated from field: drift.v1.RecordingCapturePhase phase = 1;
+   */
+  phase: RecordingCapturePhase;
+
+  /**
+   * @generated from field: drift.v1.RecordingEvidenceKind kind = 2;
+   */
+  kind: RecordingEvidenceKind;
+
+  /**
+   * @generated from field: drift.v1.ArtifactReference artifact = 3;
+   */
+  artifact?: ArtifactReference;
+
+  /**
+   * @generated from field: uint32 schema_version = 4;
+   */
+  schemaVersion: number;
+
+  /**
+   * @generated from field: bool authoritative = 5;
+   */
+  authoritative: boolean;
+
+  /**
+   * @generated from field: bool omitted = 6;
+   */
+  omitted: boolean;
+
+  /**
+   * @generated from field: string omission_reason = 7;
+   */
+  omissionReason: string;
+};
+
+/**
+ * Describes the message drift.v1.RecordingEvidenceReference.
+ * Use `create(RecordingEvidenceReferenceSchema)` to create a new message.
+ */
+export const RecordingEvidenceReferenceSchema: GenMessage<RecordingEvidenceReference> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 2);
+
+/**
+ * @generated from message drift.v1.RecordingCapture
+ */
+export type RecordingCapture = Message<"drift.v1.RecordingCapture"> & {
+  /**
+   * @generated from field: string observation_id = 1;
+   */
+  observationId: string;
+
+  /**
+   * @generated from field: string freshness_token = 2;
+   */
+  freshnessToken: string;
+
+  /**
+   * @generated from field: string captured_at = 3;
+   */
+  capturedAt: string;
+
+  /**
+   * @generated from field: string coordinate_space = 4;
+   */
+  coordinateSpace: string;
+
+  /**
+   * @generated from field: string package_name = 5;
+   */
+  packageName: string;
+
+  /**
+   * @generated from field: string activity_name = 6;
+   */
+  activityName: string;
+
+  /**
+   * @generated from field: string app_version = 7;
+   */
+  appVersion: string;
+
+  /**
+   * @generated from field: uint32 display_width = 8;
+   */
+  displayWidth: number;
+
+  /**
+   * @generated from field: uint32 display_height = 9;
+   */
+  displayHeight: number;
+
+  /**
+   * @generated from field: string orientation = 10;
+   */
+  orientation: string;
+
+  /**
+   * @generated from field: string screenshot_hash = 11;
+   */
+  screenshotHash: string;
+
+  /**
+   * @generated from field: string ui_tree_hash = 12;
+   */
+  uiTreeHash: string;
+
+  /**
+   * @generated from field: drift.v1.RecordingCaptureStatus status = 13;
+   */
+  status: RecordingCaptureStatus;
+
+  /**
+   * @generated from field: drift.v1.RecordingSanitizationState sanitization = 14;
+   */
+  sanitization: RecordingSanitizationState;
+
+  /**
+   * @generated from field: bool partial = 15;
+   */
+  partial: boolean;
+
+  /**
+   * @generated from field: drift.v1.RecordedTarget target = 16;
+   */
+  target?: RecordedTarget;
+
+  /**
+   * @generated from field: repeated drift.v1.RecordingEvidenceReference evidence = 17;
+   */
+  evidence: RecordingEvidenceReference[];
+
+  /**
+   * @generated from field: drift.v1.Failure failure = 18;
+   */
+  failure?: Failure;
+};
+
+/**
+ * Describes the message drift.v1.RecordingCapture.
+ * Use `create(RecordingCaptureSchema)` to create a new message.
+ */
+export const RecordingCaptureSchema: GenMessage<RecordingCapture> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 3);
+
+/**
+ * @generated from message drift.v1.RecordingAction
+ */
+export type RecordingAction = Message<"drift.v1.RecordingAction"> & {
+  /**
+   * @generated from field: drift.v1.ActionKind kind = 1;
+   */
+  kind: ActionKind;
+
+  /**
+   * @generated from field: drift.v1.RecordedTarget target = 2;
+   */
+  target?: RecordedTarget;
+
+  /**
+   * @generated from field: drift.v1.ActionCoordinate coordinate = 3;
+   */
+  coordinate?: ActionCoordinate;
+
+  /**
+   * @generated from field: string display_value = 4;
+   */
+  displayValue: string;
+
+  /**
+   * @generated from field: uint32 value_length = 5;
+   */
+  valueLength: number;
+
+  /**
+   * @generated from field: drift.v1.RecordingSensitivity sensitivity = 6;
+   */
+  sensitivity: RecordingSensitivity;
+
+  /**
+   * @generated from field: drift.v1.ActionGesturePath gesture = 7;
+   */
+  gesture?: ActionGesturePath;
+
+  /**
+   * @generated from field: uint32 key_code = 8;
+   */
+  keyCode: number;
+
+  /**
+   * @generated from field: bool irreversible_confirmed = 9;
+   */
+  irreversibleConfirmed: boolean;
+
+  /**
+   * @generated from field: uint64 timeout_ms = 10;
+   */
+  timeoutMs: bigint;
+
+  /**
+   * @generated from field: string postcondition = 11;
+   */
+  postcondition: string;
+};
+
+/**
+ * Describes the message drift.v1.RecordingAction.
+ * Use `create(RecordingActionSchema)` to create a new message.
+ */
+export const RecordingActionSchema: GenMessage<RecordingAction> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 4);
+
+/**
+ * @generated from message drift.v1.RecordingCaptureError
+ */
+export type RecordingCaptureError = Message<"drift.v1.RecordingCaptureError"> & {
+  /**
+   * @generated from field: drift.v1.RecordingCapturePhase phase = 1;
+   */
+  phase: RecordingCapturePhase;
+
+  /**
+   * @generated from field: drift.v1.FailureCode failure_code = 2;
+   */
+  failureCode: FailureCode;
+
+  /**
+   * @generated from field: string message = 3;
+   */
+  message: string;
+
+  /**
+   * @generated from field: bool omitted = 4;
+   */
+  omitted: boolean;
+};
+
+/**
+ * Describes the message drift.v1.RecordingCaptureError.
+ * Use `create(RecordingCaptureErrorSchema)` to create a new message.
+ */
+export const RecordingCaptureErrorSchema: GenMessage<RecordingCaptureError> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 5);
+
+/**
+ * @generated from message drift.v1.RecordingEvent
+ */
+export type RecordingEvent = Message<"drift.v1.RecordingEvent"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string recording_session_id = 3;
+   */
+  recordingSessionId: string;
+
+  /**
+   * @generated from field: uint32 sequence = 4;
+   */
+  sequence: number;
+
+  /**
+   * @generated from field: string correlation_id = 5;
+   */
+  correlationId: string;
+
+  /**
+   * @generated from field: drift.v1.RecordingAction action = 6;
+   */
+  action?: RecordingAction;
+
+  /**
+   * @generated from field: drift.v1.RecordingCapture before = 7;
+   */
+  before?: RecordingCapture;
+
+  /**
+   * @generated from field: drift.v1.RecordingCapture after = 8;
+   */
+  after?: RecordingCapture;
+
+  /**
+   * @generated from field: repeated drift.v1.RecordingEvidenceReference evidence = 9;
+   */
+  evidence: RecordingEvidenceReference[];
+
+  /**
+   * @generated from field: repeated drift.v1.RecordingCaptureError capture_errors = 10;
+   */
+  captureErrors: RecordingCaptureError[];
+
+  /**
+   * @generated from field: drift.v1.RecordingRedactionState redaction_state = 11;
+   */
+  redactionState: RecordingRedactionState;
+
+  /**
+   * @generated from field: bool sensitive = 12;
+   */
+  sensitive: boolean;
+
+  /**
+   * @generated from field: drift.v1.RecordingReviewState review_state = 13;
+   */
+  reviewState: RecordingReviewState;
+
+  /**
+   * @generated from field: string reviewer_id = 14;
+   */
+  reviewerId: string;
+
+  /**
+   * @generated from field: string reviewed_at = 15;
+   */
+  reviewedAt: string;
+
+  /**
+   * @generated from field: string started_at = 16;
+   */
+  startedAt: string;
+
+  /**
+   * @generated from field: string finished_at = 17;
+   */
+  finishedAt: string;
+
+  /**
+   * @generated from field: string created_at = 18;
+   */
+  createdAt: string;
+};
+
+/**
+ * Describes the message drift.v1.RecordingEvent.
+ * Use `create(RecordingEventSchema)` to create a new message.
+ */
+export const RecordingEventSchema: GenMessage<RecordingEvent> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 6);
 
 /**
  * @generated from message drift.v1.ListRecordingSessionsRequest
@@ -81,7 +540,7 @@ export type ListRecordingSessionsRequest = Message<"drift.v1.ListRecordingSessio
  * Use `create(ListRecordingSessionsRequestSchema)` to create a new message.
  */
 export const ListRecordingSessionsRequestSchema: GenMessage<ListRecordingSessionsRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_recording, 1);
+  messageDesc(file_drift_v1_recording, 7);
 
 /**
  * @generated from message drift.v1.ListRecordingSessionsResponse
@@ -103,7 +562,261 @@ export type ListRecordingSessionsResponse = Message<"drift.v1.ListRecordingSessi
  * Use `create(ListRecordingSessionsResponseSchema)` to create a new message.
  */
 export const ListRecordingSessionsResponseSchema: GenMessage<ListRecordingSessionsResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_recording, 2);
+  messageDesc(file_drift_v1_recording, 8);
+
+/**
+ * @generated from message drift.v1.StartRecordingSessionRequest
+ */
+export type StartRecordingSessionRequest = Message<"drift.v1.StartRecordingSessionRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef session = 2;
+   */
+  session?: ResourceRef;
+};
+
+/**
+ * Describes the message drift.v1.StartRecordingSessionRequest.
+ * Use `create(StartRecordingSessionRequestSchema)` to create a new message.
+ */
+export const StartRecordingSessionRequestSchema: GenMessage<StartRecordingSessionRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 9);
+
+/**
+ * @generated from message drift.v1.StartRecordingSessionResponse
+ */
+export type StartRecordingSessionResponse = Message<"drift.v1.StartRecordingSessionResponse"> & {
+  /**
+   * @generated from field: drift.v1.RecordingSession session = 1;
+   */
+  session?: RecordingSession;
+};
+
+/**
+ * Describes the message drift.v1.StartRecordingSessionResponse.
+ * Use `create(StartRecordingSessionResponseSchema)` to create a new message.
+ */
+export const StartRecordingSessionResponseSchema: GenMessage<StartRecordingSessionResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 10);
+
+/**
+ * @generated from message drift.v1.StopRecordingSessionRequest
+ */
+export type StopRecordingSessionRequest = Message<"drift.v1.StopRecordingSessionRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef session = 2;
+   */
+  session?: ResourceRef;
+};
+
+/**
+ * Describes the message drift.v1.StopRecordingSessionRequest.
+ * Use `create(StopRecordingSessionRequestSchema)` to create a new message.
+ */
+export const StopRecordingSessionRequestSchema: GenMessage<StopRecordingSessionRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 11);
+
+/**
+ * @generated from message drift.v1.StopRecordingSessionResponse
+ */
+export type StopRecordingSessionResponse = Message<"drift.v1.StopRecordingSessionResponse"> & {
+  /**
+   * @generated from field: drift.v1.RecordingSession session = 1;
+   */
+  session?: RecordingSession;
+};
+
+/**
+ * Describes the message drift.v1.StopRecordingSessionResponse.
+ * Use `create(StopRecordingSessionResponseSchema)` to create a new message.
+ */
+export const StopRecordingSessionResponseSchema: GenMessage<StopRecordingSessionResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 12);
+
+/**
+ * @generated from message drift.v1.DiscardRecordingSessionRequest
+ */
+export type DiscardRecordingSessionRequest = Message<"drift.v1.DiscardRecordingSessionRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef session = 2;
+   */
+  session?: ResourceRef;
+};
+
+/**
+ * Describes the message drift.v1.DiscardRecordingSessionRequest.
+ * Use `create(DiscardRecordingSessionRequestSchema)` to create a new message.
+ */
+export const DiscardRecordingSessionRequestSchema: GenMessage<DiscardRecordingSessionRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 13);
+
+/**
+ * @generated from message drift.v1.DiscardRecordingSessionResponse
+ */
+export type DiscardRecordingSessionResponse = Message<"drift.v1.DiscardRecordingSessionResponse"> & {
+  /**
+   * @generated from field: drift.v1.RecordingSession session = 1;
+   */
+  session?: RecordingSession;
+};
+
+/**
+ * Describes the message drift.v1.DiscardRecordingSessionResponse.
+ * Use `create(DiscardRecordingSessionResponseSchema)` to create a new message.
+ */
+export const DiscardRecordingSessionResponseSchema: GenMessage<DiscardRecordingSessionResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 14);
+
+/**
+ * @generated from message drift.v1.DeleteRecordingSessionRequest
+ */
+export type DeleteRecordingSessionRequest = Message<"drift.v1.DeleteRecordingSessionRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef session = 2;
+   */
+  session?: ResourceRef;
+
+  /**
+   * @generated from field: bool confirmed = 3;
+   */
+  confirmed: boolean;
+};
+
+/**
+ * Describes the message drift.v1.DeleteRecordingSessionRequest.
+ * Use `create(DeleteRecordingSessionRequestSchema)` to create a new message.
+ */
+export const DeleteRecordingSessionRequestSchema: GenMessage<DeleteRecordingSessionRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 15);
+
+/**
+ * @generated from message drift.v1.DeleteRecordingSessionResponse
+ */
+export type DeleteRecordingSessionResponse = Message<"drift.v1.DeleteRecordingSessionResponse"> & {
+  /**
+   * @generated from field: drift.v1.RecordingSession session = 1;
+   */
+  session?: RecordingSession;
+};
+
+/**
+ * Describes the message drift.v1.DeleteRecordingSessionResponse.
+ * Use `create(DeleteRecordingSessionResponseSchema)` to create a new message.
+ */
+export const DeleteRecordingSessionResponseSchema: GenMessage<DeleteRecordingSessionResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 16);
+
+/**
+ * @generated from message drift.v1.ListRecordingEventsRequest
+ */
+export type ListRecordingEventsRequest = Message<"drift.v1.ListRecordingEventsRequest"> & {
+  /**
+   * @generated from field: drift.v1.ResourceRef session = 1;
+   */
+  session?: ResourceRef;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 2;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListRecordingEventsRequest.
+ * Use `create(ListRecordingEventsRequestSchema)` to create a new message.
+ */
+export const ListRecordingEventsRequestSchema: GenMessage<ListRecordingEventsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 17);
+
+/**
+ * @generated from message drift.v1.ListRecordingEventsResponse
+ */
+export type ListRecordingEventsResponse = Message<"drift.v1.ListRecordingEventsResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.RecordingEvent events = 1;
+   */
+  events: RecordingEvent[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListRecordingEventsResponse.
+ * Use `create(ListRecordingEventsResponseSchema)` to create a new message.
+ */
+export const ListRecordingEventsResponseSchema: GenMessage<ListRecordingEventsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 18);
+
+/**
+ * @generated from message drift.v1.ReviewRecordingEventRequest
+ */
+export type ReviewRecordingEventRequest = Message<"drift.v1.ReviewRecordingEventRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef event = 2;
+   */
+  event?: ResourceRef;
+
+  /**
+   * @generated from field: bool approved = 3;
+   */
+  approved: boolean;
+
+  /**
+   * @generated from field: string reason = 4;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message drift.v1.ReviewRecordingEventRequest.
+ * Use `create(ReviewRecordingEventRequestSchema)` to create a new message.
+ */
+export const ReviewRecordingEventRequestSchema: GenMessage<ReviewRecordingEventRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 19);
+
+/**
+ * @generated from message drift.v1.ReviewRecordingEventResponse
+ */
+export type ReviewRecordingEventResponse = Message<"drift.v1.ReviewRecordingEventResponse"> & {
+  /**
+   * @generated from field: drift.v1.RecordingEvent event = 1;
+   */
+  event?: RecordingEvent;
+};
+
+/**
+ * Describes the message drift.v1.ReviewRecordingEventResponse.
+ * Use `create(ReviewRecordingEventResponseSchema)` to create a new message.
+ */
+export const ReviewRecordingEventResponseSchema: GenMessage<ReviewRecordingEventResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_recording, 20);
 
 /**
  * @generated from enum drift.v1.RecordingState
@@ -152,6 +865,284 @@ export const RecordingStateSchema: GenEnum<RecordingState> = /*@__PURE__*/
   enumDesc(file_drift_v1_recording, 0);
 
 /**
+ * @generated from enum drift.v1.RecordingCleanupState
+ */
+export enum RecordingCleanupState {
+  /**
+   * @generated from enum value: RECORDING_CLEANUP_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: RECORDING_CLEANUP_STATE_NONE = 1;
+   */
+  NONE = 1,
+
+  /**
+   * @generated from enum value: RECORDING_CLEANUP_STATE_PENDING = 2;
+   */
+  PENDING = 2,
+
+  /**
+   * @generated from enum value: RECORDING_CLEANUP_STATE_DONE = 3;
+   */
+  DONE = 3,
+
+  /**
+   * @generated from enum value: RECORDING_CLEANUP_STATE_FAILED = 4;
+   */
+  FAILED = 4,
+}
+
+/**
+ * Describes the enum drift.v1.RecordingCleanupState.
+ */
+export const RecordingCleanupStateSchema: GenEnum<RecordingCleanupState> = /*@__PURE__*/
+  enumDesc(file_drift_v1_recording, 1);
+
+/**
+ * @generated from enum drift.v1.RecordingReviewState
+ */
+export enum RecordingReviewState {
+  /**
+   * @generated from enum value: RECORDING_REVIEW_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: RECORDING_REVIEW_STATE_UNREVIEWED = 1;
+   */
+  UNREVIEWED = 1,
+
+  /**
+   * @generated from enum value: RECORDING_REVIEW_STATE_APPROVED = 2;
+   */
+  APPROVED = 2,
+
+  /**
+   * @generated from enum value: RECORDING_REVIEW_STATE_REJECTED = 3;
+   */
+  REJECTED = 3,
+}
+
+/**
+ * Describes the enum drift.v1.RecordingReviewState.
+ */
+export const RecordingReviewStateSchema: GenEnum<RecordingReviewState> = /*@__PURE__*/
+  enumDesc(file_drift_v1_recording, 2);
+
+/**
+ * @generated from enum drift.v1.RecordingRedactionState
+ */
+export enum RecordingRedactionState {
+  /**
+   * @generated from enum value: RECORDING_REDACTION_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: RECORDING_REDACTION_STATE_NOT_REQUIRED = 1;
+   */
+  NOT_REQUIRED = 1,
+
+  /**
+   * @generated from enum value: RECORDING_REDACTION_STATE_REQUIRED = 2;
+   */
+  REQUIRED = 2,
+
+  /**
+   * @generated from enum value: RECORDING_REDACTION_STATE_REDACTED = 3;
+   */
+  REDACTED = 3,
+
+  /**
+   * @generated from enum value: RECORDING_REDACTION_STATE_REJECTED = 4;
+   */
+  REJECTED = 4,
+}
+
+/**
+ * Describes the enum drift.v1.RecordingRedactionState.
+ */
+export const RecordingRedactionStateSchema: GenEnum<RecordingRedactionState> = /*@__PURE__*/
+  enumDesc(file_drift_v1_recording, 3);
+
+/**
+ * @generated from enum drift.v1.RecordingCaptureStatus
+ */
+export enum RecordingCaptureStatus {
+  /**
+   * @generated from enum value: RECORDING_CAPTURE_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: RECORDING_CAPTURE_STATUS_COMPLETE = 1;
+   */
+  COMPLETE = 1,
+
+  /**
+   * @generated from enum value: RECORDING_CAPTURE_STATUS_PARTIAL = 2;
+   */
+  PARTIAL = 2,
+
+  /**
+   * @generated from enum value: RECORDING_CAPTURE_STATUS_FAILED = 3;
+   */
+  FAILED = 3,
+}
+
+/**
+ * Describes the enum drift.v1.RecordingCaptureStatus.
+ */
+export const RecordingCaptureStatusSchema: GenEnum<RecordingCaptureStatus> = /*@__PURE__*/
+  enumDesc(file_drift_v1_recording, 4);
+
+/**
+ * @generated from enum drift.v1.RecordingSanitizationState
+ */
+export enum RecordingSanitizationState {
+  /**
+   * @generated from enum value: RECORDING_SANITIZATION_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: RECORDING_SANITIZATION_STATE_SANITIZED = 1;
+   */
+  SANITIZED = 1,
+
+  /**
+   * @generated from enum value: RECORDING_SANITIZATION_STATE_NOT_NEEDED = 2;
+   */
+  NOT_NEEDED = 2,
+
+  /**
+   * @generated from enum value: RECORDING_SANITIZATION_STATE_UNSANITIZABLE = 3;
+   */
+  UNSANITIZABLE = 3,
+}
+
+/**
+ * Describes the enum drift.v1.RecordingSanitizationState.
+ */
+export const RecordingSanitizationStateSchema: GenEnum<RecordingSanitizationState> = /*@__PURE__*/
+  enumDesc(file_drift_v1_recording, 5);
+
+/**
+ * @generated from enum drift.v1.RecordingCapturePhase
+ */
+export enum RecordingCapturePhase {
+  /**
+   * @generated from enum value: RECORDING_CAPTURE_PHASE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: RECORDING_CAPTURE_PHASE_BEFORE = 1;
+   */
+  BEFORE = 1,
+
+  /**
+   * @generated from enum value: RECORDING_CAPTURE_PHASE_ACTION = 2;
+   */
+  ACTION = 2,
+
+  /**
+   * @generated from enum value: RECORDING_CAPTURE_PHASE_AFTER = 3;
+   */
+  AFTER = 3,
+
+  /**
+   * @generated from enum value: RECORDING_CAPTURE_PHASE_REVIEW = 4;
+   */
+  REVIEW = 4,
+}
+
+/**
+ * Describes the enum drift.v1.RecordingCapturePhase.
+ */
+export const RecordingCapturePhaseSchema: GenEnum<RecordingCapturePhase> = /*@__PURE__*/
+  enumDesc(file_drift_v1_recording, 6);
+
+/**
+ * @generated from enum drift.v1.RecordingEvidenceKind
+ */
+export enum RecordingEvidenceKind {
+  /**
+   * @generated from enum value: RECORDING_EVIDENCE_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: RECORDING_EVIDENCE_KIND_RAW_SCREENSHOT = 1;
+   */
+  RAW_SCREENSHOT = 1,
+
+  /**
+   * @generated from enum value: RECORDING_EVIDENCE_KIND_ANNOTATED_SCREENSHOT = 2;
+   */
+  ANNOTATED_SCREENSHOT = 2,
+
+  /**
+   * @generated from enum value: RECORDING_EVIDENCE_KIND_UI_TREE = 3;
+   */
+  UI_TREE = 3,
+
+  /**
+   * @generated from enum value: RECORDING_EVIDENCE_KIND_OCR = 4;
+   */
+  OCR = 4,
+
+  /**
+   * @generated from enum value: RECORDING_EVIDENCE_KIND_TRACE = 5;
+   */
+  TRACE = 5,
+
+  /**
+   * @generated from enum value: RECORDING_EVIDENCE_KIND_LOG = 6;
+   */
+  LOG = 6,
+}
+
+/**
+ * Describes the enum drift.v1.RecordingEvidenceKind.
+ */
+export const RecordingEvidenceKindSchema: GenEnum<RecordingEvidenceKind> = /*@__PURE__*/
+  enumDesc(file_drift_v1_recording, 7);
+
+/**
+ * @generated from enum drift.v1.RecordingSensitivity
+ */
+export enum RecordingSensitivity {
+  /**
+   * @generated from enum value: RECORDING_SENSITIVITY_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: RECORDING_SENSITIVITY_NONE = 1;
+   */
+  NONE = 1,
+
+  /**
+   * @generated from enum value: RECORDING_SENSITIVITY_SENSITIVE = 2;
+   */
+  SENSITIVE = 2,
+
+  /**
+   * @generated from enum value: RECORDING_SENSITIVITY_UNCERTAIN = 3;
+   */
+  UNCERTAIN = 3,
+}
+
+/**
+ * Describes the enum drift.v1.RecordingSensitivity.
+ */
+export const RecordingSensitivitySchema: GenEnum<RecordingSensitivity> = /*@__PURE__*/
+  enumDesc(file_drift_v1_recording, 8);
+
+/**
  * @generated from service drift.v1.RecordingService
  */
 export const RecordingService: GenService<{
@@ -162,6 +1153,54 @@ export const RecordingService: GenService<{
     methodKind: "unary";
     input: typeof ListRecordingSessionsRequestSchema;
     output: typeof ListRecordingSessionsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.RecordingService.StartRecordingSession
+   */
+  startRecordingSession: {
+    methodKind: "unary";
+    input: typeof StartRecordingSessionRequestSchema;
+    output: typeof StartRecordingSessionResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.RecordingService.StopRecordingSession
+   */
+  stopRecordingSession: {
+    methodKind: "unary";
+    input: typeof StopRecordingSessionRequestSchema;
+    output: typeof StopRecordingSessionResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.RecordingService.DiscardRecordingSession
+   */
+  discardRecordingSession: {
+    methodKind: "unary";
+    input: typeof DiscardRecordingSessionRequestSchema;
+    output: typeof DiscardRecordingSessionResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.RecordingService.DeleteRecordingSession
+   */
+  deleteRecordingSession: {
+    methodKind: "unary";
+    input: typeof DeleteRecordingSessionRequestSchema;
+    output: typeof DeleteRecordingSessionResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.RecordingService.ListRecordingEvents
+   */
+  listRecordingEvents: {
+    methodKind: "unary";
+    input: typeof ListRecordingEventsRequestSchema;
+    output: typeof ListRecordingEventsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.RecordingService.ReviewRecordingEvent
+   */
+  reviewRecordingEvent: {
+    methodKind: "unary";
+    input: typeof ReviewRecordingEventRequestSchema;
+    output: typeof ReviewRecordingEventResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_recording, 0);

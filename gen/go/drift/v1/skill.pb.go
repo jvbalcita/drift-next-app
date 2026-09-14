@@ -203,15 +203,22 @@ func (x *Skill) GetState() SkillState {
 }
 
 type SkillVersion struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	SkillId       string                 `protobuf:"bytes,2,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
-	Version       uint32                 `protobuf:"varint,3,opt,name=version,proto3" json:"version,omitempty"`
-	State         SkillState             `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.SkillState" json:"state,omitempty"`
-	TrustState    TrustState             `protobuf:"varint,5,opt,name=trust_state,json=trustState,proto3,enum=drift.v1.TrustState" json:"trust_state,omitempty"`
-	Capabilities  []string               `protobuf:"bytes,6,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	Id                       string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	SkillId                  string                 `protobuf:"bytes,2,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
+	Version                  uint32                 `protobuf:"varint,3,opt,name=version,proto3" json:"version,omitempty"`
+	State                    SkillState             `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.SkillState" json:"state,omitempty"`
+	TrustState               TrustState             `protobuf:"varint,5,opt,name=trust_state,json=trustState,proto3,enum=drift.v1.TrustState" json:"trust_state,omitempty"`
+	Capabilities             []string               `protobuf:"bytes,6,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	Steps                    []*SkillStep           `protobuf:"bytes,7,rep,name=steps,proto3" json:"steps,omitempty"`
+	Manifest                 *SkillManifest         `protobuf:"bytes,8,opt,name=manifest,proto3" json:"manifest,omitempty"`
+	SourceRecordingSessionId string                 `protobuf:"bytes,9,opt,name=source_recording_session_id,json=sourceRecordingSessionId,proto3" json:"source_recording_session_id,omitempty"`
+	RollbackVersionId        string                 `protobuf:"bytes,10,opt,name=rollback_version_id,json=rollbackVersionId,proto3" json:"rollback_version_id,omitempty"`
+	CreatedAt                string                 `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ReviewerId               string                 `protobuf:"bytes,12,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
+	ReviewedAt               string                 `protobuf:"bytes,13,opt,name=reviewed_at,json=reviewedAt,proto3" json:"reviewed_at,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *SkillVersion) Reset() {
@@ -286,6 +293,439 @@ func (x *SkillVersion) GetCapabilities() []string {
 	return nil
 }
 
+func (x *SkillVersion) GetSteps() []*SkillStep {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
+func (x *SkillVersion) GetManifest() *SkillManifest {
+	if x != nil {
+		return x.Manifest
+	}
+	return nil
+}
+
+func (x *SkillVersion) GetSourceRecordingSessionId() string {
+	if x != nil {
+		return x.SourceRecordingSessionId
+	}
+	return ""
+}
+
+func (x *SkillVersion) GetRollbackVersionId() string {
+	if x != nil {
+		return x.RollbackVersionId
+	}
+	return ""
+}
+
+func (x *SkillVersion) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *SkillVersion) GetReviewerId() string {
+	if x != nil {
+		return x.ReviewerId
+	}
+	return ""
+}
+
+func (x *SkillVersion) GetReviewedAt() string {
+	if x != nil {
+		return x.ReviewedAt
+	}
+	return ""
+}
+
+type SkillCompatibility struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	PackageNames     []string               `protobuf:"bytes,1,rep,name=package_names,json=packageNames,proto3" json:"package_names,omitempty"`
+	ActivityNames    []string               `protobuf:"bytes,2,rep,name=activity_names,json=activityNames,proto3" json:"activity_names,omitempty"`
+	AppVersions      []string               `protobuf:"bytes,3,rep,name=app_versions,json=appVersions,proto3" json:"app_versions,omitempty"`
+	CoordinateSpaces []string               `protobuf:"bytes,4,rep,name=coordinate_spaces,json=coordinateSpaces,proto3" json:"coordinate_spaces,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *SkillCompatibility) Reset() {
+	*x = SkillCompatibility{}
+	mi := &file_drift_v1_skill_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SkillCompatibility) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkillCompatibility) ProtoMessage() {}
+
+func (x *SkillCompatibility) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkillCompatibility.ProtoReflect.Descriptor instead.
+func (*SkillCompatibility) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SkillCompatibility) GetPackageNames() []string {
+	if x != nil {
+		return x.PackageNames
+	}
+	return nil
+}
+
+func (x *SkillCompatibility) GetActivityNames() []string {
+	if x != nil {
+		return x.ActivityNames
+	}
+	return nil
+}
+
+func (x *SkillCompatibility) GetAppVersions() []string {
+	if x != nil {
+		return x.AppVersions
+	}
+	return nil
+}
+
+func (x *SkillCompatibility) GetCoordinateSpaces() []string {
+	if x != nil {
+		return x.CoordinateSpaces
+	}
+	return nil
+}
+
+type SkillManifest struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Compatibility         *SkillCompatibility    `protobuf:"bytes,1,opt,name=compatibility,proto3" json:"compatibility,omitempty"`
+	RequestedCapabilities []ActionCapability     `protobuf:"varint,2,rep,packed,name=requested_capabilities,json=requestedCapabilities,proto3,enum=drift.v1.ActionCapability" json:"requested_capabilities,omitempty"`
+	Fixtures              []string               `protobuf:"bytes,3,rep,name=fixtures,proto3" json:"fixtures,omitempty"`
+	RiskClass             ActionRiskClass        `protobuf:"varint,4,opt,name=risk_class,json=riskClass,proto3,enum=drift.v1.ActionRiskClass" json:"risk_class,omitempty"`
+	RetryClass            ActionRetryClass       `protobuf:"varint,5,opt,name=retry_class,json=retryClass,proto3,enum=drift.v1.ActionRetryClass" json:"retry_class,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *SkillManifest) Reset() {
+	*x = SkillManifest{}
+	mi := &file_drift_v1_skill_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SkillManifest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkillManifest) ProtoMessage() {}
+
+func (x *SkillManifest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkillManifest.ProtoReflect.Descriptor instead.
+func (*SkillManifest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SkillManifest) GetCompatibility() *SkillCompatibility {
+	if x != nil {
+		return x.Compatibility
+	}
+	return nil
+}
+
+func (x *SkillManifest) GetRequestedCapabilities() []ActionCapability {
+	if x != nil {
+		return x.RequestedCapabilities
+	}
+	return nil
+}
+
+func (x *SkillManifest) GetFixtures() []string {
+	if x != nil {
+		return x.Fixtures
+	}
+	return nil
+}
+
+func (x *SkillManifest) GetRiskClass() ActionRiskClass {
+	if x != nil {
+		return x.RiskClass
+	}
+	return ActionRiskClass_ACTION_RISK_CLASS_UNSPECIFIED
+}
+
+func (x *SkillManifest) GetRetryClass() ActionRetryClass {
+	if x != nil {
+		return x.RetryClass
+	}
+	return ActionRetryClass_ACTION_RETRY_CLASS_UNSPECIFIED
+}
+
+type SkillStep struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Id                  string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Sequence            uint32                 `protobuf:"varint,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	Action              ActionKind             `protobuf:"varint,3,opt,name=action,proto3,enum=drift.v1.ActionKind" json:"action,omitempty"`
+	RiskClass           ActionRiskClass        `protobuf:"varint,4,opt,name=risk_class,json=riskClass,proto3,enum=drift.v1.ActionRiskClass" json:"risk_class,omitempty"`
+	RetryClass          ActionRetryClass       `protobuf:"varint,5,opt,name=retry_class,json=retryClass,proto3,enum=drift.v1.ActionRetryClass" json:"retry_class,omitempty"`
+	Target              *SemanticTarget        `protobuf:"bytes,6,opt,name=target,proto3" json:"target,omitempty"`
+	TimeoutMs           uint64                 `protobuf:"varint,7,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
+	RequiresObservation bool                   `protobuf:"varint,8,opt,name=requires_observation,json=requiresObservation,proto3" json:"requires_observation,omitempty"`
+	EvidenceRequired    bool                   `protobuf:"varint,9,opt,name=evidence_required,json=evidenceRequired,proto3" json:"evidence_required,omitempty"`
+	Postcondition       string                 `protobuf:"bytes,10,opt,name=postcondition,proto3" json:"postcondition,omitempty"`
+	TextValue           string                 `protobuf:"bytes,11,opt,name=text_value,json=textValue,proto3" json:"text_value,omitempty"`
+	KeyCode             uint32                 `protobuf:"varint,12,opt,name=key_code,json=keyCode,proto3" json:"key_code,omitempty"`
+	Gesture             *ActionGesturePath     `protobuf:"bytes,13,opt,name=gesture,proto3" json:"gesture,omitempty"`
+	ValueLength         uint32                 `protobuf:"varint,14,opt,name=value_length,json=valueLength,proto3" json:"value_length,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *SkillStep) Reset() {
+	*x = SkillStep{}
+	mi := &file_drift_v1_skill_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SkillStep) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkillStep) ProtoMessage() {}
+
+func (x *SkillStep) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkillStep.ProtoReflect.Descriptor instead.
+func (*SkillStep) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *SkillStep) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SkillStep) GetSequence() uint32 {
+	if x != nil {
+		return x.Sequence
+	}
+	return 0
+}
+
+func (x *SkillStep) GetAction() ActionKind {
+	if x != nil {
+		return x.Action
+	}
+	return ActionKind_ACTION_KIND_UNSPECIFIED
+}
+
+func (x *SkillStep) GetRiskClass() ActionRiskClass {
+	if x != nil {
+		return x.RiskClass
+	}
+	return ActionRiskClass_ACTION_RISK_CLASS_UNSPECIFIED
+}
+
+func (x *SkillStep) GetRetryClass() ActionRetryClass {
+	if x != nil {
+		return x.RetryClass
+	}
+	return ActionRetryClass_ACTION_RETRY_CLASS_UNSPECIFIED
+}
+
+func (x *SkillStep) GetTarget() *SemanticTarget {
+	if x != nil {
+		return x.Target
+	}
+	return nil
+}
+
+func (x *SkillStep) GetTimeoutMs() uint64 {
+	if x != nil {
+		return x.TimeoutMs
+	}
+	return 0
+}
+
+func (x *SkillStep) GetRequiresObservation() bool {
+	if x != nil {
+		return x.RequiresObservation
+	}
+	return false
+}
+
+func (x *SkillStep) GetEvidenceRequired() bool {
+	if x != nil {
+		return x.EvidenceRequired
+	}
+	return false
+}
+
+func (x *SkillStep) GetPostcondition() string {
+	if x != nil {
+		return x.Postcondition
+	}
+	return ""
+}
+
+func (x *SkillStep) GetTextValue() string {
+	if x != nil {
+		return x.TextValue
+	}
+	return ""
+}
+
+func (x *SkillStep) GetKeyCode() uint32 {
+	if x != nil {
+		return x.KeyCode
+	}
+	return 0
+}
+
+func (x *SkillStep) GetGesture() *ActionGesturePath {
+	if x != nil {
+		return x.Gesture
+	}
+	return nil
+}
+
+func (x *SkillStep) GetValueLength() uint32 {
+	if x != nil {
+		return x.ValueLength
+	}
+	return 0
+}
+
+type SharedBrainKnowledge struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Id                   string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace            *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	KnowledgeKey         string                 `protobuf:"bytes,3,opt,name=knowledge_key,json=knowledgeKey,proto3" json:"knowledge_key,omitempty"`
+	Version              uint32                 `protobuf:"varint,4,opt,name=version,proto3" json:"version,omitempty"`
+	State                SkillState             `protobuf:"varint,5,opt,name=state,proto3,enum=drift.v1.SkillState" json:"state,omitempty"`
+	KnowledgeJson        string                 `protobuf:"bytes,6,opt,name=knowledge_json,json=knowledgeJson,proto3" json:"knowledge_json,omitempty"`
+	SourceSkillVersionId string                 `protobuf:"bytes,7,opt,name=source_skill_version_id,json=sourceSkillVersionId,proto3" json:"source_skill_version_id,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *SharedBrainKnowledge) Reset() {
+	*x = SharedBrainKnowledge{}
+	mi := &file_drift_v1_skill_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SharedBrainKnowledge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SharedBrainKnowledge) ProtoMessage() {}
+
+func (x *SharedBrainKnowledge) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SharedBrainKnowledge.ProtoReflect.Descriptor instead.
+func (*SharedBrainKnowledge) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SharedBrainKnowledge) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SharedBrainKnowledge) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *SharedBrainKnowledge) GetKnowledgeKey() string {
+	if x != nil {
+		return x.KnowledgeKey
+	}
+	return ""
+}
+
+func (x *SharedBrainKnowledge) GetVersion() uint32 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *SharedBrainKnowledge) GetState() SkillState {
+	if x != nil {
+		return x.State
+	}
+	return SkillState_SKILL_STATE_UNSPECIFIED
+}
+
+func (x *SharedBrainKnowledge) GetKnowledgeJson() string {
+	if x != nil {
+		return x.KnowledgeJson
+	}
+	return ""
+}
+
+func (x *SharedBrainKnowledge) GetSourceSkillVersionId() string {
+	if x != nil {
+		return x.SourceSkillVersionId
+	}
+	return ""
+}
+
 type ListSkillsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
@@ -296,7 +736,7 @@ type ListSkillsRequest struct {
 
 func (x *ListSkillsRequest) Reset() {
 	*x = ListSkillsRequest{}
-	mi := &file_drift_v1_skill_proto_msgTypes[2]
+	mi := &file_drift_v1_skill_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -308,7 +748,7 @@ func (x *ListSkillsRequest) String() string {
 func (*ListSkillsRequest) ProtoMessage() {}
 
 func (x *ListSkillsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_skill_proto_msgTypes[2]
+	mi := &file_drift_v1_skill_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -321,7 +761,7 @@ func (x *ListSkillsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSkillsRequest.ProtoReflect.Descriptor instead.
 func (*ListSkillsRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_skill_proto_rawDescGZIP(), []int{2}
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListSkillsRequest) GetWorkspace() *WorkspaceRef {
@@ -348,7 +788,7 @@ type ListSkillsResponse struct {
 
 func (x *ListSkillsResponse) Reset() {
 	*x = ListSkillsResponse{}
-	mi := &file_drift_v1_skill_proto_msgTypes[3]
+	mi := &file_drift_v1_skill_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -360,7 +800,7 @@ func (x *ListSkillsResponse) String() string {
 func (*ListSkillsResponse) ProtoMessage() {}
 
 func (x *ListSkillsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_skill_proto_msgTypes[3]
+	mi := &file_drift_v1_skill_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -373,7 +813,7 @@ func (x *ListSkillsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSkillsResponse.ProtoReflect.Descriptor instead.
 func (*ListSkillsResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_skill_proto_rawDescGZIP(), []int{3}
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListSkillsResponse) GetSkills() []*Skill {
@@ -390,16 +830,520 @@ func (x *ListSkillsResponse) GetPage() *PageResponse {
 	return nil
 }
 
+type ListSkillVersionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Skill         *ResourceRef           `protobuf:"bytes,1,opt,name=skill,proto3" json:"skill,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSkillVersionsRequest) Reset() {
+	*x = ListSkillVersionsRequest{}
+	mi := &file_drift_v1_skill_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSkillVersionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSkillVersionsRequest) ProtoMessage() {}
+
+func (x *ListSkillVersionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSkillVersionsRequest.ProtoReflect.Descriptor instead.
+func (*ListSkillVersionsRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ListSkillVersionsRequest) GetSkill() *ResourceRef {
+	if x != nil {
+		return x.Skill
+	}
+	return nil
+}
+
+func (x *ListSkillVersionsRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListSkillVersionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Versions      []*SkillVersion        `protobuf:"bytes,1,rep,name=versions,proto3" json:"versions,omitempty"`
+	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSkillVersionsResponse) Reset() {
+	*x = ListSkillVersionsResponse{}
+	mi := &file_drift_v1_skill_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSkillVersionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSkillVersionsResponse) ProtoMessage() {}
+
+func (x *ListSkillVersionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSkillVersionsResponse.ProtoReflect.Descriptor instead.
+func (*ListSkillVersionsResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ListSkillVersionsResponse) GetVersions() []*SkillVersion {
+	if x != nil {
+		return x.Versions
+	}
+	return nil
+}
+
+func (x *ListSkillVersionsResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type GetSkillVersionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       *ResourceRef           `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSkillVersionRequest) Reset() {
+	*x = GetSkillVersionRequest{}
+	mi := &file_drift_v1_skill_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSkillVersionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSkillVersionRequest) ProtoMessage() {}
+
+func (x *GetSkillVersionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSkillVersionRequest.ProtoReflect.Descriptor instead.
+func (*GetSkillVersionRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetSkillVersionRequest) GetVersion() *ResourceRef {
+	if x != nil {
+		return x.Version
+	}
+	return nil
+}
+
+type GetSkillVersionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       *SkillVersion          `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSkillVersionResponse) Reset() {
+	*x = GetSkillVersionResponse{}
+	mi := &file_drift_v1_skill_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSkillVersionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSkillVersionResponse) ProtoMessage() {}
+
+func (x *GetSkillVersionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSkillVersionResponse.ProtoReflect.Descriptor instead.
+func (*GetSkillVersionResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetSkillVersionResponse) GetVersion() *SkillVersion {
+	if x != nil {
+		return x.Version
+	}
+	return nil
+}
+
+type ReviewSkillVersionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Version       *ResourceRef           `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReviewSkillVersionRequest) Reset() {
+	*x = ReviewSkillVersionRequest{}
+	mi := &file_drift_v1_skill_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReviewSkillVersionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReviewSkillVersionRequest) ProtoMessage() {}
+
+func (x *ReviewSkillVersionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReviewSkillVersionRequest.ProtoReflect.Descriptor instead.
+func (*ReviewSkillVersionRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ReviewSkillVersionRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *ReviewSkillVersionRequest) GetVersion() *ResourceRef {
+	if x != nil {
+		return x.Version
+	}
+	return nil
+}
+
+func (x *ReviewSkillVersionRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type ReviewSkillVersionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       *SkillVersion          `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReviewSkillVersionResponse) Reset() {
+	*x = ReviewSkillVersionResponse{}
+	mi := &file_drift_v1_skill_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReviewSkillVersionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReviewSkillVersionResponse) ProtoMessage() {}
+
+func (x *ReviewSkillVersionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReviewSkillVersionResponse.ProtoReflect.Descriptor instead.
+func (*ReviewSkillVersionResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ReviewSkillVersionResponse) GetVersion() *SkillVersion {
+	if x != nil {
+		return x.Version
+	}
+	return nil
+}
+
+type PublishSkillVersionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Version       *ResourceRef           `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishSkillVersionRequest) Reset() {
+	*x = PublishSkillVersionRequest{}
+	mi := &file_drift_v1_skill_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishSkillVersionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishSkillVersionRequest) ProtoMessage() {}
+
+func (x *PublishSkillVersionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishSkillVersionRequest.ProtoReflect.Descriptor instead.
+func (*PublishSkillVersionRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *PublishSkillVersionRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *PublishSkillVersionRequest) GetVersion() *ResourceRef {
+	if x != nil {
+		return x.Version
+	}
+	return nil
+}
+
+func (x *PublishSkillVersionRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type PublishSkillVersionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       *SkillVersion          `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishSkillVersionResponse) Reset() {
+	*x = PublishSkillVersionResponse{}
+	mi := &file_drift_v1_skill_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishSkillVersionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishSkillVersionResponse) ProtoMessage() {}
+
+func (x *PublishSkillVersionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishSkillVersionResponse.ProtoReflect.Descriptor instead.
+func (*PublishSkillVersionResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *PublishSkillVersionResponse) GetVersion() *SkillVersion {
+	if x != nil {
+		return x.Version
+	}
+	return nil
+}
+
+type ListSharedBrainKnowledgeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSharedBrainKnowledgeRequest) Reset() {
+	*x = ListSharedBrainKnowledgeRequest{}
+	mi := &file_drift_v1_skill_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSharedBrainKnowledgeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSharedBrainKnowledgeRequest) ProtoMessage() {}
+
+func (x *ListSharedBrainKnowledgeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSharedBrainKnowledgeRequest.ProtoReflect.Descriptor instead.
+func (*ListSharedBrainKnowledgeRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ListSharedBrainKnowledgeRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListSharedBrainKnowledgeRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListSharedBrainKnowledgeResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Knowledge     []*SharedBrainKnowledge `protobuf:"bytes,1,rep,name=knowledge,proto3" json:"knowledge,omitempty"`
+	Page          *PageResponse           `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSharedBrainKnowledgeResponse) Reset() {
+	*x = ListSharedBrainKnowledgeResponse{}
+	mi := &file_drift_v1_skill_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSharedBrainKnowledgeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSharedBrainKnowledgeResponse) ProtoMessage() {}
+
+func (x *ListSharedBrainKnowledgeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_skill_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSharedBrainKnowledgeResponse.ProtoReflect.Descriptor instead.
+func (*ListSharedBrainKnowledgeResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_skill_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ListSharedBrainKnowledgeResponse) GetKnowledge() []*SharedBrainKnowledge {
+	if x != nil {
+		return x.Knowledge
+	}
+	return nil
+}
+
+func (x *ListSharedBrainKnowledgeResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 var File_drift_v1_skill_proto protoreflect.FileDescriptor
 
 const file_drift_v1_skill_proto_rawDesc = "" +
 	"\n" +
-	"\x14drift/v1/skill.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x9c\x01\n" +
+	"\x14drift/v1/skill.proto\x12\bdrift.v1\x1a\x15drift/v1/action.proto\x1a\x15drift/v1/common.proto\"\x9c\x01\n" +
 	"\x05Skill\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12*\n" +
-	"\x05state\x18\x04 \x01(\x0e2\x14.drift.v1.SkillStateR\x05state\"\xda\x01\n" +
+	"\x05state\x18\x04 \x01(\x0e2\x14.drift.v1.SkillStateR\x05state\"\x8a\x04\n" +
 	"\fSkillVersion\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bskill_id\x18\x02 \x01(\tR\askillId\x12\x18\n" +
@@ -407,12 +1351,92 @@ const file_drift_v1_skill_proto_rawDesc = "" +
 	"\x05state\x18\x04 \x01(\x0e2\x14.drift.v1.SkillStateR\x05state\x125\n" +
 	"\vtrust_state\x18\x05 \x01(\x0e2\x14.drift.v1.TrustStateR\n" +
 	"trustState\x12\"\n" +
-	"\fcapabilities\x18\x06 \x03(\tR\fcapabilities\"t\n" +
+	"\fcapabilities\x18\x06 \x03(\tR\fcapabilities\x12)\n" +
+	"\x05steps\x18\a \x03(\v2\x13.drift.v1.SkillStepR\x05steps\x123\n" +
+	"\bmanifest\x18\b \x01(\v2\x17.drift.v1.SkillManifestR\bmanifest\x12=\n" +
+	"\x1bsource_recording_session_id\x18\t \x01(\tR\x18sourceRecordingSessionId\x12.\n" +
+	"\x13rollback_version_id\x18\n" +
+	" \x01(\tR\x11rollbackVersionId\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\v \x01(\tR\tcreatedAt\x12\x1f\n" +
+	"\vreviewer_id\x18\f \x01(\tR\n" +
+	"reviewerId\x12\x1f\n" +
+	"\vreviewed_at\x18\r \x01(\tR\n" +
+	"reviewedAt\"\xb0\x01\n" +
+	"\x12SkillCompatibility\x12#\n" +
+	"\rpackage_names\x18\x01 \x03(\tR\fpackageNames\x12%\n" +
+	"\x0eactivity_names\x18\x02 \x03(\tR\ractivityNames\x12!\n" +
+	"\fapp_versions\x18\x03 \x03(\tR\vappVersions\x12+\n" +
+	"\x11coordinate_spaces\x18\x04 \x03(\tR\x10coordinateSpaces\"\xb9\x02\n" +
+	"\rSkillManifest\x12B\n" +
+	"\rcompatibility\x18\x01 \x01(\v2\x1c.drift.v1.SkillCompatibilityR\rcompatibility\x12Q\n" +
+	"\x16requested_capabilities\x18\x02 \x03(\x0e2\x1a.drift.v1.ActionCapabilityR\x15requestedCapabilities\x12\x1a\n" +
+	"\bfixtures\x18\x03 \x03(\tR\bfixtures\x128\n" +
+	"\n" +
+	"risk_class\x18\x04 \x01(\x0e2\x19.drift.v1.ActionRiskClassR\triskClass\x12;\n" +
+	"\vretry_class\x18\x05 \x01(\x0e2\x1a.drift.v1.ActionRetryClassR\n" +
+	"retryClass\"\xc7\x04\n" +
+	"\tSkillStep\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\bsequence\x18\x02 \x01(\rR\bsequence\x12,\n" +
+	"\x06action\x18\x03 \x01(\x0e2\x14.drift.v1.ActionKindR\x06action\x128\n" +
+	"\n" +
+	"risk_class\x18\x04 \x01(\x0e2\x19.drift.v1.ActionRiskClassR\triskClass\x12;\n" +
+	"\vretry_class\x18\x05 \x01(\x0e2\x1a.drift.v1.ActionRetryClassR\n" +
+	"retryClass\x120\n" +
+	"\x06target\x18\x06 \x01(\v2\x18.drift.v1.SemanticTargetR\x06target\x12\x1d\n" +
+	"\n" +
+	"timeout_ms\x18\a \x01(\x04R\ttimeoutMs\x121\n" +
+	"\x14requires_observation\x18\b \x01(\bR\x13requiresObservation\x12+\n" +
+	"\x11evidence_required\x18\t \x01(\bR\x10evidenceRequired\x12$\n" +
+	"\rpostcondition\x18\n" +
+	" \x01(\tR\rpostcondition\x12\x1d\n" +
+	"\n" +
+	"text_value\x18\v \x01(\tR\ttextValue\x12\x19\n" +
+	"\bkey_code\x18\f \x01(\rR\akeyCode\x125\n" +
+	"\agesture\x18\r \x01(\v2\x1b.drift.v1.ActionGesturePathR\agesture\x12!\n" +
+	"\fvalue_length\x18\x0e \x01(\rR\vvalueLength\"\xa5\x02\n" +
+	"\x14SharedBrainKnowledge\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12#\n" +
+	"\rknowledge_key\x18\x03 \x01(\tR\fknowledgeKey\x12\x18\n" +
+	"\aversion\x18\x04 \x01(\rR\aversion\x12*\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x14.drift.v1.SkillStateR\x05state\x12%\n" +
+	"\x0eknowledge_json\x18\x06 \x01(\tR\rknowledgeJson\x125\n" +
+	"\x17source_skill_version_id\x18\a \x01(\tR\x14sourceSkillVersionId\"t\n" +
 	"\x11ListSkillsRequest\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
 	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"i\n" +
 	"\x12ListSkillsResponse\x12'\n" +
 	"\x06skills\x18\x01 \x03(\v2\x0f.drift.v1.SkillR\x06skills\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"r\n" +
+	"\x18ListSkillVersionsRequest\x12+\n" +
+	"\x05skill\x18\x01 \x01(\v2\x15.drift.v1.ResourceRefR\x05skill\x12)\n" +
+	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"{\n" +
+	"\x19ListSkillVersionsResponse\x122\n" +
+	"\bversions\x18\x01 \x03(\v2\x16.drift.v1.SkillVersionR\bversions\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"I\n" +
+	"\x16GetSkillVersionRequest\x12/\n" +
+	"\aversion\x18\x01 \x01(\v2\x15.drift.v1.ResourceRefR\aversion\"K\n" +
+	"\x17GetSkillVersionResponse\x120\n" +
+	"\aversion\x18\x01 \x01(\v2\x16.drift.v1.SkillVersionR\aversion\"\x98\x01\n" +
+	"\x19ReviewSkillVersionRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12/\n" +
+	"\aversion\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\aversion\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"N\n" +
+	"\x1aReviewSkillVersionResponse\x120\n" +
+	"\aversion\x18\x01 \x01(\v2\x16.drift.v1.SkillVersionR\aversion\"\x99\x01\n" +
+	"\x1aPublishSkillVersionRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12/\n" +
+	"\aversion\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\aversion\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"O\n" +
+	"\x1bPublishSkillVersionResponse\x120\n" +
+	"\aversion\x18\x01 \x01(\v2\x16.drift.v1.SkillVersionR\aversion\"\x82\x01\n" +
+	"\x1fListSharedBrainKnowledgeRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
+	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x8c\x01\n" +
+	" ListSharedBrainKnowledgeResponse\x12<\n" +
+	"\tknowledge\x18\x01 \x03(\v2\x1e.drift.v1.SharedBrainKnowledgeR\tknowledge\x12*\n" +
 	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page*\xab\x01\n" +
 	"\n" +
 	"SkillState\x12\x1b\n" +
@@ -428,10 +1452,15 @@ const file_drift_v1_skill_proto_rawDesc = "" +
 	"\x16TRUST_STATE_UNREVIEWED\x10\x01\x12\x18\n" +
 	"\x14TRUST_STATE_REVIEWED\x10\x02\x12\x18\n" +
 	"\x14TRUST_STATE_APPROVED\x10\x03\x12\x17\n" +
-	"\x13TRUST_STATE_REVOKED\x10\x042W\n" +
+	"\x13TRUST_STATE_REVOKED\x10\x042\xc5\x04\n" +
 	"\fSkillService\x12G\n" +
 	"\n" +
-	"ListSkills\x12\x1b.drift.v1.ListSkillsRequest\x1a\x1c.drift.v1.ListSkillsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"ListSkills\x12\x1b.drift.v1.ListSkillsRequest\x1a\x1c.drift.v1.ListSkillsResponse\x12\\\n" +
+	"\x11ListSkillVersions\x12\".drift.v1.ListSkillVersionsRequest\x1a#.drift.v1.ListSkillVersionsResponse\x12V\n" +
+	"\x0fGetSkillVersion\x12 .drift.v1.GetSkillVersionRequest\x1a!.drift.v1.GetSkillVersionResponse\x12_\n" +
+	"\x12ReviewSkillVersion\x12#.drift.v1.ReviewSkillVersionRequest\x1a$.drift.v1.ReviewSkillVersionResponse\x12b\n" +
+	"\x13PublishSkillVersion\x12$.drift.v1.PublishSkillVersionRequest\x1a%.drift.v1.PublishSkillVersionResponse\x12q\n" +
+	"\x18ListSharedBrainKnowledge\x12).drift.v1.ListSharedBrainKnowledgeRequest\x1a*.drift.v1.ListSharedBrainKnowledgeResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_skill_proto_rawDescOnce sync.Once
@@ -446,34 +1475,95 @@ func file_drift_v1_skill_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_skill_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_drift_v1_skill_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_drift_v1_skill_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_drift_v1_skill_proto_goTypes = []any{
-	(SkillState)(0),            // 0: drift.v1.SkillState
-	(TrustState)(0),            // 1: drift.v1.TrustState
-	(*Skill)(nil),              // 2: drift.v1.Skill
-	(*SkillVersion)(nil),       // 3: drift.v1.SkillVersion
-	(*ListSkillsRequest)(nil),  // 4: drift.v1.ListSkillsRequest
-	(*ListSkillsResponse)(nil), // 5: drift.v1.ListSkillsResponse
-	(*WorkspaceRef)(nil),       // 6: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),        // 7: drift.v1.PageRequest
-	(*PageResponse)(nil),       // 8: drift.v1.PageResponse
+	(SkillState)(0),                          // 0: drift.v1.SkillState
+	(TrustState)(0),                          // 1: drift.v1.TrustState
+	(*Skill)(nil),                            // 2: drift.v1.Skill
+	(*SkillVersion)(nil),                     // 3: drift.v1.SkillVersion
+	(*SkillCompatibility)(nil),               // 4: drift.v1.SkillCompatibility
+	(*SkillManifest)(nil),                    // 5: drift.v1.SkillManifest
+	(*SkillStep)(nil),                        // 6: drift.v1.SkillStep
+	(*SharedBrainKnowledge)(nil),             // 7: drift.v1.SharedBrainKnowledge
+	(*ListSkillsRequest)(nil),                // 8: drift.v1.ListSkillsRequest
+	(*ListSkillsResponse)(nil),               // 9: drift.v1.ListSkillsResponse
+	(*ListSkillVersionsRequest)(nil),         // 10: drift.v1.ListSkillVersionsRequest
+	(*ListSkillVersionsResponse)(nil),        // 11: drift.v1.ListSkillVersionsResponse
+	(*GetSkillVersionRequest)(nil),           // 12: drift.v1.GetSkillVersionRequest
+	(*GetSkillVersionResponse)(nil),          // 13: drift.v1.GetSkillVersionResponse
+	(*ReviewSkillVersionRequest)(nil),        // 14: drift.v1.ReviewSkillVersionRequest
+	(*ReviewSkillVersionResponse)(nil),       // 15: drift.v1.ReviewSkillVersionResponse
+	(*PublishSkillVersionRequest)(nil),       // 16: drift.v1.PublishSkillVersionRequest
+	(*PublishSkillVersionResponse)(nil),      // 17: drift.v1.PublishSkillVersionResponse
+	(*ListSharedBrainKnowledgeRequest)(nil),  // 18: drift.v1.ListSharedBrainKnowledgeRequest
+	(*ListSharedBrainKnowledgeResponse)(nil), // 19: drift.v1.ListSharedBrainKnowledgeResponse
+	(*WorkspaceRef)(nil),                     // 20: drift.v1.WorkspaceRef
+	(ActionCapability)(0),                    // 21: drift.v1.ActionCapability
+	(ActionRiskClass)(0),                     // 22: drift.v1.ActionRiskClass
+	(ActionRetryClass)(0),                    // 23: drift.v1.ActionRetryClass
+	(ActionKind)(0),                          // 24: drift.v1.ActionKind
+	(*SemanticTarget)(nil),                   // 25: drift.v1.SemanticTarget
+	(*ActionGesturePath)(nil),                // 26: drift.v1.ActionGesturePath
+	(*PageRequest)(nil),                      // 27: drift.v1.PageRequest
+	(*PageResponse)(nil),                     // 28: drift.v1.PageResponse
+	(*ResourceRef)(nil),                      // 29: drift.v1.ResourceRef
+	(*RequestContext)(nil),                   // 30: drift.v1.RequestContext
 }
 var file_drift_v1_skill_proto_depIdxs = []int32{
-	6, // 0: drift.v1.Skill.workspace:type_name -> drift.v1.WorkspaceRef
-	0, // 1: drift.v1.Skill.state:type_name -> drift.v1.SkillState
-	0, // 2: drift.v1.SkillVersion.state:type_name -> drift.v1.SkillState
-	1, // 3: drift.v1.SkillVersion.trust_state:type_name -> drift.v1.TrustState
-	6, // 4: drift.v1.ListSkillsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	7, // 5: drift.v1.ListSkillsRequest.page:type_name -> drift.v1.PageRequest
-	2, // 6: drift.v1.ListSkillsResponse.skills:type_name -> drift.v1.Skill
-	8, // 7: drift.v1.ListSkillsResponse.page:type_name -> drift.v1.PageResponse
-	4, // 8: drift.v1.SkillService.ListSkills:input_type -> drift.v1.ListSkillsRequest
-	5, // 9: drift.v1.SkillService.ListSkills:output_type -> drift.v1.ListSkillsResponse
-	9, // [9:10] is the sub-list for method output_type
-	8, // [8:9] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	20, // 0: drift.v1.Skill.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 1: drift.v1.Skill.state:type_name -> drift.v1.SkillState
+	0,  // 2: drift.v1.SkillVersion.state:type_name -> drift.v1.SkillState
+	1,  // 3: drift.v1.SkillVersion.trust_state:type_name -> drift.v1.TrustState
+	6,  // 4: drift.v1.SkillVersion.steps:type_name -> drift.v1.SkillStep
+	5,  // 5: drift.v1.SkillVersion.manifest:type_name -> drift.v1.SkillManifest
+	4,  // 6: drift.v1.SkillManifest.compatibility:type_name -> drift.v1.SkillCompatibility
+	21, // 7: drift.v1.SkillManifest.requested_capabilities:type_name -> drift.v1.ActionCapability
+	22, // 8: drift.v1.SkillManifest.risk_class:type_name -> drift.v1.ActionRiskClass
+	23, // 9: drift.v1.SkillManifest.retry_class:type_name -> drift.v1.ActionRetryClass
+	24, // 10: drift.v1.SkillStep.action:type_name -> drift.v1.ActionKind
+	22, // 11: drift.v1.SkillStep.risk_class:type_name -> drift.v1.ActionRiskClass
+	23, // 12: drift.v1.SkillStep.retry_class:type_name -> drift.v1.ActionRetryClass
+	25, // 13: drift.v1.SkillStep.target:type_name -> drift.v1.SemanticTarget
+	26, // 14: drift.v1.SkillStep.gesture:type_name -> drift.v1.ActionGesturePath
+	20, // 15: drift.v1.SharedBrainKnowledge.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 16: drift.v1.SharedBrainKnowledge.state:type_name -> drift.v1.SkillState
+	20, // 17: drift.v1.ListSkillsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	27, // 18: drift.v1.ListSkillsRequest.page:type_name -> drift.v1.PageRequest
+	2,  // 19: drift.v1.ListSkillsResponse.skills:type_name -> drift.v1.Skill
+	28, // 20: drift.v1.ListSkillsResponse.page:type_name -> drift.v1.PageResponse
+	29, // 21: drift.v1.ListSkillVersionsRequest.skill:type_name -> drift.v1.ResourceRef
+	27, // 22: drift.v1.ListSkillVersionsRequest.page:type_name -> drift.v1.PageRequest
+	3,  // 23: drift.v1.ListSkillVersionsResponse.versions:type_name -> drift.v1.SkillVersion
+	28, // 24: drift.v1.ListSkillVersionsResponse.page:type_name -> drift.v1.PageResponse
+	29, // 25: drift.v1.GetSkillVersionRequest.version:type_name -> drift.v1.ResourceRef
+	3,  // 26: drift.v1.GetSkillVersionResponse.version:type_name -> drift.v1.SkillVersion
+	30, // 27: drift.v1.ReviewSkillVersionRequest.context:type_name -> drift.v1.RequestContext
+	29, // 28: drift.v1.ReviewSkillVersionRequest.version:type_name -> drift.v1.ResourceRef
+	3,  // 29: drift.v1.ReviewSkillVersionResponse.version:type_name -> drift.v1.SkillVersion
+	30, // 30: drift.v1.PublishSkillVersionRequest.context:type_name -> drift.v1.RequestContext
+	29, // 31: drift.v1.PublishSkillVersionRequest.version:type_name -> drift.v1.ResourceRef
+	3,  // 32: drift.v1.PublishSkillVersionResponse.version:type_name -> drift.v1.SkillVersion
+	20, // 33: drift.v1.ListSharedBrainKnowledgeRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	27, // 34: drift.v1.ListSharedBrainKnowledgeRequest.page:type_name -> drift.v1.PageRequest
+	7,  // 35: drift.v1.ListSharedBrainKnowledgeResponse.knowledge:type_name -> drift.v1.SharedBrainKnowledge
+	28, // 36: drift.v1.ListSharedBrainKnowledgeResponse.page:type_name -> drift.v1.PageResponse
+	8,  // 37: drift.v1.SkillService.ListSkills:input_type -> drift.v1.ListSkillsRequest
+	10, // 38: drift.v1.SkillService.ListSkillVersions:input_type -> drift.v1.ListSkillVersionsRequest
+	12, // 39: drift.v1.SkillService.GetSkillVersion:input_type -> drift.v1.GetSkillVersionRequest
+	14, // 40: drift.v1.SkillService.ReviewSkillVersion:input_type -> drift.v1.ReviewSkillVersionRequest
+	16, // 41: drift.v1.SkillService.PublishSkillVersion:input_type -> drift.v1.PublishSkillVersionRequest
+	18, // 42: drift.v1.SkillService.ListSharedBrainKnowledge:input_type -> drift.v1.ListSharedBrainKnowledgeRequest
+	9,  // 43: drift.v1.SkillService.ListSkills:output_type -> drift.v1.ListSkillsResponse
+	11, // 44: drift.v1.SkillService.ListSkillVersions:output_type -> drift.v1.ListSkillVersionsResponse
+	13, // 45: drift.v1.SkillService.GetSkillVersion:output_type -> drift.v1.GetSkillVersionResponse
+	15, // 46: drift.v1.SkillService.ReviewSkillVersion:output_type -> drift.v1.ReviewSkillVersionResponse
+	17, // 47: drift.v1.SkillService.PublishSkillVersion:output_type -> drift.v1.PublishSkillVersionResponse
+	19, // 48: drift.v1.SkillService.ListSharedBrainKnowledge:output_type -> drift.v1.ListSharedBrainKnowledgeResponse
+	43, // [43:49] is the sub-list for method output_type
+	37, // [37:43] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_skill_proto_init() }
@@ -481,6 +1571,7 @@ func file_drift_v1_skill_proto_init() {
 	if File_drift_v1_skill_proto != nil {
 		return
 	}
+	file_drift_v1_action_proto_init()
 	file_drift_v1_common_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -488,7 +1579,7 @@ func file_drift_v1_skill_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_skill_proto_rawDesc), len(file_drift_v1_skill_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   4,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

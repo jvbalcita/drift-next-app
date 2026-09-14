@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/action.proto.
  */
 export const file_drift_v1_action: GenFile = /*@__PURE__*/
-  fileDesc("ChVkcmlmdC92MS9hY3Rpb24ucHJvdG8SCGRyaWZ0LnYxInQKDlNlbWFudGljVGFyZ2V0EhMKC3Jlc291cmNlX2lkGAEgASgJEhsKE2FjY2Vzc2liaWxpdHlfbGFiZWwYAiABKAkSEwoLc3RhYmxlX3RleHQYAyABKAkSGwoTY29udGV4dF9maW5nZXJwcmludBgEIAEoCSK/AQoMQWN0aW9uSW50ZW50EgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSIgoEa2luZBgEIAEoDjIULmRyaWZ0LnYxLkFjdGlvbktpbmQSKAoGdGFyZ2V0GAUgASgLMhguZHJpZnQudjEuU2VtYW50aWNUYXJnZXQSFwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJIp4BCgxBY3Rpb25SZXN1bHQSEQoJYWN0aW9uX2lkGAEgASgJEigKB291dGNvbWUYAiABKA4yFy5kcmlmdC52MS5BY3Rpb25PdXRjb21lEiIKB2ZhaWx1cmUYAyABKAsyES5kcmlmdC52MS5GYWlsdXJlEi0KCGV2aWRlbmNlGAQgASgLMhsuZHJpZnQudjEuQXJ0aWZhY3RSZWZlcmVuY2UiaAoTU3VibWl0QWN0aW9uUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSJgoGaW50ZW50GAIgASgLMhYuZHJpZnQudjEuQWN0aW9uSW50ZW50Ij4KFFN1Ym1pdEFjdGlvblJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCrAAQoKQWN0aW9uS2luZBIbChdBQ1RJT05fS0lORF9VTlNQRUNJRklFRBAAEhcKE0FDVElPTl9LSU5EX09CU0VSVkUQARIcChhBQ1RJT05fS0lORF9IRUFMVEhfQ0hFQ0sQAhIXChNBQ1RJT05fS0lORF9DQVBUVVJFEAMSEwoPQUNUSU9OX0tJTkRfVEFQEAQSGgoWQUNUSU9OX0tJTkRfVEVYVF9JTlBVVBAFEhQKEEFDVElPTl9LSU5EX0JBQ0sQBir9AQoNQWN0aW9uT3V0Y29tZRIeChpBQ1RJT05fT1VUQ09NRV9VTlNQRUNJRklFRBAAEhoKFkFDVElPTl9PVVRDT01FX1BFTkRJTkcQARIbChdBQ1RJT05fT1VUQ09NRV9WRVJJRklFRBACEhkKFUFDVElPTl9PVVRDT01FX0ZBSUxFRBADEhwKGEFDVElPTl9PVVRDT01FX0NBTkNFTExFRBAEEhwKGEFDVElPTl9PVVRDT01FX1RJTUVEX09VVBAFEhoKFkFDVElPTl9PVVRDT01FX1VOS05PV04QBhIgChxBQ1RJT05fT1VUQ09NRV9JTkRFVEVSTUlOQVRFEAcyXgoNQWN0aW9uU2VydmljZRJNCgxTdWJtaXRBY3Rpb24SHS5kcmlmdC52MS5TdWJtaXRBY3Rpb25SZXF1ZXN0Gh4uZHJpZnQudjEuU3VibWl0QWN0aW9uUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChVkcmlmdC92MS9hY3Rpb24ucHJvdG8SCGRyaWZ0LnYxInQKDlNlbWFudGljVGFyZ2V0EhMKC3Jlc291cmNlX2lkGAEgASgJEhsKE2FjY2Vzc2liaWxpdHlfbGFiZWwYAiABKAkSEwoLc3RhYmxlX3RleHQYAyABKAkSGwoTY29udGV4dF9maW5nZXJwcmludBgEIAEoCSI3ChBBY3Rpb25Db29yZGluYXRlEg0KBXNwYWNlGAEgASgJEgkKAXgYAiABKA0SCQoBeRgDIAEoDSJUChFBY3Rpb25HZXN0dXJlUGF0aBIqCgZwb2ludHMYASADKAsyGi5kcmlmdC52MS5BY3Rpb25Db29yZGluYXRlEhMKC2R1cmF0aW9uX21zGAIgASgEIqkCCgxBY3Rpb25JbnRlbnQSCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIiCgRraW5kGAQgASgOMhQuZHJpZnQudjEuQWN0aW9uS2luZBIoCgZ0YXJnZXQYBSABKAsyGC5kcmlmdC52MS5TZW1hbnRpY1RhcmdldBIXCg9pZGVtcG90ZW5jeV9rZXkYBiABKAkSEgoKdGV4dF92YWx1ZRgHIAEoCRIsCgdnZXN0dXJlGAggASgLMhsuZHJpZnQudjEuQWN0aW9uR2VzdHVyZVBhdGgSEAoIa2V5X2NvZGUYCSABKA0SFAoMdmFsdWVfbGVuZ3RoGAogASgNIp4BCgxBY3Rpb25SZXN1bHQSEQoJYWN0aW9uX2lkGAEgASgJEigKB291dGNvbWUYAiABKA4yFy5kcmlmdC52MS5BY3Rpb25PdXRjb21lEiIKB2ZhaWx1cmUYAyABKAsyES5kcmlmdC52MS5GYWlsdXJlEi0KCGV2aWRlbmNlGAQgASgLMhsuZHJpZnQudjEuQXJ0aWZhY3RSZWZlcmVuY2UiaAoTU3VibWl0QWN0aW9uUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSJgoGaW50ZW50GAIgASgLMhYuZHJpZnQudjEuQWN0aW9uSW50ZW50Ij4KFFN1Ym1pdEFjdGlvblJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCryAwoKQWN0aW9uS2luZBIbChdBQ1RJT05fS0lORF9VTlNQRUNJRklFRBAAEhcKE0FDVElPTl9LSU5EX09CU0VSVkUQARIcChhBQ1RJT05fS0lORF9IRUFMVEhfQ0hFQ0sQAhIXChNBQ1RJT05fS0lORF9DQVBUVVJFEAMSEwoPQUNUSU9OX0tJTkRfVEFQEAQSGgoWQUNUSU9OX0tJTkRfVEVYVF9JTlBVVBAFEhQKEEFDVElPTl9LSU5EX0JBQ0sQBhIaChZBQ1RJT05fS0lORF9ET1VCTEVfVEFQEAcSGgoWQUNUSU9OX0tJTkRfTE9OR19QUkVTUxAIEhsKF0FDVElPTl9LSU5EX1RFWFRfREVMRVRFEAkSFQoRQUNUSU9OX0tJTkRfQ0xFQVIQChIVChFBQ1RJT05fS0lORF9TV0lQRRALEhYKEkFDVElPTl9LSU5EX1NDUk9MTBAMEhQKEEFDVElPTl9LSU5EX0RSQUcQDRIUChBBQ1RJT05fS0lORF9IT01FEA4SFQoRQUNUSU9OX0tJTkRfRU5URVIQDxIZChVBQ1RJT05fS0lORF9LRVlfRVZFTlQQEBIZChVBQ1RJT05fS0lORF9VSV9DSEFOR0UQERIcChhBQ1RJT05fS0lORF9TVEFURV9DSEFOR0UQEiqtAQoPQWN0aW9uUmlza0NsYXNzEiEKHUFDVElPTl9SSVNLX0NMQVNTX1VOU1BFQ0lGSUVEEAASGQoVQUNUSU9OX1JJU0tfQ0xBU1NfTE9XEAESHAoYQUNUSU9OX1JJU0tfQ0xBU1NfTUVESVVNEAISGgoWQUNUSU9OX1JJU0tfQ0xBU1NfSElHSBADEiIKHkFDVElPTl9SSVNLX0NMQVNTX0lSUkVWRVJTSUJMRRAEKqEBChBBY3Rpb25SZXRyeUNsYXNzEiIKHkFDVElPTl9SRVRSWV9DTEFTU19VTlNQRUNJRklFRBAAEhsKF0FDVElPTl9SRVRSWV9DTEFTU19TQUZFEAESKAokQUNUSU9OX1JFVFJZX0NMQVNTX0FGVEVSX09CU0VSVkFUSU9OEAISIgoeQUNUSU9OX1JFVFJZX0NMQVNTX05FVkVSX0JMSU5EEAMqzgIKEEFjdGlvbkNhcGFiaWxpdHkSIQodQUNUSU9OX0NBUEFCSUxJVFlfVU5TUEVDSUZJRUQQABIkCiBBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfT0JTRVJWRRABEiMKH0FDVElPTl9DQVBBQklMSVRZX0RFVklDRV9IRUFMVEgQAhIkCiBBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfQ0FQVFVSRRADEiYKIkFDVElPTl9DQVBBQklMSVRZX0RFVklDRV9JTlBVVF9UQVAQBBIqCiZBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfSU5QVVRfR0VTVFVSRRAFEicKI0FDVElPTl9DQVBBQklMSVRZX0RFVklDRV9JTlBVVF9URVhUEAYSKQolQUNUSU9OX0NBUEFCSUxJVFlfREVWSUNFX0lOUFVUX1NZU1RFTRAHKv0BCg1BY3Rpb25PdXRjb21lEh4KGkFDVElPTl9PVVRDT01FX1VOU1BFQ0lGSUVEEAASGgoWQUNUSU9OX09VVENPTUVfUEVORElORxABEhsKF0FDVElPTl9PVVRDT01FX1ZFUklGSUVEEAISGQoVQUNUSU9OX09VVENPTUVfRkFJTEVEEAMSHAoYQUNUSU9OX09VVENPTUVfQ0FOQ0VMTEVEEAQSHAoYQUNUSU9OX09VVENPTUVfVElNRURfT1VUEAUSGgoWQUNUSU9OX09VVENPTUVfVU5LTk9XThAGEiAKHEFDVElPTl9PVVRDT01FX0lOREVURVJNSU5BVEUQBzJeCg1BY3Rpb25TZXJ2aWNlEk0KDFN1Ym1pdEFjdGlvbhIdLmRyaWZ0LnYxLlN1Ym1pdEFjdGlvblJlcXVlc3QaHi5kcmlmdC52MS5TdWJtaXRBY3Rpb25SZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.SemanticTarget
@@ -47,6 +47,55 @@ export const SemanticTargetSchema: GenMessage<SemanticTarget> = /*@__PURE__*/
   messageDesc(file_drift_v1_action, 0);
 
 /**
+ * @generated from message drift.v1.ActionCoordinate
+ */
+export type ActionCoordinate = Message<"drift.v1.ActionCoordinate"> & {
+  /**
+   * @generated from field: string space = 1;
+   */
+  space: string;
+
+  /**
+   * @generated from field: uint32 x = 2;
+   */
+  x: number;
+
+  /**
+   * @generated from field: uint32 y = 3;
+   */
+  y: number;
+};
+
+/**
+ * Describes the message drift.v1.ActionCoordinate.
+ * Use `create(ActionCoordinateSchema)` to create a new message.
+ */
+export const ActionCoordinateSchema: GenMessage<ActionCoordinate> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 1);
+
+/**
+ * @generated from message drift.v1.ActionGesturePath
+ */
+export type ActionGesturePath = Message<"drift.v1.ActionGesturePath"> & {
+  /**
+   * @generated from field: repeated drift.v1.ActionCoordinate points = 1;
+   */
+  points: ActionCoordinate[];
+
+  /**
+   * @generated from field: uint64 duration_ms = 2;
+   */
+  durationMs: bigint;
+};
+
+/**
+ * Describes the message drift.v1.ActionGesturePath.
+ * Use `create(ActionGesturePathSchema)` to create a new message.
+ */
+export const ActionGesturePathSchema: GenMessage<ActionGesturePath> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 2);
+
+/**
  * @generated from message drift.v1.ActionIntent
  */
 export type ActionIntent = Message<"drift.v1.ActionIntent"> & {
@@ -79,6 +128,26 @@ export type ActionIntent = Message<"drift.v1.ActionIntent"> & {
    * @generated from field: string idempotency_key = 6;
    */
   idempotencyKey: string;
+
+  /**
+   * @generated from field: string text_value = 7;
+   */
+  textValue: string;
+
+  /**
+   * @generated from field: drift.v1.ActionGesturePath gesture = 8;
+   */
+  gesture?: ActionGesturePath;
+
+  /**
+   * @generated from field: uint32 key_code = 9;
+   */
+  keyCode: number;
+
+  /**
+   * @generated from field: uint32 value_length = 10;
+   */
+  valueLength: number;
 };
 
 /**
@@ -86,7 +155,7 @@ export type ActionIntent = Message<"drift.v1.ActionIntent"> & {
  * Use `create(ActionIntentSchema)` to create a new message.
  */
 export const ActionIntentSchema: GenMessage<ActionIntent> = /*@__PURE__*/
-  messageDesc(file_drift_v1_action, 1);
+  messageDesc(file_drift_v1_action, 3);
 
 /**
  * @generated from message drift.v1.ActionResult
@@ -118,7 +187,7 @@ export type ActionResult = Message<"drift.v1.ActionResult"> & {
  * Use `create(ActionResultSchema)` to create a new message.
  */
 export const ActionResultSchema: GenMessage<ActionResult> = /*@__PURE__*/
-  messageDesc(file_drift_v1_action, 2);
+  messageDesc(file_drift_v1_action, 4);
 
 /**
  * @generated from message drift.v1.SubmitActionRequest
@@ -140,7 +209,7 @@ export type SubmitActionRequest = Message<"drift.v1.SubmitActionRequest"> & {
  * Use `create(SubmitActionRequestSchema)` to create a new message.
  */
 export const SubmitActionRequestSchema: GenMessage<SubmitActionRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_action, 3);
+  messageDesc(file_drift_v1_action, 5);
 
 /**
  * @generated from message drift.v1.SubmitActionResponse
@@ -157,7 +226,7 @@ export type SubmitActionResponse = Message<"drift.v1.SubmitActionResponse"> & {
  * Use `create(SubmitActionResponseSchema)` to create a new message.
  */
 export const SubmitActionResponseSchema: GenMessage<SubmitActionResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_action, 4);
+  messageDesc(file_drift_v1_action, 6);
 
 /**
  * @generated from enum drift.v1.ActionKind
@@ -197,6 +266,66 @@ export enum ActionKind {
    * @generated from enum value: ACTION_KIND_BACK = 6;
    */
   BACK = 6,
+
+  /**
+   * @generated from enum value: ACTION_KIND_DOUBLE_TAP = 7;
+   */
+  DOUBLE_TAP = 7,
+
+  /**
+   * @generated from enum value: ACTION_KIND_LONG_PRESS = 8;
+   */
+  LONG_PRESS = 8,
+
+  /**
+   * @generated from enum value: ACTION_KIND_TEXT_DELETE = 9;
+   */
+  TEXT_DELETE = 9,
+
+  /**
+   * @generated from enum value: ACTION_KIND_CLEAR = 10;
+   */
+  CLEAR = 10,
+
+  /**
+   * @generated from enum value: ACTION_KIND_SWIPE = 11;
+   */
+  SWIPE = 11,
+
+  /**
+   * @generated from enum value: ACTION_KIND_SCROLL = 12;
+   */
+  SCROLL = 12,
+
+  /**
+   * @generated from enum value: ACTION_KIND_DRAG = 13;
+   */
+  DRAG = 13,
+
+  /**
+   * @generated from enum value: ACTION_KIND_HOME = 14;
+   */
+  HOME = 14,
+
+  /**
+   * @generated from enum value: ACTION_KIND_ENTER = 15;
+   */
+  ENTER = 15,
+
+  /**
+   * @generated from enum value: ACTION_KIND_KEY_EVENT = 16;
+   */
+  KEY_EVENT = 16,
+
+  /**
+   * @generated from enum value: ACTION_KIND_UI_CHANGE = 17;
+   */
+  UI_CHANGE = 17,
+
+  /**
+   * @generated from enum value: ACTION_KIND_STATE_CHANGE = 18;
+   */
+  STATE_CHANGE = 18,
 }
 
 /**
@@ -204,6 +333,124 @@ export enum ActionKind {
  */
 export const ActionKindSchema: GenEnum<ActionKind> = /*@__PURE__*/
   enumDesc(file_drift_v1_action, 0);
+
+/**
+ * @generated from enum drift.v1.ActionRiskClass
+ */
+export enum ActionRiskClass {
+  /**
+   * @generated from enum value: ACTION_RISK_CLASS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACTION_RISK_CLASS_LOW = 1;
+   */
+  LOW = 1,
+
+  /**
+   * @generated from enum value: ACTION_RISK_CLASS_MEDIUM = 2;
+   */
+  MEDIUM = 2,
+
+  /**
+   * @generated from enum value: ACTION_RISK_CLASS_HIGH = 3;
+   */
+  HIGH = 3,
+
+  /**
+   * @generated from enum value: ACTION_RISK_CLASS_IRREVERSIBLE = 4;
+   */
+  IRREVERSIBLE = 4,
+}
+
+/**
+ * Describes the enum drift.v1.ActionRiskClass.
+ */
+export const ActionRiskClassSchema: GenEnum<ActionRiskClass> = /*@__PURE__*/
+  enumDesc(file_drift_v1_action, 1);
+
+/**
+ * @generated from enum drift.v1.ActionRetryClass
+ */
+export enum ActionRetryClass {
+  /**
+   * @generated from enum value: ACTION_RETRY_CLASS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACTION_RETRY_CLASS_SAFE = 1;
+   */
+  SAFE = 1,
+
+  /**
+   * @generated from enum value: ACTION_RETRY_CLASS_AFTER_OBSERVATION = 2;
+   */
+  AFTER_OBSERVATION = 2,
+
+  /**
+   * @generated from enum value: ACTION_RETRY_CLASS_NEVER_BLIND = 3;
+   */
+  NEVER_BLIND = 3,
+}
+
+/**
+ * Describes the enum drift.v1.ActionRetryClass.
+ */
+export const ActionRetryClassSchema: GenEnum<ActionRetryClass> = /*@__PURE__*/
+  enumDesc(file_drift_v1_action, 2);
+
+/**
+ * @generated from enum drift.v1.ActionCapability
+ */
+export enum ActionCapability {
+  /**
+   * @generated from enum value: ACTION_CAPABILITY_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACTION_CAPABILITY_DEVICE_OBSERVE = 1;
+   */
+  DEVICE_OBSERVE = 1,
+
+  /**
+   * @generated from enum value: ACTION_CAPABILITY_DEVICE_HEALTH = 2;
+   */
+  DEVICE_HEALTH = 2,
+
+  /**
+   * @generated from enum value: ACTION_CAPABILITY_DEVICE_CAPTURE = 3;
+   */
+  DEVICE_CAPTURE = 3,
+
+  /**
+   * @generated from enum value: ACTION_CAPABILITY_DEVICE_INPUT_TAP = 4;
+   */
+  DEVICE_INPUT_TAP = 4,
+
+  /**
+   * @generated from enum value: ACTION_CAPABILITY_DEVICE_INPUT_GESTURE = 5;
+   */
+  DEVICE_INPUT_GESTURE = 5,
+
+  /**
+   * @generated from enum value: ACTION_CAPABILITY_DEVICE_INPUT_TEXT = 6;
+   */
+  DEVICE_INPUT_TEXT = 6,
+
+  /**
+   * @generated from enum value: ACTION_CAPABILITY_DEVICE_INPUT_SYSTEM = 7;
+   */
+  DEVICE_INPUT_SYSTEM = 7,
+}
+
+/**
+ * Describes the enum drift.v1.ActionCapability.
+ */
+export const ActionCapabilitySchema: GenEnum<ActionCapability> = /*@__PURE__*/
+  enumDesc(file_drift_v1_action, 3);
 
 /**
  * @generated from enum drift.v1.ActionOutcome
@@ -254,7 +501,7 @@ export enum ActionOutcome {
  * Describes the enum drift.v1.ActionOutcome.
  */
 export const ActionOutcomeSchema: GenEnum<ActionOutcome> = /*@__PURE__*/
-  enumDesc(file_drift_v1_action, 1);
+  enumDesc(file_drift_v1_action, 4);
 
 /**
  * @generated from service drift.v1.ActionService

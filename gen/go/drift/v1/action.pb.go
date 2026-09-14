@@ -31,18 +31,42 @@ const (
 	ActionKind_ACTION_KIND_TAP          ActionKind = 4
 	ActionKind_ACTION_KIND_TEXT_INPUT   ActionKind = 5
 	ActionKind_ACTION_KIND_BACK         ActionKind = 6
+	ActionKind_ACTION_KIND_DOUBLE_TAP   ActionKind = 7
+	ActionKind_ACTION_KIND_LONG_PRESS   ActionKind = 8
+	ActionKind_ACTION_KIND_TEXT_DELETE  ActionKind = 9
+	ActionKind_ACTION_KIND_CLEAR        ActionKind = 10
+	ActionKind_ACTION_KIND_SWIPE        ActionKind = 11
+	ActionKind_ACTION_KIND_SCROLL       ActionKind = 12
+	ActionKind_ACTION_KIND_DRAG         ActionKind = 13
+	ActionKind_ACTION_KIND_HOME         ActionKind = 14
+	ActionKind_ACTION_KIND_ENTER        ActionKind = 15
+	ActionKind_ACTION_KIND_KEY_EVENT    ActionKind = 16
+	ActionKind_ACTION_KIND_UI_CHANGE    ActionKind = 17
+	ActionKind_ACTION_KIND_STATE_CHANGE ActionKind = 18
 )
 
 // Enum value maps for ActionKind.
 var (
 	ActionKind_name = map[int32]string{
-		0: "ACTION_KIND_UNSPECIFIED",
-		1: "ACTION_KIND_OBSERVE",
-		2: "ACTION_KIND_HEALTH_CHECK",
-		3: "ACTION_KIND_CAPTURE",
-		4: "ACTION_KIND_TAP",
-		5: "ACTION_KIND_TEXT_INPUT",
-		6: "ACTION_KIND_BACK",
+		0:  "ACTION_KIND_UNSPECIFIED",
+		1:  "ACTION_KIND_OBSERVE",
+		2:  "ACTION_KIND_HEALTH_CHECK",
+		3:  "ACTION_KIND_CAPTURE",
+		4:  "ACTION_KIND_TAP",
+		5:  "ACTION_KIND_TEXT_INPUT",
+		6:  "ACTION_KIND_BACK",
+		7:  "ACTION_KIND_DOUBLE_TAP",
+		8:  "ACTION_KIND_LONG_PRESS",
+		9:  "ACTION_KIND_TEXT_DELETE",
+		10: "ACTION_KIND_CLEAR",
+		11: "ACTION_KIND_SWIPE",
+		12: "ACTION_KIND_SCROLL",
+		13: "ACTION_KIND_DRAG",
+		14: "ACTION_KIND_HOME",
+		15: "ACTION_KIND_ENTER",
+		16: "ACTION_KIND_KEY_EVENT",
+		17: "ACTION_KIND_UI_CHANGE",
+		18: "ACTION_KIND_STATE_CHANGE",
 	}
 	ActionKind_value = map[string]int32{
 		"ACTION_KIND_UNSPECIFIED":  0,
@@ -52,6 +76,18 @@ var (
 		"ACTION_KIND_TAP":          4,
 		"ACTION_KIND_TEXT_INPUT":   5,
 		"ACTION_KIND_BACK":         6,
+		"ACTION_KIND_DOUBLE_TAP":   7,
+		"ACTION_KIND_LONG_PRESS":   8,
+		"ACTION_KIND_TEXT_DELETE":  9,
+		"ACTION_KIND_CLEAR":        10,
+		"ACTION_KIND_SWIPE":        11,
+		"ACTION_KIND_SCROLL":       12,
+		"ACTION_KIND_DRAG":         13,
+		"ACTION_KIND_HOME":         14,
+		"ACTION_KIND_ENTER":        15,
+		"ACTION_KIND_KEY_EVENT":    16,
+		"ACTION_KIND_UI_CHANGE":    17,
+		"ACTION_KIND_STATE_CHANGE": 18,
 	}
 )
 
@@ -80,6 +116,177 @@ func (x ActionKind) Number() protoreflect.EnumNumber {
 // Deprecated: Use ActionKind.Descriptor instead.
 func (ActionKind) EnumDescriptor() ([]byte, []int) {
 	return file_drift_v1_action_proto_rawDescGZIP(), []int{0}
+}
+
+type ActionRiskClass int32
+
+const (
+	ActionRiskClass_ACTION_RISK_CLASS_UNSPECIFIED  ActionRiskClass = 0
+	ActionRiskClass_ACTION_RISK_CLASS_LOW          ActionRiskClass = 1
+	ActionRiskClass_ACTION_RISK_CLASS_MEDIUM       ActionRiskClass = 2
+	ActionRiskClass_ACTION_RISK_CLASS_HIGH         ActionRiskClass = 3
+	ActionRiskClass_ACTION_RISK_CLASS_IRREVERSIBLE ActionRiskClass = 4
+)
+
+// Enum value maps for ActionRiskClass.
+var (
+	ActionRiskClass_name = map[int32]string{
+		0: "ACTION_RISK_CLASS_UNSPECIFIED",
+		1: "ACTION_RISK_CLASS_LOW",
+		2: "ACTION_RISK_CLASS_MEDIUM",
+		3: "ACTION_RISK_CLASS_HIGH",
+		4: "ACTION_RISK_CLASS_IRREVERSIBLE",
+	}
+	ActionRiskClass_value = map[string]int32{
+		"ACTION_RISK_CLASS_UNSPECIFIED":  0,
+		"ACTION_RISK_CLASS_LOW":          1,
+		"ACTION_RISK_CLASS_MEDIUM":       2,
+		"ACTION_RISK_CLASS_HIGH":         3,
+		"ACTION_RISK_CLASS_IRREVERSIBLE": 4,
+	}
+)
+
+func (x ActionRiskClass) Enum() *ActionRiskClass {
+	p := new(ActionRiskClass)
+	*p = x
+	return p
+}
+
+func (x ActionRiskClass) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ActionRiskClass) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_action_proto_enumTypes[1].Descriptor()
+}
+
+func (ActionRiskClass) Type() protoreflect.EnumType {
+	return &file_drift_v1_action_proto_enumTypes[1]
+}
+
+func (x ActionRiskClass) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ActionRiskClass.Descriptor instead.
+func (ActionRiskClass) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{1}
+}
+
+type ActionRetryClass int32
+
+const (
+	ActionRetryClass_ACTION_RETRY_CLASS_UNSPECIFIED       ActionRetryClass = 0
+	ActionRetryClass_ACTION_RETRY_CLASS_SAFE              ActionRetryClass = 1
+	ActionRetryClass_ACTION_RETRY_CLASS_AFTER_OBSERVATION ActionRetryClass = 2
+	ActionRetryClass_ACTION_RETRY_CLASS_NEVER_BLIND       ActionRetryClass = 3
+)
+
+// Enum value maps for ActionRetryClass.
+var (
+	ActionRetryClass_name = map[int32]string{
+		0: "ACTION_RETRY_CLASS_UNSPECIFIED",
+		1: "ACTION_RETRY_CLASS_SAFE",
+		2: "ACTION_RETRY_CLASS_AFTER_OBSERVATION",
+		3: "ACTION_RETRY_CLASS_NEVER_BLIND",
+	}
+	ActionRetryClass_value = map[string]int32{
+		"ACTION_RETRY_CLASS_UNSPECIFIED":       0,
+		"ACTION_RETRY_CLASS_SAFE":              1,
+		"ACTION_RETRY_CLASS_AFTER_OBSERVATION": 2,
+		"ACTION_RETRY_CLASS_NEVER_BLIND":       3,
+	}
+)
+
+func (x ActionRetryClass) Enum() *ActionRetryClass {
+	p := new(ActionRetryClass)
+	*p = x
+	return p
+}
+
+func (x ActionRetryClass) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ActionRetryClass) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_action_proto_enumTypes[2].Descriptor()
+}
+
+func (ActionRetryClass) Type() protoreflect.EnumType {
+	return &file_drift_v1_action_proto_enumTypes[2]
+}
+
+func (x ActionRetryClass) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ActionRetryClass.Descriptor instead.
+func (ActionRetryClass) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{2}
+}
+
+type ActionCapability int32
+
+const (
+	ActionCapability_ACTION_CAPABILITY_UNSPECIFIED          ActionCapability = 0
+	ActionCapability_ACTION_CAPABILITY_DEVICE_OBSERVE       ActionCapability = 1
+	ActionCapability_ACTION_CAPABILITY_DEVICE_HEALTH        ActionCapability = 2
+	ActionCapability_ACTION_CAPABILITY_DEVICE_CAPTURE       ActionCapability = 3
+	ActionCapability_ACTION_CAPABILITY_DEVICE_INPUT_TAP     ActionCapability = 4
+	ActionCapability_ACTION_CAPABILITY_DEVICE_INPUT_GESTURE ActionCapability = 5
+	ActionCapability_ACTION_CAPABILITY_DEVICE_INPUT_TEXT    ActionCapability = 6
+	ActionCapability_ACTION_CAPABILITY_DEVICE_INPUT_SYSTEM  ActionCapability = 7
+)
+
+// Enum value maps for ActionCapability.
+var (
+	ActionCapability_name = map[int32]string{
+		0: "ACTION_CAPABILITY_UNSPECIFIED",
+		1: "ACTION_CAPABILITY_DEVICE_OBSERVE",
+		2: "ACTION_CAPABILITY_DEVICE_HEALTH",
+		3: "ACTION_CAPABILITY_DEVICE_CAPTURE",
+		4: "ACTION_CAPABILITY_DEVICE_INPUT_TAP",
+		5: "ACTION_CAPABILITY_DEVICE_INPUT_GESTURE",
+		6: "ACTION_CAPABILITY_DEVICE_INPUT_TEXT",
+		7: "ACTION_CAPABILITY_DEVICE_INPUT_SYSTEM",
+	}
+	ActionCapability_value = map[string]int32{
+		"ACTION_CAPABILITY_UNSPECIFIED":          0,
+		"ACTION_CAPABILITY_DEVICE_OBSERVE":       1,
+		"ACTION_CAPABILITY_DEVICE_HEALTH":        2,
+		"ACTION_CAPABILITY_DEVICE_CAPTURE":       3,
+		"ACTION_CAPABILITY_DEVICE_INPUT_TAP":     4,
+		"ACTION_CAPABILITY_DEVICE_INPUT_GESTURE": 5,
+		"ACTION_CAPABILITY_DEVICE_INPUT_TEXT":    6,
+		"ACTION_CAPABILITY_DEVICE_INPUT_SYSTEM":  7,
+	}
+)
+
+func (x ActionCapability) Enum() *ActionCapability {
+	p := new(ActionCapability)
+	*p = x
+	return p
+}
+
+func (x ActionCapability) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ActionCapability) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_action_proto_enumTypes[3].Descriptor()
+}
+
+func (ActionCapability) Type() protoreflect.EnumType {
+	return &file_drift_v1_action_proto_enumTypes[3]
+}
+
+func (x ActionCapability) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ActionCapability.Descriptor instead.
+func (ActionCapability) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{3}
 }
 
 type ActionOutcome int32
@@ -130,11 +337,11 @@ func (x ActionOutcome) String() string {
 }
 
 func (ActionOutcome) Descriptor() protoreflect.EnumDescriptor {
-	return file_drift_v1_action_proto_enumTypes[1].Descriptor()
+	return file_drift_v1_action_proto_enumTypes[4].Descriptor()
 }
 
 func (ActionOutcome) Type() protoreflect.EnumType {
-	return &file_drift_v1_action_proto_enumTypes[1]
+	return &file_drift_v1_action_proto_enumTypes[4]
 }
 
 func (x ActionOutcome) Number() protoreflect.EnumNumber {
@@ -143,7 +350,7 @@ func (x ActionOutcome) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ActionOutcome.Descriptor instead.
 func (ActionOutcome) EnumDescriptor() ([]byte, []int) {
-	return file_drift_v1_action_proto_rawDescGZIP(), []int{1}
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{4}
 }
 
 type SemanticTarget struct {
@@ -214,6 +421,118 @@ func (x *SemanticTarget) GetContextFingerprint() string {
 	return ""
 }
 
+type ActionCoordinate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Space         string                 `protobuf:"bytes,1,opt,name=space,proto3" json:"space,omitempty"`
+	X             uint32                 `protobuf:"varint,2,opt,name=x,proto3" json:"x,omitempty"`
+	Y             uint32                 `protobuf:"varint,3,opt,name=y,proto3" json:"y,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActionCoordinate) Reset() {
+	*x = ActionCoordinate{}
+	mi := &file_drift_v1_action_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActionCoordinate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActionCoordinate) ProtoMessage() {}
+
+func (x *ActionCoordinate) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActionCoordinate.ProtoReflect.Descriptor instead.
+func (*ActionCoordinate) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ActionCoordinate) GetSpace() string {
+	if x != nil {
+		return x.Space
+	}
+	return ""
+}
+
+func (x *ActionCoordinate) GetX() uint32 {
+	if x != nil {
+		return x.X
+	}
+	return 0
+}
+
+func (x *ActionCoordinate) GetY() uint32 {
+	if x != nil {
+		return x.Y
+	}
+	return 0
+}
+
+type ActionGesturePath struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Points        []*ActionCoordinate    `protobuf:"bytes,1,rep,name=points,proto3" json:"points,omitempty"`
+	DurationMs    uint64                 `protobuf:"varint,2,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActionGesturePath) Reset() {
+	*x = ActionGesturePath{}
+	mi := &file_drift_v1_action_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActionGesturePath) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActionGesturePath) ProtoMessage() {}
+
+func (x *ActionGesturePath) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActionGesturePath.ProtoReflect.Descriptor instead.
+func (*ActionGesturePath) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ActionGesturePath) GetPoints() []*ActionCoordinate {
+	if x != nil {
+		return x.Points
+	}
+	return nil
+}
+
+func (x *ActionGesturePath) GetDurationMs() uint64 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
 type ActionIntent struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -222,13 +541,17 @@ type ActionIntent struct {
 	Kind           ActionKind             `protobuf:"varint,4,opt,name=kind,proto3,enum=drift.v1.ActionKind" json:"kind,omitempty"`
 	Target         *SemanticTarget        `protobuf:"bytes,5,opt,name=target,proto3" json:"target,omitempty"`
 	IdempotencyKey string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	TextValue      string                 `protobuf:"bytes,7,opt,name=text_value,json=textValue,proto3" json:"text_value,omitempty"`
+	Gesture        *ActionGesturePath     `protobuf:"bytes,8,opt,name=gesture,proto3" json:"gesture,omitempty"`
+	KeyCode        uint32                 `protobuf:"varint,9,opt,name=key_code,json=keyCode,proto3" json:"key_code,omitempty"`
+	ValueLength    uint32                 `protobuf:"varint,10,opt,name=value_length,json=valueLength,proto3" json:"value_length,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ActionIntent) Reset() {
 	*x = ActionIntent{}
-	mi := &file_drift_v1_action_proto_msgTypes[1]
+	mi := &file_drift_v1_action_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -240,7 +563,7 @@ func (x *ActionIntent) String() string {
 func (*ActionIntent) ProtoMessage() {}
 
 func (x *ActionIntent) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_action_proto_msgTypes[1]
+	mi := &file_drift_v1_action_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -253,7 +576,7 @@ func (x *ActionIntent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionIntent.ProtoReflect.Descriptor instead.
 func (*ActionIntent) Descriptor() ([]byte, []int) {
-	return file_drift_v1_action_proto_rawDescGZIP(), []int{1}
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ActionIntent) GetId() string {
@@ -298,6 +621,34 @@ func (x *ActionIntent) GetIdempotencyKey() string {
 	return ""
 }
 
+func (x *ActionIntent) GetTextValue() string {
+	if x != nil {
+		return x.TextValue
+	}
+	return ""
+}
+
+func (x *ActionIntent) GetGesture() *ActionGesturePath {
+	if x != nil {
+		return x.Gesture
+	}
+	return nil
+}
+
+func (x *ActionIntent) GetKeyCode() uint32 {
+	if x != nil {
+		return x.KeyCode
+	}
+	return 0
+}
+
+func (x *ActionIntent) GetValueLength() uint32 {
+	if x != nil {
+		return x.ValueLength
+	}
+	return 0
+}
+
 type ActionResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ActionId      string                 `protobuf:"bytes,1,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
@@ -310,7 +661,7 @@ type ActionResult struct {
 
 func (x *ActionResult) Reset() {
 	*x = ActionResult{}
-	mi := &file_drift_v1_action_proto_msgTypes[2]
+	mi := &file_drift_v1_action_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -322,7 +673,7 @@ func (x *ActionResult) String() string {
 func (*ActionResult) ProtoMessage() {}
 
 func (x *ActionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_action_proto_msgTypes[2]
+	mi := &file_drift_v1_action_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -335,7 +686,7 @@ func (x *ActionResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionResult.ProtoReflect.Descriptor instead.
 func (*ActionResult) Descriptor() ([]byte, []int) {
-	return file_drift_v1_action_proto_rawDescGZIP(), []int{2}
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ActionResult) GetActionId() string {
@@ -376,7 +727,7 @@ type SubmitActionRequest struct {
 
 func (x *SubmitActionRequest) Reset() {
 	*x = SubmitActionRequest{}
-	mi := &file_drift_v1_action_proto_msgTypes[3]
+	mi := &file_drift_v1_action_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -388,7 +739,7 @@ func (x *SubmitActionRequest) String() string {
 func (*SubmitActionRequest) ProtoMessage() {}
 
 func (x *SubmitActionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_action_proto_msgTypes[3]
+	mi := &file_drift_v1_action_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -401,7 +752,7 @@ func (x *SubmitActionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitActionRequest.ProtoReflect.Descriptor instead.
 func (*SubmitActionRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_action_proto_rawDescGZIP(), []int{3}
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SubmitActionRequest) GetContext() *RequestContext {
@@ -427,7 +778,7 @@ type SubmitActionResponse struct {
 
 func (x *SubmitActionResponse) Reset() {
 	*x = SubmitActionResponse{}
-	mi := &file_drift_v1_action_proto_msgTypes[4]
+	mi := &file_drift_v1_action_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -439,7 +790,7 @@ func (x *SubmitActionResponse) String() string {
 func (*SubmitActionResponse) ProtoMessage() {}
 
 func (x *SubmitActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_action_proto_msgTypes[4]
+	mi := &file_drift_v1_action_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -452,7 +803,7 @@ func (x *SubmitActionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitActionResponse.ProtoReflect.Descriptor instead.
 func (*SubmitActionResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_action_proto_rawDescGZIP(), []int{4}
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SubmitActionResponse) GetResult() *ActionResult {
@@ -473,14 +824,28 @@ const file_drift_v1_action_proto_rawDesc = "" +
 	"\x13accessibility_label\x18\x02 \x01(\tR\x12accessibilityLabel\x12\x1f\n" +
 	"\vstable_text\x18\x03 \x01(\tR\n" +
 	"stableText\x12/\n" +
-	"\x13context_fingerprint\x18\x04 \x01(\tR\x12contextFingerprint\"\xf6\x01\n" +
+	"\x13context_fingerprint\x18\x04 \x01(\tR\x12contextFingerprint\"D\n" +
+	"\x10ActionCoordinate\x12\x14\n" +
+	"\x05space\x18\x01 \x01(\tR\x05space\x12\f\n" +
+	"\x01x\x18\x02 \x01(\rR\x01x\x12\f\n" +
+	"\x01y\x18\x03 \x01(\rR\x01y\"h\n" +
+	"\x11ActionGesturePath\x122\n" +
+	"\x06points\x18\x01 \x03(\v2\x1a.drift.v1.ActionCoordinateR\x06points\x12\x1f\n" +
+	"\vduration_ms\x18\x02 \x01(\x04R\n" +
+	"durationMs\"\x8a\x03\n" +
 	"\fActionIntent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
 	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12(\n" +
 	"\x04kind\x18\x04 \x01(\x0e2\x14.drift.v1.ActionKindR\x04kind\x120\n" +
 	"\x06target\x18\x05 \x01(\v2\x18.drift.v1.SemanticTargetR\x06target\x12'\n" +
-	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\"\xc4\x01\n" +
+	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x12\x1d\n" +
+	"\n" +
+	"text_value\x18\a \x01(\tR\ttextValue\x125\n" +
+	"\agesture\x18\b \x01(\v2\x1b.drift.v1.ActionGesturePathR\agesture\x12\x19\n" +
+	"\bkey_code\x18\t \x01(\rR\akeyCode\x12!\n" +
+	"\fvalue_length\x18\n" +
+	" \x01(\rR\vvalueLength\"\xc4\x01\n" +
 	"\fActionResult\x12\x1b\n" +
 	"\taction_id\x18\x01 \x01(\tR\bactionId\x121\n" +
 	"\aoutcome\x18\x02 \x01(\x0e2\x17.drift.v1.ActionOutcomeR\aoutcome\x12+\n" +
@@ -490,7 +855,7 @@ const file_drift_v1_action_proto_rawDesc = "" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12.\n" +
 	"\x06intent\x18\x02 \x01(\v2\x16.drift.v1.ActionIntentR\x06intent\"F\n" +
 	"\x14SubmitActionResponse\x12.\n" +
-	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result*\xc0\x01\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result*\xf2\x03\n" +
 	"\n" +
 	"ActionKind\x12\x1b\n" +
 	"\x17ACTION_KIND_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -499,7 +864,40 @@ const file_drift_v1_action_proto_rawDesc = "" +
 	"\x13ACTION_KIND_CAPTURE\x10\x03\x12\x13\n" +
 	"\x0fACTION_KIND_TAP\x10\x04\x12\x1a\n" +
 	"\x16ACTION_KIND_TEXT_INPUT\x10\x05\x12\x14\n" +
-	"\x10ACTION_KIND_BACK\x10\x06*\xfd\x01\n" +
+	"\x10ACTION_KIND_BACK\x10\x06\x12\x1a\n" +
+	"\x16ACTION_KIND_DOUBLE_TAP\x10\a\x12\x1a\n" +
+	"\x16ACTION_KIND_LONG_PRESS\x10\b\x12\x1b\n" +
+	"\x17ACTION_KIND_TEXT_DELETE\x10\t\x12\x15\n" +
+	"\x11ACTION_KIND_CLEAR\x10\n" +
+	"\x12\x15\n" +
+	"\x11ACTION_KIND_SWIPE\x10\v\x12\x16\n" +
+	"\x12ACTION_KIND_SCROLL\x10\f\x12\x14\n" +
+	"\x10ACTION_KIND_DRAG\x10\r\x12\x14\n" +
+	"\x10ACTION_KIND_HOME\x10\x0e\x12\x15\n" +
+	"\x11ACTION_KIND_ENTER\x10\x0f\x12\x19\n" +
+	"\x15ACTION_KIND_KEY_EVENT\x10\x10\x12\x19\n" +
+	"\x15ACTION_KIND_UI_CHANGE\x10\x11\x12\x1c\n" +
+	"\x18ACTION_KIND_STATE_CHANGE\x10\x12*\xad\x01\n" +
+	"\x0fActionRiskClass\x12!\n" +
+	"\x1dACTION_RISK_CLASS_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15ACTION_RISK_CLASS_LOW\x10\x01\x12\x1c\n" +
+	"\x18ACTION_RISK_CLASS_MEDIUM\x10\x02\x12\x1a\n" +
+	"\x16ACTION_RISK_CLASS_HIGH\x10\x03\x12\"\n" +
+	"\x1eACTION_RISK_CLASS_IRREVERSIBLE\x10\x04*\xa1\x01\n" +
+	"\x10ActionRetryClass\x12\"\n" +
+	"\x1eACTION_RETRY_CLASS_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17ACTION_RETRY_CLASS_SAFE\x10\x01\x12(\n" +
+	"$ACTION_RETRY_CLASS_AFTER_OBSERVATION\x10\x02\x12\"\n" +
+	"\x1eACTION_RETRY_CLASS_NEVER_BLIND\x10\x03*\xce\x02\n" +
+	"\x10ActionCapability\x12!\n" +
+	"\x1dACTION_CAPABILITY_UNSPECIFIED\x10\x00\x12$\n" +
+	" ACTION_CAPABILITY_DEVICE_OBSERVE\x10\x01\x12#\n" +
+	"\x1fACTION_CAPABILITY_DEVICE_HEALTH\x10\x02\x12$\n" +
+	" ACTION_CAPABILITY_DEVICE_CAPTURE\x10\x03\x12&\n" +
+	"\"ACTION_CAPABILITY_DEVICE_INPUT_TAP\x10\x04\x12*\n" +
+	"&ACTION_CAPABILITY_DEVICE_INPUT_GESTURE\x10\x05\x12'\n" +
+	"#ACTION_CAPABILITY_DEVICE_INPUT_TEXT\x10\x06\x12)\n" +
+	"%ACTION_CAPABILITY_DEVICE_INPUT_SYSTEM\x10\a*\xfd\x01\n" +
 	"\rActionOutcome\x12\x1e\n" +
 	"\x1aACTION_OUTCOME_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ACTION_OUTCOME_PENDING\x10\x01\x12\x1b\n" +
@@ -524,38 +922,45 @@ func file_drift_v1_action_proto_rawDescGZIP() []byte {
 	return file_drift_v1_action_proto_rawDescData
 }
 
-var file_drift_v1_action_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_drift_v1_action_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_drift_v1_action_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_drift_v1_action_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_drift_v1_action_proto_goTypes = []any{
 	(ActionKind)(0),              // 0: drift.v1.ActionKind
-	(ActionOutcome)(0),           // 1: drift.v1.ActionOutcome
-	(*SemanticTarget)(nil),       // 2: drift.v1.SemanticTarget
-	(*ActionIntent)(nil),         // 3: drift.v1.ActionIntent
-	(*ActionResult)(nil),         // 4: drift.v1.ActionResult
-	(*SubmitActionRequest)(nil),  // 5: drift.v1.SubmitActionRequest
-	(*SubmitActionResponse)(nil), // 6: drift.v1.SubmitActionResponse
-	(*WorkspaceRef)(nil),         // 7: drift.v1.WorkspaceRef
-	(*Failure)(nil),              // 8: drift.v1.Failure
-	(*ArtifactReference)(nil),    // 9: drift.v1.ArtifactReference
-	(*RequestContext)(nil),       // 10: drift.v1.RequestContext
+	(ActionRiskClass)(0),         // 1: drift.v1.ActionRiskClass
+	(ActionRetryClass)(0),        // 2: drift.v1.ActionRetryClass
+	(ActionCapability)(0),        // 3: drift.v1.ActionCapability
+	(ActionOutcome)(0),           // 4: drift.v1.ActionOutcome
+	(*SemanticTarget)(nil),       // 5: drift.v1.SemanticTarget
+	(*ActionCoordinate)(nil),     // 6: drift.v1.ActionCoordinate
+	(*ActionGesturePath)(nil),    // 7: drift.v1.ActionGesturePath
+	(*ActionIntent)(nil),         // 8: drift.v1.ActionIntent
+	(*ActionResult)(nil),         // 9: drift.v1.ActionResult
+	(*SubmitActionRequest)(nil),  // 10: drift.v1.SubmitActionRequest
+	(*SubmitActionResponse)(nil), // 11: drift.v1.SubmitActionResponse
+	(*WorkspaceRef)(nil),         // 12: drift.v1.WorkspaceRef
+	(*Failure)(nil),              // 13: drift.v1.Failure
+	(*ArtifactReference)(nil),    // 14: drift.v1.ArtifactReference
+	(*RequestContext)(nil),       // 15: drift.v1.RequestContext
 }
 var file_drift_v1_action_proto_depIdxs = []int32{
-	7,  // 0: drift.v1.ActionIntent.workspace:type_name -> drift.v1.WorkspaceRef
-	0,  // 1: drift.v1.ActionIntent.kind:type_name -> drift.v1.ActionKind
-	2,  // 2: drift.v1.ActionIntent.target:type_name -> drift.v1.SemanticTarget
-	1,  // 3: drift.v1.ActionResult.outcome:type_name -> drift.v1.ActionOutcome
-	8,  // 4: drift.v1.ActionResult.failure:type_name -> drift.v1.Failure
-	9,  // 5: drift.v1.ActionResult.evidence:type_name -> drift.v1.ArtifactReference
-	10, // 6: drift.v1.SubmitActionRequest.context:type_name -> drift.v1.RequestContext
-	3,  // 7: drift.v1.SubmitActionRequest.intent:type_name -> drift.v1.ActionIntent
-	4,  // 8: drift.v1.SubmitActionResponse.result:type_name -> drift.v1.ActionResult
-	5,  // 9: drift.v1.ActionService.SubmitAction:input_type -> drift.v1.SubmitActionRequest
-	6,  // 10: drift.v1.ActionService.SubmitAction:output_type -> drift.v1.SubmitActionResponse
-	10, // [10:11] is the sub-list for method output_type
-	9,  // [9:10] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	6,  // 0: drift.v1.ActionGesturePath.points:type_name -> drift.v1.ActionCoordinate
+	12, // 1: drift.v1.ActionIntent.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 2: drift.v1.ActionIntent.kind:type_name -> drift.v1.ActionKind
+	5,  // 3: drift.v1.ActionIntent.target:type_name -> drift.v1.SemanticTarget
+	7,  // 4: drift.v1.ActionIntent.gesture:type_name -> drift.v1.ActionGesturePath
+	4,  // 5: drift.v1.ActionResult.outcome:type_name -> drift.v1.ActionOutcome
+	13, // 6: drift.v1.ActionResult.failure:type_name -> drift.v1.Failure
+	14, // 7: drift.v1.ActionResult.evidence:type_name -> drift.v1.ArtifactReference
+	15, // 8: drift.v1.SubmitActionRequest.context:type_name -> drift.v1.RequestContext
+	8,  // 9: drift.v1.SubmitActionRequest.intent:type_name -> drift.v1.ActionIntent
+	9,  // 10: drift.v1.SubmitActionResponse.result:type_name -> drift.v1.ActionResult
+	10, // 11: drift.v1.ActionService.SubmitAction:input_type -> drift.v1.SubmitActionRequest
+	11, // 12: drift.v1.ActionService.SubmitAction:output_type -> drift.v1.SubmitActionResponse
+	12, // [12:13] is the sub-list for method output_type
+	11, // [11:12] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_action_proto_init() }
@@ -569,8 +974,8 @@ func file_drift_v1_action_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_action_proto_rawDesc), len(file_drift_v1_action_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   5,
+			NumEnums:      5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
