@@ -128,6 +128,26 @@ describe("Drift command center", () => {
     expect(screen.getByText("History", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
   })
 
+  it("restores every routed sibling workspace view from its hash", async () => {
+    const routes = [
+      ["#accounts/run-history", "Run history"],
+      ["#network-profiles/endpoints", "Registered endpoints"],
+      ["#groups/membership", "Membership"],
+      ["#workflows/skills", "Skills"],
+      ["#agents/capabilities", "Capabilities"],
+      ["#runs/failed", "Failed / indeterminate"],
+      ["#policies/decisions", "Decision Log"],
+      ["#settings/automation-agent", "Automation Agent"],
+    ] as const
+
+    for (const [hash, tabName] of routes) {
+      window.location.hash = hash
+      const { unmount } = render(<App />)
+      expect(await screen.findByRole("tab", { name: tabName })).toHaveAttribute("data-active")
+      unmount()
+    }
+  })
+
   it("keeps invalid setting JSON inline and focuses its error summary", async () => {
     const user = userEvent.setup()
     window.location.hash = "#settings/workspace"
