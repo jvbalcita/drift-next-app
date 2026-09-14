@@ -18,6 +18,8 @@ import (
 	"drift.local/drift-next/internal/observations"
 	"drift.local/drift-next/internal/organizations"
 	"drift.local/drift-next/internal/outbox"
+	"drift.local/drift-next/internal/runs"
+	"drift.local/drift-next/internal/workflows"
 )
 
 // Typed read ports keep domain callers independent of SQL and prevent a
@@ -71,6 +73,20 @@ type ArtifactReader interface {
 type EventReader interface {
 	List(context.Context, organizations.WorkspaceID, string) ([]events.Event, error)
 	ListDevice(context.Context, organizations.WorkspaceID, string, string) ([]events.Event, error)
+}
+type WorkflowReader interface {
+	Get(context.Context, organizations.WorkspaceID, workflows.ID) (workflows.Workflow, error)
+	List(context.Context, organizations.WorkspaceID) ([]workflows.Workflow, error)
+	GetVersion(context.Context, organizations.WorkspaceID, workflows.VersionID) (workflows.Version, error)
+	PublishedVersion(context.Context, organizations.WorkspaceID, workflows.ID) (workflows.Version, error)
+}
+type RunReader interface {
+	Get(context.Context, organizations.WorkspaceID, runs.RunID) (runs.ParentRun, error)
+	List(context.Context, organizations.WorkspaceID) ([]runs.ParentRun, error)
+	GetTargetSnapshot(context.Context, organizations.WorkspaceID, runs.TargetSetSnapshotID) (runs.TargetSetSnapshot, error)
+	ListTargets(context.Context, organizations.WorkspaceID, runs.RunID) ([]runs.RunTarget, error)
+	ListTargetSteps(context.Context, organizations.WorkspaceID, runs.RunTargetID) ([]runs.TargetRunStep, error)
+	ListActionAttempts(context.Context, organizations.WorkspaceID, runs.RunTargetID) ([]runs.ActionAttempt, error)
 }
 type AuditReader interface {
 	List(context.Context, string, string) ([]audit.Event, error)
