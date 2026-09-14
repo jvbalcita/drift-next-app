@@ -7,7 +7,7 @@ import type { ControlPlaneSnapshot, DispatchIntent, RunState } from "@/lib/domai
 import { FailureBadge, MockNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 import { textForDevice } from "./page-utils"
 
-export function RunsPage({ snapshot, dispatch }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent }) {
+export function RunsPage({ snapshot, dispatch, view = "active", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState("")
   const selectedRun = snapshot.runs.find((run) => run.id === selectedRunId)
@@ -19,7 +19,7 @@ export function RunsPage({ snapshot, dispatch }: { snapshot: ControlPlaneSnapsho
   return <>
     <PageIntro eyebrow="EXECUTION / RUNS" title="Runs and targets" description="Inspect parent runs and independent per-device outcomes without conflating target state with aggregate state." actions={<StatusBadge label="Execution mocked" tone="info" />} />
     <MockNotice>Runs are read-only projections in this browser slice. Cancelling a fixture run updates mock state only; no workflow worker or device actor is called.</MockNotice>
-    <Tabs defaultValue="active" className="mt-6"><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Run views"><TabsTrigger value="active" className="rounded-none">Active</TabsTrigger><TabsTrigger value="history" className="rounded-none">History</TabsTrigger><TabsTrigger value="failed" className="rounded-none">Failed / indeterminate</TabsTrigger></TabsList>
+    <Tabs value={view} onValueChange={onViewChange} className="mt-6"><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Run views"><TabsTrigger value="active" className="rounded-none">Active</TabsTrigger><TabsTrigger value="history" className="rounded-none">History</TabsTrigger><TabsTrigger value="failed" className="rounded-none">Failed / indeterminate</TabsTrigger></TabsList>
       <TabsContent value="active" className="mt-6"><Panel title="Active runs" description="Admission and aggregate state are visible here; inspect a row for targets, steps, evidence, and events."><RunTable runs={activeRuns} onInspect={inspect} /></Panel></TabsContent>
       <TabsContent value="history" className="mt-6"><Panel title="Run history" description="Completed, failed, and cancelled parent runs retain their immutable target snapshot."><RunTable runs={historicalRuns} onInspect={inspect} /></Panel></TabsContent>
       <TabsContent value="failed" className="mt-6"><Panel title="Failed or indeterminate runs" description="Failure classification is kept alongside independent target results, not hidden by aggregate status."><RunTable runs={failedRuns} onInspect={inspect} /></Panel></TabsContent>

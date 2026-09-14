@@ -89,14 +89,14 @@ function renderSection(route: Route, snapshot: ReturnType<typeof useControlPlane
   switch (route.section) {
     case "Control": return <ControlPage snapshot={snapshot} dispatch={dispatch} />
     case "Devices": return <DevicesPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
-    case "Accounts": return <AccountsPage snapshot={snapshot} dispatch={dispatch} />
-    case "Network Profiles": return <NetworkProfilesPage snapshot={snapshot} dispatch={dispatch} />
-    case "Groups": return <GroupsPage snapshot={snapshot} dispatch={dispatch} />
-    case "Agents": return <AgentsPage snapshot={snapshot} dispatch={dispatch} />
-    case "Workflows": return <WorkflowsPage snapshot={snapshot} dispatch={dispatch} />
-    case "Runs": return <RunsPage snapshot={snapshot} dispatch={dispatch} />
+    case "Accounts": return <AccountsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
+    case "Network Profiles": return <NetworkProfilesPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
+    case "Groups": return <GroupsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
+    case "Agents": return <AgentsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
+    case "Workflows": return <WorkflowsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
+    case "Runs": return <RunsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Events": return <EventsPage snapshot={snapshot} />
-    case "Policies": return <PoliciesPage snapshot={snapshot} dispatch={dispatch} />
+    case "Policies": return <PoliciesPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Settings": return <SettingsPage snapshot={snapshot} dispatch={dispatch} />
     case "Overview":
     default: return <OverviewPage snapshot={snapshot} dispatch={dispatch} />

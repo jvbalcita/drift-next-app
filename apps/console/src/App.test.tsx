@@ -106,6 +106,20 @@ describe("Drift command center", () => {
     expect(screen.getByText("Showing 6–6 of 6 results")).toBeInTheDocument()
   })
 
+  it("selects non-device workspace views from a deep link", async () => {
+    window.location.hash = "#groups/ordering"
+    const { unmount } = render(<App />)
+
+    expect(await screen.findByRole("tab", { name: "Ordering" })).toHaveAttribute("data-active")
+    expect(screen.getByText("Ordering", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
+    unmount()
+
+    window.location.hash = "#network-profiles/candidates"
+    render(<App />)
+    expect(await screen.findByRole("tab", { name: "Pending candidates" })).toHaveAttribute("data-active")
+    expect(screen.getByText("Pending Candidates", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
+  })
+
   it("exposes Control as a compact-frame mock-only destination", async () => {
     const user = userEvent.setup()
     render(<App />)
