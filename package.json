@@ -19,7 +19,7 @@
     "contracts:format:check": "buf format --diff --exit-code",
     "contracts:lint": "buf lint",
     "contracts:build": "buf build",
-    "contracts:generate": "buf generate",
+    "contracts:generate": "buf generate && bash scripts/normalize-generated-typescript.sh",
     "contracts:generate:check": "bash scripts/check-generated.sh",
     "infra:config": "docker compose -f deploy/compose/docker-compose.yml config --quiet"
   }

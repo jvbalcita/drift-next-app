@@ -39,6 +39,7 @@ PY
 # Generate into the temporary tree. The tracked output directories are never
 # modified, so stale files cannot be hidden by an in-place regeneration.
 buf generate --template "$template"
+bash scripts/normalize-generated-typescript.sh "$expected_root/apps/console/src/gen"
 
 python3 - "$expected_root" "$repo_root" <<'PY'
 from pathlib import Path
@@ -56,18 +57,11 @@ roots = (
 )
 
 
-def normalize_eof(data: bytes) -> bytes:
-    """Apply the generator's known EOF line-ending difference only."""
-    if not data:
-        return data
-    return data.rstrip(b"\r\n") + b"\n"
-
-
 def snapshot(root: Path) -> dict[Path, bytes]:
     if not root.exists():
         return {}
     return {
-        path.relative_to(root): normalize_eof(path.read_bytes())
+        path.relative_to(root): path.read_bytes()
         for path in root.rglob("*")
         if path.is_file()
     }

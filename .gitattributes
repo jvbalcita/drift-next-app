@@ -1,3 +1,0 @@
-# protoc-gen-es emits a terminal blank line in generated TypeScript artifacts.
-# Preserve generator-owned output while retaining whitespace checks for source files.
-apps/console/src/gen/**/*.ts whitespace=-blank-at-eof

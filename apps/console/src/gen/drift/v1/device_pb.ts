@@ -230,4 +230,3 @@ export const DeviceService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_device, 0);
-
