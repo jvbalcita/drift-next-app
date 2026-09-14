@@ -4,13 +4,15 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
+import type { PageRequest, PageResponse, WorkspaceRef } from "./common_pb";
+import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file drift/v1/device.proto.
  */
 export const file_drift_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChVkcmlmdC92MS9kZXZpY2UucHJvdG8SCGRyaWZ0LnYxIsEBCgZEZXZpY2USCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCGFnZW50X2lkGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLmRyaWZ0LnYxLkRldmljZVN0YXR1cxIYChBwbGF0Zm9ybV92ZXJzaW9uGAUgASgJEhcKD2JhdHRlcnlfcGVyY2VudBgGIAEoDRISCgpsYXRlbmN5X21zGAcgASgNEhQKDGxhc3Rfc2Vlbl9hdBgIIAEoCSItChJMaXN0RGV2aWNlc1JlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJIjgKE0xpc3REZXZpY2VzUmVzcG9uc2USIQoHZGV2aWNlcxgBIAMoCzIQLmRyaWZ0LnYxLkRldmljZSI+ChBHZXREZXZpY2VSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkiNQoRR2V0RGV2aWNlUmVzcG9uc2USIAoGZGV2aWNlGAEgASgLMhAuZHJpZnQudjEuRGV2aWNlKn8KDERldmljZVN0YXR1cxIdChlERVZJQ0VfU1RBVFVTX1VOU1BFQ0lGSUVEEAASGAoUREVWSUNFX1NUQVRVU19PTkxJTkUQARIbChdERVZJQ0VfU1RBVFVTX0FUVEVOVElPThACEhkKFURFVklDRV9TVEFUVVNfT0ZGTElORRADMqEBCg1EZXZpY2VTZXJ2aWNlEkoKC0xpc3REZXZpY2VzEhwuZHJpZnQudjEuTGlzdERldmljZXNSZXF1ZXN0Gh0uZHJpZnQudjEuTGlzdERldmljZXNSZXNwb25zZRJECglHZXREZXZpY2USGi5kcmlmdC52MS5HZXREZXZpY2VSZXF1ZXN0GhsuZHJpZnQudjEuR2V0RGV2aWNlUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z");
+  fileDesc("ChVkcmlmdC92MS9kZXZpY2UucHJvdG8SCGRyaWZ0LnYxIpYCCgZEZXZpY2USCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCGFnZW50X2lkGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLmRyaWZ0LnYxLkRldmljZVN0YXR1cxIYChBwbGF0Zm9ybV92ZXJzaW9uGAUgASgJEhcKD2JhdHRlcnlfcGVyY2VudBgGIAEoDRISCgpsYXRlbmN5X21zGAcgASgNEhQKDGxhc3Rfc2Vlbl9hdBgIIAEoCRIpCgl3b3Jrc3BhY2UYCSABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEwoLZW5kcG9pbnRfaWQYCiABKAkSEwoLcm93X3ZlcnNpb24YCyABKAQifQoSTGlzdERldmljZXNSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgDIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0Il4KE0xpc3REZXZpY2VzUmVzcG9uc2USIQoHZGV2aWNlcxgBIAMoCzIQLmRyaWZ0LnYxLkRldmljZRIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlImkKEEdldERldmljZVJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhEKCWRldmljZV9pZBgCIAEoCRIpCgl3b3Jrc3BhY2UYAyABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYiNQoRR2V0RGV2aWNlUmVzcG9uc2USIAoGZGV2aWNlGAEgASgLMhAuZHJpZnQudjEuRGV2aWNlKn8KDERldmljZVN0YXR1cxIdChlERVZJQ0VfU1RBVFVTX1VOU1BFQ0lGSUVEEAASGAoUREVWSUNFX1NUQVRVU19PTkxJTkUQARIbChdERVZJQ0VfU1RBVFVTX0FUVEVOVElPThACEhkKFURFVklDRV9TVEFUVVNfT0ZGTElORRADMqEBCg1EZXZpY2VTZXJ2aWNlEkoKC0xpc3REZXZpY2VzEhwuZHJpZnQudjEuTGlzdERldmljZXNSZXF1ZXN0Gh0uZHJpZnQudjEuTGlzdERldmljZXNSZXNwb25zZRJECglHZXREZXZpY2USGi5kcmlmdC52MS5HZXREZXZpY2VSZXF1ZXN0GhsuZHJpZnQudjEuR2V0RGV2aWNlUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
 
 /**
  * Device is the operator-facing projection of an edge-managed Android device.
@@ -58,6 +60,21 @@ export type Device = Message<"drift.v1.Device"> & {
    * @generated from field: string last_seen_at = 8;
    */
   lastSeenAt: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 9;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string endpoint_id = 10;
+   */
+  endpointId: string;
+
+  /**
+   * @generated from field: uint64 row_version = 11;
+   */
+  rowVersion: bigint;
 };
 
 /**
@@ -75,6 +92,16 @@ export type ListDevicesRequest = Message<"drift.v1.ListDevicesRequest"> & {
    * @generated from field: string organization_id = 1;
    */
   organizationId: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 3;
+   */
+  page?: PageRequest;
 };
 
 /**
@@ -92,6 +119,11 @@ export type ListDevicesResponse = Message<"drift.v1.ListDevicesResponse"> & {
    * @generated from field: repeated drift.v1.Device devices = 1;
    */
   devices: Device[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
 };
 
 /**
@@ -114,6 +146,11 @@ export type GetDeviceRequest = Message<"drift.v1.GetDeviceRequest"> & {
    * @generated from field: string device_id = 2;
    */
   deviceId: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 3;
+   */
+  workspace?: WorkspaceRef;
 };
 
 /**

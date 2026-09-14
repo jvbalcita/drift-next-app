@@ -1,0 +1,54 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum LeaseState {
+  LEASE_STATE_UNSPECIFIED = 0;
+  LEASE_STATE_REQUESTED = 1;
+  LEASE_STATE_ACTIVE = 2;
+  LEASE_STATE_RELEASED = 3;
+  LEASE_STATE_EXPIRED = 4;
+  LEASE_STATE_REVOKED = 5;
+}
+message DeviceLease {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string control_session_id = 4;
+  LeaseState state = 5;
+  uint64 fencing_token = 6;
+  string expires_at = 7;
+}
+message AcquireDeviceLeaseRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string control_session_id = 4;
+}
+message AcquireDeviceLeaseResponse {
+  DeviceLease lease = 1;
+}
+message RenewDeviceLeaseRequest {
+  RequestContext context = 1;
+  ResourceRef lease = 2;
+  uint64 fencing_token = 3;
+}
+message RenewDeviceLeaseResponse {
+  DeviceLease lease = 1;
+}
+message ReleaseDeviceLeaseRequest {
+  RequestContext context = 1;
+  ResourceRef lease = 2;
+  uint64 fencing_token = 3;
+}
+message ReleaseDeviceLeaseResponse {
+  DeviceLease lease = 1;
+}
+service LeaseService {
+  rpc AcquireDeviceLease(AcquireDeviceLeaseRequest) returns (AcquireDeviceLeaseResponse);
+  rpc RenewDeviceLease(RenewDeviceLeaseRequest) returns (RenewDeviceLeaseResponse);
+  rpc ReleaseDeviceLease(ReleaseDeviceLeaseRequest) returns (ReleaseDeviceLeaseResponse);
+}

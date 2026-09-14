@@ -1,0 +1,52 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+message OperationalEvent {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string event_name = 3;
+  uint32 schema_version = 4;
+  string correlation_id = 5;
+  string causation_id = 6;
+  string resource_type = 7;
+  string resource_id = 8;
+  string payload_json = 9;
+  string occurred_at = 10;
+}
+message AuditEvent {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string event_name = 3;
+  uint32 schema_version = 4;
+  string actor_type = 5;
+  string actor_id = 6;
+  string resource_type = 7;
+  string resource_id = 8;
+  string correlation_id = 9;
+  string causation_id = 10;
+  string occurred_at = 11;
+}
+message ListOperationalEventsRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListOperationalEventsResponse {
+  repeated OperationalEvent events = 1;
+  PageResponse page = 2;
+}
+message ListAuditEventsRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListAuditEventsResponse {
+  repeated AuditEvent events = 1;
+  PageResponse page = 2;
+}
+service EventService {
+  rpc ListOperationalEvents(ListOperationalEventsRequest) returns (ListOperationalEventsResponse);
+  rpc ListAuditEvents(ListAuditEventsRequest) returns (ListAuditEventsResponse);
+}

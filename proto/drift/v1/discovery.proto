@@ -1,0 +1,77 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum ScanRunState {
+  SCAN_RUN_STATE_UNSPECIFIED = 0;
+  SCAN_RUN_STATE_REQUESTED = 1;
+  SCAN_RUN_STATE_RUNNING = 2;
+  SCAN_RUN_STATE_COMPLETED = 3;
+  SCAN_RUN_STATE_FAILED = 4;
+  SCAN_RUN_STATE_CANCELLED = 5;
+}
+enum ScanCandidateState {
+  SCAN_CANDIDATE_STATE_UNSPECIFIED = 0;
+  SCAN_CANDIDATE_STATE_DISCOVERED = 1;
+  SCAN_CANDIDATE_STATE_PENDING_APPROVAL = 2;
+  SCAN_CANDIDATE_STATE_APPROVED = 3;
+  SCAN_CANDIDATE_STATE_REJECTED = 4;
+  SCAN_CANDIDATE_STATE_EXPIRED = 5;
+  SCAN_CANDIDATE_STATE_REGISTERED = 6;
+}
+message ScanRun {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string network_profile_id = 3;
+  ScanRunState state = 4;
+  string requested_at = 5;
+  string finished_at = 6;
+  Failure failure = 7;
+}
+message ScanCandidate {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string scan_run_id = 3;
+  string candidate_key = 4;
+  string host = 5;
+  uint32 port = 6;
+  string serial = 7;
+  string fingerprint = 8;
+  ScanCandidateState state = 9;
+  string discovered_at = 10;
+}
+message StartScanRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string network_profile_id = 3;
+}
+message StartScanResponse {
+  ScanRun scan_run = 1;
+}
+message DecideScanCandidateRequest {
+  RequestContext context = 1;
+  ResourceRef candidate = 2;
+  bool approve = 3;
+  string reason = 4;
+}
+message DecideScanCandidateResponse {
+  ScanCandidate candidate = 1;
+}
+message RegisterScanCandidateRequest {
+  RequestContext context = 1;
+  ResourceRef candidate = 2;
+  string device_display_name = 3;
+}
+message RegisterScanCandidateResponse {
+  string device_id = 1;
+  string endpoint_id = 2;
+  ScanCandidate candidate = 3;
+}
+service DiscoveryService {
+  rpc StartScan(StartScanRequest) returns (StartScanResponse);
+  rpc DecideScanCandidate(DecideScanCandidateRequest) returns (DecideScanCandidateResponse);
+  rpc RegisterScanCandidate(RegisterScanCandidateRequest) returns (RegisterScanCandidateResponse);
+}

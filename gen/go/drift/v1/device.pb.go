@@ -85,6 +85,9 @@ type Device struct {
 	BatteryPercent  uint32                 `protobuf:"varint,6,opt,name=battery_percent,json=batteryPercent,proto3" json:"battery_percent,omitempty"`
 	LatencyMs       uint32                 `protobuf:"varint,7,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`
 	LastSeenAt      string                 `protobuf:"bytes,8,opt,name=last_seen_at,json=lastSeenAt,proto3" json:"last_seen_at,omitempty"`
+	Workspace       *WorkspaceRef          `protobuf:"bytes,9,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	EndpointId      string                 `protobuf:"bytes,10,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
+	RowVersion      uint64                 `protobuf:"varint,11,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -175,9 +178,32 @@ func (x *Device) GetLastSeenAt() string {
 	return ""
 }
 
+func (x *Device) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *Device) GetEndpointId() string {
+	if x != nil {
+		return x.EndpointId
+	}
+	return ""
+}
+
+func (x *Device) GetRowVersion() uint64 {
+	if x != nil {
+		return x.RowVersion
+	}
+	return 0
+}
+
 type ListDevicesRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	OrganizationId string                 `protobuf:"bytes,1,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	Workspace      *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	Page           *PageRequest           `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -219,9 +245,24 @@ func (x *ListDevicesRequest) GetOrganizationId() string {
 	return ""
 }
 
+func (x *ListDevicesRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListDevicesRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 type ListDevicesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Devices       []*Device              `protobuf:"bytes,1,rep,name=devices,proto3" json:"devices,omitempty"`
+	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -263,10 +304,18 @@ func (x *ListDevicesResponse) GetDevices() []*Device {
 	return nil
 }
 
+func (x *ListDevicesResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 type GetDeviceRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	OrganizationId string                 `protobuf:"bytes,1,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
 	DeviceId       string                 `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	Workspace      *WorkspaceRef          `protobuf:"bytes,3,opt,name=workspace,proto3" json:"workspace,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -313,6 +362,13 @@ func (x *GetDeviceRequest) GetDeviceId() string {
 		return x.DeviceId
 	}
 	return ""
+}
+
+func (x *GetDeviceRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
 }
 
 type GetDeviceResponse struct {
@@ -363,7 +419,7 @@ var File_drift_v1_device_proto protoreflect.FileDescriptor
 
 const file_drift_v1_device_proto_rawDesc = "" +
 	"\n" +
-	"\x15drift/v1/device.proto\x12\bdrift.v1\"\x9b\x02\n" +
+	"\x15drift/v1/device.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x93\x03\n" +
 	"\x06Device\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x19\n" +
@@ -374,14 +430,24 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	"\n" +
 	"latency_ms\x18\a \x01(\rR\tlatencyMs\x12 \n" +
 	"\flast_seen_at\x18\b \x01(\tR\n" +
-	"lastSeenAt\"=\n" +
+	"lastSeenAt\x124\n" +
+	"\tworkspace\x18\t \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1f\n" +
+	"\vendpoint_id\x18\n" +
+	" \x01(\tR\n" +
+	"endpointId\x12\x1f\n" +
+	"\vrow_version\x18\v \x01(\x04R\n" +
+	"rowVersion\"\x9e\x01\n" +
 	"\x12ListDevicesRequest\x12'\n" +
-	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"A\n" +
+	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
+	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"m\n" +
 	"\x13ListDevicesResponse\x12*\n" +
-	"\adevices\x18\x01 \x03(\v2\x10.drift.v1.DeviceR\adevices\"X\n" +
+	"\adevices\x18\x01 \x03(\v2\x10.drift.v1.DeviceR\adevices\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\x8e\x01\n" +
 	"\x10GetDeviceRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x12\x1b\n" +
-	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\"=\n" +
+	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x124\n" +
+	"\tworkspace\x18\x03 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\"=\n" +
 	"\x11GetDeviceResponse\x12(\n" +
 	"\x06device\x18\x01 \x01(\v2\x10.drift.v1.DeviceR\x06device*\x7f\n" +
 	"\fDeviceStatus\x12\x1d\n" +
@@ -414,20 +480,28 @@ var file_drift_v1_device_proto_goTypes = []any{
 	(*ListDevicesResponse)(nil), // 3: drift.v1.ListDevicesResponse
 	(*GetDeviceRequest)(nil),    // 4: drift.v1.GetDeviceRequest
 	(*GetDeviceResponse)(nil),   // 5: drift.v1.GetDeviceResponse
+	(*WorkspaceRef)(nil),        // 6: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),         // 7: drift.v1.PageRequest
+	(*PageResponse)(nil),        // 8: drift.v1.PageResponse
 }
 var file_drift_v1_device_proto_depIdxs = []int32{
-	0, // 0: drift.v1.Device.status:type_name -> drift.v1.DeviceStatus
-	1, // 1: drift.v1.ListDevicesResponse.devices:type_name -> drift.v1.Device
-	1, // 2: drift.v1.GetDeviceResponse.device:type_name -> drift.v1.Device
-	2, // 3: drift.v1.DeviceService.ListDevices:input_type -> drift.v1.ListDevicesRequest
-	4, // 4: drift.v1.DeviceService.GetDevice:input_type -> drift.v1.GetDeviceRequest
-	3, // 5: drift.v1.DeviceService.ListDevices:output_type -> drift.v1.ListDevicesResponse
-	5, // 6: drift.v1.DeviceService.GetDevice:output_type -> drift.v1.GetDeviceResponse
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	0,  // 0: drift.v1.Device.status:type_name -> drift.v1.DeviceStatus
+	6,  // 1: drift.v1.Device.workspace:type_name -> drift.v1.WorkspaceRef
+	6,  // 2: drift.v1.ListDevicesRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	7,  // 3: drift.v1.ListDevicesRequest.page:type_name -> drift.v1.PageRequest
+	1,  // 4: drift.v1.ListDevicesResponse.devices:type_name -> drift.v1.Device
+	8,  // 5: drift.v1.ListDevicesResponse.page:type_name -> drift.v1.PageResponse
+	6,  // 6: drift.v1.GetDeviceRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	1,  // 7: drift.v1.GetDeviceResponse.device:type_name -> drift.v1.Device
+	2,  // 8: drift.v1.DeviceService.ListDevices:input_type -> drift.v1.ListDevicesRequest
+	4,  // 9: drift.v1.DeviceService.GetDevice:input_type -> drift.v1.GetDeviceRequest
+	3,  // 10: drift.v1.DeviceService.ListDevices:output_type -> drift.v1.ListDevicesResponse
+	5,  // 11: drift.v1.DeviceService.GetDevice:output_type -> drift.v1.GetDeviceResponse
+	10, // [10:12] is the sub-list for method output_type
+	8,  // [8:10] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_device_proto_init() }
@@ -435,6 +509,7 @@ func file_drift_v1_device_proto_init() {
 	if File_drift_v1_device_proto != nil {
 		return
 	}
+	file_drift_v1_common_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

@@ -1,0 +1,42 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum WorkspaceState {
+  WORKSPACE_STATE_UNSPECIFIED = 0;
+  WORKSPACE_STATE_ACTIVE = 1;
+  WORKSPACE_STATE_SUSPENDED = 2;
+  WORKSPACE_STATE_RETIRED = 3;
+}
+message Workspace {
+  string id = 1;
+  string display_name = 2;
+  WorkspaceState state = 3;
+  uint64 row_version = 4;
+}
+message Principal {
+  string id = 1;
+  string display_name = 2;
+  string kind = 3;
+  string state = 4;
+}
+message ListWorkspacesRequest {
+  PageRequest page = 1;
+}
+message ListWorkspacesResponse {
+  repeated Workspace workspaces = 1;
+  PageResponse page = 2;
+}
+message GetWorkspaceRequest {
+  WorkspaceRef workspace = 1;
+}
+message GetWorkspaceResponse {
+  Workspace workspace = 1;
+}
+service WorkspaceService {
+  rpc ListWorkspaces(ListWorkspacesRequest) returns (ListWorkspacesResponse);
+  rpc GetWorkspace(GetWorkspaceRequest) returns (GetWorkspaceResponse);
+}

@@ -1,0 +1,38 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum SettingScope {
+  SETTING_SCOPE_UNSPECIFIED = 0;
+  SETTING_SCOPE_WORKSPACE = 1;
+  SETTING_SCOPE_CONTROL_PLANE = 2;
+  SETTING_SCOPE_EDGE_HOST = 3;
+  SETTING_SCOPE_DEVICE = 4;
+  SETTING_SCOPE_AUTOMATION_AGENT = 5;
+  SETTING_SCOPE_OPERATOR_PREFERENCE = 6;
+}
+message Setting {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  SettingScope scope = 3;
+  string target_id = 4;
+  string setting_key = 5;
+  string value_json = 6;
+  string state = 7;
+  uint64 row_version = 8;
+}
+message ListSettingsRequest {
+  WorkspaceRef workspace = 1;
+  SettingScope scope = 2;
+  PageRequest page = 3;
+}
+message ListSettingsResponse {
+  repeated Setting settings = 1;
+  PageResponse page = 2;
+}
+service SettingsService {
+  rpc ListSettings(ListSettingsRequest) returns (ListSettingsResponse);
+}

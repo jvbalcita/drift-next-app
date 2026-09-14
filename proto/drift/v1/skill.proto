@@ -1,0 +1,47 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum SkillState {
+  SKILL_STATE_UNSPECIFIED = 0;
+  SKILL_STATE_DRAFT = 1;
+  SKILL_STATE_VALIDATED = 2;
+  SKILL_STATE_PUBLISHED = 3;
+  SKILL_STATE_DEPRECATED = 4;
+  SKILL_STATE_RETIRED = 5;
+}
+enum TrustState {
+  TRUST_STATE_UNSPECIFIED = 0;
+  TRUST_STATE_UNREVIEWED = 1;
+  TRUST_STATE_REVIEWED = 2;
+  TRUST_STATE_APPROVED = 3;
+  TRUST_STATE_REVOKED = 4;
+}
+message Skill {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string display_name = 3;
+  SkillState state = 4;
+}
+message SkillVersion {
+  string id = 1;
+  string skill_id = 2;
+  uint32 version = 3;
+  SkillState state = 4;
+  TrustState trust_state = 5;
+  repeated string capabilities = 6;
+}
+message ListSkillsRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListSkillsResponse {
+  repeated Skill skills = 1;
+  PageResponse page = 2;
+}
+service SkillService {
+  rpc ListSkills(ListSkillsRequest) returns (ListSkillsResponse);
+}

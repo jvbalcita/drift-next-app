@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package drift.v1;
 
+import "drift/v1/common.proto";
+
 option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
 
 // Device is the operator-facing projection of an edge-managed Android device.
@@ -15,6 +17,9 @@ message Device {
   uint32 battery_percent = 6;
   uint32 latency_ms = 7;
   string last_seen_at = 8;
+  WorkspaceRef workspace = 9;
+  string endpoint_id = 10;
+  uint64 row_version = 11;
 }
 
 enum DeviceStatus {
@@ -26,15 +31,19 @@ enum DeviceStatus {
 
 message ListDevicesRequest {
   string organization_id = 1;
+  WorkspaceRef workspace = 2;
+  PageRequest page = 3;
 }
 
 message ListDevicesResponse {
   repeated Device devices = 1;
+  PageResponse page = 2;
 }
 
 message GetDeviceRequest {
   string organization_id = 1;
   string device_id = 2;
+  WorkspaceRef workspace = 3;
 }
 
 message GetDeviceResponse {

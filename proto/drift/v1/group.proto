@@ -1,0 +1,50 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum GroupState {
+  GROUP_STATE_UNSPECIFIED = 0;
+  GROUP_STATE_ACTIVE = 1;
+  GROUP_STATE_RETIRED = 2;
+}
+message DeviceGroup {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string display_name = 3;
+  GroupState state = 4;
+  uint64 row_version = 5;
+}
+message GroupMembership {
+  string id = 1;
+  string group_id = 2;
+  string device_id = 3;
+  uint32 position = 4;
+  string state = 5;
+  string started_at = 6;
+  string ended_at = 7;
+}
+message ListDeviceGroupsRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListDeviceGroupsResponse {
+  repeated DeviceGroup groups = 1;
+  PageResponse page = 2;
+}
+message MoveDeviceToGroupRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string group_id = 4;
+  uint32 position = 5;
+}
+message MoveDeviceToGroupResponse {
+  GroupMembership membership = 1;
+}
+service GroupService {
+  rpc ListDeviceGroups(ListDeviceGroupsRequest) returns (ListDeviceGroupsResponse);
+  rpc MoveDeviceToGroup(MoveDeviceToGroupRequest) returns (MoveDeviceToGroupResponse);
+}

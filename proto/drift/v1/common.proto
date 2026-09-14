@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package drift.v1;
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+// WorkspaceRef scopes every workspace-owned request to one stable local authority.
+message WorkspaceRef {
+  string workspace_id = 1;
+}
+
+// ResourceRef identifies one workspace-owned resource without exposing storage details.
+message ResourceRef {
+  WorkspaceRef workspace = 1;
+  string resource_id = 2;
+}
+
+// RequestContext carries correlation and idempotency metadata for an intent.
+message RequestContext {
+  string request_id = 1;
+  string correlation_id = 2;
+  string causation_id = 3;
+  string idempotency_key = 4;
+}
+
+// PageRequest bounds list responses without exposing database cursors.
+message PageRequest {
+  uint32 page_size = 1;
+  string page_token = 2;
+}
+
+// PageResponse reports the next opaque page token when more records are available.
+message PageResponse {
+  string next_page_token = 1;
+}
+
+// FailureCode is the stable safe failure taxonomy exposed at contract boundaries.
+enum FailureCode {
+  FAILURE_CODE_UNSPECIFIED = 0;
+  FAILURE_CODE_INVALID_INPUT = 1;
+  FAILURE_CODE_NOT_FOUND = 2;
+  FAILURE_CODE_CONFLICT = 3;
+  FAILURE_CODE_UNAUTHORIZED = 4;
+  FAILURE_CODE_POLICY_DENIED = 5;
+  FAILURE_CODE_LEASE_CONFLICT = 6;
+  FAILURE_CODE_STALE_OBSERVATION = 7;
+  FAILURE_CODE_AMBIGUOUS_TARGET = 8;
+  FAILURE_CODE_TIMEOUT = 9;
+  FAILURE_CODE_CANCELED = 10;
+  FAILURE_CODE_UNAVAILABLE = 11;
+  FAILURE_CODE_INDETERMINATE_COMPLETION = 12;
+  FAILURE_CODE_INTERNAL = 13;
+}
+
+// Failure carries a safe message and correlation ID; it never contains raw command output or secrets.
+message Failure {
+  FailureCode code = 1;
+  string message = 2;
+  string correlation_id = 3;
+}
+
+// ArtifactReference identifies metadata already authorized by the control plane.
+message ArtifactReference {
+  string artifact_id = 1;
+  string content_hash = 2;
+  string media_type = 3;
+  uint32 schema_version = 4;
+}
