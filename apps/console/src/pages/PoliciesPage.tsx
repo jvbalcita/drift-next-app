@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react"
 import { FileCheck2, GitBranch, Save, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent, PolicyDecisionView } from "@/lib/domain/control-plane"
 import { FailureBadge, FieldLabel, MockNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 
@@ -41,6 +42,7 @@ export function PoliciesPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
     <>
       <PageIntro eyebrow="SAFETY / POLICY DECISIONS" title="Policies" description="Review versioned policy definitions and the decisions persisted with protected runs and actions." actions={<StatusBadge label="Fail closed" tone="attention" />} />
       <MockNotice>Policy definitions are immutable version records in this phase. Create a draft version, review its bounded rule JSON, then activate it explicitly; the browser cannot approve a real action.</MockNotice>
+      <Tabs defaultValue="active" className="mb-6"><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Policy views"><TabsTrigger value="active" className="rounded-none">Active policies</TabsTrigger><TabsTrigger value="versions" className="rounded-none">Versions</TabsTrigger><TabsTrigger value="decisions" className="rounded-none">Decision log</TabsTrigger></TabsList></Tabs>
       <div className="grid gap-6 xl:grid-cols-[minmax(250px,0.7fr)_minmax(0,1.3fr)]">
         <Panel title="Policy catalog" description="Policy state and version are separate from each decision record.">
           <div className="space-y-3">{snapshot.policies.map((policy) => <button key={policy.id} type="button" onClick={() => selectPolicy(policy.id)} className={`w-full border p-3 text-left transition-colors focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/30 ${policy.id === selectedPolicyId ? "border-primary bg-secondary/70" : "border-border hover:bg-muted"}`}><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-medium">{policy.name}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{policy.id} · v{policy.version} · row v{policy.rowVersion}</p></div><StatusBadge label={policy.state} tone={policy.state === "active" ? "healthy" : policy.state === "retired" ? "neutral" : "attention"} /></div><p className="mt-3 text-[11px] leading-5 text-muted-foreground">{policy.ruleSummary}</p></button>)}</div>

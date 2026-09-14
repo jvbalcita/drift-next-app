@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react"
 import { Database, Link2, ListChecks, Plus, ShieldOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent } from "@/lib/domain/control-plane"
 import { FieldLabel, MockNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 
@@ -69,6 +70,7 @@ export function AccountsPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
     <>
       <PageIntro eyebrow="IDENTITY / ACCOUNT REFERENCES" title="Accounts" description="Manage non-secret account references, explicit device assignments, service projections, and bounded run history without enabling a connector." actions={<StatusBadge label={`${snapshot.accounts.length} accounts`} tone="info" />} />
       <MockNotice>Account records contain provider references and sanitized metadata only. The connector is disabled in this phase; sync records retain idempotency, correlation, and outcome metadata without attempting external access.</MockNotice>
+      <Tabs defaultValue="sources" className="mb-6"><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Account views"><TabsTrigger value="sources" className="rounded-none">Sources</TabsTrigger><TabsTrigger value="accounts" className="rounded-none">Accounts</TabsTrigger><TabsTrigger value="assignments" className="rounded-none">Device assignments</TabsTrigger><TabsTrigger value="service" className="rounded-none">Service history</TabsTrigger><TabsTrigger value="runs" className="rounded-none">Run history</TabsTrigger></TabsList></Tabs>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(250px,0.75fr)_minmax(0,1.25fr)]">
         <Panel title="Account sources" description="A source identifies an authority without storing credentials or connector configuration.">

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react"
 import { Check, Edit3, Globe2, Plus, Radar, Save, ShieldCheck, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent, NetworkProfileView } from "@/lib/domain/control-plane"
 import { EmptyState, FieldLabel, FailureBadge, MockNotice, PageIntro, Panel, StatusBadge } from "./shared"
 
@@ -60,6 +61,7 @@ export function NetworkProfilesPage({ snapshot, dispatch }: { snapshot: ControlP
     <>
       <PageIntro eyebrow="DISCOVERY / NETWORK PROFILES" title="Network Profiles" description="Define bounded, non-authoritative discovery policy separately from scan execution and candidate approval." actions={<Button variant="outline" size="sm" onClick={newProfile}><Plus className="size-3.5" aria-hidden="true" />New profile</Button>} />
       <MockNotice>Address policies use documentation ranges and the transport is a deterministic mock. Saving or scanning opens no network socket and registers no real endpoint.</MockNotice>
+      <Tabs defaultValue="profiles" className="mb-6"><TabsList className="h-auto flex-wrap rounded-none border border-border bg-background p-0" aria-label="Network profile views"><TabsTrigger value="profiles" className="rounded-none">Profiles</TabsTrigger><TabsTrigger value="scans" className="rounded-none">Discovery scans</TabsTrigger><TabsTrigger value="candidates" className="rounded-none">Pending candidates</TabsTrigger><TabsTrigger value="endpoints" className="rounded-none">Registered endpoints</TabsTrigger><TabsTrigger value="history" className="rounded-none">History</TabsTrigger></TabsList></Tabs>
       <div className="grid gap-6 xl:grid-cols-[minmax(260px,0.65fr)_minmax(0,1.35fr)]">
         <Panel title="Profile catalog" description="Draft, active, disabled, and retired definitions remain distinct.">
           <div className="space-y-3">{snapshot.networkProfiles.length === 0 ? <EmptyState label="No Network Profiles" detail="Create a bounded profile to continue." /> : snapshot.networkProfiles.map((profile) => <button key={profile.id} type="button" onClick={() => selectProfile(profile)} className={`w-full border p-3 text-left transition-colors focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/30 ${profile.id === selectedProfileId ? "border-primary bg-secondary/70" : "border-border hover:bg-muted"}`}><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-medium">{profile.name}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{profile.id} · v{profile.rowVersion}</p></div><StatusBadge label={profile.state} tone={profile.state === "active" ? "healthy" : profile.state === "retired" ? "neutral" : "attention"} /></div><p className="mt-3 text-xs text-muted-foreground">{profile.addressPolicy} · ports {profile.ports.join(", ")}</p>{profile.isDefault ? <p className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary"><Check className="size-3" aria-hidden="true" />Default profile</p> : null}</button>)}</div>
