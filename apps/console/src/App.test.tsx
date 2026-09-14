@@ -246,7 +246,7 @@ describe("Drift command center", () => {
       ["Groups", /Groups and membership/],
       ["Agents", /Agent profiles/],
       ["Runs", /Runs and targets/],
-      ["Events", /Events and audit/],
+      ["Events", /Events and Audit/],
       ["Policies", /^Policies$/],
       ["Settings", /^Settings$/],
     ] as const
