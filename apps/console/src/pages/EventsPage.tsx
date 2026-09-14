@@ -11,6 +11,7 @@ export function EventsPage({ snapshot }: { snapshot: ControlPlaneSnapshot }) {
   const [resource, setResource] = useState("")
   const [correlation, setCorrelation] = useState("")
   const [time, setTime] = useState("")
+  const [severity, setSeverity] = useState<"all" | "normal" | "failure">("all")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(10)
@@ -21,7 +22,8 @@ export function EventsPage({ snapshot }: { snapshot: ControlPlaneSnapshot }) {
       && includes(`${event.resourceType} ${event.resourceId}`, resource)
       && includes(event.correlationId, correlation)
       && includes(event.occurredAt, time)
-  }), [actor, correlation, kind, resource, snapshot.events, time])
+      && (severity === "all" || (severity === "normal" ? !event.failureClass : Boolean(event.failureClass)))
+  }), [actor, correlation, kind, resource, severity, snapshot.events, time])
   const visibleEvents = events.slice(page * pageSize, (page + 1) * pageSize)
   const selected = snapshot.events.find((event) => event.id === selectedId)
   const resetPage = () => setPage(0)
@@ -34,6 +36,7 @@ export function EventsPage({ snapshot }: { snapshot: ControlPlaneSnapshot }) {
       <FilterInput id="event-actor" label="Actor" value={actor} onChange={(next) => { setActor(next); resetPage() }} />
       <FilterInput id="event-resource" label="Device or Resource" value={resource} onChange={(next) => { setResource(next); resetPage() }} />
       <FilterInput id="event-correlation" label="Correlation ID" value={correlation} onChange={(next) => { setCorrelation(next); resetPage() }} />
+      <FilterSelect id="event-severity" label="Severity" value={severity} onChange={(next) => { setSeverity(next as "all" | "normal" | "failure"); resetPage() }}><option value="all">All Severities</option><option value="normal">Normal</option><option value="failure">Failure</option></FilterSelect>
       <FilterInput id="event-time" label="Time" value={time} onChange={(next) => { setTime(next); resetPage() }} />
       <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground"><Filter className="size-3.5" aria-hidden="true" />{events.length} Results</span>
     </div>
