@@ -1,0 +1,34 @@
+import { useState } from "react"
+import { Bot, CheckCircle2, Cpu, KeyRound, MemoryStick, ShieldCheck } from "lucide-react"
+import type { AutomationAgentProfileView, ControlPlaneSnapshot, DispatchIntent } from "@/lib/domain/control-plane"
+import { MockNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
+
+export function AgentsPage({ snapshot }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent }) {
+  const [profileId, setProfileId] = useState(snapshot.automationAgentProfiles[0]?.id ?? "")
+  const selectedProfile = snapshot.automationAgentProfiles.find((profile) => profile.id === profileId) ?? snapshot.automationAgentProfiles[0]
+  return (
+    <>
+      <PageIntro eyebrow="AUTOMATION / AGENTS" title="Agent profiles" description="Inspect edge runtime truth separately from logical automation-agent personality, assignments, capabilities, memory, and trust." actions={<StatusBadge label="No profile bypass" tone="info" />} />
+      <MockNotice>Automation-agent profiles are declarative metadata. They do not receive database handles, raw device protocols, credentials, arbitrary scripts, or permission to bypass leases and policy.</MockNotice>
+      <div className="grid gap-6 xl:grid-cols-[minmax(280px,0.7fr)_minmax(0,1.3fr)]">
+        <Panel title="Edge-agent runtimes" description="Local runtime health and device bindings.">
+          <div className="space-y-3">{snapshot.edgeAgents.map((agent) => <div key={agent.id} className="border border-border p-4"><div className="flex items-start justify-between gap-3"><div className="flex items-start gap-2"><Cpu className="mt-0.5 size-4 text-primary" aria-hidden="true" /><div><p className="text-sm font-medium">{agent.displayName}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{agent.id}</p></div></div><StatusBadge label={agent.state} tone={agent.state === "active" ? "healthy" : agent.state === "unhealthy" ? "attention" : "neutral"} /></div><dl className="mt-4 grid grid-cols-2 gap-3 text-[11px]"><div><dt className="text-muted-foreground">Version</dt><dd className="drift-data mt-1">{agent.version}</dd></div><div><dt className="text-muted-foreground">Last seen</dt><dd className="mt-1">{agent.lastSeen}</dd></div><div className="col-span-2"><dt className="text-muted-foreground">Bound devices</dt><dd className="mt-1">{agent.deviceIds.map((deviceId) => snapshot.devices.find((device) => device.id === deviceId)?.displayName ?? deviceId).join(", ")}</dd></div></dl></div>)}</div>
+        </Panel>
+        <Panel title="Logical automation agents" description="Profile and trust state are visible without implying autonomous execution authority.">
+          <div className="grid gap-3 sm:grid-cols-2">{snapshot.automationAgents.map((agent) => { const profile = snapshot.automationAgentProfiles.find((candidate) => candidate.automationAgentId === agent.id); return <button type="button" key={agent.id} onClick={() => profile && setProfileId(profile.id)} className={`border p-4 text-left transition-colors focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/30 ${profile?.id === selectedProfile?.id ? "border-primary bg-secondary/70" : "border-border hover:bg-muted"}`}><div className="flex items-start justify-between gap-3"><div className="flex items-start gap-2"><Bot className="mt-0.5 size-4 text-primary" aria-hidden="true" /><div><p className="text-sm font-medium">{agent.name}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{agent.id}</p></div></div><StatusBadge label={agent.state} tone={agent.state === "active" ? "healthy" : "attention"} /></div><p className="mt-4 text-xs text-muted-foreground">{profile?.assignmentSummary ?? "No published profile"}</p></button> })}</div>
+        </Panel>
+      </div>
+      {selectedProfile ? <ProfileDetail profile={selectedProfile} /> : null}
+      <div className="mt-6 grid gap-6 xl:grid-cols-2"><Panel title="Capability boundary" description="Capability labels are evidence for a typed intent, not direct execution permissions."><div className="space-y-3 text-xs leading-5 text-muted-foreground"><div className="flex items-start gap-2"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" /><span>Published trust is required before a profile can be assigned to a run.</span></div><div className="flex items-start gap-2"><KeyRound className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" /><span>Leases, fencing, policy evaluation, idempotency, and audit remain control-plane decisions.</span></div></div></Panel><Panel title="Memory scope" description="Memory is bounded metadata, not an execution channel."><div className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><MemoryStick className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />Workspace and agent scopes are shown for review. No provider or external memory store is connected.</div></Panel></div>
+    </>
+  )
+}
+
+function ProfileDetail({ profile }: { profile: AutomationAgentProfileView }) {
+  const trustTone: StatusTone = profile.trust === "approved" ? "healthy" : profile.trust === "revoked" ? "danger" : "attention"
+  return <div className="mt-6"><Panel title={`Profile detail · v${profile.version}`} description="Profile metadata is read-only in this phase." action={<div className="flex items-center gap-2"><StatusBadge label={profile.state} tone={profile.state === "published" ? "healthy" : "attention"} /><StatusBadge label={profile.trust} tone={trustTone} /></div>}><div className="grid gap-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]"><div><div className="border-l-2 border-primary bg-secondary/60 p-3"><p className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">Personality</p><p className="mt-2 text-sm leading-6">{profile.personality}</p></div><dl className="mt-4 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-muted-foreground">Memory scope</dt><dd className="mt-1 font-medium">{profile.memoryScope}</dd></div><div><dt className="text-muted-foreground">Assignment</dt><dd className="mt-1 font-medium">{profile.assignmentSummary}</dd></div></dl></div><div className="grid gap-4 sm:grid-cols-3"><ProfileList icon={CheckCircle2} label="Goals" items={profile.goals} /><ProfileList icon={ShieldCheck} label="Rules" items={profile.rules} /><ProfileList icon={Cpu} label="Capabilities" items={profile.capabilities} /></div></div></Panel></div>
+}
+
+function ProfileList({ icon: Icon, label, items }: { icon: typeof Cpu; label: string; items: readonly string[] }) {
+  return <div><div className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground"><Icon className="size-3 text-primary" aria-hidden="true" />{label}</div><ul className="mt-2 space-y-2 text-xs leading-5">{items.map((item) => <li key={item} className="border-b border-border pb-2 last:border-0">{item}</li>)}</ul></div>
+}

@@ -26,6 +26,7 @@ export function NavMain({
     url: string
     icon?: React.ReactNode
     isActive?: boolean
+    ariaLabel?: string
     badge?: string | number
     items?: {
       title: string
@@ -51,6 +52,7 @@ export function NavMain({
                 <SidebarMenuButton
                   tooltip={item.title}
                   isActive={item.isActive}
+                  aria-label={item.ariaLabel}
                   aria-current={item.isActive ? "page" : undefined}
                   onClick={() => onSelect?.(item.title)}
                 />

@@ -15,11 +15,18 @@ import {
 } from "@/components/ui/sidebar"
 import {
   ActivityIcon,
+  BotIcon,
   CommandIcon,
   LayoutDashboardIcon,
+  ListChecksIcon,
+  MousePointer2Icon,
+  NetworkIcon,
+  ScrollTextIcon,
   ServerIcon,
   ShieldCheckIcon,
   SmartphoneIcon,
+  Settings2Icon,
+  UsersRoundIcon,
 } from "lucide-react"
 
 const teams = [
@@ -81,6 +88,13 @@ export function AppSidebar({
       items: [{ title: "Fleet overview", url: "#overview" }],
     },
     {
+      title: "Control",
+      url: "#control",
+      icon: <MousePointer2Icon aria-hidden="true" />,
+      isActive: activeSection === "Control",
+      items: [{ title: "Mirror preview", url: "#control" }],
+    },
+    {
       title: "Devices",
       url: "#devices",
       icon: <SmartphoneIcon aria-hidden="true" />,
@@ -90,6 +104,20 @@ export function AppSidebar({
         { title: "All devices", url: "#devices" },
         { title: "Needs attention", url: "#attention" },
       ],
+    },
+    {
+      title: "Network Profiles",
+      url: "#network-profiles",
+      icon: <NetworkIcon aria-hidden="true" />,
+      isActive: activeSection === "Network Profiles",
+      items: [{ title: "Discovery policy", url: "#network-profiles" }],
+    },
+    {
+      title: "Groups",
+      url: "#groups",
+      icon: <UsersRoundIcon aria-hidden="true" />,
+      isActive: activeSection === "Groups",
+      items: [{ title: "Membership order", url: "#groups" }],
     },
     {
       title: "Workflows",
@@ -102,14 +130,28 @@ export function AppSidebar({
       ],
     },
     {
+      title: "Agents",
+      url: "#agents",
+      icon: <BotIcon aria-hidden="true" />,
+      isActive: activeSection === "Agents",
+      items: [{ title: "Profiles and assignments", url: "#agents" }],
+    },
+    {
       title: "Runs",
       url: "#runs",
-      icon: <ActivityIcon aria-hidden="true" />,
+      icon: <ListChecksIcon aria-hidden="true" />,
       isActive: activeSection === "Runs",
       items: [
         { title: "Active runs", url: "#runs" },
         { title: "History", url: "#history" },
       ],
+    },
+    {
+      title: "Events",
+      url: "#events",
+      icon: <ScrollTextIcon aria-hidden="true" />,
+      isActive: activeSection === "Events",
+      items: [{ title: "Audit timeline", url: "#events" }],
     },
     {
       title: "Policies",
@@ -120,6 +162,14 @@ export function AppSidebar({
         { title: "Safety policies", url: "#policies" },
         { title: "Access", url: "#access" },
       ],
+    },
+    {
+      title: "Settings",
+      url: "#settings",
+      icon: <Settings2Icon aria-hidden="true" />,
+      isActive: activeSection === "Settings",
+      ariaLabel: "Configuration navigation",
+      items: [{ title: "Scoped settings", url: "#settings" }],
     },
   ]
 
