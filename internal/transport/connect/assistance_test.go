@@ -56,16 +56,54 @@ func TestValidateAssistanceRequestRejectsSensitiveEvidenceMetadata(t *testing.T)
 
 func TestValidateAssistanceResponseRejectsOversizedOrSensitiveProposal(t *testing.T) {
 	request := &driftv1.ProposeRequest{MaxResponseBytes: 16}
-	response := &driftv1.ProposeResponse{Suggestion: &driftv1.AssistanceSuggestion{ProposalJson: "0123456789abcdefg"}}
+	response := &driftv1.ProposeResponse{Suggestion: validSuggestion("\"0123456789abcdefg\"")}
 
 	err := transportconnect.ValidateAssistanceResponse(request, response)
 	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
 		t.Fatalf("oversized response code = %v, want invalid argument", connectrpc.CodeOf(err))
 	}
 
-	response.Suggestion.ProposalJson = `{"token":"[REDACTED]"}`
+	response.Suggestion.ProposalJson = `{"token":"example-value"}`
 	err = transportconnect.ValidateAssistanceResponse(request, response)
 	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
 		t.Fatalf("sensitive response code = %v, want invalid argument", connectrpc.CodeOf(err))
+	}
+}
+
+func TestValidateAssistanceResponseRejectsUnsafeSuggestionMetadata(t *testing.T) {
+	response := &driftv1.ProposeResponse{Suggestion: validSuggestion(`{"summary":"ok"}`)}
+	response.Suggestion.Provider = "token=example-value"
+
+	err := transportconnect.ValidateAssistanceResponse(nil, response)
+	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("ValidateAssistanceResponse() code = %v, want invalid argument", connectrpc.CodeOf(err))
+	}
+}
+
+func TestValidateAssistanceResponseRejectsUnsafeTypedFailure(t *testing.T) {
+	response := &driftv1.ProposeResponse{Failure: &driftv1.Failure{
+		Code:    driftv1.FailureCode_FAILURE_CODE_UNAVAILABLE,
+		Message: "token=example-value",
+	}}
+
+	err := transportconnect.ValidateAssistanceResponse(nil, response)
+	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("ValidateAssistanceResponse() code = %v, want invalid argument", connectrpc.CodeOf(err))
+	}
+}
+
+func validSuggestion(proposalJSON string) *driftv1.AssistanceSuggestion {
+	return &driftv1.AssistanceSuggestion{
+		SuggestionId:          "suggestion-1",
+		Kind:                  driftv1.SuggestionKind_SUGGESTION_KIND_SUMMARY,
+		ProposalJson:          proposalJSON,
+		Provider:              "optional-provider",
+		Model:                 "optional-model",
+		ModelVersion:          "v1",
+		PromptTemplateVersion: "v1",
+		Confidence:            0.8,
+		Uncertainty:           "low",
+		ExpiresAt:             "2026-09-14T00:00:00Z",
+		Disposition:           driftv1.SuggestionDisposition_SUGGESTION_DISPOSITION_PENDING_REVIEW,
 	}
 }

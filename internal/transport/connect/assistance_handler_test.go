@@ -13,7 +13,10 @@ type fakeProposer struct{ called bool }
 
 func (f *fakeProposer) Propose(context.Context, *driftv1.ProposeRequest) (*driftv1.ProposeResponse, error) {
 	f.called = true
-	return &driftv1.ProposeResponse{}, nil
+	return &driftv1.ProposeResponse{Failure: &driftv1.Failure{
+		Code:    driftv1.FailureCode_FAILURE_CODE_UNAVAILABLE,
+		Message: "assistance is temporarily unavailable",
+	}}, nil
 }
 
 func TestAssistanceHandlerRejectsInvalidInputBeforeOptionalProposer(t *testing.T) {
