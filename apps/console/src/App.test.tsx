@@ -86,6 +86,54 @@ describe("Drift command center", () => {
     expect(screen.getByText("Devices", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
   })
 
+  it("exposes Control as a separate mock-only destination", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole("button", { name: /^Control/ }))
+
+    expect(screen.getByRole("heading", { name: /Mirror control/i })).toBeInTheDocument()
+    expect(screen.getByText("Preview only")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Start mirror preview/i })).toBeDisabled()
+    expect(screen.queryByRole("checkbox", { name: /Follower device Atlas 04/i })).not.toBeInTheDocument()
+  })
+
+  it("supports labelled all-eligible follower selection without sending a command", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("button", { name: /Select all eligible/i }))
+
+    const startButton = screen.getByRole("button", { name: /Start mirror preview/i })
+    expect(startButton).toBeEnabled()
+
+    await user.click(startButton)
+
+    expect(screen.getByText(/no device command was sent/i)).toBeInTheDocument()
+  })
+
+  it("loads the typed browser-only destinations through the shell", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const destinations = [
+      ["Devices", /Device registry/],
+      ["Network Profiles", /Network Profiles/],
+      ["Groups", /Groups and membership/],
+      ["Agents", /Agent profiles/],
+      ["Runs", /Runs and targets/],
+      ["Events", /Events and audit/],
+      ["Policies", /^Policies$/],
+      ["Settings", /^Settings$/],
+    ] as const
+
+    for (const [label, heading] of destinations) {
+      await user.click(screen.getByRole("button", { name: new RegExp(`^${label}`) }))
+      expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument()
+    }
+  })
+
   it("uses the sidebar-07 inset header composition", () => {
     render(<App />)
 

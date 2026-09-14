@@ -1,0 +1,619 @@
+import type {
+  AccountReferenceView,
+  AutomationAgentProfileView,
+  AutomationAgentView,
+  ControlPlaneClient,
+  ControlPlaneIntent,
+  ControlPlaneSnapshot,
+  DeviceView,
+  EdgeAgentView,
+  EndpointView,
+  EventView,
+  GroupView,
+  LeaseView,
+  MembershipView,
+  MirrorSessionView,
+  MutationResult,
+  NetworkProfileView,
+  ObservationView,
+  PolicyDecisionView,
+  PolicyView,
+  RunTargetView,
+  RunView,
+  ScanCandidateView,
+  ScanRunView,
+  SettingView,
+  SkillView,
+  WorkflowView,
+} from "@/lib/domain/control-plane"
+
+const workspace = {
+  id: "workspace-demo",
+  name: "Demo workspace",
+}
+
+const devices: DeviceView[] = [
+  {
+    id: "atlas-04",
+    displayName: "Atlas 04",
+    stableIdentity: "device-101",
+    lifecycle: "active",
+    status: "online",
+    platformVersion: "Android 14",
+    batteryPercent: 86,
+    latencyMs: 42,
+    lastSeen: "just now",
+    agentId: "edge-agent-alpha",
+    endpointId: "endpoint-atlas-04-current",
+    location: "Rack A · Bay 04",
+    packageName: "com.drift.demo",
+    activityName: ".MainActivity",
+    workflow: "Content validation",
+    workflowStatus: "executing",
+    taskProgress: 72,
+    controlEligibility: "eligible",
+    capabilities: ["observe", "tap", "capture"],
+  },
+  {
+    id: "atlas-07",
+    displayName: "Atlas 07",
+    stableIdentity: "device-102",
+    lifecycle: "active",
+    status: "online",
+    platformVersion: "Android 14",
+    batteryPercent: 64,
+    latencyMs: 58,
+    lastSeen: "18 sec ago",
+    agentId: "edge-agent-alpha",
+    endpointId: "endpoint-atlas-07-current",
+    location: "Rack A · Bay 07",
+    packageName: "com.drift.demo",
+    activityName: ".MainActivity",
+    workflow: "Idle · ready",
+    workflowStatus: "idle",
+    taskProgress: 100,
+    controlEligibility: "eligible",
+    capabilities: ["observe", "tap", "capture"],
+  },
+  {
+    id: "nova-02",
+    displayName: "Nova 02",
+    stableIdentity: "device-103",
+    lifecycle: "unavailable",
+    status: "attention",
+    platformVersion: "Android 13",
+    batteryPercent: 23,
+    latencyMs: 188,
+    lastSeen: "2 min ago",
+    agentId: "edge-agent-beta",
+    endpointId: "endpoint-nova-02-current",
+    location: "Rack B · Bay 02",
+    packageName: "com.drift.demo",
+    activityName: ".RecoveryActivity",
+    workflow: "Reconnecting to agent",
+    workflowStatus: "blocked",
+    taskProgress: 34,
+    controlEligibility: "policy_denied",
+    capabilities: ["observe"],
+  },
+  {
+    id: "nova-05",
+    displayName: "Nova 05",
+    stableIdentity: "device-104",
+    lifecycle: "unavailable",
+    status: "offline",
+    platformVersion: "Android 13",
+    batteryPercent: 9,
+    latencyMs: 0,
+    lastSeen: "11 min ago",
+    agentId: "edge-agent-beta",
+    endpointId: "endpoint-nova-05-current",
+    location: "Rack B · Bay 05",
+    packageName: "com.drift.demo",
+    activityName: ".MainActivity",
+    workflow: "No active run",
+    workflowStatus: "idle",
+    taskProgress: 0,
+    controlEligibility: "offline",
+    capabilities: [],
+  },
+  {
+    id: "orion-01",
+    displayName: "Orion 01",
+    stableIdentity: "device-105",
+    lifecycle: "active",
+    status: "online",
+    platformVersion: "Android 15",
+    batteryPercent: 91,
+    latencyMs: 36,
+    lastSeen: "just now",
+    agentId: "edge-agent-gamma",
+    endpointId: "endpoint-orion-01-current",
+    location: "Rack C · Bay 01",
+    packageName: "com.drift.demo",
+    activityName: ".MainActivity",
+    workflow: "Workflow smoke test",
+    workflowStatus: "executing",
+    taskProgress: 48,
+    controlEligibility: "incompatible",
+    capabilities: ["observe", "capture"],
+  },
+  {
+    id: "orion-03",
+    displayName: "Orion 03",
+    stableIdentity: "device-106",
+    lifecycle: "active",
+    status: "online",
+    platformVersion: "Android 15",
+    batteryPercent: 78,
+    latencyMs: 51,
+    lastSeen: "32 sec ago",
+    agentId: "edge-agent-gamma",
+    endpointId: "endpoint-orion-03-current",
+    location: "Rack C · Bay 03",
+    packageName: "com.drift.demo",
+    activityName: ".MainActivity",
+    workflow: "Idle · ready",
+    workflowStatus: "idle",
+    taskProgress: 100,
+    controlEligibility: "eligible",
+    capabilities: ["observe", "tap", "capture"],
+  },
+]
+
+const edgeAgents: EdgeAgentView[] = [
+  { id: "edge-agent-alpha", displayName: "Edge Alpha", version: "fake-edge-1.4.2", state: "active", lastSeen: "just now", deviceIds: ["atlas-04", "atlas-07"] },
+  { id: "edge-agent-beta", displayName: "Edge Beta", version: "fake-edge-1.4.1", state: "unhealthy", lastSeen: "2 min ago", deviceIds: ["nova-02", "nova-05"] },
+  { id: "edge-agent-gamma", displayName: "Edge Gamma", version: "fake-edge-1.4.2", state: "active", lastSeen: "just now", deviceIds: ["orion-01", "orion-03"] },
+]
+
+const endpoints: EndpointView[] = devices.flatMap((device) => [
+  {
+    id: device.endpointId,
+    deviceId: device.id,
+    endpointType: "mock transport",
+    serial: `MOCK-${device.stableIdentity.toUpperCase()}`,
+    host: "192.0.2.10",
+    port: 5555,
+    state: "current",
+    observedAt: "2026-09-14T09:42:18Z",
+  },
+  ...(device.id === "atlas-04"
+    ? [{
+        id: "endpoint-atlas-04-superseded",
+        deviceId: device.id,
+        endpointType: "mock transport",
+        serial: "MOCK-DEVICE-101",
+        host: "192.0.2.9",
+        port: 5555,
+        state: "superseded" as const,
+        observedAt: "2026-09-13T15:10:00Z",
+      }]
+    : []),
+])
+
+const leases: LeaseView[] = [
+  { id: "lease-atlas-04", deviceId: "atlas-04", controlSessionId: "session-operator-1", holder: "operator-1", fencingToken: 18, state: "active", expiresAt: "in 27 min" },
+  { id: "lease-atlas-07", deviceId: "atlas-07", controlSessionId: "session-operator-1", holder: "operator-1", fencingToken: 7, state: "released", expiresAt: "released" },
+  { id: "lease-nova-02", deviceId: "nova-02", controlSessionId: "session-recovery", holder: "recovery-service", fencingToken: 11, state: "revoked", expiresAt: "revoked" },
+]
+
+const observations: ObservationView[] = devices.map((device, index) => ({
+  id: `observation-${device.id}`,
+  deviceId: device.id,
+  capturedAt: index === 2 ? "2 min ago" : "just now",
+  source: "fake",
+  captureStatus: device.status === "offline" ? "partial" : "complete",
+  packageName: device.packageName,
+  activityName: device.activityName,
+  coordinateSpace: "display:1080x1920",
+  freshnessToken: `fresh-${device.id}`,
+  artifactCount: device.status === "offline" ? 0 : 2,
+  ...(device.status === "offline" ? { failureClass: "device_offline" } : {}),
+}))
+
+const networkProfiles: NetworkProfileView[] = [
+  { id: "profile-lab-a", name: "Lab A staging", addressPolicy: "192.0.2.0/24", ports: [5555], isDefault: true, state: "active", rowVersion: 3 },
+  { id: "profile-lab-b", name: "Lab B review", addressPolicy: "198.51.100.0/24", ports: [5555, 5037], isDefault: false, state: "disabled", rowVersion: 2 },
+]
+
+const scanRuns: ScanRunView[] = [
+  { id: "scan-run-001", networkProfileId: "profile-lab-a", state: "completed", requestedAt: "09:31:02", finishedAt: "09:31:08" },
+  { id: "scan-run-002", networkProfileId: "profile-lab-b", state: "failed", requestedAt: "09:18:44", finishedAt: "09:18:45", failureClass: "infrastructure_error" },
+]
+
+const scanCandidates: ScanCandidateView[] = [
+  { id: "candidate-001", scanRunId: "scan-run-001", candidateKey: "candidate-lab-a-41", host: "192.0.2.41", port: 5555, serial: "MOCK-CANDIDATE-41", fingerprint: "fp:demo:41", state: "pending_approval", discoveredAt: "09:31:05", evidenceSummary: "Sanitized endpoint observation" },
+  { id: "candidate-002", scanRunId: "scan-run-001", candidateKey: "candidate-lab-a-42", host: "192.0.2.42", port: 5555, serial: "MOCK-CANDIDATE-42", fingerprint: "fp:demo:42", state: "registered", discoveredAt: "09:31:06", evidenceSummary: "Registered in mock fixture" },
+]
+
+const groups: GroupView[] = [
+  { id: "group-rack-a", name: "Rack A", state: "active", rowVersion: 4 },
+  { id: "group-rack-b", name: "Rack B", state: "active", rowVersion: 2 },
+  { id: "group-rack-c", name: "Rack C", state: "active", rowVersion: 3 },
+]
+
+const memberships: MembershipView[] = [
+  { id: "membership-a-04", groupId: "group-rack-a", deviceId: "atlas-04", position: 1, state: "active", startedAt: "2026-09-10" },
+  { id: "membership-a-07", groupId: "group-rack-a", deviceId: "atlas-07", position: 2, state: "active", startedAt: "2026-09-10" },
+  { id: "membership-b-02", groupId: "group-rack-b", deviceId: "nova-02", position: 1, state: "active", startedAt: "2026-09-11" },
+  { id: "membership-b-05", groupId: "group-rack-b", deviceId: "nova-05", position: 2, state: "active", startedAt: "2026-09-11" },
+  { id: "membership-c-01", groupId: "group-rack-c", deviceId: "orion-01", position: 1, state: "active", startedAt: "2026-09-12" },
+  { id: "membership-c-01-old", groupId: "group-rack-a", deviceId: "orion-01", position: 3, state: "ended", startedAt: "2026-09-10", endedAt: "2026-09-12" },
+]
+
+const automationAgents: AutomationAgentView[] = [
+  { id: "automation-agent-ops", name: "Ops steward", state: "active" },
+  { id: "automation-agent-review", name: "Review assistant", state: "suspended" },
+]
+
+const automationAgentProfiles: AutomationAgentProfileView[] = [
+  {
+    id: "profile-ops-v3",
+    automationAgentId: "automation-agent-ops",
+    version: 3,
+    state: "published",
+    personality: "Calm, explicit, and evidence-first.",
+    goals: ["Keep assigned runs observable", "Escalate ambiguity"],
+    rules: ["Never bypass leases", "Never infer success from source success"],
+    capabilities: ["observe", "capture", "workflow.select"],
+    memoryScope: "workspace",
+    trust: "approved",
+    assignmentSummary: "2 devices · precedence 10",
+  },
+  {
+    id: "profile-review-v1",
+    automationAgentId: "automation-agent-review",
+    version: 1,
+    state: "validated",
+    personality: "Conservative reviewer.",
+    goals: ["Surface policy conflicts"],
+    rules: ["No mutating actions"],
+    capabilities: ["observe", "policy.review"],
+    memoryScope: "agent",
+    trust: "reviewed",
+    assignmentSummary: "Unassigned · agent suspended",
+  },
+]
+
+const workflows: WorkflowView[] = [
+  { id: "workflow-content", name: "Content validation", state: "published", version: 8, stepCount: 12, targetSelector: "Group · Rack A", safetySummary: "Fresh observation before every mutating step" },
+  { id: "workflow-readiness", name: "Morning readiness", state: "validated", version: 2, stepCount: 6, targetSelector: "Capability · observe", safetySummary: "Read-only observation workflow" },
+  { id: "workflow-recovery", name: "Account review", state: "draft", version: 1, stepCount: 4, targetSelector: "Explicit devices", safetySummary: "Not eligible for publication" },
+]
+
+const skills: SkillView[] = [
+  { id: "skill-inbox", name: "Inbox triage", version: 4, state: "published", trust: "approved", capabilities: ["observe", "tap", "capture"], sourceRecording: "recording-session-014" },
+  { id: "skill-review", name: "Screen review", version: 1, state: "validated", trust: "reviewed", capabilities: ["observe", "capture"], sourceRecording: "recording-session-018" },
+]
+
+const runs: RunView[] = [
+  { id: "run-1042", workflowName: "Content validation", workflowVersion: 8, state: "running", approval: "approved", selector: "Group · Rack A", targetSnapshotId: "snapshot-1042", concurrencyLimit: 2, retryBudget: 1, createdAt: "09:36:04" },
+  { id: "run-1041", workflowName: "Account review", workflowVersion: 1, state: "paused", approval: "approved", selector: "Explicit devices · 2", targetSnapshotId: "snapshot-1041", concurrencyLimit: 1, retryBudget: 0, createdAt: "09:21:19", failureClass: "policy_denied" },
+  { id: "run-1039", workflowName: "Morning readiness", workflowVersion: 2, state: "completed", approval: "approved", selector: "Capability · observe", targetSnapshotId: "snapshot-1039", concurrencyLimit: 3, retryBudget: 2, createdAt: "08:44:00" },
+]
+
+const runTargets: RunTargetView[] = [
+  { id: "target-1042-atlas-04", runId: "run-1042", deviceId: "atlas-04", state: "verifying", leaseId: "lease-atlas-04", observationId: "observation-atlas-04", attemptCount: 2 },
+  { id: "target-1042-atlas-07", runId: "run-1042", deviceId: "atlas-07", state: "running", leaseId: "lease-atlas-07", observationId: "observation-atlas-07", attemptCount: 1 },
+  { id: "target-1041-nova-02", runId: "run-1041", deviceId: "nova-02", state: "failed", failureClass: "policy_denied", attemptCount: 1 },
+  { id: "target-1041-nova-05", runId: "run-1041", deviceId: "nova-05", state: "failed", failureClass: "device_offline", attemptCount: 0 },
+  { id: "target-1039-atlas-04", runId: "run-1039", deviceId: "atlas-04", state: "succeeded", attemptCount: 1 },
+  { id: "target-1039-orion-03", runId: "run-1039", deviceId: "orion-03", state: "succeeded", attemptCount: 1 },
+]
+
+const events: EventView[] = [
+  { id: "event-001", kind: "operational", name: "workflow.target_verifying", actor: "run service", resourceType: "run_target", resourceId: "target-1042-atlas-04", correlationId: "corr-1042", occurredAt: "09:42:18", payloadSummary: "Sanitized metadata only; payload omitted" },
+  { id: "event-002", kind: "audit", name: "lease.renewed", actor: "operator · operator-1", resourceType: "device_lease", resourceId: "lease-atlas-04", correlationId: "corr-1042", occurredAt: "09:40:31", payloadSummary: "Actor and resource metadata retained" },
+  { id: "event-003", kind: "operational", name: "observation.captured", actor: "fake edge agent", resourceType: "observation", resourceId: "observation-atlas-04", correlationId: "corr-1042", occurredAt: "09:39:57", payloadSummary: "Artifact bytes omitted from event view" },
+  { id: "event-004", kind: "audit", name: "run.target_failed", actor: "run service", resourceType: "run_target", resourceId: "target-1041-nova-02", correlationId: "corr-1041", occurredAt: "09:35:02", failureClass: "policy_denied", payloadSummary: "Failure label retained; sensitive payload omitted" },
+  { id: "event-005", kind: "operational", name: "agent.heartbeat", actor: "fake edge agent", resourceType: "edge_agent", resourceId: "edge-agent-gamma", correlationId: "corr-agent", occurredAt: "09:38:04", payloadSummary: "Version and health metadata only" },
+]
+
+const accounts: AccountReferenceView[] = [
+  { id: "account-ops-01", sourceId: "source-demo", externalReference: "demo-account-01", label: "Operations demo", state: "active", assignedDeviceId: "atlas-04", serviceState: "healthy", lastRun: "run-1042 · running" },
+  { id: "account-review-02", sourceId: "source-demo", externalReference: "demo-account-02", label: "Review fixture", state: "inactive", assignedDeviceId: "nova-02", serviceState: "degraded", lastRun: "run-1041 · policy denied" },
+]
+
+const settings: SettingView[] = [
+  { id: "setting-workspace-retention", scope: "workspace", targetId: workspace.id, key: "event_retention_days", valueSummary: "30 days", valueJson: "30", state: "active", rowVersion: 2, safetyCritical: true },
+  { id: "setting-control-approval", scope: "control_plane", targetId: "control-plane-local", key: "require_explicit_approval", valueSummary: "Enabled", valueJson: "true", state: "active", rowVersion: 4, safetyCritical: true },
+  { id: "setting-operator-density", scope: "operator_preference", targetId: "operator-1", key: "table_density", valueSummary: "comfortable", valueJson: "\"comfortable\"", state: "active", rowVersion: 1, safetyCritical: false },
+]
+
+const policies: PolicyView[] = [
+  { id: "policy-default-safety", name: "Default action safety", version: 4, state: "active", ruleSummary: "Allow only approved low-risk actions with fresh observations.", rowVersion: 4 },
+  { id: "policy-lab-review", name: "Lab review boundary", version: 2, state: "draft", ruleSummary: "Deny actions for unavailable or incompatible targets.", rowVersion: 2 },
+]
+
+const policyDecisions: PolicyDecisionView[] = [
+  { id: "decision-001", policyId: "policy-default-safety", resourceType: "run_target", resourceId: "target-1042-atlas-04", action: "tap", decision: "allow", reasonCode: "allowed", correlationId: "corr-1042", decidedAt: "09:42:10" },
+  { id: "decision-002", policyId: "policy-default-safety", resourceType: "run_target", resourceId: "target-1041-nova-02", action: "tap", decision: "deny", reasonCode: "policy_definition_blocked", correlationId: "corr-1041", decidedAt: "09:35:02" },
+  { id: "decision-003", policyId: "policy-lab-review", resourceType: "mirror_target", resourceId: "orion-01", action: "mirror", decision: "inconclusive", reasonCode: "capability_unavailable", correlationId: "corr-preview", decidedAt: "09:28:09" },
+]
+
+export function buildMockSnapshot(): ControlPlaneSnapshot {
+  return {
+    workspaceName: workspace.name,
+    workspaceId: workspace.id,
+    devices,
+    edgeAgents,
+    endpoints,
+    leases,
+    observations,
+    networkProfiles,
+    scanRuns,
+    scanCandidates,
+    groups,
+    memberships,
+    automationAgents,
+    automationAgentProfiles,
+    workflows,
+    skills,
+    runs,
+    runTargets,
+    events,
+    accounts,
+    settings,
+    policies,
+    policyDecisions,
+    mirrorSessions: [],
+  }
+}
+
+function cloneSnapshot(snapshot: ControlPlaneSnapshot): ControlPlaneSnapshot {
+  return structuredClone(snapshot)
+}
+
+function result(intent: ControlPlaneIntent, message: string, resourceId?: string, conflict = false): MutationResult {
+  return { ok: !conflict, kind: intent.type, message, ...(resourceId ? { resourceId } : {}), ...(conflict ? { conflict: true } : {}) }
+}
+
+function rejection(intent: ControlPlaneIntent, message: string, resourceId?: string): MutationResult {
+  return { ok: false, kind: intent.type, message, ...(resourceId ? { resourceId } : {}) }
+}
+
+function addEvent(snapshot: ControlPlaneSnapshot, event: EventView): readonly EventView[] {
+  return [event, ...snapshot.events]
+}
+
+function isTerminalTarget(state: RunTargetView["state"]): boolean {
+  return state === "succeeded" || state === "failed" || state === "cancelled" || state === "cleanup_failed"
+}
+
+function isValidJson(value: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return parsed !== undefined
+  } catch {
+    return false
+  }
+}
+
+export class MockControlPlaneClient implements ControlPlaneClient {
+  private snapshot: ControlPlaneSnapshot
+  private nextSequence = 3
+
+  constructor(initialSnapshot: ControlPlaneSnapshot = buildMockSnapshot()) {
+    this.snapshot = cloneSnapshot(initialSnapshot)
+  }
+
+  getSnapshot(): ControlPlaneSnapshot {
+    return cloneSnapshot(this.snapshot)
+  }
+
+  dispatch(intent: ControlPlaneIntent): MutationResult {
+    switch (intent.type) {
+      case "refresh":
+        return result(intent, "Mock projection refreshed; no external service was contacted.")
+      case "startMirrorPreview":
+        return this.startMirrorPreview(intent)
+      case "stopMirrorPreview":
+        return this.stopMirrorPreview(intent)
+      case "createNetworkProfile":
+        return this.createNetworkProfile(intent)
+      case "updateNetworkProfile":
+        return this.updateNetworkProfile(intent)
+      case "retireNetworkProfile":
+        return this.retireNetworkProfile(intent)
+      case "startScan":
+        return this.startScan(intent)
+      case "decideScanCandidate":
+        return this.decideScanCandidate(intent)
+      case "registerScanCandidate":
+        return this.registerScanCandidate(intent)
+      case "moveDeviceToGroup":
+        return this.moveDeviceToGroup(intent)
+      case "cancelRun":
+        return this.cancelRun(intent)
+      case "updateSetting":
+        return this.updateSetting(intent)
+      case "updatePolicy":
+        return this.updatePolicy(intent)
+      case "updateAccountState":
+        return this.updateAccountState(intent)
+    }
+  }
+
+  private startMirrorPreview(intent: Extract<ControlPlaneIntent, { type: "startMirrorPreview" }>): MutationResult {
+    const source = this.snapshot.devices.find((device) => device.id === intent.sourceDeviceId)
+    const followerIds = [...new Set(intent.followerDeviceIds)].filter((id) => id !== intent.sourceDeviceId)
+    const followers = followerIds.map((id) => this.snapshot.devices.find((device) => device.id === id))
+    if (!source || followerIds.length === 0 || followers.some((device) => !device)) {
+      return rejection(intent, "Preview needs one source and at least one follower.")
+    }
+    if (source.status !== "online" || source.controlEligibility !== "eligible") {
+      return rejection(intent, `Preview rejected: source is ${source.status === "online" ? source.controlEligibility.replaceAll("_", " ") : "not online"}.`, source.id)
+    }
+    const sessionId = `mirror-preview-${this.nextSequence++}`
+    const followerResults = followers.map((device) => {
+      if (!device) {
+        return { deviceId: "unknown", outcome: "target_resolution_failed" as const, detail: "Target was not resolved in the mock projection." }
+      }
+      if (device.controlEligibility !== "eligible") {
+        return { deviceId: device.id, outcome: device.controlEligibility, detail: `Preview withheld: ${device.controlEligibility.replaceAll("_", " ")}.` }
+      }
+      return { deviceId: device.id, outcome: "simulated_success" as const, detail: "Preview accepted; no command sent." }
+    })
+    const session: MirrorSessionView = {
+      id: sessionId,
+      sourceDeviceId: source.id,
+      followerDeviceIds: followerIds,
+      state: "active",
+      sourceResult: "Preview admitted; source control not dispatched.",
+      followerResults,
+      startedAt: "just now",
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      mirrorSessions: [session, ...this.snapshot.mirrorSessions],
+      events: addEvent(this.snapshot, {
+        id: `event-preview-${this.nextSequence++}`,
+        kind: "audit",
+        name: "mirror.preview_started",
+        actor: "console · mock",
+        resourceType: "mirror_session",
+        resourceId: session.id,
+        correlationId: "corr-preview",
+        occurredAt: "just now",
+        payloadSummary: "Simulation metadata only; no command payload recorded",
+      }),
+    }
+    return result(intent, `Simulation started for ${source.displayName}; no device command was sent.`, session.id)
+  }
+
+  private stopMirrorPreview(intent: Extract<ControlPlaneIntent, { type: "stopMirrorPreview" }>): MutationResult {
+    const session = this.snapshot.mirrorSessions.find((candidate) => candidate.id === intent.sessionId)
+    if (!session) {
+      return rejection(intent, "Preview session was not found.")
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      mirrorSessions: this.snapshot.mirrorSessions.map((candidate) => candidate.id === session.id ? { ...candidate, state: "completed", stoppedAt: "just now" } : candidate),
+    }
+    return result(intent, "Simulation stopped; no device command was sent.", session.id)
+  }
+
+  private createNetworkProfile(intent: Extract<ControlPlaneIntent, { type: "createNetworkProfile" }>): MutationResult {
+    if (intent.name.trim() === "" || intent.addressPolicy.trim() === "" || intent.ports.length === 0) {
+      return rejection(intent, "Profile name, bounded address policy, and at least one port are required.")
+    }
+    if (intent.isDefault) return rejection(intent, "A draft Network Profile cannot be default; activate it first.")
+    const id = `profile-mock-${this.nextSequence++}`
+    const profile: NetworkProfileView = { id, name: intent.name.trim(), addressPolicy: intent.addressPolicy.trim(), ports: [...intent.ports], isDefault: false, state: "draft", rowVersion: 1 }
+    this.snapshot = { ...this.snapshot, networkProfiles: [profile, ...this.snapshot.networkProfiles] }
+    return result(intent, "Network Profile saved as draft; no scan was started.", id)
+  }
+
+  private updateNetworkProfile(intent: Extract<ControlPlaneIntent, { type: "updateNetworkProfile" }>): MutationResult {
+    const profile = this.snapshot.networkProfiles.find((candidate) => candidate.id === intent.profileId)
+    if (!profile) return rejection(intent, "Network Profile was not found.")
+    if (profile.rowVersion !== intent.rowVersion) return result(intent, "This Network Profile changed elsewhere. Reload before saving.", profile.id, true)
+    if (intent.isDefault && profile.state !== "active") return rejection(intent, "Only an active Network Profile can be default.", profile.id)
+    const updated: NetworkProfileView = { ...profile, name: intent.name.trim(), addressPolicy: intent.addressPolicy.trim(), ports: [...intent.ports], isDefault: intent.isDefault, rowVersion: profile.rowVersion + 1 }
+    this.snapshot = { ...this.snapshot, networkProfiles: this.snapshot.networkProfiles.map((candidate) => candidate.id === profile.id ? updated : candidate) }
+    return result(intent, "Network Profile updated in the mock projection.", profile.id)
+  }
+
+  private retireNetworkProfile(intent: Extract<ControlPlaneIntent, { type: "retireNetworkProfile" }>): MutationResult {
+    const profile = this.snapshot.networkProfiles.find((candidate) => candidate.id === intent.profileId)
+    if (!profile) return rejection(intent, "Network Profile was not found.")
+    if (profile.rowVersion !== intent.rowVersion) return result(intent, "This Network Profile changed elsewhere. Reload before retiring.", profile.id, true)
+    this.snapshot = { ...this.snapshot, networkProfiles: this.snapshot.networkProfiles.map((candidate) => candidate.id === profile.id ? { ...candidate, state: "retired", isDefault: false, rowVersion: candidate.rowVersion + 1 } : candidate) }
+    return result(intent, "Network Profile retired in the mock projection.", profile.id)
+  }
+
+  private startScan(intent: Extract<ControlPlaneIntent, { type: "startScan" }>): MutationResult {
+    const profile = this.snapshot.networkProfiles.find((candidate) => candidate.id === intent.profileId)
+    if (!profile || profile.state !== "active") return rejection(intent, "Only an active Network Profile can start a scan.")
+    const id = `scan-run-${String(this.nextSequence++).padStart(3, "0")}`
+    const scan: ScanRunView = { id, networkProfileId: profile.id, state: "running", requestedAt: "just now" }
+    this.snapshot = { ...this.snapshot, scanRuns: [scan, ...this.snapshot.scanRuns] }
+    return result(intent, "Mock scan started; no network sockets were opened.", id)
+  }
+
+  private decideScanCandidate(intent: Extract<ControlPlaneIntent, { type: "decideScanCandidate" }>): MutationResult {
+    const candidate = this.snapshot.scanCandidates.find((item) => item.id === intent.candidateId)
+    if (!candidate) return rejection(intent, "Scan candidate was not found.")
+    if (candidate.state !== "pending_approval") return rejection(intent, "Only pending candidates can receive a new decision.", candidate.id)
+    const nextState = intent.approve ? "approved" : "rejected"
+    this.snapshot = {
+      ...this.snapshot,
+      scanCandidates: this.snapshot.scanCandidates.map((item) => item.id === candidate.id ? { ...item, state: nextState } : item),
+      events: addEvent(this.snapshot, {
+        id: `event-candidate-${this.nextSequence++}`,
+        kind: "audit",
+        name: intent.approve ? "discovery.candidate_approved" : "discovery.candidate_rejected",
+        actor: "operator · mock",
+        resourceType: "scan_candidate",
+        resourceId: candidate.id,
+        correlationId: "corr-discovery",
+        occurredAt: "just now",
+        payloadSummary: intent.reason.trim() === "" ? "Decision recorded without sensitive rationale" : "Decision rationale retained as bounded operator metadata",
+      }),
+    }
+    return result(intent, `Candidate ${intent.approve ? "approved" : "rejected"}; registration remains a separate action.`, candidate.id)
+  }
+
+  private registerScanCandidate(intent: Extract<ControlPlaneIntent, { type: "registerScanCandidate" }>): MutationResult {
+    const candidate = this.snapshot.scanCandidates.find((item) => item.id === intent.candidateId)
+    if (!candidate) return rejection(intent, "Scan candidate was not found.")
+    if (candidate.state !== "approved") return rejection(intent, "Candidate approval is required before registration.", candidate.id)
+    this.snapshot = { ...this.snapshot, scanCandidates: this.snapshot.scanCandidates.map((item) => item.id === candidate.id ? { ...item, state: "registered" } : item) }
+    return result(intent, `Mock registration recorded for ${intent.displayName.trim() || candidate.host}; no device endpoint was connected.`, candidate.id)
+  }
+
+  private moveDeviceToGroup(intent: Extract<ControlPlaneIntent, { type: "moveDeviceToGroup" }>): MutationResult {
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) return rejection(intent, "Device was not found.")
+    if (intent.groupId !== "ungrouped" && !this.snapshot.groups.some((group) => group.id === intent.groupId && group.state === "active")) {
+      return rejection(intent, "Target group was not found or is retired.")
+    }
+    const nowEnded = this.snapshot.memberships.map((membership) => membership.deviceId === device.id && membership.state === "active" ? { ...membership, state: "ended" as const, endedAt: "just now" } : membership)
+    const nextMemberships = intent.groupId === "ungrouped" ? nowEnded : [...nowEnded, { id: `membership-${this.nextSequence++}`, groupId: intent.groupId, deviceId: device.id, position: intent.position, state: "active" as const, startedAt: "just now" }]
+    this.snapshot = { ...this.snapshot, memberships: nextMemberships }
+    return result(intent, intent.groupId === "ungrouped" ? `${device.displayName} moved to computed Ungrouped.` : `${device.displayName} moved in the mock projection.`, device.id)
+  }
+
+  private cancelRun(intent: Extract<ControlPlaneIntent, { type: "cancelRun" }>): MutationResult {
+    const run = this.snapshot.runs.find((candidate) => candidate.id === intent.runId)
+    if (!run) return rejection(intent, "Run was not found.")
+    if (run.state === "completed" || run.state === "failed" || run.state === "cancelled") return rejection(intent, "Only an active or paused run can be cancelled.", run.id)
+    this.snapshot = {
+      ...this.snapshot,
+      runs: this.snapshot.runs.map((candidate) => candidate.id === run.id ? { ...candidate, state: "cancelled" as const } : candidate),
+      runTargets: this.snapshot.runTargets.map((target) => target.runId === run.id && !isTerminalTarget(target.state) ? { ...target, state: "cancelled" as const } : target),
+    }
+    return result(intent, "Run cancelled at the mock safe boundary.", run.id)
+  }
+
+  private updateSetting(intent: Extract<ControlPlaneIntent, { type: "updateSetting" }>): MutationResult {
+    const setting = this.snapshot.settings.find((candidate) => candidate.id === intent.settingId)
+    if (!setting) return rejection(intent, "Setting was not found.")
+    if (setting.rowVersion !== intent.rowVersion) return result(intent, "This setting changed elsewhere. Reload before saving.", setting.id, true)
+    if (!isValidJson(intent.valueJson)) return rejection(intent, "Setting value must be valid JSON.", setting.id)
+    const updated: SettingView = { ...setting, valueJson: intent.valueJson, valueSummary: intent.valueJson, rowVersion: setting.rowVersion + 1 }
+    this.snapshot = { ...this.snapshot, settings: this.snapshot.settings.map((candidate) => candidate.id === setting.id ? updated : candidate) }
+    return result(intent, "Setting updated in the mock projection.", setting.id)
+  }
+
+  private updatePolicy(intent: Extract<ControlPlaneIntent, { type: "updatePolicy" }>): MutationResult {
+    const policy = this.snapshot.policies.find((candidate) => candidate.id === intent.policyId)
+    if (!policy) return rejection(intent, "Policy was not found.")
+    if (policy.rowVersion !== intent.rowVersion) return result(intent, "This policy changed elsewhere. Reload before saving.", policy.id, true)
+    const updated: PolicyView = { ...policy, ruleSummary: intent.ruleSummary.trim(), rowVersion: policy.rowVersion + 1 }
+    this.snapshot = { ...this.snapshot, policies: this.snapshot.policies.map((candidate) => candidate.id === policy.id ? updated : candidate) }
+    return result(intent, "Policy summary updated in the mock projection.", policy.id)
+  }
+
+  private updateAccountState(intent: Extract<ControlPlaneIntent, { type: "updateAccountState" }>): MutationResult {
+    const account = this.snapshot.accounts.find((candidate) => candidate.id === intent.accountId)
+    if (!account) return rejection(intent, "Account reference was not found.")
+    this.snapshot = { ...this.snapshot, accounts: this.snapshot.accounts.map((candidate) => candidate.id === account.id ? { ...candidate, state: intent.state } : candidate) }
+    return result(intent, "Account state updated in the mock projection.", account.id)
+  }
+}
+
+export function createMockControlPlaneClient(): ControlPlaneClient {
+  return new MockControlPlaneClient()
+}
