@@ -63,6 +63,7 @@ func TestValidateAssistanceResponseRejectsOversizedOrSensitiveProposal(t *testin
 		t.Fatalf("oversized response code = %v, want invalid argument", connectrpc.CodeOf(err))
 	}
 
+	request.MaxResponseBytes = 65536
 	response.Suggestion.ProposalJson = `{"token":"example-value"}`
 	err = transportconnect.ValidateAssistanceResponse(request, response)
 	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
