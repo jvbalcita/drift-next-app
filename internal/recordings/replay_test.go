@@ -119,6 +119,19 @@ func TestReplayCarriesTypedTextPayloadToTheAdapter(t *testing.T) {
 	}
 }
 
+func TestReplayChecksTypedPolicyBeforeObservationOrDispatch(t *testing.T) {
+	now := time.Date(2026, 9, 14, 1, 0, 0, 0, time.UTC)
+	event := replayEvent(now, "event-1", target("save"))
+	version := replayVersion(event)
+	fake := adapter.NewFakeAdapter(action.CapabilityTap)
+	authorization := replayAuthorization()
+	authorization.PolicyRuleJSON = `{"allow":false}`
+	results, err := recordings.Replay(context.Background(), version, []recordings.InteractionEvent{event}, fake, authorization, nil)
+	if err != nil || len(results) != 1 || results[0].Failure != domain.FailurePolicyDenied || fake.ExecuteCalls() != 0 {
+		t.Fatalf("policy-denied replay = results:%#v error:%v execute:%d", results, err, fake.ExecuteCalls())
+	}
+}
+
 func replayVersion(event recordings.InteractionEvent) workflows.Version {
 	return workflows.Version{ID: "skill-version-1", Workspace: "workspace-1", WorkflowID: "skill-1", Version: 1, State: workflows.StatePublished, Steps: []workflows.Step{{ID: workflows.StepID(event.ID), Sequence: 0, Action: action.Tap, Risk: action.RiskMedium, Retry: action.RetryAfterObservation, Definition: workflows.StepDefinition{Target: event.Action.Target.Semantic, TimeoutMillis: 1000, RequiresObservation: true, EvidenceRequired: true, Postcondition: "after-captured"}}}}
 }
@@ -138,5 +151,5 @@ func replayAuthorization() recordings.ReplayAuthorization {
 }
 
 func replayAuthorizationWithCapability(capability action.Capability) recordings.ReplayAuthorization {
-	return recordings.ReplayAuthorization{Workspace: "workspace-1", DeviceID: "device-1", LeaseID: "lease-1", HolderID: "holder-1", FencingToken: 1, ApprovalGranted: true, Capabilities: []action.Capability{capability}, Policy: recordings.ReplayPolicy{ExpectedPackageName: "com.example", ExpectedActivityName: ".Main", ExpectedAppVersion: "1.0.0", ExpectedCoordinateSpace: "display:1080x1920"}}
+	return recordings.ReplayAuthorization{Workspace: "workspace-1", DeviceID: "device-1", LeaseID: "lease-1", HolderID: "holder-1", FencingToken: 1, ApprovalGranted: true, Capabilities: []action.Capability{capability}, PolicyRuleJSON: `{}`, Policy: recordings.ReplayPolicy{ExpectedPackageName: "com.example", ExpectedActivityName: ".Main", ExpectedAppVersion: "1.0.0", ExpectedCoordinateSpace: "display:1080x1920"}}
 }

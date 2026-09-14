@@ -10,6 +10,7 @@ import (
 	"drift.local/drift-next/internal/action"
 	"drift.local/drift-next/internal/domain"
 	"drift.local/drift-next/internal/edge/adapter"
+	"drift.local/drift-next/internal/policies"
 	"drift.local/drift-next/internal/workflows"
 )
 
@@ -36,14 +37,16 @@ type ReplayPolicy struct {
 }
 
 type ReplayAuthorization struct {
-	Workspace       string
-	DeviceID        string
-	LeaseID         string
-	HolderID        string
-	FencingToken    uint64
-	ApprovalGranted bool
-	Capabilities    []action.Capability
-	Policy          ReplayPolicy
+	Workspace        string
+	DeviceID         string
+	LeaseID          string
+	HolderID         string
+	FencingToken     uint64
+	ApprovalGranted  bool
+	Capabilities     []action.Capability
+	PolicyRuleJSON   string
+	EmergencyStopped bool
+	Policy           ReplayPolicy
 }
 
 type VisionResolver interface {
@@ -110,6 +113,13 @@ func Replay(ctx context.Context, version workflows.Version, events []Interaction
 			return results, fmt.Errorf("replay step %q does not match its reviewed recording event", step.ID)
 		}
 		result := ReplayResult{EventID: event.ID, Sequence: step.Sequence, Outcome: action.OutcomeFailed, Postcondition: action.PostconditionUnknown, CleanupSucceeded: false}
+		spec, _ := action.Lookup(step.Action)
+		decision := policies.Evaluate(policies.ActionEvaluation{Specification: spec, Invocation: action.SurfaceReplay, Capabilities: authorization.Capabilities, ApprovalGranted: authorization.ApprovalGranted, EmergencyStopped: authorization.EmergencyStopped, PolicyRuleJSON: authorization.PolicyRuleJSON})
+		if decision.Decision != policies.Allow {
+			result.Failure = domain.FailurePolicyDenied
+			results = append(results, result)
+			return results, nil
+		}
 		current, observeErr := device.Observe(ctx)
 		if observeErr != nil {
 			result.Failure = domain.FailureObservation
