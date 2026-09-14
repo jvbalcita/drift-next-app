@@ -381,6 +381,15 @@ function isTerminalTarget(state: RunTargetView["state"]): boolean {
   return state === "succeeded" || state === "failed" || state === "cancelled" || state === "cleanup_failed"
 }
 
+function isValidJson(value: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return parsed !== undefined
+  } catch {
+    return false
+  }
+}
+
 export class MockControlPlaneClient implements ControlPlaneClient {
   private snapshot: ControlPlaneSnapshot
   private nextSequence = 3
@@ -489,8 +498,9 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (intent.name.trim() === "" || intent.addressPolicy.trim() === "" || intent.ports.length === 0) {
       return rejection(intent, "Profile name, bounded address policy, and at least one port are required.")
     }
+    if (intent.isDefault) return rejection(intent, "A draft Network Profile cannot be default; activate it first.")
     const id = `profile-mock-${this.nextSequence++}`
-    const profile: NetworkProfileView = { id, name: intent.name.trim(), addressPolicy: intent.addressPolicy.trim(), ports: [...intent.ports], isDefault: intent.isDefault, state: "draft", rowVersion: 1 }
+    const profile: NetworkProfileView = { id, name: intent.name.trim(), addressPolicy: intent.addressPolicy.trim(), ports: [...intent.ports], isDefault: false, state: "draft", rowVersion: 1 }
     this.snapshot = { ...this.snapshot, networkProfiles: [profile, ...this.snapshot.networkProfiles] }
     return result(intent, "Network Profile saved as draft; no scan was started.", id)
   }
@@ -499,6 +509,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const profile = this.snapshot.networkProfiles.find((candidate) => candidate.id === intent.profileId)
     if (!profile) return rejection(intent, "Network Profile was not found.")
     if (profile.rowVersion !== intent.rowVersion) return result(intent, "This Network Profile changed elsewhere. Reload before saving.", profile.id, true)
+    if (intent.isDefault && profile.state !== "active") return rejection(intent, "Only an active Network Profile can be default.", profile.id)
     const updated: NetworkProfileView = { ...profile, name: intent.name.trim(), addressPolicy: intent.addressPolicy.trim(), ports: [...intent.ports], isDefault: intent.isDefault, rowVersion: profile.rowVersion + 1 }
     this.snapshot = { ...this.snapshot, networkProfiles: this.snapshot.networkProfiles.map((candidate) => candidate.id === profile.id ? updated : candidate) }
     return result(intent, "Network Profile updated in the mock projection.", profile.id)
@@ -508,7 +519,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const profile = this.snapshot.networkProfiles.find((candidate) => candidate.id === intent.profileId)
     if (!profile) return rejection(intent, "Network Profile was not found.")
     if (profile.rowVersion !== intent.rowVersion) return result(intent, "This Network Profile changed elsewhere. Reload before retiring.", profile.id, true)
-    this.snapshot = { ...this.snapshot, networkProfiles: this.snapshot.networkProfiles.map((candidate) => candidate.id === profile.id ? { ...candidate, state: "retired", rowVersion: candidate.rowVersion + 1 } : candidate) }
+    this.snapshot = { ...this.snapshot, networkProfiles: this.snapshot.networkProfiles.map((candidate) => candidate.id === profile.id ? { ...candidate, state: "retired", isDefault: false, rowVersion: candidate.rowVersion + 1 } : candidate) }
     return result(intent, "Network Profile retired in the mock projection.", profile.id)
   }
 
@@ -580,11 +591,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const setting = this.snapshot.settings.find((candidate) => candidate.id === intent.settingId)
     if (!setting) return rejection(intent, "Setting was not found.")
     if (setting.rowVersion !== intent.rowVersion) return result(intent, "This setting changed elsewhere. Reload before saving.", setting.id, true)
-    try {
-      JSON.parse(intent.valueJson)
-    } catch {
-      return rejection(intent, "Setting value must be valid JSON.", setting.id)
-    }
+    if (!isValidJson(intent.valueJson)) return rejection(intent, "Setting value must be valid JSON.", setting.id)
     const updated: SettingView = { ...setting, valueJson: intent.valueJson, valueSummary: intent.valueJson, rowVersion: setting.rowVersion + 1 }
     this.snapshot = { ...this.snapshot, settings: this.snapshot.settings.map((candidate) => candidate.id === setting.id ? updated : candidate) }
     return result(intent, "Setting updated in the mock projection.", setting.id)

@@ -47,6 +47,19 @@ describe("MockControlPlaneClient", () => {
     expect(client.getSnapshot().settings.find((setting) => setting.id === "setting-workspace-retention")?.valueJson).toBe("45")
   })
 
+  it("does not mark a draft or retired Network Profile as default", () => {
+    const client = new MockControlPlaneClient()
+
+    const draftDefault = client.dispatch({ type: "createNetworkProfile", name: "Draft profile", addressPolicy: "192.0.2.0/24", ports: [5555], isDefault: true })
+    const retire = client.dispatch({ type: "retireNetworkProfile", profileId: "profile-lab-a", rowVersion: 3 })
+    const retired = client.getSnapshot().networkProfiles.find((profile) => profile.id === "profile-lab-a")
+
+    expect(draftDefault.ok).toBe(false)
+    expect(retire.ok).toBe(true)
+    expect(retired?.state).toBe("retired")
+    expect(retired?.isDefault).toBe(false)
+  })
+
   it("moves membership history without persisting an Ungrouped group", () => {
     const client = new MockControlPlaneClient()
 
