@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
-import { AlertTriangle, Check, CircleHelp } from "lucide-react"
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, CircleHelp } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -73,7 +74,7 @@ export function Panel({
       <CardHeader className="border-b border-border pb-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-sm font-semibold uppercase tracking-[0.08em]">{title}</CardTitle>
+            <CardTitle className="text-sm font-semibold tracking-[-0.01em]">{title}</CardTitle>
             {description ? <CardDescription className="mt-2 text-xs leading-5">{description}</CardDescription> : null}
           </div>
           {action ? <div className="shrink-0">{action}</div> : null}
@@ -85,7 +86,11 @@ export function Panel({
 }
 
 export function StatusBadge({ label, tone = "neutral" }: { label: string; tone?: StatusTone }) {
-  return <Badge variant="outline" className={`rounded-none text-[10px] uppercase tracking-[0.06em] ${toneClasses[tone]}`}>{label}</Badge>
+  return <Badge variant="outline" className={`rounded-none text-[10px] tracking-[0.04em] ${toneClasses[tone]}`}>{toTitleCase(label)}</Badge>
+}
+
+function toTitleCase(value: string) {
+  return value.replaceAll("_", " ").split(" ").filter(Boolean).map((word) => word[0].toUpperCase() + word.slice(1)).join(" ")
 }
 
 export function FailureBadge({ failureClass }: { failureClass?: string }) {
@@ -94,11 +99,42 @@ export function FailureBadge({ failureClass }: { failureClass?: string }) {
 }
 
 export function FieldLabel({ htmlFor, children }: { htmlFor: string; children: ReactNode }) {
-  return <label htmlFor={htmlFor} className="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{children}</label>
+  return <label htmlFor={htmlFor} className="text-xs font-semibold text-foreground">{children}</label>
 }
 
 export function EmptyState({ label, detail }: { label: string; detail: string }) {
   return <div className="border border-dashed border-border bg-muted/40 px-4 py-8 text-center"><p className="text-sm font-medium">{label}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div>
+}
+
+export function DataTablePagination({
+  page,
+  pageSize,
+  total,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number
+  pageSize: number
+  total: number
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
+}) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const start = total === 0 ? 0 : page * pageSize + 1
+  const end = Math.min((page + 1) * pageSize, total)
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-x border-b border-border bg-muted/30 px-3 py-2 text-xs">
+      <p className="mr-auto text-muted-foreground" aria-live="polite">Showing {start}–{end} of {total} results</p>
+      <label className="flex items-center gap-2">Rows per page
+        <select aria-label="Rows per page" value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))} className="h-8 border border-input bg-background px-2 text-xs">
+          <option value={5}>5</option><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option>
+        </select>
+      </label>
+      <span className="drift-data text-[10px]">Page {page + 1} of {pageCount}</span>
+      <Button size="icon-sm" variant="outline" aria-label="Previous page" disabled={page === 0} onClick={() => onPageChange(page - 1)}><ChevronLeft className="size-3.5" aria-hidden="true" /></Button>
+      <Button size="icon-sm" variant="outline" aria-label="Next page" disabled={page >= pageCount - 1} onClick={() => onPageChange(page + 1)}><ChevronRight className="size-3.5" aria-hidden="true" /></Button>
+    </div>
+  )
 }
 
 export function DeviceIdentity({ device }: { device: DeviceView }) {

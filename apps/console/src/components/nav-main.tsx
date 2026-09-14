@@ -31,10 +31,11 @@ export function NavMain({
     items?: {
       title: string
       url: string
+      isActive?: boolean
     }[]
   }[]
   label?: string
-  onSelect?: (section: string) => void
+  onSelect?: (section: string, view?: string) => void
 }) {
   return (
     <SidebarGroup>
@@ -43,7 +44,7 @@ export function NavMain({
         {items.map((item) => (
           <Collapsible
             key={item.title}
-            defaultOpen={item.isActive}
+            open={item.isActive}
             className="group/collapsible"
             render={<SidebarMenuItem />}
           >
@@ -54,7 +55,7 @@ export function NavMain({
                   isActive={item.isActive}
                   aria-label={item.ariaLabel}
                   aria-current={item.isActive ? "page" : undefined}
-                  onClick={() => onSelect?.(item.title)}
+                  onClick={() => onSelect?.(item.title, item.items?.[0]?.url.split("/")[1])}
                 />
               }
             >
@@ -68,12 +69,13 @@ export function NavMain({
                 {item.items?.map((subItem) => (
                   <SidebarMenuSubItem key={subItem.title}>
                     <SidebarMenuSubButton
+                      isActive={subItem.isActive}
                       render={
                         <a
                           href={subItem.url}
                           onClick={(event) => {
                             event.preventDefault()
-                            onSelect?.(item.title)
+                            onSelect?.(item.title, subItem.url.split("/")[1])
                           }}
                         />
                       }

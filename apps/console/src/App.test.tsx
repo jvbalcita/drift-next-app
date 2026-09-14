@@ -3,10 +3,14 @@
 import "@testing-library/jest-dom/vitest"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 import App from "./App"
 
 describe("Drift command center", () => {
+  beforeEach(() => {
+    window.location.hash = "#overview/fleet"
+  })
+
   it("renders the fleet overview and selected device surfaces", () => {
     render(<App />)
 
@@ -86,26 +90,54 @@ describe("Drift command center", () => {
     expect(screen.getByText("Devices", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
   })
 
-  it("exposes Control as a separate mock-only destination", async () => {
+  it("keeps device tabs and pagination synchronized with the hash route", async () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("button", { name: /^Devices/ }))
+    expect(window.location.hash).toBe("#devices/all")
+    await user.click(screen.getByRole("tab", { name: "Online" }))
+    expect(window.location.hash).toBe("#devices/online")
+    expect(screen.getByText("Online", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
 
-    expect(screen.getByRole("heading", { name: /Mirror control/i })).toBeInTheDocument()
-    expect(screen.getByText("Preview only")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Start mirror preview/i })).toBeDisabled()
-    expect(screen.queryByRole("checkbox", { name: /Follower device Atlas 04/i })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("tab", { name: "All" }))
+    expect(screen.getByText("Showing 1–5 of 6 results")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Next page" }))
+    expect(screen.getByText("Showing 6–6 of 6 results")).toBeInTheDocument()
   })
 
-  it("supports labelled all-eligible follower selection without sending a command", async () => {
+  it("exposes Control as a compact-frame mock-only destination", async () => {
     const user = userEvent.setup()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
-    await user.click(screen.getByRole("button", { name: /Select all eligible/i }))
+    await user.click(await screen.findByRole("button", { name: /Open workspace settings/i }))
 
-    const startButton = screen.getByRole("button", { name: /Start mirror preview/i })
+    expect(screen.getByText("Control / Device Workspace")).toBeInTheDocument()
+    expect(screen.getByText("Control Center", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
+    expect(screen.getByText("Mock Only")).toBeInTheDocument()
+    expect(screen.getByRole("slider", { name: /Floating frame size/i })).toHaveAttribute("min", "480")
+    expect(screen.getByRole("slider", { name: /Small screen/i })).toHaveAttribute("max", "840")
+    expect(screen.getByRole("slider", { name: /Floating frame size/i })).toHaveAttribute("step", "40")
+    expect(screen.getByRole("slider", { name: /Small screen/i })).toHaveAttribute("step", "24")
+    expect(screen.queryByRole("dialog", { name: /workspace settings/i })).not.toBeInTheDocument()
+    expect(document.querySelector('[data-slot="scroll-area"]')).toBeInTheDocument()
+    await user.keyboard("{Escape}")
+    expect(screen.getByRole("button", { name: /Atlas 04/i })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    expect(screen.getByLabelText(/Atlas 04 floating phone frame/i)).toHaveStyle({ width: "270px", height: "480px" })
+    expect(screen.getByRole("button", { name: /Atlas 07/i })).toHaveStyle({ width: "108px", height: "192px" })
+  })
+
+  it("opens a source and selects followers by clicking compact frames", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    await user.click(screen.getByRole("button", { name: /Atlas 07/i }))
+
+    const startButton = screen.getByRole("button", { name: /Start preview/i })
     expect(startButton).toBeEnabled()
 
     await user.click(startButton)
@@ -113,12 +145,64 @@ describe("Drift command center", () => {
     expect(screen.getByText(/no device command was sent/i)).toBeInTheDocument()
   })
 
+  it("opens the workspace sheet and exposes OTG octet inputs", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(await screen.findByRole("button", { name: /Open workspace settings/i }))
+    expect(screen.getByRole("slider", { name: /Floating frame size/i })).toBeInTheDocument()
+    await user.click(screen.getByRole("tab", { name: /OTG setup/i }))
+
+    expect(screen.getByRole("textbox", { name: /IP range start octet 1/i })).toBeInTheDocument()
+    expect(screen.getByRole("textbox", { name: /IP range end octet 4/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^Activate$/i })).toBeEnabled()
+    await user.click(screen.getByRole("button", { name: /Unpin workspace settings/i }))
+    expect(screen.getByRole("button", { name: /Open workspace settings/i })).toBeInTheDocument()
+    expect(screen.queryByRole("slider", { name: /Floating frame size/i })).not.toBeInTheDocument()
+  })
+
+  it("keeps console preferences separate from the workspace and supports pinning the open device", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    const consoleSettings = screen.getAllByRole("button", { name: /^Settings$/ }).find(
+      (button) => button.getAttribute("aria-haspopup") === "dialog",
+    )
+    expect(consoleSettings).toBeDefined()
+    await user.click(consoleSettings!)
+
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/console settings/i)
+    expect(screen.getByRole("slider", { name: /Devices gap/i })).toBeInTheDocument()
+    expect(screen.getByRole("switch", { name: /Control small screen/i })).not.toBeChecked()
+    expect(screen.getByRole("button", { name: /^Connection$/i })).toHaveTextContent("WebRTC")
+
+    await user.click(screen.getByRole("tab", { name: /Device presentation/i }))
+    expect(screen.getByRole("group", { name: /Workspace Position/i })).toBeInTheDocument()
+    expect(screen.queryByText("Connected mock devices available in this browser workspace.")).not.toBeInTheDocument()
+
+    await user.keyboard("{Escape}")
+    const deviceListTrigger = screen.getAllByRole("button", { name: /^Devices$/ }).find(
+      (button) => button.getAttribute("aria-haspopup") === "dialog",
+    )
+    expect(deviceListTrigger).toBeDefined()
+    await user.click(deviceListTrigger!)
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/device list/i)
+    await user.keyboard("{Escape}")
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    await user.click(screen.getByRole("button", { name: /Pin floating device beside frames/i }))
+
+    expect(screen.getByRole("button", { name: /Unpin floating device/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Reset position/i })).toBeDisabled()
+  })
+
   it("loads the typed browser-only destinations through the shell", async () => {
     const user = userEvent.setup()
     render(<App />)
 
     const destinations = [
-      ["Devices", /Device registry/],
+      ["Devices", /Device Registry/],
       ["Accounts", /^Accounts$/],
       ["Network Profiles", /Network Profiles/],
       ["Groups", /Groups and membership/],
