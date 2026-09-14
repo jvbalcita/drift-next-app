@@ -164,6 +164,20 @@ describe("Drift command center", () => {
     expect(value).toHaveAttribute("aria-invalid", "true")
   })
 
+  it("keeps invalid network profile fields inline and focuses their summary", async () => {
+    const user = userEvent.setup()
+    window.location.hash = "#network-profiles/profiles"
+    render(<App />)
+
+    await user.click(await screen.findByRole("button", { name: "New profile" }))
+    await user.click(screen.getByRole("button", { name: "Save profile" }))
+
+    const alert = screen.getByRole("alert")
+    expect(alert).toHaveTextContent("Correct the highlighted fields")
+    await waitFor(() => expect(alert).toHaveFocus())
+    expect(screen.getByLabelText("Profile name")).toHaveAttribute("aria-invalid", "true")
+  })
+
   it("exposes Control as a compact-frame mock-only destination", async () => {
     const user = userEvent.setup()
     render(<App />)
