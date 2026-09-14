@@ -2,7 +2,6 @@ import { useMemo, useState } from "react"
 import {
   Activity,
   AlertTriangle,
-  ArrowUpRight,
   BatteryCharging,
   Check,
   CircleHelp,
@@ -27,6 +26,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Tabs,
   TabsContent,
@@ -100,9 +100,7 @@ export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
             </div>
           </CardHeader>
           <CardContent className="p-3 sm:p-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              {filteredDevices.map((device) => <DeviceCard key={device.id} device={device} selected={device.id === selectedDevice?.id} onSelect={() => { setSelectedDeviceId(device.id); setInspectorOpen(true) }} />)}
-            </div>
+            <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-xs"><caption className="sr-only">Fleet devices</caption><thead><tr className="border-b border-border text-[10px] uppercase tracking-[.08em] text-muted-foreground"><th className="pb-3">Device</th><th className="pb-3">Location</th><th className="pb-3">Health</th><th className="pb-3">Current work</th><th className="pb-3">Battery</th><th className="pb-3">Last seen</th></tr></thead><tbody>{filteredDevices.map((device) => <DeviceCard key={device.id} device={device} selected={device.id === selectedDevice?.id} onSelect={() => { setSelectedDeviceId(device.id); setInspectorOpen(true) }} />)}</tbody></table></div>
             {filteredDevices.length === 0 ? <p className="px-2 py-8 text-center text-sm text-muted-foreground">No devices match “{query}”.</p> : null}
           </CardContent>
         </Card>
@@ -145,14 +143,8 @@ export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
       <Sheet modal={false} open={inspectorOpen} onOpenChange={setInspectorOpen}><SheetContent className="w-full rounded-none sm:max-w-xl"><SheetHeader className="border-b border-border"><SheetTitle>{selectedDevice?.displayName ?? "Device inspector"}</SheetTitle><SheetDescription>Current device, activity, and health projections.</SheetDescription></SheetHeader>{selectedDevice ? <Tabs defaultValue="overview" className="p-4"><TabsList className="rounded-none border border-border bg-background p-0"><TabsTrigger value="overview" className="rounded-none">Overview</TabsTrigger><TabsTrigger value="activity" className="rounded-none">Activity</TabsTrigger><TabsTrigger value="health" className="rounded-none">Health</TabsTrigger></TabsList><TabsContent value="overview" className="space-y-3 text-xs"><DeviceStatusBadge status={selectedDevice.status} /><p>{selectedDevice.location}</p><p>Edge agent {selectedDevice.agentId} · last seen {selectedDevice.lastSeen}</p></TabsContent><TabsContent value="activity"><ActivityTimeline events={snapshot.events.slice(0, 4)} compact /></TabsContent><TabsContent value="health" className="text-xs">Battery {selectedDevice.batteryPercent}% · latency {selectedDevice.latencyMs} ms · {selectedDevice.workflow}</TabsContent></Tabs> : null}</SheetContent></Sheet>
 
       <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.42fr)]">
-        <Card className="rounded-none border-border bg-card">
-          <CardHeader className="border-b border-border pb-4"><CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Activity className="size-4 text-primary" aria-hidden="true" />Recent activity</CardTitle><CardDescription className="mt-2 text-xs">Auditable events from the mock workspace</CardDescription></CardHeader>
-          <CardContent className="pt-4"><ActivityTimeline events={snapshot.events.slice(0, 4)} /></CardContent>
-        </Card>
-        <Card className="rounded-none border-border bg-card">
-          <CardHeader className="border-b border-border pb-4"><CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Server className="size-4 text-primary" aria-hidden="true" />Control plane</CardTitle><CardDescription className="mt-2 text-xs">Local bootstrap readiness</CardDescription></CardHeader>
-          <CardContent className="space-y-3 pt-4"><ReadinessRow label="Web console" state="Ready" /><ReadinessRow label="Typed mock client" state="Ready" /><ReadinessRow label="Go services" state="Planned" muted /><ReadinessRow label="Device adapters" state="Disabled" muted /></CardContent>
-        </Card>
+        <Collapsible className="border border-border bg-card"><CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left"><span><span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Activity className="size-4 text-primary" aria-hidden="true" />Recent activity</span><span className="mt-2 block text-xs text-muted-foreground">Auditable events from the mock workspace</span></span><span className="text-xs text-muted-foreground">Show</span></CollapsibleTrigger><CollapsibleContent className="border-t border-border p-4"><ActivityTimeline events={snapshot.events.slice(0, 4)} /></CollapsibleContent></Collapsible>
+        <Collapsible className="border border-border bg-card"><CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left"><span><span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Server className="size-4 text-primary" aria-hidden="true" />Runtime readiness</span><span className="mt-2 block text-xs text-muted-foreground">Local bootstrap readiness</span></span><span className="text-xs text-muted-foreground">Show</span></CollapsibleTrigger><CollapsibleContent className="space-y-3 border-t border-border p-4"><ReadinessRow label="Web console" state="Ready" /><ReadinessRow label="Typed mock client" state="Ready" /><ReadinessRow label="Go services" state="Planned" muted /><ReadinessRow label="Device adapters" state="Disabled" muted /></CollapsibleContent></Collapsible>
       </section>
 
       <footer className="mt-6 flex flex-col gap-2 border-t border-border pt-4 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>Drift Command Center · local bootstrap</span><span className="flex items-center gap-1.5 font-mono uppercase tracking-[0.08em] text-amber-700"><XCircle className="size-3" aria-hidden="true" />Demo mode · actions disabled</span></footer>
@@ -166,14 +158,7 @@ function MetricCard({ label, value, detail, icon: Icon, accent }: { label: strin
 }
 
 function DeviceCard({ device, selected, onSelect }: { device: DeviceView; selected: boolean; onSelect: () => void }) {
-  const selectionClass = selected ? "border-primary border-l-4 bg-secondary/80" : "border-border bg-card hover:border-primary/60 hover:bg-muted"
-  const progressClass = device.status === "attention" ? "bg-amber-600" : device.status === "offline" ? "bg-slate-500" : "bg-primary"
-  return <button type="button" aria-pressed={selected} onClick={onSelect} className={`group w-full rounded-none border p-4 text-left transition-colors focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/30 ${selectionClass}`}>
-    <div className="mb-3 flex items-start gap-3"><div className={`mt-1 size-2 shrink-0 rounded-full ${statusDotClass(device.status)}`} /><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-sm font-medium">{device.displayName}</p><DeviceStatusBadge status={device.status} /></div><p className="mt-1 truncate text-[11px] text-muted-foreground">{device.location}</p></div></div>
-    <div className="mb-3 flex items-center justify-between gap-2 text-[11px]"><span className="truncate text-muted-foreground">{device.workflow}</span><span className="drift-data shrink-0 text-muted-foreground">{device.taskProgress}%</span></div>
-    <div className="h-1 overflow-hidden rounded-none bg-muted"><div className={`h-full rounded-none ${progressClass}`} style={{ width: `${device.taskProgress}%` }} /></div>
-    <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground"><span className="flex items-center gap-1"><BatteryCharging className="size-3" aria-hidden="true" />{device.batteryPercent}%</span><span className="flex items-center gap-1"><Clock3 className="size-3" aria-hidden="true" />{device.lastSeen}</span><ArrowUpRight className={`size-3 ${selected ? "text-primary" : ""}`} aria-hidden="true" /></div>
-  </button>
+  return <tr className={`border-b border-border/70 transition-colors hover:bg-muted/60 ${selected ? "bg-secondary/60" : ""}`}><td className="py-3 pr-3"><button type="button" aria-pressed={selected} onClick={onSelect} className="flex items-center gap-2 text-left font-medium focus-visible:outline-2 focus-visible:outline-primary"><span className={`size-2 rounded-full ${statusDotClass(device.status)}`} /><span>{device.displayName}</span></button><p className="drift-data mt-1 text-[10px] text-muted-foreground">{device.stableIdentity}</p></td><td className="py-3 pr-3 text-muted-foreground">{device.location}</td><td className="py-3 pr-3"><DeviceStatusBadge status={device.status} /></td><td className="py-3 pr-3"><p>{device.workflow}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{device.taskProgress}%</p></td><td className="py-3 pr-3">{device.batteryPercent}%</td><td className="py-3 text-muted-foreground">{device.lastSeen}</td></tr>
 }
 
 function DeviceStatusBadge({ status }: { status: DeviceStatus }) {
