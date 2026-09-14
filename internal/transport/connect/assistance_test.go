@@ -38,6 +38,22 @@ func TestValidateAssistanceRequestRejectsEvidenceWithoutBoundedSanitizedReferenc
 	}
 }
 
+func TestValidateAssistanceRequestRejectsSensitiveEvidenceMetadata(t *testing.T) {
+	request := &driftv1.ProposeRequest{
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-1"},
+		RequestId: "request-1",
+		UseCase:   driftv1.AssistanceUseCase_ASSISTANCE_USE_CASE_UNKNOWN_SCREEN_SUMMARY,
+		Evidence: []*driftv1.SanitizedEvidenceReference{
+			{ArtifactId: "artifact-1", ContentHash: "sha256:abc", MediaType: "token=example-value", SchemaVersion: 1},
+		},
+	}
+
+	err := transportconnect.ValidateAssistanceRequest(request)
+	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("ValidateAssistanceRequest() code = %v, want %v (err: %v)", connectrpc.CodeOf(err), connectrpc.CodeInvalidArgument, err)
+	}
+}
+
 func TestValidateAssistanceResponseRejectsOversizedOrSensitiveProposal(t *testing.T) {
 	request := &driftv1.ProposeRequest{MaxResponseBytes: 16}
 	response := &driftv1.ProposeResponse{Suggestion: &driftv1.AssistanceSuggestion{ProposalJson: "0123456789abcdefg"}}

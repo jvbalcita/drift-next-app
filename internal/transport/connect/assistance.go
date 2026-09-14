@@ -72,6 +72,11 @@ func validateEvidence(evidence []*driftv1.SanitizedEvidenceReference) error {
 		if len(reference.GetArtifactId()) > maxEvidenceFieldBytes || len(reference.GetContentHash()) > maxEvidenceFieldBytes || len(reference.GetMediaType()) > maxEvidenceFieldBytes {
 			return invalidArgument("assistance evidence reference exceeds the safe limit")
 		}
+		for _, value := range []string{reference.GetArtifactId(), reference.GetContentHash(), reference.GetMediaType()} {
+			if redaction.RedactString(value) != value {
+				return invalidArgument("each assistance evidence reference must be bounded and sanitized")
+			}
+		}
 	}
 	return nil
 }
