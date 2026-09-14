@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { render, screen, within } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it } from "vitest"
 import App from "./App"
@@ -118,6 +118,30 @@ describe("Drift command center", () => {
     render(<App />)
     expect(await screen.findByRole("tab", { name: "Pending candidates" })).toHaveAttribute("data-active")
     expect(screen.getByText("Pending Candidates", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
+  })
+
+  it("selects the Settings history view from its hash route", async () => {
+    window.location.hash = "#settings/history"
+    render(<App />)
+
+    expect(await screen.findByRole("tab", { name: "History" })).toHaveAttribute("data-active")
+    expect(screen.getByText("History", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
+  })
+
+  it("keeps invalid setting JSON inline and focuses its error summary", async () => {
+    const user = userEvent.setup()
+    window.location.hash = "#settings/workspace"
+    render(<App />)
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }))
+    const value = screen.getByLabelText("Value JSON")
+    await user.clear(value)
+    await user.type(value, "not json")
+    await user.click(screen.getByRole("button", { name: "Save Setting" }))
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter valid JSON")
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveFocus())
+    expect(value).toHaveAttribute("aria-invalid", "true")
   })
 
   it("exposes Control as a compact-frame mock-only destination", async () => {

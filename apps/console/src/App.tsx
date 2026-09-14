@@ -97,7 +97,7 @@ function renderSection(route: Route, snapshot: ReturnType<typeof useControlPlane
     case "Runs": return <RunsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Events": return <EventsPage snapshot={snapshot} />
     case "Policies": return <PoliciesPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
-    case "Settings": return <SettingsPage snapshot={snapshot} dispatch={dispatch} />
+    case "Settings": return <SettingsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Overview":
     default: return <OverviewPage snapshot={snapshot} dispatch={dispatch} />
   }
