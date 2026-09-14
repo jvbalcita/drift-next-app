@@ -36,11 +36,71 @@ const (
 	// AccountServiceListAccountReferencesProcedure is the fully-qualified name of the AccountService's
 	// ListAccountReferences RPC.
 	AccountServiceListAccountReferencesProcedure = "/drift.v1.AccountService/ListAccountReferences"
+	// AccountServiceListAccountSourcesProcedure is the fully-qualified name of the AccountService's
+	// ListAccountSources RPC.
+	AccountServiceListAccountSourcesProcedure = "/drift.v1.AccountService/ListAccountSources"
+	// AccountServiceCreateAccountSourceProcedure is the fully-qualified name of the AccountService's
+	// CreateAccountSource RPC.
+	AccountServiceCreateAccountSourceProcedure = "/drift.v1.AccountService/CreateAccountSource"
+	// AccountServiceUpdateAccountSourceProcedure is the fully-qualified name of the AccountService's
+	// UpdateAccountSource RPC.
+	AccountServiceUpdateAccountSourceProcedure = "/drift.v1.AccountService/UpdateAccountSource"
+	// AccountServiceTransitionAccountSourceProcedure is the fully-qualified name of the
+	// AccountService's TransitionAccountSource RPC.
+	AccountServiceTransitionAccountSourceProcedure = "/drift.v1.AccountService/TransitionAccountSource"
+	// AccountServiceCreateAccountProcedure is the fully-qualified name of the AccountService's
+	// CreateAccount RPC.
+	AccountServiceCreateAccountProcedure = "/drift.v1.AccountService/CreateAccount"
+	// AccountServiceUpdateAccountProcedure is the fully-qualified name of the AccountService's
+	// UpdateAccount RPC.
+	AccountServiceUpdateAccountProcedure = "/drift.v1.AccountService/UpdateAccount"
+	// AccountServiceUpdateAccountStateProcedure is the fully-qualified name of the AccountService's
+	// UpdateAccountState RPC.
+	AccountServiceUpdateAccountStateProcedure = "/drift.v1.AccountService/UpdateAccountState"
+	// AccountServiceListAccountServiceStatesProcedure is the fully-qualified name of the
+	// AccountService's ListAccountServiceStates RPC.
+	AccountServiceListAccountServiceStatesProcedure = "/drift.v1.AccountService/ListAccountServiceStates"
+	// AccountServiceListAccountServiceStateHistoryProcedure is the fully-qualified name of the
+	// AccountService's ListAccountServiceStateHistory RPC.
+	AccountServiceListAccountServiceStateHistoryProcedure = "/drift.v1.AccountService/ListAccountServiceStateHistory"
+	// AccountServiceListAccountRunsProcedure is the fully-qualified name of the AccountService's
+	// ListAccountRuns RPC.
+	AccountServiceListAccountRunsProcedure = "/drift.v1.AccountService/ListAccountRuns"
+	// AccountServiceListAccountRunEventsProcedure is the fully-qualified name of the AccountService's
+	// ListAccountRunEvents RPC.
+	AccountServiceListAccountRunEventsProcedure = "/drift.v1.AccountService/ListAccountRunEvents"
+	// AccountServiceAssignAccountDeviceProcedure is the fully-qualified name of the AccountService's
+	// AssignAccountDevice RPC.
+	AccountServiceAssignAccountDeviceProcedure = "/drift.v1.AccountService/AssignAccountDevice"
+	// AccountServiceEndAccountDeviceAssignmentProcedure is the fully-qualified name of the
+	// AccountService's EndAccountDeviceAssignment RPC.
+	AccountServiceEndAccountDeviceAssignmentProcedure = "/drift.v1.AccountService/EndAccountDeviceAssignment"
+	// AccountServiceListAccountDeviceAssignmentsProcedure is the fully-qualified name of the
+	// AccountService's ListAccountDeviceAssignments RPC.
+	AccountServiceListAccountDeviceAssignmentsProcedure = "/drift.v1.AccountService/ListAccountDeviceAssignments"
+	// AccountServiceListAccountSyncEventsProcedure is the fully-qualified name of the AccountService's
+	// ListAccountSyncEvents RPC.
+	AccountServiceListAccountSyncEventsProcedure = "/drift.v1.AccountService/ListAccountSyncEvents"
 )
 
 // AccountServiceClient is a client for the drift.v1.AccountService service.
 type AccountServiceClient interface {
 	ListAccountReferences(context.Context, *connect.Request[v1.ListAccountReferencesRequest]) (*connect.Response[v1.ListAccountReferencesResponse], error)
+	ListAccountSources(context.Context, *connect.Request[v1.ListAccountSourcesRequest]) (*connect.Response[v1.ListAccountSourcesResponse], error)
+	CreateAccountSource(context.Context, *connect.Request[v1.CreateAccountSourceRequest]) (*connect.Response[v1.CreateAccountSourceResponse], error)
+	UpdateAccountSource(context.Context, *connect.Request[v1.UpdateAccountSourceRequest]) (*connect.Response[v1.UpdateAccountSourceResponse], error)
+	TransitionAccountSource(context.Context, *connect.Request[v1.TransitionAccountSourceRequest]) (*connect.Response[v1.TransitionAccountSourceResponse], error)
+	CreateAccount(context.Context, *connect.Request[v1.CreateAccountRequest]) (*connect.Response[v1.CreateAccountResponse], error)
+	UpdateAccount(context.Context, *connect.Request[v1.UpdateAccountRequest]) (*connect.Response[v1.UpdateAccountResponse], error)
+	UpdateAccountState(context.Context, *connect.Request[v1.UpdateAccountStateRequest]) (*connect.Response[v1.UpdateAccountStateResponse], error)
+	ListAccountServiceStates(context.Context, *connect.Request[v1.ListAccountServiceStatesRequest]) (*connect.Response[v1.ListAccountServiceStatesResponse], error)
+	ListAccountServiceStateHistory(context.Context, *connect.Request[v1.ListAccountServiceStateHistoryRequest]) (*connect.Response[v1.ListAccountServiceStateHistoryResponse], error)
+	ListAccountRuns(context.Context, *connect.Request[v1.ListAccountRunsRequest]) (*connect.Response[v1.ListAccountRunsResponse], error)
+	ListAccountRunEvents(context.Context, *connect.Request[v1.ListAccountRunEventsRequest]) (*connect.Response[v1.ListAccountRunEventsResponse], error)
+	AssignAccountDevice(context.Context, *connect.Request[v1.AssignAccountDeviceRequest]) (*connect.Response[v1.AssignAccountDeviceResponse], error)
+	EndAccountDeviceAssignment(context.Context, *connect.Request[v1.EndAccountDeviceAssignmentRequest]) (*connect.Response[v1.EndAccountDeviceAssignmentResponse], error)
+	ListAccountDeviceAssignments(context.Context, *connect.Request[v1.ListAccountDeviceAssignmentsRequest]) (*connect.Response[v1.ListAccountDeviceAssignmentsResponse], error)
+	ListAccountSyncEvents(context.Context, *connect.Request[v1.ListAccountSyncEventsRequest]) (*connect.Response[v1.ListAccountSyncEventsResponse], error)
 }
 
 // NewAccountServiceClient constructs a client for the drift.v1.AccountService service. By default,
@@ -60,12 +120,117 @@ func NewAccountServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(accountServiceMethods.ByName("ListAccountReferences")),
 			connect.WithClientOptions(opts...),
 		),
+		listAccountSources: connect.NewClient[v1.ListAccountSourcesRequest, v1.ListAccountSourcesResponse](
+			httpClient,
+			baseURL+AccountServiceListAccountSourcesProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("ListAccountSources")),
+			connect.WithClientOptions(opts...),
+		),
+		createAccountSource: connect.NewClient[v1.CreateAccountSourceRequest, v1.CreateAccountSourceResponse](
+			httpClient,
+			baseURL+AccountServiceCreateAccountSourceProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("CreateAccountSource")),
+			connect.WithClientOptions(opts...),
+		),
+		updateAccountSource: connect.NewClient[v1.UpdateAccountSourceRequest, v1.UpdateAccountSourceResponse](
+			httpClient,
+			baseURL+AccountServiceUpdateAccountSourceProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("UpdateAccountSource")),
+			connect.WithClientOptions(opts...),
+		),
+		transitionAccountSource: connect.NewClient[v1.TransitionAccountSourceRequest, v1.TransitionAccountSourceResponse](
+			httpClient,
+			baseURL+AccountServiceTransitionAccountSourceProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("TransitionAccountSource")),
+			connect.WithClientOptions(opts...),
+		),
+		createAccount: connect.NewClient[v1.CreateAccountRequest, v1.CreateAccountResponse](
+			httpClient,
+			baseURL+AccountServiceCreateAccountProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("CreateAccount")),
+			connect.WithClientOptions(opts...),
+		),
+		updateAccount: connect.NewClient[v1.UpdateAccountRequest, v1.UpdateAccountResponse](
+			httpClient,
+			baseURL+AccountServiceUpdateAccountProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("UpdateAccount")),
+			connect.WithClientOptions(opts...),
+		),
+		updateAccountState: connect.NewClient[v1.UpdateAccountStateRequest, v1.UpdateAccountStateResponse](
+			httpClient,
+			baseURL+AccountServiceUpdateAccountStateProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("UpdateAccountState")),
+			connect.WithClientOptions(opts...),
+		),
+		listAccountServiceStates: connect.NewClient[v1.ListAccountServiceStatesRequest, v1.ListAccountServiceStatesResponse](
+			httpClient,
+			baseURL+AccountServiceListAccountServiceStatesProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("ListAccountServiceStates")),
+			connect.WithClientOptions(opts...),
+		),
+		listAccountServiceStateHistory: connect.NewClient[v1.ListAccountServiceStateHistoryRequest, v1.ListAccountServiceStateHistoryResponse](
+			httpClient,
+			baseURL+AccountServiceListAccountServiceStateHistoryProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("ListAccountServiceStateHistory")),
+			connect.WithClientOptions(opts...),
+		),
+		listAccountRuns: connect.NewClient[v1.ListAccountRunsRequest, v1.ListAccountRunsResponse](
+			httpClient,
+			baseURL+AccountServiceListAccountRunsProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("ListAccountRuns")),
+			connect.WithClientOptions(opts...),
+		),
+		listAccountRunEvents: connect.NewClient[v1.ListAccountRunEventsRequest, v1.ListAccountRunEventsResponse](
+			httpClient,
+			baseURL+AccountServiceListAccountRunEventsProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("ListAccountRunEvents")),
+			connect.WithClientOptions(opts...),
+		),
+		assignAccountDevice: connect.NewClient[v1.AssignAccountDeviceRequest, v1.AssignAccountDeviceResponse](
+			httpClient,
+			baseURL+AccountServiceAssignAccountDeviceProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("AssignAccountDevice")),
+			connect.WithClientOptions(opts...),
+		),
+		endAccountDeviceAssignment: connect.NewClient[v1.EndAccountDeviceAssignmentRequest, v1.EndAccountDeviceAssignmentResponse](
+			httpClient,
+			baseURL+AccountServiceEndAccountDeviceAssignmentProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("EndAccountDeviceAssignment")),
+			connect.WithClientOptions(opts...),
+		),
+		listAccountDeviceAssignments: connect.NewClient[v1.ListAccountDeviceAssignmentsRequest, v1.ListAccountDeviceAssignmentsResponse](
+			httpClient,
+			baseURL+AccountServiceListAccountDeviceAssignmentsProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("ListAccountDeviceAssignments")),
+			connect.WithClientOptions(opts...),
+		),
+		listAccountSyncEvents: connect.NewClient[v1.ListAccountSyncEventsRequest, v1.ListAccountSyncEventsResponse](
+			httpClient,
+			baseURL+AccountServiceListAccountSyncEventsProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("ListAccountSyncEvents")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // accountServiceClient implements AccountServiceClient.
 type accountServiceClient struct {
-	listAccountReferences *connect.Client[v1.ListAccountReferencesRequest, v1.ListAccountReferencesResponse]
+	listAccountReferences          *connect.Client[v1.ListAccountReferencesRequest, v1.ListAccountReferencesResponse]
+	listAccountSources             *connect.Client[v1.ListAccountSourcesRequest, v1.ListAccountSourcesResponse]
+	createAccountSource            *connect.Client[v1.CreateAccountSourceRequest, v1.CreateAccountSourceResponse]
+	updateAccountSource            *connect.Client[v1.UpdateAccountSourceRequest, v1.UpdateAccountSourceResponse]
+	transitionAccountSource        *connect.Client[v1.TransitionAccountSourceRequest, v1.TransitionAccountSourceResponse]
+	createAccount                  *connect.Client[v1.CreateAccountRequest, v1.CreateAccountResponse]
+	updateAccount                  *connect.Client[v1.UpdateAccountRequest, v1.UpdateAccountResponse]
+	updateAccountState             *connect.Client[v1.UpdateAccountStateRequest, v1.UpdateAccountStateResponse]
+	listAccountServiceStates       *connect.Client[v1.ListAccountServiceStatesRequest, v1.ListAccountServiceStatesResponse]
+	listAccountServiceStateHistory *connect.Client[v1.ListAccountServiceStateHistoryRequest, v1.ListAccountServiceStateHistoryResponse]
+	listAccountRuns                *connect.Client[v1.ListAccountRunsRequest, v1.ListAccountRunsResponse]
+	listAccountRunEvents           *connect.Client[v1.ListAccountRunEventsRequest, v1.ListAccountRunEventsResponse]
+	assignAccountDevice            *connect.Client[v1.AssignAccountDeviceRequest, v1.AssignAccountDeviceResponse]
+	endAccountDeviceAssignment     *connect.Client[v1.EndAccountDeviceAssignmentRequest, v1.EndAccountDeviceAssignmentResponse]
+	listAccountDeviceAssignments   *connect.Client[v1.ListAccountDeviceAssignmentsRequest, v1.ListAccountDeviceAssignmentsResponse]
+	listAccountSyncEvents          *connect.Client[v1.ListAccountSyncEventsRequest, v1.ListAccountSyncEventsResponse]
 }
 
 // ListAccountReferences calls drift.v1.AccountService.ListAccountReferences.
@@ -73,9 +238,99 @@ func (c *accountServiceClient) ListAccountReferences(ctx context.Context, req *c
 	return c.listAccountReferences.CallUnary(ctx, req)
 }
 
+// ListAccountSources calls drift.v1.AccountService.ListAccountSources.
+func (c *accountServiceClient) ListAccountSources(ctx context.Context, req *connect.Request[v1.ListAccountSourcesRequest]) (*connect.Response[v1.ListAccountSourcesResponse], error) {
+	return c.listAccountSources.CallUnary(ctx, req)
+}
+
+// CreateAccountSource calls drift.v1.AccountService.CreateAccountSource.
+func (c *accountServiceClient) CreateAccountSource(ctx context.Context, req *connect.Request[v1.CreateAccountSourceRequest]) (*connect.Response[v1.CreateAccountSourceResponse], error) {
+	return c.createAccountSource.CallUnary(ctx, req)
+}
+
+// UpdateAccountSource calls drift.v1.AccountService.UpdateAccountSource.
+func (c *accountServiceClient) UpdateAccountSource(ctx context.Context, req *connect.Request[v1.UpdateAccountSourceRequest]) (*connect.Response[v1.UpdateAccountSourceResponse], error) {
+	return c.updateAccountSource.CallUnary(ctx, req)
+}
+
+// TransitionAccountSource calls drift.v1.AccountService.TransitionAccountSource.
+func (c *accountServiceClient) TransitionAccountSource(ctx context.Context, req *connect.Request[v1.TransitionAccountSourceRequest]) (*connect.Response[v1.TransitionAccountSourceResponse], error) {
+	return c.transitionAccountSource.CallUnary(ctx, req)
+}
+
+// CreateAccount calls drift.v1.AccountService.CreateAccount.
+func (c *accountServiceClient) CreateAccount(ctx context.Context, req *connect.Request[v1.CreateAccountRequest]) (*connect.Response[v1.CreateAccountResponse], error) {
+	return c.createAccount.CallUnary(ctx, req)
+}
+
+// UpdateAccount calls drift.v1.AccountService.UpdateAccount.
+func (c *accountServiceClient) UpdateAccount(ctx context.Context, req *connect.Request[v1.UpdateAccountRequest]) (*connect.Response[v1.UpdateAccountResponse], error) {
+	return c.updateAccount.CallUnary(ctx, req)
+}
+
+// UpdateAccountState calls drift.v1.AccountService.UpdateAccountState.
+func (c *accountServiceClient) UpdateAccountState(ctx context.Context, req *connect.Request[v1.UpdateAccountStateRequest]) (*connect.Response[v1.UpdateAccountStateResponse], error) {
+	return c.updateAccountState.CallUnary(ctx, req)
+}
+
+// ListAccountServiceStates calls drift.v1.AccountService.ListAccountServiceStates.
+func (c *accountServiceClient) ListAccountServiceStates(ctx context.Context, req *connect.Request[v1.ListAccountServiceStatesRequest]) (*connect.Response[v1.ListAccountServiceStatesResponse], error) {
+	return c.listAccountServiceStates.CallUnary(ctx, req)
+}
+
+// ListAccountServiceStateHistory calls drift.v1.AccountService.ListAccountServiceStateHistory.
+func (c *accountServiceClient) ListAccountServiceStateHistory(ctx context.Context, req *connect.Request[v1.ListAccountServiceStateHistoryRequest]) (*connect.Response[v1.ListAccountServiceStateHistoryResponse], error) {
+	return c.listAccountServiceStateHistory.CallUnary(ctx, req)
+}
+
+// ListAccountRuns calls drift.v1.AccountService.ListAccountRuns.
+func (c *accountServiceClient) ListAccountRuns(ctx context.Context, req *connect.Request[v1.ListAccountRunsRequest]) (*connect.Response[v1.ListAccountRunsResponse], error) {
+	return c.listAccountRuns.CallUnary(ctx, req)
+}
+
+// ListAccountRunEvents calls drift.v1.AccountService.ListAccountRunEvents.
+func (c *accountServiceClient) ListAccountRunEvents(ctx context.Context, req *connect.Request[v1.ListAccountRunEventsRequest]) (*connect.Response[v1.ListAccountRunEventsResponse], error) {
+	return c.listAccountRunEvents.CallUnary(ctx, req)
+}
+
+// AssignAccountDevice calls drift.v1.AccountService.AssignAccountDevice.
+func (c *accountServiceClient) AssignAccountDevice(ctx context.Context, req *connect.Request[v1.AssignAccountDeviceRequest]) (*connect.Response[v1.AssignAccountDeviceResponse], error) {
+	return c.assignAccountDevice.CallUnary(ctx, req)
+}
+
+// EndAccountDeviceAssignment calls drift.v1.AccountService.EndAccountDeviceAssignment.
+func (c *accountServiceClient) EndAccountDeviceAssignment(ctx context.Context, req *connect.Request[v1.EndAccountDeviceAssignmentRequest]) (*connect.Response[v1.EndAccountDeviceAssignmentResponse], error) {
+	return c.endAccountDeviceAssignment.CallUnary(ctx, req)
+}
+
+// ListAccountDeviceAssignments calls drift.v1.AccountService.ListAccountDeviceAssignments.
+func (c *accountServiceClient) ListAccountDeviceAssignments(ctx context.Context, req *connect.Request[v1.ListAccountDeviceAssignmentsRequest]) (*connect.Response[v1.ListAccountDeviceAssignmentsResponse], error) {
+	return c.listAccountDeviceAssignments.CallUnary(ctx, req)
+}
+
+// ListAccountSyncEvents calls drift.v1.AccountService.ListAccountSyncEvents.
+func (c *accountServiceClient) ListAccountSyncEvents(ctx context.Context, req *connect.Request[v1.ListAccountSyncEventsRequest]) (*connect.Response[v1.ListAccountSyncEventsResponse], error) {
+	return c.listAccountSyncEvents.CallUnary(ctx, req)
+}
+
 // AccountServiceHandler is an implementation of the drift.v1.AccountService service.
 type AccountServiceHandler interface {
 	ListAccountReferences(context.Context, *connect.Request[v1.ListAccountReferencesRequest]) (*connect.Response[v1.ListAccountReferencesResponse], error)
+	ListAccountSources(context.Context, *connect.Request[v1.ListAccountSourcesRequest]) (*connect.Response[v1.ListAccountSourcesResponse], error)
+	CreateAccountSource(context.Context, *connect.Request[v1.CreateAccountSourceRequest]) (*connect.Response[v1.CreateAccountSourceResponse], error)
+	UpdateAccountSource(context.Context, *connect.Request[v1.UpdateAccountSourceRequest]) (*connect.Response[v1.UpdateAccountSourceResponse], error)
+	TransitionAccountSource(context.Context, *connect.Request[v1.TransitionAccountSourceRequest]) (*connect.Response[v1.TransitionAccountSourceResponse], error)
+	CreateAccount(context.Context, *connect.Request[v1.CreateAccountRequest]) (*connect.Response[v1.CreateAccountResponse], error)
+	UpdateAccount(context.Context, *connect.Request[v1.UpdateAccountRequest]) (*connect.Response[v1.UpdateAccountResponse], error)
+	UpdateAccountState(context.Context, *connect.Request[v1.UpdateAccountStateRequest]) (*connect.Response[v1.UpdateAccountStateResponse], error)
+	ListAccountServiceStates(context.Context, *connect.Request[v1.ListAccountServiceStatesRequest]) (*connect.Response[v1.ListAccountServiceStatesResponse], error)
+	ListAccountServiceStateHistory(context.Context, *connect.Request[v1.ListAccountServiceStateHistoryRequest]) (*connect.Response[v1.ListAccountServiceStateHistoryResponse], error)
+	ListAccountRuns(context.Context, *connect.Request[v1.ListAccountRunsRequest]) (*connect.Response[v1.ListAccountRunsResponse], error)
+	ListAccountRunEvents(context.Context, *connect.Request[v1.ListAccountRunEventsRequest]) (*connect.Response[v1.ListAccountRunEventsResponse], error)
+	AssignAccountDevice(context.Context, *connect.Request[v1.AssignAccountDeviceRequest]) (*connect.Response[v1.AssignAccountDeviceResponse], error)
+	EndAccountDeviceAssignment(context.Context, *connect.Request[v1.EndAccountDeviceAssignmentRequest]) (*connect.Response[v1.EndAccountDeviceAssignmentResponse], error)
+	ListAccountDeviceAssignments(context.Context, *connect.Request[v1.ListAccountDeviceAssignmentsRequest]) (*connect.Response[v1.ListAccountDeviceAssignmentsResponse], error)
+	ListAccountSyncEvents(context.Context, *connect.Request[v1.ListAccountSyncEventsRequest]) (*connect.Response[v1.ListAccountSyncEventsResponse], error)
 }
 
 // NewAccountServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -91,10 +346,130 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 		connect.WithSchema(accountServiceMethods.ByName("ListAccountReferences")),
 		connect.WithHandlerOptions(opts...),
 	)
+	accountServiceListAccountSourcesHandler := connect.NewUnaryHandler(
+		AccountServiceListAccountSourcesProcedure,
+		svc.ListAccountSources,
+		connect.WithSchema(accountServiceMethods.ByName("ListAccountSources")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceCreateAccountSourceHandler := connect.NewUnaryHandler(
+		AccountServiceCreateAccountSourceProcedure,
+		svc.CreateAccountSource,
+		connect.WithSchema(accountServiceMethods.ByName("CreateAccountSource")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceUpdateAccountSourceHandler := connect.NewUnaryHandler(
+		AccountServiceUpdateAccountSourceProcedure,
+		svc.UpdateAccountSource,
+		connect.WithSchema(accountServiceMethods.ByName("UpdateAccountSource")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceTransitionAccountSourceHandler := connect.NewUnaryHandler(
+		AccountServiceTransitionAccountSourceProcedure,
+		svc.TransitionAccountSource,
+		connect.WithSchema(accountServiceMethods.ByName("TransitionAccountSource")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceCreateAccountHandler := connect.NewUnaryHandler(
+		AccountServiceCreateAccountProcedure,
+		svc.CreateAccount,
+		connect.WithSchema(accountServiceMethods.ByName("CreateAccount")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceUpdateAccountHandler := connect.NewUnaryHandler(
+		AccountServiceUpdateAccountProcedure,
+		svc.UpdateAccount,
+		connect.WithSchema(accountServiceMethods.ByName("UpdateAccount")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceUpdateAccountStateHandler := connect.NewUnaryHandler(
+		AccountServiceUpdateAccountStateProcedure,
+		svc.UpdateAccountState,
+		connect.WithSchema(accountServiceMethods.ByName("UpdateAccountState")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceListAccountServiceStatesHandler := connect.NewUnaryHandler(
+		AccountServiceListAccountServiceStatesProcedure,
+		svc.ListAccountServiceStates,
+		connect.WithSchema(accountServiceMethods.ByName("ListAccountServiceStates")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceListAccountServiceStateHistoryHandler := connect.NewUnaryHandler(
+		AccountServiceListAccountServiceStateHistoryProcedure,
+		svc.ListAccountServiceStateHistory,
+		connect.WithSchema(accountServiceMethods.ByName("ListAccountServiceStateHistory")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceListAccountRunsHandler := connect.NewUnaryHandler(
+		AccountServiceListAccountRunsProcedure,
+		svc.ListAccountRuns,
+		connect.WithSchema(accountServiceMethods.ByName("ListAccountRuns")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceListAccountRunEventsHandler := connect.NewUnaryHandler(
+		AccountServiceListAccountRunEventsProcedure,
+		svc.ListAccountRunEvents,
+		connect.WithSchema(accountServiceMethods.ByName("ListAccountRunEvents")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceAssignAccountDeviceHandler := connect.NewUnaryHandler(
+		AccountServiceAssignAccountDeviceProcedure,
+		svc.AssignAccountDevice,
+		connect.WithSchema(accountServiceMethods.ByName("AssignAccountDevice")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceEndAccountDeviceAssignmentHandler := connect.NewUnaryHandler(
+		AccountServiceEndAccountDeviceAssignmentProcedure,
+		svc.EndAccountDeviceAssignment,
+		connect.WithSchema(accountServiceMethods.ByName("EndAccountDeviceAssignment")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceListAccountDeviceAssignmentsHandler := connect.NewUnaryHandler(
+		AccountServiceListAccountDeviceAssignmentsProcedure,
+		svc.ListAccountDeviceAssignments,
+		connect.WithSchema(accountServiceMethods.ByName("ListAccountDeviceAssignments")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceListAccountSyncEventsHandler := connect.NewUnaryHandler(
+		AccountServiceListAccountSyncEventsProcedure,
+		svc.ListAccountSyncEvents,
+		connect.WithSchema(accountServiceMethods.ByName("ListAccountSyncEvents")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.AccountService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AccountServiceListAccountReferencesProcedure:
 			accountServiceListAccountReferencesHandler.ServeHTTP(w, r)
+		case AccountServiceListAccountSourcesProcedure:
+			accountServiceListAccountSourcesHandler.ServeHTTP(w, r)
+		case AccountServiceCreateAccountSourceProcedure:
+			accountServiceCreateAccountSourceHandler.ServeHTTP(w, r)
+		case AccountServiceUpdateAccountSourceProcedure:
+			accountServiceUpdateAccountSourceHandler.ServeHTTP(w, r)
+		case AccountServiceTransitionAccountSourceProcedure:
+			accountServiceTransitionAccountSourceHandler.ServeHTTP(w, r)
+		case AccountServiceCreateAccountProcedure:
+			accountServiceCreateAccountHandler.ServeHTTP(w, r)
+		case AccountServiceUpdateAccountProcedure:
+			accountServiceUpdateAccountHandler.ServeHTTP(w, r)
+		case AccountServiceUpdateAccountStateProcedure:
+			accountServiceUpdateAccountStateHandler.ServeHTTP(w, r)
+		case AccountServiceListAccountServiceStatesProcedure:
+			accountServiceListAccountServiceStatesHandler.ServeHTTP(w, r)
+		case AccountServiceListAccountServiceStateHistoryProcedure:
+			accountServiceListAccountServiceStateHistoryHandler.ServeHTTP(w, r)
+		case AccountServiceListAccountRunsProcedure:
+			accountServiceListAccountRunsHandler.ServeHTTP(w, r)
+		case AccountServiceListAccountRunEventsProcedure:
+			accountServiceListAccountRunEventsHandler.ServeHTTP(w, r)
+		case AccountServiceAssignAccountDeviceProcedure:
+			accountServiceAssignAccountDeviceHandler.ServeHTTP(w, r)
+		case AccountServiceEndAccountDeviceAssignmentProcedure:
+			accountServiceEndAccountDeviceAssignmentHandler.ServeHTTP(w, r)
+		case AccountServiceListAccountDeviceAssignmentsProcedure:
+			accountServiceListAccountDeviceAssignmentsHandler.ServeHTTP(w, r)
+		case AccountServiceListAccountSyncEventsProcedure:
+			accountServiceListAccountSyncEventsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -106,4 +481,64 @@ type UnimplementedAccountServiceHandler struct{}
 
 func (UnimplementedAccountServiceHandler) ListAccountReferences(context.Context, *connect.Request[v1.ListAccountReferencesRequest]) (*connect.Response[v1.ListAccountReferencesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.ListAccountReferences is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) ListAccountSources(context.Context, *connect.Request[v1.ListAccountSourcesRequest]) (*connect.Response[v1.ListAccountSourcesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.ListAccountSources is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) CreateAccountSource(context.Context, *connect.Request[v1.CreateAccountSourceRequest]) (*connect.Response[v1.CreateAccountSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.CreateAccountSource is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) UpdateAccountSource(context.Context, *connect.Request[v1.UpdateAccountSourceRequest]) (*connect.Response[v1.UpdateAccountSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.UpdateAccountSource is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) TransitionAccountSource(context.Context, *connect.Request[v1.TransitionAccountSourceRequest]) (*connect.Response[v1.TransitionAccountSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.TransitionAccountSource is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) CreateAccount(context.Context, *connect.Request[v1.CreateAccountRequest]) (*connect.Response[v1.CreateAccountResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.CreateAccount is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) UpdateAccount(context.Context, *connect.Request[v1.UpdateAccountRequest]) (*connect.Response[v1.UpdateAccountResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.UpdateAccount is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) UpdateAccountState(context.Context, *connect.Request[v1.UpdateAccountStateRequest]) (*connect.Response[v1.UpdateAccountStateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.UpdateAccountState is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) ListAccountServiceStates(context.Context, *connect.Request[v1.ListAccountServiceStatesRequest]) (*connect.Response[v1.ListAccountServiceStatesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.ListAccountServiceStates is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) ListAccountServiceStateHistory(context.Context, *connect.Request[v1.ListAccountServiceStateHistoryRequest]) (*connect.Response[v1.ListAccountServiceStateHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.ListAccountServiceStateHistory is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) ListAccountRuns(context.Context, *connect.Request[v1.ListAccountRunsRequest]) (*connect.Response[v1.ListAccountRunsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.ListAccountRuns is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) ListAccountRunEvents(context.Context, *connect.Request[v1.ListAccountRunEventsRequest]) (*connect.Response[v1.ListAccountRunEventsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.ListAccountRunEvents is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) AssignAccountDevice(context.Context, *connect.Request[v1.AssignAccountDeviceRequest]) (*connect.Response[v1.AssignAccountDeviceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.AssignAccountDevice is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) EndAccountDeviceAssignment(context.Context, *connect.Request[v1.EndAccountDeviceAssignmentRequest]) (*connect.Response[v1.EndAccountDeviceAssignmentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.EndAccountDeviceAssignment is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) ListAccountDeviceAssignments(context.Context, *connect.Request[v1.ListAccountDeviceAssignmentsRequest]) (*connect.Response[v1.ListAccountDeviceAssignmentsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.ListAccountDeviceAssignments is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) ListAccountSyncEvents(context.Context, *connect.Request[v1.ListAccountSyncEventsRequest]) (*connect.Response[v1.ListAccountSyncEventsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AccountService.ListAccountSyncEvents is not implemented"))
 }

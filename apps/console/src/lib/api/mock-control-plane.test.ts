@@ -72,4 +72,57 @@ describe("MockControlPlaneClient", () => {
     expect(activeMembership).toHaveLength(1)
     expect(activeMembership[0]?.groupId).toBe("group-rack-c")
   })
+
+  it("keeps account references metadata-only and assignments ID-based", () => {
+    const client = new MockControlPlaneClient()
+    const unsafeMetadata = JSON.stringify({ ["pass" + "word"]: "not-persisted" })
+    const rejected = client.dispatch({ type: "createAccountSource", provider: "fixture", displayName: "Unsafe", externalReference: "unsafe", metadataJson: unsafeMetadata })
+    expect(rejected.ok).toBe(false)
+
+    const source = client.dispatch({ type: "createAccountSource", provider: "fixture", displayName: "New fixture", externalReference: "fixture-v2", metadataJson: `{"environment":"test"}` })
+    expect(source.ok).toBe(true)
+    const account = client.dispatch({ type: "createAccount", sourceId: source.resourceId ?? "", externalReference: "new-account", label: "New account", metadataJson: `{"tier":"test"}` })
+    expect(account.ok).toBe(true)
+    const createdAccount = client.getSnapshot().accounts.find((candidate) => candidate.id === account.resourceId)
+    expect(createdAccount?.state).toBe("draft")
+
+    const assignment = client.dispatch({ type: "assignAccountDevice", accountId: account.resourceId ?? "", deviceId: "orion-03" })
+    expect(assignment.ok).toBe(true)
+    const storedAssignment = client.getSnapshot().accountDeviceAssignments.find((candidate) => candidate.id === assignment.resourceId)
+    expect(storedAssignment).toMatchObject({ accountId: account.resourceId, deviceId: "orion-03", state: "active" })
+    expect(storedAssignment).not.toHaveProperty("deviceName")
+  })
+
+  it("creates immutable policy versions and typed setting history", () => {
+    const client = new MockControlPlaneClient()
+    const draft = client.dispatch({ type: "createPolicyVersion", basePolicyId: "policy-default-safety", ruleJson: `{"allow":"reviewed"}` })
+    expect(draft.ok).toBe(true)
+    const draftPolicy = client.getSnapshot().policies.find((policy) => policy.id === draft.resourceId)
+    expect(draftPolicy).toMatchObject({ version: 5, state: "draft", ruleJson: `{"allow":"reviewed"}` })
+
+    const activated = client.dispatch({ type: "activatePolicy", policyId: draft.resourceId ?? "", rowVersion: draftPolicy?.rowVersion ?? 0 })
+    expect(activated.ok).toBe(true)
+    const policies = client.getSnapshot().policies.filter((policy) => policy.name === "Default action safety")
+    expect(policies.find((policy) => policy.version === 4)?.state).toBe("superseded")
+    expect(policies.find((policy) => policy.version === 5)?.state).toBe("active")
+
+    const invalid = client.dispatch({ type: "updateSetting", settingId: "setting-workspace-retention", valueJson: "300001", rowVersion: 2 })
+    expect(invalid.ok).toBe(false)
+    const updated = client.dispatch({ type: "updateSetting", settingId: "setting-workspace-retention", valueJson: "45", rowVersion: 2 })
+    expect(updated.ok).toBe(true)
+    expect(client.getSnapshot().settingHistory.find((change) => change.rowVersion === 3)?.valueJson).toBe("45")
+  })
+
+  it("validates setting transitions and records their new state", () => {
+    const client = new MockControlPlaneClient()
+
+    const invalid = client.dispatch({ type: "transitionSetting", settingId: "setting-workspace-retention", state: "draft", rowVersion: 2 })
+    const retired = client.dispatch({ type: "transitionSetting", settingId: "setting-workspace-retention", state: "retired", rowVersion: 2 })
+    const snapshot = client.getSnapshot()
+
+    expect(invalid.ok).toBe(false)
+    expect(retired.ok).toBe(true)
+    expect(snapshot.settings.find((setting) => setting.id === "setting-workspace-retention")?.state).toBe("retired")
+    expect(snapshot.settingHistory[0]).toMatchObject({ settingId: "setting-workspace-retention", state: "retired", rowVersion: 3 })
+  })
 })

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar"
 import {
   ActivityIcon,
+  ContactRoundIcon,
   BotIcon,
   CommandIcon,
   LayoutDashboardIcon,
@@ -104,6 +105,13 @@ export function AppSidebar({
         { title: "All devices", url: "#devices" },
         { title: "Needs attention", url: "#attention" },
       ],
+    },
+    {
+      title: "Accounts",
+      url: "#accounts",
+      icon: <ContactRoundIcon aria-hidden="true" />,
+      isActive: activeSection === "Accounts",
+      items: [{ title: "References and assignments", url: "#accounts" }],
     },
     {
       title: "Network Profiles",

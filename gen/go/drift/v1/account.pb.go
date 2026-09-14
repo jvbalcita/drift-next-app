@@ -28,6 +28,8 @@ const (
 	AccountState_ACCOUNT_STATE_ACTIVE      AccountState = 1
 	AccountState_ACCOUNT_STATE_SUSPENDED   AccountState = 2
 	AccountState_ACCOUNT_STATE_RETIRED     AccountState = 3
+	AccountState_ACCOUNT_STATE_DRAFT       AccountState = 4
+	AccountState_ACCOUNT_STATE_INACTIVE    AccountState = 5
 )
 
 // Enum value maps for AccountState.
@@ -37,12 +39,16 @@ var (
 		1: "ACCOUNT_STATE_ACTIVE",
 		2: "ACCOUNT_STATE_SUSPENDED",
 		3: "ACCOUNT_STATE_RETIRED",
+		4: "ACCOUNT_STATE_DRAFT",
+		5: "ACCOUNT_STATE_INACTIVE",
 	}
 	AccountState_value = map[string]int32{
 		"ACCOUNT_STATE_UNSPECIFIED": 0,
 		"ACCOUNT_STATE_ACTIVE":      1,
 		"ACCOUNT_STATE_SUSPENDED":   2,
 		"ACCOUNT_STATE_RETIRED":     3,
+		"ACCOUNT_STATE_DRAFT":       4,
+		"ACCOUNT_STATE_INACTIVE":    5,
 	}
 )
 
@@ -73,6 +79,333 @@ func (AccountState) EnumDescriptor() ([]byte, []int) {
 	return file_drift_v1_account_proto_rawDescGZIP(), []int{0}
 }
 
+type AccountSourceState int32
+
+const (
+	AccountSourceState_ACCOUNT_SOURCE_STATE_UNSPECIFIED AccountSourceState = 0
+	AccountSourceState_ACCOUNT_SOURCE_STATE_ACTIVE      AccountSourceState = 1
+	AccountSourceState_ACCOUNT_SOURCE_STATE_DISABLED    AccountSourceState = 2
+	AccountSourceState_ACCOUNT_SOURCE_STATE_RETIRED     AccountSourceState = 3
+)
+
+// Enum value maps for AccountSourceState.
+var (
+	AccountSourceState_name = map[int32]string{
+		0: "ACCOUNT_SOURCE_STATE_UNSPECIFIED",
+		1: "ACCOUNT_SOURCE_STATE_ACTIVE",
+		2: "ACCOUNT_SOURCE_STATE_DISABLED",
+		3: "ACCOUNT_SOURCE_STATE_RETIRED",
+	}
+	AccountSourceState_value = map[string]int32{
+		"ACCOUNT_SOURCE_STATE_UNSPECIFIED": 0,
+		"ACCOUNT_SOURCE_STATE_ACTIVE":      1,
+		"ACCOUNT_SOURCE_STATE_DISABLED":    2,
+		"ACCOUNT_SOURCE_STATE_RETIRED":     3,
+	}
+)
+
+func (x AccountSourceState) Enum() *AccountSourceState {
+	p := new(AccountSourceState)
+	*p = x
+	return p
+}
+
+func (x AccountSourceState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AccountSourceState) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_account_proto_enumTypes[1].Descriptor()
+}
+
+func (AccountSourceState) Type() protoreflect.EnumType {
+	return &file_drift_v1_account_proto_enumTypes[1]
+}
+
+func (x AccountSourceState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AccountSourceState.Descriptor instead.
+func (AccountSourceState) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{1}
+}
+
+type AccountServiceState int32
+
+const (
+	AccountServiceState_ACCOUNT_SERVICE_STATE_UNSPECIFIED AccountServiceState = 0
+	AccountServiceState_ACCOUNT_SERVICE_STATE_HEALTHY     AccountServiceState = 1
+	AccountServiceState_ACCOUNT_SERVICE_STATE_DEGRADED    AccountServiceState = 2
+	AccountServiceState_ACCOUNT_SERVICE_STATE_FAILED      AccountServiceState = 3
+	AccountServiceState_ACCOUNT_SERVICE_STATE_DISABLED    AccountServiceState = 4
+)
+
+// Enum value maps for AccountServiceState.
+var (
+	AccountServiceState_name = map[int32]string{
+		0: "ACCOUNT_SERVICE_STATE_UNSPECIFIED",
+		1: "ACCOUNT_SERVICE_STATE_HEALTHY",
+		2: "ACCOUNT_SERVICE_STATE_DEGRADED",
+		3: "ACCOUNT_SERVICE_STATE_FAILED",
+		4: "ACCOUNT_SERVICE_STATE_DISABLED",
+	}
+	AccountServiceState_value = map[string]int32{
+		"ACCOUNT_SERVICE_STATE_UNSPECIFIED": 0,
+		"ACCOUNT_SERVICE_STATE_HEALTHY":     1,
+		"ACCOUNT_SERVICE_STATE_DEGRADED":    2,
+		"ACCOUNT_SERVICE_STATE_FAILED":      3,
+		"ACCOUNT_SERVICE_STATE_DISABLED":    4,
+	}
+)
+
+func (x AccountServiceState) Enum() *AccountServiceState {
+	p := new(AccountServiceState)
+	*p = x
+	return p
+}
+
+func (x AccountServiceState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AccountServiceState) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_account_proto_enumTypes[2].Descriptor()
+}
+
+func (AccountServiceState) Type() protoreflect.EnumType {
+	return &file_drift_v1_account_proto_enumTypes[2]
+}
+
+func (x AccountServiceState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AccountServiceState.Descriptor instead.
+func (AccountServiceState) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{2}
+}
+
+type AccountServiceStage int32
+
+const (
+	AccountServiceStage_ACCOUNT_SERVICE_STAGE_UNSPECIFIED AccountServiceStage = 0
+	AccountServiceStage_ACCOUNT_SERVICE_STAGE_QUEUED      AccountServiceStage = 1
+	AccountServiceStage_ACCOUNT_SERVICE_STAGE_READY       AccountServiceStage = 2
+	AccountServiceStage_ACCOUNT_SERVICE_STAGE_RUNNING     AccountServiceStage = 3
+	AccountServiceStage_ACCOUNT_SERVICE_STAGE_BLOCKED     AccountServiceStage = 4
+	AccountServiceStage_ACCOUNT_SERVICE_STAGE_COMPLETED   AccountServiceStage = 5
+)
+
+// Enum value maps for AccountServiceStage.
+var (
+	AccountServiceStage_name = map[int32]string{
+		0: "ACCOUNT_SERVICE_STAGE_UNSPECIFIED",
+		1: "ACCOUNT_SERVICE_STAGE_QUEUED",
+		2: "ACCOUNT_SERVICE_STAGE_READY",
+		3: "ACCOUNT_SERVICE_STAGE_RUNNING",
+		4: "ACCOUNT_SERVICE_STAGE_BLOCKED",
+		5: "ACCOUNT_SERVICE_STAGE_COMPLETED",
+	}
+	AccountServiceStage_value = map[string]int32{
+		"ACCOUNT_SERVICE_STAGE_UNSPECIFIED": 0,
+		"ACCOUNT_SERVICE_STAGE_QUEUED":      1,
+		"ACCOUNT_SERVICE_STAGE_READY":       2,
+		"ACCOUNT_SERVICE_STAGE_RUNNING":     3,
+		"ACCOUNT_SERVICE_STAGE_BLOCKED":     4,
+		"ACCOUNT_SERVICE_STAGE_COMPLETED":   5,
+	}
+)
+
+func (x AccountServiceStage) Enum() *AccountServiceStage {
+	p := new(AccountServiceStage)
+	*p = x
+	return p
+}
+
+func (x AccountServiceStage) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AccountServiceStage) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_account_proto_enumTypes[3].Descriptor()
+}
+
+func (AccountServiceStage) Type() protoreflect.EnumType {
+	return &file_drift_v1_account_proto_enumTypes[3]
+}
+
+func (x AccountServiceStage) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AccountServiceStage.Descriptor instead.
+func (AccountServiceStage) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{3}
+}
+
+type AccountRunState int32
+
+const (
+	AccountRunState_ACCOUNT_RUN_STATE_UNSPECIFIED AccountRunState = 0
+	AccountRunState_ACCOUNT_RUN_STATE_REQUESTED   AccountRunState = 1
+	AccountRunState_ACCOUNT_RUN_STATE_RUNNING     AccountRunState = 2
+	AccountRunState_ACCOUNT_RUN_STATE_COMPLETED   AccountRunState = 3
+	AccountRunState_ACCOUNT_RUN_STATE_FAILED      AccountRunState = 4
+	AccountRunState_ACCOUNT_RUN_STATE_CANCELLED   AccountRunState = 5
+)
+
+// Enum value maps for AccountRunState.
+var (
+	AccountRunState_name = map[int32]string{
+		0: "ACCOUNT_RUN_STATE_UNSPECIFIED",
+		1: "ACCOUNT_RUN_STATE_REQUESTED",
+		2: "ACCOUNT_RUN_STATE_RUNNING",
+		3: "ACCOUNT_RUN_STATE_COMPLETED",
+		4: "ACCOUNT_RUN_STATE_FAILED",
+		5: "ACCOUNT_RUN_STATE_CANCELLED",
+	}
+	AccountRunState_value = map[string]int32{
+		"ACCOUNT_RUN_STATE_UNSPECIFIED": 0,
+		"ACCOUNT_RUN_STATE_REQUESTED":   1,
+		"ACCOUNT_RUN_STATE_RUNNING":     2,
+		"ACCOUNT_RUN_STATE_COMPLETED":   3,
+		"ACCOUNT_RUN_STATE_FAILED":      4,
+		"ACCOUNT_RUN_STATE_CANCELLED":   5,
+	}
+)
+
+func (x AccountRunState) Enum() *AccountRunState {
+	p := new(AccountRunState)
+	*p = x
+	return p
+}
+
+func (x AccountRunState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AccountRunState) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_account_proto_enumTypes[4].Descriptor()
+}
+
+func (AccountRunState) Type() protoreflect.EnumType {
+	return &file_drift_v1_account_proto_enumTypes[4]
+}
+
+func (x AccountRunState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AccountRunState.Descriptor instead.
+func (AccountRunState) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{4}
+}
+
+type AccountAssignmentState int32
+
+const (
+	AccountAssignmentState_ACCOUNT_ASSIGNMENT_STATE_UNSPECIFIED AccountAssignmentState = 0
+	AccountAssignmentState_ACCOUNT_ASSIGNMENT_STATE_ACTIVE      AccountAssignmentState = 1
+	AccountAssignmentState_ACCOUNT_ASSIGNMENT_STATE_ENDED       AccountAssignmentState = 2
+)
+
+// Enum value maps for AccountAssignmentState.
+var (
+	AccountAssignmentState_name = map[int32]string{
+		0: "ACCOUNT_ASSIGNMENT_STATE_UNSPECIFIED",
+		1: "ACCOUNT_ASSIGNMENT_STATE_ACTIVE",
+		2: "ACCOUNT_ASSIGNMENT_STATE_ENDED",
+	}
+	AccountAssignmentState_value = map[string]int32{
+		"ACCOUNT_ASSIGNMENT_STATE_UNSPECIFIED": 0,
+		"ACCOUNT_ASSIGNMENT_STATE_ACTIVE":      1,
+		"ACCOUNT_ASSIGNMENT_STATE_ENDED":       2,
+	}
+)
+
+func (x AccountAssignmentState) Enum() *AccountAssignmentState {
+	p := new(AccountAssignmentState)
+	*p = x
+	return p
+}
+
+func (x AccountAssignmentState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AccountAssignmentState) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_account_proto_enumTypes[5].Descriptor()
+}
+
+func (AccountAssignmentState) Type() protoreflect.EnumType {
+	return &file_drift_v1_account_proto_enumTypes[5]
+}
+
+func (x AccountAssignmentState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AccountAssignmentState.Descriptor instead.
+func (AccountAssignmentState) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{5}
+}
+
+type AccountSyncOutcome int32
+
+const (
+	AccountSyncOutcome_ACCOUNT_SYNC_OUTCOME_UNSPECIFIED AccountSyncOutcome = 0
+	AccountSyncOutcome_ACCOUNT_SYNC_OUTCOME_ACCEPTED    AccountSyncOutcome = 1
+	AccountSyncOutcome_ACCOUNT_SYNC_OUTCOME_REJECTED    AccountSyncOutcome = 2
+	AccountSyncOutcome_ACCOUNT_SYNC_OUTCOME_FAILED      AccountSyncOutcome = 3
+	AccountSyncOutcome_ACCOUNT_SYNC_OUTCOME_DISABLED    AccountSyncOutcome = 4
+)
+
+// Enum value maps for AccountSyncOutcome.
+var (
+	AccountSyncOutcome_name = map[int32]string{
+		0: "ACCOUNT_SYNC_OUTCOME_UNSPECIFIED",
+		1: "ACCOUNT_SYNC_OUTCOME_ACCEPTED",
+		2: "ACCOUNT_SYNC_OUTCOME_REJECTED",
+		3: "ACCOUNT_SYNC_OUTCOME_FAILED",
+		4: "ACCOUNT_SYNC_OUTCOME_DISABLED",
+	}
+	AccountSyncOutcome_value = map[string]int32{
+		"ACCOUNT_SYNC_OUTCOME_UNSPECIFIED": 0,
+		"ACCOUNT_SYNC_OUTCOME_ACCEPTED":    1,
+		"ACCOUNT_SYNC_OUTCOME_REJECTED":    2,
+		"ACCOUNT_SYNC_OUTCOME_FAILED":      3,
+		"ACCOUNT_SYNC_OUTCOME_DISABLED":    4,
+	}
+)
+
+func (x AccountSyncOutcome) Enum() *AccountSyncOutcome {
+	p := new(AccountSyncOutcome)
+	*p = x
+	return p
+}
+
+func (x AccountSyncOutcome) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AccountSyncOutcome) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_account_proto_enumTypes[6].Descriptor()
+}
+
+func (AccountSyncOutcome) Type() protoreflect.EnumType {
+	return &file_drift_v1_account_proto_enumTypes[6]
+}
+
+func (x AccountSyncOutcome) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AccountSyncOutcome.Descriptor instead.
+func (AccountSyncOutcome) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{6}
+}
+
 type AccountReference struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -80,6 +413,10 @@ type AccountReference struct {
 	SourceId          string                 `protobuf:"bytes,3,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
 	ExternalReference string                 `protobuf:"bytes,4,opt,name=external_reference,json=externalReference,proto3" json:"external_reference,omitempty"`
 	State             AccountState           `protobuf:"varint,5,opt,name=state,proto3,enum=drift.v1.AccountState" json:"state,omitempty"`
+	DisplayName       string                 `protobuf:"bytes,6,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	MetadataJson      string                 `protobuf:"bytes,7,opt,name=metadata_json,json=metadataJson,proto3" json:"metadata_json,omitempty"`
+	RowVersion        uint64                 `protobuf:"varint,8,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	SourceProvider    string                 `protobuf:"bytes,9,opt,name=source_provider,json=sourceProvider,proto3" json:"source_provider,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -149,6 +486,830 @@ func (x *AccountReference) GetState() AccountState {
 	return AccountState_ACCOUNT_STATE_UNSPECIFIED
 }
 
+func (x *AccountReference) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *AccountReference) GetMetadataJson() string {
+	if x != nil {
+		return x.MetadataJson
+	}
+	return ""
+}
+
+func (x *AccountReference) GetRowVersion() uint64 {
+	if x != nil {
+		return x.RowVersion
+	}
+	return 0
+}
+
+func (x *AccountReference) GetSourceProvider() string {
+	if x != nil {
+		return x.SourceProvider
+	}
+	return ""
+}
+
+type AccountSource struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace         *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	Provider          string                 `protobuf:"bytes,3,opt,name=provider,proto3" json:"provider,omitempty"`
+	DisplayName       string                 `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	State             AccountSourceState     `protobuf:"varint,5,opt,name=state,proto3,enum=drift.v1.AccountSourceState" json:"state,omitempty"`
+	ExternalReference string                 `protobuf:"bytes,6,opt,name=external_reference,json=externalReference,proto3" json:"external_reference,omitempty"`
+	MetadataJson      string                 `protobuf:"bytes,7,opt,name=metadata_json,json=metadataJson,proto3" json:"metadata_json,omitempty"`
+	CreatedAt         string                 `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt         string                 `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	RowVersion        uint64                 `protobuf:"varint,10,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AccountSource) Reset() {
+	*x = AccountSource{}
+	mi := &file_drift_v1_account_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountSource) ProtoMessage() {}
+
+func (x *AccountSource) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountSource.ProtoReflect.Descriptor instead.
+func (*AccountSource) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *AccountSource) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AccountSource) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *AccountSource) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *AccountSource) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *AccountSource) GetState() AccountSourceState {
+	if x != nil {
+		return x.State
+	}
+	return AccountSourceState_ACCOUNT_SOURCE_STATE_UNSPECIFIED
+}
+
+func (x *AccountSource) GetExternalReference() string {
+	if x != nil {
+		return x.ExternalReference
+	}
+	return ""
+}
+
+func (x *AccountSource) GetMetadataJson() string {
+	if x != nil {
+		return x.MetadataJson
+	}
+	return ""
+}
+
+func (x *AccountSource) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *AccountSource) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+func (x *AccountSource) GetRowVersion() uint64 {
+	if x != nil {
+		return x.RowVersion
+	}
+	return 0
+}
+
+type AccountServiceStateProjection struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	AccountId     string                 `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ServiceName   string                 `protobuf:"bytes,4,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
+	Stage         AccountServiceStage    `protobuf:"varint,5,opt,name=stage,proto3,enum=drift.v1.AccountServiceStage" json:"stage,omitempty"`
+	State         AccountServiceState    `protobuf:"varint,6,opt,name=state,proto3,enum=drift.v1.AccountServiceState" json:"state,omitempty"`
+	ObservedAt    string                 `protobuf:"bytes,7,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	FailureClass  string                 `protobuf:"bytes,8,opt,name=failure_class,json=failureClass,proto3" json:"failure_class,omitempty"`
+	DetailsJson   string                 `protobuf:"bytes,9,opt,name=details_json,json=detailsJson,proto3" json:"details_json,omitempty"`
+	RowVersion    uint64                 `protobuf:"varint,10,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccountServiceStateProjection) Reset() {
+	*x = AccountServiceStateProjection{}
+	mi := &file_drift_v1_account_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountServiceStateProjection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountServiceStateProjection) ProtoMessage() {}
+
+func (x *AccountServiceStateProjection) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountServiceStateProjection.ProtoReflect.Descriptor instead.
+func (*AccountServiceStateProjection) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *AccountServiceStateProjection) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AccountServiceStateProjection) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *AccountServiceStateProjection) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *AccountServiceStateProjection) GetServiceName() string {
+	if x != nil {
+		return x.ServiceName
+	}
+	return ""
+}
+
+func (x *AccountServiceStateProjection) GetStage() AccountServiceStage {
+	if x != nil {
+		return x.Stage
+	}
+	return AccountServiceStage_ACCOUNT_SERVICE_STAGE_UNSPECIFIED
+}
+
+func (x *AccountServiceStateProjection) GetState() AccountServiceState {
+	if x != nil {
+		return x.State
+	}
+	return AccountServiceState_ACCOUNT_SERVICE_STATE_UNSPECIFIED
+}
+
+func (x *AccountServiceStateProjection) GetObservedAt() string {
+	if x != nil {
+		return x.ObservedAt
+	}
+	return ""
+}
+
+func (x *AccountServiceStateProjection) GetFailureClass() string {
+	if x != nil {
+		return x.FailureClass
+	}
+	return ""
+}
+
+func (x *AccountServiceStateProjection) GetDetailsJson() string {
+	if x != nil {
+		return x.DetailsJson
+	}
+	return ""
+}
+
+func (x *AccountServiceStateProjection) GetRowVersion() uint64 {
+	if x != nil {
+		return x.RowVersion
+	}
+	return 0
+}
+
+type AccountServiceStateHistory struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	AccountId     string                 `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ServiceName   string                 `protobuf:"bytes,4,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
+	Stage         AccountServiceStage    `protobuf:"varint,5,opt,name=stage,proto3,enum=drift.v1.AccountServiceStage" json:"stage,omitempty"`
+	State         AccountServiceState    `protobuf:"varint,6,opt,name=state,proto3,enum=drift.v1.AccountServiceState" json:"state,omitempty"`
+	ObservedAt    string                 `protobuf:"bytes,7,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	FailureClass  string                 `protobuf:"bytes,8,opt,name=failure_class,json=failureClass,proto3" json:"failure_class,omitempty"`
+	DetailsJson   string                 `protobuf:"bytes,9,opt,name=details_json,json=detailsJson,proto3" json:"details_json,omitempty"`
+	RowVersion    uint64                 `protobuf:"varint,10,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	RecordedAt    string                 `protobuf:"bytes,11,opt,name=recorded_at,json=recordedAt,proto3" json:"recorded_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccountServiceStateHistory) Reset() {
+	*x = AccountServiceStateHistory{}
+	mi := &file_drift_v1_account_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountServiceStateHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountServiceStateHistory) ProtoMessage() {}
+
+func (x *AccountServiceStateHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountServiceStateHistory.ProtoReflect.Descriptor instead.
+func (*AccountServiceStateHistory) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *AccountServiceStateHistory) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AccountServiceStateHistory) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *AccountServiceStateHistory) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *AccountServiceStateHistory) GetServiceName() string {
+	if x != nil {
+		return x.ServiceName
+	}
+	return ""
+}
+
+func (x *AccountServiceStateHistory) GetStage() AccountServiceStage {
+	if x != nil {
+		return x.Stage
+	}
+	return AccountServiceStage_ACCOUNT_SERVICE_STAGE_UNSPECIFIED
+}
+
+func (x *AccountServiceStateHistory) GetState() AccountServiceState {
+	if x != nil {
+		return x.State
+	}
+	return AccountServiceState_ACCOUNT_SERVICE_STATE_UNSPECIFIED
+}
+
+func (x *AccountServiceStateHistory) GetObservedAt() string {
+	if x != nil {
+		return x.ObservedAt
+	}
+	return ""
+}
+
+func (x *AccountServiceStateHistory) GetFailureClass() string {
+	if x != nil {
+		return x.FailureClass
+	}
+	return ""
+}
+
+func (x *AccountServiceStateHistory) GetDetailsJson() string {
+	if x != nil {
+		return x.DetailsJson
+	}
+	return ""
+}
+
+func (x *AccountServiceStateHistory) GetRowVersion() uint64 {
+	if x != nil {
+		return x.RowVersion
+	}
+	return 0
+}
+
+func (x *AccountServiceStateHistory) GetRecordedAt() string {
+	if x != nil {
+		return x.RecordedAt
+	}
+	return ""
+}
+
+type AccountRun struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	AccountId     string                 `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	State         AccountRunState        `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.AccountRunState" json:"state,omitempty"`
+	RequestedAt   string                 `protobuf:"bytes,5,opt,name=requested_at,json=requestedAt,proto3" json:"requested_at,omitempty"`
+	StartedAt     string                 `protobuf:"bytes,6,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	FinishedAt    string                 `protobuf:"bytes,7,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	FailureClass  string                 `protobuf:"bytes,8,opt,name=failure_class,json=failureClass,proto3" json:"failure_class,omitempty"`
+	CorrelationId string                 `protobuf:"bytes,9,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"`
+	RowVersion    uint64                 `protobuf:"varint,10,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccountRun) Reset() {
+	*x = AccountRun{}
+	mi := &file_drift_v1_account_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountRun) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountRun) ProtoMessage() {}
+
+func (x *AccountRun) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountRun.ProtoReflect.Descriptor instead.
+func (*AccountRun) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *AccountRun) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AccountRun) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *AccountRun) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *AccountRun) GetState() AccountRunState {
+	if x != nil {
+		return x.State
+	}
+	return AccountRunState_ACCOUNT_RUN_STATE_UNSPECIFIED
+}
+
+func (x *AccountRun) GetRequestedAt() string {
+	if x != nil {
+		return x.RequestedAt
+	}
+	return ""
+}
+
+func (x *AccountRun) GetStartedAt() string {
+	if x != nil {
+		return x.StartedAt
+	}
+	return ""
+}
+
+func (x *AccountRun) GetFinishedAt() string {
+	if x != nil {
+		return x.FinishedAt
+	}
+	return ""
+}
+
+func (x *AccountRun) GetFailureClass() string {
+	if x != nil {
+		return x.FailureClass
+	}
+	return ""
+}
+
+func (x *AccountRun) GetCorrelationId() string {
+	if x != nil {
+		return x.CorrelationId
+	}
+	return ""
+}
+
+func (x *AccountRun) GetRowVersion() uint64 {
+	if x != nil {
+		return x.RowVersion
+	}
+	return 0
+}
+
+type AccountRunEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	RunId         string                 `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	State         AccountRunState        `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.AccountRunState" json:"state,omitempty"`
+	FailureClass  string                 `protobuf:"bytes,5,opt,name=failure_class,json=failureClass,proto3" json:"failure_class,omitempty"`
+	OccurredAt    string                 `protobuf:"bytes,6,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
+	ActorType     string                 `protobuf:"bytes,7,opt,name=actor_type,json=actorType,proto3" json:"actor_type,omitempty"`
+	ActorId       string                 `protobuf:"bytes,8,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
+	CorrelationId string                 `protobuf:"bytes,9,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccountRunEvent) Reset() {
+	*x = AccountRunEvent{}
+	mi := &file_drift_v1_account_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountRunEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountRunEvent) ProtoMessage() {}
+
+func (x *AccountRunEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountRunEvent.ProtoReflect.Descriptor instead.
+func (*AccountRunEvent) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *AccountRunEvent) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AccountRunEvent) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *AccountRunEvent) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *AccountRunEvent) GetState() AccountRunState {
+	if x != nil {
+		return x.State
+	}
+	return AccountRunState_ACCOUNT_RUN_STATE_UNSPECIFIED
+}
+
+func (x *AccountRunEvent) GetFailureClass() string {
+	if x != nil {
+		return x.FailureClass
+	}
+	return ""
+}
+
+func (x *AccountRunEvent) GetOccurredAt() string {
+	if x != nil {
+		return x.OccurredAt
+	}
+	return ""
+}
+
+func (x *AccountRunEvent) GetActorType() string {
+	if x != nil {
+		return x.ActorType
+	}
+	return ""
+}
+
+func (x *AccountRunEvent) GetActorId() string {
+	if x != nil {
+		return x.ActorId
+	}
+	return ""
+}
+
+func (x *AccountRunEvent) GetCorrelationId() string {
+	if x != nil {
+		return x.CorrelationId
+	}
+	return ""
+}
+
+type AccountDeviceAssignment struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	AccountId     string                 `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	DeviceId      string                 `protobuf:"bytes,4,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	State         AccountAssignmentState `protobuf:"varint,5,opt,name=state,proto3,enum=drift.v1.AccountAssignmentState" json:"state,omitempty"`
+	AssignedAt    string                 `protobuf:"bytes,6,opt,name=assigned_at,json=assignedAt,proto3" json:"assigned_at,omitempty"`
+	EndedAt       string                 `protobuf:"bytes,7,opt,name=ended_at,json=endedAt,proto3" json:"ended_at,omitempty"`
+	RowVersion    uint64                 `protobuf:"varint,8,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccountDeviceAssignment) Reset() {
+	*x = AccountDeviceAssignment{}
+	mi := &file_drift_v1_account_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountDeviceAssignment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountDeviceAssignment) ProtoMessage() {}
+
+func (x *AccountDeviceAssignment) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountDeviceAssignment.ProtoReflect.Descriptor instead.
+func (*AccountDeviceAssignment) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *AccountDeviceAssignment) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AccountDeviceAssignment) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *AccountDeviceAssignment) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *AccountDeviceAssignment) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *AccountDeviceAssignment) GetState() AccountAssignmentState {
+	if x != nil {
+		return x.State
+	}
+	return AccountAssignmentState_ACCOUNT_ASSIGNMENT_STATE_UNSPECIFIED
+}
+
+func (x *AccountDeviceAssignment) GetAssignedAt() string {
+	if x != nil {
+		return x.AssignedAt
+	}
+	return ""
+}
+
+func (x *AccountDeviceAssignment) GetEndedAt() string {
+	if x != nil {
+		return x.EndedAt
+	}
+	return ""
+}
+
+func (x *AccountDeviceAssignment) GetRowVersion() uint64 {
+	if x != nil {
+		return x.RowVersion
+	}
+	return 0
+}
+
+type AccountSyncEvent struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace      *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	SourceId       string                 `protobuf:"bytes,3,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	AccountId      string                 `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Outcome        AccountSyncOutcome     `protobuf:"varint,5,opt,name=outcome,proto3,enum=drift.v1.AccountSyncOutcome" json:"outcome,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	CorrelationId  string                 `protobuf:"bytes,7,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"`
+	OccurredAt     string                 `protobuf:"bytes,8,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
+	DetailsJson    string                 `protobuf:"bytes,9,opt,name=details_json,json=detailsJson,proto3" json:"details_json,omitempty"`
+	EventName      string                 `protobuf:"bytes,10,opt,name=event_name,json=eventName,proto3" json:"event_name,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AccountSyncEvent) Reset() {
+	*x = AccountSyncEvent{}
+	mi := &file_drift_v1_account_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountSyncEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountSyncEvent) ProtoMessage() {}
+
+func (x *AccountSyncEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountSyncEvent.ProtoReflect.Descriptor instead.
+func (*AccountSyncEvent) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *AccountSyncEvent) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AccountSyncEvent) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *AccountSyncEvent) GetSourceId() string {
+	if x != nil {
+		return x.SourceId
+	}
+	return ""
+}
+
+func (x *AccountSyncEvent) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *AccountSyncEvent) GetOutcome() AccountSyncOutcome {
+	if x != nil {
+		return x.Outcome
+	}
+	return AccountSyncOutcome_ACCOUNT_SYNC_OUTCOME_UNSPECIFIED
+}
+
+func (x *AccountSyncEvent) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *AccountSyncEvent) GetCorrelationId() string {
+	if x != nil {
+		return x.CorrelationId
+	}
+	return ""
+}
+
+func (x *AccountSyncEvent) GetOccurredAt() string {
+	if x != nil {
+		return x.OccurredAt
+	}
+	return ""
+}
+
+func (x *AccountSyncEvent) GetDetailsJson() string {
+	if x != nil {
+		return x.DetailsJson
+	}
+	return ""
+}
+
+func (x *AccountSyncEvent) GetEventName() string {
+	if x != nil {
+		return x.EventName
+	}
+	return ""
+}
+
 type ListAccountReferencesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
@@ -159,7 +1320,7 @@ type ListAccountReferencesRequest struct {
 
 func (x *ListAccountReferencesRequest) Reset() {
 	*x = ListAccountReferencesRequest{}
-	mi := &file_drift_v1_account_proto_msgTypes[1]
+	mi := &file_drift_v1_account_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -171,7 +1332,7 @@ func (x *ListAccountReferencesRequest) String() string {
 func (*ListAccountReferencesRequest) ProtoMessage() {}
 
 func (x *ListAccountReferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_account_proto_msgTypes[1]
+	mi := &file_drift_v1_account_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -184,7 +1345,7 @@ func (x *ListAccountReferencesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAccountReferencesRequest.ProtoReflect.Descriptor instead.
 func (*ListAccountReferencesRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_account_proto_rawDescGZIP(), []int{1}
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListAccountReferencesRequest) GetWorkspace() *WorkspaceRef {
@@ -211,7 +1372,7 @@ type ListAccountReferencesResponse struct {
 
 func (x *ListAccountReferencesResponse) Reset() {
 	*x = ListAccountReferencesResponse{}
-	mi := &file_drift_v1_account_proto_msgTypes[2]
+	mi := &file_drift_v1_account_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -223,7 +1384,7 @@ func (x *ListAccountReferencesResponse) String() string {
 func (*ListAccountReferencesResponse) ProtoMessage() {}
 
 func (x *ListAccountReferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_account_proto_msgTypes[2]
+	mi := &file_drift_v1_account_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -236,7 +1397,7 @@ func (x *ListAccountReferencesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAccountReferencesResponse.ProtoReflect.Descriptor instead.
 func (*ListAccountReferencesResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_account_proto_rawDescGZIP(), []int{2}
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListAccountReferencesResponse) GetAccounts() []*AccountReference {
@@ -253,30 +1414,1958 @@ func (x *ListAccountReferencesResponse) GetPage() *PageResponse {
 	return nil
 }
 
+type ListAccountSourcesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountSourcesRequest) Reset() {
+	*x = ListAccountSourcesRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountSourcesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountSourcesRequest) ProtoMessage() {}
+
+func (x *ListAccountSourcesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountSourcesRequest.ProtoReflect.Descriptor instead.
+func (*ListAccountSourcesRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ListAccountSourcesRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListAccountSourcesRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListAccountSourcesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sources       []*AccountSource       `protobuf:"bytes,1,rep,name=sources,proto3" json:"sources,omitempty"`
+	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountSourcesResponse) Reset() {
+	*x = ListAccountSourcesResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountSourcesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountSourcesResponse) ProtoMessage() {}
+
+func (x *ListAccountSourcesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountSourcesResponse.ProtoReflect.Descriptor instead.
+func (*ListAccountSourcesResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListAccountSourcesResponse) GetSources() []*AccountSource {
+	if x != nil {
+		return x.Sources
+	}
+	return nil
+}
+
+func (x *ListAccountSourcesResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type CreateAccountSourceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Source        *AccountSource         `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAccountSourceRequest) Reset() {
+	*x = CreateAccountSourceRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAccountSourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAccountSourceRequest) ProtoMessage() {}
+
+func (x *CreateAccountSourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAccountSourceRequest.ProtoReflect.Descriptor instead.
+func (*CreateAccountSourceRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CreateAccountSourceRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *CreateAccountSourceRequest) GetSource() *AccountSource {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+type CreateAccountSourceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Source        *AccountSource         `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAccountSourceResponse) Reset() {
+	*x = CreateAccountSourceResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAccountSourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAccountSourceResponse) ProtoMessage() {}
+
+func (x *CreateAccountSourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAccountSourceResponse.ProtoReflect.Descriptor instead.
+func (*CreateAccountSourceResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CreateAccountSourceResponse) GetSource() *AccountSource {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+type UpdateAccountSourceRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Context            *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Source             *ResourceRef           `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	DisplayName        string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	ExternalReference  string                 `protobuf:"bytes,4,opt,name=external_reference,json=externalReference,proto3" json:"external_reference,omitempty"`
+	MetadataJson       string                 `protobuf:"bytes,5,opt,name=metadata_json,json=metadataJson,proto3" json:"metadata_json,omitempty"`
+	ExpectedRowVersion uint64                 `protobuf:"varint,6,opt,name=expected_row_version,json=expectedRowVersion,proto3" json:"expected_row_version,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *UpdateAccountSourceRequest) Reset() {
+	*x = UpdateAccountSourceRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAccountSourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAccountSourceRequest) ProtoMessage() {}
+
+func (x *UpdateAccountSourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAccountSourceRequest.ProtoReflect.Descriptor instead.
+func (*UpdateAccountSourceRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *UpdateAccountSourceRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *UpdateAccountSourceRequest) GetSource() *ResourceRef {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+func (x *UpdateAccountSourceRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *UpdateAccountSourceRequest) GetExternalReference() string {
+	if x != nil {
+		return x.ExternalReference
+	}
+	return ""
+}
+
+func (x *UpdateAccountSourceRequest) GetMetadataJson() string {
+	if x != nil {
+		return x.MetadataJson
+	}
+	return ""
+}
+
+func (x *UpdateAccountSourceRequest) GetExpectedRowVersion() uint64 {
+	if x != nil {
+		return x.ExpectedRowVersion
+	}
+	return 0
+}
+
+type UpdateAccountSourceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Source        *AccountSource         `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateAccountSourceResponse) Reset() {
+	*x = UpdateAccountSourceResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAccountSourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAccountSourceResponse) ProtoMessage() {}
+
+func (x *UpdateAccountSourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAccountSourceResponse.ProtoReflect.Descriptor instead.
+func (*UpdateAccountSourceResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *UpdateAccountSourceResponse) GetSource() *AccountSource {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+type TransitionAccountSourceRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Context            *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Source             *ResourceRef           `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	State              AccountSourceState     `protobuf:"varint,3,opt,name=state,proto3,enum=drift.v1.AccountSourceState" json:"state,omitempty"`
+	ExpectedRowVersion uint64                 `protobuf:"varint,4,opt,name=expected_row_version,json=expectedRowVersion,proto3" json:"expected_row_version,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *TransitionAccountSourceRequest) Reset() {
+	*x = TransitionAccountSourceRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransitionAccountSourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransitionAccountSourceRequest) ProtoMessage() {}
+
+func (x *TransitionAccountSourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransitionAccountSourceRequest.ProtoReflect.Descriptor instead.
+func (*TransitionAccountSourceRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *TransitionAccountSourceRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *TransitionAccountSourceRequest) GetSource() *ResourceRef {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+func (x *TransitionAccountSourceRequest) GetState() AccountSourceState {
+	if x != nil {
+		return x.State
+	}
+	return AccountSourceState_ACCOUNT_SOURCE_STATE_UNSPECIFIED
+}
+
+func (x *TransitionAccountSourceRequest) GetExpectedRowVersion() uint64 {
+	if x != nil {
+		return x.ExpectedRowVersion
+	}
+	return 0
+}
+
+type TransitionAccountSourceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Source        *AccountSource         `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransitionAccountSourceResponse) Reset() {
+	*x = TransitionAccountSourceResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransitionAccountSourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransitionAccountSourceResponse) ProtoMessage() {}
+
+func (x *TransitionAccountSourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransitionAccountSourceResponse.ProtoReflect.Descriptor instead.
+func (*TransitionAccountSourceResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *TransitionAccountSourceResponse) GetSource() *AccountSource {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+type CreateAccountRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Account       *AccountReference      `protobuf:"bytes,2,opt,name=account,proto3" json:"account,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAccountRequest) Reset() {
+	*x = CreateAccountRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAccountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAccountRequest) ProtoMessage() {}
+
+func (x *CreateAccountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAccountRequest.ProtoReflect.Descriptor instead.
+func (*CreateAccountRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *CreateAccountRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *CreateAccountRequest) GetAccount() *AccountReference {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+type CreateAccountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Account       *AccountReference      `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAccountResponse) Reset() {
+	*x = CreateAccountResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAccountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAccountResponse) ProtoMessage() {}
+
+func (x *CreateAccountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAccountResponse.ProtoReflect.Descriptor instead.
+func (*CreateAccountResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *CreateAccountResponse) GetAccount() *AccountReference {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+type UpdateAccountRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Context            *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Account            *ResourceRef           `protobuf:"bytes,2,opt,name=account,proto3" json:"account,omitempty"`
+	ExternalReference  string                 `protobuf:"bytes,3,opt,name=external_reference,json=externalReference,proto3" json:"external_reference,omitempty"`
+	DisplayName        string                 `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	MetadataJson       string                 `protobuf:"bytes,5,opt,name=metadata_json,json=metadataJson,proto3" json:"metadata_json,omitempty"`
+	ExpectedRowVersion uint64                 `protobuf:"varint,6,opt,name=expected_row_version,json=expectedRowVersion,proto3" json:"expected_row_version,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *UpdateAccountRequest) Reset() {
+	*x = UpdateAccountRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAccountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAccountRequest) ProtoMessage() {}
+
+func (x *UpdateAccountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAccountRequest.ProtoReflect.Descriptor instead.
+func (*UpdateAccountRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *UpdateAccountRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *UpdateAccountRequest) GetAccount() *ResourceRef {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+func (x *UpdateAccountRequest) GetExternalReference() string {
+	if x != nil {
+		return x.ExternalReference
+	}
+	return ""
+}
+
+func (x *UpdateAccountRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *UpdateAccountRequest) GetMetadataJson() string {
+	if x != nil {
+		return x.MetadataJson
+	}
+	return ""
+}
+
+func (x *UpdateAccountRequest) GetExpectedRowVersion() uint64 {
+	if x != nil {
+		return x.ExpectedRowVersion
+	}
+	return 0
+}
+
+type UpdateAccountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Account       *AccountReference      `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateAccountResponse) Reset() {
+	*x = UpdateAccountResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAccountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAccountResponse) ProtoMessage() {}
+
+func (x *UpdateAccountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAccountResponse.ProtoReflect.Descriptor instead.
+func (*UpdateAccountResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *UpdateAccountResponse) GetAccount() *AccountReference {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+type UpdateAccountStateRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Context            *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Account            *ResourceRef           `protobuf:"bytes,2,opt,name=account,proto3" json:"account,omitempty"`
+	State              AccountState           `protobuf:"varint,3,opt,name=state,proto3,enum=drift.v1.AccountState" json:"state,omitempty"`
+	ExpectedRowVersion uint64                 `protobuf:"varint,4,opt,name=expected_row_version,json=expectedRowVersion,proto3" json:"expected_row_version,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *UpdateAccountStateRequest) Reset() {
+	*x = UpdateAccountStateRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAccountStateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAccountStateRequest) ProtoMessage() {}
+
+func (x *UpdateAccountStateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAccountStateRequest.ProtoReflect.Descriptor instead.
+func (*UpdateAccountStateRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *UpdateAccountStateRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *UpdateAccountStateRequest) GetAccount() *ResourceRef {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+func (x *UpdateAccountStateRequest) GetState() AccountState {
+	if x != nil {
+		return x.State
+	}
+	return AccountState_ACCOUNT_STATE_UNSPECIFIED
+}
+
+func (x *UpdateAccountStateRequest) GetExpectedRowVersion() uint64 {
+	if x != nil {
+		return x.ExpectedRowVersion
+	}
+	return 0
+}
+
+type UpdateAccountStateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Account       *AccountReference      `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateAccountStateResponse) Reset() {
+	*x = UpdateAccountStateResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAccountStateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAccountStateResponse) ProtoMessage() {}
+
+func (x *UpdateAccountStateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAccountStateResponse.ProtoReflect.Descriptor instead.
+func (*UpdateAccountStateResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *UpdateAccountStateResponse) GetAccount() *AccountReference {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+type ListAccountServiceStatesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountServiceStatesRequest) Reset() {
+	*x = ListAccountServiceStatesRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountServiceStatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountServiceStatesRequest) ProtoMessage() {}
+
+func (x *ListAccountServiceStatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountServiceStatesRequest.ProtoReflect.Descriptor instead.
+func (*ListAccountServiceStatesRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *ListAccountServiceStatesRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListAccountServiceStatesRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *ListAccountServiceStatesRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListAccountServiceStatesResponse struct {
+	state         protoimpl.MessageState           `protogen:"open.v1"`
+	States        []*AccountServiceStateProjection `protobuf:"bytes,1,rep,name=states,proto3" json:"states,omitempty"`
+	Page          *PageResponse                    `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountServiceStatesResponse) Reset() {
+	*x = ListAccountServiceStatesResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountServiceStatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountServiceStatesResponse) ProtoMessage() {}
+
+func (x *ListAccountServiceStatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountServiceStatesResponse.ProtoReflect.Descriptor instead.
+func (*ListAccountServiceStatesResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ListAccountServiceStatesResponse) GetStates() []*AccountServiceStateProjection {
+	if x != nil {
+		return x.States
+	}
+	return nil
+}
+
+func (x *ListAccountServiceStatesResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListAccountServiceStateHistoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountServiceStateHistoryRequest) Reset() {
+	*x = ListAccountServiceStateHistoryRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountServiceStateHistoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountServiceStateHistoryRequest) ProtoMessage() {}
+
+func (x *ListAccountServiceStateHistoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountServiceStateHistoryRequest.ProtoReflect.Descriptor instead.
+func (*ListAccountServiceStateHistoryRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *ListAccountServiceStateHistoryRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListAccountServiceStateHistoryRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *ListAccountServiceStateHistoryRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListAccountServiceStateHistoryResponse struct {
+	state         protoimpl.MessageState        `protogen:"open.v1"`
+	History       []*AccountServiceStateHistory `protobuf:"bytes,1,rep,name=history,proto3" json:"history,omitempty"`
+	Page          *PageResponse                 `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountServiceStateHistoryResponse) Reset() {
+	*x = ListAccountServiceStateHistoryResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountServiceStateHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountServiceStateHistoryResponse) ProtoMessage() {}
+
+func (x *ListAccountServiceStateHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountServiceStateHistoryResponse.ProtoReflect.Descriptor instead.
+func (*ListAccountServiceStateHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ListAccountServiceStateHistoryResponse) GetHistory() []*AccountServiceStateHistory {
+	if x != nil {
+		return x.History
+	}
+	return nil
+}
+
+func (x *ListAccountServiceStateHistoryResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListAccountRunsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountRunsRequest) Reset() {
+	*x = ListAccountRunsRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountRunsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountRunsRequest) ProtoMessage() {}
+
+func (x *ListAccountRunsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountRunsRequest.ProtoReflect.Descriptor instead.
+func (*ListAccountRunsRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *ListAccountRunsRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListAccountRunsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *ListAccountRunsRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListAccountRunsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Runs          []*AccountRun          `protobuf:"bytes,1,rep,name=runs,proto3" json:"runs,omitempty"`
+	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountRunsResponse) Reset() {
+	*x = ListAccountRunsResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountRunsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountRunsResponse) ProtoMessage() {}
+
+func (x *ListAccountRunsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountRunsResponse.ProtoReflect.Descriptor instead.
+func (*ListAccountRunsResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *ListAccountRunsResponse) GetRuns() []*AccountRun {
+	if x != nil {
+		return x.Runs
+	}
+	return nil
+}
+
+func (x *ListAccountRunsResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListAccountRunEventsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	RunId         string                 `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountRunEventsRequest) Reset() {
+	*x = ListAccountRunEventsRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountRunEventsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountRunEventsRequest) ProtoMessage() {}
+
+func (x *ListAccountRunEventsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountRunEventsRequest.ProtoReflect.Descriptor instead.
+func (*ListAccountRunEventsRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *ListAccountRunEventsRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListAccountRunEventsRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ListAccountRunEventsRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListAccountRunEventsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Events        []*AccountRunEvent     `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountRunEventsResponse) Reset() {
+	*x = ListAccountRunEventsResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountRunEventsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountRunEventsResponse) ProtoMessage() {}
+
+func (x *ListAccountRunEventsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountRunEventsResponse.ProtoReflect.Descriptor instead.
+func (*ListAccountRunEventsResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *ListAccountRunEventsResponse) GetEvents() []*AccountRunEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+func (x *ListAccountRunEventsResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type AssignAccountDeviceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Account       *ResourceRef           `protobuf:"bytes,2,opt,name=account,proto3" json:"account,omitempty"`
+	Device        *ResourceRef           `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AssignAccountDeviceRequest) Reset() {
+	*x = AssignAccountDeviceRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AssignAccountDeviceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AssignAccountDeviceRequest) ProtoMessage() {}
+
+func (x *AssignAccountDeviceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AssignAccountDeviceRequest.ProtoReflect.Descriptor instead.
+func (*AssignAccountDeviceRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *AssignAccountDeviceRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *AssignAccountDeviceRequest) GetAccount() *ResourceRef {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+func (x *AssignAccountDeviceRequest) GetDevice() *ResourceRef {
+	if x != nil {
+		return x.Device
+	}
+	return nil
+}
+
+type AssignAccountDeviceResponse struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Assignment    *AccountDeviceAssignment `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AssignAccountDeviceResponse) Reset() {
+	*x = AssignAccountDeviceResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AssignAccountDeviceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AssignAccountDeviceResponse) ProtoMessage() {}
+
+func (x *AssignAccountDeviceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AssignAccountDeviceResponse.ProtoReflect.Descriptor instead.
+func (*AssignAccountDeviceResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *AssignAccountDeviceResponse) GetAssignment() *AccountDeviceAssignment {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+type EndAccountDeviceAssignmentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Assignment    *ResourceRef           `protobuf:"bytes,2,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EndAccountDeviceAssignmentRequest) Reset() {
+	*x = EndAccountDeviceAssignmentRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EndAccountDeviceAssignmentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EndAccountDeviceAssignmentRequest) ProtoMessage() {}
+
+func (x *EndAccountDeviceAssignmentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EndAccountDeviceAssignmentRequest.ProtoReflect.Descriptor instead.
+func (*EndAccountDeviceAssignmentRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *EndAccountDeviceAssignmentRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *EndAccountDeviceAssignmentRequest) GetAssignment() *ResourceRef {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+type EndAccountDeviceAssignmentResponse struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Assignment    *AccountDeviceAssignment `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EndAccountDeviceAssignmentResponse) Reset() {
+	*x = EndAccountDeviceAssignmentResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EndAccountDeviceAssignmentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EndAccountDeviceAssignmentResponse) ProtoMessage() {}
+
+func (x *EndAccountDeviceAssignmentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EndAccountDeviceAssignmentResponse.ProtoReflect.Descriptor instead.
+func (*EndAccountDeviceAssignmentResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *EndAccountDeviceAssignmentResponse) GetAssignment() *AccountDeviceAssignment {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+type ListAccountDeviceAssignmentsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	DeviceId      string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,4,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountDeviceAssignmentsRequest) Reset() {
+	*x = ListAccountDeviceAssignmentsRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountDeviceAssignmentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountDeviceAssignmentsRequest) ProtoMessage() {}
+
+func (x *ListAccountDeviceAssignmentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountDeviceAssignmentsRequest.ProtoReflect.Descriptor instead.
+func (*ListAccountDeviceAssignmentsRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *ListAccountDeviceAssignmentsRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListAccountDeviceAssignmentsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *ListAccountDeviceAssignmentsRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *ListAccountDeviceAssignmentsRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListAccountDeviceAssignmentsResponse struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Assignments   []*AccountDeviceAssignment `protobuf:"bytes,1,rep,name=assignments,proto3" json:"assignments,omitempty"`
+	Page          *PageResponse              `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountDeviceAssignmentsResponse) Reset() {
+	*x = ListAccountDeviceAssignmentsResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountDeviceAssignmentsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountDeviceAssignmentsResponse) ProtoMessage() {}
+
+func (x *ListAccountDeviceAssignmentsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountDeviceAssignmentsResponse.ProtoReflect.Descriptor instead.
+func (*ListAccountDeviceAssignmentsResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ListAccountDeviceAssignmentsResponse) GetAssignments() []*AccountDeviceAssignment {
+	if x != nil {
+		return x.Assignments
+	}
+	return nil
+}
+
+func (x *ListAccountDeviceAssignmentsResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListAccountSyncEventsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	SourceId      string                 `protobuf:"bytes,2,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountSyncEventsRequest) Reset() {
+	*x = ListAccountSyncEventsRequest{}
+	mi := &file_drift_v1_account_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountSyncEventsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountSyncEventsRequest) ProtoMessage() {}
+
+func (x *ListAccountSyncEventsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountSyncEventsRequest.ProtoReflect.Descriptor instead.
+func (*ListAccountSyncEventsRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *ListAccountSyncEventsRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListAccountSyncEventsRequest) GetSourceId() string {
+	if x != nil {
+		return x.SourceId
+	}
+	return ""
+}
+
+func (x *ListAccountSyncEventsRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListAccountSyncEventsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Events        []*AccountSyncEvent    `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAccountSyncEventsResponse) Reset() {
+	*x = ListAccountSyncEventsResponse{}
+	mi := &file_drift_v1_account_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAccountSyncEventsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAccountSyncEventsResponse) ProtoMessage() {}
+
+func (x *ListAccountSyncEventsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_account_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAccountSyncEventsResponse.ProtoReflect.Descriptor instead.
+func (*ListAccountSyncEventsResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_account_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *ListAccountSyncEventsResponse) GetEvents() []*AccountSyncEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+func (x *ListAccountSyncEventsResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 var File_drift_v1_account_proto protoreflect.FileDescriptor
 
 const file_drift_v1_account_proto_rawDesc = "" +
 	"\n" +
-	"\x16drift/v1/account.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xd2\x01\n" +
+	"\x16drift/v1/account.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xe4\x02\n" +
 	"\x10AccountReference\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
 	"\tsource_id\x18\x03 \x01(\tR\bsourceId\x12-\n" +
 	"\x12external_reference\x18\x04 \x01(\tR\x11externalReference\x12,\n" +
-	"\x05state\x18\x05 \x01(\x0e2\x16.drift.v1.AccountStateR\x05state\"\x7f\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x16.drift.v1.AccountStateR\x05state\x12!\n" +
+	"\fdisplay_name\x18\x06 \x01(\tR\vdisplayName\x12#\n" +
+	"\rmetadata_json\x18\a \x01(\tR\fmetadataJson\x12\x1f\n" +
+	"\vrow_version\x18\b \x01(\x04R\n" +
+	"rowVersion\x12'\n" +
+	"\x0fsource_provider\x18\t \x01(\tR\x0esourceProvider\"\xfb\x02\n" +
+	"\rAccountSource\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1a\n" +
+	"\bprovider\x18\x03 \x01(\tR\bprovider\x12!\n" +
+	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x122\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x1c.drift.v1.AccountSourceStateR\x05state\x12-\n" +
+	"\x12external_reference\x18\x06 \x01(\tR\x11externalReference\x12#\n" +
+	"\rmetadata_json\x18\a \x01(\tR\fmetadataJson\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\b \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\t \x01(\tR\tupdatedAt\x12\x1f\n" +
+	"\vrow_version\x18\n" +
+	" \x01(\x04R\n" +
+	"rowVersion\"\x9b\x03\n" +
+	"\x1dAccountServiceStateProjection\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\x12!\n" +
+	"\fservice_name\x18\x04 \x01(\tR\vserviceName\x123\n" +
+	"\x05stage\x18\x05 \x01(\x0e2\x1d.drift.v1.AccountServiceStageR\x05stage\x123\n" +
+	"\x05state\x18\x06 \x01(\x0e2\x1d.drift.v1.AccountServiceStateR\x05state\x12\x1f\n" +
+	"\vobserved_at\x18\a \x01(\tR\n" +
+	"observedAt\x12#\n" +
+	"\rfailure_class\x18\b \x01(\tR\ffailureClass\x12!\n" +
+	"\fdetails_json\x18\t \x01(\tR\vdetailsJson\x12\x1f\n" +
+	"\vrow_version\x18\n" +
+	" \x01(\x04R\n" +
+	"rowVersion\"\xb9\x03\n" +
+	"\x1aAccountServiceStateHistory\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\x12!\n" +
+	"\fservice_name\x18\x04 \x01(\tR\vserviceName\x123\n" +
+	"\x05stage\x18\x05 \x01(\x0e2\x1d.drift.v1.AccountServiceStageR\x05stage\x123\n" +
+	"\x05state\x18\x06 \x01(\x0e2\x1d.drift.v1.AccountServiceStateR\x05state\x12\x1f\n" +
+	"\vobserved_at\x18\a \x01(\tR\n" +
+	"observedAt\x12#\n" +
+	"\rfailure_class\x18\b \x01(\tR\ffailureClass\x12!\n" +
+	"\fdetails_json\x18\t \x01(\tR\vdetailsJson\x12\x1f\n" +
+	"\vrow_version\x18\n" +
+	" \x01(\x04R\n" +
+	"rowVersion\x12\x1f\n" +
+	"\vrecorded_at\x18\v \x01(\tR\n" +
+	"recordedAt\"\xf2\x02\n" +
+	"\n" +
+	"AccountRun\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\x12/\n" +
+	"\x05state\x18\x04 \x01(\x0e2\x19.drift.v1.AccountRunStateR\x05state\x12!\n" +
+	"\frequested_at\x18\x05 \x01(\tR\vrequestedAt\x12\x1d\n" +
+	"\n" +
+	"started_at\x18\x06 \x01(\tR\tstartedAt\x12\x1f\n" +
+	"\vfinished_at\x18\a \x01(\tR\n" +
+	"finishedAt\x12#\n" +
+	"\rfailure_class\x18\b \x01(\tR\ffailureClass\x12%\n" +
+	"\x0ecorrelation_id\x18\t \x01(\tR\rcorrelationId\x12\x1f\n" +
+	"\vrow_version\x18\n" +
+	" \x01(\x04R\n" +
+	"rowVersion\"\xc6\x02\n" +
+	"\x0fAccountRunEvent\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x15\n" +
+	"\x06run_id\x18\x03 \x01(\tR\x05runId\x12/\n" +
+	"\x05state\x18\x04 \x01(\x0e2\x19.drift.v1.AccountRunStateR\x05state\x12#\n" +
+	"\rfailure_class\x18\x05 \x01(\tR\ffailureClass\x12\x1f\n" +
+	"\voccurred_at\x18\x06 \x01(\tR\n" +
+	"occurredAt\x12\x1d\n" +
+	"\n" +
+	"actor_type\x18\a \x01(\tR\tactorType\x12\x19\n" +
+	"\bactor_id\x18\b \x01(\tR\aactorId\x12%\n" +
+	"\x0ecorrelation_id\x18\t \x01(\tR\rcorrelationId\"\xb0\x02\n" +
+	"\x17AccountDeviceAssignment\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\x12\x1b\n" +
+	"\tdevice_id\x18\x04 \x01(\tR\bdeviceId\x126\n" +
+	"\x05state\x18\x05 \x01(\x0e2 .drift.v1.AccountAssignmentStateR\x05state\x12\x1f\n" +
+	"\vassigned_at\x18\x06 \x01(\tR\n" +
+	"assignedAt\x12\x19\n" +
+	"\bended_at\x18\a \x01(\tR\aendedAt\x12\x1f\n" +
+	"\vrow_version\x18\b \x01(\x04R\n" +
+	"rowVersion\"\xff\x02\n" +
+	"\x10AccountSyncEvent\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tsource_id\x18\x03 \x01(\tR\bsourceId\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x04 \x01(\tR\taccountId\x126\n" +
+	"\aoutcome\x18\x05 \x01(\x0e2\x1c.drift.v1.AccountSyncOutcomeR\aoutcome\x12'\n" +
+	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x12%\n" +
+	"\x0ecorrelation_id\x18\a \x01(\tR\rcorrelationId\x12\x1f\n" +
+	"\voccurred_at\x18\b \x01(\tR\n" +
+	"occurredAt\x12!\n" +
+	"\fdetails_json\x18\t \x01(\tR\vdetailsJson\x12\x1d\n" +
+	"\n" +
+	"event_name\x18\n" +
+	" \x01(\tR\teventName\"\x7f\n" +
 	"\x1cListAccountReferencesRequest\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
 	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x83\x01\n" +
 	"\x1dListAccountReferencesResponse\x126\n" +
 	"\baccounts\x18\x01 \x03(\v2\x1a.drift.v1.AccountReferenceR\baccounts\x12*\n" +
-	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page*\x7f\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"|\n" +
+	"\x19ListAccountSourcesRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
+	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"{\n" +
+	"\x1aListAccountSourcesResponse\x121\n" +
+	"\asources\x18\x01 \x03(\v2\x17.drift.v1.AccountSourceR\asources\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\x81\x01\n" +
+	"\x1aCreateAccountSourceRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12/\n" +
+	"\x06source\x18\x02 \x01(\v2\x17.drift.v1.AccountSourceR\x06source\"N\n" +
+	"\x1bCreateAccountSourceResponse\x12/\n" +
+	"\x06source\x18\x01 \x01(\v2\x17.drift.v1.AccountSourceR\x06source\"\xa8\x02\n" +
+	"\x1aUpdateAccountSourceRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12-\n" +
+	"\x06source\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\x06source\x12!\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12-\n" +
+	"\x12external_reference\x18\x04 \x01(\tR\x11externalReference\x12#\n" +
+	"\rmetadata_json\x18\x05 \x01(\tR\fmetadataJson\x120\n" +
+	"\x14expected_row_version\x18\x06 \x01(\x04R\x12expectedRowVersion\"N\n" +
+	"\x1bUpdateAccountSourceResponse\x12/\n" +
+	"\x06source\x18\x01 \x01(\v2\x17.drift.v1.AccountSourceR\x06source\"\xe9\x01\n" +
+	"\x1eTransitionAccountSourceRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12-\n" +
+	"\x06source\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\x06source\x122\n" +
+	"\x05state\x18\x03 \x01(\x0e2\x1c.drift.v1.AccountSourceStateR\x05state\x120\n" +
+	"\x14expected_row_version\x18\x04 \x01(\x04R\x12expectedRowVersion\"R\n" +
+	"\x1fTransitionAccountSourceResponse\x12/\n" +
+	"\x06source\x18\x01 \x01(\v2\x17.drift.v1.AccountSourceR\x06source\"\x80\x01\n" +
+	"\x14CreateAccountRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\aaccount\x18\x02 \x01(\v2\x1a.drift.v1.AccountReferenceR\aaccount\"M\n" +
+	"\x15CreateAccountResponse\x124\n" +
+	"\aaccount\x18\x01 \x01(\v2\x1a.drift.v1.AccountReferenceR\aaccount\"\xa4\x02\n" +
+	"\x14UpdateAccountRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12/\n" +
+	"\aaccount\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\aaccount\x12-\n" +
+	"\x12external_reference\x18\x03 \x01(\tR\x11externalReference\x12!\n" +
+	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12#\n" +
+	"\rmetadata_json\x18\x05 \x01(\tR\fmetadataJson\x120\n" +
+	"\x14expected_row_version\x18\x06 \x01(\x04R\x12expectedRowVersion\"M\n" +
+	"\x15UpdateAccountResponse\x124\n" +
+	"\aaccount\x18\x01 \x01(\v2\x1a.drift.v1.AccountReferenceR\aaccount\"\xe0\x01\n" +
+	"\x19UpdateAccountStateRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12/\n" +
+	"\aaccount\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\aaccount\x12,\n" +
+	"\x05state\x18\x03 \x01(\x0e2\x16.drift.v1.AccountStateR\x05state\x120\n" +
+	"\x14expected_row_version\x18\x04 \x01(\x04R\x12expectedRowVersion\"R\n" +
+	"\x1aUpdateAccountStateResponse\x124\n" +
+	"\aaccount\x18\x01 \x01(\v2\x1a.drift.v1.AccountReferenceR\aaccount\"\xa1\x01\n" +
+	"\x1fListAccountServiceStatesRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\x12)\n" +
+	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x8f\x01\n" +
+	" ListAccountServiceStatesResponse\x12?\n" +
+	"\x06states\x18\x01 \x03(\v2'.drift.v1.AccountServiceStateProjectionR\x06states\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\xa7\x01\n" +
+	"%ListAccountServiceStateHistoryRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\x12)\n" +
+	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x94\x01\n" +
+	"&ListAccountServiceStateHistoryResponse\x12>\n" +
+	"\ahistory\x18\x01 \x03(\v2$.drift.v1.AccountServiceStateHistoryR\ahistory\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\x98\x01\n" +
+	"\x16ListAccountRunsRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\x12)\n" +
+	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"o\n" +
+	"\x17ListAccountRunsResponse\x12(\n" +
+	"\x04runs\x18\x01 \x03(\v2\x14.drift.v1.AccountRunR\x04runs\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\x95\x01\n" +
+	"\x1bListAccountRunEventsRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x15\n" +
+	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12)\n" +
+	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"}\n" +
+	"\x1cListAccountRunEventsResponse\x121\n" +
+	"\x06events\x18\x01 \x03(\v2\x19.drift.v1.AccountRunEventR\x06events\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\xb0\x01\n" +
+	"\x1aAssignAccountDeviceRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12/\n" +
+	"\aaccount\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\aaccount\x12-\n" +
+	"\x06device\x18\x03 \x01(\v2\x15.drift.v1.ResourceRefR\x06device\"`\n" +
+	"\x1bAssignAccountDeviceResponse\x12A\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2!.drift.v1.AccountDeviceAssignmentR\n" +
+	"assignment\"\x8e\x01\n" +
+	"!EndAccountDeviceAssignmentRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x125\n" +
+	"\n" +
+	"assignment\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\n" +
+	"assignment\"g\n" +
+	"\"EndAccountDeviceAssignmentResponse\x12A\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2!.drift.v1.AccountDeviceAssignmentR\n" +
+	"assignment\"\xc2\x01\n" +
+	"#ListAccountDeviceAssignmentsRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\x12\x1b\n" +
+	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12)\n" +
+	"\x04page\x18\x04 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x97\x01\n" +
+	"$ListAccountDeviceAssignmentsResponse\x12C\n" +
+	"\vassignments\x18\x01 \x03(\v2!.drift.v1.AccountDeviceAssignmentR\vassignments\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\x9c\x01\n" +
+	"\x1cListAccountSyncEventsRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tsource_id\x18\x02 \x01(\tR\bsourceId\x12)\n" +
+	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x7f\n" +
+	"\x1dListAccountSyncEventsResponse\x122\n" +
+	"\x06events\x18\x01 \x03(\v2\x1a.drift.v1.AccountSyncEventR\x06events\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page*\xb4\x01\n" +
 	"\fAccountState\x12\x1d\n" +
 	"\x19ACCOUNT_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14ACCOUNT_STATE_ACTIVE\x10\x01\x12\x1b\n" +
 	"\x17ACCOUNT_STATE_SUSPENDED\x10\x02\x12\x19\n" +
-	"\x15ACCOUNT_STATE_RETIRED\x10\x032z\n" +
+	"\x15ACCOUNT_STATE_RETIRED\x10\x03\x12\x17\n" +
+	"\x13ACCOUNT_STATE_DRAFT\x10\x04\x12\x1a\n" +
+	"\x16ACCOUNT_STATE_INACTIVE\x10\x05*\xa0\x01\n" +
+	"\x12AccountSourceState\x12$\n" +
+	" ACCOUNT_SOURCE_STATE_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bACCOUNT_SOURCE_STATE_ACTIVE\x10\x01\x12!\n" +
+	"\x1dACCOUNT_SOURCE_STATE_DISABLED\x10\x02\x12 \n" +
+	"\x1cACCOUNT_SOURCE_STATE_RETIRED\x10\x03*\xc9\x01\n" +
+	"\x13AccountServiceState\x12%\n" +
+	"!ACCOUNT_SERVICE_STATE_UNSPECIFIED\x10\x00\x12!\n" +
+	"\x1dACCOUNT_SERVICE_STATE_HEALTHY\x10\x01\x12\"\n" +
+	"\x1eACCOUNT_SERVICE_STATE_DEGRADED\x10\x02\x12 \n" +
+	"\x1cACCOUNT_SERVICE_STATE_FAILED\x10\x03\x12\"\n" +
+	"\x1eACCOUNT_SERVICE_STATE_DISABLED\x10\x04*\xea\x01\n" +
+	"\x13AccountServiceStage\x12%\n" +
+	"!ACCOUNT_SERVICE_STAGE_UNSPECIFIED\x10\x00\x12 \n" +
+	"\x1cACCOUNT_SERVICE_STAGE_QUEUED\x10\x01\x12\x1f\n" +
+	"\x1bACCOUNT_SERVICE_STAGE_READY\x10\x02\x12!\n" +
+	"\x1dACCOUNT_SERVICE_STAGE_RUNNING\x10\x03\x12!\n" +
+	"\x1dACCOUNT_SERVICE_STAGE_BLOCKED\x10\x04\x12#\n" +
+	"\x1fACCOUNT_SERVICE_STAGE_COMPLETED\x10\x05*\xd4\x01\n" +
+	"\x0fAccountRunState\x12!\n" +
+	"\x1dACCOUNT_RUN_STATE_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bACCOUNT_RUN_STATE_REQUESTED\x10\x01\x12\x1d\n" +
+	"\x19ACCOUNT_RUN_STATE_RUNNING\x10\x02\x12\x1f\n" +
+	"\x1bACCOUNT_RUN_STATE_COMPLETED\x10\x03\x12\x1c\n" +
+	"\x18ACCOUNT_RUN_STATE_FAILED\x10\x04\x12\x1f\n" +
+	"\x1bACCOUNT_RUN_STATE_CANCELLED\x10\x05*\x8b\x01\n" +
+	"\x16AccountAssignmentState\x12(\n" +
+	"$ACCOUNT_ASSIGNMENT_STATE_UNSPECIFIED\x10\x00\x12#\n" +
+	"\x1fACCOUNT_ASSIGNMENT_STATE_ACTIVE\x10\x01\x12\"\n" +
+	"\x1eACCOUNT_ASSIGNMENT_STATE_ENDED\x10\x02*\xc4\x01\n" +
+	"\x12AccountSyncOutcome\x12$\n" +
+	" ACCOUNT_SYNC_OUTCOME_UNSPECIFIED\x10\x00\x12!\n" +
+	"\x1dACCOUNT_SYNC_OUTCOME_ACCEPTED\x10\x01\x12!\n" +
+	"\x1dACCOUNT_SYNC_OUTCOME_REJECTED\x10\x02\x12\x1f\n" +
+	"\x1bACCOUNT_SYNC_OUTCOME_FAILED\x10\x03\x12!\n" +
+	"\x1dACCOUNT_SYNC_OUTCOME_DISABLED\x10\x042\x96\r\n" +
 	"\x0eAccountService\x12h\n" +
-	"\x15ListAccountReferences\x12&.drift.v1.ListAccountReferencesRequest\x1a'.drift.v1.ListAccountReferencesResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\x15ListAccountReferences\x12&.drift.v1.ListAccountReferencesRequest\x1a'.drift.v1.ListAccountReferencesResponse\x12_\n" +
+	"\x12ListAccountSources\x12#.drift.v1.ListAccountSourcesRequest\x1a$.drift.v1.ListAccountSourcesResponse\x12b\n" +
+	"\x13CreateAccountSource\x12$.drift.v1.CreateAccountSourceRequest\x1a%.drift.v1.CreateAccountSourceResponse\x12b\n" +
+	"\x13UpdateAccountSource\x12$.drift.v1.UpdateAccountSourceRequest\x1a%.drift.v1.UpdateAccountSourceResponse\x12n\n" +
+	"\x17TransitionAccountSource\x12(.drift.v1.TransitionAccountSourceRequest\x1a).drift.v1.TransitionAccountSourceResponse\x12P\n" +
+	"\rCreateAccount\x12\x1e.drift.v1.CreateAccountRequest\x1a\x1f.drift.v1.CreateAccountResponse\x12P\n" +
+	"\rUpdateAccount\x12\x1e.drift.v1.UpdateAccountRequest\x1a\x1f.drift.v1.UpdateAccountResponse\x12_\n" +
+	"\x12UpdateAccountState\x12#.drift.v1.UpdateAccountStateRequest\x1a$.drift.v1.UpdateAccountStateResponse\x12q\n" +
+	"\x18ListAccountServiceStates\x12).drift.v1.ListAccountServiceStatesRequest\x1a*.drift.v1.ListAccountServiceStatesResponse\x12\x83\x01\n" +
+	"\x1eListAccountServiceStateHistory\x12/.drift.v1.ListAccountServiceStateHistoryRequest\x1a0.drift.v1.ListAccountServiceStateHistoryResponse\x12V\n" +
+	"\x0fListAccountRuns\x12 .drift.v1.ListAccountRunsRequest\x1a!.drift.v1.ListAccountRunsResponse\x12e\n" +
+	"\x14ListAccountRunEvents\x12%.drift.v1.ListAccountRunEventsRequest\x1a&.drift.v1.ListAccountRunEventsResponse\x12b\n" +
+	"\x13AssignAccountDevice\x12$.drift.v1.AssignAccountDeviceRequest\x1a%.drift.v1.AssignAccountDeviceResponse\x12w\n" +
+	"\x1aEndAccountDeviceAssignment\x12+.drift.v1.EndAccountDeviceAssignmentRequest\x1a,.drift.v1.EndAccountDeviceAssignmentResponse\x12}\n" +
+	"\x1cListAccountDeviceAssignments\x12-.drift.v1.ListAccountDeviceAssignmentsRequest\x1a..drift.v1.ListAccountDeviceAssignmentsResponse\x12h\n" +
+	"\x15ListAccountSyncEvents\x12&.drift.v1.ListAccountSyncEventsRequest\x1a'.drift.v1.ListAccountSyncEventsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_account_proto_rawDescOnce sync.Once
@@ -290,31 +3379,177 @@ func file_drift_v1_account_proto_rawDescGZIP() []byte {
 	return file_drift_v1_account_proto_rawDescData
 }
 
-var file_drift_v1_account_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_drift_v1_account_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_drift_v1_account_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_drift_v1_account_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_drift_v1_account_proto_goTypes = []any{
-	(AccountState)(0),                     // 0: drift.v1.AccountState
-	(*AccountReference)(nil),              // 1: drift.v1.AccountReference
-	(*ListAccountReferencesRequest)(nil),  // 2: drift.v1.ListAccountReferencesRequest
-	(*ListAccountReferencesResponse)(nil), // 3: drift.v1.ListAccountReferencesResponse
-	(*WorkspaceRef)(nil),                  // 4: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),                   // 5: drift.v1.PageRequest
-	(*PageResponse)(nil),                  // 6: drift.v1.PageResponse
+	(AccountState)(0),                              // 0: drift.v1.AccountState
+	(AccountSourceState)(0),                        // 1: drift.v1.AccountSourceState
+	(AccountServiceState)(0),                       // 2: drift.v1.AccountServiceState
+	(AccountServiceStage)(0),                       // 3: drift.v1.AccountServiceStage
+	(AccountRunState)(0),                           // 4: drift.v1.AccountRunState
+	(AccountAssignmentState)(0),                    // 5: drift.v1.AccountAssignmentState
+	(AccountSyncOutcome)(0),                        // 6: drift.v1.AccountSyncOutcome
+	(*AccountReference)(nil),                       // 7: drift.v1.AccountReference
+	(*AccountSource)(nil),                          // 8: drift.v1.AccountSource
+	(*AccountServiceStateProjection)(nil),          // 9: drift.v1.AccountServiceStateProjection
+	(*AccountServiceStateHistory)(nil),             // 10: drift.v1.AccountServiceStateHistory
+	(*AccountRun)(nil),                             // 11: drift.v1.AccountRun
+	(*AccountRunEvent)(nil),                        // 12: drift.v1.AccountRunEvent
+	(*AccountDeviceAssignment)(nil),                // 13: drift.v1.AccountDeviceAssignment
+	(*AccountSyncEvent)(nil),                       // 14: drift.v1.AccountSyncEvent
+	(*ListAccountReferencesRequest)(nil),           // 15: drift.v1.ListAccountReferencesRequest
+	(*ListAccountReferencesResponse)(nil),          // 16: drift.v1.ListAccountReferencesResponse
+	(*ListAccountSourcesRequest)(nil),              // 17: drift.v1.ListAccountSourcesRequest
+	(*ListAccountSourcesResponse)(nil),             // 18: drift.v1.ListAccountSourcesResponse
+	(*CreateAccountSourceRequest)(nil),             // 19: drift.v1.CreateAccountSourceRequest
+	(*CreateAccountSourceResponse)(nil),            // 20: drift.v1.CreateAccountSourceResponse
+	(*UpdateAccountSourceRequest)(nil),             // 21: drift.v1.UpdateAccountSourceRequest
+	(*UpdateAccountSourceResponse)(nil),            // 22: drift.v1.UpdateAccountSourceResponse
+	(*TransitionAccountSourceRequest)(nil),         // 23: drift.v1.TransitionAccountSourceRequest
+	(*TransitionAccountSourceResponse)(nil),        // 24: drift.v1.TransitionAccountSourceResponse
+	(*CreateAccountRequest)(nil),                   // 25: drift.v1.CreateAccountRequest
+	(*CreateAccountResponse)(nil),                  // 26: drift.v1.CreateAccountResponse
+	(*UpdateAccountRequest)(nil),                   // 27: drift.v1.UpdateAccountRequest
+	(*UpdateAccountResponse)(nil),                  // 28: drift.v1.UpdateAccountResponse
+	(*UpdateAccountStateRequest)(nil),              // 29: drift.v1.UpdateAccountStateRequest
+	(*UpdateAccountStateResponse)(nil),             // 30: drift.v1.UpdateAccountStateResponse
+	(*ListAccountServiceStatesRequest)(nil),        // 31: drift.v1.ListAccountServiceStatesRequest
+	(*ListAccountServiceStatesResponse)(nil),       // 32: drift.v1.ListAccountServiceStatesResponse
+	(*ListAccountServiceStateHistoryRequest)(nil),  // 33: drift.v1.ListAccountServiceStateHistoryRequest
+	(*ListAccountServiceStateHistoryResponse)(nil), // 34: drift.v1.ListAccountServiceStateHistoryResponse
+	(*ListAccountRunsRequest)(nil),                 // 35: drift.v1.ListAccountRunsRequest
+	(*ListAccountRunsResponse)(nil),                // 36: drift.v1.ListAccountRunsResponse
+	(*ListAccountRunEventsRequest)(nil),            // 37: drift.v1.ListAccountRunEventsRequest
+	(*ListAccountRunEventsResponse)(nil),           // 38: drift.v1.ListAccountRunEventsResponse
+	(*AssignAccountDeviceRequest)(nil),             // 39: drift.v1.AssignAccountDeviceRequest
+	(*AssignAccountDeviceResponse)(nil),            // 40: drift.v1.AssignAccountDeviceResponse
+	(*EndAccountDeviceAssignmentRequest)(nil),      // 41: drift.v1.EndAccountDeviceAssignmentRequest
+	(*EndAccountDeviceAssignmentResponse)(nil),     // 42: drift.v1.EndAccountDeviceAssignmentResponse
+	(*ListAccountDeviceAssignmentsRequest)(nil),    // 43: drift.v1.ListAccountDeviceAssignmentsRequest
+	(*ListAccountDeviceAssignmentsResponse)(nil),   // 44: drift.v1.ListAccountDeviceAssignmentsResponse
+	(*ListAccountSyncEventsRequest)(nil),           // 45: drift.v1.ListAccountSyncEventsRequest
+	(*ListAccountSyncEventsResponse)(nil),          // 46: drift.v1.ListAccountSyncEventsResponse
+	(*WorkspaceRef)(nil),                           // 47: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),                            // 48: drift.v1.PageRequest
+	(*PageResponse)(nil),                           // 49: drift.v1.PageResponse
+	(*RequestContext)(nil),                         // 50: drift.v1.RequestContext
+	(*ResourceRef)(nil),                            // 51: drift.v1.ResourceRef
 }
 var file_drift_v1_account_proto_depIdxs = []int32{
-	4, // 0: drift.v1.AccountReference.workspace:type_name -> drift.v1.WorkspaceRef
-	0, // 1: drift.v1.AccountReference.state:type_name -> drift.v1.AccountState
-	4, // 2: drift.v1.ListAccountReferencesRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	5, // 3: drift.v1.ListAccountReferencesRequest.page:type_name -> drift.v1.PageRequest
-	1, // 4: drift.v1.ListAccountReferencesResponse.accounts:type_name -> drift.v1.AccountReference
-	6, // 5: drift.v1.ListAccountReferencesResponse.page:type_name -> drift.v1.PageResponse
-	2, // 6: drift.v1.AccountService.ListAccountReferences:input_type -> drift.v1.ListAccountReferencesRequest
-	3, // 7: drift.v1.AccountService.ListAccountReferences:output_type -> drift.v1.ListAccountReferencesResponse
-	7, // [7:8] is the sub-list for method output_type
-	6, // [6:7] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	47, // 0: drift.v1.AccountReference.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 1: drift.v1.AccountReference.state:type_name -> drift.v1.AccountState
+	47, // 2: drift.v1.AccountSource.workspace:type_name -> drift.v1.WorkspaceRef
+	1,  // 3: drift.v1.AccountSource.state:type_name -> drift.v1.AccountSourceState
+	47, // 4: drift.v1.AccountServiceStateProjection.workspace:type_name -> drift.v1.WorkspaceRef
+	3,  // 5: drift.v1.AccountServiceStateProjection.stage:type_name -> drift.v1.AccountServiceStage
+	2,  // 6: drift.v1.AccountServiceStateProjection.state:type_name -> drift.v1.AccountServiceState
+	47, // 7: drift.v1.AccountServiceStateHistory.workspace:type_name -> drift.v1.WorkspaceRef
+	3,  // 8: drift.v1.AccountServiceStateHistory.stage:type_name -> drift.v1.AccountServiceStage
+	2,  // 9: drift.v1.AccountServiceStateHistory.state:type_name -> drift.v1.AccountServiceState
+	47, // 10: drift.v1.AccountRun.workspace:type_name -> drift.v1.WorkspaceRef
+	4,  // 11: drift.v1.AccountRun.state:type_name -> drift.v1.AccountRunState
+	47, // 12: drift.v1.AccountRunEvent.workspace:type_name -> drift.v1.WorkspaceRef
+	4,  // 13: drift.v1.AccountRunEvent.state:type_name -> drift.v1.AccountRunState
+	47, // 14: drift.v1.AccountDeviceAssignment.workspace:type_name -> drift.v1.WorkspaceRef
+	5,  // 15: drift.v1.AccountDeviceAssignment.state:type_name -> drift.v1.AccountAssignmentState
+	47, // 16: drift.v1.AccountSyncEvent.workspace:type_name -> drift.v1.WorkspaceRef
+	6,  // 17: drift.v1.AccountSyncEvent.outcome:type_name -> drift.v1.AccountSyncOutcome
+	47, // 18: drift.v1.ListAccountReferencesRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	48, // 19: drift.v1.ListAccountReferencesRequest.page:type_name -> drift.v1.PageRequest
+	7,  // 20: drift.v1.ListAccountReferencesResponse.accounts:type_name -> drift.v1.AccountReference
+	49, // 21: drift.v1.ListAccountReferencesResponse.page:type_name -> drift.v1.PageResponse
+	47, // 22: drift.v1.ListAccountSourcesRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	48, // 23: drift.v1.ListAccountSourcesRequest.page:type_name -> drift.v1.PageRequest
+	8,  // 24: drift.v1.ListAccountSourcesResponse.sources:type_name -> drift.v1.AccountSource
+	49, // 25: drift.v1.ListAccountSourcesResponse.page:type_name -> drift.v1.PageResponse
+	50, // 26: drift.v1.CreateAccountSourceRequest.context:type_name -> drift.v1.RequestContext
+	8,  // 27: drift.v1.CreateAccountSourceRequest.source:type_name -> drift.v1.AccountSource
+	8,  // 28: drift.v1.CreateAccountSourceResponse.source:type_name -> drift.v1.AccountSource
+	50, // 29: drift.v1.UpdateAccountSourceRequest.context:type_name -> drift.v1.RequestContext
+	51, // 30: drift.v1.UpdateAccountSourceRequest.source:type_name -> drift.v1.ResourceRef
+	8,  // 31: drift.v1.UpdateAccountSourceResponse.source:type_name -> drift.v1.AccountSource
+	50, // 32: drift.v1.TransitionAccountSourceRequest.context:type_name -> drift.v1.RequestContext
+	51, // 33: drift.v1.TransitionAccountSourceRequest.source:type_name -> drift.v1.ResourceRef
+	1,  // 34: drift.v1.TransitionAccountSourceRequest.state:type_name -> drift.v1.AccountSourceState
+	8,  // 35: drift.v1.TransitionAccountSourceResponse.source:type_name -> drift.v1.AccountSource
+	50, // 36: drift.v1.CreateAccountRequest.context:type_name -> drift.v1.RequestContext
+	7,  // 37: drift.v1.CreateAccountRequest.account:type_name -> drift.v1.AccountReference
+	7,  // 38: drift.v1.CreateAccountResponse.account:type_name -> drift.v1.AccountReference
+	50, // 39: drift.v1.UpdateAccountRequest.context:type_name -> drift.v1.RequestContext
+	51, // 40: drift.v1.UpdateAccountRequest.account:type_name -> drift.v1.ResourceRef
+	7,  // 41: drift.v1.UpdateAccountResponse.account:type_name -> drift.v1.AccountReference
+	50, // 42: drift.v1.UpdateAccountStateRequest.context:type_name -> drift.v1.RequestContext
+	51, // 43: drift.v1.UpdateAccountStateRequest.account:type_name -> drift.v1.ResourceRef
+	0,  // 44: drift.v1.UpdateAccountStateRequest.state:type_name -> drift.v1.AccountState
+	7,  // 45: drift.v1.UpdateAccountStateResponse.account:type_name -> drift.v1.AccountReference
+	47, // 46: drift.v1.ListAccountServiceStatesRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	48, // 47: drift.v1.ListAccountServiceStatesRequest.page:type_name -> drift.v1.PageRequest
+	9,  // 48: drift.v1.ListAccountServiceStatesResponse.states:type_name -> drift.v1.AccountServiceStateProjection
+	49, // 49: drift.v1.ListAccountServiceStatesResponse.page:type_name -> drift.v1.PageResponse
+	47, // 50: drift.v1.ListAccountServiceStateHistoryRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	48, // 51: drift.v1.ListAccountServiceStateHistoryRequest.page:type_name -> drift.v1.PageRequest
+	10, // 52: drift.v1.ListAccountServiceStateHistoryResponse.history:type_name -> drift.v1.AccountServiceStateHistory
+	49, // 53: drift.v1.ListAccountServiceStateHistoryResponse.page:type_name -> drift.v1.PageResponse
+	47, // 54: drift.v1.ListAccountRunsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	48, // 55: drift.v1.ListAccountRunsRequest.page:type_name -> drift.v1.PageRequest
+	11, // 56: drift.v1.ListAccountRunsResponse.runs:type_name -> drift.v1.AccountRun
+	49, // 57: drift.v1.ListAccountRunsResponse.page:type_name -> drift.v1.PageResponse
+	47, // 58: drift.v1.ListAccountRunEventsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	48, // 59: drift.v1.ListAccountRunEventsRequest.page:type_name -> drift.v1.PageRequest
+	12, // 60: drift.v1.ListAccountRunEventsResponse.events:type_name -> drift.v1.AccountRunEvent
+	49, // 61: drift.v1.ListAccountRunEventsResponse.page:type_name -> drift.v1.PageResponse
+	50, // 62: drift.v1.AssignAccountDeviceRequest.context:type_name -> drift.v1.RequestContext
+	51, // 63: drift.v1.AssignAccountDeviceRequest.account:type_name -> drift.v1.ResourceRef
+	51, // 64: drift.v1.AssignAccountDeviceRequest.device:type_name -> drift.v1.ResourceRef
+	13, // 65: drift.v1.AssignAccountDeviceResponse.assignment:type_name -> drift.v1.AccountDeviceAssignment
+	50, // 66: drift.v1.EndAccountDeviceAssignmentRequest.context:type_name -> drift.v1.RequestContext
+	51, // 67: drift.v1.EndAccountDeviceAssignmentRequest.assignment:type_name -> drift.v1.ResourceRef
+	13, // 68: drift.v1.EndAccountDeviceAssignmentResponse.assignment:type_name -> drift.v1.AccountDeviceAssignment
+	47, // 69: drift.v1.ListAccountDeviceAssignmentsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	48, // 70: drift.v1.ListAccountDeviceAssignmentsRequest.page:type_name -> drift.v1.PageRequest
+	13, // 71: drift.v1.ListAccountDeviceAssignmentsResponse.assignments:type_name -> drift.v1.AccountDeviceAssignment
+	49, // 72: drift.v1.ListAccountDeviceAssignmentsResponse.page:type_name -> drift.v1.PageResponse
+	47, // 73: drift.v1.ListAccountSyncEventsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	48, // 74: drift.v1.ListAccountSyncEventsRequest.page:type_name -> drift.v1.PageRequest
+	14, // 75: drift.v1.ListAccountSyncEventsResponse.events:type_name -> drift.v1.AccountSyncEvent
+	49, // 76: drift.v1.ListAccountSyncEventsResponse.page:type_name -> drift.v1.PageResponse
+	15, // 77: drift.v1.AccountService.ListAccountReferences:input_type -> drift.v1.ListAccountReferencesRequest
+	17, // 78: drift.v1.AccountService.ListAccountSources:input_type -> drift.v1.ListAccountSourcesRequest
+	19, // 79: drift.v1.AccountService.CreateAccountSource:input_type -> drift.v1.CreateAccountSourceRequest
+	21, // 80: drift.v1.AccountService.UpdateAccountSource:input_type -> drift.v1.UpdateAccountSourceRequest
+	23, // 81: drift.v1.AccountService.TransitionAccountSource:input_type -> drift.v1.TransitionAccountSourceRequest
+	25, // 82: drift.v1.AccountService.CreateAccount:input_type -> drift.v1.CreateAccountRequest
+	27, // 83: drift.v1.AccountService.UpdateAccount:input_type -> drift.v1.UpdateAccountRequest
+	29, // 84: drift.v1.AccountService.UpdateAccountState:input_type -> drift.v1.UpdateAccountStateRequest
+	31, // 85: drift.v1.AccountService.ListAccountServiceStates:input_type -> drift.v1.ListAccountServiceStatesRequest
+	33, // 86: drift.v1.AccountService.ListAccountServiceStateHistory:input_type -> drift.v1.ListAccountServiceStateHistoryRequest
+	35, // 87: drift.v1.AccountService.ListAccountRuns:input_type -> drift.v1.ListAccountRunsRequest
+	37, // 88: drift.v1.AccountService.ListAccountRunEvents:input_type -> drift.v1.ListAccountRunEventsRequest
+	39, // 89: drift.v1.AccountService.AssignAccountDevice:input_type -> drift.v1.AssignAccountDeviceRequest
+	41, // 90: drift.v1.AccountService.EndAccountDeviceAssignment:input_type -> drift.v1.EndAccountDeviceAssignmentRequest
+	43, // 91: drift.v1.AccountService.ListAccountDeviceAssignments:input_type -> drift.v1.ListAccountDeviceAssignmentsRequest
+	45, // 92: drift.v1.AccountService.ListAccountSyncEvents:input_type -> drift.v1.ListAccountSyncEventsRequest
+	16, // 93: drift.v1.AccountService.ListAccountReferences:output_type -> drift.v1.ListAccountReferencesResponse
+	18, // 94: drift.v1.AccountService.ListAccountSources:output_type -> drift.v1.ListAccountSourcesResponse
+	20, // 95: drift.v1.AccountService.CreateAccountSource:output_type -> drift.v1.CreateAccountSourceResponse
+	22, // 96: drift.v1.AccountService.UpdateAccountSource:output_type -> drift.v1.UpdateAccountSourceResponse
+	24, // 97: drift.v1.AccountService.TransitionAccountSource:output_type -> drift.v1.TransitionAccountSourceResponse
+	26, // 98: drift.v1.AccountService.CreateAccount:output_type -> drift.v1.CreateAccountResponse
+	28, // 99: drift.v1.AccountService.UpdateAccount:output_type -> drift.v1.UpdateAccountResponse
+	30, // 100: drift.v1.AccountService.UpdateAccountState:output_type -> drift.v1.UpdateAccountStateResponse
+	32, // 101: drift.v1.AccountService.ListAccountServiceStates:output_type -> drift.v1.ListAccountServiceStatesResponse
+	34, // 102: drift.v1.AccountService.ListAccountServiceStateHistory:output_type -> drift.v1.ListAccountServiceStateHistoryResponse
+	36, // 103: drift.v1.AccountService.ListAccountRuns:output_type -> drift.v1.ListAccountRunsResponse
+	38, // 104: drift.v1.AccountService.ListAccountRunEvents:output_type -> drift.v1.ListAccountRunEventsResponse
+	40, // 105: drift.v1.AccountService.AssignAccountDevice:output_type -> drift.v1.AssignAccountDeviceResponse
+	42, // 106: drift.v1.AccountService.EndAccountDeviceAssignment:output_type -> drift.v1.EndAccountDeviceAssignmentResponse
+	44, // 107: drift.v1.AccountService.ListAccountDeviceAssignments:output_type -> drift.v1.ListAccountDeviceAssignmentsResponse
+	46, // 108: drift.v1.AccountService.ListAccountSyncEvents:output_type -> drift.v1.ListAccountSyncEventsResponse
+	93, // [93:109] is the sub-list for method output_type
+	77, // [77:93] is the sub-list for method input_type
+	77, // [77:77] is the sub-list for extension type_name
+	77, // [77:77] is the sub-list for extension extendee
+	0,  // [0:77] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_account_proto_init() }
@@ -328,8 +3563,8 @@ func file_drift_v1_account_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_account_proto_rawDesc), len(file_drift_v1_account_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   3,
+			NumEnums:      7,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

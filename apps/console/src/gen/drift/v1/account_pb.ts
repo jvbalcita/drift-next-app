@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { PageRequest, PageResponse, WorkspaceRef } from "./common_pb";
+import type { PageRequest, PageResponse, RequestContext, ResourceRef, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/account.proto.
  */
 export const file_drift_v1_account: GenFile = /*@__PURE__*/
-  fileDesc("ChZkcmlmdC92MS9hY2NvdW50LnByb3RvEghkcmlmdC52MSKfAQoQQWNjb3VudFJlZmVyZW5jZRIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJc291cmNlX2lkGAMgASgJEhoKEmV4dGVybmFsX3JlZmVyZW5jZRgEIAEoCRIlCgVzdGF0ZRgFIAEoDjIWLmRyaWZ0LnYxLkFjY291bnRTdGF0ZSJuChxMaXN0QWNjb3VudFJlZmVyZW5jZXNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QicwodTGlzdEFjY291bnRSZWZlcmVuY2VzUmVzcG9uc2USLAoIYWNjb3VudHMYASADKAsyGi5kcmlmdC52MS5BY2NvdW50UmVmZXJlbmNlEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UqfwoMQWNjb3VudFN0YXRlEh0KGUFDQ09VTlRfU1RBVEVfVU5TUEVDSUZJRUQQABIYChRBQ0NPVU5UX1NUQVRFX0FDVElWRRABEhsKF0FDQ09VTlRfU1RBVEVfU1VTUEVOREVEEAISGQoVQUNDT1VOVF9TVEFURV9SRVRJUkVEEAMyegoOQWNjb3VudFNlcnZpY2USaAoVTGlzdEFjY291bnRSZWZlcmVuY2VzEiYuZHJpZnQudjEuTGlzdEFjY291bnRSZWZlcmVuY2VzUmVxdWVzdBonLmRyaWZ0LnYxLkxpc3RBY2NvdW50UmVmZXJlbmNlc1Jlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChZkcmlmdC92MS9hY2NvdW50LnByb3RvEghkcmlmdC52MSL6AQoQQWNjb3VudFJlZmVyZW5jZRIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJc291cmNlX2lkGAMgASgJEhoKEmV4dGVybmFsX3JlZmVyZW5jZRgEIAEoCRIlCgVzdGF0ZRgFIAEoDjIWLmRyaWZ0LnYxLkFjY291bnRTdGF0ZRIUCgxkaXNwbGF5X25hbWUYBiABKAkSFQoNbWV0YWRhdGFfanNvbhgHIAEoCRITCgtyb3dfdmVyc2lvbhgIIAEoBBIXCg9zb3VyY2VfcHJvdmlkZXIYCSABKAkiiwIKDUFjY291bnRTb3VyY2USCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhAKCHByb3ZpZGVyGAMgASgJEhQKDGRpc3BsYXlfbmFtZRgEIAEoCRIrCgVzdGF0ZRgFIAEoDjIcLmRyaWZ0LnYxLkFjY291bnRTb3VyY2VTdGF0ZRIaChJleHRlcm5hbF9yZWZlcmVuY2UYBiABKAkSFQoNbWV0YWRhdGFfanNvbhgHIAEoCRISCgpjcmVhdGVkX2F0GAggASgJEhIKCnVwZGF0ZWRfYXQYCSABKAkSEwoLcm93X3ZlcnNpb24YCiABKAQiswIKHUFjY291bnRTZXJ2aWNlU3RhdGVQcm9qZWN0aW9uEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhISCgphY2NvdW50X2lkGAMgASgJEhQKDHNlcnZpY2VfbmFtZRgEIAEoCRIsCgVzdGFnZRgFIAEoDjIdLmRyaWZ0LnYxLkFjY291bnRTZXJ2aWNlU3RhZ2USLAoFc3RhdGUYBiABKA4yHS5kcmlmdC52MS5BY2NvdW50U2VydmljZVN0YXRlEhMKC29ic2VydmVkX2F0GAcgASgJEhUKDWZhaWx1cmVfY2xhc3MYCCABKAkSFAoMZGV0YWlsc19qc29uGAkgASgJEhMKC3Jvd192ZXJzaW9uGAogASgEIsUCChpBY2NvdW50U2VydmljZVN0YXRlSGlzdG9yeRIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEgoKYWNjb3VudF9pZBgDIAEoCRIUCgxzZXJ2aWNlX25hbWUYBCABKAkSLAoFc3RhZ2UYBSABKA4yHS5kcmlmdC52MS5BY2NvdW50U2VydmljZVN0YWdlEiwKBXN0YXRlGAYgASgOMh0uZHJpZnQudjEuQWNjb3VudFNlcnZpY2VTdGF0ZRITCgtvYnNlcnZlZF9hdBgHIAEoCRIVCg1mYWlsdXJlX2NsYXNzGAggASgJEhQKDGRldGFpbHNfanNvbhgJIAEoCRITCgtyb3dfdmVyc2lvbhgKIAEoBBITCgtyZWNvcmRlZF9hdBgLIAEoCSKEAgoKQWNjb3VudFJ1bhIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEgoKYWNjb3VudF9pZBgDIAEoCRIoCgVzdGF0ZRgEIAEoDjIZLmRyaWZ0LnYxLkFjY291bnRSdW5TdGF0ZRIUCgxyZXF1ZXN0ZWRfYXQYBSABKAkSEgoKc3RhcnRlZF9hdBgGIAEoCRITCgtmaW5pc2hlZF9hdBgHIAEoCRIVCg1mYWlsdXJlX2NsYXNzGAggASgJEhYKDmNvcnJlbGF0aW9uX2lkGAkgASgJEhMKC3Jvd192ZXJzaW9uGAogASgEIuwBCg9BY2NvdW50UnVuRXZlbnQSCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEg4KBnJ1bl9pZBgDIAEoCRIoCgVzdGF0ZRgEIAEoDjIZLmRyaWZ0LnYxLkFjY291bnRSdW5TdGF0ZRIVCg1mYWlsdXJlX2NsYXNzGAUgASgJEhMKC29jY3VycmVkX2F0GAYgASgJEhIKCmFjdG9yX3R5cGUYByABKAkSEAoIYWN0b3JfaWQYCCABKAkSFgoOY29ycmVsYXRpb25faWQYCSABKAki5AEKF0FjY291bnREZXZpY2VBc3NpZ25tZW50EgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhISCgphY2NvdW50X2lkGAMgASgJEhEKCWRldmljZV9pZBgEIAEoCRIvCgVzdGF0ZRgFIAEoDjIgLmRyaWZ0LnYxLkFjY291bnRBc3NpZ25tZW50U3RhdGUSEwoLYXNzaWduZWRfYXQYBiABKAkSEAoIZW5kZWRfYXQYByABKAkSEwoLcm93X3ZlcnNpb24YCCABKAQijwIKEEFjY291bnRTeW5jRXZlbnQSCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCXNvdXJjZV9pZBgDIAEoCRISCgphY2NvdW50X2lkGAQgASgJEi0KB291dGNvbWUYBSABKA4yHC5kcmlmdC52MS5BY2NvdW50U3luY091dGNvbWUSFwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJEhYKDmNvcnJlbGF0aW9uX2lkGAcgASgJEhMKC29jY3VycmVkX2F0GAggASgJEhQKDGRldGFpbHNfanNvbhgJIAEoCRISCgpldmVudF9uYW1lGAogASgJIm4KHExpc3RBY2NvdW50UmVmZXJlbmNlc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJzCh1MaXN0QWNjb3VudFJlZmVyZW5jZXNSZXNwb25zZRIsCghhY2NvdW50cxgBIAMoCzIaLmRyaWZ0LnYxLkFjY291bnRSZWZlcmVuY2USJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSJrChlMaXN0QWNjb3VudFNvdXJjZXNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QibAoaTGlzdEFjY291bnRTb3VyY2VzUmVzcG9uc2USKAoHc291cmNlcxgBIAMoCzIXLmRyaWZ0LnYxLkFjY291bnRTb3VyY2USJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSJwChpDcmVhdGVBY2NvdW50U291cmNlUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSJwoGc291cmNlGAIgASgLMhcuZHJpZnQudjEuQWNjb3VudFNvdXJjZSJGChtDcmVhdGVBY2NvdW50U291cmNlUmVzcG9uc2USJwoGc291cmNlGAEgASgLMhcuZHJpZnQudjEuQWNjb3VudFNvdXJjZSLVAQoaVXBkYXRlQWNjb3VudFNvdXJjZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EiUKBnNvdXJjZRgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIaChJleHRlcm5hbF9yZWZlcmVuY2UYBCABKAkSFQoNbWV0YWRhdGFfanNvbhgFIAEoCRIcChRleHBlY3RlZF9yb3dfdmVyc2lvbhgGIAEoBCJGChtVcGRhdGVBY2NvdW50U291cmNlUmVzcG9uc2USJwoGc291cmNlGAEgASgLMhcuZHJpZnQudjEuQWNjb3VudFNvdXJjZSK9AQoeVHJhbnNpdGlvbkFjY291bnRTb3VyY2VSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIlCgZzb3VyY2UYAiABKAsyFS5kcmlmdC52MS5SZXNvdXJjZVJlZhIrCgVzdGF0ZRgDIAEoDjIcLmRyaWZ0LnYxLkFjY291bnRTb3VyY2VTdGF0ZRIcChRleHBlY3RlZF9yb3dfdmVyc2lvbhgEIAEoBCJKCh9UcmFuc2l0aW9uQWNjb3VudFNvdXJjZVJlc3BvbnNlEicKBnNvdXJjZRgBIAEoCzIXLmRyaWZ0LnYxLkFjY291bnRTb3VyY2UibgoUQ3JlYXRlQWNjb3VudFJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EisKB2FjY291bnQYAiABKAsyGi5kcmlmdC52MS5BY2NvdW50UmVmZXJlbmNlIkQKFUNyZWF0ZUFjY291bnRSZXNwb25zZRIrCgdhY2NvdW50GAEgASgLMhouZHJpZnQudjEuQWNjb3VudFJlZmVyZW5jZSLQAQoUVXBkYXRlQWNjb3VudFJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EiYKB2FjY291bnQYAiABKAsyFS5kcmlmdC52MS5SZXNvdXJjZVJlZhIaChJleHRlcm5hbF9yZWZlcmVuY2UYAyABKAkSFAoMZGlzcGxheV9uYW1lGAQgASgJEhUKDW1ldGFkYXRhX2pzb24YBSABKAkSHAoUZXhwZWN0ZWRfcm93X3ZlcnNpb24YBiABKAQiRAoVVXBkYXRlQWNjb3VudFJlc3BvbnNlEisKB2FjY291bnQYASABKAsyGi5kcmlmdC52MS5BY2NvdW50UmVmZXJlbmNlIrMBChlVcGRhdGVBY2NvdW50U3RhdGVSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBImCgdhY2NvdW50GAIgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYSJQoFc3RhdGUYAyABKA4yFi5kcmlmdC52MS5BY2NvdW50U3RhdGUSHAoUZXhwZWN0ZWRfcm93X3ZlcnNpb24YBCABKAQiSQoaVXBkYXRlQWNjb3VudFN0YXRlUmVzcG9uc2USKwoHYWNjb3VudBgBIAEoCzIaLmRyaWZ0LnYxLkFjY291bnRSZWZlcmVuY2UihQEKH0xpc3RBY2NvdW50U2VydmljZVN0YXRlc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhIKCmFjY291bnRfaWQYAiABKAkSIwoEcGFnZRgDIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0IoEBCiBMaXN0QWNjb3VudFNlcnZpY2VTdGF0ZXNSZXNwb25zZRI3CgZzdGF0ZXMYASADKAsyJy5kcmlmdC52MS5BY2NvdW50U2VydmljZVN0YXRlUHJvamVjdGlvbhIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlIosBCiVMaXN0QWNjb3VudFNlcnZpY2VTdGF0ZUhpc3RvcnlSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhISCgphY2NvdW50X2lkGAIgASgJEiMKBHBhZ2UYAyABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCKFAQomTGlzdEFjY291bnRTZXJ2aWNlU3RhdGVIaXN0b3J5UmVzcG9uc2USNQoHaGlzdG9yeRgBIAMoCzIkLmRyaWZ0LnYxLkFjY291bnRTZXJ2aWNlU3RhdGVIaXN0b3J5EiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UifAoWTGlzdEFjY291bnRSdW5zUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEgoKYWNjb3VudF9pZBgCIAEoCRIjCgRwYWdlGAMgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QiYwoXTGlzdEFjY291bnRSdW5zUmVzcG9uc2USIgoEcnVucxgBIAMoCzIULmRyaWZ0LnYxLkFjY291bnRSdW4SJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSJ9ChtMaXN0QWNjb3VudFJ1bkV2ZW50c1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEg4KBnJ1bl9pZBgCIAEoCRIjCgRwYWdlGAMgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QibwocTGlzdEFjY291bnRSdW5FdmVudHNSZXNwb25zZRIpCgZldmVudHMYASADKAsyGS5kcmlmdC52MS5BY2NvdW50UnVuRXZlbnQSJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSKWAQoaQXNzaWduQWNjb3VudERldmljZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EiYKB2FjY291bnQYAiABKAsyFS5kcmlmdC52MS5SZXNvdXJjZVJlZhIlCgZkZXZpY2UYAyABKAsyFS5kcmlmdC52MS5SZXNvdXJjZVJlZiJUChtBc3NpZ25BY2NvdW50RGV2aWNlUmVzcG9uc2USNQoKYXNzaWdubWVudBgBIAEoCzIhLmRyaWZ0LnYxLkFjY291bnREZXZpY2VBc3NpZ25tZW50InkKIUVuZEFjY291bnREZXZpY2VBc3NpZ25tZW50UmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoKYXNzaWdubWVudBgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmIlsKIkVuZEFjY291bnREZXZpY2VBc3NpZ25tZW50UmVzcG9uc2USNQoKYXNzaWdubWVudBgBIAEoCzIhLmRyaWZ0LnYxLkFjY291bnREZXZpY2VBc3NpZ25tZW50IpwBCiNMaXN0QWNjb3VudERldmljZUFzc2lnbm1lbnRzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEgoKYWNjb3VudF9pZBgCIAEoCRIRCglkZXZpY2VfaWQYAyABKAkSIwoEcGFnZRgEIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0IoQBCiRMaXN0QWNjb3VudERldmljZUFzc2lnbm1lbnRzUmVzcG9uc2USNgoLYXNzaWdubWVudHMYASADKAsyIS5kcmlmdC52MS5BY2NvdW50RGV2aWNlQXNzaWdubWVudBIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlIoEBChxMaXN0QWNjb3VudFN5bmNFdmVudHNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglzb3VyY2VfaWQYAiABKAkSIwoEcGFnZRgDIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0InEKHUxpc3RBY2NvdW50U3luY0V2ZW50c1Jlc3BvbnNlEioKBmV2ZW50cxgBIAMoCzIaLmRyaWZ0LnYxLkFjY291bnRTeW5jRXZlbnQSJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSq0AQoMQWNjb3VudFN0YXRlEh0KGUFDQ09VTlRfU1RBVEVfVU5TUEVDSUZJRUQQABIYChRBQ0NPVU5UX1NUQVRFX0FDVElWRRABEhsKF0FDQ09VTlRfU1RBVEVfU1VTUEVOREVEEAISGQoVQUNDT1VOVF9TVEFURV9SRVRJUkVEEAMSFwoTQUNDT1VOVF9TVEFURV9EUkFGVBAEEhoKFkFDQ09VTlRfU1RBVEVfSU5BQ1RJVkUQBSqgAQoSQWNjb3VudFNvdXJjZVN0YXRlEiQKIEFDQ09VTlRfU09VUkNFX1NUQVRFX1VOU1BFQ0lGSUVEEAASHwobQUNDT1VOVF9TT1VSQ0VfU1RBVEVfQUNUSVZFEAESIQodQUNDT1VOVF9TT1VSQ0VfU1RBVEVfRElTQUJMRUQQAhIgChxBQ0NPVU5UX1NPVVJDRV9TVEFURV9SRVRJUkVEEAMqyQEKE0FjY291bnRTZXJ2aWNlU3RhdGUSJQohQUNDT1VOVF9TRVJWSUNFX1NUQVRFX1VOU1BFQ0lGSUVEEAASIQodQUNDT1VOVF9TRVJWSUNFX1NUQVRFX0hFQUxUSFkQARIiCh5BQ0NPVU5UX1NFUlZJQ0VfU1RBVEVfREVHUkFERUQQAhIgChxBQ0NPVU5UX1NFUlZJQ0VfU1RBVEVfRkFJTEVEEAMSIgoeQUNDT1VOVF9TRVJWSUNFX1NUQVRFX0RJU0FCTEVEEAQq6gEKE0FjY291bnRTZXJ2aWNlU3RhZ2USJQohQUNDT1VOVF9TRVJWSUNFX1NUQUdFX1VOU1BFQ0lGSUVEEAASIAocQUNDT1VOVF9TRVJWSUNFX1NUQUdFX1FVRVVFRBABEh8KG0FDQ09VTlRfU0VSVklDRV9TVEFHRV9SRUFEWRACEiEKHUFDQ09VTlRfU0VSVklDRV9TVEFHRV9SVU5OSU5HEAMSIQodQUNDT1VOVF9TRVJWSUNFX1NUQUdFX0JMT0NLRUQQBBIjCh9BQ0NPVU5UX1NFUlZJQ0VfU1RBR0VfQ09NUExFVEVEEAUq1AEKD0FjY291bnRSdW5TdGF0ZRIhCh1BQ0NPVU5UX1JVTl9TVEFURV9VTlNQRUNJRklFRBAAEh8KG0FDQ09VTlRfUlVOX1NUQVRFX1JFUVVFU1RFRBABEh0KGUFDQ09VTlRfUlVOX1NUQVRFX1JVTk5JTkcQAhIfChtBQ0NPVU5UX1JVTl9TVEFURV9DT01QTEVURUQQAxIcChhBQ0NPVU5UX1JVTl9TVEFURV9GQUlMRUQQBBIfChtBQ0NPVU5UX1JVTl9TVEFURV9DQU5DRUxMRUQQBSqLAQoWQWNjb3VudEFzc2lnbm1lbnRTdGF0ZRIoCiRBQ0NPVU5UX0FTU0lHTk1FTlRfU1RBVEVfVU5TUEVDSUZJRUQQABIjCh9BQ0NPVU5UX0FTU0lHTk1FTlRfU1RBVEVfQUNUSVZFEAESIgoeQUNDT1VOVF9BU1NJR05NRU5UX1NUQVRFX0VOREVEEAIqxAEKEkFjY291bnRTeW5jT3V0Y29tZRIkCiBBQ0NPVU5UX1NZTkNfT1VUQ09NRV9VTlNQRUNJRklFRBAAEiEKHUFDQ09VTlRfU1lOQ19PVVRDT01FX0FDQ0VQVEVEEAESIQodQUNDT1VOVF9TWU5DX09VVENPTUVfUkVKRUNURUQQAhIfChtBQ0NPVU5UX1NZTkNfT1VUQ09NRV9GQUlMRUQQAxIhCh1BQ0NPVU5UX1NZTkNfT1VUQ09NRV9ESVNBQkxFRBAEMpYNCg5BY2NvdW50U2VydmljZRJoChVMaXN0QWNjb3VudFJlZmVyZW5jZXMSJi5kcmlmdC52MS5MaXN0QWNjb3VudFJlZmVyZW5jZXNSZXF1ZXN0GicuZHJpZnQudjEuTGlzdEFjY291bnRSZWZlcmVuY2VzUmVzcG9uc2USXwoSTGlzdEFjY291bnRTb3VyY2VzEiMuZHJpZnQudjEuTGlzdEFjY291bnRTb3VyY2VzUmVxdWVzdBokLmRyaWZ0LnYxLkxpc3RBY2NvdW50U291cmNlc1Jlc3BvbnNlEmIKE0NyZWF0ZUFjY291bnRTb3VyY2USJC5kcmlmdC52MS5DcmVhdGVBY2NvdW50U291cmNlUmVxdWVzdBolLmRyaWZ0LnYxLkNyZWF0ZUFjY291bnRTb3VyY2VSZXNwb25zZRJiChNVcGRhdGVBY2NvdW50U291cmNlEiQuZHJpZnQudjEuVXBkYXRlQWNjb3VudFNvdXJjZVJlcXVlc3QaJS5kcmlmdC52MS5VcGRhdGVBY2NvdW50U291cmNlUmVzcG9uc2USbgoXVHJhbnNpdGlvbkFjY291bnRTb3VyY2USKC5kcmlmdC52MS5UcmFuc2l0aW9uQWNjb3VudFNvdXJjZVJlcXVlc3QaKS5kcmlmdC52MS5UcmFuc2l0aW9uQWNjb3VudFNvdXJjZVJlc3BvbnNlElAKDUNyZWF0ZUFjY291bnQSHi5kcmlmdC52MS5DcmVhdGVBY2NvdW50UmVxdWVzdBofLmRyaWZ0LnYxLkNyZWF0ZUFjY291bnRSZXNwb25zZRJQCg1VcGRhdGVBY2NvdW50Eh4uZHJpZnQudjEuVXBkYXRlQWNjb3VudFJlcXVlc3QaHy5kcmlmdC52MS5VcGRhdGVBY2NvdW50UmVzcG9uc2USXwoSVXBkYXRlQWNjb3VudFN0YXRlEiMuZHJpZnQudjEuVXBkYXRlQWNjb3VudFN0YXRlUmVxdWVzdBokLmRyaWZ0LnYxLlVwZGF0ZUFjY291bnRTdGF0ZVJlc3BvbnNlEnEKGExpc3RBY2NvdW50U2VydmljZVN0YXRlcxIpLmRyaWZ0LnYxLkxpc3RBY2NvdW50U2VydmljZVN0YXRlc1JlcXVlc3QaKi5kcmlmdC52MS5MaXN0QWNjb3VudFNlcnZpY2VTdGF0ZXNSZXNwb25zZRKDAQoeTGlzdEFjY291bnRTZXJ2aWNlU3RhdGVIaXN0b3J5Ei8uZHJpZnQudjEuTGlzdEFjY291bnRTZXJ2aWNlU3RhdGVIaXN0b3J5UmVxdWVzdBowLmRyaWZ0LnYxLkxpc3RBY2NvdW50U2VydmljZVN0YXRlSGlzdG9yeVJlc3BvbnNlElYKD0xpc3RBY2NvdW50UnVucxIgLmRyaWZ0LnYxLkxpc3RBY2NvdW50UnVuc1JlcXVlc3QaIS5kcmlmdC52MS5MaXN0QWNjb3VudFJ1bnNSZXNwb25zZRJlChRMaXN0QWNjb3VudFJ1bkV2ZW50cxIlLmRyaWZ0LnYxLkxpc3RBY2NvdW50UnVuRXZlbnRzUmVxdWVzdBomLmRyaWZ0LnYxLkxpc3RBY2NvdW50UnVuRXZlbnRzUmVzcG9uc2USYgoTQXNzaWduQWNjb3VudERldmljZRIkLmRyaWZ0LnYxLkFzc2lnbkFjY291bnREZXZpY2VSZXF1ZXN0GiUuZHJpZnQudjEuQXNzaWduQWNjb3VudERldmljZVJlc3BvbnNlEncKGkVuZEFjY291bnREZXZpY2VBc3NpZ25tZW50EisuZHJpZnQudjEuRW5kQWNjb3VudERldmljZUFzc2lnbm1lbnRSZXF1ZXN0GiwuZHJpZnQudjEuRW5kQWNjb3VudERldmljZUFzc2lnbm1lbnRSZXNwb25zZRJ9ChxMaXN0QWNjb3VudERldmljZUFzc2lnbm1lbnRzEi0uZHJpZnQudjEuTGlzdEFjY291bnREZXZpY2VBc3NpZ25tZW50c1JlcXVlc3QaLi5kcmlmdC52MS5MaXN0QWNjb3VudERldmljZUFzc2lnbm1lbnRzUmVzcG9uc2USaAoVTGlzdEFjY291bnRTeW5jRXZlbnRzEiYuZHJpZnQudjEuTGlzdEFjY291bnRTeW5jRXZlbnRzUmVxdWVzdBonLmRyaWZ0LnYxLkxpc3RBY2NvdW50U3luY0V2ZW50c1Jlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.AccountReference
@@ -42,6 +42,26 @@ export type AccountReference = Message<"drift.v1.AccountReference"> & {
    * @generated from field: drift.v1.AccountState state = 5;
    */
   state: AccountState;
+
+  /**
+   * @generated from field: string display_name = 6;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: string metadata_json = 7;
+   */
+  metadataJson: string;
+
+  /**
+   * @generated from field: uint64 row_version = 8;
+   */
+  rowVersion: bigint;
+
+  /**
+   * @generated from field: string source_provider = 9;
+   */
+  sourceProvider: string;
 };
 
 /**
@@ -50,6 +70,430 @@ export type AccountReference = Message<"drift.v1.AccountReference"> & {
  */
 export const AccountReferenceSchema: GenMessage<AccountReference> = /*@__PURE__*/
   messageDesc(file_drift_v1_account, 0);
+
+/**
+ * @generated from message drift.v1.AccountSource
+ */
+export type AccountSource = Message<"drift.v1.AccountSource"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string provider = 3;
+   */
+  provider: string;
+
+  /**
+   * @generated from field: string display_name = 4;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: drift.v1.AccountSourceState state = 5;
+   */
+  state: AccountSourceState;
+
+  /**
+   * @generated from field: string external_reference = 6;
+   */
+  externalReference: string;
+
+  /**
+   * @generated from field: string metadata_json = 7;
+   */
+  metadataJson: string;
+
+  /**
+   * @generated from field: string created_at = 8;
+   */
+  createdAt: string;
+
+  /**
+   * @generated from field: string updated_at = 9;
+   */
+  updatedAt: string;
+
+  /**
+   * @generated from field: uint64 row_version = 10;
+   */
+  rowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.AccountSource.
+ * Use `create(AccountSourceSchema)` to create a new message.
+ */
+export const AccountSourceSchema: GenMessage<AccountSource> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 1);
+
+/**
+ * @generated from message drift.v1.AccountServiceStateProjection
+ */
+export type AccountServiceStateProjection = Message<"drift.v1.AccountServiceStateProjection"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string account_id = 3;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: string service_name = 4;
+   */
+  serviceName: string;
+
+  /**
+   * @generated from field: drift.v1.AccountServiceStage stage = 5;
+   */
+  stage: AccountServiceStage;
+
+  /**
+   * @generated from field: drift.v1.AccountServiceState state = 6;
+   */
+  state: AccountServiceState;
+
+  /**
+   * @generated from field: string observed_at = 7;
+   */
+  observedAt: string;
+
+  /**
+   * @generated from field: string failure_class = 8;
+   */
+  failureClass: string;
+
+  /**
+   * @generated from field: string details_json = 9;
+   */
+  detailsJson: string;
+
+  /**
+   * @generated from field: uint64 row_version = 10;
+   */
+  rowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.AccountServiceStateProjection.
+ * Use `create(AccountServiceStateProjectionSchema)` to create a new message.
+ */
+export const AccountServiceStateProjectionSchema: GenMessage<AccountServiceStateProjection> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 2);
+
+/**
+ * @generated from message drift.v1.AccountServiceStateHistory
+ */
+export type AccountServiceStateHistory = Message<"drift.v1.AccountServiceStateHistory"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string account_id = 3;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: string service_name = 4;
+   */
+  serviceName: string;
+
+  /**
+   * @generated from field: drift.v1.AccountServiceStage stage = 5;
+   */
+  stage: AccountServiceStage;
+
+  /**
+   * @generated from field: drift.v1.AccountServiceState state = 6;
+   */
+  state: AccountServiceState;
+
+  /**
+   * @generated from field: string observed_at = 7;
+   */
+  observedAt: string;
+
+  /**
+   * @generated from field: string failure_class = 8;
+   */
+  failureClass: string;
+
+  /**
+   * @generated from field: string details_json = 9;
+   */
+  detailsJson: string;
+
+  /**
+   * @generated from field: uint64 row_version = 10;
+   */
+  rowVersion: bigint;
+
+  /**
+   * @generated from field: string recorded_at = 11;
+   */
+  recordedAt: string;
+};
+
+/**
+ * Describes the message drift.v1.AccountServiceStateHistory.
+ * Use `create(AccountServiceStateHistorySchema)` to create a new message.
+ */
+export const AccountServiceStateHistorySchema: GenMessage<AccountServiceStateHistory> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 3);
+
+/**
+ * @generated from message drift.v1.AccountRun
+ */
+export type AccountRun = Message<"drift.v1.AccountRun"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string account_id = 3;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: drift.v1.AccountRunState state = 4;
+   */
+  state: AccountRunState;
+
+  /**
+   * @generated from field: string requested_at = 5;
+   */
+  requestedAt: string;
+
+  /**
+   * @generated from field: string started_at = 6;
+   */
+  startedAt: string;
+
+  /**
+   * @generated from field: string finished_at = 7;
+   */
+  finishedAt: string;
+
+  /**
+   * @generated from field: string failure_class = 8;
+   */
+  failureClass: string;
+
+  /**
+   * @generated from field: string correlation_id = 9;
+   */
+  correlationId: string;
+
+  /**
+   * @generated from field: uint64 row_version = 10;
+   */
+  rowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.AccountRun.
+ * Use `create(AccountRunSchema)` to create a new message.
+ */
+export const AccountRunSchema: GenMessage<AccountRun> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 4);
+
+/**
+ * @generated from message drift.v1.AccountRunEvent
+ */
+export type AccountRunEvent = Message<"drift.v1.AccountRunEvent"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string run_id = 3;
+   */
+  runId: string;
+
+  /**
+   * @generated from field: drift.v1.AccountRunState state = 4;
+   */
+  state: AccountRunState;
+
+  /**
+   * @generated from field: string failure_class = 5;
+   */
+  failureClass: string;
+
+  /**
+   * @generated from field: string occurred_at = 6;
+   */
+  occurredAt: string;
+
+  /**
+   * @generated from field: string actor_type = 7;
+   */
+  actorType: string;
+
+  /**
+   * @generated from field: string actor_id = 8;
+   */
+  actorId: string;
+
+  /**
+   * @generated from field: string correlation_id = 9;
+   */
+  correlationId: string;
+};
+
+/**
+ * Describes the message drift.v1.AccountRunEvent.
+ * Use `create(AccountRunEventSchema)` to create a new message.
+ */
+export const AccountRunEventSchema: GenMessage<AccountRunEvent> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 5);
+
+/**
+ * @generated from message drift.v1.AccountDeviceAssignment
+ */
+export type AccountDeviceAssignment = Message<"drift.v1.AccountDeviceAssignment"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string account_id = 3;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: string device_id = 4;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: drift.v1.AccountAssignmentState state = 5;
+   */
+  state: AccountAssignmentState;
+
+  /**
+   * @generated from field: string assigned_at = 6;
+   */
+  assignedAt: string;
+
+  /**
+   * @generated from field: string ended_at = 7;
+   */
+  endedAt: string;
+
+  /**
+   * @generated from field: uint64 row_version = 8;
+   */
+  rowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.AccountDeviceAssignment.
+ * Use `create(AccountDeviceAssignmentSchema)` to create a new message.
+ */
+export const AccountDeviceAssignmentSchema: GenMessage<AccountDeviceAssignment> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 6);
+
+/**
+ * @generated from message drift.v1.AccountSyncEvent
+ */
+export type AccountSyncEvent = Message<"drift.v1.AccountSyncEvent"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string source_id = 3;
+   */
+  sourceId: string;
+
+  /**
+   * @generated from field: string account_id = 4;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: drift.v1.AccountSyncOutcome outcome = 5;
+   */
+  outcome: AccountSyncOutcome;
+
+  /**
+   * @generated from field: string idempotency_key = 6;
+   */
+  idempotencyKey: string;
+
+  /**
+   * @generated from field: string correlation_id = 7;
+   */
+  correlationId: string;
+
+  /**
+   * @generated from field: string occurred_at = 8;
+   */
+  occurredAt: string;
+
+  /**
+   * @generated from field: string details_json = 9;
+   */
+  detailsJson: string;
+
+  /**
+   * @generated from field: string event_name = 10;
+   */
+  eventName: string;
+};
+
+/**
+ * Describes the message drift.v1.AccountSyncEvent.
+ * Use `create(AccountSyncEventSchema)` to create a new message.
+ */
+export const AccountSyncEventSchema: GenMessage<AccountSyncEvent> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 7);
 
 /**
  * @generated from message drift.v1.ListAccountReferencesRequest
@@ -71,7 +515,7 @@ export type ListAccountReferencesRequest = Message<"drift.v1.ListAccountReferenc
  * Use `create(ListAccountReferencesRequestSchema)` to create a new message.
  */
 export const ListAccountReferencesRequestSchema: GenMessage<ListAccountReferencesRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_account, 1);
+  messageDesc(file_drift_v1_account, 8);
 
 /**
  * @generated from message drift.v1.ListAccountReferencesResponse
@@ -93,7 +537,727 @@ export type ListAccountReferencesResponse = Message<"drift.v1.ListAccountReferen
  * Use `create(ListAccountReferencesResponseSchema)` to create a new message.
  */
 export const ListAccountReferencesResponseSchema: GenMessage<ListAccountReferencesResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_account, 2);
+  messageDesc(file_drift_v1_account, 9);
+
+/**
+ * @generated from message drift.v1.ListAccountSourcesRequest
+ */
+export type ListAccountSourcesRequest = Message<"drift.v1.ListAccountSourcesRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 2;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountSourcesRequest.
+ * Use `create(ListAccountSourcesRequestSchema)` to create a new message.
+ */
+export const ListAccountSourcesRequestSchema: GenMessage<ListAccountSourcesRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 10);
+
+/**
+ * @generated from message drift.v1.ListAccountSourcesResponse
+ */
+export type ListAccountSourcesResponse = Message<"drift.v1.ListAccountSourcesResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.AccountSource sources = 1;
+   */
+  sources: AccountSource[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountSourcesResponse.
+ * Use `create(ListAccountSourcesResponseSchema)` to create a new message.
+ */
+export const ListAccountSourcesResponseSchema: GenMessage<ListAccountSourcesResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 11);
+
+/**
+ * @generated from message drift.v1.CreateAccountSourceRequest
+ */
+export type CreateAccountSourceRequest = Message<"drift.v1.CreateAccountSourceRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.AccountSource source = 2;
+   */
+  source?: AccountSource;
+};
+
+/**
+ * Describes the message drift.v1.CreateAccountSourceRequest.
+ * Use `create(CreateAccountSourceRequestSchema)` to create a new message.
+ */
+export const CreateAccountSourceRequestSchema: GenMessage<CreateAccountSourceRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 12);
+
+/**
+ * @generated from message drift.v1.CreateAccountSourceResponse
+ */
+export type CreateAccountSourceResponse = Message<"drift.v1.CreateAccountSourceResponse"> & {
+  /**
+   * @generated from field: drift.v1.AccountSource source = 1;
+   */
+  source?: AccountSource;
+};
+
+/**
+ * Describes the message drift.v1.CreateAccountSourceResponse.
+ * Use `create(CreateAccountSourceResponseSchema)` to create a new message.
+ */
+export const CreateAccountSourceResponseSchema: GenMessage<CreateAccountSourceResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 13);
+
+/**
+ * @generated from message drift.v1.UpdateAccountSourceRequest
+ */
+export type UpdateAccountSourceRequest = Message<"drift.v1.UpdateAccountSourceRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef source = 2;
+   */
+  source?: ResourceRef;
+
+  /**
+   * @generated from field: string display_name = 3;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: string external_reference = 4;
+   */
+  externalReference: string;
+
+  /**
+   * @generated from field: string metadata_json = 5;
+   */
+  metadataJson: string;
+
+  /**
+   * @generated from field: uint64 expected_row_version = 6;
+   */
+  expectedRowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.UpdateAccountSourceRequest.
+ * Use `create(UpdateAccountSourceRequestSchema)` to create a new message.
+ */
+export const UpdateAccountSourceRequestSchema: GenMessage<UpdateAccountSourceRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 14);
+
+/**
+ * @generated from message drift.v1.UpdateAccountSourceResponse
+ */
+export type UpdateAccountSourceResponse = Message<"drift.v1.UpdateAccountSourceResponse"> & {
+  /**
+   * @generated from field: drift.v1.AccountSource source = 1;
+   */
+  source?: AccountSource;
+};
+
+/**
+ * Describes the message drift.v1.UpdateAccountSourceResponse.
+ * Use `create(UpdateAccountSourceResponseSchema)` to create a new message.
+ */
+export const UpdateAccountSourceResponseSchema: GenMessage<UpdateAccountSourceResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 15);
+
+/**
+ * @generated from message drift.v1.TransitionAccountSourceRequest
+ */
+export type TransitionAccountSourceRequest = Message<"drift.v1.TransitionAccountSourceRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef source = 2;
+   */
+  source?: ResourceRef;
+
+  /**
+   * @generated from field: drift.v1.AccountSourceState state = 3;
+   */
+  state: AccountSourceState;
+
+  /**
+   * @generated from field: uint64 expected_row_version = 4;
+   */
+  expectedRowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.TransitionAccountSourceRequest.
+ * Use `create(TransitionAccountSourceRequestSchema)` to create a new message.
+ */
+export const TransitionAccountSourceRequestSchema: GenMessage<TransitionAccountSourceRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 16);
+
+/**
+ * @generated from message drift.v1.TransitionAccountSourceResponse
+ */
+export type TransitionAccountSourceResponse = Message<"drift.v1.TransitionAccountSourceResponse"> & {
+  /**
+   * @generated from field: drift.v1.AccountSource source = 1;
+   */
+  source?: AccountSource;
+};
+
+/**
+ * Describes the message drift.v1.TransitionAccountSourceResponse.
+ * Use `create(TransitionAccountSourceResponseSchema)` to create a new message.
+ */
+export const TransitionAccountSourceResponseSchema: GenMessage<TransitionAccountSourceResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 17);
+
+/**
+ * @generated from message drift.v1.CreateAccountRequest
+ */
+export type CreateAccountRequest = Message<"drift.v1.CreateAccountRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.AccountReference account = 2;
+   */
+  account?: AccountReference;
+};
+
+/**
+ * Describes the message drift.v1.CreateAccountRequest.
+ * Use `create(CreateAccountRequestSchema)` to create a new message.
+ */
+export const CreateAccountRequestSchema: GenMessage<CreateAccountRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 18);
+
+/**
+ * @generated from message drift.v1.CreateAccountResponse
+ */
+export type CreateAccountResponse = Message<"drift.v1.CreateAccountResponse"> & {
+  /**
+   * @generated from field: drift.v1.AccountReference account = 1;
+   */
+  account?: AccountReference;
+};
+
+/**
+ * Describes the message drift.v1.CreateAccountResponse.
+ * Use `create(CreateAccountResponseSchema)` to create a new message.
+ */
+export const CreateAccountResponseSchema: GenMessage<CreateAccountResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 19);
+
+/**
+ * @generated from message drift.v1.UpdateAccountRequest
+ */
+export type UpdateAccountRequest = Message<"drift.v1.UpdateAccountRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef account = 2;
+   */
+  account?: ResourceRef;
+
+  /**
+   * @generated from field: string external_reference = 3;
+   */
+  externalReference: string;
+
+  /**
+   * @generated from field: string display_name = 4;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: string metadata_json = 5;
+   */
+  metadataJson: string;
+
+  /**
+   * @generated from field: uint64 expected_row_version = 6;
+   */
+  expectedRowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.UpdateAccountRequest.
+ * Use `create(UpdateAccountRequestSchema)` to create a new message.
+ */
+export const UpdateAccountRequestSchema: GenMessage<UpdateAccountRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 20);
+
+/**
+ * @generated from message drift.v1.UpdateAccountResponse
+ */
+export type UpdateAccountResponse = Message<"drift.v1.UpdateAccountResponse"> & {
+  /**
+   * @generated from field: drift.v1.AccountReference account = 1;
+   */
+  account?: AccountReference;
+};
+
+/**
+ * Describes the message drift.v1.UpdateAccountResponse.
+ * Use `create(UpdateAccountResponseSchema)` to create a new message.
+ */
+export const UpdateAccountResponseSchema: GenMessage<UpdateAccountResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 21);
+
+/**
+ * @generated from message drift.v1.UpdateAccountStateRequest
+ */
+export type UpdateAccountStateRequest = Message<"drift.v1.UpdateAccountStateRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef account = 2;
+   */
+  account?: ResourceRef;
+
+  /**
+   * @generated from field: drift.v1.AccountState state = 3;
+   */
+  state: AccountState;
+
+  /**
+   * @generated from field: uint64 expected_row_version = 4;
+   */
+  expectedRowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.UpdateAccountStateRequest.
+ * Use `create(UpdateAccountStateRequestSchema)` to create a new message.
+ */
+export const UpdateAccountStateRequestSchema: GenMessage<UpdateAccountStateRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 22);
+
+/**
+ * @generated from message drift.v1.UpdateAccountStateResponse
+ */
+export type UpdateAccountStateResponse = Message<"drift.v1.UpdateAccountStateResponse"> & {
+  /**
+   * @generated from field: drift.v1.AccountReference account = 1;
+   */
+  account?: AccountReference;
+};
+
+/**
+ * Describes the message drift.v1.UpdateAccountStateResponse.
+ * Use `create(UpdateAccountStateResponseSchema)` to create a new message.
+ */
+export const UpdateAccountStateResponseSchema: GenMessage<UpdateAccountStateResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 23);
+
+/**
+ * @generated from message drift.v1.ListAccountServiceStatesRequest
+ */
+export type ListAccountServiceStatesRequest = Message<"drift.v1.ListAccountServiceStatesRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string account_id = 2;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 3;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountServiceStatesRequest.
+ * Use `create(ListAccountServiceStatesRequestSchema)` to create a new message.
+ */
+export const ListAccountServiceStatesRequestSchema: GenMessage<ListAccountServiceStatesRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 24);
+
+/**
+ * @generated from message drift.v1.ListAccountServiceStatesResponse
+ */
+export type ListAccountServiceStatesResponse = Message<"drift.v1.ListAccountServiceStatesResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.AccountServiceStateProjection states = 1;
+   */
+  states: AccountServiceStateProjection[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountServiceStatesResponse.
+ * Use `create(ListAccountServiceStatesResponseSchema)` to create a new message.
+ */
+export const ListAccountServiceStatesResponseSchema: GenMessage<ListAccountServiceStatesResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 25);
+
+/**
+ * @generated from message drift.v1.ListAccountServiceStateHistoryRequest
+ */
+export type ListAccountServiceStateHistoryRequest = Message<"drift.v1.ListAccountServiceStateHistoryRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string account_id = 2;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 3;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountServiceStateHistoryRequest.
+ * Use `create(ListAccountServiceStateHistoryRequestSchema)` to create a new message.
+ */
+export const ListAccountServiceStateHistoryRequestSchema: GenMessage<ListAccountServiceStateHistoryRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 26);
+
+/**
+ * @generated from message drift.v1.ListAccountServiceStateHistoryResponse
+ */
+export type ListAccountServiceStateHistoryResponse = Message<"drift.v1.ListAccountServiceStateHistoryResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.AccountServiceStateHistory history = 1;
+   */
+  history: AccountServiceStateHistory[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountServiceStateHistoryResponse.
+ * Use `create(ListAccountServiceStateHistoryResponseSchema)` to create a new message.
+ */
+export const ListAccountServiceStateHistoryResponseSchema: GenMessage<ListAccountServiceStateHistoryResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 27);
+
+/**
+ * @generated from message drift.v1.ListAccountRunsRequest
+ */
+export type ListAccountRunsRequest = Message<"drift.v1.ListAccountRunsRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string account_id = 2;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 3;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountRunsRequest.
+ * Use `create(ListAccountRunsRequestSchema)` to create a new message.
+ */
+export const ListAccountRunsRequestSchema: GenMessage<ListAccountRunsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 28);
+
+/**
+ * @generated from message drift.v1.ListAccountRunsResponse
+ */
+export type ListAccountRunsResponse = Message<"drift.v1.ListAccountRunsResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.AccountRun runs = 1;
+   */
+  runs: AccountRun[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountRunsResponse.
+ * Use `create(ListAccountRunsResponseSchema)` to create a new message.
+ */
+export const ListAccountRunsResponseSchema: GenMessage<ListAccountRunsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 29);
+
+/**
+ * @generated from message drift.v1.ListAccountRunEventsRequest
+ */
+export type ListAccountRunEventsRequest = Message<"drift.v1.ListAccountRunEventsRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string run_id = 2;
+   */
+  runId: string;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 3;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountRunEventsRequest.
+ * Use `create(ListAccountRunEventsRequestSchema)` to create a new message.
+ */
+export const ListAccountRunEventsRequestSchema: GenMessage<ListAccountRunEventsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 30);
+
+/**
+ * @generated from message drift.v1.ListAccountRunEventsResponse
+ */
+export type ListAccountRunEventsResponse = Message<"drift.v1.ListAccountRunEventsResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.AccountRunEvent events = 1;
+   */
+  events: AccountRunEvent[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountRunEventsResponse.
+ * Use `create(ListAccountRunEventsResponseSchema)` to create a new message.
+ */
+export const ListAccountRunEventsResponseSchema: GenMessage<ListAccountRunEventsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 31);
+
+/**
+ * @generated from message drift.v1.AssignAccountDeviceRequest
+ */
+export type AssignAccountDeviceRequest = Message<"drift.v1.AssignAccountDeviceRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef account = 2;
+   */
+  account?: ResourceRef;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef device = 3;
+   */
+  device?: ResourceRef;
+};
+
+/**
+ * Describes the message drift.v1.AssignAccountDeviceRequest.
+ * Use `create(AssignAccountDeviceRequestSchema)` to create a new message.
+ */
+export const AssignAccountDeviceRequestSchema: GenMessage<AssignAccountDeviceRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 32);
+
+/**
+ * @generated from message drift.v1.AssignAccountDeviceResponse
+ */
+export type AssignAccountDeviceResponse = Message<"drift.v1.AssignAccountDeviceResponse"> & {
+  /**
+   * @generated from field: drift.v1.AccountDeviceAssignment assignment = 1;
+   */
+  assignment?: AccountDeviceAssignment;
+};
+
+/**
+ * Describes the message drift.v1.AssignAccountDeviceResponse.
+ * Use `create(AssignAccountDeviceResponseSchema)` to create a new message.
+ */
+export const AssignAccountDeviceResponseSchema: GenMessage<AssignAccountDeviceResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 33);
+
+/**
+ * @generated from message drift.v1.EndAccountDeviceAssignmentRequest
+ */
+export type EndAccountDeviceAssignmentRequest = Message<"drift.v1.EndAccountDeviceAssignmentRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef assignment = 2;
+   */
+  assignment?: ResourceRef;
+};
+
+/**
+ * Describes the message drift.v1.EndAccountDeviceAssignmentRequest.
+ * Use `create(EndAccountDeviceAssignmentRequestSchema)` to create a new message.
+ */
+export const EndAccountDeviceAssignmentRequestSchema: GenMessage<EndAccountDeviceAssignmentRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 34);
+
+/**
+ * @generated from message drift.v1.EndAccountDeviceAssignmentResponse
+ */
+export type EndAccountDeviceAssignmentResponse = Message<"drift.v1.EndAccountDeviceAssignmentResponse"> & {
+  /**
+   * @generated from field: drift.v1.AccountDeviceAssignment assignment = 1;
+   */
+  assignment?: AccountDeviceAssignment;
+};
+
+/**
+ * Describes the message drift.v1.EndAccountDeviceAssignmentResponse.
+ * Use `create(EndAccountDeviceAssignmentResponseSchema)` to create a new message.
+ */
+export const EndAccountDeviceAssignmentResponseSchema: GenMessage<EndAccountDeviceAssignmentResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 35);
+
+/**
+ * @generated from message drift.v1.ListAccountDeviceAssignmentsRequest
+ */
+export type ListAccountDeviceAssignmentsRequest = Message<"drift.v1.ListAccountDeviceAssignmentsRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string account_id = 2;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: string device_id = 3;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 4;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountDeviceAssignmentsRequest.
+ * Use `create(ListAccountDeviceAssignmentsRequestSchema)` to create a new message.
+ */
+export const ListAccountDeviceAssignmentsRequestSchema: GenMessage<ListAccountDeviceAssignmentsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 36);
+
+/**
+ * @generated from message drift.v1.ListAccountDeviceAssignmentsResponse
+ */
+export type ListAccountDeviceAssignmentsResponse = Message<"drift.v1.ListAccountDeviceAssignmentsResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.AccountDeviceAssignment assignments = 1;
+   */
+  assignments: AccountDeviceAssignment[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountDeviceAssignmentsResponse.
+ * Use `create(ListAccountDeviceAssignmentsResponseSchema)` to create a new message.
+ */
+export const ListAccountDeviceAssignmentsResponseSchema: GenMessage<ListAccountDeviceAssignmentsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 37);
+
+/**
+ * @generated from message drift.v1.ListAccountSyncEventsRequest
+ */
+export type ListAccountSyncEventsRequest = Message<"drift.v1.ListAccountSyncEventsRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string source_id = 2;
+   */
+  sourceId: string;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 3;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountSyncEventsRequest.
+ * Use `create(ListAccountSyncEventsRequestSchema)` to create a new message.
+ */
+export const ListAccountSyncEventsRequestSchema: GenMessage<ListAccountSyncEventsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 38);
+
+/**
+ * @generated from message drift.v1.ListAccountSyncEventsResponse
+ */
+export type ListAccountSyncEventsResponse = Message<"drift.v1.ListAccountSyncEventsResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.AccountSyncEvent events = 1;
+   */
+  events: AccountSyncEvent[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListAccountSyncEventsResponse.
+ * Use `create(ListAccountSyncEventsResponseSchema)` to create a new message.
+ */
+export const ListAccountSyncEventsResponseSchema: GenMessage<ListAccountSyncEventsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_account, 39);
 
 /**
  * @generated from enum drift.v1.AccountState
@@ -118,6 +1282,16 @@ export enum AccountState {
    * @generated from enum value: ACCOUNT_STATE_RETIRED = 3;
    */
   RETIRED = 3,
+
+  /**
+   * @generated from enum value: ACCOUNT_STATE_DRAFT = 4;
+   */
+  DRAFT = 4,
+
+  /**
+   * @generated from enum value: ACCOUNT_STATE_INACTIVE = 5;
+   */
+  INACTIVE = 5,
 }
 
 /**
@@ -125,6 +1299,217 @@ export enum AccountState {
  */
 export const AccountStateSchema: GenEnum<AccountState> = /*@__PURE__*/
   enumDesc(file_drift_v1_account, 0);
+
+/**
+ * @generated from enum drift.v1.AccountSourceState
+ */
+export enum AccountSourceState {
+  /**
+   * @generated from enum value: ACCOUNT_SOURCE_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACCOUNT_SOURCE_STATE_ACTIVE = 1;
+   */
+  ACTIVE = 1,
+
+  /**
+   * @generated from enum value: ACCOUNT_SOURCE_STATE_DISABLED = 2;
+   */
+  DISABLED = 2,
+
+  /**
+   * @generated from enum value: ACCOUNT_SOURCE_STATE_RETIRED = 3;
+   */
+  RETIRED = 3,
+}
+
+/**
+ * Describes the enum drift.v1.AccountSourceState.
+ */
+export const AccountSourceStateSchema: GenEnum<AccountSourceState> = /*@__PURE__*/
+  enumDesc(file_drift_v1_account, 1);
+
+/**
+ * @generated from enum drift.v1.AccountServiceState
+ */
+export enum AccountServiceState {
+  /**
+   * @generated from enum value: ACCOUNT_SERVICE_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACCOUNT_SERVICE_STATE_HEALTHY = 1;
+   */
+  HEALTHY = 1,
+
+  /**
+   * @generated from enum value: ACCOUNT_SERVICE_STATE_DEGRADED = 2;
+   */
+  DEGRADED = 2,
+
+  /**
+   * @generated from enum value: ACCOUNT_SERVICE_STATE_FAILED = 3;
+   */
+  FAILED = 3,
+
+  /**
+   * @generated from enum value: ACCOUNT_SERVICE_STATE_DISABLED = 4;
+   */
+  DISABLED = 4,
+}
+
+/**
+ * Describes the enum drift.v1.AccountServiceState.
+ */
+export const AccountServiceStateSchema: GenEnum<AccountServiceState> = /*@__PURE__*/
+  enumDesc(file_drift_v1_account, 2);
+
+/**
+ * @generated from enum drift.v1.AccountServiceStage
+ */
+export enum AccountServiceStage {
+  /**
+   * @generated from enum value: ACCOUNT_SERVICE_STAGE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACCOUNT_SERVICE_STAGE_QUEUED = 1;
+   */
+  QUEUED = 1,
+
+  /**
+   * @generated from enum value: ACCOUNT_SERVICE_STAGE_READY = 2;
+   */
+  READY = 2,
+
+  /**
+   * @generated from enum value: ACCOUNT_SERVICE_STAGE_RUNNING = 3;
+   */
+  RUNNING = 3,
+
+  /**
+   * @generated from enum value: ACCOUNT_SERVICE_STAGE_BLOCKED = 4;
+   */
+  BLOCKED = 4,
+
+  /**
+   * @generated from enum value: ACCOUNT_SERVICE_STAGE_COMPLETED = 5;
+   */
+  COMPLETED = 5,
+}
+
+/**
+ * Describes the enum drift.v1.AccountServiceStage.
+ */
+export const AccountServiceStageSchema: GenEnum<AccountServiceStage> = /*@__PURE__*/
+  enumDesc(file_drift_v1_account, 3);
+
+/**
+ * @generated from enum drift.v1.AccountRunState
+ */
+export enum AccountRunState {
+  /**
+   * @generated from enum value: ACCOUNT_RUN_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACCOUNT_RUN_STATE_REQUESTED = 1;
+   */
+  REQUESTED = 1,
+
+  /**
+   * @generated from enum value: ACCOUNT_RUN_STATE_RUNNING = 2;
+   */
+  RUNNING = 2,
+
+  /**
+   * @generated from enum value: ACCOUNT_RUN_STATE_COMPLETED = 3;
+   */
+  COMPLETED = 3,
+
+  /**
+   * @generated from enum value: ACCOUNT_RUN_STATE_FAILED = 4;
+   */
+  FAILED = 4,
+
+  /**
+   * @generated from enum value: ACCOUNT_RUN_STATE_CANCELLED = 5;
+   */
+  CANCELLED = 5,
+}
+
+/**
+ * Describes the enum drift.v1.AccountRunState.
+ */
+export const AccountRunStateSchema: GenEnum<AccountRunState> = /*@__PURE__*/
+  enumDesc(file_drift_v1_account, 4);
+
+/**
+ * @generated from enum drift.v1.AccountAssignmentState
+ */
+export enum AccountAssignmentState {
+  /**
+   * @generated from enum value: ACCOUNT_ASSIGNMENT_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACCOUNT_ASSIGNMENT_STATE_ACTIVE = 1;
+   */
+  ACTIVE = 1,
+
+  /**
+   * @generated from enum value: ACCOUNT_ASSIGNMENT_STATE_ENDED = 2;
+   */
+  ENDED = 2,
+}
+
+/**
+ * Describes the enum drift.v1.AccountAssignmentState.
+ */
+export const AccountAssignmentStateSchema: GenEnum<AccountAssignmentState> = /*@__PURE__*/
+  enumDesc(file_drift_v1_account, 5);
+
+/**
+ * @generated from enum drift.v1.AccountSyncOutcome
+ */
+export enum AccountSyncOutcome {
+  /**
+   * @generated from enum value: ACCOUNT_SYNC_OUTCOME_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACCOUNT_SYNC_OUTCOME_ACCEPTED = 1;
+   */
+  ACCEPTED = 1,
+
+  /**
+   * @generated from enum value: ACCOUNT_SYNC_OUTCOME_REJECTED = 2;
+   */
+  REJECTED = 2,
+
+  /**
+   * @generated from enum value: ACCOUNT_SYNC_OUTCOME_FAILED = 3;
+   */
+  FAILED = 3,
+
+  /**
+   * @generated from enum value: ACCOUNT_SYNC_OUTCOME_DISABLED = 4;
+   */
+  DISABLED = 4,
+}
+
+/**
+ * Describes the enum drift.v1.AccountSyncOutcome.
+ */
+export const AccountSyncOutcomeSchema: GenEnum<AccountSyncOutcome> = /*@__PURE__*/
+  enumDesc(file_drift_v1_account, 6);
 
 /**
  * @generated from service drift.v1.AccountService
@@ -137,6 +1522,126 @@ export const AccountService: GenService<{
     methodKind: "unary";
     input: typeof ListAccountReferencesRequestSchema;
     output: typeof ListAccountReferencesResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.ListAccountSources
+   */
+  listAccountSources: {
+    methodKind: "unary";
+    input: typeof ListAccountSourcesRequestSchema;
+    output: typeof ListAccountSourcesResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.CreateAccountSource
+   */
+  createAccountSource: {
+    methodKind: "unary";
+    input: typeof CreateAccountSourceRequestSchema;
+    output: typeof CreateAccountSourceResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.UpdateAccountSource
+   */
+  updateAccountSource: {
+    methodKind: "unary";
+    input: typeof UpdateAccountSourceRequestSchema;
+    output: typeof UpdateAccountSourceResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.TransitionAccountSource
+   */
+  transitionAccountSource: {
+    methodKind: "unary";
+    input: typeof TransitionAccountSourceRequestSchema;
+    output: typeof TransitionAccountSourceResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.CreateAccount
+   */
+  createAccount: {
+    methodKind: "unary";
+    input: typeof CreateAccountRequestSchema;
+    output: typeof CreateAccountResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.UpdateAccount
+   */
+  updateAccount: {
+    methodKind: "unary";
+    input: typeof UpdateAccountRequestSchema;
+    output: typeof UpdateAccountResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.UpdateAccountState
+   */
+  updateAccountState: {
+    methodKind: "unary";
+    input: typeof UpdateAccountStateRequestSchema;
+    output: typeof UpdateAccountStateResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.ListAccountServiceStates
+   */
+  listAccountServiceStates: {
+    methodKind: "unary";
+    input: typeof ListAccountServiceStatesRequestSchema;
+    output: typeof ListAccountServiceStatesResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.ListAccountServiceStateHistory
+   */
+  listAccountServiceStateHistory: {
+    methodKind: "unary";
+    input: typeof ListAccountServiceStateHistoryRequestSchema;
+    output: typeof ListAccountServiceStateHistoryResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.ListAccountRuns
+   */
+  listAccountRuns: {
+    methodKind: "unary";
+    input: typeof ListAccountRunsRequestSchema;
+    output: typeof ListAccountRunsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.ListAccountRunEvents
+   */
+  listAccountRunEvents: {
+    methodKind: "unary";
+    input: typeof ListAccountRunEventsRequestSchema;
+    output: typeof ListAccountRunEventsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.AssignAccountDevice
+   */
+  assignAccountDevice: {
+    methodKind: "unary";
+    input: typeof AssignAccountDeviceRequestSchema;
+    output: typeof AssignAccountDeviceResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.EndAccountDeviceAssignment
+   */
+  endAccountDeviceAssignment: {
+    methodKind: "unary";
+    input: typeof EndAccountDeviceAssignmentRequestSchema;
+    output: typeof EndAccountDeviceAssignmentResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.ListAccountDeviceAssignments
+   */
+  listAccountDeviceAssignments: {
+    methodKind: "unary";
+    input: typeof ListAccountDeviceAssignmentsRequestSchema;
+    output: typeof ListAccountDeviceAssignmentsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AccountService.ListAccountSyncEvents
+   */
+  listAccountSyncEvents: {
+    methodKind: "unary";
+    input: typeof ListAccountSyncEventsRequestSchema;
+    output: typeof ListAccountSyncEventsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_account, 0);

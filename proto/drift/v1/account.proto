@@ -10,13 +10,156 @@ enum AccountState {
   ACCOUNT_STATE_ACTIVE = 1;
   ACCOUNT_STATE_SUSPENDED = 2;
   ACCOUNT_STATE_RETIRED = 3;
+  ACCOUNT_STATE_DRAFT = 4;
+  ACCOUNT_STATE_INACTIVE = 5;
 }
+
+enum AccountSourceState {
+  ACCOUNT_SOURCE_STATE_UNSPECIFIED = 0;
+  ACCOUNT_SOURCE_STATE_ACTIVE = 1;
+  ACCOUNT_SOURCE_STATE_DISABLED = 2;
+  ACCOUNT_SOURCE_STATE_RETIRED = 3;
+}
+
+enum AccountServiceState {
+  ACCOUNT_SERVICE_STATE_UNSPECIFIED = 0;
+  ACCOUNT_SERVICE_STATE_HEALTHY = 1;
+  ACCOUNT_SERVICE_STATE_DEGRADED = 2;
+  ACCOUNT_SERVICE_STATE_FAILED = 3;
+  ACCOUNT_SERVICE_STATE_DISABLED = 4;
+}
+
+enum AccountServiceStage {
+  ACCOUNT_SERVICE_STAGE_UNSPECIFIED = 0;
+  ACCOUNT_SERVICE_STAGE_QUEUED = 1;
+  ACCOUNT_SERVICE_STAGE_READY = 2;
+  ACCOUNT_SERVICE_STAGE_RUNNING = 3;
+  ACCOUNT_SERVICE_STAGE_BLOCKED = 4;
+  ACCOUNT_SERVICE_STAGE_COMPLETED = 5;
+}
+
+enum AccountRunState {
+  ACCOUNT_RUN_STATE_UNSPECIFIED = 0;
+  ACCOUNT_RUN_STATE_REQUESTED = 1;
+  ACCOUNT_RUN_STATE_RUNNING = 2;
+  ACCOUNT_RUN_STATE_COMPLETED = 3;
+  ACCOUNT_RUN_STATE_FAILED = 4;
+  ACCOUNT_RUN_STATE_CANCELLED = 5;
+}
+
+enum AccountAssignmentState {
+  ACCOUNT_ASSIGNMENT_STATE_UNSPECIFIED = 0;
+  ACCOUNT_ASSIGNMENT_STATE_ACTIVE = 1;
+  ACCOUNT_ASSIGNMENT_STATE_ENDED = 2;
+}
+
+enum AccountSyncOutcome {
+  ACCOUNT_SYNC_OUTCOME_UNSPECIFIED = 0;
+  ACCOUNT_SYNC_OUTCOME_ACCEPTED = 1;
+  ACCOUNT_SYNC_OUTCOME_REJECTED = 2;
+  ACCOUNT_SYNC_OUTCOME_FAILED = 3;
+  ACCOUNT_SYNC_OUTCOME_DISABLED = 4;
+}
+
 message AccountReference {
   string id = 1;
   WorkspaceRef workspace = 2;
   string source_id = 3;
   string external_reference = 4;
   AccountState state = 5;
+  string display_name = 6;
+  string metadata_json = 7;
+  uint64 row_version = 8;
+  string source_provider = 9;
+}
+
+message AccountSource {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string provider = 3;
+  string display_name = 4;
+  AccountSourceState state = 5;
+  string external_reference = 6;
+  string metadata_json = 7;
+  string created_at = 8;
+  string updated_at = 9;
+  uint64 row_version = 10;
+}
+
+message AccountServiceStateProjection {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string account_id = 3;
+  string service_name = 4;
+  AccountServiceStage stage = 5;
+  AccountServiceState state = 6;
+  string observed_at = 7;
+  string failure_class = 8;
+  string details_json = 9;
+  uint64 row_version = 10;
+}
+
+message AccountServiceStateHistory {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string account_id = 3;
+  string service_name = 4;
+  AccountServiceStage stage = 5;
+  AccountServiceState state = 6;
+  string observed_at = 7;
+  string failure_class = 8;
+  string details_json = 9;
+  uint64 row_version = 10;
+  string recorded_at = 11;
+}
+
+message AccountRun {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string account_id = 3;
+  AccountRunState state = 4;
+  string requested_at = 5;
+  string started_at = 6;
+  string finished_at = 7;
+  string failure_class = 8;
+  string correlation_id = 9;
+  uint64 row_version = 10;
+}
+
+message AccountRunEvent {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string run_id = 3;
+  AccountRunState state = 4;
+  string failure_class = 5;
+  string occurred_at = 6;
+  string actor_type = 7;
+  string actor_id = 8;
+  string correlation_id = 9;
+}
+
+message AccountDeviceAssignment {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string account_id = 3;
+  string device_id = 4;
+  AccountAssignmentState state = 5;
+  string assigned_at = 6;
+  string ended_at = 7;
+  uint64 row_version = 8;
+}
+
+message AccountSyncEvent {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string source_id = 3;
+  string account_id = 4;
+  AccountSyncOutcome outcome = 5;
+  string idempotency_key = 6;
+  string correlation_id = 7;
+  string occurred_at = 8;
+  string details_json = 9;
+  string event_name = 10;
 }
 message ListAccountReferencesRequest {
   WorkspaceRef workspace = 1;
@@ -26,6 +169,184 @@ message ListAccountReferencesResponse {
   repeated AccountReference accounts = 1;
   PageResponse page = 2;
 }
+
+message ListAccountSourcesRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+
+message ListAccountSourcesResponse {
+  repeated AccountSource sources = 1;
+  PageResponse page = 2;
+}
+
+message CreateAccountSourceRequest {
+  RequestContext context = 1;
+  AccountSource source = 2;
+}
+
+message CreateAccountSourceResponse {
+  AccountSource source = 1;
+}
+
+message UpdateAccountSourceRequest {
+  RequestContext context = 1;
+  ResourceRef source = 2;
+  string display_name = 3;
+  string external_reference = 4;
+  string metadata_json = 5;
+  uint64 expected_row_version = 6;
+}
+
+message UpdateAccountSourceResponse {
+  AccountSource source = 1;
+}
+
+message TransitionAccountSourceRequest {
+  RequestContext context = 1;
+  ResourceRef source = 2;
+  AccountSourceState state = 3;
+  uint64 expected_row_version = 4;
+}
+
+message TransitionAccountSourceResponse {
+  AccountSource source = 1;
+}
+
+message CreateAccountRequest {
+  RequestContext context = 1;
+  AccountReference account = 2;
+}
+
+message CreateAccountResponse {
+  AccountReference account = 1;
+}
+
+message UpdateAccountRequest {
+  RequestContext context = 1;
+  ResourceRef account = 2;
+  string external_reference = 3;
+  string display_name = 4;
+  string metadata_json = 5;
+  uint64 expected_row_version = 6;
+}
+
+message UpdateAccountResponse {
+  AccountReference account = 1;
+}
+
+message UpdateAccountStateRequest {
+  RequestContext context = 1;
+  ResourceRef account = 2;
+  AccountState state = 3;
+  uint64 expected_row_version = 4;
+}
+
+message UpdateAccountStateResponse {
+  AccountReference account = 1;
+}
+
+message ListAccountServiceStatesRequest {
+  WorkspaceRef workspace = 1;
+  string account_id = 2;
+  PageRequest page = 3;
+}
+
+message ListAccountServiceStatesResponse {
+  repeated AccountServiceStateProjection states = 1;
+  PageResponse page = 2;
+}
+
+message ListAccountServiceStateHistoryRequest {
+  WorkspaceRef workspace = 1;
+  string account_id = 2;
+  PageRequest page = 3;
+}
+
+message ListAccountServiceStateHistoryResponse {
+  repeated AccountServiceStateHistory history = 1;
+  PageResponse page = 2;
+}
+
+message ListAccountRunsRequest {
+  WorkspaceRef workspace = 1;
+  string account_id = 2;
+  PageRequest page = 3;
+}
+
+message ListAccountRunsResponse {
+  repeated AccountRun runs = 1;
+  PageResponse page = 2;
+}
+
+message ListAccountRunEventsRequest {
+  WorkspaceRef workspace = 1;
+  string run_id = 2;
+  PageRequest page = 3;
+}
+
+message ListAccountRunEventsResponse {
+  repeated AccountRunEvent events = 1;
+  PageResponse page = 2;
+}
+
+message AssignAccountDeviceRequest {
+  RequestContext context = 1;
+  ResourceRef account = 2;
+  ResourceRef device = 3;
+}
+
+message AssignAccountDeviceResponse {
+  AccountDeviceAssignment assignment = 1;
+}
+
+message EndAccountDeviceAssignmentRequest {
+  RequestContext context = 1;
+  ResourceRef assignment = 2;
+}
+
+message EndAccountDeviceAssignmentResponse {
+  AccountDeviceAssignment assignment = 1;
+}
+
+message ListAccountDeviceAssignmentsRequest {
+  WorkspaceRef workspace = 1;
+  string account_id = 2;
+  string device_id = 3;
+  PageRequest page = 4;
+}
+
+message ListAccountDeviceAssignmentsResponse {
+  repeated AccountDeviceAssignment assignments = 1;
+  PageResponse page = 2;
+}
+
+message ListAccountSyncEventsRequest {
+  WorkspaceRef workspace = 1;
+  string source_id = 2;
+  PageRequest page = 3;
+}
+
+message ListAccountSyncEventsResponse {
+  repeated AccountSyncEvent events = 1;
+  PageResponse page = 2;
+}
+
 service AccountService {
   rpc ListAccountReferences(ListAccountReferencesRequest) returns (ListAccountReferencesResponse);
+  rpc ListAccountSources(ListAccountSourcesRequest) returns (ListAccountSourcesResponse);
+  rpc CreateAccountSource(CreateAccountSourceRequest) returns (CreateAccountSourceResponse);
+  rpc UpdateAccountSource(UpdateAccountSourceRequest) returns (UpdateAccountSourceResponse);
+  rpc TransitionAccountSource(TransitionAccountSourceRequest) returns (TransitionAccountSourceResponse);
+  rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+  rpc UpdateAccount(UpdateAccountRequest) returns (UpdateAccountResponse);
+  rpc UpdateAccountState(UpdateAccountStateRequest) returns (UpdateAccountStateResponse);
+  rpc ListAccountServiceStates(ListAccountServiceStatesRequest) returns (ListAccountServiceStatesResponse);
+  rpc ListAccountServiceStateHistory(ListAccountServiceStateHistoryRequest) returns (ListAccountServiceStateHistoryResponse);
+  rpc ListAccountRuns(ListAccountRunsRequest) returns (ListAccountRunsResponse);
+  rpc ListAccountRunEvents(ListAccountRunEventsRequest) returns (ListAccountRunEventsResponse);
+  rpc AssignAccountDevice(AssignAccountDeviceRequest) returns (AssignAccountDeviceResponse);
+  rpc EndAccountDeviceAssignment(EndAccountDeviceAssignmentRequest) returns (EndAccountDeviceAssignmentResponse);
+  rpc ListAccountDeviceAssignments(ListAccountDeviceAssignmentsRequest) returns (ListAccountDeviceAssignmentsResponse);
+  rpc ListAccountSyncEvents(ListAccountSyncEventsRequest) returns (ListAccountSyncEventsResponse);
 }
