@@ -82,6 +82,110 @@ func (SettingScope) EnumDescriptor() ([]byte, []int) {
 	return file_drift_v1_settings_proto_rawDescGZIP(), []int{0}
 }
 
+type SettingValueKind int32
+
+const (
+	SettingValueKind_SETTING_VALUE_KIND_UNSPECIFIED SettingValueKind = 0
+	SettingValueKind_SETTING_VALUE_KIND_BOOLEAN     SettingValueKind = 1
+	SettingValueKind_SETTING_VALUE_KIND_INTEGER     SettingValueKind = 2
+	SettingValueKind_SETTING_VALUE_KIND_ENUM        SettingValueKind = 3
+	SettingValueKind_SETTING_VALUE_KIND_JSON        SettingValueKind = 4
+)
+
+// Enum value maps for SettingValueKind.
+var (
+	SettingValueKind_name = map[int32]string{
+		0: "SETTING_VALUE_KIND_UNSPECIFIED",
+		1: "SETTING_VALUE_KIND_BOOLEAN",
+		2: "SETTING_VALUE_KIND_INTEGER",
+		3: "SETTING_VALUE_KIND_ENUM",
+		4: "SETTING_VALUE_KIND_JSON",
+	}
+	SettingValueKind_value = map[string]int32{
+		"SETTING_VALUE_KIND_UNSPECIFIED": 0,
+		"SETTING_VALUE_KIND_BOOLEAN":     1,
+		"SETTING_VALUE_KIND_INTEGER":     2,
+		"SETTING_VALUE_KIND_ENUM":        3,
+		"SETTING_VALUE_KIND_JSON":        4,
+	}
+)
+
+func (x SettingValueKind) Enum() *SettingValueKind {
+	p := new(SettingValueKind)
+	*p = x
+	return p
+}
+
+func (x SettingValueKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SettingValueKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_settings_proto_enumTypes[1].Descriptor()
+}
+
+func (SettingValueKind) Type() protoreflect.EnumType {
+	return &file_drift_v1_settings_proto_enumTypes[1]
+}
+
+func (x SettingValueKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SettingValueKind.Descriptor instead.
+func (SettingValueKind) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{1}
+}
+
+type SettingRisk int32
+
+const (
+	SettingRisk_SETTING_RISK_UNSPECIFIED     SettingRisk = 0
+	SettingRisk_SETTING_RISK_SAFETY_CRITICAL SettingRisk = 1
+	SettingRisk_SETTING_RISK_LOW_PREFERENCE  SettingRisk = 2
+)
+
+// Enum value maps for SettingRisk.
+var (
+	SettingRisk_name = map[int32]string{
+		0: "SETTING_RISK_UNSPECIFIED",
+		1: "SETTING_RISK_SAFETY_CRITICAL",
+		2: "SETTING_RISK_LOW_PREFERENCE",
+	}
+	SettingRisk_value = map[string]int32{
+		"SETTING_RISK_UNSPECIFIED":     0,
+		"SETTING_RISK_SAFETY_CRITICAL": 1,
+		"SETTING_RISK_LOW_PREFERENCE":  2,
+	}
+)
+
+func (x SettingRisk) Enum() *SettingRisk {
+	p := new(SettingRisk)
+	*p = x
+	return p
+}
+
+func (x SettingRisk) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SettingRisk) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_settings_proto_enumTypes[2].Descriptor()
+}
+
+func (SettingRisk) Type() protoreflect.EnumType {
+	return &file_drift_v1_settings_proto_enumTypes[2]
+}
+
+func (x SettingRisk) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SettingRisk.Descriptor instead.
+func (SettingRisk) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{2}
+}
+
 type Setting struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -92,6 +196,10 @@ type Setting struct {
 	ValueJson     string                 `protobuf:"bytes,6,opt,name=value_json,json=valueJson,proto3" json:"value_json,omitempty"`
 	State         string                 `protobuf:"bytes,7,opt,name=state,proto3" json:"state,omitempty"`
 	RowVersion    uint64                 `protobuf:"varint,8,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	ValueKind     SettingValueKind       `protobuf:"varint,9,opt,name=value_kind,json=valueKind,proto3,enum=drift.v1.SettingValueKind" json:"value_kind,omitempty"`
+	Risk          SettingRisk            `protobuf:"varint,10,opt,name=risk,proto3,enum=drift.v1.SettingRisk" json:"risk,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     string                 `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -182,6 +290,166 @@ func (x *Setting) GetRowVersion() uint64 {
 	return 0
 }
 
+func (x *Setting) GetValueKind() SettingValueKind {
+	if x != nil {
+		return x.ValueKind
+	}
+	return SettingValueKind_SETTING_VALUE_KIND_UNSPECIFIED
+}
+
+func (x *Setting) GetRisk() SettingRisk {
+	if x != nil {
+		return x.Risk
+	}
+	return SettingRisk_SETTING_RISK_UNSPECIFIED
+}
+
+func (x *Setting) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *Setting) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+type SettingHistory struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	SettingId     string                 `protobuf:"bytes,3,opt,name=setting_id,json=settingId,proto3" json:"setting_id,omitempty"`
+	Scope         SettingScope           `protobuf:"varint,4,opt,name=scope,proto3,enum=drift.v1.SettingScope" json:"scope,omitempty"`
+	TargetId      string                 `protobuf:"bytes,5,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	SettingKey    string                 `protobuf:"bytes,6,opt,name=setting_key,json=settingKey,proto3" json:"setting_key,omitempty"`
+	ValueJson     string                 `protobuf:"bytes,7,opt,name=value_json,json=valueJson,proto3" json:"value_json,omitempty"`
+	State         string                 `protobuf:"bytes,8,opt,name=state,proto3" json:"state,omitempty"`
+	RowVersion    uint64                 `protobuf:"varint,9,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	ActorType     string                 `protobuf:"bytes,10,opt,name=actor_type,json=actorType,proto3" json:"actor_type,omitempty"`
+	ActorId       string                 `protobuf:"bytes,11,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
+	ChangedAt     string                 `protobuf:"bytes,12,opt,name=changed_at,json=changedAt,proto3" json:"changed_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SettingHistory) Reset() {
+	*x = SettingHistory{}
+	mi := &file_drift_v1_settings_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SettingHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SettingHistory) ProtoMessage() {}
+
+func (x *SettingHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_settings_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SettingHistory.ProtoReflect.Descriptor instead.
+func (*SettingHistory) Descriptor() ([]byte, []int) {
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SettingHistory) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SettingHistory) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *SettingHistory) GetSettingId() string {
+	if x != nil {
+		return x.SettingId
+	}
+	return ""
+}
+
+func (x *SettingHistory) GetScope() SettingScope {
+	if x != nil {
+		return x.Scope
+	}
+	return SettingScope_SETTING_SCOPE_UNSPECIFIED
+}
+
+func (x *SettingHistory) GetTargetId() string {
+	if x != nil {
+		return x.TargetId
+	}
+	return ""
+}
+
+func (x *SettingHistory) GetSettingKey() string {
+	if x != nil {
+		return x.SettingKey
+	}
+	return ""
+}
+
+func (x *SettingHistory) GetValueJson() string {
+	if x != nil {
+		return x.ValueJson
+	}
+	return ""
+}
+
+func (x *SettingHistory) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *SettingHistory) GetRowVersion() uint64 {
+	if x != nil {
+		return x.RowVersion
+	}
+	return 0
+}
+
+func (x *SettingHistory) GetActorType() string {
+	if x != nil {
+		return x.ActorType
+	}
+	return ""
+}
+
+func (x *SettingHistory) GetActorId() string {
+	if x != nil {
+		return x.ActorId
+	}
+	return ""
+}
+
+func (x *SettingHistory) GetChangedAt() string {
+	if x != nil {
+		return x.ChangedAt
+	}
+	return ""
+}
+
 type ListSettingsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
@@ -193,7 +461,7 @@ type ListSettingsRequest struct {
 
 func (x *ListSettingsRequest) Reset() {
 	*x = ListSettingsRequest{}
-	mi := &file_drift_v1_settings_proto_msgTypes[1]
+	mi := &file_drift_v1_settings_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -205,7 +473,7 @@ func (x *ListSettingsRequest) String() string {
 func (*ListSettingsRequest) ProtoMessage() {}
 
 func (x *ListSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_settings_proto_msgTypes[1]
+	mi := &file_drift_v1_settings_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -218,7 +486,7 @@ func (x *ListSettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSettingsRequest.ProtoReflect.Descriptor instead.
 func (*ListSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_settings_proto_rawDescGZIP(), []int{1}
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListSettingsRequest) GetWorkspace() *WorkspaceRef {
@@ -252,7 +520,7 @@ type ListSettingsResponse struct {
 
 func (x *ListSettingsResponse) Reset() {
 	*x = ListSettingsResponse{}
-	mi := &file_drift_v1_settings_proto_msgTypes[2]
+	mi := &file_drift_v1_settings_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +532,7 @@ func (x *ListSettingsResponse) String() string {
 func (*ListSettingsResponse) ProtoMessage() {}
 
 func (x *ListSettingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_settings_proto_msgTypes[2]
+	mi := &file_drift_v1_settings_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +545,7 @@ func (x *ListSettingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSettingsResponse.ProtoReflect.Descriptor instead.
 func (*ListSettingsResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_settings_proto_rawDescGZIP(), []int{2}
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListSettingsResponse) GetSettings() []*Setting {
@@ -294,11 +562,443 @@ func (x *ListSettingsResponse) GetPage() *PageResponse {
 	return nil
 }
 
+type CreateSettingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Setting       *Setting               `protobuf:"bytes,2,opt,name=setting,proto3" json:"setting,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSettingRequest) Reset() {
+	*x = CreateSettingRequest{}
+	mi := &file_drift_v1_settings_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSettingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSettingRequest) ProtoMessage() {}
+
+func (x *CreateSettingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_settings_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSettingRequest.ProtoReflect.Descriptor instead.
+func (*CreateSettingRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CreateSettingRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *CreateSettingRequest) GetSetting() *Setting {
+	if x != nil {
+		return x.Setting
+	}
+	return nil
+}
+
+type CreateSettingResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Setting       *Setting               `protobuf:"bytes,1,opt,name=setting,proto3" json:"setting,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSettingResponse) Reset() {
+	*x = CreateSettingResponse{}
+	mi := &file_drift_v1_settings_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSettingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSettingResponse) ProtoMessage() {}
+
+func (x *CreateSettingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_settings_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSettingResponse.ProtoReflect.Descriptor instead.
+func (*CreateSettingResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CreateSettingResponse) GetSetting() *Setting {
+	if x != nil {
+		return x.Setting
+	}
+	return nil
+}
+
+type UpdateSettingRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Context            *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Setting            *ResourceRef           `protobuf:"bytes,2,opt,name=setting,proto3" json:"setting,omitempty"`
+	ValueJson          string                 `protobuf:"bytes,3,opt,name=value_json,json=valueJson,proto3" json:"value_json,omitempty"`
+	ExpectedRowVersion uint64                 `protobuf:"varint,4,opt,name=expected_row_version,json=expectedRowVersion,proto3" json:"expected_row_version,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *UpdateSettingRequest) Reset() {
+	*x = UpdateSettingRequest{}
+	mi := &file_drift_v1_settings_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateSettingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateSettingRequest) ProtoMessage() {}
+
+func (x *UpdateSettingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_settings_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateSettingRequest.ProtoReflect.Descriptor instead.
+func (*UpdateSettingRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *UpdateSettingRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *UpdateSettingRequest) GetSetting() *ResourceRef {
+	if x != nil {
+		return x.Setting
+	}
+	return nil
+}
+
+func (x *UpdateSettingRequest) GetValueJson() string {
+	if x != nil {
+		return x.ValueJson
+	}
+	return ""
+}
+
+func (x *UpdateSettingRequest) GetExpectedRowVersion() uint64 {
+	if x != nil {
+		return x.ExpectedRowVersion
+	}
+	return 0
+}
+
+type UpdateSettingResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Setting       *Setting               `protobuf:"bytes,1,opt,name=setting,proto3" json:"setting,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateSettingResponse) Reset() {
+	*x = UpdateSettingResponse{}
+	mi := &file_drift_v1_settings_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateSettingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateSettingResponse) ProtoMessage() {}
+
+func (x *UpdateSettingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_settings_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateSettingResponse.ProtoReflect.Descriptor instead.
+func (*UpdateSettingResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *UpdateSettingResponse) GetSetting() *Setting {
+	if x != nil {
+		return x.Setting
+	}
+	return nil
+}
+
+type TransitionSettingRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Context            *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Setting            *ResourceRef           `protobuf:"bytes,2,opt,name=setting,proto3" json:"setting,omitempty"`
+	State              string                 `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`
+	ExpectedRowVersion uint64                 `protobuf:"varint,4,opt,name=expected_row_version,json=expectedRowVersion,proto3" json:"expected_row_version,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *TransitionSettingRequest) Reset() {
+	*x = TransitionSettingRequest{}
+	mi := &file_drift_v1_settings_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransitionSettingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransitionSettingRequest) ProtoMessage() {}
+
+func (x *TransitionSettingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_settings_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransitionSettingRequest.ProtoReflect.Descriptor instead.
+func (*TransitionSettingRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *TransitionSettingRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *TransitionSettingRequest) GetSetting() *ResourceRef {
+	if x != nil {
+		return x.Setting
+	}
+	return nil
+}
+
+func (x *TransitionSettingRequest) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *TransitionSettingRequest) GetExpectedRowVersion() uint64 {
+	if x != nil {
+		return x.ExpectedRowVersion
+	}
+	return 0
+}
+
+type TransitionSettingResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Setting       *Setting               `protobuf:"bytes,1,opt,name=setting,proto3" json:"setting,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransitionSettingResponse) Reset() {
+	*x = TransitionSettingResponse{}
+	mi := &file_drift_v1_settings_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransitionSettingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransitionSettingResponse) ProtoMessage() {}
+
+func (x *TransitionSettingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_settings_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransitionSettingResponse.ProtoReflect.Descriptor instead.
+func (*TransitionSettingResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *TransitionSettingResponse) GetSetting() *Setting {
+	if x != nil {
+		return x.Setting
+	}
+	return nil
+}
+
+type ListSettingHistoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	SettingId     string                 `protobuf:"bytes,2,opt,name=setting_id,json=settingId,proto3" json:"setting_id,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSettingHistoryRequest) Reset() {
+	*x = ListSettingHistoryRequest{}
+	mi := &file_drift_v1_settings_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSettingHistoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSettingHistoryRequest) ProtoMessage() {}
+
+func (x *ListSettingHistoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_settings_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSettingHistoryRequest.ProtoReflect.Descriptor instead.
+func (*ListSettingHistoryRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ListSettingHistoryRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListSettingHistoryRequest) GetSettingId() string {
+	if x != nil {
+		return x.SettingId
+	}
+	return ""
+}
+
+func (x *ListSettingHistoryRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListSettingHistoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	History       []*SettingHistory      `protobuf:"bytes,1,rep,name=history,proto3" json:"history,omitempty"`
+	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSettingHistoryResponse) Reset() {
+	*x = ListSettingHistoryResponse{}
+	mi := &file_drift_v1_settings_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSettingHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSettingHistoryResponse) ProtoMessage() {}
+
+func (x *ListSettingHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_settings_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSettingHistoryResponse.ProtoReflect.Descriptor instead.
+func (*ListSettingHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_settings_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListSettingHistoryResponse) GetHistory() []*SettingHistory {
+	if x != nil {
+		return x.History
+	}
+	return nil
+}
+
+func (x *ListSettingHistoryResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 var File_drift_v1_settings_proto protoreflect.FileDescriptor
 
 const file_drift_v1_settings_proto_rawDesc = "" +
 	"\n" +
-	"\x17drift/v1/settings.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x91\x02\n" +
+	"\x17drift/v1/settings.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xb5\x03\n" +
 	"\aSetting\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12,\n" +
@@ -310,13 +1010,69 @@ const file_drift_v1_settings_proto_rawDesc = "" +
 	"value_json\x18\x06 \x01(\tR\tvalueJson\x12\x14\n" +
 	"\x05state\x18\a \x01(\tR\x05state\x12\x1f\n" +
 	"\vrow_version\x18\b \x01(\x04R\n" +
-	"rowVersion\"\xa4\x01\n" +
+	"rowVersion\x129\n" +
+	"\n" +
+	"value_kind\x18\t \x01(\x0e2\x1a.drift.v1.SettingValueKindR\tvalueKind\x12)\n" +
+	"\x04risk\x18\n" +
+	" \x01(\x0e2\x15.drift.v1.SettingRiskR\x04risk\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\v \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\f \x01(\tR\tupdatedAt\"\x90\x03\n" +
+	"\x0eSettingHistory\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +
+	"\n" +
+	"setting_id\x18\x03 \x01(\tR\tsettingId\x12,\n" +
+	"\x05scope\x18\x04 \x01(\x0e2\x16.drift.v1.SettingScopeR\x05scope\x12\x1b\n" +
+	"\ttarget_id\x18\x05 \x01(\tR\btargetId\x12\x1f\n" +
+	"\vsetting_key\x18\x06 \x01(\tR\n" +
+	"settingKey\x12\x1d\n" +
+	"\n" +
+	"value_json\x18\a \x01(\tR\tvalueJson\x12\x14\n" +
+	"\x05state\x18\b \x01(\tR\x05state\x12\x1f\n" +
+	"\vrow_version\x18\t \x01(\x04R\n" +
+	"rowVersion\x12\x1d\n" +
+	"\n" +
+	"actor_type\x18\n" +
+	" \x01(\tR\tactorType\x12\x19\n" +
+	"\bactor_id\x18\v \x01(\tR\aactorId\x12\x1d\n" +
+	"\n" +
+	"changed_at\x18\f \x01(\tR\tchangedAt\"\xa4\x01\n" +
 	"\x13ListSettingsRequest\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12,\n" +
 	"\x05scope\x18\x02 \x01(\x0e2\x16.drift.v1.SettingScopeR\x05scope\x12)\n" +
 	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"q\n" +
 	"\x14ListSettingsResponse\x12-\n" +
 	"\bsettings\x18\x01 \x03(\v2\x11.drift.v1.SettingR\bsettings\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"w\n" +
+	"\x14CreateSettingRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12+\n" +
+	"\asetting\x18\x02 \x01(\v2\x11.drift.v1.SettingR\asetting\"D\n" +
+	"\x15CreateSettingResponse\x12+\n" +
+	"\asetting\x18\x01 \x01(\v2\x11.drift.v1.SettingR\asetting\"\xcc\x01\n" +
+	"\x14UpdateSettingRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12/\n" +
+	"\asetting\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\asetting\x12\x1d\n" +
+	"\n" +
+	"value_json\x18\x03 \x01(\tR\tvalueJson\x120\n" +
+	"\x14expected_row_version\x18\x04 \x01(\x04R\x12expectedRowVersion\"D\n" +
+	"\x15UpdateSettingResponse\x12+\n" +
+	"\asetting\x18\x01 \x01(\v2\x11.drift.v1.SettingR\asetting\"\xc7\x01\n" +
+	"\x18TransitionSettingRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12/\n" +
+	"\asetting\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\asetting\x12\x14\n" +
+	"\x05state\x18\x03 \x01(\tR\x05state\x120\n" +
+	"\x14expected_row_version\x18\x04 \x01(\x04R\x12expectedRowVersion\"H\n" +
+	"\x19TransitionSettingResponse\x12+\n" +
+	"\asetting\x18\x01 \x01(\v2\x11.drift.v1.SettingR\asetting\"\x9b\x01\n" +
+	"\x19ListSettingHistoryRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +
+	"\n" +
+	"setting_id\x18\x02 \x01(\tR\tsettingId\x12)\n" +
+	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"|\n" +
+	"\x1aListSettingHistoryResponse\x122\n" +
+	"\ahistory\x18\x01 \x03(\v2\x18.drift.v1.SettingHistoryR\ahistory\x12*\n" +
 	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page*\xed\x01\n" +
 	"\fSettingScope\x12\x1d\n" +
 	"\x19SETTING_SCOPE_UNSPECIFIED\x10\x00\x12\x1b\n" +
@@ -325,9 +1081,23 @@ const file_drift_v1_settings_proto_rawDesc = "" +
 	"\x17SETTING_SCOPE_EDGE_HOST\x10\x03\x12\x18\n" +
 	"\x14SETTING_SCOPE_DEVICE\x10\x04\x12\"\n" +
 	"\x1eSETTING_SCOPE_AUTOMATION_AGENT\x10\x05\x12%\n" +
-	"!SETTING_SCOPE_OPERATOR_PREFERENCE\x10\x062`\n" +
+	"!SETTING_SCOPE_OPERATOR_PREFERENCE\x10\x06*\xb0\x01\n" +
+	"\x10SettingValueKind\x12\"\n" +
+	"\x1eSETTING_VALUE_KIND_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aSETTING_VALUE_KIND_BOOLEAN\x10\x01\x12\x1e\n" +
+	"\x1aSETTING_VALUE_KIND_INTEGER\x10\x02\x12\x1b\n" +
+	"\x17SETTING_VALUE_KIND_ENUM\x10\x03\x12\x1b\n" +
+	"\x17SETTING_VALUE_KIND_JSON\x10\x04*n\n" +
+	"\vSettingRisk\x12\x1c\n" +
+	"\x18SETTING_RISK_UNSPECIFIED\x10\x00\x12 \n" +
+	"\x1cSETTING_RISK_SAFETY_CRITICAL\x10\x01\x12\x1f\n" +
+	"\x1bSETTING_RISK_LOW_PREFERENCE\x10\x022\xc3\x03\n" +
 	"\x0fSettingsService\x12M\n" +
-	"\fListSettings\x12\x1d.drift.v1.ListSettingsRequest\x1a\x1e.drift.v1.ListSettingsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\fListSettings\x12\x1d.drift.v1.ListSettingsRequest\x1a\x1e.drift.v1.ListSettingsResponse\x12P\n" +
+	"\rCreateSetting\x12\x1e.drift.v1.CreateSettingRequest\x1a\x1f.drift.v1.CreateSettingResponse\x12P\n" +
+	"\rUpdateSetting\x12\x1e.drift.v1.UpdateSettingRequest\x1a\x1f.drift.v1.UpdateSettingResponse\x12\\\n" +
+	"\x11TransitionSetting\x12\".drift.v1.TransitionSettingRequest\x1a#.drift.v1.TransitionSettingResponse\x12_\n" +
+	"\x12ListSettingHistory\x12#.drift.v1.ListSettingHistoryRequest\x1a$.drift.v1.ListSettingHistoryResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_settings_proto_rawDescOnce sync.Once
@@ -341,32 +1111,70 @@ func file_drift_v1_settings_proto_rawDescGZIP() []byte {
 	return file_drift_v1_settings_proto_rawDescData
 }
 
-var file_drift_v1_settings_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_drift_v1_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_drift_v1_settings_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_drift_v1_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_drift_v1_settings_proto_goTypes = []any{
-	(SettingScope)(0),            // 0: drift.v1.SettingScope
-	(*Setting)(nil),              // 1: drift.v1.Setting
-	(*ListSettingsRequest)(nil),  // 2: drift.v1.ListSettingsRequest
-	(*ListSettingsResponse)(nil), // 3: drift.v1.ListSettingsResponse
-	(*WorkspaceRef)(nil),         // 4: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),          // 5: drift.v1.PageRequest
-	(*PageResponse)(nil),         // 6: drift.v1.PageResponse
+	(SettingScope)(0),                  // 0: drift.v1.SettingScope
+	(SettingValueKind)(0),              // 1: drift.v1.SettingValueKind
+	(SettingRisk)(0),                   // 2: drift.v1.SettingRisk
+	(*Setting)(nil),                    // 3: drift.v1.Setting
+	(*SettingHistory)(nil),             // 4: drift.v1.SettingHistory
+	(*ListSettingsRequest)(nil),        // 5: drift.v1.ListSettingsRequest
+	(*ListSettingsResponse)(nil),       // 6: drift.v1.ListSettingsResponse
+	(*CreateSettingRequest)(nil),       // 7: drift.v1.CreateSettingRequest
+	(*CreateSettingResponse)(nil),      // 8: drift.v1.CreateSettingResponse
+	(*UpdateSettingRequest)(nil),       // 9: drift.v1.UpdateSettingRequest
+	(*UpdateSettingResponse)(nil),      // 10: drift.v1.UpdateSettingResponse
+	(*TransitionSettingRequest)(nil),   // 11: drift.v1.TransitionSettingRequest
+	(*TransitionSettingResponse)(nil),  // 12: drift.v1.TransitionSettingResponse
+	(*ListSettingHistoryRequest)(nil),  // 13: drift.v1.ListSettingHistoryRequest
+	(*ListSettingHistoryResponse)(nil), // 14: drift.v1.ListSettingHistoryResponse
+	(*WorkspaceRef)(nil),               // 15: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),                // 16: drift.v1.PageRequest
+	(*PageResponse)(nil),               // 17: drift.v1.PageResponse
+	(*RequestContext)(nil),             // 18: drift.v1.RequestContext
+	(*ResourceRef)(nil),                // 19: drift.v1.ResourceRef
 }
 var file_drift_v1_settings_proto_depIdxs = []int32{
-	4, // 0: drift.v1.Setting.workspace:type_name -> drift.v1.WorkspaceRef
-	0, // 1: drift.v1.Setting.scope:type_name -> drift.v1.SettingScope
-	4, // 2: drift.v1.ListSettingsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	0, // 3: drift.v1.ListSettingsRequest.scope:type_name -> drift.v1.SettingScope
-	5, // 4: drift.v1.ListSettingsRequest.page:type_name -> drift.v1.PageRequest
-	1, // 5: drift.v1.ListSettingsResponse.settings:type_name -> drift.v1.Setting
-	6, // 6: drift.v1.ListSettingsResponse.page:type_name -> drift.v1.PageResponse
-	2, // 7: drift.v1.SettingsService.ListSettings:input_type -> drift.v1.ListSettingsRequest
-	3, // 8: drift.v1.SettingsService.ListSettings:output_type -> drift.v1.ListSettingsResponse
-	8, // [8:9] is the sub-list for method output_type
-	7, // [7:8] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	15, // 0: drift.v1.Setting.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 1: drift.v1.Setting.scope:type_name -> drift.v1.SettingScope
+	1,  // 2: drift.v1.Setting.value_kind:type_name -> drift.v1.SettingValueKind
+	2,  // 3: drift.v1.Setting.risk:type_name -> drift.v1.SettingRisk
+	15, // 4: drift.v1.SettingHistory.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 5: drift.v1.SettingHistory.scope:type_name -> drift.v1.SettingScope
+	15, // 6: drift.v1.ListSettingsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 7: drift.v1.ListSettingsRequest.scope:type_name -> drift.v1.SettingScope
+	16, // 8: drift.v1.ListSettingsRequest.page:type_name -> drift.v1.PageRequest
+	3,  // 9: drift.v1.ListSettingsResponse.settings:type_name -> drift.v1.Setting
+	17, // 10: drift.v1.ListSettingsResponse.page:type_name -> drift.v1.PageResponse
+	18, // 11: drift.v1.CreateSettingRequest.context:type_name -> drift.v1.RequestContext
+	3,  // 12: drift.v1.CreateSettingRequest.setting:type_name -> drift.v1.Setting
+	3,  // 13: drift.v1.CreateSettingResponse.setting:type_name -> drift.v1.Setting
+	18, // 14: drift.v1.UpdateSettingRequest.context:type_name -> drift.v1.RequestContext
+	19, // 15: drift.v1.UpdateSettingRequest.setting:type_name -> drift.v1.ResourceRef
+	3,  // 16: drift.v1.UpdateSettingResponse.setting:type_name -> drift.v1.Setting
+	18, // 17: drift.v1.TransitionSettingRequest.context:type_name -> drift.v1.RequestContext
+	19, // 18: drift.v1.TransitionSettingRequest.setting:type_name -> drift.v1.ResourceRef
+	3,  // 19: drift.v1.TransitionSettingResponse.setting:type_name -> drift.v1.Setting
+	15, // 20: drift.v1.ListSettingHistoryRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	16, // 21: drift.v1.ListSettingHistoryRequest.page:type_name -> drift.v1.PageRequest
+	4,  // 22: drift.v1.ListSettingHistoryResponse.history:type_name -> drift.v1.SettingHistory
+	17, // 23: drift.v1.ListSettingHistoryResponse.page:type_name -> drift.v1.PageResponse
+	5,  // 24: drift.v1.SettingsService.ListSettings:input_type -> drift.v1.ListSettingsRequest
+	7,  // 25: drift.v1.SettingsService.CreateSetting:input_type -> drift.v1.CreateSettingRequest
+	9,  // 26: drift.v1.SettingsService.UpdateSetting:input_type -> drift.v1.UpdateSettingRequest
+	11, // 27: drift.v1.SettingsService.TransitionSetting:input_type -> drift.v1.TransitionSettingRequest
+	13, // 28: drift.v1.SettingsService.ListSettingHistory:input_type -> drift.v1.ListSettingHistoryRequest
+	6,  // 29: drift.v1.SettingsService.ListSettings:output_type -> drift.v1.ListSettingsResponse
+	8,  // 30: drift.v1.SettingsService.CreateSetting:output_type -> drift.v1.CreateSettingResponse
+	10, // 31: drift.v1.SettingsService.UpdateSetting:output_type -> drift.v1.UpdateSettingResponse
+	12, // 32: drift.v1.SettingsService.TransitionSetting:output_type -> drift.v1.TransitionSettingResponse
+	14, // 33: drift.v1.SettingsService.ListSettingHistory:output_type -> drift.v1.ListSettingHistoryResponse
+	29, // [29:34] is the sub-list for method output_type
+	24, // [24:29] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_settings_proto_init() }
@@ -380,8 +1188,8 @@ func file_drift_v1_settings_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_settings_proto_rawDesc), len(file_drift_v1_settings_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   3,
+			NumEnums:      3,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

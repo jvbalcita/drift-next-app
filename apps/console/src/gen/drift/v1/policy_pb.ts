@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { PageRequest, PageResponse, WorkspaceRef } from "./common_pb";
+import type { PageRequest, PageResponse, RequestContext, ResourceRef, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/policy.proto.
  */
 export const file_drift_v1_policy: GenFile = /*@__PURE__*/
-  fileDesc("ChVkcmlmdC92MS9wb2xpY3kucHJvdG8SCGRyaWZ0LnYxInUKBlBvbGljeRIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSFAoMZGlzcGxheV9uYW1lGAMgASgJEg8KB3ZlcnNpb24YBCABKA0SDQoFc3RhdGUYBSABKAki3gEKFFBvbGljeURlY2lzaW9uUmVjb3JkEgoKAmlkGAEgASgJEhEKCXBvbGljeV9pZBgCIAEoCRIVCg1yZXNvdXJjZV90eXBlGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJEg4KBmFjdGlvbhgFIAEoCRIqCghkZWNpc2lvbhgGIAEoDjIYLmRyaWZ0LnYxLlBvbGljeURlY2lzaW9uEhMKC3JlYXNvbl9jb2RlGAcgASgJEhYKDmNvcnJlbGF0aW9uX2lkGAggASgJEhIKCmRlY2lkZWRfYXQYCSABKAkiZQoTTGlzdFBvbGljaWVzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgCIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0ImAKFExpc3RQb2xpY2llc1Jlc3BvbnNlEiIKCHBvbGljaWVzGAEgAygLMhAuZHJpZnQudjEuUG9saWN5EiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UqiAEKDlBvbGljeURlY2lzaW9uEh8KG1BPTElDWV9ERUNJU0lPTl9VTlNQRUNJRklFRBAAEhkKFVBPTElDWV9ERUNJU0lPTl9BTExPVxABEhgKFFBPTElDWV9ERUNJU0lPTl9ERU5ZEAISIAocUE9MSUNZX0RFQ0lTSU9OX0lOQ09OQ0xVU0lWRRADMl4KDVBvbGljeVNlcnZpY2USTQoMTGlzdFBvbGljaWVzEh0uZHJpZnQudjEuTGlzdFBvbGljaWVzUmVxdWVzdBoeLmRyaWZ0LnYxLkxpc3RQb2xpY2llc1Jlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChVkcmlmdC92MS9wb2xpY3kucHJvdG8SCGRyaWZ0LnYxIsUBCgZQb2xpY3kSCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIPCgd2ZXJzaW9uGAQgASgNEg0KBXN0YXRlGAUgASgJEhEKCXJ1bGVfanNvbhgGIAEoCRITCgtyb3dfdmVyc2lvbhgHIAEoBBISCgpjcmVhdGVkX2F0GAggASgJEhIKCnVwZGF0ZWRfYXQYCSABKAki8AEKFFBvbGljeURlY2lzaW9uUmVjb3JkEgoKAmlkGAEgASgJEhEKCXBvbGljeV9pZBgCIAEoCRIVCg1yZXNvdXJjZV90eXBlGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJEg4KBmFjdGlvbhgFIAEoCRIqCghkZWNpc2lvbhgGIAEoDjIYLmRyaWZ0LnYxLlBvbGljeURlY2lzaW9uEhMKC3JlYXNvbl9jb2RlGAcgASgJEhYKDmNvcnJlbGF0aW9uX2lkGAggASgJEhIKCmRlY2lkZWRfYXQYCSABKAkSEAoIYWN0b3JfaWQYCiABKAkiZQoTTGlzdFBvbGljaWVzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgCIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0ImAKFExpc3RQb2xpY2llc1Jlc3BvbnNlEiIKCHBvbGljaWVzGAEgAygLMhAuZHJpZnQudjEuUG9saWN5EiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UihgEKGkNyZWF0ZVBvbGljeVZlcnNpb25SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIqCgtiYXNlX3BvbGljeRgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmEhEKCXJ1bGVfanNvbhgDIAEoCSI/ChtDcmVhdGVQb2xpY3lWZXJzaW9uUmVzcG9uc2USIAoGcG9saWN5GAEgASgLMhAuZHJpZnQudjEuUG9saWN5IocBChVBY3RpdmF0ZVBvbGljeVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EiUKBnBvbGljeRgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmEhwKFGV4cGVjdGVkX3Jvd192ZXJzaW9uGAMgASgEIjoKFkFjdGl2YXRlUG9saWN5UmVzcG9uc2USIAoGcG9saWN5GAEgASgLMhAuZHJpZnQudjEuUG9saWN5IoUBChNSZXRpcmVQb2xpY3lSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIlCgZwb2xpY3kYAiABKAsyFS5kcmlmdC52MS5SZXNvdXJjZVJlZhIcChRleHBlY3RlZF9yb3dfdmVyc2lvbhgDIAEoBCI4ChRSZXRpcmVQb2xpY3lSZXNwb25zZRIgCgZwb2xpY3kYASABKAsyEC5kcmlmdC52MS5Qb2xpY3kigwEKGkxpc3RQb2xpY3lEZWNpc2lvbnNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIVCg1yZXNvdXJjZV90eXBlGAIgASgJEiMKBHBhZ2UYAyABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJ2ChtMaXN0UG9saWN5RGVjaXNpb25zUmVzcG9uc2USMQoJZGVjaXNpb25zGAEgAygLMh4uZHJpZnQudjEuUG9saWN5RGVjaXNpb25SZWNvcmQSJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSqIAQoOUG9saWN5RGVjaXNpb24SHwobUE9MSUNZX0RFQ0lTSU9OX1VOU1BFQ0lGSUVEEAASGQoVUE9MSUNZX0RFQ0lTSU9OX0FMTE9XEAESGAoUUE9MSUNZX0RFQ0lTSU9OX0RFTlkQAhIgChxQT0xJQ1lfREVDSVNJT05fSU5DT05DTFVTSVZFEAMyygMKDVBvbGljeVNlcnZpY2USTQoMTGlzdFBvbGljaWVzEh0uZHJpZnQudjEuTGlzdFBvbGljaWVzUmVxdWVzdBoeLmRyaWZ0LnYxLkxpc3RQb2xpY2llc1Jlc3BvbnNlEmIKE0NyZWF0ZVBvbGljeVZlcnNpb24SJC5kcmlmdC52MS5DcmVhdGVQb2xpY3lWZXJzaW9uUmVxdWVzdBolLmRyaWZ0LnYxLkNyZWF0ZVBvbGljeVZlcnNpb25SZXNwb25zZRJTCg5BY3RpdmF0ZVBvbGljeRIfLmRyaWZ0LnYxLkFjdGl2YXRlUG9saWN5UmVxdWVzdBogLmRyaWZ0LnYxLkFjdGl2YXRlUG9saWN5UmVzcG9uc2USTQoMUmV0aXJlUG9saWN5Eh0uZHJpZnQudjEuUmV0aXJlUG9saWN5UmVxdWVzdBoeLmRyaWZ0LnYxLlJldGlyZVBvbGljeVJlc3BvbnNlEmIKE0xpc3RQb2xpY3lEZWNpc2lvbnMSJC5kcmlmdC52MS5MaXN0UG9saWN5RGVjaXNpb25zUmVxdWVzdBolLmRyaWZ0LnYxLkxpc3RQb2xpY3lEZWNpc2lvbnNSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.Policy
@@ -42,6 +42,26 @@ export type Policy = Message<"drift.v1.Policy"> & {
    * @generated from field: string state = 5;
    */
   state: string;
+
+  /**
+   * @generated from field: string rule_json = 6;
+   */
+  ruleJson: string;
+
+  /**
+   * @generated from field: uint64 row_version = 7;
+   */
+  rowVersion: bigint;
+
+  /**
+   * @generated from field: string created_at = 8;
+   */
+  createdAt: string;
+
+  /**
+   * @generated from field: string updated_at = 9;
+   */
+  updatedAt: string;
 };
 
 /**
@@ -99,6 +119,11 @@ export type PolicyDecisionRecord = Message<"drift.v1.PolicyDecisionRecord"> & {
    * @generated from field: string decided_at = 9;
    */
   decidedAt: string;
+
+  /**
+   * @generated from field: string actor_id = 10;
+   */
+  actorId: string;
 };
 
 /**
@@ -153,6 +178,187 @@ export const ListPoliciesResponseSchema: GenMessage<ListPoliciesResponse> = /*@_
   messageDesc(file_drift_v1_policy, 3);
 
 /**
+ * @generated from message drift.v1.CreatePolicyVersionRequest
+ */
+export type CreatePolicyVersionRequest = Message<"drift.v1.CreatePolicyVersionRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef base_policy = 2;
+   */
+  basePolicy?: ResourceRef;
+
+  /**
+   * @generated from field: string rule_json = 3;
+   */
+  ruleJson: string;
+};
+
+/**
+ * Describes the message drift.v1.CreatePolicyVersionRequest.
+ * Use `create(CreatePolicyVersionRequestSchema)` to create a new message.
+ */
+export const CreatePolicyVersionRequestSchema: GenMessage<CreatePolicyVersionRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_policy, 4);
+
+/**
+ * @generated from message drift.v1.CreatePolicyVersionResponse
+ */
+export type CreatePolicyVersionResponse = Message<"drift.v1.CreatePolicyVersionResponse"> & {
+  /**
+   * @generated from field: drift.v1.Policy policy = 1;
+   */
+  policy?: Policy;
+};
+
+/**
+ * Describes the message drift.v1.CreatePolicyVersionResponse.
+ * Use `create(CreatePolicyVersionResponseSchema)` to create a new message.
+ */
+export const CreatePolicyVersionResponseSchema: GenMessage<CreatePolicyVersionResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_policy, 5);
+
+/**
+ * @generated from message drift.v1.ActivatePolicyRequest
+ */
+export type ActivatePolicyRequest = Message<"drift.v1.ActivatePolicyRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef policy = 2;
+   */
+  policy?: ResourceRef;
+
+  /**
+   * @generated from field: uint64 expected_row_version = 3;
+   */
+  expectedRowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.ActivatePolicyRequest.
+ * Use `create(ActivatePolicyRequestSchema)` to create a new message.
+ */
+export const ActivatePolicyRequestSchema: GenMessage<ActivatePolicyRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_policy, 6);
+
+/**
+ * @generated from message drift.v1.ActivatePolicyResponse
+ */
+export type ActivatePolicyResponse = Message<"drift.v1.ActivatePolicyResponse"> & {
+  /**
+   * @generated from field: drift.v1.Policy policy = 1;
+   */
+  policy?: Policy;
+};
+
+/**
+ * Describes the message drift.v1.ActivatePolicyResponse.
+ * Use `create(ActivatePolicyResponseSchema)` to create a new message.
+ */
+export const ActivatePolicyResponseSchema: GenMessage<ActivatePolicyResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_policy, 7);
+
+/**
+ * @generated from message drift.v1.RetirePolicyRequest
+ */
+export type RetirePolicyRequest = Message<"drift.v1.RetirePolicyRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef policy = 2;
+   */
+  policy?: ResourceRef;
+
+  /**
+   * @generated from field: uint64 expected_row_version = 3;
+   */
+  expectedRowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.RetirePolicyRequest.
+ * Use `create(RetirePolicyRequestSchema)` to create a new message.
+ */
+export const RetirePolicyRequestSchema: GenMessage<RetirePolicyRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_policy, 8);
+
+/**
+ * @generated from message drift.v1.RetirePolicyResponse
+ */
+export type RetirePolicyResponse = Message<"drift.v1.RetirePolicyResponse"> & {
+  /**
+   * @generated from field: drift.v1.Policy policy = 1;
+   */
+  policy?: Policy;
+};
+
+/**
+ * Describes the message drift.v1.RetirePolicyResponse.
+ * Use `create(RetirePolicyResponseSchema)` to create a new message.
+ */
+export const RetirePolicyResponseSchema: GenMessage<RetirePolicyResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_policy, 9);
+
+/**
+ * @generated from message drift.v1.ListPolicyDecisionsRequest
+ */
+export type ListPolicyDecisionsRequest = Message<"drift.v1.ListPolicyDecisionsRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string resource_type = 2;
+   */
+  resourceType: string;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 3;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListPolicyDecisionsRequest.
+ * Use `create(ListPolicyDecisionsRequestSchema)` to create a new message.
+ */
+export const ListPolicyDecisionsRequestSchema: GenMessage<ListPolicyDecisionsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_policy, 10);
+
+/**
+ * @generated from message drift.v1.ListPolicyDecisionsResponse
+ */
+export type ListPolicyDecisionsResponse = Message<"drift.v1.ListPolicyDecisionsResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.PolicyDecisionRecord decisions = 1;
+   */
+  decisions: PolicyDecisionRecord[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListPolicyDecisionsResponse.
+ * Use `create(ListPolicyDecisionsResponseSchema)` to create a new message.
+ */
+export const ListPolicyDecisionsResponseSchema: GenMessage<ListPolicyDecisionsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_policy, 11);
+
+/**
  * @generated from enum drift.v1.PolicyDecision
  */
 export enum PolicyDecision {
@@ -194,6 +400,38 @@ export const PolicyService: GenService<{
     methodKind: "unary";
     input: typeof ListPoliciesRequestSchema;
     output: typeof ListPoliciesResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.PolicyService.CreatePolicyVersion
+   */
+  createPolicyVersion: {
+    methodKind: "unary";
+    input: typeof CreatePolicyVersionRequestSchema;
+    output: typeof CreatePolicyVersionResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.PolicyService.ActivatePolicy
+   */
+  activatePolicy: {
+    methodKind: "unary";
+    input: typeof ActivatePolicyRequestSchema;
+    output: typeof ActivatePolicyResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.PolicyService.RetirePolicy
+   */
+  retirePolicy: {
+    methodKind: "unary";
+    input: typeof RetirePolicyRequestSchema;
+    output: typeof RetirePolicyResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.PolicyService.ListPolicyDecisions
+   */
+  listPolicyDecisions: {
+    methodKind: "unary";
+    input: typeof ListPolicyDecisionsRequestSchema;
+    output: typeof ListPolicyDecisionsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_policy, 0);

@@ -22,6 +22,7 @@ import { AgentsPage } from "./pages/AgentsPage"
 import { ControlPage } from "./pages/ControlPage"
 import { OverviewPage } from "./pages/OverviewPage"
 const DevicesPage = lazy(async () => ({ default: (await import("./pages/DevicesPage")).DevicesPage }))
+const AccountsPage = lazy(async () => ({ default: (await import("./pages/AccountsPage")).AccountsPage }))
 const EventsPage = lazy(async () => ({ default: (await import("./pages/EventsPage")).EventsPage }))
 const GroupsPage = lazy(async () => ({ default: (await import("./pages/GroupsPage")).GroupsPage }))
 const NetworkProfilesPage = lazy(async () => ({ default: (await import("./pages/NetworkProfilesPage")).NetworkProfilesPage }))
@@ -74,6 +75,7 @@ function renderSection(section: string, snapshot: ReturnType<typeof useControlPl
   switch (section) {
     case "Control": return <ControlPage snapshot={snapshot} dispatch={dispatch} />
     case "Devices": return <DevicesPage snapshot={snapshot} dispatch={dispatch} />
+    case "Accounts": return <AccountsPage snapshot={snapshot} dispatch={dispatch} />
     case "Network Profiles": return <NetworkProfilesPage snapshot={snapshot} dispatch={dispatch} />
     case "Groups": return <GroupsPage snapshot={snapshot} dispatch={dispatch} />
     case "Agents": return <AgentsPage snapshot={snapshot} dispatch={dispatch} />

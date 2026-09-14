@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { PageRequest, PageResponse, WorkspaceRef } from "./common_pb";
+import type { PageRequest, PageResponse, RequestContext, ResourceRef, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/settings.proto.
  */
 export const file_drift_v1_settings: GenFile = /*@__PURE__*/
-  fileDesc("ChdkcmlmdC92MS9zZXR0aW5ncy5wcm90bxIIZHJpZnQudjEixwEKB1NldHRpbmcSCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiUKBXNjb3BlGAMgASgOMhYuZHJpZnQudjEuU2V0dGluZ1Njb3BlEhEKCXRhcmdldF9pZBgEIAEoCRITCgtzZXR0aW5nX2tleRgFIAEoCRISCgp2YWx1ZV9qc29uGAYgASgJEg0KBXN0YXRlGAcgASgJEhMKC3Jvd192ZXJzaW9uGAggASgEIowBChNMaXN0U2V0dGluZ3NSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIlCgVzY29wZRgCIAEoDjIWLmRyaWZ0LnYxLlNldHRpbmdTY29wZRIjCgRwYWdlGAMgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QiYQoUTGlzdFNldHRpbmdzUmVzcG9uc2USIwoIc2V0dGluZ3MYASADKAsyES5kcmlmdC52MS5TZXR0aW5nEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2Uq7QEKDFNldHRpbmdTY29wZRIdChlTRVRUSU5HX1NDT1BFX1VOU1BFQ0lGSUVEEAASGwoXU0VUVElOR19TQ09QRV9XT1JLU1BBQ0UQARIfChtTRVRUSU5HX1NDT1BFX0NPTlRST0xfUExBTkUQAhIbChdTRVRUSU5HX1NDT1BFX0VER0VfSE9TVBADEhgKFFNFVFRJTkdfU0NPUEVfREVWSUNFEAQSIgoeU0VUVElOR19TQ09QRV9BVVRPTUFUSU9OX0FHRU5UEAUSJQohU0VUVElOR19TQ09QRV9PUEVSQVRPUl9QUkVGRVJFTkNFEAYyYAoPU2V0dGluZ3NTZXJ2aWNlEk0KDExpc3RTZXR0aW5ncxIdLmRyaWZ0LnYxLkxpc3RTZXR0aW5nc1JlcXVlc3QaHi5kcmlmdC52MS5MaXN0U2V0dGluZ3NSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
+  fileDesc("ChdkcmlmdC92MS9zZXR0aW5ncy5wcm90bxIIZHJpZnQudjEixAIKB1NldHRpbmcSCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiUKBXNjb3BlGAMgASgOMhYuZHJpZnQudjEuU2V0dGluZ1Njb3BlEhEKCXRhcmdldF9pZBgEIAEoCRITCgtzZXR0aW5nX2tleRgFIAEoCRISCgp2YWx1ZV9qc29uGAYgASgJEg0KBXN0YXRlGAcgASgJEhMKC3Jvd192ZXJzaW9uGAggASgEEi4KCnZhbHVlX2tpbmQYCSABKA4yGi5kcmlmdC52MS5TZXR0aW5nVmFsdWVLaW5kEiMKBHJpc2sYCiABKA4yFS5kcmlmdC52MS5TZXR0aW5nUmlzaxISCgpjcmVhdGVkX2F0GAsgASgJEhIKCnVwZGF0ZWRfYXQYDCABKAkinAIKDlNldHRpbmdIaXN0b3J5EgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhISCgpzZXR0aW5nX2lkGAMgASgJEiUKBXNjb3BlGAQgASgOMhYuZHJpZnQudjEuU2V0dGluZ1Njb3BlEhEKCXRhcmdldF9pZBgFIAEoCRITCgtzZXR0aW5nX2tleRgGIAEoCRISCgp2YWx1ZV9qc29uGAcgASgJEg0KBXN0YXRlGAggASgJEhMKC3Jvd192ZXJzaW9uGAkgASgEEhIKCmFjdG9yX3R5cGUYCiABKAkSEAoIYWN0b3JfaWQYCyABKAkSEgoKY2hhbmdlZF9hdBgMIAEoCSKMAQoTTGlzdFNldHRpbmdzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSJQoFc2NvcGUYAiABKA4yFi5kcmlmdC52MS5TZXR0aW5nU2NvcGUSIwoEcGFnZRgDIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0ImEKFExpc3RTZXR0aW5nc1Jlc3BvbnNlEiMKCHNldHRpbmdzGAEgAygLMhEuZHJpZnQudjEuU2V0dGluZxIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlImUKFENyZWF0ZVNldHRpbmdSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIiCgdzZXR0aW5nGAIgASgLMhEuZHJpZnQudjEuU2V0dGluZyI7ChVDcmVhdGVTZXR0aW5nUmVzcG9uc2USIgoHc2V0dGluZxgBIAEoCzIRLmRyaWZ0LnYxLlNldHRpbmcimwEKFFVwZGF0ZVNldHRpbmdSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBImCgdzZXR0aW5nGAIgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYSEgoKdmFsdWVfanNvbhgDIAEoCRIcChRleHBlY3RlZF9yb3dfdmVyc2lvbhgEIAEoBCI7ChVVcGRhdGVTZXR0aW5nUmVzcG9uc2USIgoHc2V0dGluZxgBIAEoCzIRLmRyaWZ0LnYxLlNldHRpbmcimgEKGFRyYW5zaXRpb25TZXR0aW5nUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSJgoHc2V0dGluZxgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmEg0KBXN0YXRlGAMgASgJEhwKFGV4cGVjdGVkX3Jvd192ZXJzaW9uGAQgASgEIj8KGVRyYW5zaXRpb25TZXR0aW5nUmVzcG9uc2USIgoHc2V0dGluZxgBIAEoCzIRLmRyaWZ0LnYxLlNldHRpbmcifwoZTGlzdFNldHRpbmdIaXN0b3J5UmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEgoKc2V0dGluZ19pZBgCIAEoCRIjCgRwYWdlGAMgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QibQoaTGlzdFNldHRpbmdIaXN0b3J5UmVzcG9uc2USKQoHaGlzdG9yeRgBIAMoCzIYLmRyaWZ0LnYxLlNldHRpbmdIaXN0b3J5EiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2Uq7QEKDFNldHRpbmdTY29wZRIdChlTRVRUSU5HX1NDT1BFX1VOU1BFQ0lGSUVEEAASGwoXU0VUVElOR19TQ09QRV9XT1JLU1BBQ0UQARIfChtTRVRUSU5HX1NDT1BFX0NPTlRST0xfUExBTkUQAhIbChdTRVRUSU5HX1NDT1BFX0VER0VfSE9TVBADEhgKFFNFVFRJTkdfU0NPUEVfREVWSUNFEAQSIgoeU0VUVElOR19TQ09QRV9BVVRPTUFUSU9OX0FHRU5UEAUSJQohU0VUVElOR19TQ09QRV9PUEVSQVRPUl9QUkVGRVJFTkNFEAYqsAEKEFNldHRpbmdWYWx1ZUtpbmQSIgoeU0VUVElOR19WQUxVRV9LSU5EX1VOU1BFQ0lGSUVEEAASHgoaU0VUVElOR19WQUxVRV9LSU5EX0JPT0xFQU4QARIeChpTRVRUSU5HX1ZBTFVFX0tJTkRfSU5URUdFUhACEhsKF1NFVFRJTkdfVkFMVUVfS0lORF9FTlVNEAMSGwoXU0VUVElOR19WQUxVRV9LSU5EX0pTT04QBCpuCgtTZXR0aW5nUmlzaxIcChhTRVRUSU5HX1JJU0tfVU5TUEVDSUZJRUQQABIgChxTRVRUSU5HX1JJU0tfU0FGRVRZX0NSSVRJQ0FMEAESHwobU0VUVElOR19SSVNLX0xPV19QUkVGRVJFTkNFEAIywwMKD1NldHRpbmdzU2VydmljZRJNCgxMaXN0U2V0dGluZ3MSHS5kcmlmdC52MS5MaXN0U2V0dGluZ3NSZXF1ZXN0Gh4uZHJpZnQudjEuTGlzdFNldHRpbmdzUmVzcG9uc2USUAoNQ3JlYXRlU2V0dGluZxIeLmRyaWZ0LnYxLkNyZWF0ZVNldHRpbmdSZXF1ZXN0Gh8uZHJpZnQudjEuQ3JlYXRlU2V0dGluZ1Jlc3BvbnNlElAKDVVwZGF0ZVNldHRpbmcSHi5kcmlmdC52MS5VcGRhdGVTZXR0aW5nUmVxdWVzdBofLmRyaWZ0LnYxLlVwZGF0ZVNldHRpbmdSZXNwb25zZRJcChFUcmFuc2l0aW9uU2V0dGluZxIiLmRyaWZ0LnYxLlRyYW5zaXRpb25TZXR0aW5nUmVxdWVzdBojLmRyaWZ0LnYxLlRyYW5zaXRpb25TZXR0aW5nUmVzcG9uc2USXwoSTGlzdFNldHRpbmdIaXN0b3J5EiMuZHJpZnQudjEuTGlzdFNldHRpbmdIaXN0b3J5UmVxdWVzdBokLmRyaWZ0LnYxLkxpc3RTZXR0aW5nSGlzdG9yeVJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.Setting
@@ -57,6 +57,26 @@ export type Setting = Message<"drift.v1.Setting"> & {
    * @generated from field: uint64 row_version = 8;
    */
   rowVersion: bigint;
+
+  /**
+   * @generated from field: drift.v1.SettingValueKind value_kind = 9;
+   */
+  valueKind: SettingValueKind;
+
+  /**
+   * @generated from field: drift.v1.SettingRisk risk = 10;
+   */
+  risk: SettingRisk;
+
+  /**
+   * @generated from field: string created_at = 11;
+   */
+  createdAt: string;
+
+  /**
+   * @generated from field: string updated_at = 12;
+   */
+  updatedAt: string;
 };
 
 /**
@@ -65,6 +85,78 @@ export type Setting = Message<"drift.v1.Setting"> & {
  */
 export const SettingSchema: GenMessage<Setting> = /*@__PURE__*/
   messageDesc(file_drift_v1_settings, 0);
+
+/**
+ * @generated from message drift.v1.SettingHistory
+ */
+export type SettingHistory = Message<"drift.v1.SettingHistory"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string setting_id = 3;
+   */
+  settingId: string;
+
+  /**
+   * @generated from field: drift.v1.SettingScope scope = 4;
+   */
+  scope: SettingScope;
+
+  /**
+   * @generated from field: string target_id = 5;
+   */
+  targetId: string;
+
+  /**
+   * @generated from field: string setting_key = 6;
+   */
+  settingKey: string;
+
+  /**
+   * @generated from field: string value_json = 7;
+   */
+  valueJson: string;
+
+  /**
+   * @generated from field: string state = 8;
+   */
+  state: string;
+
+  /**
+   * @generated from field: uint64 row_version = 9;
+   */
+  rowVersion: bigint;
+
+  /**
+   * @generated from field: string actor_type = 10;
+   */
+  actorType: string;
+
+  /**
+   * @generated from field: string actor_id = 11;
+   */
+  actorId: string;
+
+  /**
+   * @generated from field: string changed_at = 12;
+   */
+  changedAt: string;
+};
+
+/**
+ * Describes the message drift.v1.SettingHistory.
+ * Use `create(SettingHistorySchema)` to create a new message.
+ */
+export const SettingHistorySchema: GenMessage<SettingHistory> = /*@__PURE__*/
+  messageDesc(file_drift_v1_settings, 1);
 
 /**
  * @generated from message drift.v1.ListSettingsRequest
@@ -91,7 +183,7 @@ export type ListSettingsRequest = Message<"drift.v1.ListSettingsRequest"> & {
  * Use `create(ListSettingsRequestSchema)` to create a new message.
  */
 export const ListSettingsRequestSchema: GenMessage<ListSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_settings, 1);
+  messageDesc(file_drift_v1_settings, 2);
 
 /**
  * @generated from message drift.v1.ListSettingsResponse
@@ -113,7 +205,193 @@ export type ListSettingsResponse = Message<"drift.v1.ListSettingsResponse"> & {
  * Use `create(ListSettingsResponseSchema)` to create a new message.
  */
 export const ListSettingsResponseSchema: GenMessage<ListSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_settings, 2);
+  messageDesc(file_drift_v1_settings, 3);
+
+/**
+ * @generated from message drift.v1.CreateSettingRequest
+ */
+export type CreateSettingRequest = Message<"drift.v1.CreateSettingRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.Setting setting = 2;
+   */
+  setting?: Setting;
+};
+
+/**
+ * Describes the message drift.v1.CreateSettingRequest.
+ * Use `create(CreateSettingRequestSchema)` to create a new message.
+ */
+export const CreateSettingRequestSchema: GenMessage<CreateSettingRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_settings, 4);
+
+/**
+ * @generated from message drift.v1.CreateSettingResponse
+ */
+export type CreateSettingResponse = Message<"drift.v1.CreateSettingResponse"> & {
+  /**
+   * @generated from field: drift.v1.Setting setting = 1;
+   */
+  setting?: Setting;
+};
+
+/**
+ * Describes the message drift.v1.CreateSettingResponse.
+ * Use `create(CreateSettingResponseSchema)` to create a new message.
+ */
+export const CreateSettingResponseSchema: GenMessage<CreateSettingResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_settings, 5);
+
+/**
+ * @generated from message drift.v1.UpdateSettingRequest
+ */
+export type UpdateSettingRequest = Message<"drift.v1.UpdateSettingRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef setting = 2;
+   */
+  setting?: ResourceRef;
+
+  /**
+   * @generated from field: string value_json = 3;
+   */
+  valueJson: string;
+
+  /**
+   * @generated from field: uint64 expected_row_version = 4;
+   */
+  expectedRowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.UpdateSettingRequest.
+ * Use `create(UpdateSettingRequestSchema)` to create a new message.
+ */
+export const UpdateSettingRequestSchema: GenMessage<UpdateSettingRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_settings, 6);
+
+/**
+ * @generated from message drift.v1.UpdateSettingResponse
+ */
+export type UpdateSettingResponse = Message<"drift.v1.UpdateSettingResponse"> & {
+  /**
+   * @generated from field: drift.v1.Setting setting = 1;
+   */
+  setting?: Setting;
+};
+
+/**
+ * Describes the message drift.v1.UpdateSettingResponse.
+ * Use `create(UpdateSettingResponseSchema)` to create a new message.
+ */
+export const UpdateSettingResponseSchema: GenMessage<UpdateSettingResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_settings, 7);
+
+/**
+ * @generated from message drift.v1.TransitionSettingRequest
+ */
+export type TransitionSettingRequest = Message<"drift.v1.TransitionSettingRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef setting = 2;
+   */
+  setting?: ResourceRef;
+
+  /**
+   * @generated from field: string state = 3;
+   */
+  state: string;
+
+  /**
+   * @generated from field: uint64 expected_row_version = 4;
+   */
+  expectedRowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.TransitionSettingRequest.
+ * Use `create(TransitionSettingRequestSchema)` to create a new message.
+ */
+export const TransitionSettingRequestSchema: GenMessage<TransitionSettingRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_settings, 8);
+
+/**
+ * @generated from message drift.v1.TransitionSettingResponse
+ */
+export type TransitionSettingResponse = Message<"drift.v1.TransitionSettingResponse"> & {
+  /**
+   * @generated from field: drift.v1.Setting setting = 1;
+   */
+  setting?: Setting;
+};
+
+/**
+ * Describes the message drift.v1.TransitionSettingResponse.
+ * Use `create(TransitionSettingResponseSchema)` to create a new message.
+ */
+export const TransitionSettingResponseSchema: GenMessage<TransitionSettingResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_settings, 9);
+
+/**
+ * @generated from message drift.v1.ListSettingHistoryRequest
+ */
+export type ListSettingHistoryRequest = Message<"drift.v1.ListSettingHistoryRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string setting_id = 2;
+   */
+  settingId: string;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 3;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListSettingHistoryRequest.
+ * Use `create(ListSettingHistoryRequestSchema)` to create a new message.
+ */
+export const ListSettingHistoryRequestSchema: GenMessage<ListSettingHistoryRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_settings, 10);
+
+/**
+ * @generated from message drift.v1.ListSettingHistoryResponse
+ */
+export type ListSettingHistoryResponse = Message<"drift.v1.ListSettingHistoryResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.SettingHistory history = 1;
+   */
+  history: SettingHistory[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListSettingHistoryResponse.
+ * Use `create(ListSettingHistoryResponseSchema)` to create a new message.
+ */
+export const ListSettingHistoryResponseSchema: GenMessage<ListSettingHistoryResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_settings, 11);
 
 /**
  * @generated from enum drift.v1.SettingScope
@@ -162,6 +440,68 @@ export const SettingScopeSchema: GenEnum<SettingScope> = /*@__PURE__*/
   enumDesc(file_drift_v1_settings, 0);
 
 /**
+ * @generated from enum drift.v1.SettingValueKind
+ */
+export enum SettingValueKind {
+  /**
+   * @generated from enum value: SETTING_VALUE_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: SETTING_VALUE_KIND_BOOLEAN = 1;
+   */
+  BOOLEAN = 1,
+
+  /**
+   * @generated from enum value: SETTING_VALUE_KIND_INTEGER = 2;
+   */
+  INTEGER = 2,
+
+  /**
+   * @generated from enum value: SETTING_VALUE_KIND_ENUM = 3;
+   */
+  ENUM = 3,
+
+  /**
+   * @generated from enum value: SETTING_VALUE_KIND_JSON = 4;
+   */
+  JSON = 4,
+}
+
+/**
+ * Describes the enum drift.v1.SettingValueKind.
+ */
+export const SettingValueKindSchema: GenEnum<SettingValueKind> = /*@__PURE__*/
+  enumDesc(file_drift_v1_settings, 1);
+
+/**
+ * @generated from enum drift.v1.SettingRisk
+ */
+export enum SettingRisk {
+  /**
+   * @generated from enum value: SETTING_RISK_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: SETTING_RISK_SAFETY_CRITICAL = 1;
+   */
+  SAFETY_CRITICAL = 1,
+
+  /**
+   * @generated from enum value: SETTING_RISK_LOW_PREFERENCE = 2;
+   */
+  LOW_PREFERENCE = 2,
+}
+
+/**
+ * Describes the enum drift.v1.SettingRisk.
+ */
+export const SettingRiskSchema: GenEnum<SettingRisk> = /*@__PURE__*/
+  enumDesc(file_drift_v1_settings, 2);
+
+/**
  * @generated from service drift.v1.SettingsService
  */
 export const SettingsService: GenService<{
@@ -172,6 +512,38 @@ export const SettingsService: GenService<{
     methodKind: "unary";
     input: typeof ListSettingsRequestSchema;
     output: typeof ListSettingsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.SettingsService.CreateSetting
+   */
+  createSetting: {
+    methodKind: "unary";
+    input: typeof CreateSettingRequestSchema;
+    output: typeof CreateSettingResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.SettingsService.UpdateSetting
+   */
+  updateSetting: {
+    methodKind: "unary";
+    input: typeof UpdateSettingRequestSchema;
+    output: typeof UpdateSettingResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.SettingsService.TransitionSetting
+   */
+  transitionSetting: {
+    methodKind: "unary";
+    input: typeof TransitionSettingRequestSchema;
+    output: typeof TransitionSettingResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.SettingsService.ListSettingHistory
+   */
+  listSettingHistory: {
+    methodKind: "unary";
+    input: typeof ListSettingHistoryRequestSchema;
+    output: typeof ListSettingHistoryResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_settings, 0);

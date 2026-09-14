@@ -14,6 +14,21 @@ enum SettingScope {
   SETTING_SCOPE_AUTOMATION_AGENT = 5;
   SETTING_SCOPE_OPERATOR_PREFERENCE = 6;
 }
+
+enum SettingValueKind {
+  SETTING_VALUE_KIND_UNSPECIFIED = 0;
+  SETTING_VALUE_KIND_BOOLEAN = 1;
+  SETTING_VALUE_KIND_INTEGER = 2;
+  SETTING_VALUE_KIND_ENUM = 3;
+  SETTING_VALUE_KIND_JSON = 4;
+}
+
+enum SettingRisk {
+  SETTING_RISK_UNSPECIFIED = 0;
+  SETTING_RISK_SAFETY_CRITICAL = 1;
+  SETTING_RISK_LOW_PREFERENCE = 2;
+}
+
 message Setting {
   string id = 1;
   WorkspaceRef workspace = 2;
@@ -23,6 +38,25 @@ message Setting {
   string value_json = 6;
   string state = 7;
   uint64 row_version = 8;
+  SettingValueKind value_kind = 9;
+  SettingRisk risk = 10;
+  string created_at = 11;
+  string updated_at = 12;
+}
+
+message SettingHistory {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string setting_id = 3;
+  SettingScope scope = 4;
+  string target_id = 5;
+  string setting_key = 6;
+  string value_json = 7;
+  string state = 8;
+  uint64 row_version = 9;
+  string actor_type = 10;
+  string actor_id = 11;
+  string changed_at = 12;
 }
 message ListSettingsRequest {
   WorkspaceRef workspace = 1;
@@ -33,6 +67,53 @@ message ListSettingsResponse {
   repeated Setting settings = 1;
   PageResponse page = 2;
 }
+
+message CreateSettingRequest {
+  RequestContext context = 1;
+  Setting setting = 2;
+}
+
+message CreateSettingResponse {
+  Setting setting = 1;
+}
+
+message UpdateSettingRequest {
+  RequestContext context = 1;
+  ResourceRef setting = 2;
+  string value_json = 3;
+  uint64 expected_row_version = 4;
+}
+
+message UpdateSettingResponse {
+  Setting setting = 1;
+}
+
+message TransitionSettingRequest {
+  RequestContext context = 1;
+  ResourceRef setting = 2;
+  string state = 3;
+  uint64 expected_row_version = 4;
+}
+
+message TransitionSettingResponse {
+  Setting setting = 1;
+}
+
+message ListSettingHistoryRequest {
+  WorkspaceRef workspace = 1;
+  string setting_id = 2;
+  PageRequest page = 3;
+}
+
+message ListSettingHistoryResponse {
+  repeated SettingHistory history = 1;
+  PageResponse page = 2;
+}
+
 service SettingsService {
   rpc ListSettings(ListSettingsRequest) returns (ListSettingsResponse);
+  rpc CreateSetting(CreateSettingRequest) returns (CreateSettingResponse);
+  rpc UpdateSetting(UpdateSettingRequest) returns (UpdateSettingResponse);
+  rpc TransitionSetting(TransitionSettingRequest) returns (TransitionSettingResponse);
+  rpc ListSettingHistory(ListSettingHistoryRequest) returns (ListSettingHistoryResponse);
 }

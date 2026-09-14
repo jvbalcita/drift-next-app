@@ -17,6 +17,10 @@ message Policy {
   string display_name = 3;
   uint32 version = 4;
   string state = 5;
+  string rule_json = 6;
+  uint64 row_version = 7;
+  string created_at = 8;
+  string updated_at = 9;
 }
 message PolicyDecisionRecord {
   string id = 1;
@@ -28,6 +32,7 @@ message PolicyDecisionRecord {
   string reason_code = 7;
   string correlation_id = 8;
   string decided_at = 9;
+  string actor_id = 10;
 }
 message ListPoliciesRequest {
   WorkspaceRef workspace = 1;
@@ -37,6 +42,52 @@ message ListPoliciesResponse {
   repeated Policy policies = 1;
   PageResponse page = 2;
 }
+
+message CreatePolicyVersionRequest {
+  RequestContext context = 1;
+  ResourceRef base_policy = 2;
+  string rule_json = 3;
+}
+
+message CreatePolicyVersionResponse {
+  Policy policy = 1;
+}
+
+message ActivatePolicyRequest {
+  RequestContext context = 1;
+  ResourceRef policy = 2;
+  uint64 expected_row_version = 3;
+}
+
+message ActivatePolicyResponse {
+  Policy policy = 1;
+}
+
+message RetirePolicyRequest {
+  RequestContext context = 1;
+  ResourceRef policy = 2;
+  uint64 expected_row_version = 3;
+}
+
+message RetirePolicyResponse {
+  Policy policy = 1;
+}
+
+message ListPolicyDecisionsRequest {
+  WorkspaceRef workspace = 1;
+  string resource_type = 2;
+  PageRequest page = 3;
+}
+
+message ListPolicyDecisionsResponse {
+  repeated PolicyDecisionRecord decisions = 1;
+  PageResponse page = 2;
+}
+
 service PolicyService {
   rpc ListPolicies(ListPoliciesRequest) returns (ListPoliciesResponse);
+  rpc CreatePolicyVersion(CreatePolicyVersionRequest) returns (CreatePolicyVersionResponse);
+  rpc ActivatePolicy(ActivatePolicyRequest) returns (ActivatePolicyResponse);
+  rpc RetirePolicy(RetirePolicyRequest) returns (RetirePolicyResponse);
+  rpc ListPolicyDecisions(ListPolicyDecisionsRequest) returns (ListPolicyDecisionsResponse);
 }

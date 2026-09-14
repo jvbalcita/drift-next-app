@@ -36,11 +36,27 @@ const (
 	// SettingsServiceListSettingsProcedure is the fully-qualified name of the SettingsService's
 	// ListSettings RPC.
 	SettingsServiceListSettingsProcedure = "/drift.v1.SettingsService/ListSettings"
+	// SettingsServiceCreateSettingProcedure is the fully-qualified name of the SettingsService's
+	// CreateSetting RPC.
+	SettingsServiceCreateSettingProcedure = "/drift.v1.SettingsService/CreateSetting"
+	// SettingsServiceUpdateSettingProcedure is the fully-qualified name of the SettingsService's
+	// UpdateSetting RPC.
+	SettingsServiceUpdateSettingProcedure = "/drift.v1.SettingsService/UpdateSetting"
+	// SettingsServiceTransitionSettingProcedure is the fully-qualified name of the SettingsService's
+	// TransitionSetting RPC.
+	SettingsServiceTransitionSettingProcedure = "/drift.v1.SettingsService/TransitionSetting"
+	// SettingsServiceListSettingHistoryProcedure is the fully-qualified name of the SettingsService's
+	// ListSettingHistory RPC.
+	SettingsServiceListSettingHistoryProcedure = "/drift.v1.SettingsService/ListSettingHistory"
 )
 
 // SettingsServiceClient is a client for the drift.v1.SettingsService service.
 type SettingsServiceClient interface {
 	ListSettings(context.Context, *connect.Request[v1.ListSettingsRequest]) (*connect.Response[v1.ListSettingsResponse], error)
+	CreateSetting(context.Context, *connect.Request[v1.CreateSettingRequest]) (*connect.Response[v1.CreateSettingResponse], error)
+	UpdateSetting(context.Context, *connect.Request[v1.UpdateSettingRequest]) (*connect.Response[v1.UpdateSettingResponse], error)
+	TransitionSetting(context.Context, *connect.Request[v1.TransitionSettingRequest]) (*connect.Response[v1.TransitionSettingResponse], error)
+	ListSettingHistory(context.Context, *connect.Request[v1.ListSettingHistoryRequest]) (*connect.Response[v1.ListSettingHistoryResponse], error)
 }
 
 // NewSettingsServiceClient constructs a client for the drift.v1.SettingsService service. By
@@ -60,12 +76,40 @@ func NewSettingsServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(settingsServiceMethods.ByName("ListSettings")),
 			connect.WithClientOptions(opts...),
 		),
+		createSetting: connect.NewClient[v1.CreateSettingRequest, v1.CreateSettingResponse](
+			httpClient,
+			baseURL+SettingsServiceCreateSettingProcedure,
+			connect.WithSchema(settingsServiceMethods.ByName("CreateSetting")),
+			connect.WithClientOptions(opts...),
+		),
+		updateSetting: connect.NewClient[v1.UpdateSettingRequest, v1.UpdateSettingResponse](
+			httpClient,
+			baseURL+SettingsServiceUpdateSettingProcedure,
+			connect.WithSchema(settingsServiceMethods.ByName("UpdateSetting")),
+			connect.WithClientOptions(opts...),
+		),
+		transitionSetting: connect.NewClient[v1.TransitionSettingRequest, v1.TransitionSettingResponse](
+			httpClient,
+			baseURL+SettingsServiceTransitionSettingProcedure,
+			connect.WithSchema(settingsServiceMethods.ByName("TransitionSetting")),
+			connect.WithClientOptions(opts...),
+		),
+		listSettingHistory: connect.NewClient[v1.ListSettingHistoryRequest, v1.ListSettingHistoryResponse](
+			httpClient,
+			baseURL+SettingsServiceListSettingHistoryProcedure,
+			connect.WithSchema(settingsServiceMethods.ByName("ListSettingHistory")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // settingsServiceClient implements SettingsServiceClient.
 type settingsServiceClient struct {
-	listSettings *connect.Client[v1.ListSettingsRequest, v1.ListSettingsResponse]
+	listSettings       *connect.Client[v1.ListSettingsRequest, v1.ListSettingsResponse]
+	createSetting      *connect.Client[v1.CreateSettingRequest, v1.CreateSettingResponse]
+	updateSetting      *connect.Client[v1.UpdateSettingRequest, v1.UpdateSettingResponse]
+	transitionSetting  *connect.Client[v1.TransitionSettingRequest, v1.TransitionSettingResponse]
+	listSettingHistory *connect.Client[v1.ListSettingHistoryRequest, v1.ListSettingHistoryResponse]
 }
 
 // ListSettings calls drift.v1.SettingsService.ListSettings.
@@ -73,9 +117,33 @@ func (c *settingsServiceClient) ListSettings(ctx context.Context, req *connect.R
 	return c.listSettings.CallUnary(ctx, req)
 }
 
+// CreateSetting calls drift.v1.SettingsService.CreateSetting.
+func (c *settingsServiceClient) CreateSetting(ctx context.Context, req *connect.Request[v1.CreateSettingRequest]) (*connect.Response[v1.CreateSettingResponse], error) {
+	return c.createSetting.CallUnary(ctx, req)
+}
+
+// UpdateSetting calls drift.v1.SettingsService.UpdateSetting.
+func (c *settingsServiceClient) UpdateSetting(ctx context.Context, req *connect.Request[v1.UpdateSettingRequest]) (*connect.Response[v1.UpdateSettingResponse], error) {
+	return c.updateSetting.CallUnary(ctx, req)
+}
+
+// TransitionSetting calls drift.v1.SettingsService.TransitionSetting.
+func (c *settingsServiceClient) TransitionSetting(ctx context.Context, req *connect.Request[v1.TransitionSettingRequest]) (*connect.Response[v1.TransitionSettingResponse], error) {
+	return c.transitionSetting.CallUnary(ctx, req)
+}
+
+// ListSettingHistory calls drift.v1.SettingsService.ListSettingHistory.
+func (c *settingsServiceClient) ListSettingHistory(ctx context.Context, req *connect.Request[v1.ListSettingHistoryRequest]) (*connect.Response[v1.ListSettingHistoryResponse], error) {
+	return c.listSettingHistory.CallUnary(ctx, req)
+}
+
 // SettingsServiceHandler is an implementation of the drift.v1.SettingsService service.
 type SettingsServiceHandler interface {
 	ListSettings(context.Context, *connect.Request[v1.ListSettingsRequest]) (*connect.Response[v1.ListSettingsResponse], error)
+	CreateSetting(context.Context, *connect.Request[v1.CreateSettingRequest]) (*connect.Response[v1.CreateSettingResponse], error)
+	UpdateSetting(context.Context, *connect.Request[v1.UpdateSettingRequest]) (*connect.Response[v1.UpdateSettingResponse], error)
+	TransitionSetting(context.Context, *connect.Request[v1.TransitionSettingRequest]) (*connect.Response[v1.TransitionSettingResponse], error)
+	ListSettingHistory(context.Context, *connect.Request[v1.ListSettingHistoryRequest]) (*connect.Response[v1.ListSettingHistoryResponse], error)
 }
 
 // NewSettingsServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -91,10 +159,42 @@ func NewSettingsServiceHandler(svc SettingsServiceHandler, opts ...connect.Handl
 		connect.WithSchema(settingsServiceMethods.ByName("ListSettings")),
 		connect.WithHandlerOptions(opts...),
 	)
+	settingsServiceCreateSettingHandler := connect.NewUnaryHandler(
+		SettingsServiceCreateSettingProcedure,
+		svc.CreateSetting,
+		connect.WithSchema(settingsServiceMethods.ByName("CreateSetting")),
+		connect.WithHandlerOptions(opts...),
+	)
+	settingsServiceUpdateSettingHandler := connect.NewUnaryHandler(
+		SettingsServiceUpdateSettingProcedure,
+		svc.UpdateSetting,
+		connect.WithSchema(settingsServiceMethods.ByName("UpdateSetting")),
+		connect.WithHandlerOptions(opts...),
+	)
+	settingsServiceTransitionSettingHandler := connect.NewUnaryHandler(
+		SettingsServiceTransitionSettingProcedure,
+		svc.TransitionSetting,
+		connect.WithSchema(settingsServiceMethods.ByName("TransitionSetting")),
+		connect.WithHandlerOptions(opts...),
+	)
+	settingsServiceListSettingHistoryHandler := connect.NewUnaryHandler(
+		SettingsServiceListSettingHistoryProcedure,
+		svc.ListSettingHistory,
+		connect.WithSchema(settingsServiceMethods.ByName("ListSettingHistory")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.SettingsService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SettingsServiceListSettingsProcedure:
 			settingsServiceListSettingsHandler.ServeHTTP(w, r)
+		case SettingsServiceCreateSettingProcedure:
+			settingsServiceCreateSettingHandler.ServeHTTP(w, r)
+		case SettingsServiceUpdateSettingProcedure:
+			settingsServiceUpdateSettingHandler.ServeHTTP(w, r)
+		case SettingsServiceTransitionSettingProcedure:
+			settingsServiceTransitionSettingHandler.ServeHTTP(w, r)
+		case SettingsServiceListSettingHistoryProcedure:
+			settingsServiceListSettingHistoryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -106,4 +206,20 @@ type UnimplementedSettingsServiceHandler struct{}
 
 func (UnimplementedSettingsServiceHandler) ListSettings(context.Context, *connect.Request[v1.ListSettingsRequest]) (*connect.Response[v1.ListSettingsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.SettingsService.ListSettings is not implemented"))
+}
+
+func (UnimplementedSettingsServiceHandler) CreateSetting(context.Context, *connect.Request[v1.CreateSettingRequest]) (*connect.Response[v1.CreateSettingResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.SettingsService.CreateSetting is not implemented"))
+}
+
+func (UnimplementedSettingsServiceHandler) UpdateSetting(context.Context, *connect.Request[v1.UpdateSettingRequest]) (*connect.Response[v1.UpdateSettingResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.SettingsService.UpdateSetting is not implemented"))
+}
+
+func (UnimplementedSettingsServiceHandler) TransitionSetting(context.Context, *connect.Request[v1.TransitionSettingRequest]) (*connect.Response[v1.TransitionSettingResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.SettingsService.TransitionSetting is not implemented"))
+}
+
+func (UnimplementedSettingsServiceHandler) ListSettingHistory(context.Context, *connect.Request[v1.ListSettingHistoryRequest]) (*connect.Response[v1.ListSettingHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.SettingsService.ListSettingHistory is not implemented"))
 }

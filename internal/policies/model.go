@@ -42,24 +42,29 @@ func (d Decision) Valid() bool {
 }
 
 type Policy struct {
-	ID        PolicyID
-	Workspace organizations.WorkspaceID
-	Name      string
-	Version   int
-	RuleJSON  string
-	State     State
+	ID         PolicyID
+	Workspace  organizations.WorkspaceID
+	Name       string
+	Version    int
+	RuleJSON   string
+	State      State
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	RowVersion uint64
 }
 
 type PolicyDecision struct {
-	ID           PolicyDecisionID
-	Workspace    organizations.WorkspaceID
-	PolicyID     PolicyID
-	ResourceType string
-	ResourceID   string
-	Action       string
-	Decision     Decision
-	ReasonCode   string
-	DecidedAt    time.Time
+	ID            PolicyDecisionID
+	Workspace     organizations.WorkspaceID
+	PolicyID      PolicyID
+	ResourceType  string
+	ResourceID    string
+	Action        string
+	Decision      Decision
+	ReasonCode    string
+	CorrelationID string
+	ActorID       string
+	DecidedAt     time.Time
 }
 
 func (p Policy) Validate() error {
@@ -74,6 +79,13 @@ func (p Policy) Validate() error {
 	}
 	if redaction.RedactString(p.RuleJSON) != p.RuleJSON {
 		return fmt.Errorf("policy rule contains sensitive material")
+	}
+	return nil
+}
+
+func (d PolicyDecision) Validate() error {
+	if strings.TrimSpace(string(d.ID)) == "" || strings.TrimSpace(string(d.Workspace)) == "" || strings.TrimSpace(string(d.PolicyID)) == "" || strings.TrimSpace(d.ResourceType) == "" || strings.TrimSpace(d.ResourceID) == "" || strings.TrimSpace(d.Action) == "" || !d.Decision.Valid() || strings.TrimSpace(d.ReasonCode) == "" || strings.TrimSpace(d.CorrelationID) == "" || strings.TrimSpace(d.ActorID) == "" || d.DecidedAt.IsZero() {
+		return fmt.Errorf("policy decision is incomplete")
 	}
 	return nil
 }

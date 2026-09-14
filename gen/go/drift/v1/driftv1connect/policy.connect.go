@@ -36,11 +36,27 @@ const (
 	// PolicyServiceListPoliciesProcedure is the fully-qualified name of the PolicyService's
 	// ListPolicies RPC.
 	PolicyServiceListPoliciesProcedure = "/drift.v1.PolicyService/ListPolicies"
+	// PolicyServiceCreatePolicyVersionProcedure is the fully-qualified name of the PolicyService's
+	// CreatePolicyVersion RPC.
+	PolicyServiceCreatePolicyVersionProcedure = "/drift.v1.PolicyService/CreatePolicyVersion"
+	// PolicyServiceActivatePolicyProcedure is the fully-qualified name of the PolicyService's
+	// ActivatePolicy RPC.
+	PolicyServiceActivatePolicyProcedure = "/drift.v1.PolicyService/ActivatePolicy"
+	// PolicyServiceRetirePolicyProcedure is the fully-qualified name of the PolicyService's
+	// RetirePolicy RPC.
+	PolicyServiceRetirePolicyProcedure = "/drift.v1.PolicyService/RetirePolicy"
+	// PolicyServiceListPolicyDecisionsProcedure is the fully-qualified name of the PolicyService's
+	// ListPolicyDecisions RPC.
+	PolicyServiceListPolicyDecisionsProcedure = "/drift.v1.PolicyService/ListPolicyDecisions"
 )
 
 // PolicyServiceClient is a client for the drift.v1.PolicyService service.
 type PolicyServiceClient interface {
 	ListPolicies(context.Context, *connect.Request[v1.ListPoliciesRequest]) (*connect.Response[v1.ListPoliciesResponse], error)
+	CreatePolicyVersion(context.Context, *connect.Request[v1.CreatePolicyVersionRequest]) (*connect.Response[v1.CreatePolicyVersionResponse], error)
+	ActivatePolicy(context.Context, *connect.Request[v1.ActivatePolicyRequest]) (*connect.Response[v1.ActivatePolicyResponse], error)
+	RetirePolicy(context.Context, *connect.Request[v1.RetirePolicyRequest]) (*connect.Response[v1.RetirePolicyResponse], error)
+	ListPolicyDecisions(context.Context, *connect.Request[v1.ListPolicyDecisionsRequest]) (*connect.Response[v1.ListPolicyDecisionsResponse], error)
 }
 
 // NewPolicyServiceClient constructs a client for the drift.v1.PolicyService service. By default, it
@@ -60,12 +76,40 @@ func NewPolicyServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(policyServiceMethods.ByName("ListPolicies")),
 			connect.WithClientOptions(opts...),
 		),
+		createPolicyVersion: connect.NewClient[v1.CreatePolicyVersionRequest, v1.CreatePolicyVersionResponse](
+			httpClient,
+			baseURL+PolicyServiceCreatePolicyVersionProcedure,
+			connect.WithSchema(policyServiceMethods.ByName("CreatePolicyVersion")),
+			connect.WithClientOptions(opts...),
+		),
+		activatePolicy: connect.NewClient[v1.ActivatePolicyRequest, v1.ActivatePolicyResponse](
+			httpClient,
+			baseURL+PolicyServiceActivatePolicyProcedure,
+			connect.WithSchema(policyServiceMethods.ByName("ActivatePolicy")),
+			connect.WithClientOptions(opts...),
+		),
+		retirePolicy: connect.NewClient[v1.RetirePolicyRequest, v1.RetirePolicyResponse](
+			httpClient,
+			baseURL+PolicyServiceRetirePolicyProcedure,
+			connect.WithSchema(policyServiceMethods.ByName("RetirePolicy")),
+			connect.WithClientOptions(opts...),
+		),
+		listPolicyDecisions: connect.NewClient[v1.ListPolicyDecisionsRequest, v1.ListPolicyDecisionsResponse](
+			httpClient,
+			baseURL+PolicyServiceListPolicyDecisionsProcedure,
+			connect.WithSchema(policyServiceMethods.ByName("ListPolicyDecisions")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // policyServiceClient implements PolicyServiceClient.
 type policyServiceClient struct {
-	listPolicies *connect.Client[v1.ListPoliciesRequest, v1.ListPoliciesResponse]
+	listPolicies        *connect.Client[v1.ListPoliciesRequest, v1.ListPoliciesResponse]
+	createPolicyVersion *connect.Client[v1.CreatePolicyVersionRequest, v1.CreatePolicyVersionResponse]
+	activatePolicy      *connect.Client[v1.ActivatePolicyRequest, v1.ActivatePolicyResponse]
+	retirePolicy        *connect.Client[v1.RetirePolicyRequest, v1.RetirePolicyResponse]
+	listPolicyDecisions *connect.Client[v1.ListPolicyDecisionsRequest, v1.ListPolicyDecisionsResponse]
 }
 
 // ListPolicies calls drift.v1.PolicyService.ListPolicies.
@@ -73,9 +117,33 @@ func (c *policyServiceClient) ListPolicies(ctx context.Context, req *connect.Req
 	return c.listPolicies.CallUnary(ctx, req)
 }
 
+// CreatePolicyVersion calls drift.v1.PolicyService.CreatePolicyVersion.
+func (c *policyServiceClient) CreatePolicyVersion(ctx context.Context, req *connect.Request[v1.CreatePolicyVersionRequest]) (*connect.Response[v1.CreatePolicyVersionResponse], error) {
+	return c.createPolicyVersion.CallUnary(ctx, req)
+}
+
+// ActivatePolicy calls drift.v1.PolicyService.ActivatePolicy.
+func (c *policyServiceClient) ActivatePolicy(ctx context.Context, req *connect.Request[v1.ActivatePolicyRequest]) (*connect.Response[v1.ActivatePolicyResponse], error) {
+	return c.activatePolicy.CallUnary(ctx, req)
+}
+
+// RetirePolicy calls drift.v1.PolicyService.RetirePolicy.
+func (c *policyServiceClient) RetirePolicy(ctx context.Context, req *connect.Request[v1.RetirePolicyRequest]) (*connect.Response[v1.RetirePolicyResponse], error) {
+	return c.retirePolicy.CallUnary(ctx, req)
+}
+
+// ListPolicyDecisions calls drift.v1.PolicyService.ListPolicyDecisions.
+func (c *policyServiceClient) ListPolicyDecisions(ctx context.Context, req *connect.Request[v1.ListPolicyDecisionsRequest]) (*connect.Response[v1.ListPolicyDecisionsResponse], error) {
+	return c.listPolicyDecisions.CallUnary(ctx, req)
+}
+
 // PolicyServiceHandler is an implementation of the drift.v1.PolicyService service.
 type PolicyServiceHandler interface {
 	ListPolicies(context.Context, *connect.Request[v1.ListPoliciesRequest]) (*connect.Response[v1.ListPoliciesResponse], error)
+	CreatePolicyVersion(context.Context, *connect.Request[v1.CreatePolicyVersionRequest]) (*connect.Response[v1.CreatePolicyVersionResponse], error)
+	ActivatePolicy(context.Context, *connect.Request[v1.ActivatePolicyRequest]) (*connect.Response[v1.ActivatePolicyResponse], error)
+	RetirePolicy(context.Context, *connect.Request[v1.RetirePolicyRequest]) (*connect.Response[v1.RetirePolicyResponse], error)
+	ListPolicyDecisions(context.Context, *connect.Request[v1.ListPolicyDecisionsRequest]) (*connect.Response[v1.ListPolicyDecisionsResponse], error)
 }
 
 // NewPolicyServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -91,10 +159,42 @@ func NewPolicyServiceHandler(svc PolicyServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(policyServiceMethods.ByName("ListPolicies")),
 		connect.WithHandlerOptions(opts...),
 	)
+	policyServiceCreatePolicyVersionHandler := connect.NewUnaryHandler(
+		PolicyServiceCreatePolicyVersionProcedure,
+		svc.CreatePolicyVersion,
+		connect.WithSchema(policyServiceMethods.ByName("CreatePolicyVersion")),
+		connect.WithHandlerOptions(opts...),
+	)
+	policyServiceActivatePolicyHandler := connect.NewUnaryHandler(
+		PolicyServiceActivatePolicyProcedure,
+		svc.ActivatePolicy,
+		connect.WithSchema(policyServiceMethods.ByName("ActivatePolicy")),
+		connect.WithHandlerOptions(opts...),
+	)
+	policyServiceRetirePolicyHandler := connect.NewUnaryHandler(
+		PolicyServiceRetirePolicyProcedure,
+		svc.RetirePolicy,
+		connect.WithSchema(policyServiceMethods.ByName("RetirePolicy")),
+		connect.WithHandlerOptions(opts...),
+	)
+	policyServiceListPolicyDecisionsHandler := connect.NewUnaryHandler(
+		PolicyServiceListPolicyDecisionsProcedure,
+		svc.ListPolicyDecisions,
+		connect.WithSchema(policyServiceMethods.ByName("ListPolicyDecisions")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.PolicyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case PolicyServiceListPoliciesProcedure:
 			policyServiceListPoliciesHandler.ServeHTTP(w, r)
+		case PolicyServiceCreatePolicyVersionProcedure:
+			policyServiceCreatePolicyVersionHandler.ServeHTTP(w, r)
+		case PolicyServiceActivatePolicyProcedure:
+			policyServiceActivatePolicyHandler.ServeHTTP(w, r)
+		case PolicyServiceRetirePolicyProcedure:
+			policyServiceRetirePolicyHandler.ServeHTTP(w, r)
+		case PolicyServiceListPolicyDecisionsProcedure:
+			policyServiceListPolicyDecisionsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -106,4 +206,20 @@ type UnimplementedPolicyServiceHandler struct{}
 
 func (UnimplementedPolicyServiceHandler) ListPolicies(context.Context, *connect.Request[v1.ListPoliciesRequest]) (*connect.Response[v1.ListPoliciesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.PolicyService.ListPolicies is not implemented"))
+}
+
+func (UnimplementedPolicyServiceHandler) CreatePolicyVersion(context.Context, *connect.Request[v1.CreatePolicyVersionRequest]) (*connect.Response[v1.CreatePolicyVersionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.PolicyService.CreatePolicyVersion is not implemented"))
+}
+
+func (UnimplementedPolicyServiceHandler) ActivatePolicy(context.Context, *connect.Request[v1.ActivatePolicyRequest]) (*connect.Response[v1.ActivatePolicyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.PolicyService.ActivatePolicy is not implemented"))
+}
+
+func (UnimplementedPolicyServiceHandler) RetirePolicy(context.Context, *connect.Request[v1.RetirePolicyRequest]) (*connect.Response[v1.RetirePolicyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.PolicyService.RetirePolicy is not implemented"))
+}
+
+func (UnimplementedPolicyServiceHandler) ListPolicyDecisions(context.Context, *connect.Request[v1.ListPolicyDecisionsRequest]) (*connect.Response[v1.ListPolicyDecisionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.PolicyService.ListPolicyDecisions is not implemented"))
 }

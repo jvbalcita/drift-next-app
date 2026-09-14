@@ -81,8 +81,8 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM drift_schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("ledger count error = %v", err)
 	}
-	if count != 14 {
-		t.Fatalf("ledger count = %d, want 14 SQLite migrations", count)
+	if count != 15 {
+		t.Fatalf("ledger count = %d, want 15 SQLite migrations", count)
 	}
 
 	var foreignKeys string
@@ -107,7 +107,7 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 		"automation_agents", "automation_agent_device_assignments", "observation_snapshots", "device_inventory", "inventory_snapshots", "health_samples", "device_health_current", "device_events",
 		"control_sessions", "device_leases", "mirror_sessions", "mirror_targets", "workflows", "workflow_versions",
 		"workflow_steps", "runs", "target_set_snapshots", "run_targets", "target_run_steps", "action_attempts", "run_events", "run_ai_candidates", "replay_evidence",
-		"accounts", "settings", "policies", "artifacts", "recording_sessions", "recording_event_evidence",
+		"account_sources", "accounts", "account_service_states", "account_service_state_history", "account_runs", "account_run_events", "account_device_assignments", "account_sync_events", "settings", "setting_history", "policies", "artifacts", "recording_sessions", "recording_event_evidence",
 		"skills", "audit_events", "idempotency_keys", "outbox_messages",
 	} {
 		var exists int
@@ -157,7 +157,7 @@ func TestSQLiteMigrationsApplyIncrementally(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	for version := 2; version <= 15; version++ {
+	for version := 2; version <= 16; version++ {
 		runner, err := migrationrunner.NewRunner(db, migrationFilesThrough(t, version), migrationrunner.Options{})
 		if err != nil {
 			t.Fatalf("NewRunner(%d) error = %v", version, err)
@@ -172,6 +172,39 @@ func TestSQLiteMigrationsApplyIncrementally(t *testing.T) {
 		if count != version-1 {
 			t.Fatalf("applied migration count after %d = %d, want %d", version, count, version-1)
 		}
+	}
+}
+
+func TestAccountSyncMigrationPreservesLegacyEvents(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "legacy-accounts.db")
+	db, err := migrationrunner.Open(context.Background(), path, migrationrunner.OpenOptions{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	legacyRunner, err := migrationrunner.NewRunner(db, migrationFilesThrough(t, 8), migrationrunner.Options{})
+	if err != nil {
+		t.Fatalf("NewRunner(8) error = %v", err)
+	}
+	if err := legacyRunner.Apply(context.Background()); err != nil {
+		t.Fatalf("Apply(8) error = %v", err)
+	}
+	execSQL(t, db, `INSERT INTO workspaces (id, name, state, created_at, updated_at) VALUES ('legacy-account-w', 'Legacy accounts', 'active', ?, ?)`, testTime, testTime)
+	execSQL(t, db, `INSERT INTO account_sources (id, workspace_id, provider, display_name, state, external_reference, created_at, updated_at) VALUES ('legacy-source', 'legacy-account-w', 'fixture', 'Legacy source', 'active', 'legacy-v1', ?, ?)`, testTime, testTime)
+	execSQL(t, db, `INSERT INTO account_sync_events (id, workspace_id, account_source_id, event_name, occurred_at, outcome, details_json) VALUES ('legacy-sync', 'legacy-account-w', 'legacy-source', 'sync.completed', ?, 'accepted', '{}')`, testTime)
+	fullRunner, err := migrationrunner.NewRunner(db, migrations.SQLiteFiles, migrationrunner.Options{})
+	if err != nil {
+		t.Fatalf("NewRunner(full) error = %v", err)
+	}
+	if err := fullRunner.Apply(context.Background()); err != nil {
+		t.Fatalf("Apply(full) error = %v", err)
+	}
+	var outcome, details, idempotency string
+	if err := db.QueryRow(`SELECT outcome, details_json, idempotency_key FROM account_sync_events WHERE id='legacy-sync'`).Scan(&outcome, &details, &idempotency); err != nil {
+		t.Fatalf("legacy sync lookup error = %v", err)
+	}
+	if outcome != "accepted" || details != "{}" || idempotency != "" {
+		t.Fatalf("legacy sync event = (%q, %q, %q), want preserved metadata with empty new idempotency", outcome, details, idempotency)
 	}
 }
 

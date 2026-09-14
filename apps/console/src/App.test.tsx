@@ -119,6 +119,7 @@ describe("Drift command center", () => {
 
     const destinations = [
       ["Devices", /Device registry/],
+      ["Accounts", /^Accounts$/],
       ["Network Profiles", /Network Profiles/],
       ["Groups", /Groups and membership/],
       ["Agents", /Agent profiles/],

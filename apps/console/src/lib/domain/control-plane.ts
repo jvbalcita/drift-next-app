@@ -41,6 +41,12 @@ export type RunTargetState =
   | "cancelled"
   | "cleanup_failed"
 export type AccountState = "draft" | "active" | "inactive" | "retired"
+export type AccountSourceState = "active" | "disabled" | "retired"
+export type AccountServiceState = "unknown" | "healthy" | "degraded" | "failed" | "disabled"
+export type AccountServiceStage = "unknown" | "queued" | "ready" | "running" | "blocked" | "completed"
+export type AccountRunState = "requested" | "running" | "completed" | "failed" | "cancelled"
+export type AccountAssignmentState = "active" | "ended"
+export type AccountSyncOutcome = "accepted" | "rejected" | "failed" | "disabled"
 export type SettingScope =
   | "workspace"
   | "control_plane"
@@ -49,6 +55,8 @@ export type SettingScope =
   | "automation_agent"
   | "operator_preference"
 export type SettingState = "draft" | "active" | "superseded" | "retired"
+export type SettingValueKind = "boolean" | "integer" | "enum" | "json"
+export type SettingRisk = "safety_critical" | "low_preference"
 export type PolicyState = "draft" | "active" | "superseded" | "retired"
 export type PolicyDecision = "allow" | "deny" | "inconclusive"
 export type EventKind = "operational" | "audit"
@@ -253,10 +261,84 @@ export interface AccountReferenceView {
   sourceId: string
   externalReference: string
   label: string
+  metadataJson: string
+  rowVersion: number
+  sourceProvider: string
   state: AccountState
   assignedDeviceId?: string
-  serviceState: "unknown" | "healthy" | "degraded" | "failed" | "disabled"
+  serviceState: AccountServiceState
   lastRun: string
+}
+
+export interface AccountSourceView {
+  id: string
+  provider: string
+  displayName: string
+  state: AccountSourceState
+  externalReference: string
+  metadataJson: string
+  rowVersion: number
+}
+
+export interface AccountServiceStateView {
+  id: string
+  accountId: string
+  serviceName: string
+  stage: AccountServiceStage
+  state: AccountServiceState
+  observedAt: string
+  failureClass?: string
+  detailsJson: string
+  rowVersion: number
+}
+
+export interface AccountServiceStateHistoryView extends AccountServiceStateView {
+  recordedAt: string
+}
+
+export interface AccountRunView {
+  id: string
+  accountId: string
+  state: AccountRunState
+  requestedAt: string
+  startedAt?: string
+  finishedAt?: string
+  failureClass?: string
+  correlationId: string
+  rowVersion: number
+}
+
+export interface AccountRunEventView {
+  id: string
+  runId: string
+  state: AccountRunState
+  failureClass?: string
+  occurredAt: string
+  actorType: string
+  actorId: string
+  correlationId: string
+}
+
+export interface AccountDeviceAssignmentView {
+  id: string
+  accountId: string
+  deviceId: string
+  state: AccountAssignmentState
+  assignedAt: string
+  endedAt?: string
+  rowVersion: number
+}
+
+export interface AccountSyncEventView {
+  id: string
+  sourceId: string
+  eventName: string
+  accountId?: string
+  outcome: AccountSyncOutcome
+  idempotencyKey: string
+  correlationId: string
+  occurredAt: string
+  detailsJson: string
 }
 
 export interface SettingView {
@@ -268,7 +350,11 @@ export interface SettingView {
   valueJson: string
   state: SettingState
   rowVersion: number
-  safetyCritical: boolean
+  valueKind: SettingValueKind
+  risk: SettingRisk
+  allowedValues?: readonly string[]
+  minValue?: number
+  maxValue?: number
 }
 
 export interface PolicyView {
@@ -277,6 +363,7 @@ export interface PolicyView {
   version: number
   state: PolicyState
   ruleSummary: string
+  ruleJson: string
   rowVersion: number
 }
 
@@ -289,6 +376,7 @@ export interface PolicyDecisionView {
   decision: PolicyDecision
   reasonCode: string
   correlationId: string
+  actorId: string
   decidedAt: string
 }
 
@@ -329,11 +417,33 @@ export interface ControlPlaneSnapshot {
   runs: readonly RunView[]
   runTargets: readonly RunTargetView[]
   events: readonly EventView[]
+  accountSources: readonly AccountSourceView[]
   accounts: readonly AccountReferenceView[]
+  accountServiceStates: readonly AccountServiceStateView[]
+  accountServiceStateHistory: readonly AccountServiceStateHistoryView[]
+  accountRuns: readonly AccountRunView[]
+  accountRunEvents: readonly AccountRunEventView[]
+  accountDeviceAssignments: readonly AccountDeviceAssignmentView[]
+  accountSyncEvents: readonly AccountSyncEventView[]
   settings: readonly SettingView[]
+  settingHistory: readonly SettingHistoryView[]
   policies: readonly PolicyView[]
   policyDecisions: readonly PolicyDecisionView[]
   mirrorSessions: readonly MirrorSessionView[]
+}
+
+export interface SettingHistoryView {
+  id: string
+  settingId: string
+  scope: SettingScope
+  targetId: string
+  key: string
+  valueJson: string
+  state: SettingState
+  rowVersion: number
+  actorType: string
+  actorId: string
+  changedAt: string
 }
 
 export type ControlPlaneIntent =
@@ -348,9 +458,21 @@ export type ControlPlaneIntent =
   | { type: "registerScanCandidate"; candidateId: string; displayName: string }
   | { type: "moveDeviceToGroup"; deviceId: string; groupId: string; position: number }
   | { type: "cancelRun"; runId: string }
+  | { type: "createAccountSource"; provider: string; displayName: string; externalReference: string; metadataJson: string }
+  | { type: "updateAccountSource"; sourceId: string; displayName: string; externalReference: string; metadataJson: string; rowVersion: number }
+  | { type: "retireAccountSource"; sourceId: string; rowVersion: number }
+  | { type: "createAccount"; sourceId: string; externalReference: string; label: string; metadataJson: string }
+  | { type: "updateAccount"; accountId: string; externalReference: string; label: string; metadataJson: string; rowVersion: number }
+  | { type: "assignAccountDevice"; accountId: string; deviceId: string }
+  | { type: "endAccountDeviceAssignment"; assignmentId: string; rowVersion: number }
   | { type: "updateSetting"; settingId: string; valueJson: string; rowVersion: number }
+  | { type: "createSetting"; scope: SettingScope; targetId: string; key: string; valueJson: string }
+  | { type: "transitionSetting"; settingId: string; state: SettingState; rowVersion: number }
+  | { type: "createPolicyVersion"; basePolicyId: string; ruleJson: string }
+  | { type: "activatePolicy"; policyId: string; rowVersion: number }
+  | { type: "retirePolicy"; policyId: string; rowVersion: number }
   | { type: "updatePolicy"; policyId: string; ruleSummary: string; rowVersion: number }
-  | { type: "updateAccountState"; accountId: string; state: AccountState }
+  | { type: "updateAccountState"; accountId: string; state: AccountState; rowVersion: number }
 
 export interface MutationResult {
   ok: boolean

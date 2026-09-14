@@ -1,5 +1,12 @@
 import type {
+  AccountDeviceAssignmentView,
   AccountReferenceView,
+  AccountRunEventView,
+  AccountRunView,
+  AccountServiceStateHistoryView,
+  AccountServiceStateView,
+  AccountSourceView,
+  AccountSyncEventView,
   AutomationAgentProfileView,
   AutomationAgentView,
   ControlPlaneClient,
@@ -22,6 +29,7 @@ import type {
   RunView,
   ScanCandidateView,
   ScanRunView,
+  SettingHistoryView,
   SettingView,
   SkillView,
   WorkflowView,
@@ -310,26 +318,66 @@ const events: EventView[] = [
   { id: "event-005", kind: "operational", name: "agent.heartbeat", actor: "fake edge agent", resourceType: "edge_agent", resourceId: "edge-agent-gamma", correlationId: "corr-agent", occurredAt: "09:38:04", payloadSummary: "Version and health metadata only" },
 ]
 
+const accountSources: AccountSourceView[] = [
+  { id: "source-demo", provider: "fixture", displayName: "Sanitized fixture source", state: "active", externalReference: "fixture-catalog-v1", metadataJson: `{"environment":"demo","connector":"disabled"}`, rowVersion: 2 },
+]
+
 const accounts: AccountReferenceView[] = [
-  { id: "account-ops-01", sourceId: "source-demo", externalReference: "demo-account-01", label: "Operations demo", state: "active", assignedDeviceId: "atlas-04", serviceState: "healthy", lastRun: "run-1042 · running" },
-  { id: "account-review-02", sourceId: "source-demo", externalReference: "demo-account-02", label: "Review fixture", state: "inactive", assignedDeviceId: "nova-02", serviceState: "degraded", lastRun: "run-1041 · policy denied" },
+  { id: "account-ops-01", sourceId: "source-demo", sourceProvider: "fixture", externalReference: "demo-account-01", label: "Operations demo", metadataJson: `{"tier":"operator"}`, rowVersion: 3, state: "active", assignedDeviceId: "atlas-04", serviceState: "healthy", lastRun: "run-1042 · running" },
+  { id: "account-review-02", sourceId: "source-demo", sourceProvider: "fixture", externalReference: "demo-account-02", label: "Review fixture", metadataJson: `{"tier":"review"}`, rowVersion: 2, state: "inactive", assignedDeviceId: "nova-02", serviceState: "degraded", lastRun: "run-1041 · policy denied" },
 ]
 
 const settings: SettingView[] = [
-  { id: "setting-workspace-retention", scope: "workspace", targetId: workspace.id, key: "event_retention_days", valueSummary: "30 days", valueJson: "30", state: "active", rowVersion: 2, safetyCritical: true },
-  { id: "setting-control-approval", scope: "control_plane", targetId: "control-plane-local", key: "require_explicit_approval", valueSummary: "Enabled", valueJson: "true", state: "active", rowVersion: 4, safetyCritical: true },
-  { id: "setting-operator-density", scope: "operator_preference", targetId: "operator-1", key: "table_density", valueSummary: "comfortable", valueJson: "\"comfortable\"", state: "active", rowVersion: 1, safetyCritical: false },
+  { id: "setting-workspace-retention", scope: "workspace", targetId: "", key: "event_retention_days", valueSummary: "30 days", valueJson: "30", state: "active", rowVersion: 2, valueKind: "integer", risk: "safety_critical", minValue: 1, maxValue: 3650 },
+  { id: "setting-control-approval", scope: "control_plane", targetId: "control-plane-local", key: "require_explicit_approval", valueSummary: "Enabled", valueJson: "true", state: "active", rowVersion: 4, valueKind: "boolean", risk: "safety_critical" },
+  { id: "setting-operator-density", scope: "operator_preference", targetId: "operator-1", key: "table_density", valueSummary: "comfortable", valueJson: "\"comfortable\"", state: "active", rowVersion: 1, valueKind: "enum", risk: "low_preference", allowedValues: ["compact", "comfortable", "spacious"] },
 ]
 
 const policies: PolicyView[] = [
-  { id: "policy-default-safety", name: "Default action safety", version: 4, state: "active", ruleSummary: "Allow only approved low-risk actions with fresh observations.", rowVersion: 4 },
-  { id: "policy-lab-review", name: "Lab review boundary", version: 2, state: "draft", ruleSummary: "Deny actions for unavailable or incompatible targets.", rowVersion: 2 },
+  { id: "policy-default-safety", name: "Default action safety", version: 4, state: "active", ruleSummary: "Allow only approved low-risk actions with fresh observations.", ruleJson: `{"allow":"approved_low_risk_with_fresh_observation"}`, rowVersion: 4 },
+  { id: "policy-lab-review", name: "Lab review boundary", version: 2, state: "draft", ruleSummary: "Deny actions for unavailable or incompatible targets.", ruleJson: `{"deny":["unavailable","incompatible"]}`, rowVersion: 2 },
+]
+
+const accountServiceStates: AccountServiceStateView[] = [
+  { id: "account-state-ops", accountId: "account-ops-01", serviceName: "fixture", stage: "running", state: "healthy", observedAt: "just now", detailsJson: `{"status":"ready_for_review"}`, rowVersion: 3 },
+  { id: "account-state-review", accountId: "account-review-02", serviceName: "fixture", stage: "blocked", state: "degraded", observedAt: "2 min ago", failureClass: "policy_denied", detailsJson: `{"status":"requires_review"}`, rowVersion: 2 },
+]
+
+const accountServiceStateHistory: AccountServiceStateHistoryView[] = [
+  { id: "account-state-history-ops-1", accountId: "account-ops-01", serviceName: "fixture", stage: "ready", state: "healthy", observedAt: "09:38:10", recordedAt: "09:38:11", detailsJson: `{"status":"ready"}`, rowVersion: 2 },
+  { id: "account-state-history-ops-2", accountId: "account-ops-01", serviceName: "fixture", stage: "running", state: "healthy", observedAt: "09:42:18", recordedAt: "09:42:19", detailsJson: `{"status":"ready_for_review"}`, rowVersion: 3 },
+  { id: "account-state-history-review-1", accountId: "account-review-02", serviceName: "fixture", stage: "blocked", state: "degraded", observedAt: "09:35:02", recordedAt: "09:35:03", failureClass: "policy_denied", detailsJson: `{"status":"requires_review"}`, rowVersion: 2 },
+]
+
+const accountRuns: AccountRunView[] = [
+  { id: "account-run-ops-1042", accountId: "account-ops-01", state: "running", requestedAt: "09:36:04", startedAt: "09:36:09", correlationId: "corr-1042", rowVersion: 2 },
+  { id: "account-run-review-1041", accountId: "account-review-02", state: "failed", requestedAt: "09:21:19", startedAt: "09:21:22", finishedAt: "09:35:02", failureClass: "policy_denied", correlationId: "corr-1041", rowVersion: 3 },
+]
+
+const accountRunEvents: AccountRunEventView[] = [
+  { id: "account-run-event-ops-requested", runId: "account-run-ops-1042", state: "requested", occurredAt: "09:36:04", actorType: "operator", actorId: "operator-1", correlationId: "corr-1042" },
+  { id: "account-run-event-ops-running", runId: "account-run-ops-1042", state: "running", occurredAt: "09:36:09", actorType: "account-service", actorId: "account-service-1", correlationId: "corr-1042" },
+  { id: "account-run-event-review-failed", runId: "account-run-review-1041", state: "failed", occurredAt: "09:35:02", actorType: "policy-service", actorId: "policy-service-1", correlationId: "corr-1041", failureClass: "policy_denied" },
+]
+
+const accountDeviceAssignments: AccountDeviceAssignmentView[] = [
+  { id: "assignment-ops-atlas-04", accountId: "account-ops-01", deviceId: "atlas-04", state: "active", assignedAt: "2026-09-12", rowVersion: 1 },
+  { id: "assignment-review-nova-02", accountId: "account-review-02", deviceId: "nova-02", state: "active", assignedAt: "2026-09-12", rowVersion: 1 },
+]
+
+const accountSyncEvents: AccountSyncEventView[] = [
+  { id: "sync-event-001", sourceId: "source-demo", eventName: "connector.sync", accountId: "account-ops-01", outcome: "disabled", idempotencyKey: "sync-demo-001", correlationId: "corr-sync-001", occurredAt: "09:42:18", detailsJson: `{"connector":"disabled","attempted":false}` },
+]
+
+const settingHistory: SettingHistoryView[] = [
+  { id: "setting-history-retention-1", settingId: "setting-workspace-retention", scope: "workspace", targetId: "", key: "event_retention_days", valueJson: "14", state: "active", rowVersion: 1, actorType: "operator", actorId: "operator-1", changedAt: "2026-09-12" },
+  { id: "setting-history-retention-2", settingId: "setting-workspace-retention", scope: "workspace", targetId: "", key: "event_retention_days", valueJson: "30", state: "active", rowVersion: 2, actorType: "operator", actorId: "operator-1", changedAt: "2026-09-14" },
 ]
 
 const policyDecisions: PolicyDecisionView[] = [
-  { id: "decision-001", policyId: "policy-default-safety", resourceType: "run_target", resourceId: "target-1042-atlas-04", action: "tap", decision: "allow", reasonCode: "allowed", correlationId: "corr-1042", decidedAt: "09:42:10" },
-  { id: "decision-002", policyId: "policy-default-safety", resourceType: "run_target", resourceId: "target-1041-nova-02", action: "tap", decision: "deny", reasonCode: "policy_definition_blocked", correlationId: "corr-1041", decidedAt: "09:35:02" },
-  { id: "decision-003", policyId: "policy-lab-review", resourceType: "mirror_target", resourceId: "orion-01", action: "mirror", decision: "inconclusive", reasonCode: "capability_unavailable", correlationId: "corr-preview", decidedAt: "09:28:09" },
+  { id: "decision-001", policyId: "policy-default-safety", resourceType: "run_target", resourceId: "target-1042-atlas-04", action: "tap", decision: "allow", reasonCode: "allowed", correlationId: "corr-1042", actorId: "policy-service-1", decidedAt: "09:42:10" },
+  { id: "decision-002", policyId: "policy-default-safety", resourceType: "run_target", resourceId: "target-1041-nova-02", action: "tap", decision: "deny", reasonCode: "policy_definition_blocked", correlationId: "corr-1041", actorId: "policy-service-1", decidedAt: "09:35:02" },
+  { id: "decision-003", policyId: "policy-lab-review", resourceType: "mirror_target", resourceId: "orion-01", action: "mirror", decision: "inconclusive", reasonCode: "capability_unavailable", correlationId: "corr-preview", actorId: "policy-service-1", decidedAt: "09:28:09" },
 ]
 
 export function buildMockSnapshot(): ControlPlaneSnapshot {
@@ -353,8 +401,16 @@ export function buildMockSnapshot(): ControlPlaneSnapshot {
     runs,
     runTargets,
     events,
+    accountSources,
     accounts,
+    accountServiceStates,
+    accountServiceStateHistory,
+    accountRuns,
+    accountRunEvents,
+    accountDeviceAssignments,
+    accountSyncEvents,
     settings,
+    settingHistory,
     policies,
     policyDecisions,
     mirrorSessions: [],
@@ -382,12 +438,58 @@ function isTerminalTarget(state: RunTargetView["state"]): boolean {
 }
 
 function isValidJson(value: string): boolean {
+  if (value.length === 0 || value.length > 65536) return false
   try {
     const parsed: unknown = JSON.parse(value)
     return parsed !== undefined
   } catch {
     return false
   }
+}
+
+function isSafeJson(value: string): boolean {
+  return isValidJson(value) && !/(?:"(?:password|passphrase|token|secret|credential|cookie|authorization|api[_-]?key)"\s*:)/i.test(value)
+}
+
+function settingDefinition(key: string): Pick<SettingView, "valueKind" | "risk" | "allowedValues" | "minValue" | "maxValue"> {
+  switch (key) {
+    case "require_explicit_approval":
+      return { valueKind: "boolean", risk: "safety_critical" }
+    case "max_action_timeout_ms":
+      return { valueKind: "integer", risk: "safety_critical", minValue: 1, maxValue: 300000 }
+    case "event_retention_days":
+      return { valueKind: "integer", risk: "safety_critical", minValue: 1, maxValue: 3650 }
+    case "table_density":
+      return { valueKind: "enum", risk: "low_preference", allowedValues: ["compact", "comfortable", "spacious"] }
+    default:
+      return { valueKind: "json", risk: "low_preference" }
+  }
+}
+
+function validateSettingValue(setting: Pick<SettingView, "key" | "valueKind" | "allowedValues" | "minValue" | "maxValue">, valueJson: string): string | undefined {
+  if (!isSafeJson(valueJson)) return "Setting value must be bounded, valid, and free of sensitive keys."
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(valueJson) as unknown
+  } catch {
+    return "Setting value must be valid JSON."
+  }
+  if (setting.valueKind === "boolean" && typeof parsed !== "boolean") return "This setting requires a boolean value."
+  if (setting.valueKind === "integer" && (typeof parsed !== "number" || !Number.isInteger(parsed) || (setting.minValue !== undefined && parsed < setting.minValue) || (setting.maxValue !== undefined && parsed > setting.maxValue))) return "This setting requires an integer within its safe bounds."
+  if (setting.valueKind === "enum" && (typeof parsed !== "string" || !setting.allowedValues?.includes(parsed))) return "This setting requires one of its allowed values."
+  return undefined
+}
+
+function settingSummary(valueJson: string, valueKind: SettingView["valueKind"]): string {
+  try {
+    const parsed: unknown = JSON.parse(valueJson)
+    if (valueKind === "boolean") return parsed === true ? "Enabled" : "Disabled"
+    if (valueKind === "enum" && typeof parsed === "string") return parsed
+    if (valueKind === "integer" && typeof parsed === "number") return `${parsed}`
+  } catch {
+    return "Invalid value"
+  }
+  return valueJson.length > 80 ? `${valueJson.slice(0, 77)}…` : valueJson
 }
 
 export class MockControlPlaneClient implements ControlPlaneClient {
@@ -426,8 +528,32 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.moveDeviceToGroup(intent)
       case "cancelRun":
         return this.cancelRun(intent)
+      case "createAccountSource":
+        return this.createAccountSource(intent)
+      case "updateAccountSource":
+        return this.updateAccountSource(intent)
+      case "retireAccountSource":
+        return this.retireAccountSource(intent)
+      case "createAccount":
+        return this.createAccount(intent)
+      case "updateAccount":
+        return this.updateAccount(intent)
+      case "assignAccountDevice":
+        return this.assignAccountDevice(intent)
+      case "endAccountDeviceAssignment":
+        return this.endAccountDeviceAssignment(intent)
       case "updateSetting":
         return this.updateSetting(intent)
+      case "createSetting":
+        return this.createSetting(intent)
+      case "transitionSetting":
+        return this.transitionSetting(intent)
+      case "createPolicyVersion":
+        return this.createPolicyVersion(intent)
+      case "activatePolicy":
+        return this.activatePolicy(intent)
+      case "retirePolicy":
+        return this.retirePolicy(intent)
       case "updatePolicy":
         return this.updatePolicy(intent)
       case "updateAccountState":
@@ -587,31 +713,237 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     return result(intent, "Run cancelled at the mock safe boundary.", run.id)
   }
 
+  private createAccountSource(intent: Extract<ControlPlaneIntent, { type: "createAccountSource" }>): MutationResult {
+    if (intent.provider.trim() === "" || intent.displayName.trim() === "") return rejection(intent, "Provider and source display name are required.")
+    if (!isSafeJson(intent.metadataJson)) return rejection(intent, "Source metadata must be bounded valid JSON without sensitive keys.")
+    const id = `source-mock-${this.nextSequence++}`
+    const source: AccountSourceView = {
+      id,
+      provider: intent.provider.trim(),
+      displayName: intent.displayName.trim(),
+      state: "active",
+      externalReference: intent.externalReference.trim(),
+      metadataJson: intent.metadataJson,
+      rowVersion: 1,
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      accountSources: [source, ...this.snapshot.accountSources],
+      events: addEvent(this.snapshot, {
+        id: `event-account-source-${this.nextSequence++}`,
+        kind: "audit",
+        name: "account_source.created",
+        actor: "operator · mock",
+        resourceType: "account_source",
+        resourceId: source.id,
+        correlationId: "corr-account-catalog",
+        occurredAt: "just now",
+        payloadSummary: "Provider and sanitized metadata retained; credentials are not accepted.",
+      }),
+    }
+    return result(intent, "Account source saved; connector remains disabled.", source.id)
+  }
+
+  private updateAccountSource(intent: Extract<ControlPlaneIntent, { type: "updateAccountSource" }>): MutationResult {
+    const source = this.snapshot.accountSources.find((candidate) => candidate.id === intent.sourceId)
+    if (!source) return rejection(intent, "Account source was not found.")
+    if (source.rowVersion !== intent.rowVersion) return result(intent, "This account source changed elsewhere. Reload before saving.", source.id, true)
+    if (source.state === "retired") return rejection(intent, "A retired account source cannot be edited.", source.id)
+    if (intent.displayName.trim() === "" || !isSafeJson(intent.metadataJson)) return rejection(intent, "Source name and sanitized metadata are required.", source.id)
+    const updated: AccountSourceView = { ...source, displayName: intent.displayName.trim(), externalReference: intent.externalReference.trim(), metadataJson: intent.metadataJson, rowVersion: source.rowVersion + 1 }
+    this.snapshot = { ...this.snapshot, accountSources: this.snapshot.accountSources.map((candidate) => candidate.id === source.id ? updated : candidate) }
+    return result(intent, "Account source updated in the mock projection.", source.id)
+  }
+
+  private retireAccountSource(intent: Extract<ControlPlaneIntent, { type: "retireAccountSource" }>): MutationResult {
+    const source = this.snapshot.accountSources.find((candidate) => candidate.id === intent.sourceId)
+    if (!source) return rejection(intent, "Account source was not found.")
+    if (source.rowVersion !== intent.rowVersion) return result(intent, "This account source changed elsewhere. Reload before retiring.", source.id, true)
+    if (source.state === "retired") return rejection(intent, "Account source is already retired.", source.id)
+    const updated = { ...source, state: "retired" as const, rowVersion: source.rowVersion + 1 }
+    this.snapshot = { ...this.snapshot, accountSources: this.snapshot.accountSources.map((candidate) => candidate.id === source.id ? updated : candidate) }
+    return result(intent, "Account source retired; no connector call was made.", source.id)
+  }
+
+  private createAccount(intent: Extract<ControlPlaneIntent, { type: "createAccount" }>): MutationResult {
+    const source = this.snapshot.accountSources.find((candidate) => candidate.id === intent.sourceId)
+    if (!source || source.state !== "active") return rejection(intent, "An active account source is required.")
+    if (intent.externalReference.trim() === "" || intent.label.trim() === "") return rejection(intent, "Account external reference and label are required.")
+    if (!isSafeJson(intent.metadataJson)) return rejection(intent, "Account metadata must be bounded valid JSON without sensitive keys.")
+    const id = `account-mock-${this.nextSequence++}`
+    const account: AccountReferenceView = {
+      id,
+      sourceId: source.id,
+      sourceProvider: source.provider,
+      externalReference: intent.externalReference.trim(),
+      label: intent.label.trim(),
+      metadataJson: intent.metadataJson,
+      rowVersion: 1,
+      state: "draft",
+      serviceState: "unknown",
+      lastRun: "none",
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      accounts: [account, ...this.snapshot.accounts],
+      events: addEvent(this.snapshot, {
+        id: `event-account-${this.nextSequence++}`,
+        kind: "audit",
+        name: "account.created",
+        actor: "operator · mock",
+        resourceType: "account",
+        resourceId: account.id,
+        correlationId: "corr-account-catalog",
+        occurredAt: "just now",
+        payloadSummary: "Account reference and sanitized metadata retained; credentials are not accepted.",
+      }),
+    }
+    return result(intent, "Account reference created in draft; no external sync was attempted.", account.id)
+  }
+
+  private updateAccount(intent: Extract<ControlPlaneIntent, { type: "updateAccount" }>): MutationResult {
+    const account = this.snapshot.accounts.find((candidate) => candidate.id === intent.accountId)
+    if (!account) return rejection(intent, "Account reference was not found.")
+    if (account.rowVersion !== intent.rowVersion) return result(intent, "This account changed elsewhere. Reload before saving.", account.id, true)
+    if (account.state === "retired") return rejection(intent, "A retired account cannot be edited.", account.id)
+    if (intent.externalReference.trim() === "" || intent.label.trim() === "" || !isSafeJson(intent.metadataJson)) return rejection(intent, "Account reference and sanitized metadata are required.", account.id)
+    const updated: AccountReferenceView = { ...account, externalReference: intent.externalReference.trim(), label: intent.label.trim(), metadataJson: intent.metadataJson, rowVersion: account.rowVersion + 1 }
+    this.snapshot = { ...this.snapshot, accounts: this.snapshot.accounts.map((candidate) => candidate.id === account.id ? updated : candidate) }
+    return result(intent, "Account reference updated in the mock projection.", account.id)
+  }
+
+  private assignAccountDevice(intent: Extract<ControlPlaneIntent, { type: "assignAccountDevice" }>): MutationResult {
+    const account = this.snapshot.accounts.find((candidate) => candidate.id === intent.accountId)
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!account || !device) return rejection(intent, "Choose an existing account and device.")
+    if (account.state === "retired" || device.lifecycle === "retired") return rejection(intent, "Retired accounts and devices cannot receive an assignment.")
+    if (this.snapshot.accountDeviceAssignments.some((assignment) => assignment.state === "active" && (assignment.accountId === account.id || assignment.deviceId === device.id))) return rejection(intent, "Each account and device may have only one active account assignment.")
+    const assignment: AccountDeviceAssignmentView = { id: `assignment-mock-${this.nextSequence++}`, accountId: account.id, deviceId: device.id, state: "active", assignedAt: "just now", rowVersion: 1 }
+    this.snapshot = {
+      ...this.snapshot,
+      accountDeviceAssignments: [assignment, ...this.snapshot.accountDeviceAssignments],
+      accounts: this.snapshot.accounts.map((candidate) => candidate.id === account.id ? { ...candidate, assignedDeviceId: device.id, rowVersion: candidate.rowVersion + 1 } : candidate),
+      events: addEvent(this.snapshot, {
+        id: `event-account-assignment-${this.nextSequence++}`,
+        kind: "audit",
+        name: "account_device.assigned",
+        actor: "operator · mock",
+        resourceType: "account_device_assignment",
+        resourceId: assignment.id,
+        correlationId: "corr-account-assignment",
+        occurredAt: "just now",
+        payloadSummary: "Explicit account and stable device IDs retained; display names are presentation only.",
+      }),
+    }
+    return result(intent, `Account assigned to ${device.displayName}; no device command was sent.`, assignment.id)
+  }
+
+  private endAccountDeviceAssignment(intent: Extract<ControlPlaneIntent, { type: "endAccountDeviceAssignment" }>): MutationResult {
+    const assignment = this.snapshot.accountDeviceAssignments.find((candidate) => candidate.id === intent.assignmentId)
+    if (!assignment) return rejection(intent, "Account-device assignment was not found.")
+    if (assignment.rowVersion !== intent.rowVersion) return result(intent, "This assignment changed elsewhere. Reload before ending it.", assignment.id, true)
+    if (assignment.state === "ended") return rejection(intent, "Assignment is already ended.", assignment.id)
+    const updated: AccountDeviceAssignmentView = { ...assignment, state: "ended", endedAt: "just now", rowVersion: assignment.rowVersion + 1 }
+    this.snapshot = {
+      ...this.snapshot,
+      accountDeviceAssignments: this.snapshot.accountDeviceAssignments.map((candidate) => candidate.id === assignment.id ? updated : candidate),
+      accounts: this.snapshot.accounts.map((candidate) => candidate.id === assignment.accountId && candidate.assignedDeviceId === assignment.deviceId ? { ...candidate, assignedDeviceId: undefined, rowVersion: candidate.rowVersion + 1 } : candidate),
+    }
+    return result(intent, "Account-device assignment ended in the mock projection.", assignment.id)
+  }
+
   private updateSetting(intent: Extract<ControlPlaneIntent, { type: "updateSetting" }>): MutationResult {
     const setting = this.snapshot.settings.find((candidate) => candidate.id === intent.settingId)
     if (!setting) return rejection(intent, "Setting was not found.")
     if (setting.rowVersion !== intent.rowVersion) return result(intent, "This setting changed elsewhere. Reload before saving.", setting.id, true)
-    if (!isValidJson(intent.valueJson)) return rejection(intent, "Setting value must be valid JSON.", setting.id)
-    const updated: SettingView = { ...setting, valueJson: intent.valueJson, valueSummary: intent.valueJson, rowVersion: setting.rowVersion + 1 }
-    this.snapshot = { ...this.snapshot, settings: this.snapshot.settings.map((candidate) => candidate.id === setting.id ? updated : candidate) }
+    const validationMessage = validateSettingValue(setting, intent.valueJson)
+    if (validationMessage) return rejection(intent, validationMessage, setting.id)
+    const updated: SettingView = { ...setting, valueJson: intent.valueJson, valueSummary: settingSummary(intent.valueJson, setting.valueKind), rowVersion: setting.rowVersion + 1 }
+    const history: SettingHistoryView = { id: `setting-history-mock-${this.nextSequence++}`, settingId: setting.id, scope: setting.scope, targetId: setting.targetId, key: setting.key, valueJson: intent.valueJson, state: setting.state, rowVersion: updated.rowVersion, actorType: "operator", actorId: "mock", changedAt: "just now" }
+    this.snapshot = { ...this.snapshot, settings: this.snapshot.settings.map((candidate) => candidate.id === setting.id ? updated : candidate), settingHistory: [history, ...this.snapshot.settingHistory] }
     return result(intent, "Setting updated in the mock projection.", setting.id)
   }
 
-  private updatePolicy(intent: Extract<ControlPlaneIntent, { type: "updatePolicy" }>): MutationResult {
+  private createSetting(intent: Extract<ControlPlaneIntent, { type: "createSetting" }>): MutationResult {
+    if (intent.key.trim() === "" || (intent.scope !== "workspace" && intent.targetId.trim() === "")) return rejection(intent, "Setting key and scoped target are required.")
+    const definition = settingDefinition(intent.key.trim())
+    const validationMessage = validateSettingValue({ key: intent.key.trim(), ...definition }, intent.valueJson)
+    if (validationMessage) return rejection(intent, validationMessage)
+    const id = `setting-mock-${this.nextSequence++}`
+    const setting: SettingView = { id, scope: intent.scope, targetId: intent.targetId.trim(), key: intent.key.trim(), valueJson: intent.valueJson, valueSummary: settingSummary(intent.valueJson, definition.valueKind), state: "active", rowVersion: 1, ...definition }
+    const history: SettingHistoryView = { id: `setting-history-mock-${this.nextSequence++}`, settingId: id, scope: setting.scope, targetId: setting.targetId, key: setting.key, valueJson: setting.valueJson, state: setting.state, rowVersion: 1, actorType: "operator", actorId: "mock", changedAt: "just now" }
+    this.snapshot = { ...this.snapshot, settings: [setting, ...this.snapshot.settings], settingHistory: [history, ...this.snapshot.settingHistory] }
+    return result(intent, "Typed setting created in the mock projection.", id)
+  }
+
+  private transitionSetting(intent: Extract<ControlPlaneIntent, { type: "transitionSetting" }>): MutationResult {
+    const setting = this.snapshot.settings.find((candidate) => candidate.id === intent.settingId)
+    if (!setting) return rejection(intent, "Setting was not found.")
+    if (setting.rowVersion !== intent.rowVersion) return result(intent, "This setting changed elsewhere. Reload before transitioning.", setting.id, true)
+    if (!canTransitionSetting(setting.state, intent.state)) return rejection(intent, `Setting cannot transition from ${setting.state} to ${intent.state}.`, setting.id)
+    const updated: SettingView = { ...setting, state: intent.state, rowVersion: setting.rowVersion + 1 }
+    const history: SettingHistoryView = { id: `setting-history-mock-${this.nextSequence++}`, settingId: setting.id, scope: setting.scope, targetId: setting.targetId, key: setting.key, valueJson: setting.valueJson, state: updated.state, rowVersion: updated.rowVersion, actorType: "operator", actorId: "mock", changedAt: "just now" }
+    this.snapshot = { ...this.snapshot, settings: this.snapshot.settings.map((candidate) => candidate.id === setting.id ? updated : candidate), settingHistory: [history, ...this.snapshot.settingHistory] }
+    return result(intent, `Setting marked ${intent.state}.`, setting.id)
+  }
+
+  private createPolicyVersion(intent: Extract<ControlPlaneIntent, { type: "createPolicyVersion" }>): MutationResult {
+    const base = this.snapshot.policies.find((candidate) => candidate.id === intent.basePolicyId)
+    if (!base) return rejection(intent, "Policy was not found.")
+    if (base.state === "retired") return rejection(intent, "A retired policy cannot receive a new version.", base.id)
+    if (!isSafeJson(intent.ruleJson)) return rejection(intent, "Policy rule must be bounded valid JSON without sensitive keys.", base.id)
+    const version = Math.max(...this.snapshot.policies.filter((candidate) => candidate.name === base.name).map((candidate) => candidate.version), 0) + 1
+    const policy: PolicyView = { id: `policy-mock-${this.nextSequence++}`, name: base.name, version, state: "draft", ruleSummary: summarizeRule(intent.ruleJson), ruleJson: intent.ruleJson, rowVersion: 1 }
+    this.snapshot = { ...this.snapshot, policies: [policy, ...this.snapshot.policies] }
+    return result(intent, `Draft policy version ${version} created; activation is a separate audited step.`, policy.id)
+  }
+
+  private activatePolicy(intent: Extract<ControlPlaneIntent, { type: "activatePolicy" }>): MutationResult {
     const policy = this.snapshot.policies.find((candidate) => candidate.id === intent.policyId)
     if (!policy) return rejection(intent, "Policy was not found.")
-    if (policy.rowVersion !== intent.rowVersion) return result(intent, "This policy changed elsewhere. Reload before saving.", policy.id, true)
-    const updated: PolicyView = { ...policy, ruleSummary: intent.ruleSummary.trim(), rowVersion: policy.rowVersion + 1 }
-    this.snapshot = { ...this.snapshot, policies: this.snapshot.policies.map((candidate) => candidate.id === policy.id ? updated : candidate) }
-    return result(intent, "Policy summary updated in the mock projection.", policy.id)
+    if (policy.rowVersion !== intent.rowVersion) return result(intent, "This policy changed elsewhere. Reload before activating.", policy.id, true)
+    if (policy.state !== "draft") return rejection(intent, "Only a draft policy version can be activated.", policy.id)
+    this.snapshot = {
+      ...this.snapshot,
+      policies: this.snapshot.policies.map((candidate) => candidate.name === policy.name && candidate.state === "active" ? { ...candidate, state: "superseded" as const, rowVersion: candidate.rowVersion + 1 } : candidate.id === policy.id ? { ...candidate, state: "active" as const, rowVersion: candidate.rowVersion + 1 } : candidate),
+    }
+    return result(intent, `Policy version ${policy.version} activated; prior active versions were superseded.`, policy.id)
+  }
+
+  private retirePolicy(intent: Extract<ControlPlaneIntent, { type: "retirePolicy" }>): MutationResult {
+    const policy = this.snapshot.policies.find((candidate) => candidate.id === intent.policyId)
+    if (!policy) return rejection(intent, "Policy was not found.")
+    if (policy.rowVersion !== intent.rowVersion) return result(intent, "This policy changed elsewhere. Reload before retiring.", policy.id, true)
+    if (policy.state === "retired") return rejection(intent, "Policy is already retired.", policy.id)
+    this.snapshot = { ...this.snapshot, policies: this.snapshot.policies.map((candidate) => candidate.id === policy.id ? { ...candidate, state: "retired" as const, rowVersion: candidate.rowVersion + 1 } : candidate) }
+    return result(intent, "Policy version retired in the mock projection.", policy.id)
+  }
+
+  private updatePolicy(intent: Extract<ControlPlaneIntent, { type: "updatePolicy" }>): MutationResult {
+    return rejection(intent, "Policy definitions are immutable; create a new version instead.", intent.policyId)
   }
 
   private updateAccountState(intent: Extract<ControlPlaneIntent, { type: "updateAccountState" }>): MutationResult {
     const account = this.snapshot.accounts.find((candidate) => candidate.id === intent.accountId)
     if (!account) return rejection(intent, "Account reference was not found.")
-    this.snapshot = { ...this.snapshot, accounts: this.snapshot.accounts.map((candidate) => candidate.id === account.id ? { ...candidate, state: intent.state } : candidate) }
+    if (account.rowVersion !== intent.rowVersion) return result(intent, "This account changed elsewhere. Reload before changing state.", account.id, true)
+    if (account.state === "retired" || intent.state === account.state) return rejection(intent, "Account state transition is not available.", account.id)
+    const allowed = account.state === "draft" ? intent.state === "active" || intent.state === "retired" : account.state === "active" ? intent.state === "inactive" || intent.state === "retired" : account.state === "inactive" && intent.state === "active"
+    if (!allowed) return rejection(intent, `Account cannot transition from ${account.state} to ${intent.state}.`, account.id)
+    this.snapshot = { ...this.snapshot, accounts: this.snapshot.accounts.map((candidate) => candidate.id === account.id ? { ...candidate, state: intent.state, rowVersion: candidate.rowVersion + 1 } : candidate) }
     return result(intent, "Account state updated in the mock projection.", account.id)
   }
+}
+
+function summarizeRule(ruleJson: string): string {
+  return ruleJson.length > 88 ? `${ruleJson.slice(0, 85)}…` : ruleJson
+}
+
+function canTransitionSetting(from: SettingView["state"], to: SettingView["state"]): boolean {
+  if (from === "draft") return to === "active" || to === "retired"
+  if (from === "active") return to === "superseded" || to === "retired"
+  if (from === "superseded") return to === "retired"
+  return false
 }
 
 export function createMockControlPlaneClient(): ControlPlaneClient {
