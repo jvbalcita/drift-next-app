@@ -1,112 +1,65 @@
 import { useMemo, useState } from "react"
-import { CircleHelp, MonitorPlay, Pause, Play, Square, Users } from "lucide-react"
+import { CircleHelp, MonitorCog, MonitorPlay, PanelsTopLeft, Play, RotateCw, Settings2, Smartphone, Square, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type {
-  ControlEligibility,
-  ControlPlaneSnapshot,
-  DeviceView,
-  DispatchIntent,
-  MirrorSessionView,
-} from "@/lib/domain/control-plane"
-import { DeviceStatus, MockNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import type { ControlEligibility, ControlPlaneSnapshot, DeviceView, DispatchIntent, MirrorSessionView } from "@/lib/domain/control-plane"
+import { DeviceStatus, MockNotice, PageIntro, StatusBadge, type StatusTone } from "./shared"
 import { textForDevice } from "./page-utils"
+
+type WorkspacePreferences = { largeWidth: number; compactWidth: number; quality: "Low" | "Medium" | "High" | "Extra"; frameRate: number; orientation: "portrait" | "landscape" }
+const defaults: WorkspacePreferences = { largeWidth: 680, compactWidth: 192, quality: "High", frameRate: 15, orientation: "portrait" }
 
 export function ControlPage({ snapshot, dispatch }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent }) {
   const initialSource = snapshot.devices.find((device) => device.status === "online")?.id ?? ""
   const [sourceDeviceId, setSourceDeviceId] = useState(initialSource)
   const [followerDeviceIds, setFollowerDeviceIds] = useState<string[]>([])
   const [feedback, setFeedback] = useState("")
+  const [preferences, setPreferences] = useState(defaults)
   const source = snapshot.devices.find((device) => device.id === sourceDeviceId)
   const followers = useMemo(() => snapshot.devices.filter((device) => device.id !== sourceDeviceId), [sourceDeviceId, snapshot.devices])
   const eligibleFollowers = followers.filter((device) => device.controlEligibility === "eligible")
   const selectedFollowers = followerDeviceIds.filter((id) => eligibleFollowers.some((device) => device.id === id))
-  const allEligibleSelected = eligibleFollowers.length > 0 && eligibleFollowers.every((device) => selectedFollowers.includes(device.id))
   const sourceReady = source?.status === "online" && source.controlEligibility === "eligible"
   const activeSession = snapshot.mirrorSessions.find((session) => session.state === "active")
   const latestSession = snapshot.mirrorSessions[0]
+  const selectedDevices = [sourceDeviceId, ...selectedFollowers].filter(Boolean)
 
-  function toggleFollower(deviceId: string) {
-    setFollowerDeviceIds((current) => current.includes(deviceId) ? current.filter((id) => id !== deviceId) : [...current, deviceId])
-    setFeedback("")
-  }
+  function setSource(id: string) { setSourceDeviceId(id); setFollowerDeviceIds((current) => current.filter((candidate) => candidate !== id)); setFeedback("") }
+  function toggleFollower(id: string) { setFollowerDeviceIds((current) => current.includes(id) ? current.filter((candidate) => candidate !== id) : [...current, id]); setFeedback("") }
+  function startPreview() { setFeedback(dispatch({ type: "startMirrorPreview", sourceDeviceId, followerDeviceIds: selectedFollowers }).message) }
+  function selectAllEligible() { setFollowerDeviceIds(selectedFollowers.length === eligibleFollowers.length ? [] : eligibleFollowers.map((device) => device.id)); setFeedback("") }
+  function stopPreview(session: MirrorSessionView) { setFeedback(dispatch({ type: "stopMirrorPreview", sessionId: session.id }).message) }
+  function rotate() { setPreferences((current) => ({ ...current, orientation: current.orientation === "portrait" ? "landscape" : "portrait" })); setFeedback(`Mock workspace rotated for ${selectedDevices.length || "no"} selected device${selectedDevices.length === 1 ? "" : "s"}. No device command was sent.`) }
 
-  function selectAllEligible() {
-    setFollowerDeviceIds(allEligibleSelected ? [] : eligibleFollowers.map((device) => device.id))
-    setFeedback("")
-  }
-
-  function startPreview() {
-    const mutation = dispatch({ type: "startMirrorPreview", sourceDeviceId, followerDeviceIds: selectedFollowers })
-    setFeedback(mutation.message)
-  }
-
-  function stopPreview(session: MirrorSessionView) {
-    const mutation = dispatch({ type: "stopMirrorPreview", sessionId: session.id })
-    setFeedback(mutation.message)
-  }
-
-  return (
-    <>
-      <PageIntro eyebrow="CONTROL / SOURCE + FOLLOWERS" title="Mirror control" description="Choose one source observation and a bounded set of eligible followers. The current slice is a browser-only interaction prototype." actions={<StatusBadge label="Preview only" tone="info" />} />
-      <MockNotice>This page is deliberately non-operative. It acquires no lease, sends no command, connects to no device, and records only mock result metadata.</MockNotice>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
-        <Panel title="Source device" description="Exactly one source is selected for this preview.">
-          <fieldset>
-            <legend className="sr-only">Select source device</legend>
-            <div className="space-y-3">{snapshot.devices.map((device) => <label key={device.id} className={`flex cursor-pointer items-start gap-3 border p-3 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25 ${device.id === sourceDeviceId ? "border-primary bg-secondary/70" : "border-border hover:bg-muted"}`}><input type="radio" name="source-device" value={device.id} checked={device.id === sourceDeviceId} onChange={() => { setSourceDeviceId(device.id); setFollowerDeviceIds((current) => current.filter((id) => id !== device.id)); setFeedback("") }} className="mt-1 size-4 accent-[var(--primary)]" aria-label={`Source device ${device.displayName}`} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">{device.displayName}</span><DeviceStatus device={device} /></div><p className="mt-1 text-[11px] text-muted-foreground">{device.location} · {device.platformVersion}</p><p className="drift-data mt-2 text-[10px] text-muted-foreground">{device.stableIdentity} · {device.lastSeen}</p></div></label>)}</div>
-          </fieldset>
-          <div className="mt-4 border-l-2 border-primary bg-secondary/60 p-3 text-xs"><div className="flex items-center gap-2 font-semibold"><MonitorPlay className="size-4 text-primary" aria-hidden="true" />Source readiness</div><p className="mt-1 text-muted-foreground">{source ? sourceReady ? "Ready for a mock preview." : `Not ready: ${eligibilityLabel(source.controlEligibility)}.` : "Select a source device."}</p></div>
-        </Panel>
-
-        <Panel title="Follower devices" description="Followers are selected independently; the source is excluded from this set." action={<Button variant="outline" size="sm" onClick={selectAllEligible} disabled={eligibleFollowers.length === 0}>{allEligibleSelected ? "Clear eligible" : "Select all eligible"}</Button>}>
-          <fieldset>
-            <legend className="sr-only">Select eligible follower devices</legend>
-            <div className="grid gap-3 sm:grid-cols-2">{followers.map((device) => { const eligible = device.controlEligibility === "eligible"; const selected = selectedFollowers.includes(device.id); return <label key={device.id} className={`flex min-h-28 items-start gap-3 border p-3 transition-colors ${eligible ? "cursor-pointer hover:bg-muted focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25" : "cursor-not-allowed bg-muted/50 opacity-80"} ${selected ? "border-primary bg-secondary/70" : "border-border"}`}><input type="checkbox" checked={selected} disabled={!eligible} onChange={() => toggleFollower(device.id)} className="mt-1 size-4 accent-[var(--primary)]" aria-label={`Follower device ${device.displayName}`} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">{device.displayName}</span><StatusBadge label={eligibilityLabel(device.controlEligibility)} tone={eligibilityTone(device.controlEligibility)} /></div><p className="mt-1 text-[11px] text-muted-foreground">{device.location}</p><p className="mt-2 text-[10px] leading-4 text-muted-foreground">{eligibilityDetail(device.controlEligibility)}</p></div></label> })}</div>
-          </fieldset>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"><p className="text-xs"><span className="drift-data font-semibold">{selectedFollowers.length}</span> follower{selectedFollowers.length === 1 ? "" : "s"} selected</p><p className="text-[11px] text-muted-foreground">Eligible {eligibleFollowers.length} · excluded source {source?.displayName ?? "—"}</p></div>
-        </Panel>
-      </div>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.42fr)]">
-        <Panel title="Preview frames" description="Frames are fixed mock placeholders, not live video or device screenshots.">
-          <div className="grid gap-4 lg:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.2fr)]">
-            <MockDeviceFrame device={source} label="Selected source mock frame" prominent />
-            <div><div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em]"><Users className="size-4 text-primary" aria-hidden="true" />Follower preview grid</div><div className="grid gap-3 sm:grid-cols-2">{selectedFollowers.length === 0 ? <div className="border border-dashed border-border px-4 py-8 text-center text-xs text-muted-foreground sm:col-span-2">Select at least one eligible follower to populate the preview.</div> : selectedFollowers.map((id) => <MockDeviceFrame key={id} device={snapshot.devices.find((candidate) => candidate.id === id)} label={`${textForDevice(snapshot.devices, id)} follower mock frame`} />)}</div></div>
-          </div>
-        </Panel>
-        <Panel title="Session action" description="The primary action is intentionally simulated until the typed control-plane runtime is authorized and connected.">
-          <div className="space-y-4"><div className="flex items-start gap-3 border border-border bg-muted/50 p-3"><Pause className="mt-0.5 size-4 text-amber-700" aria-hidden="true" /><div><p className="text-xs font-semibold">No command path attached</p><p className="mt-1 text-[11px] leading-5 text-muted-foreground">The source result and every follower result remain separate. A source success never implies follower success.</p></div></div><Button className="w-full rounded-none" onClick={startPreview} disabled={!sourceReady || selectedFollowers.length === 0}><Play className="size-3.5" aria-hidden="true" />Start mirror preview</Button>{activeSession ? <Button variant="outline" className="w-full rounded-none" onClick={() => stopPreview(activeSession)}><Square className="size-3.5" aria-hidden="true" />Stop mirror preview</Button> : null}<p aria-live="polite" className="min-h-10 border-l-2 border-primary bg-secondary/60 p-3 text-[11px] leading-5 text-muted-foreground">{feedback || "Simulation status will appear here. No command will be sent."}</p></div>
-        </Panel>
-      </div>
-
-      <div className="mt-6"><Panel title="Session results" description="Source and follower outcomes are rendered as independent typed results.">{latestSession ? <SessionResult session={latestSession} snapshot={snapshot} /> : <div className="flex items-start gap-2 text-xs text-muted-foreground"><CircleHelp className="mt-0.5 size-4 text-primary" aria-hidden="true" />No preview session has been started in this mock workspace.</div>}<div className="mt-4 border-t border-border pt-4"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Typed result vocabulary</p><div className="flex flex-wrap gap-2"><StatusBadge label="Offline" tone="attention" /><StatusBadge label="Incompatible" tone="attention" /><StatusBadge label="Policy denied" tone="danger" /><StatusBadge label="Lease conflict" tone="danger" /><StatusBadge label="Target resolution failed" tone="danger" /></div></div></Panel></div>
-      <div className="mt-6 border-t border-border pt-4 text-[11px] leading-5 text-muted-foreground"><strong className="font-semibold text-foreground">Legend:</strong> Ready means the mock projection satisfies preview eligibility; Offline, Incompatible, and Policy denied are explicit non-success states. Colour is supplementary.</div>
-    </>
-  )
+  return <>
+    <PageIntro eyebrow="CONTROL / DEVICE WORKSPACE" title="Mirror control workspace" description="A browser-only mirror workspace. Device frames are mock observations; every source and follower outcome stays independent." actions={<StatusBadge label="Preview only" tone="info" />} />
+    <MockNotice>No lease is acquired, command dispatched, ADB connection opened, or live video displayed. Settings below alter this workspace only, never device safety policy.</MockNotice>
+    <div className="mb-4 flex flex-wrap items-center gap-2 border-y border-border py-3" aria-label="Control workspace toolbar">
+      <span className="mr-auto text-xs font-semibold"><span className="drift-data">{selectedDevices.length}</span> selected device{selectedDevices.length === 1 ? "" : "s"}</span>
+      <SettingsSheet preferences={preferences} onChange={setPreferences} />
+      <DeviceDialog devices={snapshot.devices} sourceId={sourceDeviceId} followers={selectedFollowers} onSource={setSource} onToggleFollower={toggleFollower} />
+      <Button variant="outline" size="sm" onClick={selectAllEligible} disabled={eligibleFollowers.length === 0}>{selectedFollowers.length === eligibleFollowers.length ? "Clear eligible" : "Select all eligible"}</Button>
+      <Button variant="outline" size="sm" onClick={rotate}><RotateCw className="size-3.5" aria-hidden="true" />Rotate selected</Button>
+      <StatusBadge label={`Mock · ${preferences.quality} · ${preferences.frameRate} fps`} tone="neutral" />
+    </div>
+    <Tabs defaultValue="mirror" className="min-w-0">
+      <TabsList aria-label="Control workspace mode" className="mb-4 rounded-none border border-border bg-background p-0"><TabsTrigger value="mirror" className="rounded-none"><MonitorPlay className="size-3.5" aria-hidden="true" />Mirror</TabsTrigger><TabsTrigger value="otg" className="rounded-none"><PanelsTopLeft className="size-3.5" aria-hidden="true" />OTG <span className="ml-1 text-[10px]">unavailable</span></TabsTrigger></TabsList>
+      <TabsContent value="mirror" className="mt-0"><div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]"><ScrollArea className="h-[min(68vh,780px)] border border-border bg-muted/20"><div className="grid min-h-full content-start gap-4 p-4 [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]" aria-label="Mock device frame workspace"><MockDeviceFrame device={source} label="Selected source" role="source" preferences={preferences} />{selectedFollowers.map((id) => <MockDeviceFrame key={id} device={snapshot.devices.find((candidate) => candidate.id === id)} label="Selected follower" role="follower" preferences={preferences} />)}{selectedFollowers.length === 0 ? <div className="flex min-h-56 items-center justify-center border border-dashed border-border p-6 text-center text-xs text-muted-foreground">Choose eligible followers from the control panel or Devices dialog to add mock frames.</div> : null}</div></ScrollArea><aside className="border border-border bg-card" aria-label="Control session results"><div className="border-b border-border p-4"><p className="text-xs font-semibold uppercase tracking-[.08em]">Session result</p><p className="mt-1 text-[11px] text-muted-foreground">Independent source and follower states.</p></div><div className="space-y-3 p-4"><Button className="w-full rounded-none" onClick={startPreview} disabled={!sourceReady || selectedFollowers.length === 0}><Play className="size-3.5" aria-hidden="true" />Start mirror preview</Button>{activeSession ? <Button variant="outline" className="w-full rounded-none" onClick={() => stopPreview(activeSession)}><Square className="size-3.5" aria-hidden="true" />Stop mirror preview</Button> : null}<p aria-live="polite" className="border-l-2 border-primary bg-secondary/60 p-3 text-[11px] leading-5 text-muted-foreground">{feedback || "No mock session has been started."}</p>{latestSession ? <SessionResult session={latestSession} snapshot={snapshot} /> : <div className="flex gap-2 text-xs text-muted-foreground"><CircleHelp className="size-4 shrink-0 text-primary" aria-hidden="true" />Outcomes appear here after mock preview begins.</div>}</div></aside></div>
+      <Collapsible className="mt-4 border border-border bg-card"><CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left text-xs font-semibold uppercase tracking-[.08em]">Control panel <span className="text-muted-foreground">Source, followers, and eligibility</span></CollapsibleTrigger><CollapsibleContent className="border-t border-border p-4"><div className="grid gap-5 lg:grid-cols-2"><fieldset><legend className="mb-2 text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">Source device</legend><div className="space-y-2">{snapshot.devices.map((device) => <label key={device.id} className="flex cursor-pointer items-center gap-3 border border-border p-3 has-[:checked]:border-primary has-[:checked]:bg-secondary/50"><input type="radio" name="control-source" checked={device.id === sourceDeviceId} onChange={() => setSource(device.id)} aria-label={`Use ${device.displayName} as source`} /><span className="min-w-0 flex-1"><span className="block text-xs font-medium">{device.displayName}</span><span className="text-[10px] text-muted-foreground">{device.location} · {eligibilityLabel(device.controlEligibility)}</span></span><DeviceStatus device={device} /></label>)}</div></fieldset><fieldset><legend className="mb-2 text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">Followers · eligible only</legend><div className="space-y-2">{followers.map((device) => { const eligible = device.controlEligibility === "eligible"; return <label key={device.id} className="flex items-center gap-3 border border-border p-3 has-[:checked]:border-primary has-[:checked]:bg-secondary/50"><input type="checkbox" checked={selectedFollowers.includes(device.id)} disabled={!eligible} onChange={() => toggleFollower(device.id)} aria-label={`Add ${device.displayName} as follower`} /><span className="min-w-0 flex-1"><span className="block text-xs font-medium">{device.displayName}</span><span className="text-[10px] text-muted-foreground">{eligibilityDetail(device.controlEligibility)}</span></span><StatusBadge label={eligibilityLabel(device.controlEligibility)} tone={eligibilityTone(device.controlEligibility)} /></label> })}</div></fieldset></div></CollapsibleContent></Collapsible></TabsContent>
+      <TabsContent value="otg" className="mt-0"><div className="border border-dashed border-border bg-muted/30 p-8 text-center"><MonitorCog className="mx-auto size-5 text-muted-foreground" aria-hidden="true" /><p className="mt-3 text-sm font-semibold">OTG is unavailable in this phase</p><p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-muted-foreground">This mock-backed browser workspace has no authorized runtime, Android, device, or credential integration.</p></div></TabsContent>
+    </Tabs>
+  </>
 }
 
-function MockDeviceFrame({ device, label, prominent = false }: { device: DeviceView | undefined; label: string; prominent?: boolean }) {
-  return <div aria-label={label} className={`flex aspect-[9/13] min-h-40 flex-col border border-border bg-foreground p-3 text-white ${prominent ? "mx-auto w-full max-w-[300px]" : "w-full"}`}><div className="flex items-center justify-between border-b border-white/20 pb-2 text-[10px] uppercase tracking-[0.08em]"><span>Mock / preview</span><span className="drift-data">1080×1920</span></div><div className="flex flex-1 flex-col items-center justify-center gap-3 text-center"><div className="flex size-12 items-center justify-center border border-white/40"><MonitorPlay className="size-5" aria-hidden="true" /></div><p className="text-sm font-semibold">{device?.displayName ?? "No source selected"}</p><p className="text-[10px] text-white/70">No live feed attached</p></div><div className="border-t border-white/20 pt-2 text-[10px] text-white/70">{device?.workflow ?? "Awaiting selection"}</div></div>
-}
-
-function SessionResult({ session, snapshot }: { session: MirrorSessionView; snapshot: ControlPlaneSnapshot }) {
-  return <div className="space-y-4"><div className="border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold">Source · {textForDevice(snapshot.devices, session.sourceDeviceId)}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{session.id} · {session.startedAt}</p></div><StatusBadge label={session.state} tone={session.state === "active" ? "info" : "neutral"} /></div><p className="mt-2 text-xs text-muted-foreground">{session.sourceResult}</p></div><div className="grid gap-3 md:grid-cols-2">{session.followerResults.map((result) => <div key={result.deviceId} className="border border-border p-3"><div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold">Follower · {textForDevice(snapshot.devices, result.deviceId)}</p><StatusBadge label={result.outcome.replaceAll("_", " ")} tone={result.outcome === "simulated_success" ? "healthy" : "attention"} /></div><p className="mt-2 text-[11px] leading-5 text-muted-foreground">{result.detail}</p></div>)}</div></div>
-}
-
-function eligibilityLabel(value: ControlEligibility): string {
-  return value === "policy_denied" ? "Policy denied" : value.replaceAll("_", " ")
-}
-
-function eligibilityTone(value: ControlEligibility): StatusTone {
-  return value === "eligible" ? "healthy" : value === "policy_denied" ? "danger" : "attention"
-}
-
-function eligibilityDetail(value: ControlEligibility): string {
-  switch (value) {
-    case "eligible": return "Fresh mock observation and required capability present."
-    case "offline": return "No current transport; action is withheld."
-    case "incompatible": return "Capability projection does not match this preview."
-    case "policy_denied": return "Active policy denies this target."
-  }
-}
+function SettingsSheet({ preferences, onChange }: { preferences: WorkspacePreferences; onChange: (value: WorkspacePreferences) => void }) { return <Sheet><SheetTrigger render={<Button variant="outline" size="sm" />}><Settings2 className="size-3.5" aria-hidden="true" />Settings</SheetTrigger><SheetContent className="w-full rounded-none sm:max-w-md"><SheetHeader className="border-b border-border"><SheetTitle>Control workspace preferences</SheetTitle><SheetDescription>Display-only preferences. They do not alter control policy or device behavior.</SheetDescription></SheetHeader><div className="space-y-5 overflow-y-auto p-4"><Slider label="Large frame width" value={preferences.largeWidth} min={680} max={1240} unit="px" onChange={(largeWidth) => onChange({ ...preferences, largeWidth })} /><Slider label="Compact frame width" value={preferences.compactWidth} min={192} max={840} unit="px" onChange={(compactWidth) => onChange({ ...preferences, compactWidth })} /><label className="block text-xs font-medium">Quality<select aria-label="Frame quality" value={preferences.quality} onChange={(event) => onChange({ ...preferences, quality: event.target.value as WorkspacePreferences["quality"] })} className="mt-2 h-9 w-full rounded-none border border-input bg-background px-2 text-xs"><option>Low</option><option>Medium</option><option>High</option><option>Extra</option></select></label><Slider label="Frame rate" value={preferences.frameRate} min={1} max={24} unit="fps" onChange={(frameRate) => onChange({ ...preferences, frameRate })} /><div className="border border-border p-3 text-xs"><p className="font-medium">Orientation</p><div className="mt-2 flex gap-2"><Button size="sm" variant={preferences.orientation === "portrait" ? "default" : "outline"} onClick={() => onChange({ ...preferences, orientation: "portrait" })}>Portrait</Button><Button size="sm" variant={preferences.orientation === "landscape" ? "default" : "outline"} onClick={() => onChange({ ...preferences, orientation: "landscape" })}>Landscape</Button></div></div><Button variant="outline" className="w-full rounded-none" onClick={() => onChange(defaults)}>Reset to defaults</Button></div></SheetContent></Sheet> }
+function Slider({ label, value, min, max, unit, onChange }: { label: string; value: number; min: number; max: number; unit: string; onChange: (value: number) => void }) { const id = label.toLowerCase().replaceAll(" ", "-"); return <label htmlFor={id} className="block text-xs font-medium">{label}<span className="float-right font-mono text-muted-foreground">{value} {unit}</span><input id={id} aria-label={label} type="range" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} className="mt-3 w-full accent-primary" /><span className="mt-1 flex justify-between text-[10px] text-muted-foreground"><span>{min} {unit}</span><span>{max} {unit}</span></span></label> }
+function DeviceDialog({ devices, sourceId, followers, onSource, onToggleFollower }: { devices: readonly DeviceView[]; sourceId: string; followers: readonly string[]; onSource: (id: string) => void; onToggleFollower: (id: string) => void }) { return <Dialog><DialogTrigger render={<Button variant="outline" size="sm" />}><Users className="size-3.5" aria-hidden="true" />Devices</DialogTrigger><DialogContent className="max-w-2xl rounded-none"><DialogHeader><DialogTitle>Select workspace devices</DialogTitle><DialogDescription>Source selection and eligibility-filtered follower selection remain mock-only.</DialogDescription></DialogHeader><div className="max-h-[55vh] overflow-y-auto border-y border-border py-2">{devices.map((device) => { const follower = device.id !== sourceId; const eligible = device.controlEligibility === "eligible"; return <div key={device.id} className="flex items-center gap-3 border-b border-border p-3 last:border-0"><input type="radio" name="dialog-source" checked={device.id === sourceId} onChange={() => onSource(device.id)} aria-label={`Set ${device.displayName} as source`} /><input type="checkbox" checked={followers.includes(device.id)} disabled={!follower || !eligible} onChange={() => onToggleFollower(device.id)} aria-label={`Select ${device.displayName} as follower`} /><Smartphone className="size-4 text-primary" aria-hidden="true" /><span className="flex-1 text-xs font-medium">{device.displayName}</span><StatusBadge label={eligibilityLabel(device.controlEligibility)} tone={eligibilityTone(device.controlEligibility)} /></div> })}</div><DialogFooter showCloseButton /></DialogContent></Dialog> }
+function MockDeviceFrame({ device, label, role, preferences }: { device: DeviceView | undefined; label: string; role: "source" | "follower"; preferences: WorkspacePreferences }) { const source = role === "source"; return <article aria-label={`${label} mock phone frame`} className={`flex min-h-72 flex-col border-2 ${source ? "border-primary" : "border-border"} bg-foreground p-3 text-white`} style={{ maxWidth: source ? preferences.largeWidth : preferences.compactWidth, aspectRatio: preferences.orientation === "portrait" ? "9 / 16" : "16 / 9" }}><div className="flex justify-between border-b border-white/20 pb-2 text-[9px] font-semibold uppercase tracking-[.08em]"><span>{source ? "Source" : "Follower"} · mock</span><span>{preferences.quality} / {preferences.frameRate} fps</span></div><div className="flex flex-1 flex-col items-center justify-center text-center"><MonitorPlay className="size-7 text-white/70" aria-hidden="true" /><p className="mt-3 text-sm font-semibold">{device?.displayName ?? "No source"}</p><p className="mt-1 text-[10px] text-white/60">No live feed attached</p></div><div className="border-t border-white/20 pt-2 text-[10px] text-white/70">{device?.workflow ?? "Awaiting selection"}</div></article> }
+function SessionResult({ session, snapshot }: { session: MirrorSessionView; snapshot: ControlPlaneSnapshot }) { return <div className="space-y-2"><div className="border border-border p-3"><p className="text-[10px] font-semibold uppercase tracking-[.08em]">Source · {textForDevice(snapshot.devices, session.sourceDeviceId)}</p><p className="mt-1 text-xs text-muted-foreground">{session.sourceResult}</p></div>{session.followerResults.map((result) => <div key={result.deviceId} className="border border-border p-3"><div className="flex items-center justify-between gap-2"><p className="text-xs font-medium">{textForDevice(snapshot.devices, result.deviceId)}</p><StatusBadge label={result.outcome.replaceAll("_", " ")} tone={result.outcome === "simulated_success" ? "healthy" : "attention"} /></div><p className="mt-1 text-[11px] text-muted-foreground">{result.detail}</p></div>)}</div> }
+function eligibilityLabel(value: ControlEligibility) { return value === "policy_denied" ? "Policy denied" : value.replaceAll("_", " ") }
+function eligibilityTone(value: ControlEligibility): StatusTone { return value === "eligible" ? "healthy" : value === "policy_denied" ? "danger" : "attention" }
+function eligibilityDetail(value: ControlEligibility) { return value === "eligible" ? "Fresh mock observation and required capability present." : value === "offline" ? "No current transport; action is withheld." : value === "incompatible" ? "Capability projection does not match this preview." : "Active policy denies this target." }

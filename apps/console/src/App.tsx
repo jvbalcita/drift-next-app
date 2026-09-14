@@ -17,6 +17,7 @@ import {
   SidebarTrigger,
 } from "./components/ui/sidebar"
 import { TooltipProvider } from "./components/ui/tooltip"
+import { Skeleton } from "./components/ui/skeleton"
 import { useControlPlane } from "./lib/api/use-control-plane"
 import { AgentsPage } from "./pages/AgentsPage"
 import { ControlPage } from "./pages/ControlPage"
@@ -68,7 +69,7 @@ function App() {
 }
 
 function ConsoleLoadingState() {
-  return <div role="status" className="border border-border bg-card p-6 text-sm text-muted-foreground">Loading typed console surface…</div>
+  return <div role="status" className="space-y-4 border border-border bg-card p-6" aria-label="Loading console surface"><Skeleton className="h-4 w-32 rounded-none" /><Skeleton className="h-10 w-2/5 rounded-none" /><div className="grid gap-3 md:grid-cols-3"><Skeleton className="h-28 rounded-none" /><Skeleton className="h-28 rounded-none" /><Skeleton className="h-28 rounded-none" /></div></div>
 }
 
 function renderSection(section: string, snapshot: ReturnType<typeof useControlPlane>["snapshot"], dispatch: ReturnType<typeof useControlPlane>["dispatch"]) {
