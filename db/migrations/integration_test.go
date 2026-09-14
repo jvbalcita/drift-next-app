@@ -81,8 +81,8 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM drift_schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("ledger count error = %v", err)
 	}
-	if count != 10 {
-		t.Fatalf("ledger count = %d, want 10 SQLite migrations", count)
+	if count != 12 {
+		t.Fatalf("ledger count = %d, want 12 SQLite migrations", count)
 	}
 
 	var foreignKeys string
@@ -104,7 +104,7 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	for _, table := range []string{
 		"workspaces", "principals", "operators", "edge_agents", "devices", "device_endpoints",
 		"network_profiles", "scan_runs", "scan_candidates", "device_groups", "device_group_memberships",
-		"automation_agents", "automation_agent_device_assignments", "observation_snapshots", "health_samples",
+		"automation_agents", "automation_agent_device_assignments", "observation_snapshots", "device_inventory", "inventory_snapshots", "health_samples", "device_health_current", "device_events",
 		"control_sessions", "device_leases", "mirror_sessions", "mirror_targets", "workflows", "workflow_versions",
 		"runs", "run_targets", "accounts", "settings", "policies", "artifacts", "recording_sessions",
 		"skills", "audit_events", "idempotency_keys", "outbox_messages",
@@ -156,7 +156,7 @@ func TestSQLiteMigrationsApplyIncrementally(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	for version := 2; version <= 11; version++ {
+	for version := 2; version <= 13; version++ {
 		runner, err := migrationrunner.NewRunner(db, migrationFilesThrough(t, version), migrationrunner.Options{})
 		if err != nil {
 			t.Fatalf("NewRunner(%d) error = %v", version, err)
@@ -171,6 +171,40 @@ func TestSQLiteMigrationsApplyIncrementally(t *testing.T) {
 		if count != version-1 {
 			t.Fatalf("applied migration count after %d = %d, want %d", version, count, version-1)
 		}
+	}
+}
+
+func TestObservationFreshnessMigrationBackfillsLegacyProvenance(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "legacy-observation.db")
+	db, err := migrationrunner.Open(context.Background(), path, migrationrunner.OpenOptions{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	legacyRunner, err := migrationrunner.NewRunner(db, migrationFilesThrough(t, 6), migrationrunner.Options{})
+	if err != nil {
+		t.Fatalf("NewRunner(6) error = %v", err)
+	}
+	if err := legacyRunner.Apply(context.Background()); err != nil {
+		t.Fatalf("Apply(6) error = %v", err)
+	}
+	execSQL(t, db, `INSERT INTO workspaces (id, name, state, created_at, updated_at) VALUES ('legacy-w', 'Legacy', 'active', ?, ?)`, testTime, testTime)
+	execSQL(t, db, `INSERT INTO devices (id, workspace_id, display_name, platform_version, state, created_at, updated_at) VALUES ('legacy-d', 'legacy-w', 'Legacy Device', 'fake', 'active', ?, ?)`, testTime, testTime)
+	execSQL(t, db, `INSERT INTO observation_snapshots (id, workspace_id, device_id, captured_at, capture_correlation_id, coordinate_space, package_name, activity_name, orientation, display_width, display_height, source, protocol_version, capture_status, state, created_at) VALUES ('legacy-o', 'legacy-w', 'legacy-d', ?, 'capture-legacy', 'screen_px', 'com.example.legacy', '.MainActivity', 'portrait', 1080, 1920, 'fake', 'fake-legacy', 'complete', 'recorded', ?)`, testTime, testTime)
+	fullRunner, err := migrationrunner.NewRunner(db, migrations.SQLiteFiles, migrationrunner.Options{})
+	if err != nil {
+		t.Fatalf("NewRunner(full) error = %v", err)
+	}
+	if err := fullRunner.Apply(context.Background()); err != nil {
+		t.Fatalf("Apply(full) error = %v", err)
+	}
+	var modelVersion, freshness string
+	var skew int
+	if err := db.QueryRow(`SELECT model_version, freshness_token, capture_skew_ms FROM observation_snapshots WHERE id='legacy-o'`).Scan(&modelVersion, &freshness, &skew); err != nil {
+		t.Fatalf("backfilled observation lookup error = %v", err)
+	}
+	if modelVersion != "fake-legacy" || freshness != "legacy:legacy-o" || skew != 0 {
+		t.Fatalf("backfilled observation provenance = (%q, %q, %d), want legacy values", modelVersion, freshness, skew)
 	}
 }
 

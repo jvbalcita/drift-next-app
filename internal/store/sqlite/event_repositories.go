@@ -16,7 +16,18 @@ type EventRepository struct{ store *DB }
 
 func NewEventRepository(store *DB) *EventRepository { return &EventRepository{store: store} }
 func (r *EventRepository) List(ctx context.Context, workspace organizations.WorkspaceID, name string) ([]events.Event, error) {
-	rows, err := r.store.db.QueryContext(ctx, `SELECT id, workspace_id, event_name, schema_version, correlation_id, causation_id, actor_id, source, payload_json, occurred_at FROM device_events WHERE workspace_id = ? AND (? = '' OR event_name = ?) ORDER BY occurred_at, id`, workspace, name, name)
+	return r.list(ctx, workspace, "", name)
+}
+
+func (r *EventRepository) ListDevice(ctx context.Context, workspace organizations.WorkspaceID, deviceID, name string) ([]events.Event, error) {
+	return r.list(ctx, workspace, deviceID, name)
+}
+
+func (r *EventRepository) list(ctx context.Context, workspace organizations.WorkspaceID, deviceID, name string) ([]events.Event, error) {
+	if err := validateWorkspace(string(workspace)); err != nil {
+		return nil, err
+	}
+	rows, err := r.store.db.QueryContext(ctx, `SELECT id, workspace_id, device_id, event_name, schema_version, correlation_id, causation_id, actor_type, actor_id, source, payload_json, occurred_at FROM device_events WHERE workspace_id = ? AND (? = '' OR device_id = ?) AND (? = '' OR event_name = ?) ORDER BY occurred_at, id`, workspace, deviceID, deviceID, name, name)
 	if err != nil {
 		return nil, classifyContext(err)
 	}
@@ -24,14 +35,20 @@ func (r *EventRepository) List(ctx context.Context, workspace organizations.Work
 	result := []events.Event{}
 	for rows.Next() {
 		var e events.Event
-		var actor, source string
+		var deviceID, actor, source, actorType string
+		var causation sql.NullString
 		var at string
-		if err := rows.Scan(&e.ID, &e.Workspace, &e.Name, &e.SchemaVersion, &e.CorrelationID, &e.CausationID, &actor, &source, &e.PayloadJSON, &at); err != nil {
+		if err := rows.Scan(&e.ID, &e.Workspace, &deviceID, &e.Name, &e.SchemaVersion, &e.CorrelationID, &causation, &actorType, &actor, &source, &e.PayloadJSON, &at); err != nil {
 			return nil, err
 		}
-		e.ActorType = events.ActorService
+		if causation.Valid {
+			e.CausationID = causation.String
+		}
+		e.ActorType = events.ActorType(actorType)
 		e.ActorID = actor
 		e.Source = events.SourceType(source)
+		e.ResourceType = "device"
+		e.ResourceID = deviceID
 		e.OccurredAt, _ = time.Parse(time.RFC3339Nano, at)
 		result = append(result, e)
 	}

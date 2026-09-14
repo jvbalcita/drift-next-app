@@ -3,10 +3,14 @@
 package events
 
 import (
+	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"drift.local/drift-next/internal/domain"
 	"drift.local/drift-next/internal/organizations"
+	"drift.local/drift-next/internal/platform/redaction"
 )
 
 type EventID string
@@ -67,8 +71,39 @@ type OutboxMessage struct {
 	DeliveredAt *time.Time
 }
 
+func (a ActorType) Valid() bool {
+	switch a {
+	case ActorOperator, ActorService, ActorEdge, ActorSystem:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s SourceType) Valid() bool {
+	switch s {
+	case SourceControlPlane, SourceEdgeAgent, SourceConsole, SourceFake:
+		return true
+	default:
+		return false
+	}
+}
+
+func (e Event) Validate() error {
+	if strings.TrimSpace(string(e.ID)) == "" || strings.TrimSpace(string(e.Workspace)) == "" || strings.TrimSpace(e.Name) == "" || e.SchemaVersion <= 0 || strings.TrimSpace(e.CorrelationID) == "" || !e.ActorType.Valid() || strings.TrimSpace(e.ActorID) == "" || !e.Source.Valid() || strings.TrimSpace(e.ResourceType) == "" || strings.TrimSpace(e.ResourceID) == "" || strings.TrimSpace(e.PayloadJSON) == "" || e.OccurredAt.IsZero() {
+		return fmt.Errorf("event envelope is incomplete")
+	}
+	if len(e.Name) > 256 || len(e.CorrelationID) > 256 || len(e.CausationID) > 256 || len(e.IdempotencyKey) > 256 || len(e.ActorID) > 256 || len(e.ResourceType) > 128 || len(e.ResourceID) > 256 || len(e.PayloadJSON) > 65536 {
+		return fmt.Errorf("event envelope is unbounded")
+	}
+	if !json.Valid([]byte(e.PayloadJSON)) || redaction.RedactString(e.PayloadJSON) != e.PayloadJSON {
+		return fmt.Errorf("event payload must be bounded valid sanitized JSON")
+	}
+	return nil
+}
+
 func (e Event) Valid() bool {
-	return e.ID != "" && e.Workspace != "" && e.Name != "" && e.SchemaVersion > 0 && e.CorrelationID != "" && e.ActorType != "" && e.ActorID != "" && e.Source != "" && e.ResourceType != "" && e.ResourceID != "" && e.PayloadJSON != "" && !e.OccurredAt.IsZero()
+	return e.Validate() == nil
 }
 
 func (s OutboxState) Valid() bool {
