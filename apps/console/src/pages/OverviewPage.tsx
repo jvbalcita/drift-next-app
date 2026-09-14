@@ -33,6 +33,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import type {
   ControlPlaneSnapshot,
   DeviceStatus,
@@ -42,6 +43,7 @@ import type {
 
 export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent }) {
   const [selectedDeviceId, setSelectedDeviceId] = useState(snapshot.devices[0]?.id ?? "")
+  const [inspectorOpen, setInspectorOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [lastRefresh, setLastRefresh] = useState("just now")
   const selectedDevice = snapshot.devices.find((device) => device.id === selectedDeviceId) ?? snapshot.devices[0]
@@ -99,13 +101,13 @@ export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
           </CardHeader>
           <CardContent className="p-3 sm:p-4">
             <div className="grid gap-3 md:grid-cols-2">
-              {filteredDevices.map((device) => <DeviceCard key={device.id} device={device} selected={device.id === selectedDevice?.id} onSelect={() => setSelectedDeviceId(device.id)} />)}
+              {filteredDevices.map((device) => <DeviceCard key={device.id} device={device} selected={device.id === selectedDevice?.id} onSelect={() => { setSelectedDeviceId(device.id); setInspectorOpen(true) }} />)}
             </div>
             {filteredDevices.length === 0 ? <p className="px-2 py-8 text-center text-sm text-muted-foreground">No devices match “{query}”.</p> : null}
           </CardContent>
         </Card>
 
-        {selectedDevice ? <Card className="rounded-none border-border bg-card">
+        {selectedDevice ? <Card className="hidden rounded-none border-border bg-card">
           <CardHeader className="border-b border-border pb-4">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Smartphone className="size-4 text-primary" aria-hidden="true" /><h2>Selected device</h2></CardTitle>
             <CardDescription className="mt-2 text-xs">Current device, edge-agent, and observation projections · read-only demo</CardDescription>
@@ -140,6 +142,7 @@ export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
           </CardContent>
         </Card> : null}
       </div>
+      <Sheet modal={false} open={inspectorOpen} onOpenChange={setInspectorOpen}><SheetContent className="w-full rounded-none sm:max-w-xl"><SheetHeader className="border-b border-border"><SheetTitle>{selectedDevice?.displayName ?? "Device inspector"}</SheetTitle><SheetDescription>Current device, activity, and health projections.</SheetDescription></SheetHeader>{selectedDevice ? <Tabs defaultValue="overview" className="p-4"><TabsList className="rounded-none border border-border bg-background p-0"><TabsTrigger value="overview" className="rounded-none">Overview</TabsTrigger><TabsTrigger value="activity" className="rounded-none">Activity</TabsTrigger><TabsTrigger value="health" className="rounded-none">Health</TabsTrigger></TabsList><TabsContent value="overview" className="space-y-3 text-xs"><DeviceStatusBadge status={selectedDevice.status} /><p>{selectedDevice.location}</p><p>Edge agent {selectedDevice.agentId} · last seen {selectedDevice.lastSeen}</p></TabsContent><TabsContent value="activity"><ActivityTimeline events={snapshot.events.slice(0, 4)} compact /></TabsContent><TabsContent value="health" className="text-xs">Battery {selectedDevice.batteryPercent}% · latency {selectedDevice.latencyMs} ms · {selectedDevice.workflow}</TabsContent></Tabs> : null}</SheetContent></Sheet>
 
       <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.42fr)]">
         <Card className="rounded-none border-border bg-card">
