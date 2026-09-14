@@ -1,11 +1,11 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from "react"
+import { Children, useMemo, useState, type FormEvent, type ReactNode } from "react"
 import { Database, Link2, Plus, ShieldOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent } from "@/lib/domain/control-plane"
-import { FieldLabel, MockNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
+import { DataTablePagination, EmptyState, FieldLabel, MockNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 
 function accountTabForView(view: string) { return view === "service-history" ? "service" : view === "run-history" ? "runs" : view }
 function viewForAccountTab(view: string) { return view === "service" ? "service-history" : view === "runs" ? "run-history" : view }
@@ -54,7 +54,7 @@ export function AccountsPage({ snapshot, dispatch, view = "sources", onViewChang
   </>
 }
 
-function DenseTable({ headings, children }: { headings: readonly string[]; children: ReactNode }) { return <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead><tr className="border-b border-border text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{headings.map((heading, index) => <th key={`${heading}-${index}`} className="pb-3">{heading}</th>)}</tr></thead><tbody className="[&>tr]:border-b [&>tr]:border-border/70 [&>tr:last-child]:border-0 [&>tr>td]:py-3">{children}</tbody></table></div> }
+function DenseTable({ headings, children }: { headings: readonly string[]; children: ReactNode }) { const [page, setPage] = useState(0); const [pageSize, setPageSize] = useState(10); const rows = Children.toArray(children); const visibleRows = rows.slice(page * pageSize, (page + 1) * pageSize); return <>{rows.length === 0 ? <EmptyState label="No Records" detail="No records are available for this view." /> : <div className="overflow-x-auto border border-border"><table className="w-full min-w-[760px] text-left text-xs"><caption className="sr-only">Account records</caption><thead><tr className="border-b border-border text-[10px] tracking-[0.08em] text-muted-foreground">{headings.map((heading, index) => <th key={`${heading}-${index}`} className="p-3">{heading || <span className="sr-only">Actions</span>}</th>)}</tr></thead><tbody className="[&>tr]:border-b [&>tr]:border-border/70 [&>tr:last-child]:border-0 [&>tr>td]:p-3 [&>tr]:hover:bg-muted/50">{visibleRows}</tbody></table></div>}<DataTablePagination page={page} pageSize={pageSize} total={rows.length} onPageChange={setPage} onPageSizeChange={(next) => { setPageSize(next); setPage(0) }} /></> }
 function TextField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) { return <div><FieldLabel htmlFor={id}>{label}</FieldLabel><input id={id} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs" /></div> }
 function JsonField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) { return <div><FieldLabel htmlFor={id}>{label}</FieldLabel><textarea id={id} value={value} onChange={(event) => onChange(event.target.value)} rows={3} className="mt-1 w-full rounded-none border border-input bg-background p-2 font-mono text-[11px]" /></div> }
 function isAccountState(value: string): value is "draft" | "active" | "inactive" | "retired" { return value === "draft" || value === "active" || value === "inactive" || value === "retired" }
