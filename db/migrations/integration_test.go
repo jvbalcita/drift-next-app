@@ -81,8 +81,8 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM drift_schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("ledger count error = %v", err)
 	}
-	if count != 12 {
-		t.Fatalf("ledger count = %d, want 12 SQLite migrations", count)
+	if count != 13 {
+		t.Fatalf("ledger count = %d, want 13 SQLite migrations", count)
 	}
 
 	var foreignKeys string
@@ -106,7 +106,8 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 		"network_profiles", "scan_runs", "scan_candidates", "device_groups", "device_group_memberships",
 		"automation_agents", "automation_agent_device_assignments", "observation_snapshots", "device_inventory", "inventory_snapshots", "health_samples", "device_health_current", "device_events",
 		"control_sessions", "device_leases", "mirror_sessions", "mirror_targets", "workflows", "workflow_versions",
-		"runs", "run_targets", "accounts", "settings", "policies", "artifacts", "recording_sessions",
+		"workflow_steps", "runs", "target_set_snapshots", "run_targets", "target_run_steps", "action_attempts", "run_events", "run_ai_candidates", "replay_evidence",
+		"accounts", "settings", "policies", "artifacts", "recording_sessions",
 		"skills", "audit_events", "idempotency_keys", "outbox_messages",
 	} {
 		var exists int
@@ -156,7 +157,7 @@ func TestSQLiteMigrationsApplyIncrementally(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	for version := 2; version <= 13; version++ {
+	for version := 2; version <= 14; version++ {
 		runner, err := migrationrunner.NewRunner(db, migrationFilesThrough(t, version), migrationrunner.Options{})
 		if err != nil {
 			t.Fatalf("NewRunner(%d) error = %v", version, err)

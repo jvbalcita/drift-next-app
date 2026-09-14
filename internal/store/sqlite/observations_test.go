@@ -18,7 +18,7 @@ import (
 )
 
 func observationFixture(workspace organizations.WorkspaceID, id, token string, captured time.Time) observations.ObservationSnapshot {
-	return observations.ObservationSnapshot{ID: observations.ObservationID(id), Workspace: workspace, DeviceID: "device-1", CapturedAt: captured, CaptureCorrelationID: "capture-" + id, CoordinateSpace: "screen_px", PackageName: "com.example.fake", ActivityName: ".MainActivity", Orientation: "portrait", DisplayWidth: 1080, DisplayHeight: 1920, UITreeHash: "sha256:tree-" + id, ScreenshotHash: "sha256:image-" + id, Source: observations.SourceFake, ProtocolVersion: "fake-1", ModelVersion: "fixture-1", FreshnessToken: token, CaptureStatus: observations.CaptureComplete, State: observations.Recorded}
+	return observations.ObservationSnapshot{ID: observations.ObservationID(id), Workspace: workspace, DeviceID: "device-1", CapturedAt: captured, CaptureCorrelationID: "capture-" + id, CoordinateSpace: "screen_px", PackageName: "com.example.fake", ActivityName: ".MainActivity", AppVersion: "1.0.0", Orientation: "portrait", DisplayWidth: 1080, DisplayHeight: 1920, UITreeHash: "sha256:tree-" + id, ScreenshotHash: "sha256:image-" + id, Source: observations.SourceFake, ProtocolVersion: "fake-1", ModelVersion: "fixture-1", FreshnessToken: token, CaptureStatus: observations.CaptureComplete, State: observations.Recorded}
 }
 
 func observationStoreFixture(t *testing.T) (*store.DB, organizations.WorkspaceID) {
@@ -52,7 +52,7 @@ func TestObservationServiceStoresImmutableHistoryAndCurrentFreshness(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current.ID != second.ID || current.FreshnessToken != "fresh-2" || !current.Truncated || current.CaptureSkewMillis != 125 {
+	if current.ID != second.ID || current.FreshnessToken != "fresh-2" || current.AppVersion != "1.0.0" || !current.Truncated || current.CaptureSkewMillis != 125 {
 		t.Fatalf("current observation = %#v, want second fresh observation", current)
 	}
 	history, err := store.NewObservationRepository(db).List(ctx, workspace, "device-1")

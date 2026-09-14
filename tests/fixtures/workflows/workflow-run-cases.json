@@ -1,0 +1,34 @@
+[
+  {
+    "case": "bounded-fake-run",
+    "workflow_version": 1,
+    "steps": [
+      {
+        "sequence": 0,
+        "action": "observe",
+        "risk": "low",
+        "retry": "safe",
+        "timeout_ms": 1000,
+        "evidence_required": true
+      },
+      {
+        "sequence": 1,
+        "action": "tap",
+        "risk": "medium",
+        "retry": "after_observation",
+        "target": {"resource_id": "continue"},
+        "timeout_ms": 1000,
+        "requires_observation": true,
+        "evidence_required": true,
+        "postcondition": "screen_changed"
+      }
+    ],
+    "selector": {"type": "explicit_devices", "resolved_device_ids": ["fake-device-a", "fake-device-b"]},
+    "replay": {
+      "package": "com.example.app",
+      "activity": "MainActivity",
+      "coordinate_space": "display:1080x2400",
+      "permission_dialog": "fail_closed"
+    }
+  }
+]

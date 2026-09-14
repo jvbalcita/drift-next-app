@@ -3,4 +3,6 @@
 These fixtures contain bounded metadata only. They deliberately contain no
 screenshots, UI trees, OCR payloads, credentials, device connections, or model
 provider responses. The fixture tests verify JSON validity and redaction before
-the files can be used by later workflow and recorder tests.
+the files can be used by later workflow and recorder tests. Workflow fixtures
+describe fake target sets, typed actions, replay compatibility, and postconditions
+without carrying raw coordinates or runtime secrets.
