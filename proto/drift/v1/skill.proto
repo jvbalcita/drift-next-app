@@ -1,6 +1,7 @@
 syntax = "proto3";
 package drift.v1;
 
+import "drift/v1/action.proto";
 import "drift/v1/common.proto";
 
 option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
@@ -33,6 +34,51 @@ message SkillVersion {
   SkillState state = 4;
   TrustState trust_state = 5;
   repeated string capabilities = 6;
+  repeated SkillStep steps = 7;
+  SkillManifest manifest = 8;
+  string source_recording_session_id = 9;
+  string rollback_version_id = 10;
+  string created_at = 11;
+  string reviewer_id = 12;
+  string reviewed_at = 13;
+}
+message SkillCompatibility {
+  repeated string package_names = 1;
+  repeated string activity_names = 2;
+  repeated string app_versions = 3;
+  repeated string coordinate_spaces = 4;
+}
+message SkillManifest {
+  SkillCompatibility compatibility = 1;
+  repeated ActionCapability requested_capabilities = 2;
+  repeated string fixtures = 3;
+  ActionRiskClass risk_class = 4;
+  ActionRetryClass retry_class = 5;
+}
+message SkillStep {
+  string id = 1;
+  uint32 sequence = 2;
+  ActionKind action = 3;
+  ActionRiskClass risk_class = 4;
+  ActionRetryClass retry_class = 5;
+  SemanticTarget target = 6;
+  uint64 timeout_ms = 7;
+  bool requires_observation = 8;
+  bool evidence_required = 9;
+  string postcondition = 10;
+  string text_value = 11;
+  uint32 key_code = 12;
+  ActionGesturePath gesture = 13;
+  uint32 value_length = 14;
+}
+message SharedBrainKnowledge {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string knowledge_key = 3;
+  uint32 version = 4;
+  SkillState state = 5;
+  string knowledge_json = 6;
+  string source_skill_version_id = 7;
 }
 message ListSkillsRequest {
   WorkspaceRef workspace = 1;
@@ -42,6 +88,49 @@ message ListSkillsResponse {
   repeated Skill skills = 1;
   PageResponse page = 2;
 }
+message ListSkillVersionsRequest {
+  ResourceRef skill = 1;
+  PageRequest page = 2;
+}
+message ListSkillVersionsResponse {
+  repeated SkillVersion versions = 1;
+  PageResponse page = 2;
+}
+message GetSkillVersionRequest {
+  ResourceRef version = 1;
+}
+message GetSkillVersionResponse {
+  SkillVersion version = 1;
+}
+message ReviewSkillVersionRequest {
+  RequestContext context = 1;
+  ResourceRef version = 2;
+  string reason = 3;
+}
+message ReviewSkillVersionResponse {
+  SkillVersion version = 1;
+}
+message PublishSkillVersionRequest {
+  RequestContext context = 1;
+  ResourceRef version = 2;
+  string reason = 3;
+}
+message PublishSkillVersionResponse {
+  SkillVersion version = 1;
+}
+message ListSharedBrainKnowledgeRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListSharedBrainKnowledgeResponse {
+  repeated SharedBrainKnowledge knowledge = 1;
+  PageResponse page = 2;
+}
 service SkillService {
   rpc ListSkills(ListSkillsRequest) returns (ListSkillsResponse);
+  rpc ListSkillVersions(ListSkillVersionsRequest) returns (ListSkillVersionsResponse);
+  rpc GetSkillVersion(GetSkillVersionRequest) returns (GetSkillVersionResponse);
+  rpc ReviewSkillVersion(ReviewSkillVersionRequest) returns (ReviewSkillVersionResponse);
+  rpc PublishSkillVersion(PublishSkillVersionRequest) returns (PublishSkillVersionResponse);
+  rpc ListSharedBrainKnowledge(ListSharedBrainKnowledgeRequest) returns (ListSharedBrainKnowledgeResponse);
 }

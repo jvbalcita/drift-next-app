@@ -42,6 +42,10 @@ type StepDefinition struct {
 	RequiresObservation bool                  `json:"requires_observation"`
 	EvidenceRequired    bool                  `json:"evidence_required"`
 	Postcondition       string                `json:"postcondition"`
+	TextValue           string                `json:"text_value,omitempty"`
+	ValueLength         int                   `json:"value_length,omitempty"`
+	KeyCode             int                   `json:"key_code,omitempty"`
+	Gesture             *action.GesturePath   `json:"gesture,omitempty"`
 }
 
 type Step struct {
@@ -126,9 +130,17 @@ func (d StepDefinition) Validate(spec action.Specification) error {
 	if spec.Mutating && strings.TrimSpace(d.Postcondition) == "" {
 		return fmt.Errorf("mutating action %q requires a postcondition", spec.Kind)
 	}
-	for _, value := range []string{d.Target.ResourceID, d.Target.AccessibilityLabel, d.Target.StableText, d.Target.ContextFingerprint, d.Postcondition} {
+	for _, value := range []string{d.Target.ResourceID, d.Target.AccessibilityLabel, d.Target.StableText, d.Target.ContextFingerprint, d.Postcondition, d.TextValue} {
 		if len(value) > maxStepFieldBytes || redaction.RedactString(value) != value {
 			return fmt.Errorf("step metadata is invalid or sensitive")
+		}
+	}
+	if d.ValueLength < 0 || d.ValueLength > 1<<20 || d.KeyCode < 0 || d.KeyCode > 10000 {
+		return fmt.Errorf("step key code is invalid")
+	}
+	if d.Gesture != nil {
+		if err := d.Gesture.Validate(); err != nil {
+			return err
 		}
 	}
 	return nil

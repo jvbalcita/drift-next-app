@@ -13,6 +13,41 @@ enum ActionKind {
   ACTION_KIND_TAP = 4;
   ACTION_KIND_TEXT_INPUT = 5;
   ACTION_KIND_BACK = 6;
+  ACTION_KIND_DOUBLE_TAP = 7;
+  ACTION_KIND_LONG_PRESS = 8;
+  ACTION_KIND_TEXT_DELETE = 9;
+  ACTION_KIND_CLEAR = 10;
+  ACTION_KIND_SWIPE = 11;
+  ACTION_KIND_SCROLL = 12;
+  ACTION_KIND_DRAG = 13;
+  ACTION_KIND_HOME = 14;
+  ACTION_KIND_ENTER = 15;
+  ACTION_KIND_KEY_EVENT = 16;
+  ACTION_KIND_UI_CHANGE = 17;
+  ACTION_KIND_STATE_CHANGE = 18;
+}
+enum ActionRiskClass {
+  ACTION_RISK_CLASS_UNSPECIFIED = 0;
+  ACTION_RISK_CLASS_LOW = 1;
+  ACTION_RISK_CLASS_MEDIUM = 2;
+  ACTION_RISK_CLASS_HIGH = 3;
+  ACTION_RISK_CLASS_IRREVERSIBLE = 4;
+}
+enum ActionRetryClass {
+  ACTION_RETRY_CLASS_UNSPECIFIED = 0;
+  ACTION_RETRY_CLASS_SAFE = 1;
+  ACTION_RETRY_CLASS_AFTER_OBSERVATION = 2;
+  ACTION_RETRY_CLASS_NEVER_BLIND = 3;
+}
+enum ActionCapability {
+  ACTION_CAPABILITY_UNSPECIFIED = 0;
+  ACTION_CAPABILITY_DEVICE_OBSERVE = 1;
+  ACTION_CAPABILITY_DEVICE_HEALTH = 2;
+  ACTION_CAPABILITY_DEVICE_CAPTURE = 3;
+  ACTION_CAPABILITY_DEVICE_INPUT_TAP = 4;
+  ACTION_CAPABILITY_DEVICE_INPUT_GESTURE = 5;
+  ACTION_CAPABILITY_DEVICE_INPUT_TEXT = 6;
+  ACTION_CAPABILITY_DEVICE_INPUT_SYSTEM = 7;
 }
 enum ActionOutcome {
   ACTION_OUTCOME_UNSPECIFIED = 0;
@@ -30,6 +65,15 @@ message SemanticTarget {
   string stable_text = 3;
   string context_fingerprint = 4;
 }
+message ActionCoordinate {
+  string space = 1;
+  uint32 x = 2;
+  uint32 y = 3;
+}
+message ActionGesturePath {
+  repeated ActionCoordinate points = 1;
+  uint64 duration_ms = 2;
+}
 message ActionIntent {
   string id = 1;
   WorkspaceRef workspace = 2;
@@ -37,6 +81,10 @@ message ActionIntent {
   ActionKind kind = 4;
   SemanticTarget target = 5;
   string idempotency_key = 6;
+  string text_value = 7;
+  ActionGesturePath gesture = 8;
+  uint32 key_code = 9;
+  uint32 value_length = 10;
 }
 message ActionResult {
   string action_id = 1;

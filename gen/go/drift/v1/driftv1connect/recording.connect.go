@@ -36,11 +36,35 @@ const (
 	// RecordingServiceListRecordingSessionsProcedure is the fully-qualified name of the
 	// RecordingService's ListRecordingSessions RPC.
 	RecordingServiceListRecordingSessionsProcedure = "/drift.v1.RecordingService/ListRecordingSessions"
+	// RecordingServiceStartRecordingSessionProcedure is the fully-qualified name of the
+	// RecordingService's StartRecordingSession RPC.
+	RecordingServiceStartRecordingSessionProcedure = "/drift.v1.RecordingService/StartRecordingSession"
+	// RecordingServiceStopRecordingSessionProcedure is the fully-qualified name of the
+	// RecordingService's StopRecordingSession RPC.
+	RecordingServiceStopRecordingSessionProcedure = "/drift.v1.RecordingService/StopRecordingSession"
+	// RecordingServiceDiscardRecordingSessionProcedure is the fully-qualified name of the
+	// RecordingService's DiscardRecordingSession RPC.
+	RecordingServiceDiscardRecordingSessionProcedure = "/drift.v1.RecordingService/DiscardRecordingSession"
+	// RecordingServiceDeleteRecordingSessionProcedure is the fully-qualified name of the
+	// RecordingService's DeleteRecordingSession RPC.
+	RecordingServiceDeleteRecordingSessionProcedure = "/drift.v1.RecordingService/DeleteRecordingSession"
+	// RecordingServiceListRecordingEventsProcedure is the fully-qualified name of the
+	// RecordingService's ListRecordingEvents RPC.
+	RecordingServiceListRecordingEventsProcedure = "/drift.v1.RecordingService/ListRecordingEvents"
+	// RecordingServiceReviewRecordingEventProcedure is the fully-qualified name of the
+	// RecordingService's ReviewRecordingEvent RPC.
+	RecordingServiceReviewRecordingEventProcedure = "/drift.v1.RecordingService/ReviewRecordingEvent"
 )
 
 // RecordingServiceClient is a client for the drift.v1.RecordingService service.
 type RecordingServiceClient interface {
 	ListRecordingSessions(context.Context, *connect.Request[v1.ListRecordingSessionsRequest]) (*connect.Response[v1.ListRecordingSessionsResponse], error)
+	StartRecordingSession(context.Context, *connect.Request[v1.StartRecordingSessionRequest]) (*connect.Response[v1.StartRecordingSessionResponse], error)
+	StopRecordingSession(context.Context, *connect.Request[v1.StopRecordingSessionRequest]) (*connect.Response[v1.StopRecordingSessionResponse], error)
+	DiscardRecordingSession(context.Context, *connect.Request[v1.DiscardRecordingSessionRequest]) (*connect.Response[v1.DiscardRecordingSessionResponse], error)
+	DeleteRecordingSession(context.Context, *connect.Request[v1.DeleteRecordingSessionRequest]) (*connect.Response[v1.DeleteRecordingSessionResponse], error)
+	ListRecordingEvents(context.Context, *connect.Request[v1.ListRecordingEventsRequest]) (*connect.Response[v1.ListRecordingEventsResponse], error)
+	ReviewRecordingEvent(context.Context, *connect.Request[v1.ReviewRecordingEventRequest]) (*connect.Response[v1.ReviewRecordingEventResponse], error)
 }
 
 // NewRecordingServiceClient constructs a client for the drift.v1.RecordingService service. By
@@ -60,12 +84,54 @@ func NewRecordingServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(recordingServiceMethods.ByName("ListRecordingSessions")),
 			connect.WithClientOptions(opts...),
 		),
+		startRecordingSession: connect.NewClient[v1.StartRecordingSessionRequest, v1.StartRecordingSessionResponse](
+			httpClient,
+			baseURL+RecordingServiceStartRecordingSessionProcedure,
+			connect.WithSchema(recordingServiceMethods.ByName("StartRecordingSession")),
+			connect.WithClientOptions(opts...),
+		),
+		stopRecordingSession: connect.NewClient[v1.StopRecordingSessionRequest, v1.StopRecordingSessionResponse](
+			httpClient,
+			baseURL+RecordingServiceStopRecordingSessionProcedure,
+			connect.WithSchema(recordingServiceMethods.ByName("StopRecordingSession")),
+			connect.WithClientOptions(opts...),
+		),
+		discardRecordingSession: connect.NewClient[v1.DiscardRecordingSessionRequest, v1.DiscardRecordingSessionResponse](
+			httpClient,
+			baseURL+RecordingServiceDiscardRecordingSessionProcedure,
+			connect.WithSchema(recordingServiceMethods.ByName("DiscardRecordingSession")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteRecordingSession: connect.NewClient[v1.DeleteRecordingSessionRequest, v1.DeleteRecordingSessionResponse](
+			httpClient,
+			baseURL+RecordingServiceDeleteRecordingSessionProcedure,
+			connect.WithSchema(recordingServiceMethods.ByName("DeleteRecordingSession")),
+			connect.WithClientOptions(opts...),
+		),
+		listRecordingEvents: connect.NewClient[v1.ListRecordingEventsRequest, v1.ListRecordingEventsResponse](
+			httpClient,
+			baseURL+RecordingServiceListRecordingEventsProcedure,
+			connect.WithSchema(recordingServiceMethods.ByName("ListRecordingEvents")),
+			connect.WithClientOptions(opts...),
+		),
+		reviewRecordingEvent: connect.NewClient[v1.ReviewRecordingEventRequest, v1.ReviewRecordingEventResponse](
+			httpClient,
+			baseURL+RecordingServiceReviewRecordingEventProcedure,
+			connect.WithSchema(recordingServiceMethods.ByName("ReviewRecordingEvent")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // recordingServiceClient implements RecordingServiceClient.
 type recordingServiceClient struct {
-	listRecordingSessions *connect.Client[v1.ListRecordingSessionsRequest, v1.ListRecordingSessionsResponse]
+	listRecordingSessions   *connect.Client[v1.ListRecordingSessionsRequest, v1.ListRecordingSessionsResponse]
+	startRecordingSession   *connect.Client[v1.StartRecordingSessionRequest, v1.StartRecordingSessionResponse]
+	stopRecordingSession    *connect.Client[v1.StopRecordingSessionRequest, v1.StopRecordingSessionResponse]
+	discardRecordingSession *connect.Client[v1.DiscardRecordingSessionRequest, v1.DiscardRecordingSessionResponse]
+	deleteRecordingSession  *connect.Client[v1.DeleteRecordingSessionRequest, v1.DeleteRecordingSessionResponse]
+	listRecordingEvents     *connect.Client[v1.ListRecordingEventsRequest, v1.ListRecordingEventsResponse]
+	reviewRecordingEvent    *connect.Client[v1.ReviewRecordingEventRequest, v1.ReviewRecordingEventResponse]
 }
 
 // ListRecordingSessions calls drift.v1.RecordingService.ListRecordingSessions.
@@ -73,9 +139,45 @@ func (c *recordingServiceClient) ListRecordingSessions(ctx context.Context, req 
 	return c.listRecordingSessions.CallUnary(ctx, req)
 }
 
+// StartRecordingSession calls drift.v1.RecordingService.StartRecordingSession.
+func (c *recordingServiceClient) StartRecordingSession(ctx context.Context, req *connect.Request[v1.StartRecordingSessionRequest]) (*connect.Response[v1.StartRecordingSessionResponse], error) {
+	return c.startRecordingSession.CallUnary(ctx, req)
+}
+
+// StopRecordingSession calls drift.v1.RecordingService.StopRecordingSession.
+func (c *recordingServiceClient) StopRecordingSession(ctx context.Context, req *connect.Request[v1.StopRecordingSessionRequest]) (*connect.Response[v1.StopRecordingSessionResponse], error) {
+	return c.stopRecordingSession.CallUnary(ctx, req)
+}
+
+// DiscardRecordingSession calls drift.v1.RecordingService.DiscardRecordingSession.
+func (c *recordingServiceClient) DiscardRecordingSession(ctx context.Context, req *connect.Request[v1.DiscardRecordingSessionRequest]) (*connect.Response[v1.DiscardRecordingSessionResponse], error) {
+	return c.discardRecordingSession.CallUnary(ctx, req)
+}
+
+// DeleteRecordingSession calls drift.v1.RecordingService.DeleteRecordingSession.
+func (c *recordingServiceClient) DeleteRecordingSession(ctx context.Context, req *connect.Request[v1.DeleteRecordingSessionRequest]) (*connect.Response[v1.DeleteRecordingSessionResponse], error) {
+	return c.deleteRecordingSession.CallUnary(ctx, req)
+}
+
+// ListRecordingEvents calls drift.v1.RecordingService.ListRecordingEvents.
+func (c *recordingServiceClient) ListRecordingEvents(ctx context.Context, req *connect.Request[v1.ListRecordingEventsRequest]) (*connect.Response[v1.ListRecordingEventsResponse], error) {
+	return c.listRecordingEvents.CallUnary(ctx, req)
+}
+
+// ReviewRecordingEvent calls drift.v1.RecordingService.ReviewRecordingEvent.
+func (c *recordingServiceClient) ReviewRecordingEvent(ctx context.Context, req *connect.Request[v1.ReviewRecordingEventRequest]) (*connect.Response[v1.ReviewRecordingEventResponse], error) {
+	return c.reviewRecordingEvent.CallUnary(ctx, req)
+}
+
 // RecordingServiceHandler is an implementation of the drift.v1.RecordingService service.
 type RecordingServiceHandler interface {
 	ListRecordingSessions(context.Context, *connect.Request[v1.ListRecordingSessionsRequest]) (*connect.Response[v1.ListRecordingSessionsResponse], error)
+	StartRecordingSession(context.Context, *connect.Request[v1.StartRecordingSessionRequest]) (*connect.Response[v1.StartRecordingSessionResponse], error)
+	StopRecordingSession(context.Context, *connect.Request[v1.StopRecordingSessionRequest]) (*connect.Response[v1.StopRecordingSessionResponse], error)
+	DiscardRecordingSession(context.Context, *connect.Request[v1.DiscardRecordingSessionRequest]) (*connect.Response[v1.DiscardRecordingSessionResponse], error)
+	DeleteRecordingSession(context.Context, *connect.Request[v1.DeleteRecordingSessionRequest]) (*connect.Response[v1.DeleteRecordingSessionResponse], error)
+	ListRecordingEvents(context.Context, *connect.Request[v1.ListRecordingEventsRequest]) (*connect.Response[v1.ListRecordingEventsResponse], error)
+	ReviewRecordingEvent(context.Context, *connect.Request[v1.ReviewRecordingEventRequest]) (*connect.Response[v1.ReviewRecordingEventResponse], error)
 }
 
 // NewRecordingServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -91,10 +193,58 @@ func NewRecordingServiceHandler(svc RecordingServiceHandler, opts ...connect.Han
 		connect.WithSchema(recordingServiceMethods.ByName("ListRecordingSessions")),
 		connect.WithHandlerOptions(opts...),
 	)
+	recordingServiceStartRecordingSessionHandler := connect.NewUnaryHandler(
+		RecordingServiceStartRecordingSessionProcedure,
+		svc.StartRecordingSession,
+		connect.WithSchema(recordingServiceMethods.ByName("StartRecordingSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recordingServiceStopRecordingSessionHandler := connect.NewUnaryHandler(
+		RecordingServiceStopRecordingSessionProcedure,
+		svc.StopRecordingSession,
+		connect.WithSchema(recordingServiceMethods.ByName("StopRecordingSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recordingServiceDiscardRecordingSessionHandler := connect.NewUnaryHandler(
+		RecordingServiceDiscardRecordingSessionProcedure,
+		svc.DiscardRecordingSession,
+		connect.WithSchema(recordingServiceMethods.ByName("DiscardRecordingSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recordingServiceDeleteRecordingSessionHandler := connect.NewUnaryHandler(
+		RecordingServiceDeleteRecordingSessionProcedure,
+		svc.DeleteRecordingSession,
+		connect.WithSchema(recordingServiceMethods.ByName("DeleteRecordingSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recordingServiceListRecordingEventsHandler := connect.NewUnaryHandler(
+		RecordingServiceListRecordingEventsProcedure,
+		svc.ListRecordingEvents,
+		connect.WithSchema(recordingServiceMethods.ByName("ListRecordingEvents")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recordingServiceReviewRecordingEventHandler := connect.NewUnaryHandler(
+		RecordingServiceReviewRecordingEventProcedure,
+		svc.ReviewRecordingEvent,
+		connect.WithSchema(recordingServiceMethods.ByName("ReviewRecordingEvent")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.RecordingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RecordingServiceListRecordingSessionsProcedure:
 			recordingServiceListRecordingSessionsHandler.ServeHTTP(w, r)
+		case RecordingServiceStartRecordingSessionProcedure:
+			recordingServiceStartRecordingSessionHandler.ServeHTTP(w, r)
+		case RecordingServiceStopRecordingSessionProcedure:
+			recordingServiceStopRecordingSessionHandler.ServeHTTP(w, r)
+		case RecordingServiceDiscardRecordingSessionProcedure:
+			recordingServiceDiscardRecordingSessionHandler.ServeHTTP(w, r)
+		case RecordingServiceDeleteRecordingSessionProcedure:
+			recordingServiceDeleteRecordingSessionHandler.ServeHTTP(w, r)
+		case RecordingServiceListRecordingEventsProcedure:
+			recordingServiceListRecordingEventsHandler.ServeHTTP(w, r)
+		case RecordingServiceReviewRecordingEventProcedure:
+			recordingServiceReviewRecordingEventHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -106,4 +256,28 @@ type UnimplementedRecordingServiceHandler struct{}
 
 func (UnimplementedRecordingServiceHandler) ListRecordingSessions(context.Context, *connect.Request[v1.ListRecordingSessionsRequest]) (*connect.Response[v1.ListRecordingSessionsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RecordingService.ListRecordingSessions is not implemented"))
+}
+
+func (UnimplementedRecordingServiceHandler) StartRecordingSession(context.Context, *connect.Request[v1.StartRecordingSessionRequest]) (*connect.Response[v1.StartRecordingSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RecordingService.StartRecordingSession is not implemented"))
+}
+
+func (UnimplementedRecordingServiceHandler) StopRecordingSession(context.Context, *connect.Request[v1.StopRecordingSessionRequest]) (*connect.Response[v1.StopRecordingSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RecordingService.StopRecordingSession is not implemented"))
+}
+
+func (UnimplementedRecordingServiceHandler) DiscardRecordingSession(context.Context, *connect.Request[v1.DiscardRecordingSessionRequest]) (*connect.Response[v1.DiscardRecordingSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RecordingService.DiscardRecordingSession is not implemented"))
+}
+
+func (UnimplementedRecordingServiceHandler) DeleteRecordingSession(context.Context, *connect.Request[v1.DeleteRecordingSessionRequest]) (*connect.Response[v1.DeleteRecordingSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RecordingService.DeleteRecordingSession is not implemented"))
+}
+
+func (UnimplementedRecordingServiceHandler) ListRecordingEvents(context.Context, *connect.Request[v1.ListRecordingEventsRequest]) (*connect.Response[v1.ListRecordingEventsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RecordingService.ListRecordingEvents is not implemented"))
+}
+
+func (UnimplementedRecordingServiceHandler) ReviewRecordingEvent(context.Context, *connect.Request[v1.ReviewRecordingEventRequest]) (*connect.Response[v1.ReviewRecordingEventResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RecordingService.ReviewRecordingEvent is not implemented"))
 }

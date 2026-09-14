@@ -1,6 +1,7 @@
 syntax = "proto3";
 package drift.v1;
 
+import "drift/v1/action.proto";
 import "drift/v1/common.proto";
 
 option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
@@ -14,6 +15,60 @@ enum RecordingState {
   RECORDING_STATE_DISCARDED = 5;
   RECORDING_STATE_FAILED = 6;
 }
+enum RecordingCleanupState {
+  RECORDING_CLEANUP_STATE_UNSPECIFIED = 0;
+  RECORDING_CLEANUP_STATE_NONE = 1;
+  RECORDING_CLEANUP_STATE_PENDING = 2;
+  RECORDING_CLEANUP_STATE_DONE = 3;
+  RECORDING_CLEANUP_STATE_FAILED = 4;
+}
+enum RecordingReviewState {
+  RECORDING_REVIEW_STATE_UNSPECIFIED = 0;
+  RECORDING_REVIEW_STATE_UNREVIEWED = 1;
+  RECORDING_REVIEW_STATE_APPROVED = 2;
+  RECORDING_REVIEW_STATE_REJECTED = 3;
+}
+enum RecordingRedactionState {
+  RECORDING_REDACTION_STATE_UNSPECIFIED = 0;
+  RECORDING_REDACTION_STATE_NOT_REQUIRED = 1;
+  RECORDING_REDACTION_STATE_REQUIRED = 2;
+  RECORDING_REDACTION_STATE_REDACTED = 3;
+  RECORDING_REDACTION_STATE_REJECTED = 4;
+}
+enum RecordingCaptureStatus {
+  RECORDING_CAPTURE_STATUS_UNSPECIFIED = 0;
+  RECORDING_CAPTURE_STATUS_COMPLETE = 1;
+  RECORDING_CAPTURE_STATUS_PARTIAL = 2;
+  RECORDING_CAPTURE_STATUS_FAILED = 3;
+}
+enum RecordingSanitizationState {
+  RECORDING_SANITIZATION_STATE_UNSPECIFIED = 0;
+  RECORDING_SANITIZATION_STATE_SANITIZED = 1;
+  RECORDING_SANITIZATION_STATE_NOT_NEEDED = 2;
+  RECORDING_SANITIZATION_STATE_UNSANITIZABLE = 3;
+}
+enum RecordingCapturePhase {
+  RECORDING_CAPTURE_PHASE_UNSPECIFIED = 0;
+  RECORDING_CAPTURE_PHASE_BEFORE = 1;
+  RECORDING_CAPTURE_PHASE_ACTION = 2;
+  RECORDING_CAPTURE_PHASE_AFTER = 3;
+  RECORDING_CAPTURE_PHASE_REVIEW = 4;
+}
+enum RecordingEvidenceKind {
+  RECORDING_EVIDENCE_KIND_UNSPECIFIED = 0;
+  RECORDING_EVIDENCE_KIND_RAW_SCREENSHOT = 1;
+  RECORDING_EVIDENCE_KIND_ANNOTATED_SCREENSHOT = 2;
+  RECORDING_EVIDENCE_KIND_UI_TREE = 3;
+  RECORDING_EVIDENCE_KIND_OCR = 4;
+  RECORDING_EVIDENCE_KIND_TRACE = 5;
+  RECORDING_EVIDENCE_KIND_LOG = 6;
+}
+enum RecordingSensitivity {
+  RECORDING_SENSITIVITY_UNSPECIFIED = 0;
+  RECORDING_SENSITIVITY_NONE = 1;
+  RECORDING_SENSITIVITY_SENSITIVE = 2;
+  RECORDING_SENSITIVITY_UNCERTAIN = 3;
+}
 message RecordingSession {
   string id = 1;
   WorkspaceRef workspace = 2;
@@ -22,6 +77,95 @@ message RecordingSession {
   string source = 5;
   string started_at = 6;
   string finished_at = 7;
+  int64 session_number = 8;
+  string automation_id = 9;
+  string deleted_at = 10;
+  RecordingCleanupState cleanup_state = 11;
+  RecordingReviewState review_state = 12;
+}
+message RecordedTarget {
+  SemanticTarget semantic = 1;
+  string class_name = 2;
+  uint32 left = 3;
+  uint32 top = 4;
+  uint32 right = 5;
+  uint32 bottom = 6;
+  bool actionable = 7;
+  bool enabled = 8;
+  bool editable = 9;
+  bool selected = 10;
+  bool checked = 11;
+  string source = 12;
+  double confidence = 13;
+  uint32 candidate_count = 14;
+}
+message RecordingEvidenceReference {
+  RecordingCapturePhase phase = 1;
+  RecordingEvidenceKind kind = 2;
+  ArtifactReference artifact = 3;
+  uint32 schema_version = 4;
+  bool authoritative = 5;
+  bool omitted = 6;
+  string omission_reason = 7;
+}
+message RecordingCapture {
+  string observation_id = 1;
+  string freshness_token = 2;
+  string captured_at = 3;
+  string coordinate_space = 4;
+  string package_name = 5;
+  string activity_name = 6;
+  string app_version = 7;
+  uint32 display_width = 8;
+  uint32 display_height = 9;
+  string orientation = 10;
+  string screenshot_hash = 11;
+  string ui_tree_hash = 12;
+  RecordingCaptureStatus status = 13;
+  RecordingSanitizationState sanitization = 14;
+  bool partial = 15;
+  RecordedTarget target = 16;
+  repeated RecordingEvidenceReference evidence = 17;
+  Failure failure = 18;
+}
+message RecordingAction {
+  ActionKind kind = 1;
+  RecordedTarget target = 2;
+  ActionCoordinate coordinate = 3;
+  string display_value = 4;
+  uint32 value_length = 5;
+  RecordingSensitivity sensitivity = 6;
+  ActionGesturePath gesture = 7;
+  uint32 key_code = 8;
+  bool irreversible_confirmed = 9;
+  uint64 timeout_ms = 10;
+  string postcondition = 11;
+}
+message RecordingCaptureError {
+  RecordingCapturePhase phase = 1;
+  FailureCode failure_code = 2;
+  string message = 3;
+  bool omitted = 4;
+}
+message RecordingEvent {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string recording_session_id = 3;
+  uint32 sequence = 4;
+  string correlation_id = 5;
+  RecordingAction action = 6;
+  RecordingCapture before = 7;
+  RecordingCapture after = 8;
+  repeated RecordingEvidenceReference evidence = 9;
+  repeated RecordingCaptureError capture_errors = 10;
+  RecordingRedactionState redaction_state = 11;
+  bool sensitive = 12;
+  RecordingReviewState review_state = 13;
+  string reviewer_id = 14;
+  string reviewed_at = 15;
+  string started_at = 16;
+  string finished_at = 17;
+  string created_at = 18;
 }
 message ListRecordingSessionsRequest {
   WorkspaceRef workspace = 1;
@@ -31,6 +175,58 @@ message ListRecordingSessionsResponse {
   repeated RecordingSession sessions = 1;
   PageResponse page = 2;
 }
+message StartRecordingSessionRequest {
+  RequestContext context = 1;
+  ResourceRef session = 2;
+}
+message StartRecordingSessionResponse {
+  RecordingSession session = 1;
+}
+message StopRecordingSessionRequest {
+  RequestContext context = 1;
+  ResourceRef session = 2;
+}
+message StopRecordingSessionResponse {
+  RecordingSession session = 1;
+}
+message DiscardRecordingSessionRequest {
+  RequestContext context = 1;
+  ResourceRef session = 2;
+}
+message DiscardRecordingSessionResponse {
+  RecordingSession session = 1;
+}
+message DeleteRecordingSessionRequest {
+  RequestContext context = 1;
+  ResourceRef session = 2;
+  bool confirmed = 3;
+}
+message DeleteRecordingSessionResponse {
+  RecordingSession session = 1;
+}
+message ListRecordingEventsRequest {
+  ResourceRef session = 1;
+  PageRequest page = 2;
+}
+message ListRecordingEventsResponse {
+  repeated RecordingEvent events = 1;
+  PageResponse page = 2;
+}
+message ReviewRecordingEventRequest {
+  RequestContext context = 1;
+  ResourceRef event = 2;
+  bool approved = 3;
+  string reason = 4;
+}
+message ReviewRecordingEventResponse {
+  RecordingEvent event = 1;
+}
 service RecordingService {
   rpc ListRecordingSessions(ListRecordingSessionsRequest) returns (ListRecordingSessionsResponse);
+  rpc StartRecordingSession(StartRecordingSessionRequest) returns (StartRecordingSessionResponse);
+  rpc StopRecordingSession(StopRecordingSessionRequest) returns (StopRecordingSessionResponse);
+  rpc DiscardRecordingSession(DiscardRecordingSessionRequest) returns (DiscardRecordingSessionResponse);
+  rpc DeleteRecordingSession(DeleteRecordingSessionRequest) returns (DeleteRecordingSessionResponse);
+  rpc ListRecordingEvents(ListRecordingEventsRequest) returns (ListRecordingEventsResponse);
+  rpc ReviewRecordingEvent(ReviewRecordingEventRequest) returns (ReviewRecordingEventResponse);
 }

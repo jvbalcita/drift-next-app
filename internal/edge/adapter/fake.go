@@ -22,6 +22,7 @@ type FakeAdapter struct {
 	observations  []Observation
 	executions    []ExecutionScript
 	cleanupErrors []error
+	intents       []action.Intent
 	active        int
 	maxActive     int
 	executeCalls  int
@@ -78,6 +79,7 @@ func (f *FakeAdapter) Execute(ctx context.Context, intent action.Intent) (Execut
 		return Execution{}, &ExecutionError{Cause: errors.New("fake adapter capability mismatch"), FailureClass: domain.FailureCapabilityMismatch}
 	}
 	f.mu.Lock()
+	f.intents = append(f.intents, cloneIntent(intent))
 	var script ExecutionScript
 	if len(f.executions) > 0 {
 		script = f.executions[0]
@@ -142,6 +144,16 @@ func (f *FakeAdapter) CleanupCalls() int {
 	return f.cleanupCalls
 }
 
+func (f *FakeAdapter) Intents() []action.Intent {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	result := make([]action.Intent, len(f.intents))
+	for index, intent := range f.intents {
+		result[index] = cloneIntent(intent)
+	}
+	return result
+}
+
 func (f *FakeAdapter) MaxConcurrent() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -151,6 +163,24 @@ func (f *FakeAdapter) MaxConcurrent() int {
 func cloneObservation(input Observation) Observation {
 	input.Nodes = append([]TargetNode(nil), input.Nodes...)
 	input.OCR = append([]OCRToken(nil), input.OCR...)
+	return input
+}
+
+func cloneIntent(input action.Intent) action.Intent {
+	if input.Gesture != nil {
+		gesture := *input.Gesture
+		gesture.Points = append([]action.Coordinate(nil), input.Gesture.Points...)
+		input.Gesture = &gesture
+	}
+	if input.CoordinateFallback != nil {
+		fallback := *input.CoordinateFallback
+		fallback.Path = append([]action.Coordinate(nil), input.CoordinateFallback.Path...)
+		if input.CoordinateFallback.End != nil {
+			end := *input.CoordinateFallback.End
+			fallback.End = &end
+		}
+		input.CoordinateFallback = &fallback
+	}
 	return input
 }
 
