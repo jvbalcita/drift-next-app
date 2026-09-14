@@ -2,8 +2,10 @@
 package discovery
 
 import (
+	"encoding/json"
 	"time"
 
+	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/domain"
 	"drift.local/drift-next/internal/networkprofiles"
 	"drift.local/drift-next/internal/organizations"
@@ -48,19 +50,25 @@ type ScanRun struct {
 	NetworkProfileID networkprofiles.NetworkProfileID
 	State            ScanRunState
 	RequestedAt      time.Time
+	StartedAt        *time.Time
 	CompletedAt      *time.Time
+	IdempotencyKey   string
+	FailureClass     domain.FailureClass
 }
 
 type ScanCandidate struct {
 	ID           ScanCandidateID
 	Workspace    organizations.WorkspaceID
 	ScanRunID    ScanRunID
+	CandidateKey string
 	Host         string
 	Port         uint16
 	Serial       string
 	Fingerprint  string
 	State        CandidateState
 	DiscoveredAt time.Time
+	ExpiresAt    *time.Time
+	EvidenceJSON string
 }
 
 type ApprovalDecision struct {
@@ -70,6 +78,44 @@ type ApprovalDecision struct {
 	Decision    Decision
 	DecidedAt   time.Time
 	ActorID     string
+	Reason      string
+}
+
+type RegistrationEvent struct {
+	ID          string
+	Workspace   organizations.WorkspaceID
+	CandidateID ScanCandidateID
+	DeviceID    devices.DeviceID
+	EndpointID  string
+	Outcome     string
+	ActorID     string
+	OccurredAt  time.Time
+	DetailsJSON string
+}
+
+type ObservedCandidate struct {
+	CandidateKey string
+	Host         string
+	Port         uint16
+	Serial       string
+	Fingerprint  string
+	Evidence     map[string]string
+	ExpiresAt    *time.Time
+}
+
+func (c ObservedCandidate) Valid() bool {
+	return c.CandidateKey != "" && (c.Host != "" || c.Serial != "") && c.Port > 0
+}
+
+func (c ObservedCandidate) EvidenceJSON() string {
+	if len(c.Evidence) == 0 {
+		return "{}"
+	}
+	data, err := json.Marshal(c.Evidence)
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
 }
 
 func (s ScanRunState) Valid() bool {
