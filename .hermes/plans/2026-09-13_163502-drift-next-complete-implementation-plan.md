@@ -12,8 +12,8 @@
 | P2 — domain vocabulary and state machines | complete | Typed domain models for the reviewed resources, lifecycle vocabulary, failure classes, action risk/retry policy, and table-driven legal/illegal transition tests are present under `internal/`. |
 | P3 — normalized SQLite schema and harness | complete | Immutable SQLite migrations `0002`–`0009`, embedded migration input, and integration tests cover fresh/incremental apply, the intentional PostgreSQL `0001` rejection boundary, dirty state, restore, workspace isolation, cardinality, mirror targets, retirement, idempotency/outbox atomicity, and secret-bearing fixture rejection. |
 | P4 — repositories and transaction services | not started | No typed SQLite repository/service boundary has been verified. |
-| P5 — protobuf/Connect resource contracts | not started | Bootstrap device protobuf exists; versioned resource contracts and handlers are not implemented. |
-| P6 — mock registry and discovery | not started | Console mock data is not a registry/discovery implementation. |
+| P5 — protobuf/Connect resource contracts | complete | Squash-merged through [PR #9](https://github.com/jvbalcita/drift-next-app/pull/9) at `eb607ca4b5da7b425673215362840bdd8dcae575`. Final reviewed head `f4ecba7a4cda8cb2c5fe8968656fd1f6dec6e5b9` passed both explicit reviews, all five GitHub checks, and local Buf/generated-artifact/Go/frontend/secret/diff gates. |
+| P6 — mock registry and discovery | in progress | Branch `artisan/phase-6-mock-registry-discovery` is active. Console mock data is not a registry/discovery implementation; no P6 code has been started in this handoff. |
 | P7 — lease/fencing/policy safety kernel | not started | No control-session, per-device lease, fencing, idempotency, or policy kernel is implemented. |
 | P8 — fake edge/device actors | not started | No deterministic fake edge agent or serialized per-device actor is implemented. |
 | P9 — observations/inventory/health/events/artifacts | not started | UI sample telemetry is presentation data, not persisted operational state. |
