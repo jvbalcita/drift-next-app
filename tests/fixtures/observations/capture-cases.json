@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "missing-target",
+      "capture_status": "complete",
+      "source": "xml",
+      "expected_error": "target_not_found"
+    },
+    {
+      "name": "stale-observation",
+      "capture_status": "complete",
+      "source": "accessibility",
+      "expected_error": "stale_observation"
+    },
+    {
+      "name": "shifted-target",
+      "capture_status": "complete",
+      "source": "xml",
+      "expected_error": "target_shifted"
+    },
+    {
+      "name": "occupied-control",
+      "capture_status": "complete",
+      "source": "accessibility",
+      "actionable": false,
+      "expected_error": "target_not_actionable"
+    },
+    {
+      "name": "wrong-package",
+      "capture_status": "complete",
+      "package_name": "com.example.other",
+      "expected_error": "wrong_application"
+    },
+    {
+      "name": "ambiguous-label",
+      "capture_status": "complete",
+      "source": "xml",
+      "expected_error": "ambiguous_target"
+    },
+    {
+      "name": "partial-capture",
+      "capture_status": "partial",
+      "source": "xml",
+      "expected_error": "partial_observation"
+    },
+    {
+      "name": "pixel-evidence-only",
+      "capture_status": "complete",
+      "source": "pixel",
+      "actionable": false,
+      "expected_error": "non_actionable_evidence"
+    }
+  ]
+}
