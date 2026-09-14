@@ -6,6 +6,7 @@ import (
 	"drift.local/drift-next/internal/assignments"
 	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/discovery"
+	platformerrors "drift.local/drift-next/internal/platform/errors"
 	"time"
 
 	"drift.local/drift-next/internal/organizations"
@@ -17,7 +18,7 @@ func NewDiscoveryRepository(store *DB) *DiscoveryRepository {
 	return &DiscoveryRepository{store: store}
 }
 func (r *DiscoveryRepository) ListCandidates(ctx context.Context, w organizations.WorkspaceID, state discovery.CandidateState) ([]discovery.ScanCandidate, error) {
-	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,scan_run_id,host,port,serial,fingerprint,state,discovered_at FROM scan_candidates WHERE workspace_id=? AND (?='' OR state=?) ORDER BY discovered_at,id`, w, state, state)
+	rows, err := r.store.db.QueryContext(ctx, `SELECT id, workspace_id, scan_run_id, candidate_key, host, port, serial, fingerprint, state, discovered_at, expires_at, evidence_json FROM scan_candidates WHERE workspace_id=? AND (?='' OR state=?) ORDER BY discovered_at,id`, w, state, state)
 	if err != nil {
 		return nil, classifyContext(err)
 	}
@@ -25,14 +26,24 @@ func (r *DiscoveryRepository) ListCandidates(ctx context.Context, w organization
 	out := []discovery.ScanCandidate{}
 	for rows.Next() {
 		var c discovery.ScanCandidate
-		var at string
-		if err := rows.Scan(&c.ID, &c.Workspace, &c.ScanRunID, &c.Host, &c.Port, &c.Serial, &c.Fingerprint, &c.State, &at); err != nil {
+		if err := candidateRow(rows, &c); err != nil {
 			return nil, err
 		}
-		c.DiscoveredAt, _ = time.Parse(time.RFC3339Nano, at)
 		out = append(out, c)
 	}
-	return out, rows.Err()
+	return out, classifyContext(rows.Err())
+}
+
+func (r *DiscoveryRepository) GetCandidate(ctx context.Context, w organizations.WorkspaceID, id discovery.ScanCandidateID) (discovery.ScanCandidate, error) {
+	var candidate discovery.ScanCandidate
+	if err := validateWorkspace(string(w)); err != nil {
+		return candidate, err
+	}
+	err := candidateRow(r.store.db.QueryRowContext(ctx, `SELECT id, workspace_id, scan_run_id, candidate_key, host, port, serial, fingerprint, state, discovered_at, expires_at, evidence_json FROM scan_candidates WHERE workspace_id=? AND id=?`, w, id), &candidate)
+	if err == sql.ErrNoRows {
+		return candidate, platformerrors.New(platformerrors.CodeNotFound, "scan candidate not found")
+	}
+	return candidate, classifyContext(err)
 }
 
 type AssignmentRepository struct{ store *DB }

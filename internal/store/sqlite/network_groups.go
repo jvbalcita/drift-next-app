@@ -6,6 +6,7 @@ import (
 	"drift.local/drift-next/internal/groups"
 	"drift.local/drift-next/internal/networkprofiles"
 	"drift.local/drift-next/internal/organizations"
+	platformerrors "drift.local/drift-next/internal/platform/errors"
 	"encoding/json"
 	"time"
 )
@@ -14,6 +15,13 @@ type NetworkProfileRepository struct{ store *DB }
 
 func NewNetworkProfileRepository(store *DB) *NetworkProfileRepository {
 	return &NetworkProfileRepository{store: store}
+}
+
+func (r *NetworkProfileRepository) Get(ctx context.Context, w organizations.WorkspaceID, id networkprofiles.NetworkProfileID) (networkprofiles.NetworkProfile, error) {
+	if r == nil || r.store == nil {
+		return networkprofiles.NetworkProfile{}, platformerrors.New(platformerrors.CodeInvalidInput, "SQLite store is required")
+	}
+	return r.store.GetNetworkProfile(ctx, w, id)
 }
 func (r *NetworkProfileRepository) List(ctx context.Context, w organizations.WorkspaceID) ([]networkprofiles.NetworkProfile, error) {
 	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,name,address_policy,ports_json,is_default,state,row_version FROM network_profiles WHERE workspace_id=? ORDER BY id`, w)

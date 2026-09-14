@@ -6,6 +6,7 @@ import (
 	"drift.local/drift-next/internal/assignments"
 	"drift.local/drift-next/internal/groups"
 	"drift.local/drift-next/internal/networkprofiles"
+	"drift.local/drift-next/internal/organizations"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 	"encoding/json"
 	"strings"
@@ -83,10 +84,10 @@ func (s *NetworkProfileService) Create(ctx context.Context, p networkprofiles.Ne
 	if ctx == nil || s == nil || s.store == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite store are required")
 	}
-	if strings.TrimSpace(string(p.ID)) == "" || strings.TrimSpace(string(p.Workspace)) == "" || strings.TrimSpace(p.Name) == "" || strings.TrimSpace(p.AddressPolicy) == "" || !p.State.Valid() {
-		return platformerrors.New(platformerrors.CodeInvalidInput, "network profile fields are required")
+	if err := p.Validate(); err != nil {
+		return platformerrors.Wrap(platformerrors.CodeInvalidInput, "network profile is invalid", err)
 	}
-	ports, err := json.Marshal(p.Ports)
+	ports, err := json.Marshal(p.SortedPorts())
 	if err != nil {
 		return platformerrors.Wrap(platformerrors.CodeInvalidInput, "encode network profile ports", err)
 	}
@@ -104,6 +105,67 @@ func (s *NetworkProfileService) Create(ctx context.Context, p networkprofiles.Ne
 			return mapConstraint(err)
 		}
 		return s.store.recordMutation(ctx, tx, string(p.Workspace), "network_profile", string(p.ID), "network_profile.created", actorType, actorID)
+	})
+}
+
+func (s *NetworkProfileService) Update(ctx context.Context, p networkprofiles.NetworkProfile, expected uint64, actorType, actorID string) error {
+	if ctx == nil || s == nil || s.store == nil || expected == 0 {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "context, SQLite store, and row version are required")
+	}
+	if err := p.Validate(); err != nil {
+		return platformerrors.Wrap(platformerrors.CodeInvalidInput, "network profile is invalid", err)
+	}
+	if strings.TrimSpace(actorType) == "" || strings.TrimSpace(actorID) == "" {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "actor fields are required")
+	}
+	ports, err := json.Marshal(p.SortedPorts())
+	if err != nil {
+		return platformerrors.Wrap(platformerrors.CodeInvalidInput, "encode network profile ports", err)
+	}
+	now := s.store.clock.Now().UTC().Format(time.RFC3339Nano)
+	return WithTx(ctx, s.store.db, func(tx *sql.Tx) error {
+		if p.IsDefault {
+			if _, err := tx.ExecContext(ctx, `UPDATE network_profiles SET is_default=0, updated_at=? WHERE workspace_id=? AND state='active' AND is_default=1 AND id<>?`, now, p.Workspace, p.ID); err != nil {
+				return err
+			}
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE network_profiles SET name=?, address_policy=?, ports_json=?, is_default=?, state=?, updated_at=?, row_version=row_version+1 WHERE workspace_id=? AND id=? AND row_version=?`, p.Name, p.AddressPolicy, string(ports), boolInt(p.IsDefault), p.State, now, p.Workspace, p.ID, expected)
+		if err != nil {
+			return mapConstraint(err)
+		}
+		if err := RequireAffected(result, "network profile"); err != nil {
+			return err
+		}
+		return s.store.recordMutation(ctx, tx, string(p.Workspace), "network_profile", string(p.ID), "network_profile.updated", actorType, actorID)
+	})
+}
+
+func (s *NetworkProfileService) Transition(ctx context.Context, workspace organizations.WorkspaceID, id networkprofiles.NetworkProfileID, next networkprofiles.State, expected uint64, actorType, actorID string) error {
+	if ctx == nil || s == nil || s.store == nil || expected == 0 {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "context, SQLite store, and row version are required")
+	}
+	if !next.Valid() {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "network profile state is invalid")
+	}
+	now := s.store.clock.Now().UTC().Format(time.RFC3339Nano)
+	return WithTx(ctx, s.store.db, func(tx *sql.Tx) error {
+		var current string
+		if err := tx.QueryRowContext(ctx, `SELECT state FROM network_profiles WHERE workspace_id=? AND id=?`, workspace, id).Scan(&current); err == sql.ErrNoRows {
+			return platformerrors.New(platformerrors.CodeNotFound, "network profile not found")
+		} else if err != nil {
+			return err
+		}
+		if err := networkprofiles.Transition(networkprofiles.State(current), next); err != nil {
+			return err
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE network_profiles SET state=?, is_default=CASE WHEN ?='active' THEN is_default ELSE 0 END, updated_at=?, row_version=row_version+1 WHERE workspace_id=? AND id=? AND row_version=?`, next, next, now, workspace, id, expected)
+		if err != nil {
+			return mapConstraint(err)
+		}
+		if err := RequireAffected(result, "network profile"); err != nil {
+			return err
+		}
+		return s.store.recordMutation(ctx, tx, string(workspace), "network_profile", string(id), "network_profile.transitioned", actorType, actorID)
 	})
 }
 func boolInt(v bool) int {

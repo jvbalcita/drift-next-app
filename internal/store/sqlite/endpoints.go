@@ -23,9 +23,20 @@ func (r *EndpointRepository) ListCurrent(ctx context.Context, w organizations.Wo
 	out := []endpoints.Endpoint{}
 	for rows.Next() {
 		var e endpoints.Endpoint
+		var serial, host sql.NullString
+		var port sql.NullInt64
 		var at string
-		if err := rows.Scan(&e.ID, &e.Workspace, &e.DeviceID, &e.Serial, &e.Host, &e.Port, &e.State, &at); err != nil {
+		if err := rows.Scan(&e.ID, &e.Workspace, &e.DeviceID, &serial, &host, &port, &e.State, &at); err != nil {
 			return nil, err
+		}
+		if serial.Valid {
+			e.Serial = serial.String
+		}
+		if host.Valid {
+			e.Host = host.String
+		}
+		if port.Valid {
+			e.Port = uint16(port.Int64)
 		}
 		e.ObservedAt, _ = time.Parse(time.RFC3339Nano, at)
 		out = append(out, e)
