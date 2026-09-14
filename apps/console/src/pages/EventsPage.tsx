@@ -1,29 +1,64 @@
-import { useMemo, useState } from "react"
-import { FileText, Filter, ShieldCheck, Waypoints } from "lucide-react"
-import type { ControlPlaneSnapshot, EventKind } from "@/lib/domain/control-plane"
-import { FailureBadge, FieldLabel, MockNotice, PageIntro, Panel, StatusBadge } from "./shared"
+import { useMemo, useState, type ReactNode } from "react"
+import { Filter, Search } from "lucide-react"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import type { ControlPlaneSnapshot, EventKind, EventView } from "@/lib/domain/control-plane"
+import { DataTablePagination, EmptyState, FailureBadge, MockNotice, PageIntro, StatusBadge } from "./shared"
 
 export function EventsPage({ snapshot }: { snapshot: ControlPlaneSnapshot }) {
   const [kind, setKind] = useState<EventKind | "all">("all")
-  const [query, setQuery] = useState("")
-  const events = useMemo(() => snapshot.events.filter((event) => (kind === "all" || event.kind === kind) && `${event.name} ${event.actor} ${event.resourceId}`.toLowerCase().includes(query.toLowerCase())), [kind, query, snapshot.events])
-  return (
-    <>
-      <PageIntro eyebrow="OBSERVABILITY / EVENTS" title="Events and audit" description="Follow operational facts, actor attribution, correlation IDs, and typed failures without exposing raw payloads or sensitive evidence." actions={<StatusBadge label="Redacted view" tone="info" />} />
-      <MockNotice>Payload bodies, screenshots, credentials, and device protocol data are omitted from this browser view. Only bounded, sanitized metadata is rendered.</MockNotice>
-      <div className="mb-6 grid gap-3 sm:grid-cols-3"><Summary icon={Waypoints} label="Operational events" value={String(snapshot.events.filter((event) => event.kind === "operational").length)} detail="State and runtime facts" /><Summary icon={ShieldCheck} label="Audit events" value={String(snapshot.events.filter((event) => event.kind === "audit").length)} detail="Actor-attributed changes" /><Summary icon={FileText} label="Failure labels" value={String(snapshot.events.filter((event) => event.failureClass).length)} detail="Typed, searchable outcomes" /></div>
-      <Panel title="Event timeline" description="Operational and audit events share an envelope but retain distinct meaning." action={<div className="flex flex-wrap items-end gap-2"><div><FieldLabel htmlFor="event-kind">Kind</FieldLabel><select id="event-kind" value={kind} onChange={(event) => { const value = event.target.value; if (isEventKind(value)) setKind(value) }} className="mt-1 h-8 rounded-none border border-input bg-background px-2 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"><option value="all">All events</option><option value="operational">Operational</option><option value="audit">Audit</option></select></div><div className="relative"><Filter className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><input aria-label="Filter events" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter events" className="h-8 w-44 rounded-none border border-input bg-background pl-7 pr-2 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" /></div></div>}>
-        {events.length === 0 ? <div className="py-8 text-center text-sm text-muted-foreground">No events match the current filter.</div> : <div className="space-y-4">{events.map((event, index) => <div key={event.id} className="flex gap-3"><div className="flex flex-col items-center"><span className={`mt-1.5 flex size-6 items-center justify-center border ${event.kind === "audit" ? "border-primary/30 bg-secondary text-primary" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}><span className="size-2 rounded-full bg-current" aria-hidden="true" /></span>{index < events.length - 1 ? <span className="mt-1 h-full w-px bg-border" /> : null}</div><div className="min-w-0 flex-1 border-b border-border pb-4 last:border-0"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium">{event.name}</p><StatusBadge label={event.kind} tone={event.kind === "audit" ? "info" : "healthy"} /><FailureBadge failureClass={event.failureClass} /></div><p className="mt-1 text-[11px] text-muted-foreground">{event.actor} · {event.resourceType}/{event.resourceId}</p></div><span className="drift-data text-[10px] text-muted-foreground">{event.occurredAt}</span></div><dl className="mt-3 grid gap-3 text-[11px] sm:grid-cols-3"><div><dt className="text-muted-foreground">Correlation</dt><dd className="drift-data mt-1">{event.correlationId}</dd></div><div><dt className="text-muted-foreground">Event ID</dt><dd className="drift-data mt-1">{event.id}</dd></div><div><dt className="text-muted-foreground">Payload</dt><dd className="mt-1">{event.payloadSummary}</dd></div></dl></div></div>)}</div>}
-      </Panel>
-      <div className="mt-6 grid gap-6 xl:grid-cols-2"><Panel title="Audit posture" description="Audit records are append-only evidence of actor and resource intent."><div className="space-y-3 text-xs leading-5 text-muted-foreground"><div className="flex gap-2"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />Actor type, actor ID, resource, correlation, and outcome labels remain visible.</div><div className="flex gap-2"><FileText className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />Sensitive payloads are not reconstructed from the event list.</div></div></Panel><Panel title="Failure vocabulary" description="Failures are classified per target or event, not inferred from aggregate state."><div className="flex flex-wrap gap-2">{["device_offline", "policy_denied", "lease_conflict", "capability_mismatch", "indeterminate_completion"].map((failure) => <FailureBadge key={failure} failureClass={failure} />)}</div></Panel></div>
-    </>
-  )
+  const [actor, setActor] = useState("")
+  const [resource, setResource] = useState("")
+  const [correlation, setCorrelation] = useState("")
+  const [time, setTime] = useState("")
+  const [severity, setSeverity] = useState<"all" | "normal" | "failure">("all")
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const events = useMemo(() => snapshot.events.filter((event) => {
+    const includes = (value: string, query: string) => value.toLowerCase().includes(query.trim().toLowerCase())
+    return (kind === "all" || event.kind === kind)
+      && includes(event.actor, actor)
+      && includes(`${event.resourceType} ${event.resourceId}`, resource)
+      && includes(event.correlationId, correlation)
+      && includes(event.occurredAt, time)
+      && (severity === "all" || (severity === "normal" ? !event.failureClass : Boolean(event.failureClass)))
+  }), [actor, correlation, kind, resource, severity, snapshot.events, time])
+  const visibleEvents = events.slice(page * pageSize, (page + 1) * pageSize)
+  const selected = snapshot.events.find((event) => event.id === selectedId)
+  const resetPage = () => setPage(0)
+
+  return <>
+    <PageIntro eyebrow="OBSERVABILITY / EVENTS" title="Events and Audit" description="A dense, searchable event ledger. Bounded metadata stays visible while raw payloads and sensitive evidence remain unavailable." actions={<StatusBadge label="Redacted View" tone="info" />} />
+    <MockNotice>Payload bodies, screenshots, credentials, and protocol data are omitted. This is a mock-control-plane ledger only.</MockNotice>
+    <div className="flex flex-wrap items-end gap-3 border-y border-border py-3" aria-label="Event Filters">
+      <FilterSelect id="event-kind" label="Event Type" value={kind} onChange={(next) => { setKind(next as EventKind | "all"); resetPage() }}><option value="all">All Events</option><option value="operational">Operational</option><option value="audit">Audit</option></FilterSelect>
+      <FilterInput id="event-actor" label="Actor" value={actor} onChange={(next) => { setActor(next); resetPage() }} />
+      <FilterInput id="event-resource" label="Device or Resource" value={resource} onChange={(next) => { setResource(next); resetPage() }} />
+      <FilterInput id="event-correlation" label="Correlation ID" value={correlation} onChange={(next) => { setCorrelation(next); resetPage() }} />
+      <FilterSelect id="event-severity" label="Severity" value={severity} onChange={(next) => { setSeverity(next as "all" | "normal" | "failure"); resetPage() }}><option value="all">All Severities</option><option value="normal">Normal</option><option value="failure">Failure</option></FilterSelect>
+      <FilterInput id="event-time" label="Time" value={time} onChange={(next) => { setTime(next); resetPage() }} />
+      <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground"><Filter className="size-3.5" aria-hidden="true" />{events.length} Results</span>
+    </div>
+    <div className="mt-4">
+      {events.length === 0 ? <EmptyState label="No Events Match" detail="Adjust one or more filters to see mock event ledger entries." /> : <EventTable events={visibleEvents} onOpen={setSelectedId} />}
+      <DataTablePagination page={page} pageSize={pageSize} total={events.length} onPageChange={setPage} onPageSizeChange={(nextSize) => { setPageSize(nextSize); setPage(0) }} />
+    </div>
+    <Sheet open={Boolean(selected)} onOpenChange={(open) => !open && setSelectedId(null)}><SheetContent className="w-full rounded-none sm:max-w-xl"><SheetHeader className="border-b border-border"><SheetTitle>{selected?.name ?? "Event Detail"}</SheetTitle><SheetDescription>Sanitized, bounded event metadata.</SheetDescription></SheetHeader>{selected ? <dl className="grid gap-4 p-4 text-xs"><Detail label="Occurred" value={selected.occurredAt} /><Detail label="Actor" value={selected.actor} /><Detail label="Resource" value={`${selected.resourceType} / ${selected.resourceId}`} /><Detail label="Correlation ID" value={selected.correlationId} mono /><Detail label="Payload Summary" value={selected.payloadSummary} /><div><dt className="text-muted-foreground">Failure Classification</dt><dd className="mt-1"><FailureBadge failureClass={selected.failureClass} />{!selected.failureClass ? "None" : null}</dd></div></dl> : null}</SheetContent></Sheet>
+  </>
 }
 
-function Summary({ icon: Icon, label, value, detail }: { icon: typeof Waypoints; label: string; value: string; detail: string }) {
-  return <div className="border border-border bg-card p-4"><div className="flex items-center gap-2 text-primary"><Icon className="size-4" aria-hidden="true" /><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</span></div><p className="drift-data mt-2 text-2xl font-semibold">{value}</p><p className="mt-1 text-[11px] text-muted-foreground">{detail}</p></div>
+function FilterSelect({ id, label, value, onChange, children }: { id: string; label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
+  return <label htmlFor={id} className="text-xs font-semibold text-foreground">{label}<select id={id} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 block h-9 rounded-none border border-input bg-background px-2 text-xs text-foreground">{children}</select></label>
 }
 
-function isEventKind(value: string): value is EventKind | "all" {
-  return value === "all" || value === "operational" || value === "audit"
+function FilterInput({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
+  return <label htmlFor={id} className="text-xs font-semibold text-foreground">{label}<span className="relative mt-1 block"><Search className="absolute left-2 top-2.5 size-3.5 text-muted-foreground" aria-hidden="true" /><input id={id} value={value} onChange={(event) => onChange(event.target.value)} placeholder={`Filter ${label.toLowerCase()}`} className="h-9 rounded-none border border-input bg-background pl-7 pr-2 text-xs text-foreground" /></span></label>
 }
+
+function EventTable({ events, onOpen }: { events: readonly EventView[]; onOpen: (id: string) => void }) {
+  return <ScrollArea className="h-[min(68vh,760px)] border border-border"><table className="w-full min-w-[940px] border-collapse text-left text-xs"><caption className="sr-only">Operational and audit event history</caption><thead className="sticky top-0 bg-background"><tr className="border-b border-border text-[10px] tracking-[.08em] text-muted-foreground"><th className="p-3">Time</th><th className="p-3">Event</th><th className="p-3">Type</th><th className="p-3">Actor</th><th className="p-3">Device or Resource</th><th className="p-3">Correlation</th><th className="p-3">Severity</th></tr></thead><tbody>{events.map((event) => <EventRow key={event.id} event={event} onOpen={() => onOpen(event.id)} />)}</tbody></table></ScrollArea>
+}
+
+function EventRow({ event, onOpen }: { event: EventView; onOpen: () => void }) { return <tr className="border-b border-border/70 hover:bg-muted/50"><td className="p-3 text-muted-foreground">{event.occurredAt}</td><td className="p-3"><button onClick={onOpen} className="text-left font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-primary">{event.name}</button></td><td className="p-3"><StatusBadge label={event.kind} tone={event.kind === "audit" ? "info" : "healthy"} /></td><td className="p-3">{event.actor}</td><td className="p-3">{event.resourceType} · {event.resourceId}</td><td className="drift-data p-3 text-[10px]">{event.correlationId}</td><td className="p-3"><FailureBadge failureClass={event.failureClass} />{!event.failureClass ? <span className="text-muted-foreground">Normal</span> : null}</td></tr> }
+function Detail({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) { return <div><dt className="text-muted-foreground">{label}</dt><dd className={`mt-1 ${mono ? "drift-data text-[10px]" : ""}`}>{value}</dd></div> }

@@ -29,6 +29,7 @@ import {
   Settings2Icon,
   UsersRoundIcon,
 } from "lucide-react"
+import { navigation, type Section } from "@/lib/navigation"
 
 const teams = [
   {
@@ -74,112 +75,24 @@ const user = {
 
 export function AppSidebar({
   activeSection = "Overview",
+  activeView,
   onSectionChange,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
-  activeSection?: string
-  onSectionChange?: (section: string) => void
+  activeSection?: Section
+  activeView?: string
+  onSectionChange?: (section: string, view?: string) => void
 }) {
-  const navMain = [
-    {
-      title: "Overview",
-      url: "#overview",
-      icon: <LayoutDashboardIcon aria-hidden="true" />,
-      isActive: activeSection === "Overview",
-      items: [{ title: "Fleet overview", url: "#overview" }],
-    },
-    {
-      title: "Control",
-      url: "#control",
-      icon: <MousePointer2Icon aria-hidden="true" />,
-      isActive: activeSection === "Control",
-      items: [{ title: "Mirror preview", url: "#control" }],
-    },
-    {
-      title: "Devices",
-      url: "#devices",
-      icon: <SmartphoneIcon aria-hidden="true" />,
-      isActive: activeSection === "Devices",
-      badge: 6,
-      items: [
-        { title: "All devices", url: "#devices" },
-        { title: "Needs attention", url: "#attention" },
-      ],
-    },
-    {
-      title: "Accounts",
-      url: "#accounts",
-      icon: <ContactRoundIcon aria-hidden="true" />,
-      isActive: activeSection === "Accounts",
-      items: [{ title: "References and assignments", url: "#accounts" }],
-    },
-    {
-      title: "Network Profiles",
-      url: "#network-profiles",
-      icon: <NetworkIcon aria-hidden="true" />,
-      isActive: activeSection === "Network Profiles",
-      items: [{ title: "Discovery policy", url: "#network-profiles" }],
-    },
-    {
-      title: "Groups",
-      url: "#groups",
-      icon: <UsersRoundIcon aria-hidden="true" />,
-      isActive: activeSection === "Groups",
-      items: [{ title: "Membership order", url: "#groups" }],
-    },
-    {
-      title: "Workflows",
-      url: "#workflows",
-      icon: <CommandIcon aria-hidden="true" />,
-      isActive: activeSection === "Workflows",
-      items: [
-        { title: "Definitions", url: "#workflows" },
-        { title: "Schedules", url: "#schedules" },
-      ],
-    },
-    {
-      title: "Agents",
-      url: "#agents",
-      icon: <BotIcon aria-hidden="true" />,
-      isActive: activeSection === "Agents",
-      items: [{ title: "Profiles and assignments", url: "#agents" }],
-    },
-    {
-      title: "Runs",
-      url: "#runs",
-      icon: <ListChecksIcon aria-hidden="true" />,
-      isActive: activeSection === "Runs",
-      items: [
-        { title: "Active runs", url: "#runs" },
-        { title: "History", url: "#history" },
-      ],
-    },
-    {
-      title: "Events",
-      url: "#events",
-      icon: <ScrollTextIcon aria-hidden="true" />,
-      isActive: activeSection === "Events",
-      items: [{ title: "Audit timeline", url: "#events" }],
-    },
-    {
-      title: "Policies",
-      url: "#policies",
-      icon: <ShieldCheckIcon aria-hidden="true" />,
-      isActive: activeSection === "Policies",
-      items: [
-        { title: "Safety policies", url: "#policies" },
-        { title: "Access", url: "#access" },
-      ],
-    },
-    {
-      title: "Settings",
-      url: "#settings",
-      icon: <Settings2Icon aria-hidden="true" />,
-      isActive: activeSection === "Settings",
-      ariaLabel: "Configuration navigation",
-      items: [{ title: "Scoped settings", url: "#settings" }],
-    },
-  ]
+  const iconFor: Record<Section, React.ReactNode> = { Overview: <LayoutDashboardIcon aria-hidden="true" />, Control: <MousePointer2Icon aria-hidden="true" />, Devices: <SmartphoneIcon aria-hidden="true" />, Accounts: <ContactRoundIcon aria-hidden="true" />, "Network Profiles": <NetworkIcon aria-hidden="true" />, Groups: <UsersRoundIcon aria-hidden="true" />, Workflows: <CommandIcon aria-hidden="true" />, Agents: <BotIcon aria-hidden="true" />, Runs: <ListChecksIcon aria-hidden="true" />, Events: <ScrollTextIcon aria-hidden="true" />, Policies: <ShieldCheckIcon aria-hidden="true" />, Settings: <Settings2Icon aria-hidden="true" /> }
+  const navMain = navigation.map((item) => ({
+    title: item.section,
+    url: `#${item.hash}/${item.views[0].id}`,
+    icon: iconFor[item.section],
+    isActive: activeSection === item.section,
+    badge: item.section === "Devices" ? 6 : undefined,
+    ariaLabel: item.section === "Settings" ? "Configuration navigation" : undefined,
+    items: item.views.map((view) => ({ title: view.label, url: `#${item.hash}/${view.id}`, isActive: activeSection === item.section && activeView === view.id })),
+  }))
 
   return (
     <Sidebar collapsible="icon" className="border-sidebar-border/70" {...props}>
