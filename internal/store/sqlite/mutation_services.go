@@ -126,7 +126,7 @@ func (s *NetworkProfileService) Create(ctx context.Context, p networkprofiles.Ne
 
 func (s *NetworkProfileService) Update(ctx context.Context, p networkprofiles.NetworkProfile, actorType, actorID string) error {
 	if ctx == nil || s == nil || s.store == nil {
-		return platformerrors.New(platformerrors.CodeInvalidInput, "context, SQLite store, and row version are required")
+		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite store are required")
 	}
 	if err := p.Validate(); err != nil {
 		return platformerrors.Wrap(platformerrors.CodeInvalidInput, "network profile is invalid", err)

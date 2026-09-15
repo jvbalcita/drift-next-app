@@ -74,6 +74,127 @@ func migrationFilesThrough(t *testing.T, maxVersion int) fstest.MapFS {
 	return files
 }
 
+// openUpgradeDB returns a database migrated only through maxVersion, the shape a
+// shipped release left behind for a customer that has already scanned a device.
+func openUpgradeDB(t *testing.T, maxVersion int) *sql.DB {
+	t.Helper()
+	db, err := migrationrunner.Open(context.Background(), filepath.Join(t.TempDir(), "upgrade.db"), migrationrunner.OpenOptions{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	runner, err := migrationrunner.NewRunner(db, migrationFilesThrough(t, maxVersion), migrationrunner.Options{})
+	if err != nil {
+		t.Fatalf("NewRunner(%d) error = %v", maxVersion, err)
+	}
+	if err := runner.Apply(context.Background()); err != nil {
+		t.Fatalf("Apply(%d) error = %v", maxVersion, err)
+	}
+	return db
+}
+
+// seedScannedDefaultProfile inserts the upgrade state that breaks the naive
+// network_profiles rebuild: a workspace, an active default profile, and the
+// completed scan run that references that profile through the composite FK.
+func seedScannedDefaultProfile(t *testing.T, db *sql.DB) {
+	t.Helper()
+	execSQL(t, db, `INSERT INTO workspaces (id, name, state, created_at, updated_at) VALUES ('phase-a-w', 'Phase A', 'active', ?, ?)`, testTime, testTime)
+	execSQL(t, db, `INSERT INTO network_profiles (id, workspace_id, name, address_policy, ports_json, is_default, state, created_at, updated_at, row_version) VALUES ('phase-a-profile', 'phase-a-w', 'Lab', '192.0.2.0/28', '[5555]', 1, 'active', ?, ?, 1)`, testTime, testTime)
+	execSQL(t, db, `INSERT INTO scan_runs (id, workspace_id, network_profile_id, state, requested_at, finished_at, idempotency_key) VALUES ('phase-a-run', 'phase-a-w', 'phase-a-profile', 'completed', ?, ?, 'phase-a-key')`, testTime, testTime)
+}
+
+func applyLatestMigrations(t *testing.T, db *sql.DB) error {
+	t.Helper()
+	runner, err := migrationrunner.NewRunner(db, migrations.SQLiteFiles, migrationrunner.Options{})
+	if err != nil {
+		t.Fatalf("NewRunner(latest) error = %v", err)
+	}
+	return runner.Apply(context.Background())
+}
+
+func scanRunCount(t *testing.T, db *sql.DB) int {
+	t.Helper()
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM scan_runs WHERE workspace_id = 'phase-a-w'`).Scan(&count); err != nil {
+		t.Fatalf("scan_runs count error = %v", err)
+	}
+	return count
+}
+
+func TestDiscoverySimplificationAppliesToScannedDatabase(t *testing.T) {
+	db := openUpgradeDB(t, 19)
+	seedScannedDefaultProfile(t, db)
+
+	if err := applyLatestMigrations(t, db); err != nil {
+		t.Fatalf("Apply(0020) on a database with scan history error = %v", err)
+	}
+}
+
+func TestDiscoverySimplificationPreservesScanHistoryAndForeignKeys(t *testing.T) {
+	db := openUpgradeDB(t, 19)
+	seedScannedDefaultProfile(t, db)
+	if err := applyLatestMigrations(t, db); err != nil {
+		t.Fatalf("Apply(0020) on a database with scan history error = %v", err)
+	}
+
+	var lifecycleColumns int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('network_profiles') WHERE name IN ('state', 'row_version')`).Scan(&lifecycleColumns); err != nil {
+		t.Fatalf("network_profiles schema lookup error = %v", err)
+	}
+	if lifecycleColumns != 0 {
+		t.Fatalf("network_profiles retained lifecycle columns: %d", lifecycleColumns)
+	}
+
+	var profileID, state, idempotencyKey string
+	if err := db.QueryRow(`SELECT network_profile_id, state, idempotency_key FROM scan_runs WHERE id = 'phase-a-run'`).Scan(&profileID, &state, &idempotencyKey); err != nil {
+		t.Fatalf("scan run lookup error = %v", err)
+	}
+	if profileID != "phase-a-profile" || state != "completed" || idempotencyKey != "phase-a-key" {
+		t.Fatalf("scan run = (%q, %q, %q), want preserved history", profileID, state, idempotencyKey)
+	}
+
+	rows, err := db.Query(`PRAGMA foreign_key_check`)
+	if err != nil {
+		t.Fatalf("foreign_key_check error = %v", err)
+	}
+	defer rows.Close()
+	violations := 0
+	for rows.Next() {
+		violations++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("foreign_key_check rows error = %v", err)
+	}
+	if violations != 0 {
+		t.Fatalf("foreign_key_check violations = %d, want 0", violations)
+	}
+}
+
+func TestNetworkProfileDeletionSucceedsWithScanHistory(t *testing.T) {
+	db := openUpgradeDB(t, 19)
+	seedScannedDefaultProfile(t, db)
+	if err := applyLatestMigrations(t, db); err != nil {
+		t.Fatalf("Apply(0020) on a database with scan history error = %v", err)
+	}
+	historyBefore := scanRunCount(t, db)
+	if historyBefore != 1 {
+		t.Fatalf("scan_runs before delete = %d, want 1", historyBefore)
+	}
+
+	execSQL(t, db, `DELETE FROM network_profiles WHERE workspace_id = 'phase-a-w' AND id = 'phase-a-profile'`)
+
+	var profiles int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM network_profiles WHERE workspace_id = 'phase-a-w'`).Scan(&profiles); err != nil {
+		t.Fatalf("network_profiles count error = %v", err)
+	}
+	if profiles != 0 {
+		t.Fatalf("network_profiles after delete = %d, want 0", profiles)
+	}
+	if after := scanRunCount(t, db); after != historyBefore {
+		t.Fatalf("scan_runs after delete = %d, want unchanged %d", after, historyBefore)
+	}
+}
+
 func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	db := migratedDB(t)
 
