@@ -22,6 +22,7 @@ import (
 	"drift.local/drift-next/gen/go/drift/v1/driftv1connect"
 	"drift.local/drift-next/internal/discovery"
 	"drift.local/drift-next/internal/edge/adb"
+	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/edge/registration"
 	"drift.local/drift-next/internal/organizations"
@@ -83,6 +84,9 @@ func TestAttendedRealDeviceRegistrationAndObservation(t *testing.T) {
 		LabMode:    true,
 		Enumerator: product.NewLabRuntimeEnumerator(labService),
 	}))
+	actionRuntime := execution.NewRegistry(labService, db)
+	productHandlers.Action.SetExecutor(actionRuntime)
+	t.Cleanup(func() { _ = actionRuntime.Close() })
 	routes := []service.Route{
 		service.LabAdapterRoute(labService, attendedToken),
 		service.LabRegistrationRouteWithStore(registrationService, db, attendedToken, []uint16{5555}),

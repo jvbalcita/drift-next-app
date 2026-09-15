@@ -12,6 +12,7 @@ import (
 	"drift.local/drift-next/internal/artifacts"
 	"drift.local/drift-next/internal/artifacts/cas"
 	"drift.local/drift-next/internal/discovery"
+	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/edge/registration"
 	"drift.local/drift-next/internal/organizations"
@@ -130,6 +131,9 @@ func main() {
 		Enumerator: product.NewLabRuntimeEnumerator(labService),
 	})
 	productHandlers = transportconnect.NewProductHandlers(db, scanner)
+	actionRuntime := execution.NewRegistry(labService, db)
+	productHandlers.Action.SetExecutor(actionRuntime)
+	defer func() { _ = actionRuntime.Close() }()
 
 	routes := []service.Route{
 		service.LabAdapterRoute(labService, labToken),

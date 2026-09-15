@@ -104,6 +104,15 @@ export function useControlPlane(): ControlPlaneViewModel {
     void reload()
   }, [reload])
 
+  const commitProductSnapshot = useCallback(async () => {
+    try {
+      const overlay = await overlayAdapterStatus(client.getSnapshot(), labClient, registrationClient, operatorId)
+      setSnapshot((current) => mergeAdapterProjection(overlay, current))
+    } catch {
+      setSnapshot((current) => mergeAdapterProjection(client.getSnapshot(), current))
+    }
+  }, [client, labClient, registrationClient])
+
   const applyRemoteLab = useCallback(async (intent: ControlPlaneIntent): Promise<MutationResult> => {
     const context = {
       workspaceId: client.getSnapshot().workspaceId,
@@ -130,7 +139,7 @@ export function useControlPlane(): ControlPlaneViewModel {
         return { ok: true, kind: intent.type, message }
       }
       const mutation = await client.dispatch(intent)
-      setSnapshot((current) => mergeAdapterProjection(client.getSnapshot(), current))
+      await commitProductSnapshot()
       return mutation
     } catch (cause: unknown) {
       if (isLabControlPlaneIntent(intent) || isLabRegistrationControlPlaneIntent(intent)) {
@@ -140,7 +149,7 @@ export function useControlPlane(): ControlPlaneViewModel {
       }
       return { ok: false, kind: intent.type, message: "The device adapter could not be reached." }
     }
-  }, [client, labClient, registrationClient])
+  }, [client, commitProductSnapshot, labClient, registrationClient])
 
   const dispatch = useCallback(async (intent: ControlPlaneIntent): Promise<MutationResult> => {
     if (
@@ -150,9 +159,9 @@ export function useControlPlane(): ControlPlaneViewModel {
       return applyRemoteLab(intent)
     }
     const mutation = await client.dispatch(intent)
-    setSnapshot((current) => mergeAdapterProjection(client.getSnapshot(), current))
+    await commitProductSnapshot()
     return mutation
-  }, [applyRemoteLab, client, labClient, registrationClient])
+  }, [applyRemoteLab, client, commitProductSnapshot, labClient, registrationClient])
 
   return {
     snapshot,

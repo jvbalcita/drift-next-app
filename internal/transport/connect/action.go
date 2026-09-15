@@ -11,9 +11,23 @@ import (
 	store "drift.local/drift-next/internal/store/sqlite"
 )
 
-type ActionHandler struct{ db *store.DB }
+type ActionExecutor interface {
+	Run(ctx context.Context, intent action.Intent, actorType, actorID string) (action.Result, error)
+}
+
+type ActionHandler struct {
+	db       *store.DB
+	executor ActionExecutor
+}
 
 func NewActionHandler(db *store.DB) *ActionHandler { return &ActionHandler{db: db} }
+
+func (h *ActionHandler) SetExecutor(executor ActionExecutor) {
+	if h == nil {
+		return
+	}
+	h.executor = executor
+}
 
 func (h *ActionHandler) SubmitAction(ctx context.Context, request *connectrpc.Request[driftv1.SubmitActionRequest]) (*connectrpc.Response[driftv1.SubmitActionResponse], error) {
 	if request == nil {
@@ -41,7 +55,14 @@ func (h *ActionHandler) SubmitAction(ctx context.Context, request *connectrpc.Re
 	if authorizeErr != nil {
 		return nil, MapError(authorizeErr)
 	}
-	return connectrpc.NewResponse(&driftv1.SubmitActionResponse{Result: actionResultProto(result)}), nil
+	if h.executor == nil || (result.IdempotentReplay && result.Attempt.State != action.AttemptAuthorized) {
+		return connectrpc.NewResponse(&driftv1.SubmitActionResponse{Result: actionResultProto(result)}), nil
+	}
+	executed, executeErr := h.executor.Run(ctx, intent, actorType, actorID)
+	if executeErr != nil {
+		return nil, MapError(executeErr)
+	}
+	return connectrpc.NewResponse(&driftv1.SubmitActionResponse{Result: actionResultProto(executed)}), nil
 }
 
 func actionIntentFromProto(msg *driftv1.ActionIntent, requestContext *driftv1.RequestContext, actorID string) (action.Intent, error) {
