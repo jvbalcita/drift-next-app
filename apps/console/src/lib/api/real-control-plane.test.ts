@@ -111,4 +111,54 @@ describe("RealControlPlaneClient", () => {
     expect(snapshot.runtimeConnection.state).toBe("disconnected")
     expect(snapshot.runtimeConnection.disconnectedReason).toBe("Control plane authorization failed.")
   })
+
+  it("projects group memberships from ListDeviceGroups", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.GroupService/ListDeviceGroups")) {
+        return new Response(JSON.stringify({
+          groups: [{ id: "group-1", displayName: "Rack A", state: "GROUP_STATE_ACTIVE", rowVersion: "1" }],
+          memberships: [{
+            id: "mem-1",
+            groupId: "group-1",
+            deviceId: "device-pixel-1",
+            position: 1,
+            state: "active",
+            startedAt: "2026-09-15",
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const snapshot = await client.refresh()
+
+    expect(snapshot.groups).toEqual([expect.objectContaining({ id: "group-1", name: "Rack A" })])
+    expect(snapshot.memberships).toEqual([expect.objectContaining({
+      id: "mem-1",
+      groupId: "group-1",
+      deviceId: "device-pixel-1",
+      position: 1,
+      state: "active",
+    })])
+  })
+
+  it("classifies mutation 401 as unauthorized", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("lab adapter requires a valid local lab token", { status: 401 }),
+    )
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080" })
+    const result = await client.dispatch({
+      type: "createNetworkProfile",
+      name: "Rack policy",
+      addressPolicy: "192.0.2.0/24",
+      ports: [5555],
+      isDefault: false,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.errorCode).toBe("unauthorized")
+  })
 })

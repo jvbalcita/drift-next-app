@@ -32,7 +32,8 @@ func (h *GroupHandler) ListDeviceGroups(ctx context.Context, request *connectrpc
 	if listErr != nil {
 		return nil, MapError(listErr)
 	}
-	if _, membershipErr := repo.ListAllMemberships(ctx, workspace); membershipErr != nil {
+	memberships, membershipErr := repo.ListAllMemberships(ctx, workspace)
+	if membershipErr != nil {
 		return nil, MapError(membershipErr)
 	}
 	page, next := applyPage(listed, offset, limit)
@@ -40,7 +41,11 @@ func (h *GroupHandler) ListDeviceGroups(ctx context.Context, request *connectrpc
 	for _, group := range page {
 		out = append(out, deviceGroupProto(group))
 	}
-	return connectrpc.NewResponse(&driftv1.ListDeviceGroupsResponse{Groups: out, Page: pageResponse(next)}), nil
+	memberOut := make([]*driftv1.GroupMembership, 0, len(memberships))
+	for _, membership := range memberships {
+		memberOut = append(memberOut, membershipProto(membership))
+	}
+	return connectrpc.NewResponse(&driftv1.ListDeviceGroupsResponse{Groups: out, Memberships: memberOut, Page: pageResponse(next)}), nil
 }
 
 func (h *GroupHandler) MoveDeviceToGroup(ctx context.Context, request *connectrpc.Request[driftv1.MoveDeviceToGroupRequest]) (*connectrpc.Response[driftv1.MoveDeviceToGroupResponse], error) {

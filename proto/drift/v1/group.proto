@@ -33,6 +33,7 @@ message ListDeviceGroupsRequest {
 message ListDeviceGroupsResponse {
   repeated DeviceGroup groups = 1;
   PageResponse page = 2;
+  repeated GroupMembership memberships = 3;
 }
 message MoveDeviceToGroupRequest {
   RequestContext context = 1;

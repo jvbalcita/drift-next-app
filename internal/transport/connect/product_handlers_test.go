@@ -183,6 +183,9 @@ func TestGroupMovePlacement(t *testing.T) {
 	if err != nil || len(listed.Msg.Groups) != 1 {
 		t.Fatalf("list groups = %#v err=%v", listed, err)
 	}
+	if len(listed.Msg.Memberships) != 1 || listed.Msg.Memberships[0].GetDeviceId() != "device-1" || listed.Msg.Memberships[0].GetGroupId() != "group-1" {
+		t.Fatalf("list memberships = %#v", listed.Msg.Memberships)
+	}
 }
 
 func TestMutationsRejectMissingRequestID(t *testing.T) {

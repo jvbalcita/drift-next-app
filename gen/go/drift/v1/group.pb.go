@@ -294,6 +294,7 @@ type ListDeviceGroupsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Groups        []*DeviceGroup         `protobuf:"bytes,1,rep,name=groups,proto3" json:"groups,omitempty"`
 	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	Memberships   []*GroupMembership     `protobuf:"bytes,3,rep,name=memberships,proto3" json:"memberships,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -338,6 +339,13 @@ func (x *ListDeviceGroupsResponse) GetGroups() []*DeviceGroup {
 func (x *ListDeviceGroupsResponse) GetPage() *PageResponse {
 	if x != nil {
 		return x.Page
+	}
+	return nil
+}
+
+func (x *ListDeviceGroupsResponse) GetMemberships() []*GroupMembership {
+	if x != nil {
+		return x.Memberships
 	}
 	return nil
 }
@@ -485,10 +493,11 @@ const file_drift_v1_group_proto_rawDesc = "" +
 	"\bended_at\x18\a \x01(\tR\aendedAt\"z\n" +
 	"\x17ListDeviceGroupsRequest\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
-	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"u\n" +
+	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\xb2\x01\n" +
 	"\x18ListDeviceGroupsResponse\x12-\n" +
 	"\x06groups\x18\x01 \x03(\v2\x15.drift.v1.DeviceGroupR\x06groups\x12*\n" +
-	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\xd8\x01\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\x12;\n" +
+	"\vmemberships\x18\x03 \x03(\v2\x19.drift.v1.GroupMembershipR\vmemberships\"\xd8\x01\n" +
 	"\x18MoveDeviceToGroupRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
@@ -542,18 +551,19 @@ var file_drift_v1_group_proto_depIdxs = []int32{
 	8,  // 3: drift.v1.ListDeviceGroupsRequest.page:type_name -> drift.v1.PageRequest
 	1,  // 4: drift.v1.ListDeviceGroupsResponse.groups:type_name -> drift.v1.DeviceGroup
 	9,  // 5: drift.v1.ListDeviceGroupsResponse.page:type_name -> drift.v1.PageResponse
-	10, // 6: drift.v1.MoveDeviceToGroupRequest.context:type_name -> drift.v1.RequestContext
-	7,  // 7: drift.v1.MoveDeviceToGroupRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	2,  // 8: drift.v1.MoveDeviceToGroupResponse.membership:type_name -> drift.v1.GroupMembership
-	3,  // 9: drift.v1.GroupService.ListDeviceGroups:input_type -> drift.v1.ListDeviceGroupsRequest
-	5,  // 10: drift.v1.GroupService.MoveDeviceToGroup:input_type -> drift.v1.MoveDeviceToGroupRequest
-	4,  // 11: drift.v1.GroupService.ListDeviceGroups:output_type -> drift.v1.ListDeviceGroupsResponse
-	6,  // 12: drift.v1.GroupService.MoveDeviceToGroup:output_type -> drift.v1.MoveDeviceToGroupResponse
-	11, // [11:13] is the sub-list for method output_type
-	9,  // [9:11] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	2,  // 6: drift.v1.ListDeviceGroupsResponse.memberships:type_name -> drift.v1.GroupMembership
+	10, // 7: drift.v1.MoveDeviceToGroupRequest.context:type_name -> drift.v1.RequestContext
+	7,  // 8: drift.v1.MoveDeviceToGroupRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	2,  // 9: drift.v1.MoveDeviceToGroupResponse.membership:type_name -> drift.v1.GroupMembership
+	3,  // 10: drift.v1.GroupService.ListDeviceGroups:input_type -> drift.v1.ListDeviceGroupsRequest
+	5,  // 11: drift.v1.GroupService.MoveDeviceToGroup:input_type -> drift.v1.MoveDeviceToGroupRequest
+	4,  // 12: drift.v1.GroupService.ListDeviceGroups:output_type -> drift.v1.ListDeviceGroupsResponse
+	6,  // 13: drift.v1.GroupService.MoveDeviceToGroup:output_type -> drift.v1.MoveDeviceToGroupResponse
+	12, // [12:14] is the sub-list for method output_type
+	10, // [10:12] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_group_proto_init() }

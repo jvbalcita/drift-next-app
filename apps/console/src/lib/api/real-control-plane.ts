@@ -20,7 +20,7 @@ import { EdgeAgentState } from "@/gen/drift/v1/edge_agent_pb"
 import type { DeviceEndpoint } from "@/gen/drift/v1/endpoint_pb"
 import { EndpointState } from "@/gen/drift/v1/endpoint_pb"
 import type { AuditEvent, OperationalEvent } from "@/gen/drift/v1/event_pb"
-import type { DeviceGroup } from "@/gen/drift/v1/group_pb"
+import type { DeviceGroup, GroupMembership } from "@/gen/drift/v1/group_pb"
 import { GroupState } from "@/gen/drift/v1/group_pb"
 import type { NetworkProfile } from "@/gen/drift/v1/network_profile_pb"
 import { NetworkProfileSchema, NetworkProfileState } from "@/gen/drift/v1/network_profile_pb"
@@ -84,6 +84,8 @@ import type {
   EventView,
   GroupState as GroupViewState,
   GroupView,
+  MembershipState,
+  MembershipView,
   LabAdapterView,
   MutationResult,
   NetworkProfileView,
@@ -430,6 +432,19 @@ function mapGroup(group: DeviceGroup): GroupView {
     name: group.displayName || group.id,
     state: mapGroupState(group.state),
     rowVersion: Number(group.rowVersion),
+  }
+}
+
+function mapMembership(membership: GroupMembership): MembershipView {
+  const state: MembershipState = membership.state === "ended" ? "ended" : "active"
+  return {
+    id: membership.id,
+    groupId: membership.groupId,
+    deviceId: membership.deviceId,
+    position: membership.position,
+    state,
+    startedAt: membership.startedAt,
+    ...(membership.endedAt ? { endedAt: membership.endedAt } : {}),
   }
 }
 
@@ -1071,7 +1086,10 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       settle(this.services.edgeAgent.listEdgeAgents(workspaceId).then((response) => response.edgeAgents.map(mapEdgeAgent)), [] as EdgeAgentView[]),
       settle(this.services.endpoint.listDeviceEndpoints(workspaceId).then((response) => response.endpoints.map(mapEndpoint)), [] as EndpointView[]),
       settle(this.services.networkProfile.listNetworkProfiles(workspaceId).then((response) => response.profiles.map(mapNetworkProfile)), [] as NetworkProfileView[]),
-      settle(this.services.group.listDeviceGroups(workspaceId).then((response) => response.groups.map(mapGroup)), [] as GroupView[]),
+      settle(this.services.group.listDeviceGroups(workspaceId).then((response) => ({
+        groups: response.groups.map(mapGroup),
+        memberships: response.memberships.map(mapMembership),
+      })), { groups: [] as GroupView[], memberships: [] as MembershipView[] }),
       settle(this.services.event.listOperationalEvents(workspaceId).then((response) => response.events.map(mapOperationalEvent)), [] as EventView[]),
       settle(this.services.event.listAuditEvents(workspaceId).then((response) => response.events.map(mapAuditEvent)), [] as EventView[]),
       settle(this.services.account.listAccountSources(workspaceId).then((response) => response.sources.map((source) => ({
@@ -1232,7 +1250,8 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       edgeAgents: edgeAgents.value,
       endpoints: endpoints.value,
       networkProfiles: networkProfiles.value,
-      groups: groups.value,
+      groups: groups.value.groups,
+      memberships: groups.value.memberships,
       events: [...operationalEvents.value, ...auditEvents.value],
       accountSources: accountSources.value,
       accounts: accounts.value.map((account) => ({
@@ -1287,7 +1306,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       if (isNetworkFailure(cause)) {
         this.snapshot = emptyControlPlaneSnapshot({ workspaceId, disconnectedReason: message })
       }
-      return failure(intent, message, { errorCode: cause instanceof ConnectJsonError && cause.code === "unauthorized" ? "unauthorized" : "precondition_failed" })
+      return failure(intent, message, { errorCode: isAuthorizationFailure(cause) ? "unauthorized" : "precondition_failed" })
     }
   }
 
