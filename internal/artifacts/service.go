@@ -194,6 +194,29 @@ func (s *Service) Store(ctx context.Context, request StoreRequest) (StoreResult,
 	if int64(len(request.Payload)) > maxBytes {
 		return StoreResult{}, platformerrors.New(platformerrors.CodePolicyDenied, "artifact exceeds object size quota")
 	}
+
+	contentHash := cas.HashBytes(request.Payload)
+	if request.DeclaredHash != "" && request.DeclaredHash != contentHash {
+		return StoreResult{}, platformerrors.New(platformerrors.CodePreconditionFailed, "artifact content hash mismatch")
+	}
+
+	// Idempotent re-stores of existing content must not charge workspace quota
+	// again: CAS Put and GetByHash reuse bytes/metadata without growing usage.
+	if existing, getErr := s.meta.GetByHash(ctx, request.Workspace, contentHash); getErr == nil {
+		if _, putErr := s.bytes.Put(string(request.Workspace), request.DeclaredHash, request.Payload); putErr != nil {
+			return StoreResult{}, putErr
+		}
+		if request.OwnerType != "" && request.OwnerID != "" {
+			if refErr := s.ensureReference(ctx, request, existing.ID); refErr != nil {
+				return StoreResult{}, refErr
+			}
+		}
+		_ = s.auditEvent(ctx, request.Workspace, "artifact", string(existing.ID), "artifact.store.idempotent", request.ActorType, request.ActorID)
+		return StoreResult{Artifact: existing, Decision: decision}, nil
+	} else if platformerrors.CodeOf(getErr) != platformerrors.CodeNotFound {
+		return StoreResult{}, getErr
+	}
+
 	if s.policy.MaxWorkspaceBytes > 0 {
 		usage, err := s.meta.Usage(ctx, request.Workspace)
 		if err != nil {
@@ -207,18 +230,6 @@ func (s *Service) Store(ctx context.Context, request StoreRequest) (StoreResult,
 	contentHash, err := s.bytes.Put(string(request.Workspace), request.DeclaredHash, request.Payload)
 	if err != nil {
 		return StoreResult{}, err
-	}
-
-	if existing, getErr := s.meta.GetByHash(ctx, request.Workspace, contentHash); getErr == nil {
-		if request.OwnerType != "" && request.OwnerID != "" {
-			if refErr := s.ensureReference(ctx, request, existing.ID); refErr != nil {
-				return StoreResult{}, refErr
-			}
-		}
-		_ = s.auditEvent(ctx, request.Workspace, "artifact", string(existing.ID), "artifact.store.idempotent", request.ActorType, request.ActorID)
-		return StoreResult{Artifact: existing, Decision: decision}, nil
-	} else if platformerrors.CodeOf(getErr) != platformerrors.CodeNotFound {
-		return StoreResult{}, getErr
 	}
 
 	id := request.ID
