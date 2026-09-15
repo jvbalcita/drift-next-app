@@ -878,6 +878,14 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       approved: false,
       mockLabeled: true,
     }
+    const existingRegistration = this.snapshot.labRegistration
+    if (existingRegistration?.serial === serial && existingRegistration.state === "registered") {
+      this.snapshot = {
+        ...this.snapshot,
+        provisioningReadiness: { ...readiness, state: "registered", notes: [...notes, "Already Registered; Verification Is Idempotent"] },
+      }
+      return result(intent, "Provisioning re-verified for an already-registered mock lab serial. Registration was not reset.", serial)
+    }
     this.snapshot = {
       ...this.snapshot,
       provisioningReadiness: readiness,
@@ -1149,8 +1157,8 @@ export class MockControlPlaneClient implements ControlPlaneClient {
   }
 
   private confirmSpoolReplay(intent: Extract<ControlPlaneIntent, { type: "confirmSpoolReplay" }>): MutationResult {
-    if (!this.blockedSequences.includes(intent.sequence) && this.snapshot.spoolHealth.blocked === 0) {
-      return rejection(intent, "No blocked spool item requires confirmation.", undefined, "precondition_failed")
+    if (!this.blockedSequences.includes(intent.sequence)) {
+      return rejection(intent, "Spool sequence is not blocked or is unknown; confirmation requires an exact blocked sequence.", undefined, "precondition_failed")
     }
     if (this.snapshot.runtimeConnection.state !== "connected") {
       return rejection(intent, "Runtime must be Connected before spool confirmation.", undefined, "precondition_failed")
@@ -1164,7 +1172,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       spoolHealth: {
         ...this.snapshot.spoolHealth,
         blocked,
-        exhausted: blocked >= this.snapshot.spoolHealth.maxSize,
+        exhausted: this.snapshot.spoolHealth.pending + blocked >= this.snapshot.spoolHealth.maxSize,
       },
       events: addEvent(
         this.snapshot,

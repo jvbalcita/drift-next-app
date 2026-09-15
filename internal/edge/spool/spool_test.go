@@ -74,6 +74,19 @@ func TestSpoolRejectsHighRiskAndStaleFenceWhileDisconnected(t *testing.T) {
 		t.Fatalf("high-risk disconnected code = %v, want policy_denied", platformerrors.CodeOf(err))
 	}
 
+	q.SetConnectionState(spool.StateReconnecting, 3)
+	_, err = q.Enqueue(spool.Item{
+		Kind:          spool.KindOutbox,
+		IdempotencyKey: "swipe-1",
+		Risk:          action.RiskMedium,
+		Payload:       []byte(`{"action":"swipe"}`),
+		FenceToken:    3,
+	}, now)
+	if platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
+		t.Fatalf("medium-risk reconnecting code = %v, want policy_denied", platformerrors.CodeOf(err))
+	}
+
+	q.SetConnectionState(spool.StateDisconnected, 3)
 	_, err = q.Enqueue(spool.Item{
 		Kind:          spool.KindObservation,
 		IdempotencyKey: "obs-stale",

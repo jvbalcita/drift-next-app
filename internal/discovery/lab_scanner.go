@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"drift.local/drift-next/internal/networkprofiles"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
@@ -77,25 +78,38 @@ func (s *AuthorizedLabScanner) Scan(ctx context.Context, profile networkprofiles
 
 	out := make([]ObservedCandidate, 0, len(devices))
 	for _, device := range devices {
-		if device.Port == 0 {
-			continue
-		}
-		if _, ok := allowed[device.Port]; !ok {
-			continue
+		usb := device.Port == 0 && strings.TrimSpace(device.Host) == "" && strings.TrimSpace(device.Serial) != ""
+		if !usb {
+			if device.Port == 0 {
+				continue
+			}
+			if _, ok := allowed[device.Port]; !ok {
+				continue
+			}
+			if !profile.ContainsHost(device.Host) {
+				continue
+			}
 		}
 		key := device.Serial
 		if key == "" {
 			key = fmt.Sprintf("%s:%d", device.Host, device.Port)
 		}
+		port := device.Port
+		if usb {
+			// USB candidates carry no TCP port; record a sentinel allowed by
+			// ObservedCandidate.Valid via the serial identity path.
+			port = 1
+		}
 		evidence := map[string]string{
 			"source":       "authorized_lab_runtime",
 			"transport_id": device.TransportID,
 			"port":         strconv.FormatUint(uint64(device.Port), 10),
+			"connection":   map[bool]string{true: "usb", false: "tcp"}[usb],
 		}
 		out = append(out, ObservedCandidate{
 			CandidateKey: key,
 			Host:         device.Host,
-			Port:         device.Port,
+			Port:         port,
 			Serial:       device.Serial,
 			Fingerprint:  device.Fingerprint,
 			Evidence:     evidence,

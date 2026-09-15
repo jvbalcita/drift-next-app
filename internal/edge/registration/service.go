@@ -4,6 +4,7 @@
 package registration
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -15,25 +16,39 @@ import (
 type State string
 
 const (
-	StateDiscovered         State = "discovered"
-	StateProvisionVerified  State = "provision_verified"
-	StateRegistered         State = "registered"
+	StateDiscovered        State = "discovered"
+	StateProvisionVerified State = "provision_verified"
+	StateApproved          State = "approved"
+	StateRegistered        State = "registered"
 )
 
-type ProvisionEvidence struct {
-	Serial                  string
-	TransportID             string
-	EndpointHost            string
-	EndpointPort            uint16
-	ConnectionType          string
+// TargetIdentity is the operator-supplied identity under verification. Boolean
+// prerequisite outcomes are never taken from this struct; they come only from
+// PrerequisiteProbe.
+type TargetIdentity struct {
+	Serial         string
+	TransportID    string
+	EndpointHost   string
+	EndpointPort   uint16
+	ConnectionType string
+	AllowedPorts   []uint16
+	ActorID        string
+}
+
+// ProbeResult is the sanitized outcome of a server-side prerequisite probe.
+type ProbeResult struct {
 	PairingAuthorized       bool
 	ADBServerOwned          bool
 	PlatformToolsCompatible bool
 	PortPolicyAllowed       bool
 	RollbackReady           bool
-	AllowedPorts            []uint16
-	RequireOperatorAuth     bool
-	OperatorAuthorized      bool
+	Notes                   []string
+}
+
+// PrerequisiteProbe performs runtime checks. Implementations must not trust
+// client-attested booleans; fakes return deterministic probe results for tests.
+type PrerequisiteProbe interface {
+	Probe(ctx context.Context, target TargetIdentity) (ProbeResult, error)
 }
 
 type ProvisionReady struct {
@@ -45,10 +60,16 @@ type ProvisionReady struct {
 	Notes       []string
 }
 
+type Approval struct {
+	Serial    string
+	ActorID   string
+	Reason    string
+	DecidedAt time.Time
+}
+
 type RegisterRequest struct {
 	Serial      string
 	DisplayName string
-	Approved    bool
 	ActorID     string
 }
 
@@ -62,15 +83,32 @@ type RegisterResult struct {
 
 type Config struct {
 	MaxRegisteredDevices int
+	Probe                PrerequisiteProbe
 }
 
 type Service struct {
-	mu          sync.Mutex
-	maxDevices  int
-	verified    map[string]ProvisionReady
-	registered  map[string]RegisterResult
-	nextDevice  int
+	mu           sync.Mutex
+	maxDevices   int
+	probe        PrerequisiteProbe
+	verified     map[string]ProvisionReady
+	approvals    map[string]Approval
+	registered   map[string]RegisterResult
+	nextDevice   int
 	nextEndpoint int
+}
+
+// AttestedProbe is a test double that returns fixed probe results. Production
+// composition must use a runtime-backed probe, never client form fields.
+type AttestedProbe struct {
+	Result ProbeResult
+	Err    error
+}
+
+func (p AttestedProbe) Probe(_ context.Context, _ TargetIdentity) (ProbeResult, error) {
+	if p.Err != nil {
+		return ProbeResult{}, p.Err
+	}
+	return p.Result, nil
 }
 
 func NewService(cfg Config) *Service {
@@ -80,58 +118,66 @@ func NewService(cfg Config) *Service {
 	}
 	return &Service{
 		maxDevices:   max,
+		probe:        cfg.Probe,
 		verified:     make(map[string]ProvisionReady),
+		approvals:    make(map[string]Approval),
 		registered:   make(map[string]RegisterResult),
 		nextDevice:   1,
 		nextEndpoint: 1,
 	}
 }
 
-func (s *Service) VerifyProvisioning(evidence ProvisionEvidence, now time.Time) (ProvisionReady, error) {
-	if s == nil {
-		return ProvisionReady{}, platformerrors.New(platformerrors.CodeInvalidInput, "registration service is required")
+func (s *Service) VerifyProvisioning(ctx context.Context, target TargetIdentity, now time.Time) (ProvisionReady, error) {
+	if s == nil || s.probe == nil {
+		return ProvisionReady{}, platformerrors.New(platformerrors.CodeInvalidInput, "registration service and prerequisite probe are required")
 	}
 	now = now.UTC()
-	serial := strings.TrimSpace(evidence.Serial)
-	transport := strings.TrimSpace(evidence.TransportID)
+	serial := strings.TrimSpace(target.Serial)
+	transport := strings.TrimSpace(target.TransportID)
+	actor := strings.TrimSpace(target.ActorID)
 	if serial == "" {
 		return ProvisionReady{}, platformerrors.New(platformerrors.CodeInvalidInput, "endpoint serial identity is required")
 	}
 	if transport == "" {
 		return ProvisionReady{}, platformerrors.New(platformerrors.CodeInvalidInput, "transport identity is required")
 	}
-	if evidence.RequireOperatorAuth && !evidence.OperatorAuthorized {
+	if actor == "" {
 		return ProvisionReady{}, platformerrors.New(platformerrors.CodePolicyDenied, "operator authorization is required for provisioning")
 	}
 
-	notes := make([]string, 0, 6)
+	probe, err := s.probe.Probe(ctx, target)
+	if err != nil {
+		return ProvisionReady{}, err
+	}
+
+	notes := append([]string(nil), probe.Notes...)
 	fail := func(msg string) (ProvisionReady, error) {
 		return ProvisionReady{}, platformerrors.New(platformerrors.CodePreconditionFailed, msg)
 	}
-	if !evidence.PairingAuthorized {
+	if !probe.PairingAuthorized {
 		return fail("device pairing and authorization are not verified")
 	}
 	notes = append(notes, "pairing authorized")
-	if !evidence.ADBServerOwned {
+	if !probe.ADBServerOwned {
 		return fail("ADB server ownership is not verified")
 	}
 	notes = append(notes, "adb server ownership verified")
-	if !evidence.PlatformToolsCompatible {
+	if !probe.PlatformToolsCompatible {
 		return fail("platform-tools are missing or incompatible; install or repair is not performed automatically")
 	}
 	notes = append(notes, "platform-tools compatible")
-	if !evidence.PortPolicyAllowed {
+	if !probe.PortPolicyAllowed {
 		return fail("port policy validation failed")
 	}
-	if evidence.ConnectionType == "wireless" || evidence.EndpointPort > 0 {
-		if !portAllowed(evidence.EndpointPort, evidence.AllowedPorts) {
+	if target.ConnectionType == "wireless" || target.EndpointPort > 0 {
+		if !portAllowed(target.EndpointPort, target.AllowedPorts) {
 			return fail("endpoint port is outside the allowed port policy")
 		}
-		notes = append(notes, fmt.Sprintf("port %d allowed", evidence.EndpointPort))
+		notes = append(notes, fmt.Sprintf("port %d allowed", target.EndpointPort))
 	} else {
 		notes = append(notes, "usb transport; no tcp port required")
 	}
-	if !evidence.RollbackReady {
+	if !probe.RollbackReady {
 		return fail("rollback readiness is not recorded")
 	}
 	notes = append(notes, "rollback ready")
@@ -146,8 +192,45 @@ func (s *Service) VerifyProvisioning(evidence ProvisionEvidence, now time.Time) 
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if existing, ok := s.registered[serial]; ok {
+		return ProvisionReady{
+			Serial:      existing.Serial,
+			TransportID: transport,
+			State:       StateRegistered,
+			Ready:       true,
+			CheckedAt:   now,
+			Notes:       append(notes, "already registered; verification is idempotent"),
+		}, nil
+	}
 	s.verified[serial] = ready
+	delete(s.approvals, serial) // re-verify clears prior approval
 	return ready, nil
+}
+
+// Approve records a durable operator approval distinct from provisioning and
+// registration. Registration cannot proceed without this transition.
+func (s *Service) Approve(serial, actorID, reason string, now time.Time) (Approval, error) {
+	if s == nil {
+		return Approval{}, platformerrors.New(platformerrors.CodeInvalidInput, "registration service is required")
+	}
+	now = now.UTC()
+	serial = strings.TrimSpace(serial)
+	actorID = strings.TrimSpace(actorID)
+	reason = strings.TrimSpace(reason)
+	if serial == "" || actorID == "" || reason == "" {
+		return Approval{}, platformerrors.New(platformerrors.CodeInvalidInput, "serial, actor, and approval reason are required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.registered[serial]; ok {
+		return Approval{}, platformerrors.New(platformerrors.CodeConflict, "serial is already registered")
+	}
+	if ready, ok := s.verified[serial]; !ok || !ready.Ready {
+		return Approval{}, platformerrors.New(platformerrors.CodePreconditionFailed, "provisioning verification is required before approval")
+	}
+	approval := Approval{Serial: serial, ActorID: actorID, Reason: reason, DecidedAt: now}
+	s.approvals[serial] = approval
+	return approval, nil
 }
 
 func (s *Service) Register(req RegisterRequest, now time.Time) (RegisterResult, error) {
@@ -159,9 +242,6 @@ func (s *Service) Register(req RegisterRequest, now time.Time) (RegisterResult, 
 	if serial == "" || strings.TrimSpace(req.DisplayName) == "" || strings.TrimSpace(req.ActorID) == "" {
 		return RegisterResult{}, platformerrors.New(platformerrors.CodeInvalidInput, "serial, display name, and actor are required")
 	}
-	if !req.Approved {
-		return RegisterResult{}, platformerrors.New(platformerrors.CodePolicyDenied, "operator approval is required before registration")
-	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -170,6 +250,9 @@ func (s *Service) Register(req RegisterRequest, now time.Time) (RegisterResult, 
 	}
 	if _, ok := s.verified[serial]; !ok {
 		return RegisterResult{}, platformerrors.New(platformerrors.CodePreconditionFailed, "provisioning verification is required before registration")
+	}
+	if _, ok := s.approvals[serial]; !ok {
+		return RegisterResult{}, platformerrors.New(platformerrors.CodePolicyDenied, "operator approval is required before registration")
 	}
 	if len(s.registered) >= s.maxDevices {
 		return RegisterResult{}, platformerrors.New(platformerrors.CodePolicyDenied, "one-device lab registration scope is exhausted")

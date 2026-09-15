@@ -298,6 +298,36 @@ describe("MockControlPlaneClient", () => {
       mockLabeled: true,
       displayName: expect.stringContaining("Mock Lab"),
     })
+
+    const deviceId = client.getSnapshot().labRegistration?.deviceId
+    const reverify = client.dispatch({
+      type: "verifyLabProvisioning",
+      serial: "MOCKSERIAL0001",
+      transportId: "3",
+      endpointHost: "127.0.0.1",
+      endpointPort: 0,
+      connectionType: "usb",
+      pairingAuthorized: true,
+      adbServerOwned: true,
+      platformToolsCompatible: true,
+      portPolicyAllowed: true,
+      rollbackReady: true,
+      operatorAuthorized: true,
+    })
+    expect(reverify.ok).toBe(true)
+    expect(client.getSnapshot().labRegistration).toMatchObject({ state: "registered", deviceId })
+  })
+
+  it("refuses spool confirmation for unknown sequences even when blocked items exist", () => {
+    const client = new MockControlPlaneClient()
+    client.dispatch({ type: "enqueueMockSpoolItem", kind: "observation", risk: "low", idempotencyKey: "spool-b" })
+    client.dispatch({ type: "simulateRuntimeDisconnect", reason: "Mock drop" })
+    client.dispatch({ type: "beginRuntimeReconnect" })
+    client.dispatch({ type: "completeRuntimeReconnect", transportId: "mock-transport-2", protocol: "mock-adb" })
+    const unknown = client.dispatch({ type: "confirmSpoolReplay", sequence: 999, confirm: true })
+    expect(unknown.ok).toBe(false)
+    expect(unknown.errorCode).toBe("precondition_failed")
+    expect(client.getSnapshot().spoolHealth.blocked).toBeGreaterThan(0)
   })
 
   it("refuses blind spool replay and tracks runtime reconnect with fence as observation", () => {

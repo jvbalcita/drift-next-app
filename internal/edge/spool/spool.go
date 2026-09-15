@@ -156,11 +156,11 @@ func (q *Queue) Enqueue(item Item, now time.Time) (Item, error) {
 	if item.FenceToken != q.fenceToken {
 		return Item{}, platformerrors.New(platformerrors.CodeLeaseConflict, "stale runtime fence token; spool fence is not a control-plane lease")
 	}
-	if q.state != StateConnected && highOrWorse(item.Risk) {
-		return Item{}, platformerrors.New(platformerrors.CodePolicyDenied, "high-risk or irreversible actions are refused while disconnected")
+	if q.state != StateConnected && (highOrWorse(item.Risk) || item.Risk == action.RiskMedium) {
+		return Item{}, platformerrors.New(platformerrors.CodePolicyDenied, "medium-risk or higher actions are refused while disconnected or reconnecting")
 	}
-	if q.state == StateDisconnected && item.Risk != action.RiskLow {
-		return Item{}, platformerrors.New(platformerrors.CodePolicyDenied, "only low-risk spool items are accepted while disconnected")
+	if q.state != StateConnected && item.Risk != action.RiskLow {
+		return Item{}, platformerrors.New(platformerrors.CodePolicyDenied, "only low-risk spool items are accepted while disconnected or reconnecting")
 	}
 	if len(q.items) >= q.maxSize {
 		return Item{}, platformerrors.New(platformerrors.CodeUnavailable, "spool queue is exhausted")
