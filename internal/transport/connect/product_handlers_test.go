@@ -134,6 +134,14 @@ func TestDiscoveryStartDecideRegisterWithFakeScanner(t *testing.T) {
 	if err != nil || run.Msg.ScanRun.GetState() != driftv1.ScanRunState_SCAN_RUN_STATE_COMPLETED {
 		t.Fatalf("start scan = %#v err=%v", run, err)
 	}
+	listedRuns, err := handler.ListScanRuns(ctx, connectrpc.NewRequest(&driftv1.ListScanRunsRequest{Workspace: workspace}))
+	if err != nil || len(listedRuns.Msg.ScanRuns) != 1 || listedRuns.Msg.ScanRuns[0].GetId() != run.Msg.ScanRun.GetId() {
+		t.Fatalf("list scan runs = %#v err=%v", listedRuns, err)
+	}
+	listedCandidates, err := handler.ListScanCandidates(ctx, connectrpc.NewRequest(&driftv1.ListScanCandidatesRequest{Workspace: workspace}))
+	if err != nil || len(listedCandidates.Msg.Candidates) != 1 || listedCandidates.Msg.Candidates[0].GetHost() != "192.0.2.5" {
+		t.Fatalf("list scan candidates = %#v err=%v", listedCandidates, err)
+	}
 	candidates, err := store.NewDiscoveryRepository(db).ListCandidates(ctx, "workspace-a", discovery.CandidatePendingApproval)
 	if err != nil || len(candidates) != 1 {
 		t.Fatalf("candidates = %#v err=%v", candidates, err)

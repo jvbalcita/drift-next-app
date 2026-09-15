@@ -21,6 +21,15 @@ message DeviceLease {
   LeaseState state = 5;
   uint64 fencing_token = 6;
   string expires_at = 7;
+  string holder_id = 8;
+}
+message ListDeviceLeasesRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListDeviceLeasesResponse {
+  repeated DeviceLease leases = 1;
+  PageResponse page = 2;
 }
 message AcquireDeviceLeaseRequest {
   RequestContext context = 1;
@@ -51,4 +60,5 @@ service LeaseService {
   rpc AcquireDeviceLease(AcquireDeviceLeaseRequest) returns (AcquireDeviceLeaseResponse);
   rpc RenewDeviceLease(RenewDeviceLeaseRequest) returns (RenewDeviceLeaseResponse);
   rpc ReleaseDeviceLease(ReleaseDeviceLeaseRequest) returns (ReleaseDeviceLeaseResponse);
+  rpc ListDeviceLeases(ListDeviceLeasesRequest) returns (ListDeviceLeasesResponse);
 }

@@ -56,6 +56,74 @@ func (h *RunHandler) CancelWorkflowRun(ctx context.Context, request *connectrpc.
 	return connectrpc.NewResponse(&driftv1.CancelWorkflowRunResponse{Run: workflowRunProto(stored)}), nil
 }
 
+func (h *RunHandler) ListRunTargets(ctx context.Context, request *connectrpc.Request[driftv1.ListRunTargetsRequest]) (*connectrpc.Response[driftv1.ListRunTargetsResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("list run targets request is required")
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	offset, limit, err := parsePage(request.Msg.GetPage())
+	if err != nil {
+		return nil, err
+	}
+	service := store.NewRunService(h.db)
+	var listed []runs.RunTarget
+	var listErr error
+	if request.Msg.GetRunId() == "" {
+		listed, listErr = service.ListAllTargets(ctx, workspace)
+	} else {
+		listed, listErr = service.ListTargets(ctx, workspace, runs.RunID(request.Msg.GetRunId()))
+	}
+	if listErr != nil {
+		return nil, MapError(listErr)
+	}
+	page, next := applyPage(listed, offset, limit)
+	out := make([]*driftv1.RunTarget, 0, len(page))
+	for _, target := range page {
+		out = append(out, runTargetProto(target))
+	}
+	return connectrpc.NewResponse(&driftv1.ListRunTargetsResponse{Targets: out, Page: pageResponse(next)}), nil
+}
+
+func runTargetProto(target runs.RunTarget) *driftv1.RunTarget {
+	return &driftv1.RunTarget{
+		Id:            string(target.ID),
+		RunId:         string(target.RunID),
+		DeviceId:      string(target.DeviceID),
+		State:         runTargetStateProto(target.State),
+		Failure:       failureProto(target.Failure),
+		LeaseId:       target.LeaseID,
+		ObservationId: target.CurrentObservation,
+	}
+}
+
+func runTargetStateProto(state runs.TargetState) driftv1.RunTargetState {
+	switch state {
+	case runs.TargetPending:
+		return driftv1.RunTargetState_RUN_TARGET_STATE_PENDING
+	case runs.TargetLeased:
+		return driftv1.RunTargetState_RUN_TARGET_STATE_LEASED
+	case runs.TargetQueued:
+		return driftv1.RunTargetState_RUN_TARGET_STATE_QUEUED
+	case runs.TargetRunning:
+		return driftv1.RunTargetState_RUN_TARGET_STATE_RUNNING
+	case runs.TargetVerifying:
+		return driftv1.RunTargetState_RUN_TARGET_STATE_VERIFYING
+	case runs.TargetSucceeded:
+		return driftv1.RunTargetState_RUN_TARGET_STATE_SUCCEEDED
+	case runs.TargetFailed:
+		return driftv1.RunTargetState_RUN_TARGET_STATE_FAILED
+	case runs.TargetCancelled:
+		return driftv1.RunTargetState_RUN_TARGET_STATE_CANCELLED
+	case runs.TargetCleanupFailed:
+		return driftv1.RunTargetState_RUN_TARGET_STATE_CLEANUP_FAILED
+	default:
+		return driftv1.RunTargetState_RUN_TARGET_STATE_UNSPECIFIED
+	}
+}
+
 func workflowRunProto(run runs.ParentRun) *driftv1.WorkflowRun {
 	return &driftv1.WorkflowRun{
 		Id:                string(run.ID),

@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { RequestContext, ResourceRef, WorkspaceRef } from "./common_pb";
+import type { PageRequest, PageResponse, RequestContext, ResourceRef, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/lease.proto.
  */
 export const file_drift_v1_lease: GenFile = /*@__PURE__*/
-  fileDesc("ChRkcmlmdC92MS9sZWFzZS5wcm90bxIIZHJpZnQudjEiwwEKC0RldmljZUxlYXNlEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSGgoSY29udHJvbF9zZXNzaW9uX2lkGAQgASgJEiMKBXN0YXRlGAUgASgOMhQuZHJpZnQudjEuTGVhc2VTdGF0ZRIVCg1mZW5jaW5nX3Rva2VuGAYgASgEEhIKCmV4cGlyZXNfYXQYByABKAkioAEKGUFjcXVpcmVEZXZpY2VMZWFzZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSGgoSY29udHJvbF9zZXNzaW9uX2lkGAQgASgJIkIKGkFjcXVpcmVEZXZpY2VMZWFzZVJlc3BvbnNlEiQKBWxlYXNlGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlTGVhc2UigQEKF1JlbmV3RGV2aWNlTGVhc2VSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIkCgVsZWFzZRgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmEhUKDWZlbmNpbmdfdG9rZW4YAyABKAQiQAoYUmVuZXdEZXZpY2VMZWFzZVJlc3BvbnNlEiQKBWxlYXNlGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlTGVhc2UigwEKGVJlbGVhc2VEZXZpY2VMZWFzZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EiQKBWxlYXNlGAIgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYSFQoNZmVuY2luZ190b2tlbhgDIAEoBCJCChpSZWxlYXNlRGV2aWNlTGVhc2VSZXNwb25zZRIkCgVsZWFzZRgBIAEoCzIVLmRyaWZ0LnYxLkRldmljZUxlYXNlKqgBCgpMZWFzZVN0YXRlEhsKF0xFQVNFX1NUQVRFX1VOU1BFQ0lGSUVEEAASGQoVTEVBU0VfU1RBVEVfUkVRVUVTVEVEEAESFgoSTEVBU0VfU1RBVEVfQUNUSVZFEAISGAoUTEVBU0VfU1RBVEVfUkVMRUFTRUQQAxIXChNMRUFTRV9TVEFURV9FWFBJUkVEEAQSFwoTTEVBU0VfU1RBVEVfUkVWT0tFRBAFMqsCCgxMZWFzZVNlcnZpY2USXwoSQWNxdWlyZURldmljZUxlYXNlEiMuZHJpZnQudjEuQWNxdWlyZURldmljZUxlYXNlUmVxdWVzdBokLmRyaWZ0LnYxLkFjcXVpcmVEZXZpY2VMZWFzZVJlc3BvbnNlElkKEFJlbmV3RGV2aWNlTGVhc2USIS5kcmlmdC52MS5SZW5ld0RldmljZUxlYXNlUmVxdWVzdBoiLmRyaWZ0LnYxLlJlbmV3RGV2aWNlTGVhc2VSZXNwb25zZRJfChJSZWxlYXNlRGV2aWNlTGVhc2USIy5kcmlmdC52MS5SZWxlYXNlRGV2aWNlTGVhc2VSZXF1ZXN0GiQuZHJpZnQudjEuUmVsZWFzZURldmljZUxlYXNlUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChRkcmlmdC92MS9sZWFzZS5wcm90bxIIZHJpZnQudjEi1gEKC0RldmljZUxlYXNlEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSGgoSY29udHJvbF9zZXNzaW9uX2lkGAQgASgJEiMKBXN0YXRlGAUgASgOMhQuZHJpZnQudjEuTGVhc2VTdGF0ZRIVCg1mZW5jaW5nX3Rva2VuGAYgASgEEhIKCmV4cGlyZXNfYXQYByABKAkSEQoJaG9sZGVyX2lkGAggASgJImkKF0xpc3REZXZpY2VMZWFzZXNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QiZwoYTGlzdERldmljZUxlYXNlc1Jlc3BvbnNlEiUKBmxlYXNlcxgBIAMoCzIVLmRyaWZ0LnYxLkRldmljZUxlYXNlEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UioAEKGUFjcXVpcmVEZXZpY2VMZWFzZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSGgoSY29udHJvbF9zZXNzaW9uX2lkGAQgASgJIkIKGkFjcXVpcmVEZXZpY2VMZWFzZVJlc3BvbnNlEiQKBWxlYXNlGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlTGVhc2UigQEKF1JlbmV3RGV2aWNlTGVhc2VSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIkCgVsZWFzZRgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmEhUKDWZlbmNpbmdfdG9rZW4YAyABKAQiQAoYUmVuZXdEZXZpY2VMZWFzZVJlc3BvbnNlEiQKBWxlYXNlGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlTGVhc2UigwEKGVJlbGVhc2VEZXZpY2VMZWFzZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EiQKBWxlYXNlGAIgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYSFQoNZmVuY2luZ190b2tlbhgDIAEoBCJCChpSZWxlYXNlRGV2aWNlTGVhc2VSZXNwb25zZRIkCgVsZWFzZRgBIAEoCzIVLmRyaWZ0LnYxLkRldmljZUxlYXNlKqgBCgpMZWFzZVN0YXRlEhsKF0xFQVNFX1NUQVRFX1VOU1BFQ0lGSUVEEAASGQoVTEVBU0VfU1RBVEVfUkVRVUVTVEVEEAESFgoSTEVBU0VfU1RBVEVfQUNUSVZFEAISGAoUTEVBU0VfU1RBVEVfUkVMRUFTRUQQAxIXChNMRUFTRV9TVEFURV9FWFBJUkVEEAQSFwoTTEVBU0VfU1RBVEVfUkVWT0tFRBAFMoYDCgxMZWFzZVNlcnZpY2USXwoSQWNxdWlyZURldmljZUxlYXNlEiMuZHJpZnQudjEuQWNxdWlyZURldmljZUxlYXNlUmVxdWVzdBokLmRyaWZ0LnYxLkFjcXVpcmVEZXZpY2VMZWFzZVJlc3BvbnNlElkKEFJlbmV3RGV2aWNlTGVhc2USIS5kcmlmdC52MS5SZW5ld0RldmljZUxlYXNlUmVxdWVzdBoiLmRyaWZ0LnYxLlJlbmV3RGV2aWNlTGVhc2VSZXNwb25zZRJfChJSZWxlYXNlRGV2aWNlTGVhc2USIy5kcmlmdC52MS5SZWxlYXNlRGV2aWNlTGVhc2VSZXF1ZXN0GiQuZHJpZnQudjEuUmVsZWFzZURldmljZUxlYXNlUmVzcG9uc2USWQoQTGlzdERldmljZUxlYXNlcxIhLmRyaWZ0LnYxLkxpc3REZXZpY2VMZWFzZXNSZXF1ZXN0GiIuZHJpZnQudjEuTGlzdERldmljZUxlYXNlc1Jlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.DeviceLease
@@ -52,6 +52,11 @@ export type DeviceLease = Message<"drift.v1.DeviceLease"> & {
    * @generated from field: string expires_at = 7;
    */
   expiresAt: string;
+
+  /**
+   * @generated from field: string holder_id = 8;
+   */
+  holderId: string;
 };
 
 /**
@@ -60,6 +65,50 @@ export type DeviceLease = Message<"drift.v1.DeviceLease"> & {
  */
 export const DeviceLeaseSchema: GenMessage<DeviceLease> = /*@__PURE__*/
   messageDesc(file_drift_v1_lease, 0);
+
+/**
+ * @generated from message drift.v1.ListDeviceLeasesRequest
+ */
+export type ListDeviceLeasesRequest = Message<"drift.v1.ListDeviceLeasesRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 2;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListDeviceLeasesRequest.
+ * Use `create(ListDeviceLeasesRequestSchema)` to create a new message.
+ */
+export const ListDeviceLeasesRequestSchema: GenMessage<ListDeviceLeasesRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_lease, 1);
+
+/**
+ * @generated from message drift.v1.ListDeviceLeasesResponse
+ */
+export type ListDeviceLeasesResponse = Message<"drift.v1.ListDeviceLeasesResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.DeviceLease leases = 1;
+   */
+  leases: DeviceLease[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListDeviceLeasesResponse.
+ * Use `create(ListDeviceLeasesResponseSchema)` to create a new message.
+ */
+export const ListDeviceLeasesResponseSchema: GenMessage<ListDeviceLeasesResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_lease, 2);
 
 /**
  * @generated from message drift.v1.AcquireDeviceLeaseRequest
@@ -91,7 +140,7 @@ export type AcquireDeviceLeaseRequest = Message<"drift.v1.AcquireDeviceLeaseRequ
  * Use `create(AcquireDeviceLeaseRequestSchema)` to create a new message.
  */
 export const AcquireDeviceLeaseRequestSchema: GenMessage<AcquireDeviceLeaseRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lease, 1);
+  messageDesc(file_drift_v1_lease, 3);
 
 /**
  * @generated from message drift.v1.AcquireDeviceLeaseResponse
@@ -108,7 +157,7 @@ export type AcquireDeviceLeaseResponse = Message<"drift.v1.AcquireDeviceLeaseRes
  * Use `create(AcquireDeviceLeaseResponseSchema)` to create a new message.
  */
 export const AcquireDeviceLeaseResponseSchema: GenMessage<AcquireDeviceLeaseResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lease, 2);
+  messageDesc(file_drift_v1_lease, 4);
 
 /**
  * @generated from message drift.v1.RenewDeviceLeaseRequest
@@ -135,7 +184,7 @@ export type RenewDeviceLeaseRequest = Message<"drift.v1.RenewDeviceLeaseRequest"
  * Use `create(RenewDeviceLeaseRequestSchema)` to create a new message.
  */
 export const RenewDeviceLeaseRequestSchema: GenMessage<RenewDeviceLeaseRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lease, 3);
+  messageDesc(file_drift_v1_lease, 5);
 
 /**
  * @generated from message drift.v1.RenewDeviceLeaseResponse
@@ -152,7 +201,7 @@ export type RenewDeviceLeaseResponse = Message<"drift.v1.RenewDeviceLeaseRespons
  * Use `create(RenewDeviceLeaseResponseSchema)` to create a new message.
  */
 export const RenewDeviceLeaseResponseSchema: GenMessage<RenewDeviceLeaseResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lease, 4);
+  messageDesc(file_drift_v1_lease, 6);
 
 /**
  * @generated from message drift.v1.ReleaseDeviceLeaseRequest
@@ -179,7 +228,7 @@ export type ReleaseDeviceLeaseRequest = Message<"drift.v1.ReleaseDeviceLeaseRequ
  * Use `create(ReleaseDeviceLeaseRequestSchema)` to create a new message.
  */
 export const ReleaseDeviceLeaseRequestSchema: GenMessage<ReleaseDeviceLeaseRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lease, 5);
+  messageDesc(file_drift_v1_lease, 7);
 
 /**
  * @generated from message drift.v1.ReleaseDeviceLeaseResponse
@@ -196,7 +245,7 @@ export type ReleaseDeviceLeaseResponse = Message<"drift.v1.ReleaseDeviceLeaseRes
  * Use `create(ReleaseDeviceLeaseResponseSchema)` to create a new message.
  */
 export const ReleaseDeviceLeaseResponseSchema: GenMessage<ReleaseDeviceLeaseResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lease, 6);
+  messageDesc(file_drift_v1_lease, 8);
 
 /**
  * @generated from enum drift.v1.LeaseState
@@ -266,6 +315,14 @@ export const LeaseService: GenService<{
     methodKind: "unary";
     input: typeof ReleaseDeviceLeaseRequestSchema;
     output: typeof ReleaseDeviceLeaseResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.LeaseService.ListDeviceLeases
+   */
+  listDeviceLeases: {
+    methodKind: "unary";
+    input: typeof ListDeviceLeasesRequestSchema;
+    output: typeof ListDeviceLeasesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_lease, 0);

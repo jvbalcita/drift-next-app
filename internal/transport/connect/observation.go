@@ -28,6 +28,30 @@ func (h *ObservationHandler) GetObservationSnapshot(ctx context.Context, request
 	return connectrpc.NewResponse(&driftv1.GetObservationSnapshotResponse{Observation: observationProto(snapshot)}), nil
 }
 
+func (h *ObservationHandler) ListObservationSnapshots(ctx context.Context, request *connectrpc.Request[driftv1.ListObservationSnapshotsRequest]) (*connectrpc.Response[driftv1.ListObservationSnapshotsResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("list observation snapshots request is required")
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	offset, limit, err := parsePage(request.Msg.GetPage())
+	if err != nil {
+		return nil, err
+	}
+	listed, listErr := store.NewObservationRepository(h.db).List(ctx, workspace, request.Msg.GetDeviceId())
+	if listErr != nil {
+		return nil, MapError(listErr)
+	}
+	page, next := applyPage(listed, offset, limit)
+	out := make([]*driftv1.ObservationSnapshot, 0, len(page))
+	for _, snapshot := range page {
+		out = append(out, observationProto(snapshot))
+	}
+	return connectrpc.NewResponse(&driftv1.ListObservationSnapshotsResponse{Observations: out, Page: pageResponse(next)}), nil
+}
+
 func observationProto(snapshot observations.ObservationSnapshot) *driftv1.ObservationSnapshot {
 	state := driftv1.ObservationCaptureState_OBSERVATION_CAPTURE_STATE_UNSPECIFIED
 	switch snapshot.CaptureStatus {

@@ -140,7 +140,7 @@ export function ConfirmLabTargetDialog({ adapter, dispatch, dispatchLab, onFeedb
 
   async function submit() {
     const next: ConfirmErrors = {}
-    if (!serial.trim()) next.serial = "Choose the serial of the lab target to confirm."
+    if (!serial.trim()) next.serial = "Choose the serial of the connected device to confirm."
     if (!displayName.trim()) next.displayName = "Enter an operator-facing display name."
     if (requiresConfirmationText && confirmationText.trim() !== serial.trim()) next.confirmationText = "Confirmation text must match the selected serial exactly."
     if (!reason.trim()) next.reason = "Record why this target is being confirmed."

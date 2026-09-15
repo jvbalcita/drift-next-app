@@ -161,4 +161,111 @@ describe("RealControlPlaneClient", () => {
     expect(result.ok).toBe(false)
     expect(result.errorCode).toBe("unauthorized")
   })
+
+  it("projects durable scan, lease, observation, and run-target lists from Connect JSON", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.DiscoveryService/ListScanRuns")) {
+        return new Response(JSON.stringify({
+          scanRuns: [{
+            id: "scan-1",
+            networkProfileId: "profile-1",
+            state: "SCAN_RUN_STATE_COMPLETED",
+            requestedAt: "2026-09-15T01:00:00Z",
+            finishedAt: "2026-09-15T01:01:00Z",
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.DiscoveryService/ListScanCandidates")) {
+        return new Response(JSON.stringify({
+          candidates: [{
+            id: "candidate-1",
+            scanRunId: "scan-1",
+            candidateKey: "192.0.2.10:5555",
+            host: "192.0.2.10",
+            port: 5555,
+            serial: "SERIAL1",
+            fingerprint: "fp-1",
+            state: "SCAN_CANDIDATE_STATE_PENDING_APPROVAL",
+            discoveredAt: "2026-09-15T01:00:30Z",
+            evidenceSummary: "Sanitized candidate evidence",
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.LeaseService/ListDeviceLeases")) {
+        return new Response(JSON.stringify({
+          leases: [{
+            id: "lease-1",
+            deviceId: "device-pixel-1",
+            controlSessionId: "session-1",
+            holderId: "console-local-operator",
+            fencingToken: "7",
+            state: "LEASE_STATE_ACTIVE",
+            expiresAt: "2026-09-15T02:00:00Z",
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.ObservationService/ListObservationSnapshots")) {
+        return new Response(JSON.stringify({
+          observations: [{
+            id: "obs-1",
+            deviceId: "device-pixel-1",
+            capturedAt: "2026-09-15T01:02:00Z",
+            source: "adb",
+            captureState: "OBSERVATION_CAPTURE_STATE_COMPLETE",
+            packageName: "com.android.settings",
+            activityName: ".Settings",
+            coordinateSpace: "display",
+            freshnessToken: "fresh-1",
+            artifacts: [{ artifactId: "art-1" }],
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.RunService/ListRunTargets")) {
+        return new Response(JSON.stringify({
+          targets: [{
+            id: "target-1",
+            runId: "run-1",
+            deviceId: "device-pixel-1",
+            state: "RUN_TARGET_STATE_FAILED",
+            leaseId: "lease-1",
+            observationId: "obs-1",
+            failure: { message: "postcondition_failed" },
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const snapshot = await client.refresh()
+
+    expect(snapshot.scanRuns).toEqual([expect.objectContaining({ id: "scan-1", state: "completed", networkProfileId: "profile-1" })])
+    expect(snapshot.scanCandidates).toEqual([expect.objectContaining({
+      id: "candidate-1",
+      serial: "SERIAL1",
+      state: "pending_approval",
+      evidenceSummary: "Sanitized candidate evidence",
+    })])
+    expect(snapshot.leases).toEqual([expect.objectContaining({
+      id: "lease-1",
+      holder: "console-local-operator",
+      fencingToken: 7,
+      state: "active",
+    })])
+    expect(snapshot.observations).toEqual([expect.objectContaining({
+      id: "obs-1",
+      source: "device",
+      captureStatus: "complete",
+      artifactCount: 1,
+    })])
+    expect(snapshot.runTargets).toEqual([expect.objectContaining({
+      id: "target-1",
+      runId: "run-1",
+      state: "failed",
+      leaseId: "lease-1",
+      observationId: "obs-1",
+      failureClass: "postcondition_failed",
+    })])
+  })
 })

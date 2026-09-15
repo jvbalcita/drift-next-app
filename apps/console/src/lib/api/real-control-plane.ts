@@ -22,15 +22,19 @@ import { EndpointState } from "@/gen/drift/v1/endpoint_pb"
 import type { AuditEvent, OperationalEvent } from "@/gen/drift/v1/event_pb"
 import type { DeviceGroup, GroupMembership } from "@/gen/drift/v1/group_pb"
 import { GroupState } from "@/gen/drift/v1/group_pb"
+import type { DeviceLease } from "@/gen/drift/v1/lease_pb"
+import { LeaseState as ProtoLeaseState } from "@/gen/drift/v1/lease_pb"
 import type { NetworkProfile } from "@/gen/drift/v1/network_profile_pb"
 import { NetworkProfileSchema, NetworkProfileState } from "@/gen/drift/v1/network_profile_pb"
+import type { ObservationSnapshot } from "@/gen/drift/v1/observation_pb"
+import { ObservationCaptureState } from "@/gen/drift/v1/observation_pb"
 import type { Workspace } from "@/gen/drift/v1/organization_pb"
 import type { Policy, PolicyDecisionRecord } from "@/gen/drift/v1/policy_pb"
 import { PolicyDecision as ProtoPolicyDecision } from "@/gen/drift/v1/policy_pb"
 import type { RecordingSession } from "@/gen/drift/v1/recording_pb"
 import { RecordingState } from "@/gen/drift/v1/recording_pb"
-import type { WorkflowRun } from "@/gen/drift/v1/run_pb"
-import { RunState } from "@/gen/drift/v1/run_pb"
+import type { WorkflowRun, RunTarget } from "@/gen/drift/v1/run_pb"
+import { RunState, RunTargetState } from "@/gen/drift/v1/run_pb"
 import type { Setting, SettingHistory } from "@/gen/drift/v1/settings_pb"
 import { SettingRisk, SettingSchema, SettingScope as ProtoSettingScope, SettingValueKind } from "@/gen/drift/v1/settings_pb"
 import type { Skill } from "@/gen/drift/v1/skill_pb"
@@ -84,8 +88,12 @@ import type {
   EventView,
   GroupState as GroupViewState,
   GroupView,
+  LeaseState as LeaseViewState,
+  LeaseView,
   MembershipState,
   MembershipView,
+  ObservationCaptureStatus,
+  ObservationView,
   LabAdapterView,
   MutationResult,
   NetworkProfileView,
@@ -96,6 +104,8 @@ import type {
   RecordingMediaView,
   RecordingSessionState,
   RunState as RunViewState,
+  RunTargetState as RunTargetViewState,
+  RunTargetView,
   RunView,
   RuntimeConnectionView,
   ScanCandidateState as ScanCandidateViewState,
@@ -999,7 +1009,119 @@ function mapScanCandidate(candidate: ScanCandidate): ScanCandidateView {
     fingerprint: candidate.fingerprint,
     state: mapScanCandidateState(candidate.state),
     discoveredAt: candidate.discoveredAt,
-    evidenceSummary: "",
+    evidenceSummary: candidate.evidenceSummary,
+  }
+}
+
+function mapLeaseState(state: ProtoLeaseState): LeaseViewState {
+  switch (state) {
+    case ProtoLeaseState.REQUESTED:
+      return "requested"
+    case ProtoLeaseState.ACTIVE:
+      return "active"
+    case ProtoLeaseState.RELEASED:
+      return "released"
+    case ProtoLeaseState.EXPIRED:
+      return "expired"
+    case ProtoLeaseState.REVOKED:
+      return "revoked"
+    case ProtoLeaseState.UNSPECIFIED:
+      return "requested"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapLease(lease: DeviceLease): LeaseView {
+  return {
+    id: lease.id,
+    deviceId: lease.deviceId,
+    controlSessionId: lease.controlSessionId,
+    holder: lease.holderId,
+    fencingToken: Number(lease.fencingToken),
+    state: mapLeaseState(lease.state),
+    expiresAt: lease.expiresAt,
+  }
+}
+
+function mapObservationCapture(state: ObservationCaptureState): ObservationCaptureStatus {
+  switch (state) {
+    case ObservationCaptureState.COMPLETE:
+      return "complete"
+    case ObservationCaptureState.PARTIAL:
+      return "partial"
+    case ObservationCaptureState.FAILED:
+      return "failed"
+    case ObservationCaptureState.UNSPECIFIED:
+      return "partial"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapObservationSource(source: string): ObservationView["source"] {
+  return source.toLowerCase().includes("mirror") ? "mirror" : "device"
+}
+
+function mapObservation(observation: ObservationSnapshot): ObservationView {
+  return {
+    id: observation.id,
+    deviceId: observation.deviceId,
+    capturedAt: observation.capturedAt,
+    source: mapObservationSource(observation.source),
+    captureStatus: mapObservationCapture(observation.captureState),
+    packageName: observation.packageName,
+    activityName: observation.activityName,
+    coordinateSpace: observation.coordinateSpace,
+    freshnessToken: observation.freshnessToken,
+    artifactCount: observation.artifacts.length,
+    ...(observation.failure?.message ? { failureClass: observation.failure.message } : {}),
+  }
+}
+
+function mapRunTargetState(state: RunTargetState): RunTargetViewState {
+  switch (state) {
+    case RunTargetState.PENDING:
+      return "pending"
+    case RunTargetState.LEASED:
+      return "leased"
+    case RunTargetState.QUEUED:
+      return "queued"
+    case RunTargetState.RUNNING:
+      return "running"
+    case RunTargetState.VERIFYING:
+      return "verifying"
+    case RunTargetState.SUCCEEDED:
+      return "succeeded"
+    case RunTargetState.FAILED:
+      return "failed"
+    case RunTargetState.CANCELLED:
+      return "cancelled"
+    case RunTargetState.CLEANUP_FAILED:
+      return "cleanup_failed"
+    case RunTargetState.UNSPECIFIED:
+      return "pending"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapRunTarget(target: RunTarget): RunTargetView {
+  return {
+    id: target.id,
+    runId: target.runId,
+    deviceId: target.deviceId,
+    state: mapRunTargetState(target.state),
+    ...(target.failure?.message ? { failureClass: target.failure.message } : {}),
+    ...(target.leaseId ? { leaseId: target.leaseId } : {}),
+    ...(target.observationId ? { observationId: target.observationId } : {}),
+    attemptCount: 0,
   }
 }
 
@@ -1090,6 +1212,11 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         groups: response.groups.map(mapGroup),
         memberships: response.memberships.map(mapMembership),
       })), { groups: [] as GroupView[], memberships: [] as MembershipView[] }),
+      settle(this.services.discovery.listScanRuns(workspaceId).then((response) => response.scanRuns.map(mapScanRun)), [] as ScanRunView[]),
+      settle(this.services.discovery.listScanCandidates(workspaceId).then((response) => response.candidates.map(mapScanCandidate)), [] as ScanCandidateView[]),
+      settle(this.services.lease.listDeviceLeases(workspaceId).then((response) => response.leases.map(mapLease)), [] as LeaseView[]),
+      settle(this.services.observation.listObservationSnapshots(workspaceId).then((response) => response.observations.map(mapObservation)), [] as ObservationView[]),
+      settle(this.services.run.listRunTargets(workspaceId).then((response) => response.targets.map(mapRunTarget)), [] as RunTargetView[]),
       settle(this.services.event.listOperationalEvents(workspaceId).then((response) => response.events.map(mapOperationalEvent)), [] as EventView[]),
       settle(this.services.event.listAuditEvents(workspaceId).then((response) => response.events.map(mapAuditEvent)), [] as EventView[]),
       settle(this.services.account.listAccountSources(workspaceId).then((response) => response.sources.map((source) => ({
@@ -1216,6 +1343,11 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       endpoints,
       networkProfiles,
       groups,
+      scanRuns,
+      scanCandidates,
+      leases,
+      observations,
+      runTargets,
       operationalEvents,
       auditEvents,
       accountSources,
@@ -1252,6 +1384,11 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       networkProfiles: networkProfiles.value,
       groups: groups.value.groups,
       memberships: groups.value.memberships,
+      scanRuns: scanRuns.value,
+      scanCandidates: scanCandidates.value,
+      leases: leases.value,
+      observations: observations.value,
+      runTargets: runTargets.value,
       events: [...operationalEvents.value, ...auditEvents.value],
       accountSources: accountSources.value,
       accounts: accounts.value.map((account) => ({
@@ -1276,8 +1413,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       storageHealth: storageHealth.value,
       automationAgents: automationAgents.value,
       recordingMedia: recordingMedia.value,
-      scanRuns: previous.scanRuns,
-      scanCandidates: previous.scanCandidates,
       labAdapter: previous.labAdapter.mode === "lab" ? previous.labAdapter : emptyLabAdapter(),
       provisioningReadiness: previous.provisioningReadiness,
       labRegistration: previous.labRegistration,

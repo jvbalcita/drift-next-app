@@ -88,6 +88,7 @@ type DeviceLease struct {
 	State            LeaseState             `protobuf:"varint,5,opt,name=state,proto3,enum=drift.v1.LeaseState" json:"state,omitempty"`
 	FencingToken     uint64                 `protobuf:"varint,6,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
 	ExpiresAt        string                 `protobuf:"bytes,7,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	HolderId         string                 `protobuf:"bytes,8,opt,name=holder_id,json=holderId,proto3" json:"holder_id,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -171,6 +172,117 @@ func (x *DeviceLease) GetExpiresAt() string {
 	return ""
 }
 
+func (x *DeviceLease) GetHolderId() string {
+	if x != nil {
+		return x.HolderId
+	}
+	return ""
+}
+
+type ListDeviceLeasesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListDeviceLeasesRequest) Reset() {
+	*x = ListDeviceLeasesRequest{}
+	mi := &file_drift_v1_lease_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListDeviceLeasesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListDeviceLeasesRequest) ProtoMessage() {}
+
+func (x *ListDeviceLeasesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_lease_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListDeviceLeasesRequest.ProtoReflect.Descriptor instead.
+func (*ListDeviceLeasesRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ListDeviceLeasesRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListDeviceLeasesRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListDeviceLeasesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Leases        []*DeviceLease         `protobuf:"bytes,1,rep,name=leases,proto3" json:"leases,omitempty"`
+	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListDeviceLeasesResponse) Reset() {
+	*x = ListDeviceLeasesResponse{}
+	mi := &file_drift_v1_lease_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListDeviceLeasesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListDeviceLeasesResponse) ProtoMessage() {}
+
+func (x *ListDeviceLeasesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_lease_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListDeviceLeasesResponse.ProtoReflect.Descriptor instead.
+func (*ListDeviceLeasesResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ListDeviceLeasesResponse) GetLeases() []*DeviceLease {
+	if x != nil {
+		return x.Leases
+	}
+	return nil
+}
+
+func (x *ListDeviceLeasesResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 type AcquireDeviceLeaseRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Context          *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
@@ -183,7 +295,7 @@ type AcquireDeviceLeaseRequest struct {
 
 func (x *AcquireDeviceLeaseRequest) Reset() {
 	*x = AcquireDeviceLeaseRequest{}
-	mi := &file_drift_v1_lease_proto_msgTypes[1]
+	mi := &file_drift_v1_lease_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -195,7 +307,7 @@ func (x *AcquireDeviceLeaseRequest) String() string {
 func (*AcquireDeviceLeaseRequest) ProtoMessage() {}
 
 func (x *AcquireDeviceLeaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lease_proto_msgTypes[1]
+	mi := &file_drift_v1_lease_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -208,7 +320,7 @@ func (x *AcquireDeviceLeaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcquireDeviceLeaseRequest.ProtoReflect.Descriptor instead.
 func (*AcquireDeviceLeaseRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lease_proto_rawDescGZIP(), []int{1}
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *AcquireDeviceLeaseRequest) GetContext() *RequestContext {
@@ -248,7 +360,7 @@ type AcquireDeviceLeaseResponse struct {
 
 func (x *AcquireDeviceLeaseResponse) Reset() {
 	*x = AcquireDeviceLeaseResponse{}
-	mi := &file_drift_v1_lease_proto_msgTypes[2]
+	mi := &file_drift_v1_lease_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -260,7 +372,7 @@ func (x *AcquireDeviceLeaseResponse) String() string {
 func (*AcquireDeviceLeaseResponse) ProtoMessage() {}
 
 func (x *AcquireDeviceLeaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lease_proto_msgTypes[2]
+	mi := &file_drift_v1_lease_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -273,7 +385,7 @@ func (x *AcquireDeviceLeaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcquireDeviceLeaseResponse.ProtoReflect.Descriptor instead.
 func (*AcquireDeviceLeaseResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lease_proto_rawDescGZIP(), []int{2}
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *AcquireDeviceLeaseResponse) GetLease() *DeviceLease {
@@ -294,7 +406,7 @@ type RenewDeviceLeaseRequest struct {
 
 func (x *RenewDeviceLeaseRequest) Reset() {
 	*x = RenewDeviceLeaseRequest{}
-	mi := &file_drift_v1_lease_proto_msgTypes[3]
+	mi := &file_drift_v1_lease_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -306,7 +418,7 @@ func (x *RenewDeviceLeaseRequest) String() string {
 func (*RenewDeviceLeaseRequest) ProtoMessage() {}
 
 func (x *RenewDeviceLeaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lease_proto_msgTypes[3]
+	mi := &file_drift_v1_lease_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -319,7 +431,7 @@ func (x *RenewDeviceLeaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewDeviceLeaseRequest.ProtoReflect.Descriptor instead.
 func (*RenewDeviceLeaseRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lease_proto_rawDescGZIP(), []int{3}
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *RenewDeviceLeaseRequest) GetContext() *RequestContext {
@@ -352,7 +464,7 @@ type RenewDeviceLeaseResponse struct {
 
 func (x *RenewDeviceLeaseResponse) Reset() {
 	*x = RenewDeviceLeaseResponse{}
-	mi := &file_drift_v1_lease_proto_msgTypes[4]
+	mi := &file_drift_v1_lease_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -364,7 +476,7 @@ func (x *RenewDeviceLeaseResponse) String() string {
 func (*RenewDeviceLeaseResponse) ProtoMessage() {}
 
 func (x *RenewDeviceLeaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lease_proto_msgTypes[4]
+	mi := &file_drift_v1_lease_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -377,7 +489,7 @@ func (x *RenewDeviceLeaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewDeviceLeaseResponse.ProtoReflect.Descriptor instead.
 func (*RenewDeviceLeaseResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lease_proto_rawDescGZIP(), []int{4}
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RenewDeviceLeaseResponse) GetLease() *DeviceLease {
@@ -398,7 +510,7 @@ type ReleaseDeviceLeaseRequest struct {
 
 func (x *ReleaseDeviceLeaseRequest) Reset() {
 	*x = ReleaseDeviceLeaseRequest{}
-	mi := &file_drift_v1_lease_proto_msgTypes[5]
+	mi := &file_drift_v1_lease_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -410,7 +522,7 @@ func (x *ReleaseDeviceLeaseRequest) String() string {
 func (*ReleaseDeviceLeaseRequest) ProtoMessage() {}
 
 func (x *ReleaseDeviceLeaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lease_proto_msgTypes[5]
+	mi := &file_drift_v1_lease_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -423,7 +535,7 @@ func (x *ReleaseDeviceLeaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseDeviceLeaseRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseDeviceLeaseRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lease_proto_rawDescGZIP(), []int{5}
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ReleaseDeviceLeaseRequest) GetContext() *RequestContext {
@@ -456,7 +568,7 @@ type ReleaseDeviceLeaseResponse struct {
 
 func (x *ReleaseDeviceLeaseResponse) Reset() {
 	*x = ReleaseDeviceLeaseResponse{}
-	mi := &file_drift_v1_lease_proto_msgTypes[6]
+	mi := &file_drift_v1_lease_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -468,7 +580,7 @@ func (x *ReleaseDeviceLeaseResponse) String() string {
 func (*ReleaseDeviceLeaseResponse) ProtoMessage() {}
 
 func (x *ReleaseDeviceLeaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lease_proto_msgTypes[6]
+	mi := &file_drift_v1_lease_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -481,7 +593,7 @@ func (x *ReleaseDeviceLeaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseDeviceLeaseResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseDeviceLeaseResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lease_proto_rawDescGZIP(), []int{6}
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ReleaseDeviceLeaseResponse) GetLease() *DeviceLease {
@@ -495,7 +607,7 @@ var File_drift_v1_lease_proto protoreflect.FileDescriptor
 
 const file_drift_v1_lease_proto_rawDesc = "" +
 	"\n" +
-	"\x14drift/v1/lease.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x8e\x02\n" +
+	"\x14drift/v1/lease.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xab\x02\n" +
 	"\vDeviceLease\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
@@ -504,7 +616,14 @@ const file_drift_v1_lease_proto_rawDesc = "" +
 	"\x05state\x18\x05 \x01(\x0e2\x14.drift.v1.LeaseStateR\x05state\x12#\n" +
 	"\rfencing_token\x18\x06 \x01(\x04R\ffencingToken\x12\x1d\n" +
 	"\n" +
-	"expires_at\x18\a \x01(\tR\texpiresAt\"\xd0\x01\n" +
+	"expires_at\x18\a \x01(\tR\texpiresAt\x12\x1b\n" +
+	"\tholder_id\x18\b \x01(\tR\bholderId\"z\n" +
+	"\x17ListDeviceLeasesRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
+	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"u\n" +
+	"\x18ListDeviceLeasesResponse\x12-\n" +
+	"\x06leases\x18\x01 \x03(\v2\x15.drift.v1.DeviceLeaseR\x06leases\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\xd0\x01\n" +
 	"\x19AcquireDeviceLeaseRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
@@ -531,11 +650,12 @@ const file_drift_v1_lease_proto_rawDesc = "" +
 	"\x12LEASE_STATE_ACTIVE\x10\x02\x12\x18\n" +
 	"\x14LEASE_STATE_RELEASED\x10\x03\x12\x17\n" +
 	"\x13LEASE_STATE_EXPIRED\x10\x04\x12\x17\n" +
-	"\x13LEASE_STATE_REVOKED\x10\x052\xab\x02\n" +
+	"\x13LEASE_STATE_REVOKED\x10\x052\x86\x03\n" +
 	"\fLeaseService\x12_\n" +
 	"\x12AcquireDeviceLease\x12#.drift.v1.AcquireDeviceLeaseRequest\x1a$.drift.v1.AcquireDeviceLeaseResponse\x12Y\n" +
 	"\x10RenewDeviceLease\x12!.drift.v1.RenewDeviceLeaseRequest\x1a\".drift.v1.RenewDeviceLeaseResponse\x12_\n" +
-	"\x12ReleaseDeviceLease\x12#.drift.v1.ReleaseDeviceLeaseRequest\x1a$.drift.v1.ReleaseDeviceLeaseResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\x12ReleaseDeviceLease\x12#.drift.v1.ReleaseDeviceLeaseRequest\x1a$.drift.v1.ReleaseDeviceLeaseResponse\x12Y\n" +
+	"\x10ListDeviceLeases\x12!.drift.v1.ListDeviceLeasesRequest\x1a\".drift.v1.ListDeviceLeasesResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_lease_proto_rawDescOnce sync.Once
@@ -550,43 +670,53 @@ func file_drift_v1_lease_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_lease_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_drift_v1_lease_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_drift_v1_lease_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_drift_v1_lease_proto_goTypes = []any{
 	(LeaseState)(0),                    // 0: drift.v1.LeaseState
 	(*DeviceLease)(nil),                // 1: drift.v1.DeviceLease
-	(*AcquireDeviceLeaseRequest)(nil),  // 2: drift.v1.AcquireDeviceLeaseRequest
-	(*AcquireDeviceLeaseResponse)(nil), // 3: drift.v1.AcquireDeviceLeaseResponse
-	(*RenewDeviceLeaseRequest)(nil),    // 4: drift.v1.RenewDeviceLeaseRequest
-	(*RenewDeviceLeaseResponse)(nil),   // 5: drift.v1.RenewDeviceLeaseResponse
-	(*ReleaseDeviceLeaseRequest)(nil),  // 6: drift.v1.ReleaseDeviceLeaseRequest
-	(*ReleaseDeviceLeaseResponse)(nil), // 7: drift.v1.ReleaseDeviceLeaseResponse
-	(*WorkspaceRef)(nil),               // 8: drift.v1.WorkspaceRef
-	(*RequestContext)(nil),             // 9: drift.v1.RequestContext
-	(*ResourceRef)(nil),                // 10: drift.v1.ResourceRef
+	(*ListDeviceLeasesRequest)(nil),    // 2: drift.v1.ListDeviceLeasesRequest
+	(*ListDeviceLeasesResponse)(nil),   // 3: drift.v1.ListDeviceLeasesResponse
+	(*AcquireDeviceLeaseRequest)(nil),  // 4: drift.v1.AcquireDeviceLeaseRequest
+	(*AcquireDeviceLeaseResponse)(nil), // 5: drift.v1.AcquireDeviceLeaseResponse
+	(*RenewDeviceLeaseRequest)(nil),    // 6: drift.v1.RenewDeviceLeaseRequest
+	(*RenewDeviceLeaseResponse)(nil),   // 7: drift.v1.RenewDeviceLeaseResponse
+	(*ReleaseDeviceLeaseRequest)(nil),  // 8: drift.v1.ReleaseDeviceLeaseRequest
+	(*ReleaseDeviceLeaseResponse)(nil), // 9: drift.v1.ReleaseDeviceLeaseResponse
+	(*WorkspaceRef)(nil),               // 10: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),                // 11: drift.v1.PageRequest
+	(*PageResponse)(nil),               // 12: drift.v1.PageResponse
+	(*RequestContext)(nil),             // 13: drift.v1.RequestContext
+	(*ResourceRef)(nil),                // 14: drift.v1.ResourceRef
 }
 var file_drift_v1_lease_proto_depIdxs = []int32{
-	8,  // 0: drift.v1.DeviceLease.workspace:type_name -> drift.v1.WorkspaceRef
+	10, // 0: drift.v1.DeviceLease.workspace:type_name -> drift.v1.WorkspaceRef
 	0,  // 1: drift.v1.DeviceLease.state:type_name -> drift.v1.LeaseState
-	9,  // 2: drift.v1.AcquireDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
-	8,  // 3: drift.v1.AcquireDeviceLeaseRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	1,  // 4: drift.v1.AcquireDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
-	9,  // 5: drift.v1.RenewDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
-	10, // 6: drift.v1.RenewDeviceLeaseRequest.lease:type_name -> drift.v1.ResourceRef
-	1,  // 7: drift.v1.RenewDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
-	9,  // 8: drift.v1.ReleaseDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
-	10, // 9: drift.v1.ReleaseDeviceLeaseRequest.lease:type_name -> drift.v1.ResourceRef
-	1,  // 10: drift.v1.ReleaseDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
-	2,  // 11: drift.v1.LeaseService.AcquireDeviceLease:input_type -> drift.v1.AcquireDeviceLeaseRequest
-	4,  // 12: drift.v1.LeaseService.RenewDeviceLease:input_type -> drift.v1.RenewDeviceLeaseRequest
-	6,  // 13: drift.v1.LeaseService.ReleaseDeviceLease:input_type -> drift.v1.ReleaseDeviceLeaseRequest
-	3,  // 14: drift.v1.LeaseService.AcquireDeviceLease:output_type -> drift.v1.AcquireDeviceLeaseResponse
-	5,  // 15: drift.v1.LeaseService.RenewDeviceLease:output_type -> drift.v1.RenewDeviceLeaseResponse
-	7,  // 16: drift.v1.LeaseService.ReleaseDeviceLease:output_type -> drift.v1.ReleaseDeviceLeaseResponse
-	14, // [14:17] is the sub-list for method output_type
-	11, // [11:14] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	10, // 2: drift.v1.ListDeviceLeasesRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	11, // 3: drift.v1.ListDeviceLeasesRequest.page:type_name -> drift.v1.PageRequest
+	1,  // 4: drift.v1.ListDeviceLeasesResponse.leases:type_name -> drift.v1.DeviceLease
+	12, // 5: drift.v1.ListDeviceLeasesResponse.page:type_name -> drift.v1.PageResponse
+	13, // 6: drift.v1.AcquireDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
+	10, // 7: drift.v1.AcquireDeviceLeaseRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	1,  // 8: drift.v1.AcquireDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
+	13, // 9: drift.v1.RenewDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
+	14, // 10: drift.v1.RenewDeviceLeaseRequest.lease:type_name -> drift.v1.ResourceRef
+	1,  // 11: drift.v1.RenewDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
+	13, // 12: drift.v1.ReleaseDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
+	14, // 13: drift.v1.ReleaseDeviceLeaseRequest.lease:type_name -> drift.v1.ResourceRef
+	1,  // 14: drift.v1.ReleaseDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
+	4,  // 15: drift.v1.LeaseService.AcquireDeviceLease:input_type -> drift.v1.AcquireDeviceLeaseRequest
+	6,  // 16: drift.v1.LeaseService.RenewDeviceLease:input_type -> drift.v1.RenewDeviceLeaseRequest
+	8,  // 17: drift.v1.LeaseService.ReleaseDeviceLease:input_type -> drift.v1.ReleaseDeviceLeaseRequest
+	2,  // 18: drift.v1.LeaseService.ListDeviceLeases:input_type -> drift.v1.ListDeviceLeasesRequest
+	5,  // 19: drift.v1.LeaseService.AcquireDeviceLease:output_type -> drift.v1.AcquireDeviceLeaseResponse
+	7,  // 20: drift.v1.LeaseService.RenewDeviceLease:output_type -> drift.v1.RenewDeviceLeaseResponse
+	9,  // 21: drift.v1.LeaseService.ReleaseDeviceLease:output_type -> drift.v1.ReleaseDeviceLeaseResponse
+	3,  // 22: drift.v1.LeaseService.ListDeviceLeases:output_type -> drift.v1.ListDeviceLeasesResponse
+	19, // [19:23] is the sub-list for method output_type
+	15, // [15:19] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_lease_proto_init() }
@@ -601,7 +731,7 @@ func file_drift_v1_lease_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_lease_proto_rawDesc), len(file_drift_v1_lease_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

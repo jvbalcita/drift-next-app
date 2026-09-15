@@ -42,6 +42,9 @@ const (
 	// LeaseServiceReleaseDeviceLeaseProcedure is the fully-qualified name of the LeaseService's
 	// ReleaseDeviceLease RPC.
 	LeaseServiceReleaseDeviceLeaseProcedure = "/drift.v1.LeaseService/ReleaseDeviceLease"
+	// LeaseServiceListDeviceLeasesProcedure is the fully-qualified name of the LeaseService's
+	// ListDeviceLeases RPC.
+	LeaseServiceListDeviceLeasesProcedure = "/drift.v1.LeaseService/ListDeviceLeases"
 )
 
 // LeaseServiceClient is a client for the drift.v1.LeaseService service.
@@ -49,6 +52,7 @@ type LeaseServiceClient interface {
 	AcquireDeviceLease(context.Context, *connect.Request[v1.AcquireDeviceLeaseRequest]) (*connect.Response[v1.AcquireDeviceLeaseResponse], error)
 	RenewDeviceLease(context.Context, *connect.Request[v1.RenewDeviceLeaseRequest]) (*connect.Response[v1.RenewDeviceLeaseResponse], error)
 	ReleaseDeviceLease(context.Context, *connect.Request[v1.ReleaseDeviceLeaseRequest]) (*connect.Response[v1.ReleaseDeviceLeaseResponse], error)
+	ListDeviceLeases(context.Context, *connect.Request[v1.ListDeviceLeasesRequest]) (*connect.Response[v1.ListDeviceLeasesResponse], error)
 }
 
 // NewLeaseServiceClient constructs a client for the drift.v1.LeaseService service. By default, it
@@ -80,6 +84,12 @@ func NewLeaseServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(leaseServiceMethods.ByName("ReleaseDeviceLease")),
 			connect.WithClientOptions(opts...),
 		),
+		listDeviceLeases: connect.NewClient[v1.ListDeviceLeasesRequest, v1.ListDeviceLeasesResponse](
+			httpClient,
+			baseURL+LeaseServiceListDeviceLeasesProcedure,
+			connect.WithSchema(leaseServiceMethods.ByName("ListDeviceLeases")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -88,6 +98,7 @@ type leaseServiceClient struct {
 	acquireDeviceLease *connect.Client[v1.AcquireDeviceLeaseRequest, v1.AcquireDeviceLeaseResponse]
 	renewDeviceLease   *connect.Client[v1.RenewDeviceLeaseRequest, v1.RenewDeviceLeaseResponse]
 	releaseDeviceLease *connect.Client[v1.ReleaseDeviceLeaseRequest, v1.ReleaseDeviceLeaseResponse]
+	listDeviceLeases   *connect.Client[v1.ListDeviceLeasesRequest, v1.ListDeviceLeasesResponse]
 }
 
 // AcquireDeviceLease calls drift.v1.LeaseService.AcquireDeviceLease.
@@ -105,11 +116,17 @@ func (c *leaseServiceClient) ReleaseDeviceLease(ctx context.Context, req *connec
 	return c.releaseDeviceLease.CallUnary(ctx, req)
 }
 
+// ListDeviceLeases calls drift.v1.LeaseService.ListDeviceLeases.
+func (c *leaseServiceClient) ListDeviceLeases(ctx context.Context, req *connect.Request[v1.ListDeviceLeasesRequest]) (*connect.Response[v1.ListDeviceLeasesResponse], error) {
+	return c.listDeviceLeases.CallUnary(ctx, req)
+}
+
 // LeaseServiceHandler is an implementation of the drift.v1.LeaseService service.
 type LeaseServiceHandler interface {
 	AcquireDeviceLease(context.Context, *connect.Request[v1.AcquireDeviceLeaseRequest]) (*connect.Response[v1.AcquireDeviceLeaseResponse], error)
 	RenewDeviceLease(context.Context, *connect.Request[v1.RenewDeviceLeaseRequest]) (*connect.Response[v1.RenewDeviceLeaseResponse], error)
 	ReleaseDeviceLease(context.Context, *connect.Request[v1.ReleaseDeviceLeaseRequest]) (*connect.Response[v1.ReleaseDeviceLeaseResponse], error)
+	ListDeviceLeases(context.Context, *connect.Request[v1.ListDeviceLeasesRequest]) (*connect.Response[v1.ListDeviceLeasesResponse], error)
 }
 
 // NewLeaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -137,6 +154,12 @@ func NewLeaseServiceHandler(svc LeaseServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(leaseServiceMethods.ByName("ReleaseDeviceLease")),
 		connect.WithHandlerOptions(opts...),
 	)
+	leaseServiceListDeviceLeasesHandler := connect.NewUnaryHandler(
+		LeaseServiceListDeviceLeasesProcedure,
+		svc.ListDeviceLeases,
+		connect.WithSchema(leaseServiceMethods.ByName("ListDeviceLeases")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.LeaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LeaseServiceAcquireDeviceLeaseProcedure:
@@ -145,6 +168,8 @@ func NewLeaseServiceHandler(svc LeaseServiceHandler, opts ...connect.HandlerOpti
 			leaseServiceRenewDeviceLeaseHandler.ServeHTTP(w, r)
 		case LeaseServiceReleaseDeviceLeaseProcedure:
 			leaseServiceReleaseDeviceLeaseHandler.ServeHTTP(w, r)
+		case LeaseServiceListDeviceLeasesProcedure:
+			leaseServiceListDeviceLeasesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -164,4 +189,8 @@ func (UnimplementedLeaseServiceHandler) RenewDeviceLease(context.Context, *conne
 
 func (UnimplementedLeaseServiceHandler) ReleaseDeviceLease(context.Context, *connect.Request[v1.ReleaseDeviceLeaseRequest]) (*connect.Response[v1.ReleaseDeviceLeaseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.LeaseService.ReleaseDeviceLease is not implemented"))
+}
+
+func (UnimplementedLeaseServiceHandler) ListDeviceLeases(context.Context, *connect.Request[v1.ListDeviceLeasesRequest]) (*connect.Response[v1.ListDeviceLeasesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.LeaseService.ListDeviceLeases is not implemented"))
 }

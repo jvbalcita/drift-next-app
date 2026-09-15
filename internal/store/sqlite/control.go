@@ -338,6 +338,29 @@ func (s *LeaseService) Get(ctx context.Context, workspace organizations.Workspac
 	return lease, err
 }
 
+func (s *LeaseService) List(ctx context.Context, workspace organizations.WorkspaceID) ([]leases.DeviceLease, error) {
+	if err := validateWorkspace(string(workspace)); err != nil {
+		return nil, err
+	}
+	rows, err := s.store.db.QueryContext(ctx, `SELECT id, workspace_id, device_id, session_id, holder_id, fencing_token, state, acquired_at, expires_at FROM device_leases WHERE workspace_id=? ORDER BY acquired_at DESC, id`, workspace)
+	if err != nil {
+		return nil, classifyContext(err)
+	}
+	defer rows.Close()
+	result := make([]leases.DeviceLease, 0)
+	for rows.Next() {
+		var lease leases.DeviceLease
+		var acquired, expires string
+		if err := rows.Scan(&lease.ID, &lease.Workspace, &lease.DeviceID, &lease.SessionID, &lease.HolderID, &lease.FencingToken, &lease.State, &acquired, &expires); err != nil {
+			return nil, err
+		}
+		lease.AcquiredAt, _ = time.Parse(time.RFC3339Nano, acquired)
+		lease.ExpiresAt, _ = time.Parse(time.RFC3339Nano, expires)
+		result = append(result, lease)
+	}
+	return result, classifyContext(rows.Err())
+}
+
 func loadSessionTx(row interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }, workspace organizations.WorkspaceID, id leases.ControlSessionID, session *leases.ControlSession) error {

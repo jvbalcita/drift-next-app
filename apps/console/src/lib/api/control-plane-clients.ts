@@ -61,6 +61,10 @@ import {
 import {
   DecideScanCandidateRequestSchema,
   DecideScanCandidateResponseSchema,
+  ListScanCandidatesRequestSchema,
+  ListScanCandidatesResponseSchema,
+  ListScanRunsRequestSchema,
+  ListScanRunsResponseSchema,
   RegisterScanCandidateRequestSchema,
   RegisterScanCandidateResponseSchema,
   StartScanRequestSchema,
@@ -91,6 +95,8 @@ import {
 import {
   AcquireDeviceLeaseRequestSchema,
   AcquireDeviceLeaseResponseSchema,
+  ListDeviceLeasesRequestSchema,
+  ListDeviceLeasesResponseSchema,
   ReleaseDeviceLeaseRequestSchema,
   ReleaseDeviceLeaseResponseSchema,
   RenewDeviceLeaseRequestSchema,
@@ -108,6 +114,8 @@ import {
 import {
   GetObservationSnapshotRequestSchema,
   GetObservationSnapshotResponseSchema,
+  ListObservationSnapshotsRequestSchema,
+  ListObservationSnapshotsResponseSchema,
 } from "@/gen/drift/v1/observation_pb"
 import {
   GetWorkspaceRequestSchema,
@@ -134,6 +142,8 @@ import {
 import {
   CancelWorkflowRunRequestSchema,
   CancelWorkflowRunResponseSchema,
+  ListRunTargetsRequestSchema,
+  ListRunTargetsResponseSchema,
   ListWorkflowRunsRequestSchema,
   ListWorkflowRunsResponseSchema,
 } from "@/gen/drift/v1/run_pb"
@@ -240,6 +250,12 @@ export class DiscoveryClient {
       deviceDisplayName,
     })
   }
+  listScanRuns(workspaceId: string) {
+    return this.rpc.call("ListScanRuns", ListScanRunsRequestSchema, ListScanRunsResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
+  }
+  listScanCandidates(workspaceId: string) {
+    return this.rpc.call("ListScanCandidates", ListScanCandidatesRequestSchema, ListScanCandidatesResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
+  }
 }
 
 export class GroupClient {
@@ -283,6 +299,13 @@ export class ObservationClient {
   getObservationSnapshot(workspaceId: string, observationId: string) {
     return this.rpc.call("GetObservationSnapshot", GetObservationSnapshotRequestSchema, GetObservationSnapshotResponseSchema, {
       observation: resourceRef(workspaceId, observationId),
+    })
+  }
+  listObservationSnapshots(workspaceId: string, deviceId = "") {
+    return this.rpc.call("ListObservationSnapshots", ListObservationSnapshotsRequestSchema, ListObservationSnapshotsResponseSchema, {
+      workspace: workspaceRef(workspaceId),
+      deviceId,
+      page: listPage,
     })
   }
 }
@@ -339,6 +362,9 @@ export class LeaseClient {
       lease: resourceRef(workspaceId, leaseId),
       fencingToken,
     })
+  }
+  listDeviceLeases(workspaceId: string) {
+    return this.rpc.call("ListDeviceLeases", ListDeviceLeasesRequestSchema, ListDeviceLeasesResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
   }
 }
 
@@ -541,6 +567,13 @@ export class RunClient {
     return this.rpc.call("CancelWorkflowRun", CancelWorkflowRunRequestSchema, CancelWorkflowRunResponseSchema, {
       context: requestContext({ requestId }),
       run: resourceRef(workspaceId, runId),
+    })
+  }
+  listRunTargets(workspaceId: string, runId = "") {
+    return this.rpc.call("ListRunTargets", ListRunTargetsRequestSchema, ListRunTargetsResponseSchema, {
+      workspace: workspaceRef(workspaceId),
+      runId,
+      page: listPage,
     })
   }
 }

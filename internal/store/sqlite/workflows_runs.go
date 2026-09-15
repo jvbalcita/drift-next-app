@@ -600,6 +600,45 @@ func (s *RunService) ListTargets(ctx context.Context, workspace organizations.Wo
 	return result, classifyContext(rows.Err())
 }
 
+func (s *RunService) ListAllTargets(ctx context.Context, workspace organizations.WorkspaceID) ([]runs.RunTarget, error) {
+	if err := validateRunServiceInput(ctx, s, workspace, "reader", "reader"); err != nil {
+		return nil, err
+	}
+	rows, err := s.store.db.QueryContext(ctx, `SELECT id, workspace_id, run_id, target_snapshot_id, device_id, state, failure_class, lease_id, current_observation_id, created_at, finished_at FROM run_targets WHERE workspace_id=? ORDER BY run_id, device_id, id`, workspace)
+	if err != nil {
+		return nil, classifyContext(err)
+	}
+	defer rows.Close()
+	result := make([]runs.RunTarget, 0)
+	for rows.Next() {
+		var target runs.RunTarget
+		var state, created string
+		var failureValue, leaseValue, observationValue, finishedValue sql.NullString
+		if err := rows.Scan(&target.ID, &target.Workspace, &target.RunID, &target.SnapshotID, &target.DeviceID, &state, &failureValue, &leaseValue, &observationValue, &created, &finishedValue); err != nil {
+			return nil, err
+		}
+		target.State = runs.TargetState(state)
+		if failureValue.Valid {
+			target.Failure = domain.FailureClass(failureValue.String)
+		}
+		if leaseValue.Valid {
+			target.LeaseID = leaseValue.String
+		}
+		if observationValue.Valid {
+			target.CurrentObservation = observationValue.String
+		}
+		target.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
+		if finishedValue.Valid {
+			finishedAt, parseErr := time.Parse(time.RFC3339Nano, finishedValue.String)
+			if parseErr == nil {
+				target.FinishedAt = &finishedAt
+			}
+		}
+		result = append(result, target)
+	}
+	return result, classifyContext(rows.Err())
+}
+
 func (s *RunService) ListTargetSteps(ctx context.Context, workspace organizations.WorkspaceID, targetID runs.RunTargetID) ([]runs.TargetRunStep, error) {
 	if err := validateRunServiceInput(ctx, s, workspace, "reader", "reader"); err != nil {
 		return nil, err

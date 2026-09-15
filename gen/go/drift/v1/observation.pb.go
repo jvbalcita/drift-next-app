@@ -341,6 +341,118 @@ func (x *GetObservationSnapshotResponse) GetObservation() *ObservationSnapshot {
 	return nil
 }
 
+type ListObservationSnapshotsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId      string                 `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListObservationSnapshotsRequest) Reset() {
+	*x = ListObservationSnapshotsRequest{}
+	mi := &file_drift_v1_observation_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListObservationSnapshotsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListObservationSnapshotsRequest) ProtoMessage() {}
+
+func (x *ListObservationSnapshotsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_observation_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListObservationSnapshotsRequest.ProtoReflect.Descriptor instead.
+func (*ListObservationSnapshotsRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_observation_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListObservationSnapshotsRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListObservationSnapshotsRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *ListObservationSnapshotsRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListObservationSnapshotsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Observations  []*ObservationSnapshot `protobuf:"bytes,1,rep,name=observations,proto3" json:"observations,omitempty"`
+	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListObservationSnapshotsResponse) Reset() {
+	*x = ListObservationSnapshotsResponse{}
+	mi := &file_drift_v1_observation_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListObservationSnapshotsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListObservationSnapshotsResponse) ProtoMessage() {}
+
+func (x *ListObservationSnapshotsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_observation_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListObservationSnapshotsResponse.ProtoReflect.Descriptor instead.
+func (*ListObservationSnapshotsResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_observation_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ListObservationSnapshotsResponse) GetObservations() []*ObservationSnapshot {
+	if x != nil {
+		return x.Observations
+	}
+	return nil
+}
+
+func (x *ListObservationSnapshotsResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 var File_drift_v1_observation_proto protoreflect.FileDescriptor
 
 const file_drift_v1_observation_proto_rawDesc = "" +
@@ -370,14 +482,22 @@ const file_drift_v1_observation_proto_rawDesc = "" +
 	"\x1dGetObservationSnapshotRequest\x127\n" +
 	"\vobservation\x18\x01 \x01(\v2\x15.drift.v1.ResourceRefR\vobservation\"a\n" +
 	"\x1eGetObservationSnapshotResponse\x12?\n" +
-	"\vobservation\x18\x01 \x01(\v2\x1d.drift.v1.ObservationSnapshotR\vobservation*\xb9\x01\n" +
+	"\vobservation\x18\x01 \x01(\v2\x1d.drift.v1.ObservationSnapshotR\vobservation\"\x9f\x01\n" +
+	"\x1fListObservationSnapshotsRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12)\n" +
+	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x91\x01\n" +
+	" ListObservationSnapshotsResponse\x12A\n" +
+	"\fobservations\x18\x01 \x03(\v2\x1d.drift.v1.ObservationSnapshotR\fobservations\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page*\xb9\x01\n" +
 	"\x17ObservationCaptureState\x12)\n" +
 	"%OBSERVATION_CAPTURE_STATE_UNSPECIFIED\x10\x00\x12&\n" +
 	"\"OBSERVATION_CAPTURE_STATE_COMPLETE\x10\x01\x12%\n" +
 	"!OBSERVATION_CAPTURE_STATE_PARTIAL\x10\x02\x12$\n" +
-	" OBSERVATION_CAPTURE_STATE_FAILED\x10\x032\x81\x01\n" +
+	" OBSERVATION_CAPTURE_STATE_FAILED\x10\x032\xf4\x01\n" +
 	"\x12ObservationService\x12k\n" +
-	"\x16GetObservationSnapshot\x12'.drift.v1.GetObservationSnapshotRequest\x1a(.drift.v1.GetObservationSnapshotResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\x16GetObservationSnapshot\x12'.drift.v1.GetObservationSnapshotRequest\x1a(.drift.v1.GetObservationSnapshotResponse\x12q\n" +
+	"\x18ListObservationSnapshots\x12).drift.v1.ListObservationSnapshotsRequest\x1a*.drift.v1.ListObservationSnapshotsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_observation_proto_rawDescOnce sync.Once
@@ -392,31 +512,41 @@ func file_drift_v1_observation_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_observation_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_drift_v1_observation_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_drift_v1_observation_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_drift_v1_observation_proto_goTypes = []any{
-	(ObservationCaptureState)(0),           // 0: drift.v1.ObservationCaptureState
-	(*ObservationSnapshot)(nil),            // 1: drift.v1.ObservationSnapshot
-	(*GetObservationSnapshotRequest)(nil),  // 2: drift.v1.GetObservationSnapshotRequest
-	(*GetObservationSnapshotResponse)(nil), // 3: drift.v1.GetObservationSnapshotResponse
-	(*WorkspaceRef)(nil),                   // 4: drift.v1.WorkspaceRef
-	(*ArtifactReference)(nil),              // 5: drift.v1.ArtifactReference
-	(*Failure)(nil),                        // 6: drift.v1.Failure
-	(*ResourceRef)(nil),                    // 7: drift.v1.ResourceRef
+	(ObservationCaptureState)(0),             // 0: drift.v1.ObservationCaptureState
+	(*ObservationSnapshot)(nil),              // 1: drift.v1.ObservationSnapshot
+	(*GetObservationSnapshotRequest)(nil),    // 2: drift.v1.GetObservationSnapshotRequest
+	(*GetObservationSnapshotResponse)(nil),   // 3: drift.v1.GetObservationSnapshotResponse
+	(*ListObservationSnapshotsRequest)(nil),  // 4: drift.v1.ListObservationSnapshotsRequest
+	(*ListObservationSnapshotsResponse)(nil), // 5: drift.v1.ListObservationSnapshotsResponse
+	(*WorkspaceRef)(nil),                     // 6: drift.v1.WorkspaceRef
+	(*ArtifactReference)(nil),                // 7: drift.v1.ArtifactReference
+	(*Failure)(nil),                          // 8: drift.v1.Failure
+	(*ResourceRef)(nil),                      // 9: drift.v1.ResourceRef
+	(*PageRequest)(nil),                      // 10: drift.v1.PageRequest
+	(*PageResponse)(nil),                     // 11: drift.v1.PageResponse
 }
 var file_drift_v1_observation_proto_depIdxs = []int32{
-	4, // 0: drift.v1.ObservationSnapshot.workspace:type_name -> drift.v1.WorkspaceRef
-	0, // 1: drift.v1.ObservationSnapshot.capture_state:type_name -> drift.v1.ObservationCaptureState
-	5, // 2: drift.v1.ObservationSnapshot.artifacts:type_name -> drift.v1.ArtifactReference
-	6, // 3: drift.v1.ObservationSnapshot.failure:type_name -> drift.v1.Failure
-	7, // 4: drift.v1.GetObservationSnapshotRequest.observation:type_name -> drift.v1.ResourceRef
-	1, // 5: drift.v1.GetObservationSnapshotResponse.observation:type_name -> drift.v1.ObservationSnapshot
-	2, // 6: drift.v1.ObservationService.GetObservationSnapshot:input_type -> drift.v1.GetObservationSnapshotRequest
-	3, // 7: drift.v1.ObservationService.GetObservationSnapshot:output_type -> drift.v1.GetObservationSnapshotResponse
-	7, // [7:8] is the sub-list for method output_type
-	6, // [6:7] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	6,  // 0: drift.v1.ObservationSnapshot.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 1: drift.v1.ObservationSnapshot.capture_state:type_name -> drift.v1.ObservationCaptureState
+	7,  // 2: drift.v1.ObservationSnapshot.artifacts:type_name -> drift.v1.ArtifactReference
+	8,  // 3: drift.v1.ObservationSnapshot.failure:type_name -> drift.v1.Failure
+	9,  // 4: drift.v1.GetObservationSnapshotRequest.observation:type_name -> drift.v1.ResourceRef
+	1,  // 5: drift.v1.GetObservationSnapshotResponse.observation:type_name -> drift.v1.ObservationSnapshot
+	6,  // 6: drift.v1.ListObservationSnapshotsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	10, // 7: drift.v1.ListObservationSnapshotsRequest.page:type_name -> drift.v1.PageRequest
+	1,  // 8: drift.v1.ListObservationSnapshotsResponse.observations:type_name -> drift.v1.ObservationSnapshot
+	11, // 9: drift.v1.ListObservationSnapshotsResponse.page:type_name -> drift.v1.PageResponse
+	2,  // 10: drift.v1.ObservationService.GetObservationSnapshot:input_type -> drift.v1.GetObservationSnapshotRequest
+	4,  // 11: drift.v1.ObservationService.ListObservationSnapshots:input_type -> drift.v1.ListObservationSnapshotsRequest
+	3,  // 12: drift.v1.ObservationService.GetObservationSnapshot:output_type -> drift.v1.GetObservationSnapshotResponse
+	5,  // 13: drift.v1.ObservationService.ListObservationSnapshots:output_type -> drift.v1.ListObservationSnapshotsResponse
+	12, // [12:14] is the sub-list for method output_type
+	10, // [10:12] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_observation_proto_init() }
@@ -431,7 +561,7 @@ func file_drift_v1_observation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_observation_proto_rawDesc), len(file_drift_v1_observation_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

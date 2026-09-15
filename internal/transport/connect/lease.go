@@ -86,6 +86,30 @@ func (h *LeaseHandler) ReleaseDeviceLease(ctx context.Context, request *connectr
 	return connectrpc.NewResponse(&driftv1.ReleaseDeviceLeaseResponse{Lease: deviceLeaseProto(lease)}), nil
 }
 
+func (h *LeaseHandler) ListDeviceLeases(ctx context.Context, request *connectrpc.Request[driftv1.ListDeviceLeasesRequest]) (*connectrpc.Response[driftv1.ListDeviceLeasesResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("list device leases request is required")
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	offset, limit, err := parsePage(request.Msg.GetPage())
+	if err != nil {
+		return nil, err
+	}
+	listed, listErr := store.NewLeaseService(h.db, 0).List(ctx, workspace)
+	if listErr != nil {
+		return nil, MapError(listErr)
+	}
+	page, next := applyPage(listed, offset, limit)
+	out := make([]*driftv1.DeviceLease, 0, len(page))
+	for _, lease := range page {
+		out = append(out, deviceLeaseProto(lease))
+	}
+	return connectrpc.NewResponse(&driftv1.ListDeviceLeasesResponse{Leases: out, Page: pageResponse(next)}), nil
+}
+
 func deviceLeaseProto(lease leases.DeviceLease) *driftv1.DeviceLease {
 	state := driftv1.LeaseState_LEASE_STATE_UNSPECIFIED
 	switch lease.State {
@@ -106,5 +130,6 @@ func deviceLeaseProto(lease leases.DeviceLease) *driftv1.DeviceLease {
 		State:            state,
 		FencingToken:     lease.FencingToken,
 		ExpiresAt:        formatTime(lease.ExpiresAt),
+		HolderId:         lease.HolderID,
 	}
 }

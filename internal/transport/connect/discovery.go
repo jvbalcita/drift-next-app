@@ -89,6 +89,54 @@ func (h *DiscoveryHandler) RegisterScanCandidate(ctx context.Context, request *c
 	}), nil
 }
 
+func (h *DiscoveryHandler) ListScanRuns(ctx context.Context, request *connectrpc.Request[driftv1.ListScanRunsRequest]) (*connectrpc.Response[driftv1.ListScanRunsResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("list scan runs request is required")
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	offset, limit, err := parsePage(request.Msg.GetPage())
+	if err != nil {
+		return nil, err
+	}
+	listed, listErr := h.db.ListScanRuns(ctx, workspace)
+	if listErr != nil {
+		return nil, MapError(listErr)
+	}
+	page, next := applyPage(listed, offset, limit)
+	out := make([]*driftv1.ScanRun, 0, len(page))
+	for _, run := range page {
+		out = append(out, scanRunProto(run))
+	}
+	return connectrpc.NewResponse(&driftv1.ListScanRunsResponse{ScanRuns: out, Page: pageResponse(next)}), nil
+}
+
+func (h *DiscoveryHandler) ListScanCandidates(ctx context.Context, request *connectrpc.Request[driftv1.ListScanCandidatesRequest]) (*connectrpc.Response[driftv1.ListScanCandidatesResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("list scan candidates request is required")
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	offset, limit, err := parsePage(request.Msg.GetPage())
+	if err != nil {
+		return nil, err
+	}
+	listed, listErr := store.NewDiscoveryRepository(h.db).ListCandidates(ctx, workspace, "")
+	if listErr != nil {
+		return nil, MapError(listErr)
+	}
+	page, next := applyPage(listed, offset, limit)
+	out := make([]*driftv1.ScanCandidate, 0, len(page))
+	for _, candidate := range page {
+		out = append(out, scanCandidateProto(candidate))
+	}
+	return connectrpc.NewResponse(&driftv1.ListScanCandidatesResponse{Candidates: out, Page: pageResponse(next)}), nil
+}
+
 func scanRunProto(run discovery.ScanRun) *driftv1.ScanRun {
 	finished := run.CompletedAt
 	return &driftv1.ScanRun{
@@ -111,10 +159,18 @@ func scanCandidateProto(candidate discovery.ScanCandidate) *driftv1.ScanCandidat
 		Host:         candidate.Host,
 		Port:         uint32(candidate.Port),
 		Serial:       candidate.Serial,
-		Fingerprint:  candidate.Fingerprint,
-		State:        scanCandidateStateProto(candidate.State),
-		DiscoveredAt: formatTime(candidate.DiscoveredAt),
+		Fingerprint:     candidate.Fingerprint,
+		State:           scanCandidateStateProto(candidate.State),
+		DiscoveredAt:    formatTime(candidate.DiscoveredAt),
+		EvidenceSummary: candidateEvidenceSummary(candidate.EvidenceJSON),
 	}
+}
+
+func candidateEvidenceSummary(evidenceJSON string) string {
+	if evidenceJSON == "" {
+		return ""
+	}
+	return "Sanitized candidate evidence"
 }
 
 func scanRunStateProto(state discovery.ScanRunState) driftv1.ScanRunState {
