@@ -8,6 +8,7 @@ export const navigation = [
   { section: "Workflows", hash: "workflows", views: [{ id: "definitions", label: "Definitions" }, { id: "versions", label: "Versions" }, { id: "skills", label: "Skills" }] },
   { section: "Agents", hash: "agents", views: [{ id: "runtimes", label: "Edge Runtimes" }, { id: "profiles", label: "Logical Profiles" }, { id: "assignments", label: "Assignments" }, { id: "capabilities", label: "Capabilities" }] },
   { section: "Runs", hash: "runs", views: [{ id: "active", label: "Active" }, { id: "history", label: "History" }, { id: "failed", label: "Failed / Indeterminate" }] },
+  { section: "Artifacts", hash: "artifacts", views: [{ id: "library", label: "Library" }, { id: "media", label: "Media" }, { id: "recordings", label: "Recordings" }, { id: "storage", label: "Storage" }, { id: "audit", label: "Audit" }] },
   { section: "Events", hash: "events", views: [{ id: "all", label: "Event Log" }] },
   { section: "Policies", hash: "policies", views: [{ id: "active", label: "Active Policies" }, { id: "versions", label: "Versions" }, { id: "decisions", label: "Decision Log" }, { id: "access", label: "Access" }] },
   { section: "Settings", hash: "settings", views: [{ id: "workspace", label: "Workspace" }, { id: "control-plane", label: "Control Plane" }, { id: "edge-host", label: "Edge Host" }, { id: "device", label: "Device" }, { id: "automation-agent", label: "Automation Agent" }, { id: "operator-preference", label: "Operator Preference" }, { id: "history", label: "History" }] },

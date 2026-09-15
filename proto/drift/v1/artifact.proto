@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+// ArtifactService exposes authorized local artifact metadata and byte access.
+// Bytes never travel as arbitrary filesystem paths.
+service ArtifactService {
+  rpc ListArtifacts(ListArtifactsRequest) returns (ListArtifactsResponse);
+  rpc GetArtifact(GetArtifactRequest) returns (GetArtifactResponse);
+  rpc ReadArtifact(ReadArtifactRequest) returns (ReadArtifactResponse);
+  rpc DeleteArtifact(DeleteArtifactRequest) returns (DeleteArtifactResponse);
+  rpc GetStorageHealth(GetStorageHealthRequest) returns (GetStorageHealthResponse);
+}
+
+message ArtifactRecord {
+  string artifact_id = 1;
+  WorkspaceRef workspace = 2;
+  string content_hash = 3;
+  int64 size_bytes = 4;
+  string media_type = 5;
+  uint32 schema_version = 6;
+  string retention_class = 7;
+  string category = 8;
+  string state = 9;
+  string created_at = 10;
+  string updated_at = 11;
+  string deleted_at = 12;
+  string deletion_outcome = 13;
+  string failure_classification = 14;
+  string omission_reason = 15;
+}
+
+message ListArtifactsRequest {
+  WorkspaceRef workspace = 1;
+  string actor_id = 2;
+  repeated string states = 3;
+  repeated string categories = 4;
+  int32 limit = 5;
+}
+
+message ListArtifactsResponse {
+  repeated ArtifactRecord artifacts = 1;
+}
+
+message GetArtifactRequest {
+  WorkspaceRef workspace = 1;
+  string artifact_id = 2;
+  string actor_id = 3;
+}
+
+message GetArtifactResponse {
+  ArtifactRecord artifact = 1;
+}
+
+message ReadArtifactRequest {
+  WorkspaceRef workspace = 1;
+  string artifact_id = 2;
+  string actor_id = 3;
+}
+
+message ReadArtifactResponse {
+  ArtifactRecord artifact = 1;
+  bytes content = 2;
+}
+
+message DeleteArtifactRequest {
+  WorkspaceRef workspace = 1;
+  string artifact_id = 2;
+  string actor_id = 3;
+}
+
+message DeleteArtifactResponse {
+  string deletion_outcome = 1;
+}
+
+message GetStorageHealthRequest {
+  WorkspaceRef workspace = 1;
+  string actor_id = 2;
+}
+
+message GetStorageHealthResponse {
+  string workspace_id = 1;
+  bool cas_root_configured = 2;
+  int64 object_count = 3;
+  int64 total_bytes = 4;
+  int64 cleanup_failed_count = 5;
+  string checked_at = 6;
+}

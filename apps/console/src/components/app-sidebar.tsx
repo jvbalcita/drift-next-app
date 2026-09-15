@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar"
 import {
   ActivityIcon,
+  ArchiveIcon,
   ContactRoundIcon,
   BotIcon,
   CommandIcon,
@@ -83,7 +84,7 @@ export function AppSidebar({
   activeView?: string
   onSectionChange?: (section: string, view?: string) => void
 }) {
-  const iconFor: Record<Section, React.ReactNode> = { Overview: <LayoutDashboardIcon aria-hidden="true" />, Control: <MousePointer2Icon aria-hidden="true" />, Devices: <SmartphoneIcon aria-hidden="true" />, Accounts: <ContactRoundIcon aria-hidden="true" />, "Network Profiles": <NetworkIcon aria-hidden="true" />, Groups: <UsersRoundIcon aria-hidden="true" />, Workflows: <CommandIcon aria-hidden="true" />, Agents: <BotIcon aria-hidden="true" />, Runs: <ListChecksIcon aria-hidden="true" />, Events: <ScrollTextIcon aria-hidden="true" />, Policies: <ShieldCheckIcon aria-hidden="true" />, Settings: <Settings2Icon aria-hidden="true" /> }
+  const iconFor: Record<Section, React.ReactNode> = { Overview: <LayoutDashboardIcon aria-hidden="true" />, Control: <MousePointer2Icon aria-hidden="true" />, Devices: <SmartphoneIcon aria-hidden="true" />, Accounts: <ContactRoundIcon aria-hidden="true" />, "Network Profiles": <NetworkIcon aria-hidden="true" />, Groups: <UsersRoundIcon aria-hidden="true" />, Workflows: <CommandIcon aria-hidden="true" />, Agents: <BotIcon aria-hidden="true" />, Runs: <ListChecksIcon aria-hidden="true" />, Artifacts: <ArchiveIcon aria-hidden="true" />, Events: <ScrollTextIcon aria-hidden="true" />, Policies: <ShieldCheckIcon aria-hidden="true" />, Settings: <Settings2Icon aria-hidden="true" /> }
   const navMain = navigation.map((item) => ({
     title: item.section,
     url: `#${item.hash}/${item.views[0].id}`,

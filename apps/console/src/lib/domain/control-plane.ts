@@ -528,6 +528,85 @@ export interface LabRegistrationView {
   registeredAt?: string
 }
 
+export type ArtifactCategory = "screenshot" | "ui_tree" | "recording" | "structured_evidence" | "other"
+export type ArtifactLifecycleState =
+  | "admitted"
+  | "active"
+  | "eligible_for_deletion"
+  | "deleted"
+  | "cleanup_failed"
+  | "omitted"
+  | "redacted"
+  | "partial"
+  | "unauthorized"
+export type ArtifactRetentionClass = "execution_evidence" | "audit_security" | "disposable"
+export type ArtifactVisibility = "authorized" | "unauthorized" | "omitted" | "redacted" | "partial"
+export type ArtifactAuditAction = "read" | "delete" | "reject_admission" | "cleanup_failure" | "cleanup"
+export type ArtifactPreviewKind = "none" | "screenshot" | "ui_tree" | "recording"
+export type RecordingSessionState = "recording" | "completed" | "failed" | "cleanup_failed" | "omitted"
+
+/** Bounded artifact metadata for the Artifacts console. Never carries raw paths or secrets. */
+export interface ArtifactView {
+  id: string
+  contentHash: string
+  category: ArtifactCategory
+  lifecycleState: ArtifactLifecycleState
+  retentionClass: ArtifactRetentionClass
+  visibility: ArtifactVisibility
+  sizeBytes: number
+  createdAt: string
+  ownerType: string
+  ownerId: string
+  referenceType: string
+  referenceId: string
+  deviceId?: string
+  deletionEligible: boolean
+  protectedReason?: string
+  previewKind: ArtifactPreviewKind
+  sanitizedPreviewLabel: string
+  /** Sanitized placeholder only — never a filesystem path or secret. */
+  sanitizedPreviewDataUrl?: string
+  uiTreeSummary?: string
+  recordingSessionId?: string
+  failureClass?: string
+}
+
+export interface RecordingMediaView {
+  id: string
+  sessionId: string
+  deviceId: string
+  state: RecordingSessionState
+  startedAt: string
+  endedAt?: string
+  durationMs?: number
+  artifactId?: string
+  lowResPreviewLabel: string
+  fullResAuthorized: boolean
+  failureClass?: string
+}
+
+export interface StorageHealthView {
+  usedBytes: number
+  budgetBytes: number
+  objectCount: number
+  orphanMetadataCount: number
+  orphanBytesCount: number
+  quotaWarning: boolean
+  warningSummary: string
+  cleanupFailures: number
+}
+
+export interface ArtifactAuditView {
+  id: string
+  action: ArtifactAuditAction
+  artifactId: string
+  actor: string
+  occurredAt: string
+  outcome: "accepted" | "rejected" | "failed"
+  summary: string
+  failureClass?: string
+}
+
 export interface ControlPlaneSnapshot {
   workspaceName: string
   workspaceId: string
@@ -567,6 +646,10 @@ export interface ControlPlaneSnapshot {
   spoolHealth: SpoolHealthView
   indeterminateActions: readonly IndeterminateActionView[]
   labRegistration: LabRegistrationView | null
+  artifacts: readonly ArtifactView[]
+  recordingMedia: readonly RecordingMediaView[]
+  storageHealth: StorageHealthView
+  artifactAudits: readonly ArtifactAuditView[]
 }
 
 export interface SettingHistoryView {
@@ -641,6 +724,9 @@ export type ControlPlaneIntent =
   | { type: "confirmIndeterminateAction"; actionId: string; confirm: boolean; resolution: IndeterminateResolutionKind }
   | { type: "confirmSpoolReplay"; sequence: number; confirm: boolean }
   | { type: "enqueueMockSpoolItem"; kind: SpoolItemKind; risk: "low" | "medium" | "high"; idempotencyKey: string }
+  | { type: "readArtifact"; artifactId: string }
+  | { type: "deleteArtifact"; artifactId: string; confirmed: boolean }
+  | { type: "cleanupArtifact"; artifactId: string; confirmed: boolean }
 
 export interface MutationResult {
   ok: boolean

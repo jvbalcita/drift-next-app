@@ -32,6 +32,7 @@ const PoliciesPage = lazy(async () => ({ default: (await import("./pages/Policie
 const RunsPage = lazy(async () => ({ default: (await import("./pages/RunsPage")).RunsPage }))
 const WorkflowsPage = lazy(async () => ({ default: (await import("./pages/WorkflowsPage")).WorkflowsPage }))
 const SettingsPage = lazy(async () => ({ default: (await import("./pages/SettingsPage")).SettingsPage }))
+const ArtifactsPage = lazy(async () => ({ default: (await import("./pages/ArtifactsPage")).ArtifactsPage }))
 
 function App() {
   const [route, setRoute] = useState<Route>(() => routeFromHash(window.location.hash))
@@ -95,6 +96,7 @@ function renderSection(route: Route, snapshot: ReturnType<typeof useControlPlane
     case "Agents": return <AgentsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Workflows": return <WorkflowsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Runs": return <RunsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
+    case "Artifacts": return <ArtifactsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Events": return <EventsPage snapshot={snapshot} />
     case "Policies": return <PoliciesPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Settings": return <SettingsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />

@@ -49,6 +49,18 @@ func LabRegistrationRouteWithStore(service transportconnect.LabRegistration, sto
 	return Route{Path: path, Handler: RequireLabToken(token, handler)}
 }
 
+// ArtifactRoute mounts artifact list/get/read/delete/health RPCs only when an
+// artifact application service has been constructed.
+func ArtifactRoute(service transportconnect.ArtifactAPI, token string) Route {
+	if service == nil {
+		return Route{}
+	}
+	path, handler := driftv1connect.NewArtifactServiceHandler(
+		transportconnect.NewArtifactHandler(service),
+	)
+	return Route{Path: path, Handler: RequireLabToken(token, handler)}
+}
+
 // NewHTTPServer returns a loopback-oriented server exposing health endpoints
 // plus any explicitly mounted Connect routes. Adding a route is deliberate:
 // nothing is mounted by reflection or by package initialization.
