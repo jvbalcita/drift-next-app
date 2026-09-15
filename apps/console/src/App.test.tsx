@@ -174,12 +174,12 @@ describe("Drift command center", () => {
     render(<App />)
 
     await user.click(await screen.findByRole("button", { name: "New Profile" }))
-    await user.click(screen.getByRole("button", { name: "Save profile" }))
+    await user.click(screen.getByRole("button", { name: "Save Profile" }))
 
     const alert = screen.getByRole("alert")
     expect(alert).toHaveTextContent("Correct the highlighted fields")
     await waitFor(() => expect(alert).toHaveFocus())
-    expect(screen.getByLabelText("Profile name")).toHaveAttribute("aria-invalid", "true")
+    expect(screen.getByLabelText("Profile Name")).toHaveAttribute("aria-invalid", "true")
   })
 
   it("exposes Control as a compact-frame mock-only destination", async () => {

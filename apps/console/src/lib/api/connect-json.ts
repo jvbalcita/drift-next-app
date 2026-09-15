@@ -83,7 +83,7 @@ export function requestContext(options: { requestId: string; correlationId?: str
     requestId: options.requestId,
     correlationId: options.correlationId ?? options.requestId,
     idempotencyKey: options.idempotencyKey ?? options.requestId,
-    actorId: options.actorId ?? defaultOperatorId,
+    actorId: options.actorId?.trim() || defaultOperatorId || "console-local-operator",
   })
 }
 

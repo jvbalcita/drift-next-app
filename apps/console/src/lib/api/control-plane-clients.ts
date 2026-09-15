@@ -287,7 +287,7 @@ export class NetworkProfileClient {
 
 export class DiscoveryClient {
   private readonly rpc: TypedConnectClient
-  constructor(json: ConnectJsonClient) {
+  constructor(json: ConnectJsonClient, private readonly operatorId?: string) {
     this.rpc = new TypedConnectClient(json, "drift.v1.DiscoveryService")
   }
   startScan(requestId: string, workspaceId: string, networkProfileId: string) {
@@ -307,7 +307,7 @@ export class DiscoveryClient {
   }
   registerScanCandidate(requestId: string, workspaceId: string, candidateId: string, deviceDisplayName: string) {
     return this.rpc.call("RegisterScanCandidate", RegisterScanCandidateRequestSchema, RegisterScanCandidateResponseSchema, {
-      context: requestContext({ requestId }),
+      context: requestContext({ requestId, actorId: this.operatorId }),
       candidate: resourceRef(workspaceId, candidateId),
       deviceDisplayName,
     })
@@ -913,11 +913,11 @@ export interface ControlPlaneServices {
   runtime: RuntimeClient
 }
 
-export function createControlPlaneServices(json: ConnectJsonClient): ControlPlaneServices {
+export function createControlPlaneServices(json: ConnectJsonClient, operatorId?: string): ControlPlaneServices {
   return {
     device: new DeviceClient(json),
     networkProfile: new NetworkProfileClient(json),
-    discovery: new DiscoveryClient(json),
+    discovery: new DiscoveryClient(json, operatorId),
     group: new GroupClient(json),
     endpoint: new EndpointClient(json),
     observation: new ObservationClient(json),

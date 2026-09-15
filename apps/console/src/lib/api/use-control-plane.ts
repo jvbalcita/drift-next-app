@@ -87,7 +87,7 @@ export function useControlPlane(): ControlPlaneViewModel {
     void loadRuntimeConfig().then((config) => {
       if (!active || !config) return
       setRuntimeConfig(config)
-      setClient(createRealControlPlaneClient({ baseUrl: config.controlPlaneUrl, token: config.serviceToken }))
+      setClient(createRealControlPlaneClient({ baseUrl: config.controlPlaneUrl, token: config.serviceToken, operatorId: config.operatorId }))
       setLabClient(createLabAdapterClient(config.controlPlaneUrl, config.serviceToken))
       setRegistrationClient(createLabRegistrationClient(config.controlPlaneUrl, config.serviceToken))
     })
