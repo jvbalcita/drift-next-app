@@ -7,12 +7,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import type { AutomationAgentProfileView, ControlPlaneSnapshot, DispatchIntent } from "@/lib/domain/control-plane"
 import { DataTablePagination, EmptyState, FieldLabel, OperatorNotice, PageIntro, StatusBadge, type StatusTone } from "./shared"
+import { resolvedId } from "./page-utils"
 
 export function AgentsPage({ snapshot, dispatch, view = "runtimes", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [agentName, setAgentName] = useState("")
-  const [assignAgentId, setAssignAgentId] = useState(snapshot.automationAgents[0]?.id ?? "")
-  const [assignDeviceId, setAssignDeviceId] = useState(snapshot.devices[0]?.id ?? "")
+  const [assignAgentId, setAssignAgentId] = useState("")
+  const [assignDeviceId, setAssignDeviceId] = useState("")
+  const selectedAssignAgentId = resolvedId(snapshot.automationAgents.map((agent) => agent.id), assignAgentId)
+  const selectedAssignDeviceId = resolvedId(snapshot.devices.map((device) => device.id), assignDeviceId)
   const [feedback, setFeedback] = useState("")
   const selected = snapshot.edgeAgents.find((agent) => agent.id === selectedId)
   function createAgent(event: FormEvent<HTMLFormElement>) {
@@ -23,7 +26,7 @@ export function AgentsPage({ snapshot, dispatch, view = "runtimes", onViewChange
   }
   function assignAgent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    void reportDispatch(dispatch, { type: "assignAutomationAgentDevice", agentId: assignAgentId, deviceId: assignDeviceId }, setFeedback)
+    void reportDispatch(dispatch, { type: "assignAutomationAgentDevice", agentId: selectedAssignAgentId, deviceId: selectedAssignDeviceId }, setFeedback)
   }
   return <><PageIntro eyebrow="AUTOMATION / AGENTS" title="Agent Profiles" description="Edge runtime health is separate from logical profiles, their assignments, and declarative capabilities." actions={<StatusBadge label="No Profile Bypass" tone="info" />} /><OperatorNotice>Profiles are declarative metadata. They cannot access device protocols, credentials, arbitrary scripts, or bypass policy and leases.</OperatorNotice>
     <Tabs value={view} onValueChange={onViewChange}><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Agent views"><TabsTrigger value="runtimes" className="rounded-none">Edge Runtimes</TabsTrigger><TabsTrigger value="profiles" className="rounded-none">Logical Profiles</TabsTrigger><TabsTrigger value="assignments" className="rounded-none">Assignments</TabsTrigger><TabsTrigger value="capabilities" className="rounded-none">Capabilities</TabsTrigger></TabsList>
@@ -47,19 +50,21 @@ export function AgentsPage({ snapshot, dispatch, view = "runtimes", onViewChange
         <form onSubmit={assignAgent} className="mt-4 grid gap-3 border border-border p-4 md:grid-cols-3">
           <div>
             <FieldLabel htmlFor="assign-agent">Automation Agent</FieldLabel>
-            <select id="assign-agent" value={assignAgentId} onChange={(event) => setAssignAgentId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">
+            <select id="assign-agent" value={selectedAssignAgentId} onChange={(event) => setAssignAgentId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">
               {snapshot.automationAgents.length === 0 ? <option value="">No Automation Agents</option> : null}
+              {selectedAssignAgentId.length === 0 && snapshot.automationAgents.length > 1 ? <option value="">Select Agent</option> : null}
               {snapshot.automationAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
             </select>
           </div>
           <div>
             <FieldLabel htmlFor="assign-device">Device</FieldLabel>
-            <select id="assign-device" value={assignDeviceId} onChange={(event) => setAssignDeviceId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">
+            <select id="assign-device" value={selectedAssignDeviceId} onChange={(event) => setAssignDeviceId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">
               {snapshot.devices.length === 0 ? <option value="">No Registered Devices</option> : null}
+              {selectedAssignDeviceId.length === 0 && snapshot.devices.length > 1 ? <option value="">Select Device</option> : null}
               {snapshot.devices.map((device) => <option key={device.id} value={device.id}>{device.displayName}</option>)}
             </select>
           </div>
-          <Button type="submit" size="sm" variant="outline" className="self-end" disabled={!assignAgentId || !assignDeviceId}>Assign Device</Button>
+          <Button type="submit" size="sm" variant="outline" className="self-end" disabled={!selectedAssignAgentId || !selectedAssignDeviceId}>Assign Device</Button>
           <p aria-live="polite" className="text-[11px] text-muted-foreground md:col-span-3">{feedback}</p>
         </form>
         <div className="mt-4 border border-border"><table className="w-full text-left text-xs"><thead><tr className="border-b border-border text-[10px] uppercase tracking-[.08em] text-muted-foreground"><th className="p-3">Profile</th><th className="p-3">Assignment</th><th className="p-3">Trust</th></tr></thead><tbody>{snapshot.automationAgentProfiles.map((profile) => <tr key={profile.id} className="border-b border-border/70"><td className="p-3">{profile.id}</td><td className="p-3">{profile.assignmentSummary}</td><td className="p-3"><StatusBadge label={profile.trust} tone={trustTone(profile.trust)} /></td></tr>)}</tbody></table></div>

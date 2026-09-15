@@ -7,14 +7,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent, RunState } from "@/lib/domain/control-plane"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, EmptyState, FailureBadge, FieldLabel, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
-import { textForDevice } from "./page-utils"
+import { resolvedDeviceIds, resolvedId, textForDevice } from "./page-utils"
 
 export function RunsPage({ snapshot, dispatch, view = "active", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState("")
   const publishedWorkflows = snapshot.workflows.filter((workflow) => workflow.state === "published" || Boolean(workflow.publishedVersionId))
-  const [workflowId, setWorkflowId] = useState(publishedWorkflows[0]?.id ?? "")
-  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>(snapshot.devices[0] ? [snapshot.devices[0].id] : [])
+  const [workflowId, setWorkflowId] = useState("")
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([])
+  const selectedWorkflowId = resolvedId(publishedWorkflows.map((workflow) => workflow.id), workflowId)
+  const effectiveDeviceIds = resolvedDeviceIds(snapshot.devices.map((device) => device.id), selectedDeviceIds)
   const selectedRun = snapshot.runs.find((run) => run.id === selectedRunId)
   const activeRuns = snapshot.runs.filter((run) => !isTerminal(run.state))
   const historicalRuns = snapshot.runs.filter((run) => isTerminal(run.state))
@@ -22,10 +24,13 @@ export function RunsPage({ snapshot, dispatch, view = "active", onViewChange }: 
   function inspect(id: string) { setSelectedRunId(id) }
   function cancel(id: string) { void reportDispatch(dispatch, { type: "cancelRun", runId: id }, setFeedback) }
   function toggleDevice(deviceId: string) {
-    setSelectedDeviceIds((current) => current.includes(deviceId) ? current.filter((id) => id !== deviceId) : [...current, deviceId])
+    setSelectedDeviceIds((current) => {
+      const effective = resolvedDeviceIds(snapshot.devices.map((device) => device.id), current)
+      return effective.includes(deviceId) ? effective.filter((id) => id !== deviceId) : [...effective, deviceId]
+    })
   }
   function startRun() {
-    void reportDispatch(dispatch, { type: "startWorkflowRun", workflowId, deviceIds: selectedDeviceIds, confirmed: true }, setFeedback)
+    void reportDispatch(dispatch, { type: "startWorkflowRun", workflowId: selectedWorkflowId, deviceIds: effectiveDeviceIds, confirmed: true }, setFeedback)
   }
   return <>
     <PageIntro eyebrow="EXECUTION / RUNS" title="Runs and Targets" description="Inspect parent runs and independent per-device outcomes without conflating target state with aggregate state." actions={<StatusBadge label="Independent Targets" tone="info" />} />
@@ -33,8 +38,9 @@ export function RunsPage({ snapshot, dispatch, view = "active", onViewChange }: 
     <form className="mt-6 grid gap-3 border border-border p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]" onSubmit={(event) => event.preventDefault()}>
       <div>
         <FieldLabel htmlFor="start-run-workflow">Published Workflow</FieldLabel>
-        <select id="start-run-workflow" value={workflowId} onChange={(event) => setWorkflowId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">
+        <select id="start-run-workflow" value={selectedWorkflowId} onChange={(event) => setWorkflowId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">
           {publishedWorkflows.length === 0 ? <option value="">No Published Workflows</option> : null}
+          {selectedWorkflowId.length === 0 && publishedWorkflows.length > 1 ? <option value="">Select Workflow</option> : null}
           {publishedWorkflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name} · v{workflow.version}</option>)}
         </select>
       </div>
@@ -43,14 +49,14 @@ export function RunsPage({ snapshot, dispatch, view = "active", onViewChange }: 
         <div className="mt-1 max-h-28 overflow-y-auto border border-border p-2">
           {snapshot.devices.length === 0 ? <p className="text-xs text-muted-foreground">No Registered Devices</p> : snapshot.devices.map((device) => (
             <label key={device.id} className="flex items-center gap-2 py-1 text-xs">
-              <input type="checkbox" checked={selectedDeviceIds.includes(device.id)} onChange={() => toggleDevice(device.id)} />
+              <input type="checkbox" checked={effectiveDeviceIds.includes(device.id)} onChange={() => toggleDevice(device.id)} />
               {device.displayName}
             </label>
           ))}
         </div>
       </fieldset>
       <AlertDialog>
-        <AlertDialogTrigger render={<Button type="button" size="sm" variant="outline" className="self-end" disabled={!workflowId || selectedDeviceIds.length === 0}>Start Run</Button>} />
+        <AlertDialogTrigger render={<Button type="button" size="sm" variant="outline" className="self-end" disabled={!selectedWorkflowId || effectiveDeviceIds.length === 0}>Start Run</Button>} />
         <AlertDialogContent
           title="Start Workflow Run?"
           description="Creates a parent run for the selected devices only. Each device keeps an independent target, lease, fencing token, and outcome. Actions are not replayed after disconnect or timeout."

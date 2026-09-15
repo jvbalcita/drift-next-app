@@ -6,14 +6,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent } from "@/lib/domain/control-plane"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, FieldLabel, PageIntro, StatusBadge } from "./shared"
-import { activeMemberships, textForDevice } from "./page-utils"
+import { activeMemberships, resolvedId, textForDevice } from "./page-utils"
 
 export function GroupsPage({ snapshot, dispatch, view = "groups", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null); const [deviceId, setDeviceId] = useState(snapshot.devices[0]?.id ?? ""); const [targetGroup, setTargetGroup] = useState(snapshot.groups[0]?.id ?? ""); const [feedback, setFeedback] = useState(""); const [groupName, setGroupName] = useState("")
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [deviceId, setDeviceId] = useState("")
+  const [targetGroup, setTargetGroup] = useState("")
+  const [feedback, setFeedback] = useState("")
+  const [groupName, setGroupName] = useState("")
+  const selectedDeviceId = resolvedId(snapshot.devices.map((device) => device.id), deviceId)
+  const selectedTargetGroup = resolvedId(snapshot.groups.map((group) => group.id), targetGroup)
   const memberships = useMemo(() => activeMemberships(snapshot.memberships), [snapshot.memberships]); const group = snapshot.groups.find((candidate) => candidate.id === selectedGroup)
   function move(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    void reportDispatch(dispatch, { type: "moveDeviceToGroup", deviceId, groupId: targetGroup, position: 1 }, setFeedback)
+    void reportDispatch(dispatch, { type: "moveDeviceToGroup", deviceId: selectedDeviceId, groupId: selectedTargetGroup, position: 1 }, setFeedback)
   }
   function moveWithinGroup(deviceId: string, groupId: string, position: number) {
     void reportDispatch(dispatch, { type: "moveDeviceToGroup", deviceId, groupId, position }, setFeedback)
@@ -37,7 +43,7 @@ export function GroupsPage({ snapshot, dispatch, view = "groups", onViewChange }
         </form>
         <div className="mt-4 grid gap-3 md:grid-cols-3">{snapshot.groups.map((item) => <button key={item.id} onClick={() => setSelectedGroup(item.id)} className="border border-border p-4 text-left hover:bg-muted/50"><div className="flex justify-between"><p className="text-sm font-semibold">{item.name}</p><StatusBadge label={item.state} tone={item.state === "active" ? "healthy" : "neutral"} /></div><p className="mt-3 text-xs text-muted-foreground">{memberships.filter((membership) => membership.groupId === item.id).length} active members</p></button>)}</div>
       </TabsContent>
-      <TabsContent value="membership"><MembershipTable snapshot={snapshot} memberships={memberships} deviceId={deviceId} targetGroup={targetGroup} feedback={feedback} onDeviceId={setDeviceId} onTargetGroup={setTargetGroup} onMove={move} /></TabsContent>
+      <TabsContent value="membership"><MembershipTable snapshot={snapshot} memberships={memberships} deviceId={selectedDeviceId} targetGroup={selectedTargetGroup} feedback={feedback} onDeviceId={setDeviceId} onTargetGroup={setTargetGroup} onMove={move} /></TabsContent>
       <TabsContent value="ordering"><div className="mt-4 space-y-3">{snapshot.groups.map((item) => <div key={item.id} className="border border-border p-4"><p className="text-xs font-semibold">{item.name}</p><ol className="mt-3 space-y-2">{memberships.filter((membership) => membership.groupId === item.id).sort((left, right) => left.position - right.position).map((membership) => <li key={membership.id} className="flex items-center gap-3 border-t border-border pt-2 text-xs"><span className="drift-data">{membership.position}</span><span className="flex-1">{textForDevice(snapshot.devices, membership.deviceId)}</span><Button size="icon-sm" variant="outline" aria-label={`Move ${textForDevice(snapshot.devices, membership.deviceId)} up`} disabled={membership.position <= 1} onClick={() => moveWithinGroup(membership.deviceId, item.id, membership.position - 1)}><ArrowUp className="size-3.5" /></Button><Button size="icon-sm" variant="outline" aria-label={`Move ${textForDevice(snapshot.devices, membership.deviceId)} down`} onClick={() => moveWithinGroup(membership.deviceId, item.id, membership.position + 1)}><ArrowDown className="size-3.5" /></Button></li>)}</ol></div>)}</div></TabsContent>
     </Tabs><Sheet open={Boolean(group)} onOpenChange={(open) => !open && setSelectedGroup(null)}><SheetContent className="rounded-none"><SheetHeader className="border-b border-border"><SheetTitle>{group?.name ?? "Group"}</SheetTitle><SheetDescription>Membership operations and ordering are explicit.</SheetDescription></SheetHeader>{group ? <div className="p-4 text-xs">{memberships.filter((membership) => membership.groupId === group.id).length} active members · row version {group.rowVersion}</div> : null}</SheetContent></Sheet>
   </> }
@@ -76,9 +82,9 @@ function MembershipTable({
       <form onSubmit={onMove} className="border border-border p-4">
         <p className="text-xs font-semibold uppercase tracking-[.08em]">Bulk move</p>
         <p className="mt-1 text-[11px] text-muted-foreground">One clear typed move action.</p>
-        <div className="mt-4"><FieldLabel htmlFor="group-device">Device</FieldLabel><select id="group-device" value={deviceId} onChange={(event) => onDeviceId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">{snapshot.devices.map((device) => <option key={device.id} value={device.id}>{device.displayName}</option>)}</select></div>
-        <div className="mt-3"><FieldLabel htmlFor="target-group">Target group</FieldLabel><select id="target-group" value={targetGroup} onChange={(event) => onTargetGroup(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">{snapshot.groups.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
-        <Button type="submit" className="mt-4 w-full rounded-none"><MoveRight className="size-3.5" aria-hidden="true" />Move device</Button>
+        <div className="mt-4"><FieldLabel htmlFor="group-device">Device</FieldLabel><select id="group-device" value={deviceId} onChange={(event) => onDeviceId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">{deviceId.length === 0 ? <option value="">Select Device</option> : null}{snapshot.devices.map((device) => <option key={device.id} value={device.id}>{device.displayName}</option>)}</select></div>
+        <div className="mt-3"><FieldLabel htmlFor="target-group">Target group</FieldLabel><select id="target-group" value={targetGroup} onChange={(event) => onTargetGroup(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">{targetGroup.length === 0 ? <option value="">Select Group</option> : null}{snapshot.groups.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
+        <Button type="submit" className="mt-4 w-full rounded-none" disabled={!deviceId || !targetGroup}><MoveRight className="size-3.5" aria-hidden="true" />Move device</Button>
         <p aria-live="polite" className="mt-2 text-[11px] text-muted-foreground">{feedback}</p>
       </form>
     </div>

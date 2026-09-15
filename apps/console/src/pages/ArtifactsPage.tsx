@@ -15,6 +15,7 @@ import type {
   RecordingMediaView,
 } from "@/lib/domain/control-plane"
 import { DataTablePagination, EmptyState, FailureBadge, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
+import { resolvedId } from "./page-utils"
 
 type ArtifactLoadState = "ready" | "loading" | "error"
 
@@ -121,7 +122,11 @@ export function ArtifactsPage({
   const [loadState, setLoadState] = useState<ArtifactLoadState>("ready")
   const [feedback, setFeedback] = useState("")
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [selectedDeviceId, setSelectedDeviceId] = useState(snapshot.devices.find((device) => device.status === "online")?.id ?? snapshot.devices[0]?.id ?? "")
+  const [selectedDeviceId, setSelectedDeviceId] = useState("")
+  const effectiveDeviceId = resolvedId(snapshot.devices.map((device) => device.id), selectedDeviceId)
+    || snapshot.devices.find((device) => device.status === "online")?.id
+    || snapshot.devices[0]?.id
+    || ""
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState<ArtifactCategory | "all">("all")
   const [lifecycle, setLifecycle] = useState<ArtifactLifecycleState | "all">("all")
@@ -146,9 +151,9 @@ export function ArtifactsPage({
   const selected = snapshot.artifacts.find((artifact) => artifact.id === selectedId)
   const storage = snapshot.storageHealth
   const deviceArtifacts = snapshot.artifacts.filter(
-    (artifact) => artifact.deviceId === selectedDeviceId && artifact.previewKind === "screenshot" && artifact.visibility === "authorized",
+    (artifact) => artifact.deviceId === effectiveDeviceId && artifact.previewKind === "screenshot" && artifact.visibility === "authorized",
   )
-  const selectedDevice = snapshot.devices.find((device) => device.id === selectedDeviceId)
+  const selectedDevice = snapshot.devices.find((device) => device.id === effectiveDeviceId)
 
   function resetPage() {
     setPage(0)
@@ -304,7 +309,7 @@ export function ArtifactsPage({
                 Selected Device
                 <select
                   id="artifact-media-device"
-                  value={selectedDeviceId}
+                  value={effectiveDeviceId}
                   onChange={(event) => setSelectedDeviceId(event.target.value)}
                   className="mt-1 block h-9 rounded-none border border-input bg-background px-2 text-xs"
                 >
@@ -365,7 +370,7 @@ export function ArtifactsPage({
 
           <TabsContent value="recordings" className="mt-4">
             <div className="mb-4 flex flex-wrap items-end gap-3">
-              <FilterSelect id="recording-device" label="Recording Device" value={selectedDeviceId} onChange={setSelectedDeviceId}>
+              <FilterSelect id="recording-device" label="Recording Device" value={effectiveDeviceId} onChange={setSelectedDeviceId}>
                 {snapshot.devices.length === 0 ? <option value="">No Registered Devices</option> : null}
                 {snapshot.devices.map((device) => (
                   <option key={device.id} value={device.id}>
@@ -376,8 +381,8 @@ export function ArtifactsPage({
               <Button
                 size="sm"
                 variant="outline"
-                disabled={!selectedDeviceId}
-                onClick={() => void reportDispatch(dispatch, { type: "beginRecording", deviceId: selectedDeviceId }, setFeedback)}
+                disabled={!effectiveDeviceId}
+                onClick={() => void reportDispatch(dispatch, { type: "beginRecording", deviceId: effectiveDeviceId }, setFeedback)}
               >
                 Start Recording
               </Button>

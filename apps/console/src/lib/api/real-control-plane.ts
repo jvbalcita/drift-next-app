@@ -1862,7 +1862,12 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
         if (!device) return failure(intent, "Device was not found.", { errorCode: "invalid_input" })
         const existing = this.snapshot.leases.find((lease) => lease.deviceId === intent.deviceId && lease.state === "active")
-        if (existing) return mutation(intent, "Device already has an active lease.")
+        if (existing) {
+          if (existing.holder !== operatorId) {
+            return failure(intent, "This device is already under another operator's control.", { errorCode: "unauthorized", conflict: true })
+          }
+          return mutation(intent, "Device already has an active lease.")
+        }
         const opened = await this.services.lease.openControlSession(requestId, workspaceId)
         const sessionId = opened.session?.id
         if (!sessionId) return failure(intent, "Control session was not opened.")
@@ -1872,6 +1877,9 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       case "endDeviceControl": {
         const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
         if (!lease) return failure(intent, "No active lease for this device.", { errorCode: "precondition_failed" })
+        if (lease.holder !== operatorId) {
+          return failure(intent, "This device is already under another operator's control.", { errorCode: "unauthorized", conflict: true })
+        }
         await this.services.lease.releaseDeviceLease(requestId, workspaceId, lease.id, BigInt(lease.fencingToken))
         if (lease.controlSessionId) {
           await this.services.lease.closeControlSession(requestId, workspaceId, lease.controlSessionId)
@@ -1884,6 +1892,9 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         }
         const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
         if (!lease) return failure(intent, "Acquire an active lease before submitting a device action.", { errorCode: "precondition_failed" })
+        if (lease.holder !== operatorId) {
+          return failure(intent, "This device is already under another operator's control.", { errorCode: "unauthorized", conflict: true })
+        }
         const submitted = await this.services.action.submitAction(requestId, {
           intent: {
             workspace: workspaceRef(workspaceId),

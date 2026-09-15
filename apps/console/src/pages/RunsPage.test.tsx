@@ -19,8 +19,9 @@ describe("RunsPage", () => {
 
     expect(screen.getByRole("heading", { name: "Runs and Targets" })).toBeInTheDocument()
     expect(screen.getByLabelText("Published Workflow")).toHaveDisplayValue(/Content validation/)
-    expect(screen.getByRole("checkbox", { name: "Atlas 04" })).toBeChecked()
+    expect(screen.getByRole("checkbox", { name: "Atlas 04" })).not.toBeChecked()
 
+    await user.click(screen.getByRole("checkbox", { name: "Atlas 04" }))
     await user.click(screen.getByRole("checkbox", { name: "Nova 02" }))
     await user.click(screen.getByRole("button", { name: "Start Run" }))
     await user.click(within(document.body).getByRole("button", { name: "Confirm Start Run" }))
