@@ -50,7 +50,7 @@ import type {
 
 const workspace = {
   id: "workspace-demo",
-  name: "Demo workspace",
+  name: "Local Workspace",
 }
 
 const devices: DeviceView[] = [

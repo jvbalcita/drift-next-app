@@ -118,7 +118,7 @@ describe("Drift command center", () => {
 
     window.location.hash = "#network-profiles/candidates"
     render(<App />)
-    expect(await screen.findByRole("tab", { name: "Pending candidates" })).toHaveAttribute("data-active")
+    expect(await screen.findByRole("tab", { name: "Pending Candidates" })).toHaveAttribute("data-active")
     expect(screen.getByText("Pending Candidates", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
   })
 
@@ -132,13 +132,13 @@ describe("Drift command center", () => {
 
   it("restores every routed sibling workspace view from its hash", async () => {
     const routes = [
-      ["#accounts/run-history", "Run history"],
-      ["#network-profiles/endpoints", "Registered endpoints"],
+      ["#accounts/run-history", "Run History"],
+      ["#network-profiles/endpoints", "Registered Endpoints"],
       ["#network-profiles/provisioning", "Device Provisioning"],
       ["#groups/membership", "Membership"],
       ["#workflows/skills", "Skills"],
       ["#agents/capabilities", "Capabilities"],
-      ["#runs/failed", "Failed / indeterminate"],
+      ["#runs/failed", "Failed / Indeterminate"],
       ["#artifacts/storage", "Storage"],
       ["#policies/decisions", "Decision Log"],
       ["#settings/automation-agent", "Automation Agent"],
@@ -173,7 +173,7 @@ describe("Drift command center", () => {
     window.location.hash = "#network-profiles/profiles"
     render(<App />)
 
-    await user.click(await screen.findByRole("button", { name: "New profile" }))
+    await user.click(await screen.findByRole("button", { name: "New Profile" }))
     await user.click(screen.getByRole("button", { name: "Save profile" }))
 
     const alert = screen.getByRole("alert")
