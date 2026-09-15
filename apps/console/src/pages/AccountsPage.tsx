@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent } from "@/lib/domain/control-plane"
+import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, EmptyState, FieldLabel, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 
 function accountTabForView(view: string) { return view === "service-history" ? "service" : view === "run-history" ? "runs" : view }
@@ -12,10 +13,10 @@ function viewForAccountTab(view: string) { return view === "service" ? "service-
 
 export function AccountsPage({ snapshot, dispatch, view = "sources", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
   const [selectedAccountId, setSelectedAccountId] = useState(snapshot.accounts[0]?.id ?? "")
-  const [sourceProvider, setSourceProvider] = useState("fixture")
+  const [sourceProvider, setSourceProvider] = useState("local")
   const [sourceName, setSourceName] = useState("")
   const [sourceReference, setSourceReference] = useState("")
-  const [sourceMetadata, setSourceMetadata] = useState(`{"environment":"demo"}`)
+  const [sourceMetadata, setSourceMetadata] = useState(`{"environment":"local"}`)
   const [accountSourceId, setAccountSourceId] = useState(snapshot.accountSources[0]?.id ?? "")
   const [accountReference, setAccountReference] = useState("")
   const [accountLabel, setAccountLabel] = useState("")
@@ -32,11 +33,31 @@ export function AccountsPage({ snapshot, dispatch, view = "sources", onViewChang
   const selectedSyncEvents = useMemo(() => snapshot.accountSyncEvents.filter((event) => event.accountId === selectedAccountId || event.sourceId === selectedAccount?.sourceId), [selectedAccountId, selectedAccount?.sourceId, snapshot.accountSyncEvents])
 
   function selectAccount(id: string) { const account = snapshot.accounts.find((item) => item.id === id); if (!account) return; setSelectedAccountId(id); setAccountSourceId(account.sourceId); setAccountReference(account.externalReference); setAccountLabel(account.label); setAccountMetadata(account.metadataJson); setDetailsOpen(true) }
-  function createSource(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const result = dispatch({ type: "createAccountSource", provider: sourceProvider, displayName: sourceName, externalReference: sourceReference, metadataJson: sourceMetadata }); setFeedback(result.message); if (result.ok) setCreateKind(null) }
-  function createAccount(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const result = dispatch({ type: "createAccount", sourceId: accountSourceId, externalReference: accountReference, label: accountLabel, metadataJson: accountMetadata }); setFeedback(result.message); if (result.ok) setCreateKind(null) }
-  function saveAccount() { if (selectedAccount) setFeedback(dispatch({ type: "updateAccount", accountId: selectedAccount.id, externalReference: accountReference || selectedAccount.externalReference, label: accountLabel || selectedAccount.label, metadataJson: accountMetadata || selectedAccount.metadataJson, rowVersion: selectedAccount.rowVersion }).message) }
-  function updateAccountState(state: string) { if (selectedAccount && isAccountState(state)) setFeedback(dispatch({ type: "updateAccountState", accountId: selectedAccount.id, state, rowVersion: selectedAccount.rowVersion }).message) }
-  function assignDevice(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (selectedAccount) setFeedback(dispatch({ type: "assignAccountDevice", accountId: selectedAccount.id, deviceId: assignmentDeviceId }).message) }
+  async function createSource(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const result = await dispatch({ type: "createAccountSource", provider: sourceProvider, displayName: sourceName, externalReference: sourceReference, metadataJson: sourceMetadata })
+    setFeedback(result.message)
+    if (result.ok) setCreateKind(null)
+  }
+  async function createAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const result = await dispatch({ type: "createAccount", sourceId: accountSourceId, externalReference: accountReference, label: accountLabel, metadataJson: accountMetadata })
+    setFeedback(result.message)
+    if (result.ok) setCreateKind(null)
+  }
+  function saveAccount() {
+    if (!selectedAccount) return
+    void reportDispatch(dispatch, { type: "updateAccount", accountId: selectedAccount.id, externalReference: accountReference || selectedAccount.externalReference, label: accountLabel || selectedAccount.label, metadataJson: accountMetadata || selectedAccount.metadataJson, rowVersion: selectedAccount.rowVersion }, setFeedback)
+  }
+  function updateAccountState(state: string) {
+    if (!selectedAccount || !isAccountState(state)) return
+    void reportDispatch(dispatch, { type: "updateAccountState", accountId: selectedAccount.id, state, rowVersion: selectedAccount.rowVersion }, setFeedback)
+  }
+  function assignDevice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedAccount) return
+    void reportDispatch(dispatch, { type: "assignAccountDevice", accountId: selectedAccount.id, deviceId: assignmentDeviceId }, setFeedback)
+  }
 
   return <>
     <PageIntro eyebrow="IDENTITY / ACCOUNT REFERENCES" title="Accounts" description="Manage non-secret account references, explicit device assignments, service projections, and bounded run history without enabling a connector." actions={<div className="flex gap-2"><StatusBadge label={`${snapshot.accounts.length} accounts`} tone="info" /><Button size="sm" variant="outline" onClick={() => setCreateKind("source")}><Plus className="size-3.5" aria-hidden="true" />Source</Button><Button size="sm" onClick={() => setCreateKind("account")}><Plus className="size-3.5" aria-hidden="true" />Account</Button></div>} />
@@ -44,7 +65,7 @@ export function AccountsPage({ snapshot, dispatch, view = "sources", onViewChang
     <Tabs value={accountTabForView(view)} onValueChange={(nextView) => onViewChange?.(viewForAccountTab(nextView))} className="mt-6"><TabsList className="h-auto flex-wrap rounded-none border border-border bg-background p-0" aria-label="Account views"><TabsTrigger value="sources" className="rounded-none">Sources</TabsTrigger><TabsTrigger value="accounts" className="rounded-none">Accounts</TabsTrigger><TabsTrigger value="assignments" className="rounded-none">Device assignments</TabsTrigger><TabsTrigger value="service" className="rounded-none">Service history</TabsTrigger><TabsTrigger value="runs" className="rounded-none">Run history</TabsTrigger></TabsList>
       <TabsContent value="sources" className="mt-6"><Panel title="Account sources" description="A source identifies an authority without storing credentials or connector configuration." action={<Button size="sm" onClick={() => setCreateKind("source")}><Plus className="size-3.5" aria-hidden="true" />Add source</Button>}>{snapshot.accountSources.length === 0 ? <EmptyState label="No Account Sources" detail="External connectors are unavailable until a complete secure implementation exists. Sources listed here are local references only; no connector sync is implied." /> : <DenseTable headings={["Source", "Provider", "Reference", "State"]}>{snapshot.accountSources.map((source) => <tr key={source.id}><td><p className="font-medium">{source.displayName}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{source.id} · row v{source.rowVersion}</p></td><td>{source.provider}</td><td className="font-mono text-[11px]">{source.externalReference || "—"}</td><td><StatusBadge label={source.state} tone={source.state === "active" ? "healthy" : "neutral"} /></td></tr>)}</DenseTable>}</Panel></TabsContent>
       <TabsContent value="accounts" className="mt-6"><Panel title="Account references" description="Select a row to inspect or edit its bounded metadata in a sheet." action={<Button size="sm" onClick={() => setCreateKind("account")}><Plus className="size-3.5" aria-hidden="true" />Add account</Button>}><DenseTable headings={["Account", "Source", "Reference", "Service", "State", ""]}>{snapshot.accounts.map((account) => <tr key={account.id}><td><p className="font-medium">{account.label}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{account.id} · row v{account.rowVersion}</p></td><td>{account.sourceProvider}</td><td className="font-mono text-[11px]">{account.externalReference}</td><td><StatusBadge label={account.serviceState} tone={serviceTone(account.serviceState)} /></td><td><StatusBadge label={account.state} tone={account.state === "active" ? "healthy" : account.state === "retired" ? "neutral" : "attention"} /></td><td className="text-right"><Button size="sm" variant="outline" onClick={() => selectAccount(account.id)}>Inspect</Button></td></tr>)}</DenseTable></Panel></TabsContent>
-      <TabsContent value="assignments" className="mt-6"><Panel title="Explicit device assignments" description="Assignments store stable account and device IDs. No connector or device command is implied."><DenseTable headings={["Account", "Device", "Assigned", "State", ""]}>{snapshot.accountDeviceAssignments.map((assignment) => { const account = snapshot.accounts.find((item) => item.id === assignment.accountId); const device = snapshot.devices.find((item) => item.id === assignment.deviceId); return <tr key={assignment.id}><td>{account?.label ?? assignment.accountId}</td><td><p>{device?.displayName ?? "Unknown device"}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{assignment.deviceId}</p></td><td>{assignment.assignedAt}</td><td><StatusBadge label={assignment.state} tone={assignment.state === "active" ? "healthy" : "neutral"} /></td><td className="text-right">{assignment.state === "active" ? <Button size="sm" variant="outline" onClick={() => setFeedback(dispatch({ type: "endAccountDeviceAssignment", assignmentId: assignment.id, rowVersion: assignment.rowVersion }).message)}>End</Button> : null}</td></tr> })}</DenseTable></Panel></TabsContent>
+      <TabsContent value="assignments" className="mt-6"><Panel title="Explicit device assignments" description="Assignments store stable account and device IDs. No connector or device command is implied."><DenseTable headings={["Account", "Device", "Assigned", "State", ""]}>{snapshot.accountDeviceAssignments.map((assignment) => { const account = snapshot.accounts.find((item) => item.id === assignment.accountId); const device = snapshot.devices.find((item) => item.id === assignment.deviceId); return <tr key={assignment.id}><td>{account?.label ?? assignment.accountId}</td><td><p>{device?.displayName ?? "Unknown device"}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{assignment.deviceId}</p></td><td>{assignment.assignedAt}</td><td><StatusBadge label={assignment.state} tone={assignment.state === "active" ? "healthy" : "neutral"} /></td><td className="text-right">{assignment.state === "active" ? <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "endAccountDeviceAssignment", assignmentId: assignment.id, rowVersion: assignment.rowVersion }, setFeedback)}>End</Button> : null}</td></tr> })}</DenseTable></Panel></TabsContent>
       <TabsContent value="service" className="mt-6"><Panel title="Service history" description="Current service projections remain distinct from append-only observations."><DenseTable headings={["Account", "Service", "Stage", "State", "Observed"]}>{snapshot.accountServiceStateHistory.map((state) => <tr key={state.id}><td>{snapshot.accounts.find((account) => account.id === state.accountId)?.label ?? state.accountId}</td><td>{state.serviceName}</td><td>{state.stage}</td><td><StatusBadge label={state.state} tone={serviceTone(state.state)} /></td><td>{state.observedAt}</td></tr>)}</DenseTable></Panel></TabsContent>
       <TabsContent value="runs" className="mt-6"><Panel title="Account run history" description="Runs and connector outcomes remain independently auditable, including disabled attempts."><DenseTable headings={["Run", "Account", "Requested", "Outcome", "Correlation"]}>{snapshot.accountRuns.map((run) => <tr key={run.id}><td className="drift-data text-[10px]">{run.id}</td><td>{snapshot.accounts.find((account) => account.id === run.accountId)?.label ?? run.accountId}</td><td>{run.requestedAt}</td><td><StatusBadge label={run.state} tone={run.state === "completed" ? "healthy" : run.state === "failed" ? "danger" : "attention"} /></td><td className="drift-data text-[10px]">{run.correlationId}</td></tr>)}</DenseTable></Panel></TabsContent>
     </Tabs>

@@ -4,15 +4,21 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent } from "@/lib/domain/control-plane"
+import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, FieldLabel, PageIntro, StatusBadge } from "./shared"
 import { activeMemberships, textForDevice } from "./page-utils"
 
 export function GroupsPage({ snapshot, dispatch, view = "groups", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null); const [deviceId, setDeviceId] = useState(snapshot.devices[0]?.id ?? ""); const [targetGroup, setTargetGroup] = useState(snapshot.groups[0]?.id ?? ""); const [feedback, setFeedback] = useState("")
   const memberships = useMemo(() => activeMemberships(snapshot.memberships), [snapshot.memberships]); const group = snapshot.groups.find((candidate) => candidate.id === selectedGroup)
-  function move(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setFeedback(dispatch({ type: "moveDeviceToGroup", deviceId, groupId: targetGroup, position: 1 }).message) }
-  function moveWithinGroup(deviceId: string, groupId: string, position: number) { setFeedback(dispatch({ type: "moveDeviceToGroup", deviceId, groupId, position }).message) }
-  return <><PageIntro eyebrow="INVENTORY / GROUPS" title="Groups and membership" description="Group membership and ordering remain explicit. Ungrouped is a computed view, never a persisted authority." actions={<StatusBadge label={`${snapshot.groups.length} groups`} tone="info" />} />
+  function move(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void reportDispatch(dispatch, { type: "moveDeviceToGroup", deviceId, groupId: targetGroup, position: 1 }, setFeedback)
+  }
+  function moveWithinGroup(deviceId: string, groupId: string, position: number) {
+    void reportDispatch(dispatch, { type: "moveDeviceToGroup", deviceId, groupId, position }, setFeedback)
+  }
+  return <><PageIntro eyebrow="INVENTORY / GROUPS" title="Groups and Membership" description="Group membership and ordering remain explicit. Ungrouped is a computed view, never a persisted authority." actions={<StatusBadge label={`${snapshot.groups.length} groups`} tone="info" />} />
     <Tabs value={view} onValueChange={onViewChange}><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Group views"><TabsTrigger value="groups" className="rounded-none">Groups</TabsTrigger><TabsTrigger value="membership" className="rounded-none">Membership</TabsTrigger><TabsTrigger value="ordering" className="rounded-none">Ordering</TabsTrigger></TabsList>
       <TabsContent value="groups"><div className="mt-4 grid gap-3 md:grid-cols-3">{snapshot.groups.map((item) => <button key={item.id} onClick={() => setSelectedGroup(item.id)} className="border border-border p-4 text-left hover:bg-muted/50"><div className="flex justify-between"><p className="text-sm font-semibold">{item.name}</p><StatusBadge label={item.state} tone={item.state === "active" ? "healthy" : "neutral"} /></div><p className="mt-3 text-xs text-muted-foreground">{memberships.filter((membership) => membership.groupId === item.id).length} active members</p></button>)}</div></TabsContent>
       <TabsContent value="membership"><MembershipTable snapshot={snapshot} memberships={memberships} deviceId={deviceId} targetGroup={targetGroup} feedback={feedback} onDeviceId={setDeviceId} onTargetGroup={setTargetGroup} onMove={move} /></TabsContent>

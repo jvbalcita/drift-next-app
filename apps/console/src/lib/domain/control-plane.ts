@@ -744,4 +744,4 @@ export interface ControlPlaneClient {
   refresh(): Promise<ControlPlaneSnapshot>
 }
 
-export type DispatchIntent = (intent: ControlPlaneIntent) => MutationResult
+export type DispatchIntent = (intent: ControlPlaneIntent) => Promise<MutationResult>

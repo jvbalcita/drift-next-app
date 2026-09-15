@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
 import { LabAdapterStatusPanel } from "./lab-adapter"
+import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, DeviceIdentity, DeviceStatus, EmptyState, PageIntro, StatusBadge } from "./shared"
 
 type Filter = "all" | "online" | "attention" | "replaced" | "retired"
@@ -19,7 +20,7 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
   const devices = useMemo(() => snapshot.devices.filter((device) => matches(device, filter) && searchable(device).includes(query.trim().toLowerCase())), [snapshot.devices, filter, query])
   const pageCount = Math.max(1, Math.ceil(devices.length / pageSize)); const safePage = Math.min(page, pageCount - 1); const visibleDevices = devices.slice(safePage * pageSize, (safePage + 1) * pageSize); const detail = snapshot.devices.find((device) => device.id === selectedId)
   function toggle(id: string) { setSelected((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]) }
-  function refresh() { setMessage(dispatch({ type: "refresh" }).message) }
+  function refresh() { void reportDispatch(dispatch, { type: "refresh" }, setMessage) }
   return <><PageIntro eyebrow="INVENTORY / DEVICES" title="Device Registry" description="Stable identities are primary; endpoint and lifecycle history are secondary, inspectable projections." actions={<Button variant="outline" size="sm" onClick={refresh}><RefreshCw className="size-3.5" aria-hidden="true" />Refresh</Button>} />
     <LabAdapterStatusPanel adapter={snapshot.labAdapter} />
     <Tabs value={filter} onValueChange={(next) => { if (isFilter(next)) { setPage(0); onViewChange?.(next) } }}><div className="flex flex-wrap items-center justify-between gap-3 border-y border-border py-3"><TabsList className="h-auto max-w-full flex-wrap justify-start rounded-none bg-transparent p-0" aria-label="Device Registry Views">{filters.map((item) => <TabsTrigger key={item.value} value={item.value} className="rounded-none">{item.label}</TabsTrigger>)}</TabsList><div className="relative w-full sm:w-64"><Search className="absolute left-2 top-2.5 size-3.5 text-muted-foreground" aria-hidden="true" /><Input aria-label="Search Device Registry" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0) }} placeholder="Search devices" className="h-9 rounded-none pl-7 text-xs" /></div></div>

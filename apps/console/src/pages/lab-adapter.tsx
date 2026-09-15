@@ -18,6 +18,8 @@ import type {
   RuntimeConnectionView,
   SpoolHealthView,
 } from "@/lib/domain/control-plane"
+import { usesMockControlPlane } from "@/lib/api/connect-json"
+import { reportDispatch } from "@/lib/api/report-dispatch"
 import { EmptyState, FailureBadge, Panel, StatusBadge, type StatusTone } from "./shared"
 
 type DispatchLab = (intent: ControlPlaneIntent) => Promise<MutationResult>
@@ -374,17 +376,21 @@ function RuntimeSpoolSheet({
             <LabField label="Exhausted" detail={spoolHealth.exhausted ? "Yes" : "No"} mono={false} />
           </dl>
           <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-            <Button size="sm" variant="outline" onClick={() => onFeedback(dispatch({ type: "simulateRuntimeDisconnect", reason: "Operator disconnect" }).message)}>Simulate Disconnect</Button>
-            <Button size="sm" variant="outline" disabled={runtimeConnection.state === "connected"} onClick={() => onFeedback(dispatch({ type: "beginRuntimeReconnect" }).message)}>Begin Reconnect</Button>
-            <Button size="sm" variant="outline" disabled={runtimeConnection.state !== "reconnecting"} onClick={() => onFeedback(dispatch({ type: "completeRuntimeReconnect", transportId: runtimeConnection.transportId || "transport-0", protocol: runtimeConnection.protocol || "adb" }).message)}>Complete Reconnect</Button>
-            <Button size="sm" variant="outline" onClick={() => onFeedback(dispatch({ type: "enqueueMockSpoolItem", kind: "observation", risk: "low", idempotencyKey: `spool-${Date.now()}` }).message)}>Enqueue Spool Item</Button>
+            {usesMockControlPlane() ? (
+              <>
+                <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "simulateRuntimeDisconnect", reason: "Operator disconnect" }, onFeedback)}>Simulate Disconnect</Button>
+                <Button size="sm" variant="outline" disabled={runtimeConnection.state === "connected"} onClick={() => void reportDispatch(dispatch, { type: "beginRuntimeReconnect" }, onFeedback)}>Begin Reconnect</Button>
+                <Button size="sm" variant="outline" disabled={runtimeConnection.state !== "reconnecting"} onClick={() => void reportDispatch(dispatch, { type: "completeRuntimeReconnect", transportId: runtimeConnection.transportId || "transport-0", protocol: runtimeConnection.protocol || "adb" }, onFeedback)}>Complete Reconnect</Button>
+                <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "enqueueMockSpoolItem", kind: "observation", risk: "low", idempotencyKey: `spool-${Date.now()}` }, onFeedback)}>Enqueue Spool Item</Button>
+              </>
+            ) : null}
             <AlertDialog>
               <AlertDialogTrigger render={<Button size="sm" variant="outline" disabled={!hasBlockedSequence || runtimeConnection.state !== "connected"} />}>Confirm Spool Replay</AlertDialogTrigger>
               <AlertDialogContent
                 title="Confirm Spool Replay?"
                 description={`Blocked spool items never auto-replay. Confirming records operator intent for sequence ${blockedSequence || "—"}; it does not blind-retry indeterminate actions.`}
                 confirmLabel="Confirm Replay"
-                onConfirm={() => onFeedback(dispatch({ type: "confirmSpoolReplay", sequence: blockedSequence, confirm: true }).message)}
+                onConfirm={() => void reportDispatch(dispatch, { type: "confirmSpoolReplay", sequence: blockedSequence, confirm: true }, onFeedback)}
               />
             </AlertDialog>
           </div>
@@ -392,7 +398,7 @@ function RuntimeSpoolSheet({
             <p className="text-xs font-semibold">Indeterminate Actions</p>
             <p className="mt-1 text-[11px] text-muted-foreground">Each item requires operator confirmation. Blind replay is refused.</p>
             {indeterminateActions.length === 0
-              ? <div className="mt-3"><EmptyState label="No Indeterminate Actions" detail="Simulate a disconnect or indeterminate capture to populate this queue." /></div>
+              ? <div className="mt-3"><EmptyState label="No Indeterminate Actions" detail="Disconnected or changed-transport outcomes appear here until an operator confirms them." /></div>
               : <ul className="mt-3 space-y-2">
                 {indeterminateActions.map((action) => (
                   <li key={action.actionId} className="border border-border p-3">
@@ -409,10 +415,10 @@ function RuntimeSpoolSheet({
                           title="Confirm Indeterminate Outcome?"
                           description="Confirmation records operator judgment after a fresh observation path. It never blind-replays the original action."
                           confirmLabel="Confirm Without Replay"
-                          onConfirm={() => onFeedback(dispatch({ type: "confirmIndeterminateAction", actionId: action.actionId, confirm: true, resolution: "operator_confirmed" }).message)}
+                          onConfirm={() => void reportDispatch(dispatch, { type: "confirmIndeterminateAction", actionId: action.actionId, confirm: true, resolution: "operator_confirmed" }, onFeedback)}
                         />
                       </AlertDialog>
-                      <Button size="sm" variant="outline" onClick={() => onFeedback(dispatch({ type: "confirmIndeterminateAction", actionId: action.actionId, confirm: false, resolution: "fresh_observation" }).message)}>Drop Without Replay</Button>
+                      <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "confirmIndeterminateAction", actionId: action.actionId, confirm: false, resolution: "fresh_observation" }, onFeedback)}>Drop Without Replay</Button>
                     </div>
                   </li>
                 ))}
@@ -484,7 +490,7 @@ function LabProvisioningSheet({
             <Button
               size="sm"
               disabled={!canVerify}
-              onClick={() => onFeedback(dispatch({
+              onClick={() => void reportDispatch(dispatch, {
                 type: "verifyLabProvisioning",
                 serial,
                 transportId: adapter.transportId || "3",
@@ -497,7 +503,7 @@ function LabProvisioningSheet({
                 portPolicyAllowed: true,
                 rollbackReady: true,
                 operatorAuthorized: true,
-              }).message)}
+              }, onFeedback)}
             >
               Verify Provisioning
             </Button>
@@ -507,7 +513,7 @@ function LabProvisioningSheet({
                 title="Approve Provisioning?"
                 description="Approval is separate from Registration. This Approval does not register a device."
                 confirmLabel="Grant Approval"
-                onConfirm={() => onFeedback(dispatch({ type: "approveLabProvisioning", serial, reason: "Approval after Provisioning verification" }).message)}
+                onConfirm={() => void reportDispatch(dispatch, { type: "approveLabProvisioning", serial, reason: "Approval after Provisioning verification" }, onFeedback)}
               />
             </AlertDialog>
             <AlertDialog>
@@ -516,7 +522,7 @@ function LabProvisioningSheet({
                 title="Register Device?"
                 description="This creates a registration record only. It does not mutate the fleet registry until the control plane accepts it."
                 confirmLabel="Confirm Registration"
-                onConfirm={() => onFeedback(dispatch({ type: "registerLabDevice", serial, displayName: adapter.confirmedDisplayName || serial, approved: true }).message)}
+                onConfirm={() => void reportDispatch(dispatch, { type: "registerLabDevice", serial, displayName: adapter.confirmedDisplayName || serial, approved: true }, onFeedback)}
               />
             </AlertDialog>
           </div>

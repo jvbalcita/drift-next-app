@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
+import { reportDispatch } from "@/lib/api/report-dispatch"
 import { OperatorNotice, StatusBadge } from "./shared"
 
 type Workspace = { largeHeight: number; smallHeight: number; quality: "Low" | "Medium" | "High" | "Extra"; frameRate: number; orientation: "portrait" | "landscape" }
@@ -61,11 +62,11 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
   }
   function startPreview() {
     if (!source) return
-    setFeedback(dispatch({ type: "startMirrorPreview", sourceDeviceId: source.id, followerDeviceIds: followerIds }).message)
+    void reportDispatch(dispatch, { type: "startMirrorPreview", sourceDeviceId: source.id, followerDeviceIds: followerIds }, setFeedback)
   }
   function scan() {
     if (!selectedProfile) { setFeedback("Choose a saved network profile before starting a scan."); return }
-    setFeedback(dispatch({ type: "startScan", profileId: selectedProfile.id }).message)
+    void reportDispatch(dispatch, { type: "startScan", profileId: selectedProfile.id }, setFeedback)
   }
 
   const deviceModal = source ? <FloatingDevice device={source} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { setSourceId(null); setFollowerIds([]) }} onPreview={startPreview} onAction={(action) => setFeedback(`${action} requires confirmation. No Android command, ADB session, or file transfer was started.`)} /> : null

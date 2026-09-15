@@ -43,6 +43,7 @@ import {
   configuredLabToken,
   controlPlaneBaseUrl,
   defaultWorkspaceId,
+  isAuthorizationFailure,
   isNetworkFailure,
   newRequestId,
   workspaceRef,
@@ -1017,11 +1018,16 @@ function mapProfileToProto(profile: NetworkProfileView, workspaceId: string, sta
   })
 }
 
-async function settle<T>(promise: Promise<T>, fallback: T): Promise<{ value: T; failed: boolean; network: boolean }> {
+async function settle<T>(promise: Promise<T>, fallback: T): Promise<{ value: T; failed: boolean; network: boolean; unauthorized: boolean }> {
   try {
-    return { value: await promise, failed: false, network: false }
+    return { value: await promise, failed: false, network: false, unauthorized: false }
   } catch (cause: unknown) {
-    return { value: fallback, failed: true, network: isNetworkFailure(cause) }
+    return {
+      value: fallback,
+      failed: true,
+      network: isNetworkFailure(cause),
+      unauthorized: isAuthorizationFailure(cause),
+    }
   }
 }
 
@@ -1176,11 +1182,11 @@ export class RealControlPlaneClient implements ControlPlaneClient {
     ])
 
     const failed = results.filter((result) => result.failed)
-    const networkFailed = results.some((result) => result.network)
-    if (failed.length === results.length && networkFailed) {
+    if (failed.length === results.length) {
+      const unauthorized = results.some((result) => result.unauthorized)
       this.snapshot = emptyControlPlaneSnapshot({
         workspaceId,
-        disconnectedReason: "Control plane unreachable.",
+        disconnectedReason: unauthorized ? "Control plane authorization failed." : "Control plane unreachable.",
       })
       return this.getSnapshot()
     }

@@ -98,4 +98,17 @@ describe("RealControlPlaneClient", () => {
     expect(snapshot.accounts).toEqual([])
     expect(snapshot.accountSyncEvents).toEqual([])
   })
+
+  it("marks disconnected when every list call is unauthorized", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("lab adapter requires a valid local lab token", { status: 401 }),
+    )
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080" })
+    const snapshot = await client.refresh()
+
+    expect(snapshot.devices).toEqual([])
+    expect(snapshot.runtimeConnection.state).toBe("disconnected")
+    expect(snapshot.runtimeConnection.disconnectedReason).toBe("Control plane authorization failed.")
+  })
 })

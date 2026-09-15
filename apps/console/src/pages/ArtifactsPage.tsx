@@ -156,16 +156,18 @@ export function ArtifactsPage({
   function retryLoad() {
     setLoadState("loading")
     window.setTimeout(() => {
-      const refresh = dispatch({ type: "refresh" })
-      setLoadState(refresh.ok ? "ready" : "error")
-      setFeedback(refresh.message)
+      void dispatch({ type: "refresh" }).then((refresh) => {
+        setLoadState(refresh.ok ? "ready" : "error")
+        setFeedback(refresh.message)
+      })
     }, 120)
   }
 
   function openArtifact(artifactId: string) {
-    const read = dispatch({ type: "readArtifact", artifactId })
-    setFeedback(read.message)
-    if (read.ok || read.errorCode === "unauthorized") setSelectedId(artifactId)
+    void dispatch({ type: "readArtifact", artifactId }).then((read) => {
+      setFeedback(read.message)
+      if (read.ok || read.errorCode === "unauthorized") setSelectedId(artifactId)
+    })
   }
 
   return (
@@ -477,9 +479,10 @@ export function ArtifactsPage({
                     description="Deletes eligible artifact metadata after confirmation. Protected retention classes and active references remain blocked. No filesystem paths are exposed."
                     confirmLabel="Confirm Delete"
                     onConfirm={() => {
-                      const outcome = dispatch({ type: "deleteArtifact", artifactId: selected.id, confirmed: true })
-                      setFeedback(outcome.message)
-                      if (outcome.ok) setSelectedId(null)
+                      void dispatch({ type: "deleteArtifact", artifactId: selected.id, confirmed: true }).then((outcome) => {
+                        setFeedback(outcome.message)
+                        if (outcome.ok) setSelectedId(null)
+                      })
                     }}
                   />
                 </AlertDialog>
@@ -501,9 +504,10 @@ export function ArtifactsPage({
                     description="Runs retention cleanup for an eligible or failed-cleanup artifact after confirmation. Failures remain visible in audit."
                     confirmLabel="Confirm Cleanup"
                     onConfirm={() => {
-                      const outcome = dispatch({ type: "cleanupArtifact", artifactId: selected.id, confirmed: true })
-                      setFeedback(outcome.message)
-                      if (outcome.ok) setSelectedId(null)
+                      void dispatch({ type: "cleanupArtifact", artifactId: selected.id, confirmed: true }).then((outcome) => {
+                        setFeedback(outcome.message)
+                        if (outcome.ok) setSelectedId(null)
+                      })
                     }}
                   />
                 </AlertDialog>

@@ -22,17 +22,13 @@ const operatorId = import.meta.env.VITE_DRIFT_LAB_OPERATOR_ID ?? "console-local-
 
 export interface ControlPlaneViewModel {
   snapshot: ControlPlaneSnapshot
-  dispatch: (intent: ControlPlaneIntent) => MutationResult
+  dispatch: (intent: ControlPlaneIntent) => Promise<MutationResult>
   dispatchLab: (intent: ControlPlaneIntent) => Promise<MutationResult>
   labNotice: string
   labAdapterConfigured: boolean
   loading: boolean
   connectionError: string
   reload: () => Promise<void>
-}
-
-function isMutationPromise(value: MutationResult | Promise<MutationResult>): value is Promise<MutationResult> {
-  return value instanceof Promise
 }
 
 export function useControlPlane(): ControlPlaneViewModel {
@@ -107,22 +103,14 @@ export function useControlPlane(): ControlPlaneViewModel {
     }
   }, [client, labClient, registrationClient])
 
-  const dispatch = useCallback((intent: ControlPlaneIntent): MutationResult => {
+  const dispatch = useCallback(async (intent: ControlPlaneIntent): Promise<MutationResult> => {
     if (
       (labClient && isLabControlPlaneIntent(intent)) ||
       (registrationClient && isLabRegistrationControlPlaneIntent(intent))
     ) {
-      void applyRemoteLab(intent)
-      return { ok: true, kind: intent.type, message: "Sent to the device adapter. Status updates when the service answers." }
+      return applyRemoteLab(intent)
     }
-    const mutation = client.dispatch(intent)
-    if (isMutationPromise(mutation)) {
-      void mutation.then((result) => {
-        setSnapshot(client.getSnapshot())
-        if (!result.ok) setLabNotice(result.message)
-      })
-      return { ok: true, kind: intent.type, message: "Request sent. Status updates when the service answers." }
-    }
+    const mutation = await client.dispatch(intent)
     setSnapshot(client.getSnapshot())
     return mutation
   }, [applyRemoteLab, client, labClient, registrationClient])

@@ -64,6 +64,19 @@ export function isNetworkFailure(cause: unknown): boolean {
   return false
 }
 
+export function isAuthorizationFailure(cause: unknown): boolean {
+  if (!(cause instanceof ConnectJsonError)) return false
+  const code = cause.code.toLowerCase()
+  const message = cause.message.toLowerCase()
+  return code === "unauthenticated" || code === "permission_denied" || code === "unauthorized" || message.includes("valid local lab token") || message.includes("unauthorized")
+}
+
+function connectCodeForHttpStatus(status: number): string {
+  if (status === 401) return "unauthenticated"
+  if (status === 403) return "permission_denied"
+  return "unknown"
+}
+
 function readString(payload: unknown, key: string): string | undefined {
   if (typeof payload !== "object" || payload === null) return undefined
   const candidate = (payload as Record<string, unknown>)[key]
@@ -97,7 +110,7 @@ export class ConnectJsonClient {
     const payload: unknown = await response.json().catch(() => undefined)
     if (!response.ok) {
       throw new ConnectJsonError(
-        readString(payload, "code") ?? "unknown",
+        readString(payload, "code") ?? connectCodeForHttpStatus(response.status),
         readString(payload, "message") ?? `Request ${serviceName}/${method} failed.`,
       )
     }

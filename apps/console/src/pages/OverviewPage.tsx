@@ -70,7 +70,7 @@ export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
         <div className="flex flex-col items-start gap-3 md:items-end">
           <span className="font-mono drift-data text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Updated {lastRefresh}</span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => { dispatch({ type: "refresh" }); setLastRefresh("just now") }}>
+            <Button variant="outline" size="sm" onClick={() => { void dispatch({ type: "refresh" }).then(() => setLastRefresh("just now")) }}>
               <RefreshCw className="size-3.5" aria-hidden="true" />
               Refresh
             </Button>

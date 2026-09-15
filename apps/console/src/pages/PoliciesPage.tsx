@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent, PolicyDecisionView, PolicyView } from "@/lib/domain/control-plane"
+import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, EmptyState, FailureBadge, FieldLabel, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 
 export function PoliciesPage({ snapshot, dispatch, view = "active", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
@@ -16,9 +17,24 @@ export function PoliciesPage({ snapshot, dispatch, view = "active", onViewChange
   const [compareOpen, setCompareOpen] = useState(false)
   const selectedPolicy = snapshot.policies.find((policy) => policy.id === selectedPolicyId)
   function selectPolicy(id: string) { const policy = snapshot.policies.find((candidate) => candidate.id === id); setSelectedPolicyId(id); setRuleJson(policy?.ruleJson ?? "{}"); setFeedback("") }
-  function createVersion(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (!selectedPolicy) return; const result = dispatch({ type: "createPolicyVersion", basePolicyId: selectedPolicy.id, ruleJson }); setFeedback(result.message); if (result.ok && result.resourceId) { setSelectedPolicyId(result.resourceId); setEditorOpen(false) } }
-  function activate() { if (selectedPolicy) setFeedback(dispatch({ type: "activatePolicy", policyId: selectedPolicy.id, rowVersion: selectedPolicy.rowVersion }).message) }
-  function retire() { if (selectedPolicy) setFeedback(dispatch({ type: "retirePolicy", policyId: selectedPolicy.id, rowVersion: selectedPolicy.rowVersion }).message) }
+  async function createVersion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedPolicy) return
+    const result = await dispatch({ type: "createPolicyVersion", basePolicyId: selectedPolicy.id, ruleJson })
+    setFeedback(result.message)
+    if (result.ok && result.resourceId) {
+      setSelectedPolicyId(result.resourceId)
+      setEditorOpen(false)
+    }
+  }
+  function activate() {
+    if (!selectedPolicy) return
+    void reportDispatch(dispatch, { type: "activatePolicy", policyId: selectedPolicy.id, rowVersion: selectedPolicy.rowVersion }, setFeedback)
+  }
+  function retire() {
+    if (!selectedPolicy) return
+    void reportDispatch(dispatch, { type: "retirePolicy", policyId: selectedPolicy.id, rowVersion: selectedPolicy.rowVersion }, setFeedback)
+  }
 
   return <><PageIntro eyebrow="SAFETY / POLICY DECISIONS" title="Policies" description="Review versioned policy definitions and the decisions persisted with protected runs and actions." actions={<StatusBadge label="Fail Closed" tone="attention" />} /><OperatorNotice>Policy definitions are immutable version records in this phase. Create a draft version, review bounded rule JSON, then activate it explicitly; this console cannot approve a real action.</OperatorNotice>
     <Tabs value={view} onValueChange={onViewChange} className="mt-6"><TabsList className="h-auto flex-wrap rounded-none border border-border bg-background p-0" aria-label="Policy Views"><TabsTrigger value="active" className="rounded-none">Active Policies</TabsTrigger><TabsTrigger value="versions" className="rounded-none">Versions</TabsTrigger><TabsTrigger value="decisions" className="rounded-none">Decision Log</TabsTrigger><TabsTrigger value="access" className="rounded-none">Access</TabsTrigger></TabsList>

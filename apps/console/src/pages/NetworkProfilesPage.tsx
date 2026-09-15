@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent, NetworkProfileView, ScanCandidateView } from "@/lib/domain/control-plane"
+import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, EmptyState, FieldLabel, FailureBadge, OperatorNotice, PageIntro, Panel, StatusBadge } from "./shared"
 
 export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
@@ -31,11 +32,43 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
   function selectProfile(profile: NetworkProfileView) { setSelectedProfileId(profile.id); setName(profile.name); setAddressPolicy(profile.addressPolicy); setPorts(profile.ports.join(", ")); setIsDefault(profile.isDefault); setProfileErrors({}); setFeedback("") }
   function beginNewProfile() { setSelectedProfileId("new"); setName(""); setAddressPolicy("192.0.2.0/24"); setPorts("5555"); setIsDefault(false); setProfileErrors({}); setFeedback(""); setProfileDialogOpen(true) }
   function parsedPorts() { return ports.split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value > 0 && value <= 65535) }
-  function saveProfile(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const parsed = parsedPorts(); const errors = { name: name.trim() ? undefined : "Enter a profile name.", addressPolicy: isDocumentationRange(addressPolicy) ? undefined : "Use a CIDR within the documentation address ranges.", ports: parsed.length > 0 ? undefined : "Enter one or more ports from 1 through 65535." }; setProfileErrors(errors); if (Object.values(errors).some(Boolean)) { requestAnimationFrame(() => profileErrorSummaryRef.current?.focus()); return }; const mutation = selectedProfileId === "new" ? dispatch({ type: "createNetworkProfile", name, addressPolicy, ports: parsed, isDefault }) : dispatch({ type: "updateNetworkProfile", profileId: selectedProfileId, name, addressPolicy, ports: parsed, isDefault, rowVersion: selectedProfile?.rowVersion ?? 0 }); setFeedback(mutation.message); if (mutation.ok) setProfileDialogOpen(false) }
-  function retireProfile() { if (selectedProfile) setFeedback(dispatch({ type: "retireNetworkProfile", profileId: selectedProfile.id, rowVersion: selectedProfile.rowVersion }).message) }
-  function startScan() { setFeedback(dispatch({ type: "startScan", profileId: selectedProfileId }).message); setScanDialogOpen(false) }
-  function decideCandidate(candidate: ScanCandidateView, approve: boolean) { setFeedback(dispatch({ type: "decideScanCandidate", candidateId: candidate.id, approve, reason: candidateReason }).message); setReviewCandidateId(null) }
-  function registerCandidate(candidate: ScanCandidateView) { setFeedback(dispatch({ type: "registerScanCandidate", candidateId: candidate.id, displayName: candidate.host }).message); setReviewCandidateId(null) }
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const parsed = parsedPorts()
+    const errors = {
+      name: name.trim() ? undefined : "Enter a profile name.",
+      addressPolicy: isDocumentationRange(addressPolicy) ? undefined : "Use a CIDR within the documentation address ranges.",
+      ports: parsed.length > 0 ? undefined : "Enter one or more ports from 1 through 65535.",
+    }
+    setProfileErrors(errors)
+    if (Object.values(errors).some(Boolean)) {
+      requestAnimationFrame(() => profileErrorSummaryRef.current?.focus())
+      return
+    }
+    const mutation = selectedProfileId === "new"
+      ? await dispatch({ type: "createNetworkProfile", name, addressPolicy, ports: parsed, isDefault })
+      : await dispatch({ type: "updateNetworkProfile", profileId: selectedProfileId, name, addressPolicy, ports: parsed, isDefault, rowVersion: selectedProfile?.rowVersion ?? 0 })
+    setFeedback(mutation.message)
+    if (mutation.ok) setProfileDialogOpen(false)
+  }
+  function retireProfile() {
+    if (!selectedProfile) return
+    void reportDispatch(dispatch, { type: "retireNetworkProfile", profileId: selectedProfile.id, rowVersion: selectedProfile.rowVersion }, setFeedback)
+  }
+  async function startScan() {
+    const result = await reportDispatch(dispatch, { type: "startScan", profileId: selectedProfileId }, setFeedback)
+    if (result.ok) setScanDialogOpen(false)
+  }
+  function decideCandidate(candidate: ScanCandidateView, approve: boolean) {
+    void reportDispatch(dispatch, { type: "decideScanCandidate", candidateId: candidate.id, approve, reason: candidateReason }, setFeedback).then((result) => {
+      if (result.ok) setReviewCandidateId(null)
+    })
+  }
+  function registerCandidate(candidate: ScanCandidateView) {
+    void reportDispatch(dispatch, { type: "registerScanCandidate", candidateId: candidate.id, displayName: candidate.host }, setFeedback).then((result) => {
+      if (result.ok) setReviewCandidateId(null)
+    })
+  }
 
   return <>
     <PageIntro eyebrow="DISCOVERY / NETWORK PROFILES" title="Network Profiles" description="Define bounded, non-authoritative discovery policy separately from scan execution and candidate approval." actions={<div className="flex gap-2"><Button variant="outline" size="sm" onClick={beginNewProfile}><Plus className="size-3.5" aria-hidden="true" />New profile</Button><Button size="sm" onClick={() => setScanDialogOpen(true)} disabled={!selectedProfile || selectedProfile.state !== "active"}><Radar className="size-3.5" aria-hidden="true" />Configure scan</Button></div>} />
@@ -70,7 +103,7 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
               {registration ? <p><span className="font-semibold">Registration:</span> {registration.displayName} · {registration.state.replaceAll("_", " ")}</p> : <p className="text-muted-foreground">Registration has not started.</p>}
             </div>}
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" disabled={!snapshot.labAdapter.confirmedSerial} onClick={() => setFeedback(dispatch({
+            <Button size="sm" variant="outline" disabled={!snapshot.labAdapter.confirmedSerial} onClick={() => void reportDispatch(dispatch, {
               type: "verifyLabProvisioning",
               serial: snapshot.labAdapter.confirmedSerial,
               transportId: snapshot.labAdapter.transportId || "3",
@@ -83,14 +116,14 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
               portPolicyAllowed: true,
               rollbackReady: true,
               operatorAuthorized: true,
-            }).message)}>Verify Provisioning</Button>
+            }, setFeedback)}>Verify Provisioning</Button>
             <AlertDialog>
               <AlertDialogTrigger render={<Button size="sm" variant="outline" disabled={!readiness?.ready || registration?.state === "registered"} />}>Approve Provisioning</AlertDialogTrigger>
-              <AlertDialogContent title="Approve Provisioning?" description="Approval is separate from Registration. This Approval does not register a device." confirmLabel="Grant Approval" onConfirm={() => setFeedback(dispatch({ type: "approveLabProvisioning", serial: readiness?.serial ?? "", reason: "Network Profiles Approval after Provisioning" }).message)} />
+              <AlertDialogContent title="Approve Provisioning?" description="Approval is separate from Registration. This Approval does not register a device." confirmLabel="Grant Approval" onConfirm={() => void reportDispatch(dispatch, { type: "approveLabProvisioning", serial: readiness?.serial ?? "", reason: "Network Profiles Approval after Provisioning" }, setFeedback)} />
             </AlertDialog>
             <AlertDialog>
               <AlertDialogTrigger render={<Button size="sm" disabled={!registration?.approved || registration.state === "registered"} />}>Register Device</AlertDialogTrigger>
-              <AlertDialogContent title="Register Device?" description="Creates a registration record only. This does not mutate the fleet registry until accepted." confirmLabel="Confirm Registration" onConfirm={() => setFeedback(dispatch({ type: "registerLabDevice", serial: registration?.serial ?? "", displayName: registration?.displayName ?? "Device", approved: true }).message)} />
+              <AlertDialogContent title="Register Device?" description="Creates a registration record only. This does not mutate the fleet registry until accepted." confirmLabel="Confirm Registration" onConfirm={() => void reportDispatch(dispatch, { type: "registerLabDevice", serial: registration?.serial ?? "", displayName: registration?.displayName ?? "Device", approved: true }, setFeedback)} />
             </AlertDialog>
           </div>
         </Panel>
@@ -100,7 +133,7 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
     <p aria-live="polite" className="mt-6 border-l-2 border-primary bg-secondary/60 p-3 text-xs text-muted-foreground">{feedback || "Discovery status feedback appears here. No external discovery is active."}</p>
     <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}><DialogContent className="rounded-none sm:max-w-xl"><DialogHeader><DialogTitle>{selectedProfileId === "new" ? "Create Network Profile" : "Edit Network Profile"}</DialogTitle><DialogDescription>Profile definition is separate from scan execution and candidate approval.</DialogDescription></DialogHeader><form className="grid gap-4 sm:grid-cols-2" noValidate onSubmit={saveProfile}>{Object.values(profileErrors).some(Boolean) ? <div ref={profileErrorSummaryRef} tabIndex={-1} role="alert" className="border border-destructive p-3 text-xs text-destructive sm:col-span-2"><p className="font-medium">Correct the highlighted fields before saving.</p><ul className="mt-1 list-disc pl-4">{Object.values(profileErrors).filter(Boolean).map((error) => <li key={error}>{error}</li>)}</ul></div> : null}<div className="sm:col-span-2"><FieldLabel htmlFor="profile-name">Profile name</FieldLabel><input id="profile-name" value={name} onChange={(event) => { setName(event.target.value); setProfileErrors((current) => ({ ...current, name: undefined })) }} aria-invalid={Boolean(profileErrors.name)} aria-describedby={profileErrors.name ? "profile-name-error" : undefined} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-3 text-sm" />{profileErrors.name ? <p id="profile-name-error" className="mt-1 text-xs text-destructive">{profileErrors.name}</p> : null}</div><div><FieldLabel htmlFor="profile-address-policy">Address policy</FieldLabel><input id="profile-address-policy" value={addressPolicy} onChange={(event) => { setAddressPolicy(event.target.value); setProfileErrors((current) => ({ ...current, addressPolicy: undefined })) }} aria-invalid={Boolean(profileErrors.addressPolicy)} aria-describedby={profileErrors.addressPolicy ? "profile-address-policy-error" : undefined} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-3 font-mono text-xs" />{profileErrors.addressPolicy ? <p id="profile-address-policy-error" className="mt-1 text-xs text-destructive">{profileErrors.addressPolicy}</p> : null}</div><div><FieldLabel htmlFor="profile-ports">Ports</FieldLabel><input id="profile-ports" value={ports} onChange={(event) => { setPorts(event.target.value); setProfileErrors((current) => ({ ...current, ports: undefined })) }} aria-invalid={Boolean(profileErrors.ports)} aria-describedby={profileErrors.ports ? "profile-ports-error" : undefined} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-3 font-mono text-xs" />{profileErrors.ports ? <p id="profile-ports-error" className="mt-1 text-xs text-destructive">{profileErrors.ports}</p> : null}</div><label className="flex items-center gap-2 text-xs sm:col-span-2"><input type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} className="size-4 accent-[var(--primary)]" />Use as default discovery policy</label><DialogFooter className="sm:col-span-2"><Button type="submit"><Save className="size-3.5" aria-hidden="true" />Save profile</Button>{selectedProfile ? <Button type="button" variant="destructive" onClick={retireProfile} disabled={selectedProfile.state === "retired"}><Trash2 className="size-3.5" aria-hidden="true" />Retire</Button> : null}</DialogFooter></form></DialogContent></Dialog>
     <Dialog open={scanDialogOpen} onOpenChange={setScanDialogOpen}><DialogContent className="rounded-none"><DialogHeader><DialogTitle>Configure discovery scan</DialogTitle><DialogDescription>Runs only against the selected bounded profile. No external discovery or endpoint registration occurs.</DialogDescription></DialogHeader><dl className="border-y border-border py-3 text-xs"><div className="flex justify-between gap-4"><dt className="text-muted-foreground">Profile</dt><dd>{selectedProfile?.name ?? "None selected"}</dd></div><div className="mt-2 flex justify-between gap-4"><dt className="text-muted-foreground">Address policy</dt><dd className="font-mono">{selectedProfile?.addressPolicy ?? "—"}</dd></div></dl><DialogFooter><Button onClick={startScan} disabled={!selectedProfile || selectedProfile.state !== "active"}><Radar className="size-3.5" aria-hidden="true" />Start scan</Button></DialogFooter></DialogContent></Dialog>
-    <Sheet open={reviewCandidateId !== null} onOpenChange={(open) => { if (!open) setReviewCandidateId(null) }}><SheetContent className="w-full rounded-none sm:max-w-md"><SheetHeader><SheetTitle>Candidate review</SheetTitle><SheetDescription>Approval is required before the separate registration action is offered.</SheetDescription></SheetHeader>{reviewCandidate ? <div className="space-y-5 px-4 pb-4"><div className="border-y border-border py-4"><p className="font-medium">{reviewCandidate.host}:{reviewCandidate.port}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{reviewCandidate.id} · {reviewCandidate.serial}</p><p className="mt-3 text-xs text-muted-foreground">{reviewCandidate.evidenceSummary}</p></div><div><FieldLabel htmlFor="candidate-reason">Decision rationale</FieldLabel><textarea id="candidate-reason" value={candidateReason} onChange={(event) => setCandidateReason(event.target.value)} rows={4} className="mt-1 w-full rounded-none border border-input bg-background p-2 text-xs" placeholder="Bounded operator rationale" /></div><div className="flex flex-wrap gap-2">{reviewCandidate.state === "pending_approval" ? <><Button onClick={() => decideCandidate(reviewCandidate, true)}><Check className="size-3.5" aria-hidden="true" />Approve</Button><Button variant="outline" onClick={() => decideCandidate(reviewCandidate, false)}><Edit3 className="size-3.5" aria-hidden="true" />Reject</Button></> : null}{reviewCandidate.state === "approved" ? <Button variant="secondary" onClick={() => registerCandidate(reviewCandidate)}><ShieldCheck className="size-3.5" aria-hidden="true" />Register mock candidate</Button> : null}</div></div> : null}</SheetContent></Sheet>
+    <Sheet open={reviewCandidateId !== null} onOpenChange={(open) => { if (!open) setReviewCandidateId(null) }}><SheetContent className="w-full rounded-none sm:max-w-md"><SheetHeader><SheetTitle>Candidate review</SheetTitle><SheetDescription>Approval is required before the separate registration action is offered.</SheetDescription></SheetHeader>{reviewCandidate ? <div className="space-y-5 px-4 pb-4"><div className="border-y border-border py-4"><p className="font-medium">{reviewCandidate.host}:{reviewCandidate.port}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{reviewCandidate.id} · {reviewCandidate.serial}</p><p className="mt-3 text-xs text-muted-foreground">{reviewCandidate.evidenceSummary}</p></div><div><FieldLabel htmlFor="candidate-reason">Decision rationale</FieldLabel><textarea id="candidate-reason" value={candidateReason} onChange={(event) => setCandidateReason(event.target.value)} rows={4} className="mt-1 w-full rounded-none border border-input bg-background p-2 text-xs" placeholder="Bounded operator rationale" /></div><div className="flex flex-wrap gap-2">{reviewCandidate.state === "pending_approval" ? <><Button onClick={() => decideCandidate(reviewCandidate, true)}><Check className="size-3.5" aria-hidden="true" />Approve</Button><Button variant="outline" onClick={() => decideCandidate(reviewCandidate, false)}><Edit3 className="size-3.5" aria-hidden="true" />Reject</Button></> : null}{reviewCandidate.state === "approved" ? <Button variant="secondary" onClick={() => registerCandidate(reviewCandidate)}><ShieldCheck className="size-3.5" aria-hidden="true" />Register Candidate</Button> : null}</div></div> : null}</SheetContent></Sheet>
   </>
 }
 

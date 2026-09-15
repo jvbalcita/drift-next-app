@@ -54,7 +54,7 @@ export function SettingsPage({
     setFeedback("")
   }
 
-  function save(event: FormEvent<HTMLFormElement>) {
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selected) return
     const validationError = validateSettingValue(selected, valueJson)
@@ -63,7 +63,7 @@ export function SettingsPage({
       requestAnimationFrame(() => errorSummaryRef.current?.focus())
       return
     }
-    const result = dispatch({ type: "updateSetting", settingId: selected.id, valueJson, rowVersion: selected.rowVersion })
+    const result = await dispatch({ type: "updateSetting", settingId: selected.id, valueJson, rowVersion: selected.rowVersion })
     if (result.ok) {
       setFeedback("Setting saved. The control plane updated the bounded projection.")
       setError("")

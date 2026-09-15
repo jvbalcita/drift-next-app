@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent, RunState } from "@/lib/domain/control-plane"
+import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, EmptyState, FailureBadge, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 import { textForDevice } from "./page-utils"
 
@@ -15,9 +16,9 @@ export function RunsPage({ snapshot, dispatch, view = "active", onViewChange }: 
   const historicalRuns = snapshot.runs.filter((run) => isTerminal(run.state))
   const failedRuns = snapshot.runs.filter((run) => run.state === "failed" || run.state === "paused" || run.failureClass)
   function inspect(id: string) { setSelectedRunId(id) }
-  function cancel(id: string) { setFeedback(dispatch({ type: "cancelRun", runId: id }).message) }
+  function cancel(id: string) { void reportDispatch(dispatch, { type: "cancelRun", runId: id }, setFeedback) }
   return <>
-    <PageIntro eyebrow="EXECUTION / RUNS" title="Runs and targets" description="Inspect parent runs and independent per-device outcomes without conflating target state with aggregate state." actions={<StatusBadge label="Execution mocked" tone="info" />} />
+    <PageIntro eyebrow="EXECUTION / RUNS" title="Runs and Targets" description="Inspect parent runs and independent per-device outcomes without conflating target state with aggregate state." actions={<StatusBadge label="Independent Targets" tone="info" />} />
     <OperatorNotice>Runs are read-only projections. Cancelling a run updates control-plane state only; no workflow worker or device actor is called from this view.</OperatorNotice>
     <Tabs value={view} onValueChange={onViewChange} className="mt-6"><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Run views"><TabsTrigger value="active" className="rounded-none">Active</TabsTrigger><TabsTrigger value="history" className="rounded-none">History</TabsTrigger><TabsTrigger value="failed" className="rounded-none">Failed / indeterminate</TabsTrigger></TabsList>
       <TabsContent value="active" className="mt-6"><Panel title="Active runs" description="Admission and aggregate state are visible here; inspect a row for targets, steps, evidence, and events."><RunTable runs={activeRuns} onInspect={inspect} /></Panel></TabsContent>

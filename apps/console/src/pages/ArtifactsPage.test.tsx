@@ -11,7 +11,7 @@ describe("ArtifactsPage", () => {
   it("lists artifacts with filters, pagination, and sanitized detail states", async () => {
     const user = userEvent.setup()
     const client = new MockControlPlaneClient()
-    const dispatch = (intent: Parameters<typeof client.dispatch>[0]) => client.dispatch(intent)
+    const dispatch = async (intent: Parameters<typeof client.dispatch>[0]) => client.dispatch(intent)
 
     render(
       <ArtifactsPage snapshot={client.getSnapshot()} dispatch={dispatch} view="library" onViewChange={() => undefined} />,
@@ -40,7 +40,7 @@ describe("ArtifactsPage", () => {
     render(
       <ArtifactsPage
         snapshot={client.getSnapshot()}
-        dispatch={(intent) => client.dispatch(intent)}
+        dispatch={async (intent) => client.dispatch(intent)}
         view="audit"
         onViewChange={() => undefined}
       />,
@@ -51,10 +51,7 @@ describe("ArtifactsPage", () => {
   it("requires confirmation before delete and cleanup", async () => {
     const user = userEvent.setup()
     const client = new MockControlPlaneClient()
-    const dispatch = (intent: Parameters<typeof client.dispatch>[0]) => {
-      const result = client.dispatch(intent)
-      return result
-    }
+    const dispatch = async (intent: Parameters<typeof client.dispatch>[0]) => client.dispatch(intent)
 
     const view = () => <ArtifactsPage snapshot={client.getSnapshot()} dispatch={dispatch} view="library" onViewChange={() => undefined} />
     const { rerender } = render(view())
@@ -76,7 +73,7 @@ describe("ArtifactsPage", () => {
     render(
       <ArtifactsPage
         snapshot={client.getSnapshot()}
-        dispatch={(intent) => client.dispatch(intent)}
+        dispatch={async (intent) => client.dispatch(intent)}
         view="media"
         onViewChange={() => undefined}
       />,
