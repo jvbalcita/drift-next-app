@@ -457,6 +457,7 @@ describe("MockControlPlaneClient", () => {
     expect(client.getSnapshot().storageHealth.cleanupFailures).toBeGreaterThan(1)
     expect(cleaned.ok).toBe(true)
     expect(client.getSnapshot().artifacts.find((artifact) => artifact.id === "artifact-rec-orion-01")?.lifecycleState).toBe("deleted")
-    expect(client.getSnapshot().storageHealth.objectCount).toBe(before - 1)
+    // Metadata rows remain counted (matches backend Usage COUNT including deleted).
+    expect(client.getSnapshot().storageHealth.objectCount).toBe(before)
   })
 })

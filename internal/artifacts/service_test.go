@@ -213,8 +213,8 @@ func TestCapturePersisterIsolation(t *testing.T) {
 	service, _, _, workspace := artifactFixture(t)
 	persister := artifacts.CapturePersister{Service: service, Workspace: workspace}
 	id, err := persister.PersistScreenshot(context.Background(), "caller-should-not-win", "owner-1", "op-1", []byte("png-bytes"), "")
-	if err != nil || id == "" {
-		t.Fatalf("unsanitized screenshot must retain omission metadata = %q/%v", id, err)
+	if err == nil || id == "" || platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
+		t.Fatalf("unsanitized screenshot must omit with policy denial = %q/%v", id, err)
 	}
 	omitted, err := service.Get(context.Background(), workspace, artifacts.ArtifactID(id), "operator", "op-1")
 	if err != nil || omitted.Category != artifacts.CategoryOmission || omitted.Workspace != workspace {
@@ -229,8 +229,8 @@ func TestCapturePersisterIsolation(t *testing.T) {
 		t.Fatalf("bound workspace must win over caller placeholder: %#v/%v", got, err)
 	}
 	treeID, err := persister.PersistUITree(context.Background(), "caller-should-not-win", "owner-1", "op-1", []byte(`{"password":"TEST_ONLY_PASSWORD_SENTINEL"}`))
-	if err != nil || treeID == "" {
-		t.Fatalf("sensitive ui tree must retain omission metadata = %q/%v", treeID, err)
+	if err == nil || treeID == "" || platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
+		t.Fatalf("sensitive ui tree must omit with policy denial = %q/%v", treeID, err)
 	}
 	tree, err := service.Get(context.Background(), workspace, artifacts.ArtifactID(treeID), "operator", "op-1")
 	if err != nil || tree.Category != artifacts.CategoryOmission {

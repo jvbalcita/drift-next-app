@@ -576,7 +576,7 @@ const artifacts: ArtifactView[] = [
     id: "artifact-omitted-lab",
     contentHash: "sha256:mock-omitted01",
     category: "other",
-    lifecycleState: "eligible_for_deletion",
+    lifecycleState: "omitted",
     retentionClass: "disposable",
     visibility: "omitted",
     sizeBytes: 0,
@@ -1084,7 +1084,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       storageHealth: {
         ...this.snapshot.storageHealth,
         usedBytes,
-        objectCount: Math.max(0, this.snapshot.storageHealth.objectCount - 1),
+        // Metadata rows remain after delete (matches backend Usage COUNT).
         quotaWarning: usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6,
         warningSummary:
           usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6
@@ -1165,7 +1165,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       storageHealth: {
         ...this.snapshot.storageHealth,
         usedBytes,
-        objectCount: Math.max(0, this.snapshot.storageHealth.objectCount - 1),
+        // Metadata rows remain after cleanup (matches backend Usage COUNT).
         cleanupFailures: Math.max(0, this.snapshot.storageHealth.cleanupFailures - (artifact.lifecycleState === "cleanup_failed" ? 1 : 0)),
         quotaWarning: usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6,
         warningSummary:

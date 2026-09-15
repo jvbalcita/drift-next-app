@@ -95,9 +95,16 @@ func TestCaptureAdmissionOmissionIsNotInfrastructureFailure(t *testing.T) {
 	if bundle.ScreenshotArtifactID != "artifact-omitted-shot" || bundle.HierarchyArtifactID != "artifact-omitted-tree" {
 		t.Fatalf("expected omission artifact ids, got shot=%q tree=%q", bundle.ScreenshotArtifactID, bundle.HierarchyArtifactID)
 	}
+	var sawPolicyDenied bool
 	for _, event := range bundle.Events {
 		if event.FailureClass == domain.FailureInfrastructure {
 			t.Fatalf("policy omission must not emit infrastructure failure: %#v", event)
 		}
+		if event.FailureClass == domain.FailurePolicyDenied {
+			sawPolicyDenied = true
+		}
+	}
+	if !sawPolicyDenied {
+		t.Fatal("expected policy_denied admission labeling on observation events")
 	}
 }

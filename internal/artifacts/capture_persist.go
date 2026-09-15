@@ -56,9 +56,11 @@ func (p CapturePersister) persistScreenshot(ctx context.Context, workspace, owne
 	if err != nil {
 		return "", err
 	}
-	// Omission metadata is a successful admission outcome: bytes were rejected,
-	// but the control-plane retained a bounded omission record. Callers must not
-	// treat this as infrastructure persistence failure.
+	if result.Omitted {
+		// Omission metadata was retained; signal policy denial so lab can label
+		// admission without treating it as infrastructure persistence failure.
+		return string(result.Artifact.ID), platformerrors.New(platformerrors.CodePolicyDenied, "screenshot admission omitted bytes")
+	}
 	return string(result.Artifact.ID), nil
 }
 
@@ -89,8 +91,9 @@ func (p CapturePersister) PersistUITree(ctx context.Context, workspace, ownerID,
 	if err != nil {
 		return "", err
 	}
-	// Same as screenshots: omitted payloads still yield an artifact ID for the
-	// omission/error metadata record without CAS bytes.
+	if result.Omitted {
+		return string(result.Artifact.ID), platformerrors.New(platformerrors.CodePolicyDenied, "ui-tree admission omitted bytes")
+	}
 	return string(result.Artifact.ID), nil
 }
 
