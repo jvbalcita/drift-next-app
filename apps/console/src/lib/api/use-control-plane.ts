@@ -48,8 +48,8 @@ export function useControlPlane(): ControlPlaneViewModel {
     try {
       const next = await client.refresh()
       setSnapshot(next)
-      if (next.runtimeConnection.state === "disconnected") {
-        setConnectionError(next.runtimeConnection.disconnectedReason || "Control plane unreachable.")
+      if (next.runtimeConnection.disconnectedReason === "Control plane unreachable." || next.runtimeConnection.disconnectedReason === "Control plane authorization failed.") {
+        setConnectionError(next.runtimeConnection.disconnectedReason)
       }
     } catch (cause: unknown) {
       const message = cause instanceof Error ? cause.message : "Control plane unreachable."

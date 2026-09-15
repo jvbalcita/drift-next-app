@@ -209,6 +209,7 @@ type RequestContext struct {
 	CorrelationId  string                 `protobuf:"bytes,2,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"`
 	CausationId    string                 `protobuf:"bytes,3,opt,name=causation_id,json=causationId,proto3" json:"causation_id,omitempty"`
 	IdempotencyKey string                 `protobuf:"bytes,4,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	ActorId        string                 `protobuf:"bytes,5,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -267,6 +268,13 @@ func (x *RequestContext) GetCausationId() string {
 func (x *RequestContext) GetIdempotencyKey() string {
 	if x != nil {
 		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *RequestContext) GetActorId() string {
+	if x != nil {
+		return x.ActorId
 	}
 	return ""
 }
@@ -509,13 +517,14 @@ const file_drift_v1_common_proto_rawDesc = "" +
 	"\vResourceRef\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1f\n" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
-	"resourceId\"\xa2\x01\n" +
+	"resourceId\"\xbd\x01\n" +
 	"\x0eRequestContext\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12%\n" +
 	"\x0ecorrelation_id\x18\x02 \x01(\tR\rcorrelationId\x12!\n" +
 	"\fcausation_id\x18\x03 \x01(\tR\vcausationId\x12'\n" +
-	"\x0fidempotency_key\x18\x04 \x01(\tR\x0eidempotencyKey\"I\n" +
+	"\x0fidempotency_key\x18\x04 \x01(\tR\x0eidempotencyKey\x12\x19\n" +
+	"\bactor_id\x18\x05 \x01(\tR\aactorId\"I\n" +
 	"\vPageRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\rR\bpageSize\x12\x1d\n" +
 	"\n" +

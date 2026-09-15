@@ -7,6 +7,7 @@ import (
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
 	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/leases"
+	platformerrors "drift.local/drift-next/internal/platform/errors"
 	store "drift.local/drift-next/internal/store/sqlite"
 )
 
@@ -33,7 +34,10 @@ func (h *LeaseHandler) AcquireDeviceLease(ctx context.Context, request *connectr
 	if sessionErr != nil {
 		return nil, MapError(sessionErr)
 	}
-	lease, acquireErr := store.NewLeaseService(h.db, 0).Acquire(ctx, workspace, devices.DeviceID(request.Msg.GetDeviceId()), session.ID, session.HolderID, actorType, actorID)
+	if session.HolderID != actorID {
+		return nil, MapError(platformerrors.New(platformerrors.CodeLeaseConflict, "control session is owned by another holder"))
+	}
+	lease, acquireErr := store.NewLeaseService(h.db, 0).Acquire(ctx, workspace, devices.DeviceID(request.Msg.GetDeviceId()), session.ID, actorID, actorType, actorID)
 	if acquireErr != nil {
 		return nil, MapError(acquireErr)
 	}
@@ -56,7 +60,7 @@ func (h *LeaseHandler) RenewDeviceLease(ctx context.Context, request *connectrpc
 	if getErr != nil {
 		return nil, MapError(getErr)
 	}
-	lease, renewErr := store.NewLeaseService(h.db, 0).Renew(ctx, workspace, current.ID, current.HolderID, request.Msg.GetFencingToken(), actorType, actorID)
+	lease, renewErr := store.NewLeaseService(h.db, 0).Renew(ctx, workspace, current.ID, actorID, request.Msg.GetFencingToken(), actorType, actorID)
 	if renewErr != nil {
 		return nil, MapError(renewErr)
 	}
@@ -79,7 +83,7 @@ func (h *LeaseHandler) ReleaseDeviceLease(ctx context.Context, request *connectr
 	if getErr != nil {
 		return nil, MapError(getErr)
 	}
-	lease, releaseErr := store.NewLeaseService(h.db, 0).Release(ctx, workspace, current.ID, current.HolderID, request.Msg.GetFencingToken(), actorType, actorID)
+	lease, releaseErr := store.NewLeaseService(h.db, 0).Release(ctx, workspace, current.ID, actorID, request.Msg.GetFencingToken(), actorType, actorID)
 	if releaseErr != nil {
 		return nil, MapError(releaseErr)
 	}
@@ -141,7 +145,14 @@ func (h *LeaseHandler) CloseControlSession(ctx context.Context, request *connect
 	if err != nil {
 		return nil, err
 	}
-	session, closeErr := store.NewSessionService(h.db, 0).Close(ctx, workspace, leases.ControlSessionID(id), actorType, actorID)
+	current, getErr := store.NewSessionService(h.db, 0).Get(ctx, workspace, leases.ControlSessionID(id))
+	if getErr != nil {
+		return nil, MapError(getErr)
+	}
+	if current.HolderID != actorID {
+		return nil, MapError(platformerrors.New(platformerrors.CodeLeaseConflict, "control session is owned by another holder"))
+	}
+	session, closeErr := store.NewSessionService(h.db, 0).Close(ctx, workspace, current.ID, actorType, actorID)
 	if closeErr != nil {
 		return nil, MapError(closeErr)
 	}

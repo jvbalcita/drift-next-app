@@ -6,6 +6,8 @@ export const labTokenHeader = "X-Drift-Lab-Token"
 
 export const defaultWorkspaceId = "workspace-lab-local"
 
+export const defaultOperatorId = import.meta.env.VITE_DRIFT_LAB_OPERATOR_ID?.trim() || "console-local-operator"
+
 const defaultControlPlaneUrl = "http://127.0.0.1:8080"
 
 export function usesMockControlPlane(): boolean {
@@ -48,11 +50,12 @@ export function workspaceRef(workspaceId: string) {
   return create(WorkspaceRefSchema, { workspaceId })
 }
 
-export function requestContext(options: { requestId: string; correlationId?: string; idempotencyKey?: string }) {
+export function requestContext(options: { requestId: string; correlationId?: string; idempotencyKey?: string; actorId?: string }) {
   return create(RequestContextSchema, {
     requestId: options.requestId,
     correlationId: options.correlationId ?? options.requestId,
     idempotencyKey: options.idempotencyKey ?? options.requestId,
+    actorId: options.actorId ?? defaultOperatorId,
   })
 }
 

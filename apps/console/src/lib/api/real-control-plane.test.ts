@@ -112,6 +112,24 @@ describe("RealControlPlaneClient", () => {
     expect(snapshot.runtimeConnection.disconnectedReason).toBe("Control plane authorization failed.")
   })
 
+  it("does not treat a failed runtime status as a connected spool", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.RuntimeService/GetRuntimeStatus")) {
+        return new Response("runtime unavailable", { status: 500 })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const snapshot = await client.refresh()
+
+    expect(snapshot.runtimeConnection.state).toBe("disconnected")
+    expect(snapshot.runtimeConnection.disconnectedReason).toBe("Runtime status unavailable.")
+    expect(snapshot.spoolHealth.connectionState).toBe("disconnected")
+    expect(snapshot.indeterminateActions).toEqual([])
+  })
+
   it("projects group memberships from ListDeviceGroups", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input)

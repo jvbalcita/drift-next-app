@@ -89,6 +89,10 @@ func actorFromContext(requestContext *driftv1.RequestContext) (string, error) {
 	if err := validateRequestID(requestContext); err != nil {
 		return "", err
 	}
+	actorID := strings.TrimSpace(requestContext.GetActorId())
+	if actorID != "" {
+		return actorID, nil
+	}
 	return requestContext.GetRequestId(), nil
 }
 

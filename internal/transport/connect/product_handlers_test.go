@@ -37,7 +37,11 @@ func openProductDB(t *testing.T) *store.DB {
 }
 
 func requestContext(id string) *driftv1.RequestContext {
-	return &driftv1.RequestContext{RequestId: id, IdempotencyKey: id}
+	return &driftv1.RequestContext{RequestId: id, IdempotencyKey: id, ActorId: "op-1"}
+}
+
+func requestContextFor(id, actorID string) *driftv1.RequestContext {
+	return &driftv1.RequestContext{RequestId: id, IdempotencyKey: id, ActorId: actorID}
 }
 
 func TestListDevicesPaginatesAndRejectsInvalidWorkspace(t *testing.T) {
@@ -253,6 +257,20 @@ func TestOpenControlSessionAcquireAndListLease(t *testing.T) {
 	}))
 	if err != nil || len(sessions.Msg.Sessions) != 1 || sessions.Msg.Sessions[0].GetId() != opened.Msg.Session.GetId() {
 		t.Fatalf("list sessions = %#v err=%v", sessions, err)
+	}
+	if _, err := handler.AcquireDeviceLease(ctx, connectrpc.NewRequest(&driftv1.AcquireDeviceLeaseRequest{
+		Context:          requestContextFor("lease-acquire-foreign", "op-2"),
+		Workspace:        &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		DeviceId:         "device-1",
+		ControlSessionId: opened.Msg.Session.GetId(),
+	})); connectrpc.CodeOf(err) != connectrpc.CodeAlreadyExists {
+		t.Fatalf("foreign acquire code = %v, want already_exists; err=%v", connectrpc.CodeOf(err), err)
+	}
+	if _, err := handler.CloseControlSession(ctx, connectrpc.NewRequest(&driftv1.CloseControlSessionRequest{
+		Context: requestContextFor("session-close-foreign", "op-2"),
+		Session: &driftv1.ResourceRef{Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"}, ResourceId: opened.Msg.Session.GetId()},
+	})); connectrpc.CodeOf(err) != connectrpc.CodeAlreadyExists {
+		t.Fatalf("foreign close code = %v, want already_exists; err=%v", connectrpc.CodeOf(err), err)
 	}
 }
 

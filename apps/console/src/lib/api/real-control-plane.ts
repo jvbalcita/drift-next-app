@@ -1549,8 +1549,8 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       settle(this.services.recording.listRecordingSessions(workspaceId).then((response) => response.sessions.map(mapRecording)), [] as RecordingMediaView[]),
       settle(this.services.mirror.listMirrorSessions(workspaceId).then((response) => response.sessions.map(mapMirrorSession)), [] as MirrorSessionView[]),
       settle(this.services.runtime.getRuntimeStatus(workspaceId).then((response) => mapRuntimeStatus(response.connection, response.spool, response.indeterminateActions)), {
-        connection: emptyRuntime("connected"),
-        spool: emptySpool("connected"),
+        connection: emptyRuntime("disconnected", "Runtime status unavailable."),
+        spool: emptySpool("disconnected"),
         indeterminateActions: [] as IndeterminateActionView[],
       }),
     ])

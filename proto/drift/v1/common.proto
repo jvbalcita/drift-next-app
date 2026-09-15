@@ -21,6 +21,7 @@ message RequestContext {
   string correlation_id = 2;
   string causation_id = 3;
   string idempotency_key = 4;
+  string actor_id = 5;
 }
 
 // PageRequest bounds list responses without exposing database cursors.
