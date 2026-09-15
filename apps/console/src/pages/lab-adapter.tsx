@@ -40,7 +40,7 @@ const value = (input: string | undefined) => (input && input.length > 0 ? input 
 export function LabModeBadges({ adapter }: { adapter: LabAdapterView }) {
   return (
     <>
-      <StatusBadge label={adapter.mode === "lab" ? (adapter.readiness === "unavailable" ? "Unavailable" : "Connected") : "Simulator"} tone={adapter.mode === "lab" ? (adapter.readiness === "unavailable" ? "neutral" : "healthy") : "info"} />
+      <StatusBadge label={adapter.mode === "lab" && adapter.readiness !== "unavailable" ? "Connected" : "Unavailable"} tone={adapter.mode === "lab" && adapter.readiness !== "unavailable" ? "healthy" : "neutral"} />
       <StatusBadge label={readinessLabels[adapter.readiness]} tone={readinessTones[adapter.readiness]} />
       {adapter.indeterminate ? <StatusBadge label="Indeterminate Outcome" tone="attention" /> : null}
       <FailureBadge failureClass={adapter.failureClass} />
@@ -236,7 +236,7 @@ export function LabDiagnosticsSheet({ adapter }: { adapter: LabAdapterView }) {
         </SheetHeader>
         <div className="space-y-4 p-4">
           <dl className="grid gap-4 text-xs sm:grid-cols-2">
-            <LabField label="Mode" detail={adapter.mode === "lab" ? "Connected Adapter" : "Simulator"} mono={false} />
+            <LabField label="Mode" detail={adapter.mode === "lab" && adapter.readiness !== "unavailable" ? "Connected Adapter" : "Unavailable"} mono={false} />
             <LabField label="Readiness" detail={readinessLabels[adapter.readiness]} mono={false} />
             <LabField label="Adapter Version" detail={value(adapter.adapterVersion)} mono={false} />
             <LabField label="Platform Tools" detail={value(adapter.platformToolsVersion)} mono={false} />
@@ -459,7 +459,7 @@ function LabProvisioningSheet({
             <StatusBadge label="Approval" tone={approved ? "healthy" : "attention"} />
             <StatusBadge label="Provisioning" tone={provisioningReadiness?.ready ? "healthy" : "attention"} />
             <StatusBadge label="Registration" tone={registered ? "info" : "neutral"} />
-            {adapter.mode === "mock" ? <StatusBadge label="Simulator" tone="info" /> : <StatusBadge label={registered ? "Registered" : "Awaiting Approval"} tone={registered ? "info" : "attention"} />}
+            {adapter.mode === "mock" ? <StatusBadge label="Awaiting Approval" tone="attention" /> : <StatusBadge label={registered ? "Registered" : "Awaiting Approval"} tone={registered ? "info" : "attention"} />}
           </div>
           {provisioningReadiness ? (
             <dl className="grid gap-3 text-[11px] sm:grid-cols-2">
@@ -481,7 +481,7 @@ function LabProvisioningSheet({
             <div className="border border-border bg-muted/30 p-3 text-[11px] leading-5">
               <p className="font-semibold">Registration Record</p>
               <p className="mt-1 text-muted-foreground">{labRegistration.displayName} · {labRegistration.serial} · {labRegistration.state.replaceAll("_", " ")}</p>
-              <p className="mt-1 text-muted-foreground">{labRegistration.mockLabeled ? "Simulator registration — fleet registry unchanged." : "Registration recorded."}</p>
+              <p className="mt-1 text-muted-foreground">{labRegistration.mockLabeled ? "Registration recorded. Fleet registry unchanged." : "Registration recorded."}</p>
             </div>
           ) : null}
           <div className="flex flex-wrap gap-2 border-t border-border pt-4">

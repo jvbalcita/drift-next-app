@@ -88,7 +88,7 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
             <StatusBadge label="Approval" tone={registration?.approved ? "healthy" : "attention"} />
             <StatusBadge label="Provisioning" tone={readiness?.ready ? "healthy" : "attention"} />
             <StatusBadge label="Registration" tone={registration?.state === "registered" ? "info" : "neutral"} />
-            <StatusBadge label={snapshot.labAdapter.mode === "mock" ? "Simulator" : registration?.state === "registered" ? "Registered" : "Awaiting Approval"} tone="info" />
+            <StatusBadge label={snapshot.labAdapter.mode === "mock" ? "Awaiting Approval" : registration?.state === "registered" ? "Registered" : "Awaiting Approval"} tone="info" />
           </div>
           <dl className="mb-4 grid gap-3 text-[11px] sm:grid-cols-2 xl:grid-cols-4">
             <div><dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">Runtime</dt><dd className="mt-1 font-medium">{runtime.state}</dd></div>

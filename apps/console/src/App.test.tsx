@@ -191,7 +191,7 @@ describe("Drift command center", () => {
 
     expect(screen.getByText("Control / Device Workspace")).toBeInTheDocument()
     expect(screen.getByText("Control Center", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
-    expect(screen.getAllByText("Simulator").length).toBeGreaterThan(0)
+    expect(screen.getByRole("region", { name: /Device Adapter Status/i })).toBeInTheDocument()
     expect(screen.getByRole("slider", { name: /Floating frame size/i })).toHaveAttribute("min", "480")
     expect(screen.getByRole("slider", { name: /Small screen/i })).toHaveAttribute("max", "840")
     expect(screen.getByRole("slider", { name: /Floating frame size/i })).toHaveAttribute("step", "40")
@@ -280,8 +280,7 @@ describe("Drift command center", () => {
     await user.click(screen.getByRole("button", { name: /^Control/ }))
     const strip = screen.getByRole("region", { name: /Device Adapter Status/i })
 
-    expect(within(strip).getByText("Simulator")).toBeInTheDocument()
-    expect(within(strip).getByText("Unavailable")).toBeInTheDocument()
+    expect(within(strip).getAllByText("Unavailable").length).toBeGreaterThan(0)
     expect(within(strip).getAllByText("Connected").length).toBeGreaterThan(0)
     expect(within(strip).getByText("Spool Clear")).toBeInTheDocument()
     expect(within(strip).getByText("No target confirmed")).toBeInTheDocument()
@@ -312,7 +311,7 @@ describe("Drift command center", () => {
     expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Approval")
     expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Provisioning")
     expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Registration")
-    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Simulator")
+    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Awaiting Approval")
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
     await user.click(screen.getByRole("button", { name: /Discover Devices/i }))
