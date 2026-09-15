@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { resolvedDeviceIds, resolvedId } from "./page-utils"
+import { resolvedDeviceIds, resolvedId, captureSerialForDevice } from "./page-utils"
 
 describe("resolvedId", () => {
   it("keeps the current id when it is still present", () => {
@@ -26,5 +26,17 @@ describe("resolvedDeviceIds", () => {
 
   it("requires explicit selection when multiple devices are available", () => {
     expect(resolvedDeviceIds(["a", "b"], [])).toEqual([])
+  })
+})
+
+describe("captureSerialForDevice", () => {
+  it("returns the confirmed serial only when it matches the registered device", () => {
+    expect(captureSerialForDevice("device-1", { confirmedSerial: "SERIAL-A" }, { deviceId: "device-1", serial: "SERIAL-A" })).toBe("SERIAL-A")
+  })
+
+  it("refuses capture when the confirmed transport is a different device", () => {
+    expect(captureSerialForDevice("device-1", { confirmedSerial: "SERIAL-B" }, { deviceId: "device-1", serial: "SERIAL-A" })).toBe("")
+    expect(captureSerialForDevice("device-2", { confirmedSerial: "SERIAL-A" }, { deviceId: "device-1", serial: "SERIAL-A" })).toBe("")
+    expect(captureSerialForDevice("device-1", { confirmedSerial: "SERIAL-A" }, null)).toBe("")
   })
 })

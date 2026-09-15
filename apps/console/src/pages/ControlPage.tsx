@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
 import { reportDispatch } from "@/lib/api/report-dispatch"
+import { captureSerialForDevice } from "./page-utils"
 import { OperatorNotice, StatusBadge } from "./shared"
 
 type Workspace = { largeHeight: number; smallHeight: number; quality: "Low" | "Medium" | "High" | "Extra"; frameRate: number; orientation: "portrait" | "landscape" }
@@ -64,7 +65,16 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
       return
     }
     if (action === "Screenshot" && source) {
-      void reportDispatch(dispatch, { type: "submitDeviceAction", deviceId: source.id, kind: "capture", confirmed: true }, setFeedback)
+      void (async () => {
+        const authorized = await reportDispatch(dispatch, { type: "submitDeviceAction", deviceId: source.id, kind: "capture", confirmed: true }, setFeedback)
+        if (!authorized.ok) return
+        const serial = captureSerialForDevice(source.id, snapshot.labAdapter, snapshot.labRegistration)
+        if (!serial) {
+          setFeedback("Confirm the connected transport for this device before capturing observation.")
+          return
+        }
+        await reportDispatch(dispatch, { type: "captureLabObservation", serial }, setFeedback)
+      })()
       return
     }
     setFeedback(`${action} requires confirmation. No unauthorized command was sent.`)
