@@ -64,3 +64,21 @@ if ! (cd "$fixture_root" && bash scripts/secret-scan.sh > scan-output.txt 2>&1);
     exit 1
 fi
 printf '%s\n' 'secret-scan structured/placeholder fixture passed'
+
+cat > "$fixture_root/fixtures/code.go" <<'EOF'
+package example
+
+type Observation struct {
+    Token string
+}
+
+func project(bundle Bundle) Observation {
+    return Observation{Token: bundle.HierarchyFreshnessToken}
+}
+EOF
+git -C "$fixture_root" add fixtures/code.go
+if ! (cd "$fixture_root" && bash scripts/secret-scan.sh > scan-output.txt 2>&1); then
+    cat "$fixture_root/scan-output.txt" >&2
+    exit 1
+fi
+printf '%s\n' 'secret-scan code selector fixture passed'
