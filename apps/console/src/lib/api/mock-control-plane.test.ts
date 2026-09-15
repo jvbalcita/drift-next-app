@@ -322,6 +322,7 @@ describe("MockControlPlaneClient", () => {
     expect(client.getSnapshot().labRegistration).toMatchObject({ state: "registered", deviceId })
     expect(client.getSnapshot().indeterminateActions).toEqual([])
     expect(client.getSnapshot().runtimeConnection.pendingIndeterminate).toBe(0)
+    expect(client.getSnapshot().spoolHealth).toMatchObject({ pending: 0, blocked: 0, blockedSequences: [] })
     const verifyWithoutConfirm = client.dispatch({
       type: "verifyLabProvisioning",
       serial: "MOCKSERIAL0001",

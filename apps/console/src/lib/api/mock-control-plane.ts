@@ -738,6 +738,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const occurredAt = labStamp(sequence)
     const keepRegistered =
       this.snapshot.labRegistration?.state === "registered" ? this.snapshot.labRegistration : null
+    this.blockedSequences = []
     this.snapshot = {
       ...this.snapshot,
       labAdapter: { ...adapter, readiness: adapter.discovered.length > 0 ? "blocked" : "unavailable", confirmedSerial: "", confirmedDisplayName: "", stableIdentity: "", transportId: "", connectionState: "detached", connectionType: "", lastObservationAt: undefined, lastScreenshotHash: "", lastScreenshotPreviewDataUrl: undefined, lastHierarchySummary: "", observationLatencyMs: 0, failureClass: undefined, indeterminate: false, correlationId, lastHealthAt: occurredAt },
@@ -749,9 +750,17 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         pendingIndeterminate: 0,
         updatedAt: occurredAt,
       },
-      events: addEvent(this.snapshot, labEvent(`event-lab-clear-${sequence}`, "Cleanup", "audit", correlationId, occurredAt, "Confirmed lab target cleared; unverified provisioning, pending Approval, and indeterminate queues were dropped")),
+      spoolHealth: {
+        ...this.snapshot.spoolHealth,
+        pending: 0,
+        blocked: 0,
+        exhausted: false,
+        blockedSequences: [],
+        connectionState: this.snapshot.runtimeConnection.state,
+      },
+      events: addEvent(this.snapshot, labEvent(`event-lab-clear-${sequence}`, "Cleanup", "audit", correlationId, occurredAt, "Confirmed lab target cleared; unverified provisioning, pending Approval, indeterminate, and blocked spool queues were dropped")),
     }
-    return result(intent, "Lab target cleared. Pending Provisioning/Approval and indeterminate queues were dropped; Mock Lab Registration is kept only if already registered.")
+    return result(intent, "Lab target cleared. Pending Provisioning/Approval, indeterminate, and blocked spool queues were dropped; Mock Lab Registration is kept only if already registered.")
   }
 
   private captureLabObservation(intent: Extract<ControlPlaneIntent, { type: "captureLabObservation" }>): MutationResult {
