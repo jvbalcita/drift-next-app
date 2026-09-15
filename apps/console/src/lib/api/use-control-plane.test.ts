@@ -25,8 +25,17 @@ function adapter(overrides: Partial<LabAdapterView> = {}): LabAdapterView {
   }
 }
 
+function placeholderAdapter(): LabAdapterView {
+  return adapter({
+    readiness: "unavailable",
+    adapterVersion: "",
+    platformToolsVersion: "",
+    correlationId: "",
+  })
+}
+
 describe("mergeAdapterProjection", () => {
-  it("keeps the current adapter when the next snapshot has no discovered or confirmed device", () => {
+  it("keeps the current adapter when the next snapshot is an unobserved client placeholder", () => {
     const current = createMockControlPlaneClient().getSnapshot()
     const populated = {
       ...current,
@@ -39,7 +48,7 @@ describe("mergeAdapterProjection", () => {
     const next = {
       ...current,
       devices: [],
-      labAdapter: adapter(),
+      labAdapter: placeholderAdapter(),
       provisioningReadiness: null,
       labRegistration: null,
     }
@@ -69,10 +78,15 @@ describe("mergeAdapterProjection", () => {
     expect(merged.labAdapter.confirmedSerial).toBe("SERIAL2")
   })
 
-  it("retains current provisioning and registration when the next snapshot omits them", () => {
+  it("uses a live empty adapter overlay instead of restoring a cleared target", () => {
     const current = createMockControlPlaneClient().getSnapshot()
     const populated = {
       ...current,
+      labAdapter: adapter({
+        confirmedSerial: "SERIAL1",
+        confirmedDisplayName: "Pixel",
+        lastHealthAt: "10:00:00",
+      }),
       provisioningReadiness: {
         serial: "SERIAL1",
         transportId: "usb:1",
@@ -98,7 +112,61 @@ describe("mergeAdapterProjection", () => {
         deviceId: "device-1",
       },
     }
-    const next = { ...current, provisioningReadiness: null, labRegistration: null }
+    const next = {
+      ...current,
+      labAdapter: adapter({
+        readiness: "unavailable",
+        confirmedSerial: "",
+        lastHealthAt: "10:01:00",
+        correlationId: "corr-cleared",
+      }),
+      provisioningReadiness: null,
+      labRegistration: null,
+    }
+
+    const merged = mergeAdapterProjection(next, populated)
+
+    expect(merged.labAdapter.confirmedSerial).toBe("")
+    expect(merged.provisioningReadiness).toBeNull()
+    expect(merged.labRegistration).toBeNull()
+  })
+
+  it("retains current provisioning and registration when the next snapshot is an unobserved placeholder", () => {
+    const current = createMockControlPlaneClient().getSnapshot()
+    const populated = {
+      ...current,
+      labAdapter: adapter({ confirmedSerial: "SERIAL1" }),
+      provisioningReadiness: {
+        serial: "SERIAL1",
+        transportId: "usb:1",
+        endpointHost: "",
+        endpointPort: 0,
+        connectionType: "usb",
+        pairingAuthorized: true,
+        adbServerOwned: true,
+        platformToolsCompatible: true,
+        portPolicyAllowed: true,
+        rollbackReady: true,
+        operatorAuthorized: true,
+        state: "provision_verified" as const,
+        ready: true,
+        notes: [],
+      },
+      labRegistration: {
+        serial: "SERIAL1",
+        displayName: "Pixel",
+        state: "registered" as const,
+        approved: true,
+        mockLabeled: false,
+        deviceId: "device-1",
+      },
+    }
+    const next = {
+      ...current,
+      labAdapter: placeholderAdapter(),
+      provisioningReadiness: null,
+      labRegistration: null,
+    }
 
     const merged = mergeAdapterProjection(next, populated)
 

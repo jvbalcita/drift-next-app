@@ -20,14 +20,21 @@ import type {
 
 const operatorId = defaultOperatorId
 
+function isUnobservedAdapter(adapter: ControlPlaneSnapshot["labAdapter"]): boolean {
+  return adapter.discovered.length === 0
+    && adapter.confirmedSerial.length === 0
+    && adapter.adapterVersion.length === 0
+    && adapter.correlationId.length === 0
+    && adapter.lastHealthAt === undefined
+}
+
 export function mergeAdapterProjection(next: ControlPlaneSnapshot, current: ControlPlaneSnapshot): ControlPlaneSnapshot {
-  const nextEmpty = next.labAdapter.discovered.length === 0 && next.labAdapter.confirmedSerial.length === 0
-  const currentEmpty = current.labAdapter.discovered.length === 0 && current.labAdapter.confirmedSerial.length === 0
+  const keepCurrentAdapter = isUnobservedAdapter(next.labAdapter) && !isUnobservedAdapter(current.labAdapter)
   return {
     ...next,
-    labAdapter: nextEmpty && !currentEmpty ? current.labAdapter : next.labAdapter,
-    provisioningReadiness: next.provisioningReadiness ?? current.provisioningReadiness,
-    labRegistration: next.labRegistration ?? current.labRegistration,
+    labAdapter: keepCurrentAdapter ? current.labAdapter : next.labAdapter,
+    provisioningReadiness: keepCurrentAdapter ? next.provisioningReadiness ?? current.provisioningReadiness : next.provisioningReadiness,
+    labRegistration: keepCurrentAdapter ? next.labRegistration ?? current.labRegistration : next.labRegistration,
   }
 }
 
