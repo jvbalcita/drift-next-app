@@ -109,6 +109,70 @@ func TestArtifactServiceStoreReadDeleteLifecycleAndQuota(t *testing.T) {
 	_ = casStore
 }
 
+func TestStoreIdempotentDoesNotDoubleChargeWorkspaceQuota(t *testing.T) {
+	db, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "quota.db"), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	workspace := organizations.Workspace{ID: "ws-quota", Name: "Quota", State: organizations.WorkspaceActive}
+	if err := store.NewWorkspaceService(db).Create(context.Background(), workspace, "operator", "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	casStore, err := cas.Open(filepath.Join(t.TempDir(), "cas-quota"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := artifacts.NewService(
+		store.NewArtifactService(db),
+		casStore,
+		artifacts.WithClock(clock.NewFixed(time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC))),
+		artifacts.WithIDs(ids.NewSequence("artifact-q1", "ref-q1", "artifact-q2", "ref-q2")),
+		artifacts.WithAuditor(&memoryAudit{}),
+		artifacts.WithPolicy(artifacts.PolicyConfig{MaxObjectBytes: 8192, MaxWorkspaceBytes: 4096, AllowDisposableCleanup: true}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	// Fill nearly to the workspace limit with unique bytes.
+	filler := make([]byte, 4000)
+	for i := range filler {
+		filler[i] = byte(i % 251)
+	}
+	first, err := service.Store(ctx, artifacts.StoreRequest{
+		Workspace: workspace.ID, MediaType: "application/octet-stream", Category: artifacts.CategoryOther,
+		Sensitivity: artifacts.SensitivitySafe, RetentionClass: artifacts.RetentionDisposable,
+		Payload: filler, ActorType: "operator", ActorID: "op-1",
+		OwnerType: "observation", OwnerID: "obs-quota-1",
+	})
+	if err != nil || first.Omitted {
+		t.Fatalf("fill store = %#v err=%v", first, err)
+	}
+	// A distinct second payload of the same size would exceed quota.
+	other := make([]byte, 4000)
+	for i := range other {
+		other[i] = byte((i + 7) % 251)
+	}
+	if _, err := service.Store(ctx, artifacts.StoreRequest{
+		Workspace: workspace.ID, MediaType: "application/octet-stream", Category: artifacts.CategoryOther,
+		Sensitivity: artifacts.SensitivitySafe, RetentionClass: artifacts.RetentionDisposable,
+		Payload: other, ActorType: "operator", ActorID: "op-1",
+	}); platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
+		t.Fatalf("new payload over quota code = %v", platformerrors.CodeOf(err))
+	}
+	// Re-storing the original bytes (new owner reference) must remain idempotent.
+	dup, err := service.Store(ctx, artifacts.StoreRequest{
+		Workspace: workspace.ID, MediaType: "application/octet-stream", Category: artifacts.CategoryOther,
+		Sensitivity: artifacts.SensitivitySafe, RetentionClass: artifacts.RetentionDisposable,
+		Payload: filler, ActorType: "operator", ActorID: "op-1",
+		OwnerType: "observation", OwnerID: "obs-quota-2",
+	})
+	if err != nil || dup.Artifact.ID != first.Artifact.ID {
+		t.Fatalf("idempotent store under quota pressure = %#v err=%v", dup, err)
+	}
+}
+
 func TestDeleteBlocksProtectedRetentionWhileStored(t *testing.T) {
 	service, _, _, workspace := artifactFixture(t)
 	ctx := context.Background()
