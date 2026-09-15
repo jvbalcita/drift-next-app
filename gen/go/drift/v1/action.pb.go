@@ -545,8 +545,14 @@ type ActionIntent struct {
 	Gesture        *ActionGesturePath     `protobuf:"bytes,8,opt,name=gesture,proto3" json:"gesture,omitempty"`
 	KeyCode        uint32                 `protobuf:"varint,9,opt,name=key_code,json=keyCode,proto3" json:"key_code,omitempty"`
 	ValueLength    uint32                 `protobuf:"varint,10,opt,name=value_length,json=valueLength,proto3" json:"value_length,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// lease_id and fencing_token must match the caller's active device lease.
+	// Holder identity is taken from RequestContext.actor_id, never from this message.
+	LeaseId          string `protobuf:"bytes,11,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	FencingToken     uint64 `protobuf:"varint,12,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
+	ObservationToken string `protobuf:"bytes,13,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
+	ApprovalGranted  bool   `protobuf:"varint,14,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ActionIntent) Reset() {
@@ -647,6 +653,34 @@ func (x *ActionIntent) GetValueLength() uint32 {
 		return x.ValueLength
 	}
 	return 0
+}
+
+func (x *ActionIntent) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+func (x *ActionIntent) GetFencingToken() uint64 {
+	if x != nil {
+		return x.FencingToken
+	}
+	return 0
+}
+
+func (x *ActionIntent) GetObservationToken() string {
+	if x != nil {
+		return x.ObservationToken
+	}
+	return ""
+}
+
+func (x *ActionIntent) GetApprovalGranted() bool {
+	if x != nil {
+		return x.ApprovalGranted
+	}
+	return false
 }
 
 type ActionResult struct {
@@ -832,7 +866,7 @@ const file_drift_v1_action_proto_rawDesc = "" +
 	"\x11ActionGesturePath\x122\n" +
 	"\x06points\x18\x01 \x03(\v2\x1a.drift.v1.ActionCoordinateR\x06points\x12\x1f\n" +
 	"\vduration_ms\x18\x02 \x01(\x04R\n" +
-	"durationMs\"\x8a\x03\n" +
+	"durationMs\"\xa2\x04\n" +
 	"\fActionIntent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
@@ -845,7 +879,11 @@ const file_drift_v1_action_proto_rawDesc = "" +
 	"\agesture\x18\b \x01(\v2\x1b.drift.v1.ActionGesturePathR\agesture\x12\x19\n" +
 	"\bkey_code\x18\t \x01(\rR\akeyCode\x12!\n" +
 	"\fvalue_length\x18\n" +
-	" \x01(\rR\vvalueLength\"\xc4\x01\n" +
+	" \x01(\rR\vvalueLength\x12\x19\n" +
+	"\blease_id\x18\v \x01(\tR\aleaseId\x12#\n" +
+	"\rfencing_token\x18\f \x01(\x04R\ffencingToken\x12+\n" +
+	"\x11observation_token\x18\r \x01(\tR\x10observationToken\x12)\n" +
+	"\x10approval_granted\x18\x0e \x01(\bR\x0fapprovalGranted\"\xc4\x01\n" +
 	"\fActionResult\x12\x1b\n" +
 	"\taction_id\x18\x01 \x01(\tR\bactionId\x121\n" +
 	"\aoutcome\x18\x02 \x01(\x0e2\x17.drift.v1.ActionOutcomeR\aoutcome\x12+\n" +

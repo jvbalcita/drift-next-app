@@ -272,6 +272,46 @@ func TestOpenControlSessionAcquireAndListLease(t *testing.T) {
 	})); connectrpc.CodeOf(err) != connectrpc.CodeAlreadyExists {
 		t.Fatalf("foreign close code = %v, want already_exists; err=%v", connectrpc.CodeOf(err), err)
 	}
+
+	actions := transportconnect.NewActionHandler(db)
+	workspace := &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"}
+	if _, err := actions.SubmitAction(ctx, connectrpc.NewRequest(&driftv1.SubmitActionRequest{
+		Context: requestContext("action-observe-unleased"),
+		Intent: &driftv1.ActionIntent{
+			Workspace: workspace, DeviceId: "device-1", Kind: driftv1.ActionKind_ACTION_KIND_OBSERVE,
+		},
+	})); connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("unleased observe code = %v, want invalid_argument; err=%v", connectrpc.CodeOf(err), err)
+	}
+	submitted, err := actions.SubmitAction(ctx, connectrpc.NewRequest(&driftv1.SubmitActionRequest{
+		Context: requestContext("action-observe-1"),
+		Intent: &driftv1.ActionIntent{
+			Workspace: workspace, DeviceId: "device-1", Kind: driftv1.ActionKind_ACTION_KIND_OBSERVE,
+			LeaseId: acquired.Msg.Lease.GetId(), FencingToken: acquired.Msg.Lease.GetFencingToken(),
+		},
+	}))
+	if err != nil || submitted.Msg.Result.GetActionId() == "" || submitted.Msg.Result.GetOutcome() != driftv1.ActionOutcome_ACTION_OUTCOME_PENDING {
+		t.Fatalf("observe submit = %#v err=%v", submitted, err)
+	}
+	replayed, err := actions.SubmitAction(ctx, connectrpc.NewRequest(&driftv1.SubmitActionRequest{
+		Context: requestContext("action-observe-1"),
+		Intent: &driftv1.ActionIntent{
+			Workspace: workspace, DeviceId: "device-1", Kind: driftv1.ActionKind_ACTION_KIND_OBSERVE,
+			LeaseId: acquired.Msg.Lease.GetId(), FencingToken: acquired.Msg.Lease.GetFencingToken(),
+		},
+	}))
+	if err != nil || replayed.Msg.Result.GetActionId() != submitted.Msg.Result.GetActionId() {
+		t.Fatalf("observe replay = %#v err=%v", replayed, err)
+	}
+	if _, err := actions.SubmitAction(ctx, connectrpc.NewRequest(&driftv1.SubmitActionRequest{
+		Context: requestContext("action-observe-stale"),
+		Intent: &driftv1.ActionIntent{
+			Workspace: workspace, DeviceId: "device-1", Kind: driftv1.ActionKind_ACTION_KIND_OBSERVE,
+			LeaseId: acquired.Msg.Lease.GetId(), FencingToken: acquired.Msg.Lease.GetFencingToken() + 1,
+		},
+	})); connectrpc.CodeOf(err) != connectrpc.CodeAlreadyExists {
+		t.Fatalf("stale fencing code = %v, want already_exists; err=%v", connectrpc.CodeOf(err), err)
+	}
 }
 
 func TestCreateStartAndListRecordingSession(t *testing.T) {

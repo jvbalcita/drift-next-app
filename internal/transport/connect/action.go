@@ -2,6 +2,7 @@ package transportconnect
 
 import (
 	"context"
+	"time"
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
@@ -22,9 +23,16 @@ func (h *ActionHandler) SubmitAction(ctx context.Context, request *connectrpc.Re
 	if err != nil {
 		return nil, err
 	}
-	intent, err := actionIntentFromProto(request.Msg.GetIntent(), request.Msg.GetContext())
+	intent, err := actionIntentFromProto(request.Msg.GetIntent(), request.Msg.GetContext(), actorID)
 	if err != nil {
 		return nil, err
+	}
+	if intent.ID == "" {
+		id, idErr := newID(h.db)
+		if idErr != nil {
+			return nil, idErr
+		}
+		intent.ID = id
 	}
 	if _, err := lookupWorkspace(ctx, h.db, workspaceRef(organizations.WorkspaceID(intent.Workspace))); err != nil {
 		return nil, err
@@ -36,7 +44,7 @@ func (h *ActionHandler) SubmitAction(ctx context.Context, request *connectrpc.Re
 	return connectrpc.NewResponse(&driftv1.SubmitActionResponse{Result: actionResultProto(result)}), nil
 }
 
-func actionIntentFromProto(msg *driftv1.ActionIntent, requestContext *driftv1.RequestContext) (action.Intent, error) {
+func actionIntentFromProto(msg *driftv1.ActionIntent, requestContext *driftv1.RequestContext, actorID string) (action.Intent, error) {
 	var intent action.Intent
 	if msg == nil {
 		return intent, invalidArgument("action intent is required")
@@ -48,23 +56,35 @@ func actionIntentFromProto(msg *driftv1.ActionIntent, requestContext *driftv1.Re
 	if key == "" && requestContext != nil {
 		key = requestContext.GetIdempotencyKey()
 	}
+	kind := actionKindFromProto(msg.GetKind())
+	spec, ok := action.Lookup(kind)
+	if !ok {
+		return intent, invalidArgument("action kind is required")
+	}
 	intent = action.Intent{
 		ID:                msg.GetId(),
 		Workspace:         msg.GetWorkspace().GetWorkspaceId(),
 		DeviceID:          msg.GetDeviceId(),
-		Kind:              actionKindFromProto(msg.GetKind()),
+		LeaseID:           msg.GetLeaseId(),
+		HolderID:          actorID,
+		FencingToken:      msg.GetFencingToken(),
+		Kind:              kind,
 		TextValue:         msg.GetTextValue(),
 		ValueLength:       int(msg.GetValueLength()),
 		KeyCode:           int(msg.GetKeyCode()),
 		IdempotencyKey:    key,
+		ObservationToken:  msg.GetObservationToken(),
 		InvocationSurface: action.SurfaceManual,
+		Capabilities:      append([]action.Capability(nil), spec.RequiredCapabilities...),
+		ApprovalGranted:   msg.GetApprovalGranted(),
+		Timeout:           30 * time.Second,
 	}
 	if target := msg.GetTarget(); target != nil {
 		intent.Target = action.SemanticTarget{
-			ResourceID:          target.GetResourceId(),
-			AccessibilityLabel:  target.GetAccessibilityLabel(),
-			StableText:          target.GetStableText(),
-			ContextFingerprint:  target.GetContextFingerprint(),
+			ResourceID:         target.GetResourceId(),
+			AccessibilityLabel: target.GetAccessibilityLabel(),
+			StableText:         target.GetStableText(),
+			ContextFingerprint: target.GetContextFingerprint(),
 		}
 	}
 	return intent, nil
