@@ -316,6 +316,26 @@ describe("MockControlPlaneClient", () => {
     })
     expect(reverify.ok).toBe(true)
     expect(client.getSnapshot().labRegistration).toMatchObject({ state: "registered", deviceId })
+
+    client.dispatch({ type: "clearLabTarget" })
+    expect(client.getSnapshot().provisioningReadiness).toBeNull()
+    expect(client.getSnapshot().labRegistration).toMatchObject({ state: "registered", deviceId })
+    const verifyWithoutConfirm = client.dispatch({
+      type: "verifyLabProvisioning",
+      serial: "MOCKSERIAL0001",
+      transportId: "3",
+      endpointHost: "127.0.0.1",
+      endpointPort: 0,
+      connectionType: "usb",
+      pairingAuthorized: true,
+      adbServerOwned: true,
+      platformToolsCompatible: true,
+      portPolicyAllowed: true,
+      rollbackReady: true,
+      operatorAuthorized: true,
+    })
+    expect(verifyWithoutConfirm.ok).toBe(false)
+    expect(verifyWithoutConfirm.errorCode).toBe("precondition_failed")
   })
 
   it("refuses spool confirmation for unknown sequences even when blocked items exist", () => {

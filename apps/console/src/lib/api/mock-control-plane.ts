@@ -736,12 +736,16 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const sequence = this.nextLabSequence()
     const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
     const occurredAt = labStamp(sequence)
+    const keepRegistered =
+      this.snapshot.labRegistration?.state === "registered" ? this.snapshot.labRegistration : null
     this.snapshot = {
       ...this.snapshot,
       labAdapter: { ...adapter, readiness: adapter.discovered.length > 0 ? "blocked" : "unavailable", confirmedSerial: "", confirmedDisplayName: "", stableIdentity: "", transportId: "", connectionState: "detached", connectionType: "", lastObservationAt: undefined, lastScreenshotHash: "", lastScreenshotPreviewDataUrl: undefined, lastHierarchySummary: "", observationLatencyMs: 0, failureClass: undefined, indeterminate: false, correlationId, lastHealthAt: occurredAt },
-      events: addEvent(this.snapshot, labEvent(`event-lab-clear-${sequence}`, "Cleanup", "audit", correlationId, occurredAt, "Confirmed lab target cleared and cached observation metadata dropped")),
+      provisioningReadiness: null,
+      labRegistration: keepRegistered,
+      events: addEvent(this.snapshot, labEvent(`event-lab-clear-${sequence}`, "Cleanup", "audit", correlationId, occurredAt, "Confirmed lab target cleared; unverified provisioning and pending Approval were dropped")),
     }
-    return result(intent, "Lab target cleared. Observation metadata and the sanitized preview were dropped.")
+    return result(intent, "Lab target cleared. Pending Provisioning/Approval were dropped; Mock Lab Registration is kept only if already registered.")
   }
 
   private captureLabObservation(intent: Extract<ControlPlaneIntent, { type: "captureLabObservation" }>): MutationResult {
@@ -809,6 +813,9 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const transportId = intent.transportId.trim()
     if (!serial) return rejection(intent, "Endpoint serial identity is required for Provisioning.", undefined, "invalid_input")
     if (!transportId) return rejection(intent, "Transport identity is required for Provisioning.", undefined, "invalid_input")
+    if (this.snapshot.labAdapter.confirmedSerial !== serial) {
+      return rejection(intent, "Confirm the lab target before Provisioning verification.", serial, "precondition_failed")
+    }
     if (!intent.operatorAuthorized) {
       return rejection(intent, "Operator authorization is required for Provisioning.", serial, "policy_denied")
     }
