@@ -18,8 +18,10 @@ import type {
   EventKind,
   EventView,
   GroupView,
+  IndeterminateActionView,
   LabAdapterView,
   LabDiscoveredDeviceView,
+  LabRegistrationView,
   LeaseView,
   MembershipView,
   MirrorSessionView,
@@ -28,13 +30,17 @@ import type {
   ObservationView,
   PolicyDecisionView,
   PolicyView,
+  PrerequisiteErrorCode,
+  ProvisioningReadinessView,
   RunTargetView,
   RunView,
+  RuntimeConnectionView,
   ScanCandidateView,
   ScanRunView,
   SettingHistoryView,
   SettingView,
   SkillView,
+  SpoolHealthView,
   WorkflowView,
 } from "@/lib/domain/control-plane"
 
@@ -416,6 +422,29 @@ const labAdapter: LabAdapterView = {
   discovered: [],
 }
 
+const runtimeConnection: RuntimeConnectionView = {
+  state: "connected",
+  transportId: "mock-transport-0",
+  protocol: "mock-adb",
+  helperAttached: false,
+  disconnectedReason: "",
+  pendingIndeterminate: 0,
+  helperTokenIsLease: false,
+  transportIdIsLease: false,
+  updatedAt: "09:37:40",
+}
+
+const spoolHealth: SpoolHealthView = {
+  pending: 0,
+  blocked: 0,
+  maxSize: 32,
+  retentionMs: 300_000,
+  exhausted: false,
+  connectionState: "connected",
+  fenceToken: 1,
+  fenceIsLease: false,
+}
+
 export function buildMockSnapshot(): ControlPlaneSnapshot {
   return {
     workspaceName: workspace.name,
@@ -451,6 +480,11 @@ export function buildMockSnapshot(): ControlPlaneSnapshot {
     policyDecisions,
     mirrorSessions: [],
     labAdapter,
+    provisioningReadiness: null,
+    runtimeConnection,
+    spoolHealth,
+    indeterminateActions: [],
+    labRegistration: null,
   }
 }
 
@@ -462,8 +496,19 @@ function result(intent: ControlPlaneIntent, message: string, resourceId?: string
   return { ok: !conflict, kind: intent.type, message, ...(resourceId ? { resourceId } : {}), ...(conflict ? { conflict: true } : {}) }
 }
 
-function rejection(intent: ControlPlaneIntent, message: string, resourceId?: string): MutationResult {
-  return { ok: false, kind: intent.type, message, ...(resourceId ? { resourceId } : {}) }
+function rejection(
+  intent: ControlPlaneIntent,
+  message: string,
+  resourceId?: string,
+  errorCode?: PrerequisiteErrorCode,
+): MutationResult {
+  return {
+    ok: false,
+    kind: intent.type,
+    message,
+    ...(resourceId ? { resourceId } : {}),
+    ...(errorCode ? { errorCode } : {}),
+  }
 }
 
 function addEvent(snapshot: ControlPlaneSnapshot, event: EventView): readonly EventView[] {
@@ -552,6 +597,8 @@ export class MockControlPlaneClient implements ControlPlaneClient {
   private snapshot: ControlPlaneSnapshot
   private nextSequence = 3
   private labSequence = 0
+  private spoolSequence = 0
+  private blockedSequences: number[] = []
 
   constructor(initialSnapshot: ControlPlaneSnapshot = buildMockSnapshot()) {
     this.snapshot = cloneSnapshot(initialSnapshot)
@@ -625,6 +672,24 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.captureLabObservation(intent)
       case "simulateLabCaptureFailure":
         return this.simulateLabCaptureFailure(intent)
+      case "verifyLabProvisioning":
+        return this.verifyLabProvisioning(intent)
+      case "approveLabProvisioning":
+        return this.approveLabProvisioning(intent)
+      case "registerLabDevice":
+        return this.registerLabDevice(intent)
+      case "simulateRuntimeDisconnect":
+        return this.simulateRuntimeDisconnect(intent)
+      case "beginRuntimeReconnect":
+        return this.beginRuntimeReconnect(intent)
+      case "completeRuntimeReconnect":
+        return this.completeRuntimeReconnect(intent)
+      case "confirmIndeterminateAction":
+        return this.confirmIndeterminateAction(intent)
+      case "confirmSpoolReplay":
+        return this.confirmSpoolReplay(intent)
+      case "enqueueMockSpoolItem":
+        return this.enqueueMockSpoolItem(intent)
     }
   }
 
@@ -712,16 +777,455 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const sequence = this.nextLabSequence()
     const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
     const occurredAt = labStamp(sequence)
+    const actionId = `mock-action-${sequence}`
+    const indeterminate: IndeterminateActionView = {
+      actionId,
+      risk: "medium",
+      requiresOperatorConfirmation: true,
+      recordedAt: occurredAt,
+      summary: "Mock capture outcome is unknown. Blind replay is refused until an operator confirms or requests a fresh observation.",
+    }
     this.snapshot = {
       ...this.snapshot,
       labAdapter: { ...adapter, correlationId, readiness: "indeterminate", indeterminate: true, failureClass: "indeterminate", lastHealthAt: occurredAt, observationLatencyMs: 0 },
+      indeterminateActions: [indeterminate, ...this.snapshot.indeterminateActions],
+      runtimeConnection: {
+        ...this.snapshot.runtimeConnection,
+        pendingIndeterminate: this.snapshot.runtimeConnection.pendingIndeterminate + 1,
+        updatedAt: occurredAt,
+      },
       events: [
         labEvent(`event-lab-timeout-${sequence}`, "Timeout", "operational", correlationId, occurredAt, "Deadline expired after the observation command may already have been dispatched", "timeout"),
         labEvent(`event-lab-indeterminate-${sequence}`, "Indeterminate Outcome", "audit", correlationId, occurredAt, "Outcome is unknown; this idempotency key is never replayed automatically", "indeterminate"),
         ...this.snapshot.events,
       ],
     }
-    return result(intent, "Simulated an indeterminate capture. Clear the target to acknowledge the unknown outcome.", adapter.confirmedSerial)
+    return result(intent, "Simulated an indeterminate capture. Confirm or drop the blocked action; never blind-replay.", adapter.confirmedSerial)
+  }
+
+  private verifyLabProvisioning(intent: Extract<ControlPlaneIntent, { type: "verifyLabProvisioning" }>): MutationResult {
+    const serial = intent.serial.trim()
+    const transportId = intent.transportId.trim()
+    if (!serial) return rejection(intent, "Endpoint serial identity is required for Provisioning.", undefined, "invalid_input")
+    if (!transportId) return rejection(intent, "Transport identity is required for Provisioning.", undefined, "invalid_input")
+    if (!intent.operatorAuthorized) {
+      return rejection(intent, "Operator authorization is required for Provisioning.", serial, "policy_denied")
+    }
+    const notes: string[] = []
+    const fail = (message: string): MutationResult => {
+      const readiness: ProvisioningReadinessView = {
+        serial,
+        transportId,
+        endpointHost: intent.endpointHost.trim(),
+        endpointPort: intent.endpointPort,
+        connectionType: intent.connectionType.trim() || "usb",
+        pairingAuthorized: intent.pairingAuthorized,
+        adbServerOwned: intent.adbServerOwned,
+        platformToolsCompatible: intent.platformToolsCompatible,
+        portPolicyAllowed: intent.portPolicyAllowed,
+        rollbackReady: intent.rollbackReady,
+        operatorAuthorized: intent.operatorAuthorized,
+        state: "discovered",
+        ready: false,
+        notes,
+        checkedAt: labStamp(this.nextLabSequence()),
+        failureClass: "precondition_failed",
+        errorCode: "precondition_failed",
+      }
+      this.snapshot = { ...this.snapshot, provisioningReadiness: readiness }
+      return rejection(intent, message, serial, "precondition_failed")
+    }
+    if (!intent.pairingAuthorized) return fail("Device pairing and authorization are not verified.")
+    notes.push("Pairing Authorized")
+    if (!intent.adbServerOwned) return fail("ADB server ownership is not verified.")
+    notes.push("ADB Server Ownership Verified")
+    if (!intent.platformToolsCompatible) return fail("Platform-tools are missing or incompatible; install or repair is not performed automatically.")
+    notes.push("Platform-Tools Compatible")
+    if (!intent.portPolicyAllowed) return fail("Port policy validation failed.")
+    if (intent.connectionType === "wireless" || intent.endpointPort > 0) {
+      if (intent.endpointPort !== 5555 && intent.endpointPort !== 5037) {
+        return fail("Endpoint port is outside the allowed mock port policy.")
+      }
+      notes.push(`Port ${intent.endpointPort} Allowed`)
+    } else {
+      notes.push("USB Transport; No TCP Port Required")
+    }
+    if (!intent.rollbackReady) return fail("Rollback readiness is not recorded.")
+    notes.push("Rollback Ready")
+    const sequence = this.nextLabSequence()
+    const occurredAt = labStamp(sequence)
+    const readiness: ProvisioningReadinessView = {
+      serial,
+      transportId,
+      endpointHost: intent.endpointHost.trim(),
+      endpointPort: intent.endpointPort,
+      connectionType: intent.connectionType.trim() || "usb",
+      pairingAuthorized: true,
+      adbServerOwned: true,
+      platformToolsCompatible: true,
+      portPolicyAllowed: true,
+      rollbackReady: true,
+      operatorAuthorized: true,
+      state: "provision_verified",
+      ready: true,
+      notes,
+      checkedAt: occurredAt,
+    }
+    const registration: LabRegistrationView = {
+      serial,
+      displayName: this.snapshot.labAdapter.confirmedDisplayName || `Mock Lab ${serial}`,
+      state: "provision_verified",
+      approved: false,
+      mockLabeled: true,
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      provisioningReadiness: readiness,
+      labRegistration: registration,
+      events: addEvent(
+        this.snapshot,
+        labEvent(
+          `event-lab-provision-${sequence}`,
+          "Provisioning Verified",
+          "audit",
+          `corr-lab-${String(sequence).padStart(3, "0")}`,
+          occurredAt,
+          "Mock Provisioning evidence verified; Approval and Registration remain separate operator steps",
+        ),
+      ),
+    }
+    return result(intent, "Provisioning verified (mock). Next: Approval, then Registration. This is not a real device registration.", serial)
+  }
+
+  private approveLabProvisioning(intent: Extract<ControlPlaneIntent, { type: "approveLabProvisioning" }>): MutationResult {
+    const serial = intent.serial.trim()
+    const reason = intent.reason.trim()
+    if (!serial) return rejection(intent, "Serial is required for Approval.", undefined, "invalid_input")
+    if (!reason) return rejection(intent, "Record why Approval is being granted.", serial, "invalid_input")
+    const readiness = this.snapshot.provisioningReadiness
+    if (!readiness || readiness.serial !== serial || !readiness.ready) {
+      return rejection(intent, "Provisioning verification is required before Approval.", serial, "precondition_failed")
+    }
+    const existing = this.snapshot.labRegistration
+    if (existing?.serial === serial && existing.state === "registered") {
+      return rejection(intent, "This mock lab serial is already registered.", serial, "policy_denied")
+    }
+    const sequence = this.nextLabSequence()
+    const occurredAt = labStamp(sequence)
+    const registration: LabRegistrationView = {
+      serial,
+      displayName: existing?.displayName ?? this.snapshot.labAdapter.confirmedDisplayName ?? `Mock Lab ${serial}`,
+      state: "approval_pending",
+      approved: true,
+      mockLabeled: true,
+      approvedAt: occurredAt,
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      labRegistration: { ...registration, state: "provision_verified" },
+      events: addEvent(
+        this.snapshot,
+        labEvent(
+          `event-lab-approve-${sequence}`,
+          "Approval Granted",
+          "audit",
+          `corr-lab-${String(sequence).padStart(3, "0")}`,
+          occurredAt,
+          `Operator Approval recorded for mock lab serial; Registration still required · ${reason}`,
+        ),
+      ),
+    }
+    return result(intent, "Approval recorded (mock). Registration remains a separate explicit step.", serial)
+  }
+
+  private registerLabDevice(intent: Extract<ControlPlaneIntent, { type: "registerLabDevice" }>): MutationResult {
+    const serial = intent.serial.trim()
+    const displayName = intent.displayName.trim()
+    if (!serial || !displayName) return rejection(intent, "Serial and display name are required for Registration.", undefined, "invalid_input")
+    if (!intent.approved) return rejection(intent, "Operator Approval is required before Registration.", serial, "policy_denied")
+    const readiness = this.snapshot.provisioningReadiness
+    if (!readiness || readiness.serial !== serial || !readiness.ready) {
+      return rejection(intent, "Provisioning verification is required before Registration.", serial, "precondition_failed")
+    }
+    const existing = this.snapshot.labRegistration
+    if (!existing || existing.serial !== serial || !existing.approved) {
+      return rejection(intent, "Approval is required before Registration.", serial, "policy_denied")
+    }
+    if (existing.state === "registered") {
+      return result(intent, `Mock Lab Registration already complete for ${serial}.`, existing.deviceId)
+    }
+    if (this.snapshot.labRegistration?.state === "registered" && this.snapshot.labRegistration.serial !== serial) {
+      return rejection(intent, "One-device lab Registration scope is exhausted.", serial, "policy_denied")
+    }
+    const sequence = this.nextLabSequence()
+    const occurredAt = labStamp(sequence)
+    const deviceId = `device-mock-lab-${sequence}`
+    const endpointId = `endpoint-mock-lab-${sequence}`
+    const registration: LabRegistrationView = {
+      serial,
+      displayName: `Mock Lab · ${displayName}`,
+      state: "registered",
+      approved: true,
+      mockLabeled: true,
+      deviceId,
+      endpointId,
+      approvedAt: existing.approvedAt,
+      registeredAt: occurredAt,
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      labRegistration: registration,
+      provisioningReadiness: this.snapshot.provisioningReadiness
+        ? { ...this.snapshot.provisioningReadiness, state: "registered" }
+        : this.snapshot.provisioningReadiness,
+      events: addEvent(
+        this.snapshot,
+        labEvent(
+          `event-lab-register-${sequence}`,
+          "Mock Lab Registration",
+          "audit",
+          `corr-lab-${String(sequence).padStart(3, "0")}`,
+          occurredAt,
+          "Mock Lab Registration only — not a real device registration; canonical fleet registry unchanged",
+        ),
+      ),
+    }
+    return result(intent, `Mock Lab Registration recorded for ${displayName}. This is not a real device registration.`, deviceId)
+  }
+
+  private simulateRuntimeDisconnect(intent: Extract<ControlPlaneIntent, { type: "simulateRuntimeDisconnect" }>): MutationResult {
+    const reason = intent.reason.trim() || "Mock disconnect"
+    const sequence = this.nextLabSequence()
+    const occurredAt = labStamp(sequence)
+    const pending = this.snapshot.spoolHealth.pending
+    const blocked = pending + this.snapshot.spoolHealth.blocked
+    if (pending > 0) {
+      this.blockedSequences = Array.from({ length: pending }, (_, index) => this.spoolSequence - pending + index + 1).filter((n) => n > 0)
+    }
+    const actionId = `mock-runtime-${sequence}`
+    const indeterminate: IndeterminateActionView = {
+      actionId,
+      risk: "medium",
+      requiresOperatorConfirmation: true,
+      recordedAt: occurredAt,
+      summary: "Runtime disconnect left an action outcome indeterminate. Blind retry is refused.",
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      runtimeConnection: {
+        ...this.snapshot.runtimeConnection,
+        state: "disconnected",
+        disconnectedReason: reason,
+        pendingIndeterminate: this.snapshot.runtimeConnection.pendingIndeterminate + 1,
+        updatedAt: occurredAt,
+      },
+      spoolHealth: {
+        ...this.snapshot.spoolHealth,
+        pending: 0,
+        blocked,
+        connectionState: "disconnected",
+        exhausted: blocked >= this.snapshot.spoolHealth.maxSize,
+      },
+      indeterminateActions: [indeterminate, ...this.snapshot.indeterminateActions],
+      events: addEvent(
+        this.snapshot,
+        labEvent(
+          `event-runtime-disconnect-${sequence}`,
+          "Runtime Disconnected",
+          "operational",
+          `corr-lab-${String(sequence).padStart(3, "0")}`,
+          occurredAt,
+          `Mock runtime marked disconnected · ${reason}`,
+        ),
+      ),
+    }
+    return result(intent, "Mock runtime marked Disconnected. Indeterminate outcomes require operator confirmation — not blind replay.")
+  }
+
+  private beginRuntimeReconnect(intent: Extract<ControlPlaneIntent, { type: "beginRuntimeReconnect" }>): MutationResult {
+    if (this.snapshot.runtimeConnection.state === "connected") {
+      return rejection(intent, "Runtime is already Connected.", undefined, "precondition_failed")
+    }
+    const sequence = this.nextLabSequence()
+    const occurredAt = labStamp(sequence)
+    this.snapshot = {
+      ...this.snapshot,
+      runtimeConnection: {
+        ...this.snapshot.runtimeConnection,
+        state: "reconnecting",
+        updatedAt: occurredAt,
+      },
+      spoolHealth: { ...this.snapshot.spoolHealth, connectionState: "reconnecting" },
+      events: addEvent(
+        this.snapshot,
+        labEvent(
+          `event-runtime-reconnect-${sequence}`,
+          "Runtime Reconnecting",
+          "operational",
+          `corr-lab-${String(sequence).padStart(3, "0")}`,
+          occurredAt,
+          "Mock runtime entered Reconnecting; spool items still require confirmation before replay",
+        ),
+      ),
+    }
+    return result(intent, "Mock runtime is Reconnecting. Spool items stay blocked until confirmed.")
+  }
+
+  private completeRuntimeReconnect(intent: Extract<ControlPlaneIntent, { type: "completeRuntimeReconnect" }>): MutationResult {
+    const transportId = intent.transportId.trim()
+    const protocol = intent.protocol.trim()
+    if (!transportId || !protocol) return rejection(intent, "Transport ID and protocol evidence are required to complete reconnect.", undefined, "invalid_input")
+    if (this.snapshot.runtimeConnection.state !== "reconnecting") {
+      return rejection(intent, "Begin Reconnect before completing it.", undefined, "precondition_failed")
+    }
+    const sequence = this.nextLabSequence()
+    const occurredAt = labStamp(sequence)
+    this.snapshot = {
+      ...this.snapshot,
+      runtimeConnection: {
+        ...this.snapshot.runtimeConnection,
+        state: "connected",
+        transportId,
+        protocol,
+        disconnectedReason: "",
+        updatedAt: occurredAt,
+      },
+      spoolHealth: {
+        ...this.snapshot.spoolHealth,
+        connectionState: "connected",
+        fenceToken: this.snapshot.spoolHealth.fenceToken + 1,
+      },
+      events: addEvent(
+        this.snapshot,
+        labEvent(
+          `event-runtime-connected-${sequence}`,
+          "Runtime Connected",
+          "operational",
+          `corr-lab-${String(sequence).padStart(3, "0")}`,
+          occurredAt,
+          "Mock runtime Connected; fence token advanced as observation only — not a lease",
+        ),
+      ),
+    }
+    return result(intent, "Mock runtime Connected. Fence token is an observation, not a lease. Confirm blocked spool items before any replay.")
+  }
+
+  private confirmIndeterminateAction(intent: Extract<ControlPlaneIntent, { type: "confirmIndeterminateAction" }>): MutationResult {
+    const action = this.snapshot.indeterminateActions.find((item) => item.actionId === intent.actionId)
+    if (!action) return rejection(intent, "No indeterminate action matches that ID.", undefined, "invalid_input")
+    if (!action.requiresOperatorConfirmation) {
+      return rejection(intent, "This action does not require operator confirmation.", intent.actionId, "precondition_failed")
+    }
+    const sequence = this.nextLabSequence()
+    const occurredAt = labStamp(sequence)
+    const remaining = this.snapshot.indeterminateActions.filter((item) => item.actionId !== intent.actionId)
+    const resolved = intent.confirm
+      ? `Operator confirmed resolution via ${intent.resolution.replaceAll("_", " ")}`
+      : "Operator dropped the indeterminate action without replay"
+    this.snapshot = {
+      ...this.snapshot,
+      indeterminateActions: remaining,
+      runtimeConnection: {
+        ...this.snapshot.runtimeConnection,
+        pendingIndeterminate: Math.max(0, this.snapshot.runtimeConnection.pendingIndeterminate - 1),
+        updatedAt: occurredAt,
+      },
+      labAdapter: this.snapshot.labAdapter.indeterminate && remaining.length === 0
+        ? { ...this.snapshot.labAdapter, indeterminate: false, readiness: this.snapshot.labAdapter.confirmedSerial ? "ready" : this.snapshot.labAdapter.readiness, failureClass: undefined }
+        : this.snapshot.labAdapter,
+      events: addEvent(
+        this.snapshot,
+        labEvent(
+          `event-indeterminate-resolve-${sequence}`,
+          intent.confirm ? "Indeterminate Confirmed" : "Indeterminate Dropped",
+          "audit",
+          `corr-lab-${String(sequence).padStart(3, "0")}`,
+          occurredAt,
+          `${resolved}; blind replay was not performed`,
+        ),
+      ),
+    }
+    return result(intent, intent.confirm ? "Indeterminate outcome confirmed. No automatic replay occurred." : "Indeterminate outcome dropped. No replay was scheduled.", intent.actionId)
+  }
+
+  private confirmSpoolReplay(intent: Extract<ControlPlaneIntent, { type: "confirmSpoolReplay" }>): MutationResult {
+    if (!this.blockedSequences.includes(intent.sequence) && this.snapshot.spoolHealth.blocked === 0) {
+      return rejection(intent, "No blocked spool item requires confirmation.", undefined, "precondition_failed")
+    }
+    if (this.snapshot.runtimeConnection.state !== "connected") {
+      return rejection(intent, "Runtime must be Connected before spool confirmation.", undefined, "precondition_failed")
+    }
+    const sequence = this.nextLabSequence()
+    const occurredAt = labStamp(sequence)
+    this.blockedSequences = this.blockedSequences.filter((value) => value !== intent.sequence)
+    const blocked = Math.max(0, this.snapshot.spoolHealth.blocked - 1)
+    this.snapshot = {
+      ...this.snapshot,
+      spoolHealth: {
+        ...this.snapshot.spoolHealth,
+        blocked,
+        exhausted: blocked >= this.snapshot.spoolHealth.maxSize,
+      },
+      events: addEvent(
+        this.snapshot,
+        labEvent(
+          `event-spool-confirm-${sequence}`,
+          intent.confirm ? "Spool Replay Confirmed" : "Spool Item Dropped",
+          "audit",
+          `corr-lab-${String(sequence).padStart(3, "0")}`,
+          occurredAt,
+          intent.confirm
+            ? `Operator confirmed spool sequence ${intent.sequence}; automatic replay never occurred`
+            : `Operator dropped spool sequence ${intent.sequence}; no replay scheduled`,
+        ),
+      ),
+    }
+    return result(
+      intent,
+      intent.confirm
+        ? `Spool sequence ${intent.sequence} confirmed by operator. This is not automatic replay.`
+        : `Spool sequence ${intent.sequence} dropped. No replay was scheduled.`,
+      String(intent.sequence),
+    )
+  }
+
+  private enqueueMockSpoolItem(intent: Extract<ControlPlaneIntent, { type: "enqueueMockSpoolItem" }>): MutationResult {
+    const health = this.snapshot.spoolHealth
+    if (health.pending + health.blocked >= health.maxSize) {
+      this.snapshot = { ...this.snapshot, spoolHealth: { ...health, exhausted: true } }
+      return rejection(intent, "Mock spool is exhausted; raise capacity is not automatic.", undefined, "precondition_failed")
+    }
+    if (this.snapshot.runtimeConnection.state === "disconnected" && intent.risk !== "low") {
+      return rejection(intent, "While Disconnected, only low-risk spool items may enqueue.", undefined, "policy_denied")
+    }
+    if (this.snapshot.runtimeConnection.state !== "connected" && (intent.risk === "medium" || intent.risk === "high")) {
+      return rejection(intent, "Medium/high-risk spool enqueue requires Connected runtime.", undefined, "policy_denied")
+    }
+    this.spoolSequence += 1
+    const sequence = this.nextLabSequence()
+    const occurredAt = labStamp(sequence)
+    const pending = health.pending + 1
+    this.snapshot = {
+      ...this.snapshot,
+      spoolHealth: {
+        ...health,
+        pending,
+        exhausted: pending + health.blocked >= health.maxSize,
+        connectionState: this.snapshot.runtimeConnection.state,
+      },
+      events: addEvent(
+        this.snapshot,
+        labEvent(
+          `event-spool-enqueue-${sequence}`,
+          "Spool Enqueued",
+          "operational",
+          `corr-lab-${String(sequence).padStart(3, "0")}`,
+          occurredAt,
+          `Mock spool ${intent.kind} enqueued · risk ${intent.risk} · key ${intent.idempotencyKey} · fence ${health.fenceToken} (observation, not lease)`,
+        ),
+      ),
+    }
+    return result(intent, `Mock spool item enqueued (${intent.kind}). Fence ${health.fenceToken} is an observation, not a lease.`, String(this.spoolSequence))
   }
 
   private nextLabSequence(): number {

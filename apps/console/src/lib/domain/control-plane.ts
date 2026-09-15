@@ -62,6 +62,20 @@ export type PolicyDecision = "allow" | "deny" | "inconclusive"
 export type EventKind = "operational" | "audit"
 export type LabMode = "mock" | "lab"
 export type LabReadiness = "unavailable" | "ready" | "blocked" | "indeterminate"
+/** Runtime link observation for an edge agent. Never a control-plane lease. */
+export type RuntimeConnectionState = "connected" | "reconnecting" | "disconnected"
+/** Lab provisioning / registration stage. Discovery ≠ Approval ≠ Provisioning ≠ Registration. */
+export type LabProvisionState = "discovered" | "approval_pending" | "provision_verified" | "registered"
+export type SpoolItemKind = "cursor" | "outbox" | "observation"
+export type SpoolItemOutcome =
+  | "pending"
+  | "dispatched"
+  | "indeterminate"
+  | "confirmed_drop"
+  | "confirmed_replay"
+  | "expired"
+export type IndeterminateResolutionKind = "fresh_observation" | "operator_confirmed"
+export type PrerequisiteErrorCode = "precondition_failed" | "policy_denied" | "unauthorized" | "invalid_input"
 export type MirrorSessionState = "requested" | "active" | "paused" | "stopping" | "completed" | "failed" | "cancelled"
 export type MirrorTargetOutcome = "simulated_success" | "offline" | "incompatible" | "policy_denied" | "lease_conflict" | "target_resolution_failed"
 
@@ -435,6 +449,82 @@ export interface LabAdapterView {
   discovered: readonly LabDiscoveredDeviceView[]
 }
 
+/** Provisioning readiness evidence. All checks are explicit; absence is not success. */
+export interface ProvisioningReadinessView {
+  serial: string
+  transportId: string
+  endpointHost: string
+  endpointPort: number
+  connectionType: string
+  pairingAuthorized: boolean
+  adbServerOwned: boolean
+  platformToolsCompatible: boolean
+  portPolicyAllowed: boolean
+  rollbackReady: boolean
+  operatorAuthorized: boolean
+  state: LabProvisionState
+  ready: boolean
+  notes: readonly string[]
+  checkedAt?: string
+  failureClass?: string
+  errorCode?: PrerequisiteErrorCode
+}
+
+/**
+ * Runtime connection observation for the edge agent.
+ * Helper tokens and transport IDs are never control-plane leases.
+ */
+export interface RuntimeConnectionView {
+  state: RuntimeConnectionState
+  transportId: string
+  protocol: string
+  helperAttached: boolean
+  disconnectedReason: string
+  pendingIndeterminate: number
+  helperTokenIsLease: false
+  transportIdIsLease: false
+  updatedAt: string
+}
+
+/**
+ * Bounded runtime spool health. Fence tokens are observations, not leases.
+ * Blocked / indeterminate items never auto-replay without operator confirmation.
+ */
+export interface SpoolHealthView {
+  pending: number
+  blocked: number
+  maxSize: number
+  retentionMs: number
+  exhausted: boolean
+  connectionState: RuntimeConnectionState
+  fenceToken: number
+  fenceIsLease: false
+}
+
+export interface IndeterminateActionView {
+  actionId: string
+  risk: string
+  requiresOperatorConfirmation: boolean
+  recordedAt: string
+  summary: string
+}
+
+/**
+ * Lab registration projection. Mock paths must keep mockLabeled true so the UI
+ * never presents mock registration as real device registration.
+ */
+export interface LabRegistrationView {
+  serial: string
+  displayName: string
+  state: LabProvisionState
+  approved: boolean
+  mockLabeled: true
+  deviceId?: string
+  endpointId?: string
+  approvedAt?: string
+  registeredAt?: string
+}
+
 export interface ControlPlaneSnapshot {
   workspaceName: string
   workspaceId: string
@@ -469,6 +559,11 @@ export interface ControlPlaneSnapshot {
   policyDecisions: readonly PolicyDecisionView[]
   mirrorSessions: readonly MirrorSessionView[]
   labAdapter: LabAdapterView
+  provisioningReadiness: ProvisioningReadinessView | null
+  runtimeConnection: RuntimeConnectionView
+  spoolHealth: SpoolHealthView
+  indeterminateActions: readonly IndeterminateActionView[]
+  labRegistration: LabRegistrationView | null
 }
 
 export interface SettingHistoryView {
@@ -519,6 +614,30 @@ export type ControlPlaneIntent =
   // simulateLabCaptureFailure is a mock-only QA affordance for the indeterminate
   // surface. It never reaches the lab adapter and produces no observation.
   | { type: "simulateLabCaptureFailure" }
+  // Phase 14 lab provisioning: verify evidence, explicit Approval, then Registration.
+  // Mock paths never imply real device registration without mockLabeled labeling.
+  | {
+      type: "verifyLabProvisioning"
+      serial: string
+      transportId: string
+      endpointHost: string
+      endpointPort: number
+      connectionType: string
+      pairingAuthorized: boolean
+      adbServerOwned: boolean
+      platformToolsCompatible: boolean
+      portPolicyAllowed: boolean
+      rollbackReady: boolean
+      operatorAuthorized: boolean
+    }
+  | { type: "approveLabProvisioning"; serial: string; reason: string }
+  | { type: "registerLabDevice"; serial: string; displayName: string; approved: boolean }
+  | { type: "simulateRuntimeDisconnect"; reason: string }
+  | { type: "beginRuntimeReconnect" }
+  | { type: "completeRuntimeReconnect"; transportId: string; protocol: string }
+  | { type: "confirmIndeterminateAction"; actionId: string; confirm: boolean; resolution: IndeterminateResolutionKind }
+  | { type: "confirmSpoolReplay"; sequence: number; confirm: boolean }
+  | { type: "enqueueMockSpoolItem"; kind: SpoolItemKind; risk: "low" | "medium" | "high"; idempotencyKey: string }
 
 export interface MutationResult {
   ok: boolean
@@ -526,6 +645,8 @@ export interface MutationResult {
   message: string
   resourceId?: string
   conflict?: boolean
+  /** Prerequisite / authorization failure classification when ok is false. */
+  errorCode?: PrerequisiteErrorCode
 }
 
 export interface ControlPlaneClient {

@@ -1,0 +1,83 @@
+package discovery_test
+
+import (
+	"context"
+	"testing"
+
+	"drift.local/drift-next/internal/discovery"
+	"drift.local/drift-next/internal/networkprofiles"
+	platformerrors "drift.local/drift-next/internal/platform/errors"
+)
+
+type stubEnumerator struct {
+	devices []discovery.RuntimeDevice
+	err     error
+}
+
+func (s stubEnumerator) Enumerate(ctx context.Context) ([]discovery.RuntimeDevice, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s.err != nil {
+		return nil, s.err
+	}
+	return append([]discovery.RuntimeDevice(nil), s.devices...), nil
+}
+
+func TestAuthorizedLabScannerRequiresLabRuntime(t *testing.T) {
+	profile := networkprofiles.NetworkProfile{
+		ID: "profile-1", Workspace: "ws", Name: "Lab", AddressPolicy: "192.0.2.0/28",
+		Ports: []uint16{5555}, State: networkprofiles.Active,
+	}
+	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{
+		Authorized: false,
+		LabMode:    false,
+		Enumerator: stubEnumerator{},
+	})
+	_, err := scanner.Scan(context.Background(), profile)
+	if platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
+		t.Fatalf("unauthorized scan code = %v, want policy_denied", platformerrors.CodeOf(err))
+	}
+}
+
+func TestAuthorizedLabScannerMapsRuntimeDevicesInsidePortPolicy(t *testing.T) {
+	profile := networkprofiles.NetworkProfile{
+		ID: "profile-1", Workspace: "ws", Name: "Lab", AddressPolicy: "192.0.2.0/28",
+		Ports: []uint16{5555}, State: networkprofiles.Active,
+	}
+	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{
+		Authorized: true,
+		LabMode:    true,
+		Enumerator: stubEnumerator{devices: []discovery.RuntimeDevice{{
+			Serial: "LABSERIAL001", Host: "192.0.2.10", Port: 5555, TransportID: "tcp:192.0.2.10:5555", Fingerprint: "fp-1",
+		}, {
+			Serial: "OUT-OF-POLICY", Host: "192.0.2.11", Port: 22, TransportID: "tcp:192.0.2.11:22", Fingerprint: "fp-2",
+		}}},
+	})
+	observations, err := scanner.Scan(context.Background(), profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(observations) != 1 || observations[0].Serial != "LABSERIAL001" {
+		t.Fatalf("observations = %#v, want one in-policy candidate", observations)
+	}
+	if observations[0].Evidence["transport_id"] != "tcp:192.0.2.10:5555" {
+		t.Fatalf("evidence = %#v, want transport identity recorded", observations[0].Evidence)
+	}
+}
+
+func TestAuthorizedLabScannerReportsMissingRuntimeClearly(t *testing.T) {
+	profile := networkprofiles.NetworkProfile{
+		ID: "profile-1", Workspace: "ws", Name: "Lab", AddressPolicy: "192.0.2.0/28",
+		Ports: []uint16{5555}, State: networkprofiles.Active,
+	}
+	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{
+		Authorized: true,
+		LabMode:    true,
+		Enumerator: stubEnumerator{err: platformerrors.New(platformerrors.CodeUnavailable, "authorized local runtime is unavailable")},
+	})
+	_, err := scanner.Scan(context.Background(), profile)
+	if platformerrors.CodeOf(err) != platformerrors.CodeUnavailable {
+		t.Fatalf("missing runtime code = %v, want unavailable", platformerrors.CodeOf(err))
+	}
+}
