@@ -499,6 +499,8 @@ export interface SpoolHealthView {
   connectionState: RuntimeConnectionState
   fenceToken: number
   fenceIsLease: false
+  /** Exact blocked spool sequences awaiting operator confirmation. */
+  blockedSequences: readonly number[]
 }
 
 export interface IndeterminateActionView {

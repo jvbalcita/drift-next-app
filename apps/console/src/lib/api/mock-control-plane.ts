@@ -443,6 +443,7 @@ const spoolHealth: SpoolHealthView = {
   connectionState: "connected",
   fenceToken: 1,
   fenceIsLease: false,
+  blockedSequences: [],
 }
 
 export function buildMockSnapshot(): ControlPlaneSnapshot {
@@ -1008,7 +1009,9 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const pending = this.snapshot.spoolHealth.pending
     const blocked = pending + this.snapshot.spoolHealth.blocked
     if (pending > 0) {
-      this.blockedSequences = Array.from({ length: pending }, (_, index) => this.spoolSequence - pending + index + 1).filter((n) => n > 0)
+      const newlyBlocked = Array.from({ length: pending }, (_, index) => this.spoolSequence - pending + index + 1).filter((n) => n > 0)
+      const merged = new Set([...this.blockedSequences, ...newlyBlocked])
+      this.blockedSequences = Array.from(merged).sort((a, b) => a - b)
     }
     const actionId = `mock-runtime-${sequence}`
     const indeterminate: IndeterminateActionView = {
@@ -1033,6 +1036,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         blocked,
         connectionState: "disconnected",
         exhausted: blocked >= this.snapshot.spoolHealth.maxSize,
+        blockedSequences: [...this.blockedSequences],
       },
       indeterminateActions: [indeterminate, ...this.snapshot.indeterminateActions],
       events: addEvent(
@@ -1173,6 +1177,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         ...this.snapshot.spoolHealth,
         blocked,
         exhausted: this.snapshot.spoolHealth.pending + blocked >= this.snapshot.spoolHealth.maxSize,
+        blockedSequences: [...this.blockedSequences],
       },
       events: addEvent(
         this.snapshot,

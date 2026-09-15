@@ -337,7 +337,8 @@ function RuntimeSpoolSheet({
   dispatch: DispatchIntent
   onFeedback: (message: string) => void
 }) {
-  const blockedSequence = spoolHealth.blocked > 0 ? 1 : 0
+  const blockedSequence = spoolHealth.blockedSequences[0] ?? 0
+  const hasBlockedSequence = blockedSequence > 0
   return (
     <Sheet>
       <SheetTrigger render={<Button size="sm" variant="outline" />}><Activity className="size-3.5" aria-hidden="true" />Runtime And Spool</SheetTrigger>
@@ -359,6 +360,7 @@ function RuntimeSpoolSheet({
             <LabField label="Pending Indeterminate" detail={`${runtimeConnection.pendingIndeterminate}`} mono={false} />
             <LabField label="Spool Pending" detail={`${spoolHealth.pending}`} mono={false} />
             <LabField label="Spool Blocked" detail={`${spoolHealth.blocked}`} mono={false} />
+            <LabField label="Blocked Sequences" detail={spoolHealth.blockedSequences.length > 0 ? spoolHealth.blockedSequences.join(", ") : "—"} mono={false} />
             <LabField label="Spool Max Size" detail={`${spoolHealth.maxSize}`} mono={false} />
             <LabField label="Retention Ms" detail={`${spoolHealth.retentionMs}`} mono={false} />
             <LabField label="Fence Token" detail={`${spoolHealth.fenceToken}`} />
@@ -370,10 +372,10 @@ function RuntimeSpoolSheet({
             <Button size="sm" variant="outline" disabled={runtimeConnection.state !== "reconnecting"} onClick={() => onFeedback(dispatch({ type: "completeRuntimeReconnect", transportId: runtimeConnection.transportId || "mock-transport-0", protocol: runtimeConnection.protocol || "mock-adb" }).message)}>Complete Reconnect</Button>
             <Button size="sm" variant="outline" onClick={() => onFeedback(dispatch({ type: "enqueueMockSpoolItem", kind: "observation", risk: "low", idempotencyKey: `mock-spool-${Date.now()}` }).message)}>Enqueue Mock Spool Item</Button>
             <AlertDialog>
-              <AlertDialogTrigger render={<Button size="sm" variant="outline" disabled={spoolHealth.blocked === 0 || runtimeConnection.state !== "connected"} />}>Confirm Spool Replay</AlertDialogTrigger>
+              <AlertDialogTrigger render={<Button size="sm" variant="outline" disabled={!hasBlockedSequence || runtimeConnection.state !== "connected"} />}>Confirm Spool Replay</AlertDialogTrigger>
               <AlertDialogContent
                 title="Confirm Spool Replay?"
-                description="Blocked spool items never auto-replay. Confirming records operator intent only for this mock sequence; it does not blind-retry indeterminate actions."
+                description={`Blocked spool items never auto-replay. Confirming records operator intent for mock sequence ${blockedSequence || "—"}; it does not blind-retry indeterminate actions.`}
                 confirmLabel="Confirm Mock Replay"
                 onConfirm={() => onFeedback(dispatch({ type: "confirmSpoolReplay", sequence: blockedSequence, confirm: true }).message)}
               />

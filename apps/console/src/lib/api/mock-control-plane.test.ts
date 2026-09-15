@@ -348,7 +348,7 @@ describe("MockControlPlaneClient", () => {
     expect(disconnect.ok).toBe(true)
     expect(client.getSnapshot().runtimeConnection.state).toBe("disconnected")
     expect(client.getSnapshot().spoolHealth.blocked).toBeGreaterThan(0)
-    expect(client.getSnapshot().indeterminateActions[0]?.requiresOperatorConfirmation).toBe(true)
+    expect(client.getSnapshot().spoolHealth.blockedSequences.length).toBeGreaterThan(0)
 
     const blindReplay = client.dispatch({ type: "confirmSpoolReplay", sequence: 1, confirm: true })
     expect(blindReplay.ok).toBe(false)
@@ -365,7 +365,9 @@ describe("MockControlPlaneClient", () => {
     expect(client.getSnapshot().runtimeConnection.state).toBe("connected")
     expect(client.getSnapshot().spoolHealth.fenceToken).toBe(2)
 
-    const confirmed = client.dispatch({ type: "confirmSpoolReplay", sequence: 1, confirm: true })
+    const blockedSequence = client.getSnapshot().spoolHealth.blockedSequences[0]
+    expect(blockedSequence).toBeTruthy()
+    const confirmed = client.dispatch({ type: "confirmSpoolReplay", sequence: blockedSequence!, confirm: true })
     expect(confirmed.ok).toBe(true)
     expect(confirmed.message).toMatch(/not automatic replay/i)
 

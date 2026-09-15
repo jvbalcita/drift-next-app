@@ -85,6 +85,16 @@ func TestSessionClassifiesAmbiguousDispatchAsIndeterminateWithoutBlindRetry(t *t
 	}
 }
 
+func TestSessionRejectsDispatchAfterDisconnectWithoutRaceWindow(t *testing.T) {
+	now := time.Date(2026, 9, 15, 3, 0, 0, 0, time.UTC)
+	session := connection.NewSession(connection.SessionConfig{AgentID: "agent-1", TransportID: "usb:1", Protocol: "drift-edge/1"}, now)
+	session.MarkDisconnected(now.Add(time.Second), "network_loss")
+	_, err := session.RecordDispatch("late-action", action.RiskLow, now.Add(2*time.Second))
+	if platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
+		t.Fatalf("dispatch while disconnected code = %v, want policy_denied", platformerrors.CodeOf(err))
+	}
+}
+
 func TestSessionRejectsStalePolicyWhileDisconnected(t *testing.T) {
 	now := time.Date(2026, 9, 15, 3, 0, 0, 0, time.UTC)
 	session := connection.NewSession(connection.SessionConfig{AgentID: "agent-1", TransportID: "usb:1", Protocol: "drift-edge/1", PolicyVersion: 2}, now)

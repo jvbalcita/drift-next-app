@@ -206,13 +206,23 @@ func (s *Session) RecordDispatch(actionID string, risk action.RiskClass, now tim
 	if actionID == "" {
 		return "", platformerrors.New(platformerrors.CodeInvalidInput, "action id is required")
 	}
-	if err := s.AuthorizeAction(risk, now); err != nil {
-		return "", err
-	}
+	now = now.UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.policyVersion == 0 {
+		return "", platformerrors.New(platformerrors.CodeInvalidInput, "policy version is required")
+	}
+	if s.state != RuntimeConnected && (risk == action.RiskHigh || risk == action.RiskIrreversible || risk == action.RiskMedium) {
+		return "", platformerrors.New(platformerrors.CodePolicyDenied, "high-risk or mutating actions are refused while disconnected or reconnecting")
+	}
+	if s.state == RuntimeDisconnected && risk != action.RiskLow {
+		return "", platformerrors.New(platformerrors.CodePolicyDenied, "only low-risk observation is allowed while disconnected")
+	}
+	if s.state != RuntimeConnected {
+		return "", platformerrors.New(platformerrors.CodePolicyDenied, "dispatches are refused while disconnected or reconnecting")
+	}
 	s.dispatches[actionID] = DispatchAccepted
-	s.updatedAt = now.UTC()
+	s.updatedAt = now
 	return DispatchAccepted, nil
 }
 
