@@ -286,6 +286,13 @@ export function LabObservationFrame({ adapter, height }: { adapter: LabAdapterVi
           <StatusBadge label="Sanitized Preview" tone="healthy" />
         </div>
         <p className="text-[11px] leading-5 text-muted-foreground">This frame shows the sanitized observation preview for the confirmed lab target only. No mock frame on this page represents live device output.</p>
+        <p className="text-[11px] leading-5 text-muted-foreground">
+          Browse fleet media and retention in{" "}
+          <a href="#artifacts/media" className="font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-primary">
+            Artifacts · Media
+          </a>
+          .
+        </p>
         <dl className="grid gap-3 text-[11px] sm:grid-cols-2">
           <LabField label="Serial" detail={adapter.confirmedSerial} />
           <LabField label="Captured" detail={value(adapter.lastObservationAt)} />

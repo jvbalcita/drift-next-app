@@ -68,7 +68,12 @@ type HealthReader interface {
 }
 type ArtifactReader interface {
 	Get(context.Context, organizations.WorkspaceID, artifacts.ArtifactID) (artifacts.Artifact, error)
+	GetByHash(context.Context, organizations.WorkspaceID, string) (artifacts.Artifact, error)
+	List(context.Context, organizations.WorkspaceID, artifacts.ListFilter) ([]artifacts.Artifact, error)
 	ListReferences(context.Context, organizations.WorkspaceID, string, string) ([]artifacts.Reference, error)
+	ListCleanupFailed(context.Context, organizations.WorkspaceID) ([]artifacts.Artifact, error)
+	Usage(context.Context, organizations.WorkspaceID) (artifacts.Usage, error)
+	HasActiveProtectedReference(context.Context, organizations.WorkspaceID, artifacts.ArtifactID) (bool, error)
 }
 type EventReader interface {
 	List(context.Context, organizations.WorkspaceID, string) ([]events.Event, error)

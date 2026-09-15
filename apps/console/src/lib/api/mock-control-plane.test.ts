@@ -418,4 +418,43 @@ describe("MockControlPlaneClient", () => {
     expect(snapshot.settings.find((setting) => setting.id === "setting-workspace-retention")?.state).toBe("retired")
     expect(snapshot.settingHistory[0]).toMatchObject({ settingId: "setting-workspace-retention", state: "retired", rowVersion: 3 })
   })
+
+  it("seeds artifact library storage health and audits without raw paths", () => {
+    const snapshot = new MockControlPlaneClient().getSnapshot()
+
+    expect(snapshot.artifacts.length).toBeGreaterThan(0)
+    expect(snapshot.storageHealth.quotaWarning).toBe(true)
+    expect(snapshot.artifactAudits.some((entry) => entry.action === "reject_admission")).toBe(true)
+    expect(JSON.stringify(snapshot.artifacts)).not.toMatch(/\/var\/|password|secret/i)
+  })
+
+  it("requires confirmation and blocks protected artifact deletes", () => {
+    const client = new MockControlPlaneClient()
+
+    const unconfirmed = client.dispatch({ type: "deleteArtifact", artifactId: "artifact-rec-orion-01", confirmed: false })
+    const protectedDelete = client.dispatch({ type: "deleteArtifact", artifactId: "artifact-shot-atlas-04", confirmed: true })
+    const deleted = client.dispatch({ type: "deleteArtifact", artifactId: "artifact-rec-orion-01", confirmed: true })
+    const unauthorized = client.dispatch({ type: "readArtifact", artifactId: "artifact-unauthorized-hidden" })
+
+    expect(unconfirmed.ok).toBe(false)
+    expect(protectedDelete.ok).toBe(false)
+    expect(protectedDelete.errorCode).toBe("policy_denied")
+    expect(deleted.ok).toBe(true)
+    expect(client.getSnapshot().artifacts.find((artifact) => artifact.id === "artifact-rec-orion-01")?.lifecycleState).toBe("deleted")
+    expect(unauthorized.ok).toBe(false)
+    expect(unauthorized.errorCode).toBe("unauthorized")
+    expect(client.getSnapshot().artifactAudits[0]?.action).toBe("read")
+  })
+
+  it("retries cleanup and records cleanup failures", () => {
+    const client = new MockControlPlaneClient()
+
+    const failed = client.dispatch({ type: "cleanupArtifact", artifactId: "artifact-cleanup-failed", confirmed: true })
+    const cleaned = client.dispatch({ type: "cleanupArtifact", artifactId: "artifact-rec-orion-01", confirmed: true })
+
+    expect(failed.ok).toBe(false)
+    expect(client.getSnapshot().storageHealth.cleanupFailures).toBeGreaterThan(1)
+    expect(cleaned.ok).toBe(true)
+    expect(client.getSnapshot().artifacts.find((artifact) => artifact.id === "artifact-rec-orion-01")?.lifecycleState).toBe("deleted")
+  })
 })

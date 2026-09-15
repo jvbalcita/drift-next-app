@@ -5,9 +5,12 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
+	"drift.local/drift-next/internal/artifacts"
+	"drift.local/drift-next/internal/artifacts/cas"
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/edge/registration"
 	"drift.local/drift-next/internal/organizations"
@@ -17,7 +20,10 @@ import (
 	transportconnect "drift.local/drift-next/internal/transport/connect"
 )
 
-const envControlPlaneDB = "DRIFT_CONTROL_PLANE_DB"
+const (
+	envControlPlaneDB   = "DRIFT_CONTROL_PLANE_DB"
+	envArtifactCASRoot  = "DRIFT_ARTIFACT_CAS_ROOT"
+)
 
 func main() {
 	// The listener stays on loopback: this is a local operator service. An
@@ -62,6 +68,7 @@ func main() {
 	// Keep the interface typed as LabRegistrationStore so a nil *store.DB is not
 	// stored as a non-nil interface value.
 	var durableStore transportconnect.LabRegistrationStore
+	var artifactAPI transportconnect.ArtifactAPI
 	dbPath := strings.TrimSpace(os.Getenv(envControlPlaneDB))
 	if dbPath != "" {
 		db, openErr := store.Open(context.Background(), dbPath, store.Options{})
@@ -77,6 +84,28 @@ func main() {
 		}
 		durableStore = db
 		log.Printf("control-plane durable lab registration enabled at %s", dbPath)
+
+		casRoot := strings.TrimSpace(os.Getenv(envArtifactCASRoot))
+		if casRoot == "" {
+			casRoot = filepath.Join(filepath.Dir(dbPath), "artifacts", "cas")
+		}
+		if !filepath.IsAbs(casRoot) {
+			absRoot, absErr := filepath.Abs(casRoot)
+			if absErr != nil {
+				log.Fatalf("refusing to start: resolve %s: %v", envArtifactCASRoot, absErr)
+			}
+			casRoot = absRoot
+		}
+		casStore, casErr := cas.Open(casRoot)
+		if casErr != nil {
+			log.Fatalf("refusing to start: open artifact CAS at %s: %v", casRoot, casErr)
+		}
+		artifactService, artifactErr := artifacts.NewService(store.NewArtifactService(db), casStore)
+		if artifactErr != nil {
+			log.Fatalf("refusing to start: construct artifact service: %v", artifactErr)
+		}
+		artifactAPI = artifactService
+		log.Printf("control-plane local artifact CAS enabled at %s", casStore.Root())
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -85,6 +114,9 @@ func main() {
 	routes := []service.Route{
 		service.LabAdapterRoute(labService, labToken),
 		service.LabRegistrationRouteWithStore(registrationService, durableStore, labToken, allowedPorts),
+	}
+	if artifactAPI != nil {
+		routes = append(routes, service.ArtifactRoute(artifactAPI, labToken))
 	}
 	server := service.NewHTTPServer("control-plane", address, routes...)
 	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s)", address, labMode, tokenState(labToken))

@@ -1,3 +1,8 @@
+# Opt-in adjacency only. P15 primary artifact storage is the control plane's
+# private local content-addressed filesystem under application data — not MinIO.
+# Start with: docker compose -f docker-compose.artifacts.yml --profile artifacts up
+# Do not treat this profile as required for local artifact workflows, CI, or
+# production media. Remote object storage, SFU, and TURN remain deferred.
 name: drift-next-artifacts
 
 services:

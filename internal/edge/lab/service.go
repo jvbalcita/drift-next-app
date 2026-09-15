@@ -88,6 +88,14 @@ type HierarchyObserver interface {
 	Capture(ctx context.Context, serial string) (uiautomator.HierarchyCapture, error)
 }
 
+// EvidencePersister stores screenshot and UI-tree bytes through the artifact
+// service only. Capture success must not depend on persistence; failures are
+// isolated from command and workflow outcomes.
+type EvidencePersister interface {
+	PersistScreenshot(ctx context.Context, workspace, ownerID, actorID string, png []byte, contentHash string) (artifactID string, err error)
+	PersistUITree(ctx context.Context, workspace, ownerID, actorID string, sanitizedJSON []byte) (artifactID string, err error)
+}
+
 // Authorizer decides whether an operator may perform one lab action. The
 // service always asks before touching an adapter, so authorization cannot be
 // skipped by a transport caller.
@@ -129,6 +137,7 @@ type Service struct {
 	captureTimeout time.Duration
 	previewLimit   int
 	eventLimit     int
+	evidence       EvidencePersister
 
 	// captureMu serializes observation so one device is never observed by two
 	// concurrent captures. It is local serialization only, not ownership.
@@ -235,6 +244,15 @@ func WithEventBuffer(size int) Option {
 			return errors.New("lab event buffer must be positive")
 		}
 		s.eventLimit = size
+		return nil
+	}
+}
+
+// WithEvidencePersister routes capture screenshots/UI trees through the
+// artifact service. Persistence failures never fail the observation itself.
+func WithEvidencePersister(persister EvidencePersister) Option {
+	return func(s *Service) error {
+		s.evidence = persister
 		return nil
 	}
 }

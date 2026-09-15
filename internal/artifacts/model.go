@@ -36,16 +36,21 @@ const (
 )
 
 type Artifact struct {
-	ID             ArtifactID
-	Workspace      organizations.WorkspaceID
-	ContentHash    string
-	SizeBytes      int64
-	MediaType      string
-	SchemaVersion  int
-	RetentionClass RetentionClass
-	State          State
-	CreatedAt      time.Time
-	DeletedAt      *time.Time
+	ID                    ArtifactID
+	Workspace             organizations.WorkspaceID
+	ContentHash           string
+	SizeBytes             int64
+	MediaType             string
+	SchemaVersion         int
+	RetentionClass        RetentionClass
+	Category              Category
+	State                 State
+	CreatedAt             time.Time
+	UpdatedAt             *time.Time
+	DeletedAt             *time.Time
+	DeletionOutcome       DeletionOutcome
+	FailureClassification FailureClassification
+	OmissionReason        string
 }
 
 type Reference struct {
@@ -77,7 +82,14 @@ func (a Artifact) Validate() error {
 	if strings.TrimSpace(string(a.ID)) == "" || strings.TrimSpace(string(a.Workspace)) == "" || strings.TrimSpace(a.ContentHash) == "" || strings.TrimSpace(a.MediaType) == "" || a.SizeBytes < 0 || a.SchemaVersion <= 0 || !a.RetentionClass.Valid() || !a.State.Valid() || a.CreatedAt.IsZero() {
 		return fmt.Errorf("artifact metadata is invalid")
 	}
-	if len(a.ContentHash) > 256 || len(a.MediaType) > 256 {
+	category := a.Category
+	if category == "" {
+		category = CategoryUnspecified
+	}
+	if !category.Valid() || !a.DeletionOutcome.Valid() || !a.FailureClassification.Valid() {
+		return fmt.Errorf("artifact classification fields are invalid")
+	}
+	if len(a.ContentHash) > 256 || len(a.MediaType) > 256 || len(a.OmissionReason) > 512 {
 		return fmt.Errorf("artifact metadata is unbounded")
 	}
 	if a.State == Deleted && a.DeletedAt == nil {
@@ -85,6 +97,9 @@ func (a Artifact) Validate() error {
 	}
 	if a.DeletedAt != nil && a.DeletedAt.Before(a.CreatedAt) {
 		return fmt.Errorf("artifact deletion time precedes creation")
+	}
+	if a.UpdatedAt != nil && a.UpdatedAt.Before(a.CreatedAt) {
+		return fmt.Errorf("artifact update time precedes creation")
 	}
 	return nil
 }

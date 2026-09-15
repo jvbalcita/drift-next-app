@@ -162,13 +162,16 @@ type ObservationBundle struct {
 	ScreenshotHash          string
 	ScreenshotBytes         int
 	ScreenshotMediaType     string
+	ScreenshotArtifactID    string
 	PreviewBase64           string
 	PreviewTruncated        bool
 	HierarchySummary        string
+	HierarchyArtifactID     string
 	NodeCount               int
 	MaxDepth                int
 	HierarchyComplete       bool
 	HierarchyFreshnessToken string
+	EvidencePersistFailed   bool
 	LatencyMs               int64
 	FailureClass            domain.FailureClass
 	Indeterminate           bool

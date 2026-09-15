@@ -82,6 +82,8 @@ func (r *captureRun) execute(ctx context.Context) (ObservationBundle, error) {
 	bundle.HierarchySummary = hierarchySummary(tree)
 	r.emit(EventUITreeCapture, tree.FailureClass, "observed hierarchy: "+bundle.HierarchySummary)
 
+	r.persistEvidence(ctx, &bundle, shot.PNG, shot.Hash, tree)
+
 	bundle.LatencyMs = r.latency.Milliseconds()
 	if class := postconditionClass(bundle, report, tree); class != "" {
 		bundle.FailureClass = class
@@ -93,6 +95,33 @@ func (r *captureRun) execute(ctx context.Context) (ObservationBundle, error) {
 	bundle.PostconditionVerified = true
 	bundle.Events = r.commit()
 	return bundle, nil
+}
+
+// persistEvidence stores screenshot/UI-tree bytes only through the configured
+// artifact persister. Failures are isolated: observation success is unchanged.
+func (r *captureRun) persistEvidence(ctx context.Context, bundle *ObservationBundle, png []byte, hash string, tree uiautomator.HierarchyCapture) {
+	if r.service.evidence == nil || bundle == nil {
+		return
+	}
+	workspace := "local"
+	ownerID := bundle.CorrelationID
+	if ownerID == "" {
+		ownerID = bundle.IdempotencyKey
+	}
+	actorID := r.request.OperatorID
+	if shotID, err := r.service.evidence.PersistScreenshot(ctx, workspace, ownerID, actorID, png, hash); err != nil {
+		bundle.EvidencePersistFailed = true
+		r.emit(EventObservationCapture, domain.FailureInfrastructure, "screenshot artifact persistence failed; observation continues")
+	} else {
+		bundle.ScreenshotArtifactID = shotID
+	}
+	payload := []byte(fmt.Sprintf(`{"summary":%q,"nodes":%d,"depth":%d,"complete":%t,"freshness":%q}`, bundle.HierarchySummary, tree.NodeCount, tree.MaxDepth, tree.Complete(), tree.FreshnessToken))
+	if treeID, err := r.service.evidence.PersistUITree(ctx, workspace, ownerID, actorID, payload); err != nil {
+		bundle.EvidencePersistFailed = true
+		r.emit(EventObservationCapture, domain.FailureInfrastructure, "ui-tree artifact persistence failed; observation continues")
+	} else {
+		bundle.HierarchyArtifactID = treeID
+	}
 }
 
 // reconcileTransport reacts to an observed transport-identity change with the

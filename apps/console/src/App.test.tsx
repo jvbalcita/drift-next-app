@@ -137,6 +137,7 @@ describe("Drift command center", () => {
       ["#workflows/skills", "Skills"],
       ["#agents/capabilities", "Capabilities"],
       ["#runs/failed", "Failed / indeterminate"],
+      ["#artifacts/storage", "Storage"],
       ["#policies/decisions", "Decision Log"],
       ["#settings/automation-agent", "Automation Agent"],
     ] as const
@@ -455,6 +456,7 @@ describe("Drift command center", () => {
       ["Groups", /Groups and membership/],
       ["Agents", /Agent profiles/],
       ["Runs", /Runs and targets/],
+      ["Artifacts", /^Artifacts$/],
       ["Events", /Events and Audit/],
       ["Policies", /^Policies$/],
       ["Settings", /^Settings$/],

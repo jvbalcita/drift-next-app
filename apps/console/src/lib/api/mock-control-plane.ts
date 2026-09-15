@@ -7,6 +7,8 @@ import type {
   AccountServiceStateView,
   AccountSourceView,
   AccountSyncEventView,
+  ArtifactAuditView,
+  ArtifactView,
   AutomationAgentProfileView,
   AutomationAgentView,
   ControlPlaneClient,
@@ -32,6 +34,7 @@ import type {
   PolicyView,
   PrerequisiteErrorCode,
   ProvisioningReadinessView,
+  RecordingMediaView,
   RunTargetView,
   RunView,
   RuntimeConnectionView,
@@ -41,6 +44,7 @@ import type {
   SettingView,
   SkillView,
   SpoolHealthView,
+  StorageHealthView,
   WorkflowView,
 } from "@/lib/domain/control-plane"
 
@@ -446,6 +450,285 @@ const spoolHealth: SpoolHealthView = {
   blockedSequences: [],
 }
 
+// artifactPreviewPixel is a 1x1 transparent PNG standing in for a sanitized,
+// size-bounded screenshot preview. No device pixels or secrets are represented.
+const artifactPreviewPixel = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
+const artifacts: ArtifactView[] = [
+  {
+    id: "artifact-shot-atlas-04",
+    contentHash: "sha256:mock-a04shot01",
+    category: "screenshot",
+    lifecycleState: "active",
+    retentionClass: "execution_evidence",
+    visibility: "authorized",
+    sizeBytes: 48_112,
+    createdAt: "09:39:12",
+    ownerType: "observation",
+    ownerId: "observation-atlas-04",
+    referenceType: "run_target",
+    referenceId: "target-1042-atlas-04",
+    deviceId: "atlas-04",
+    deletionEligible: false,
+    protectedReason: "Active Execution Evidence Reference",
+    previewKind: "screenshot",
+    sanitizedPreviewLabel: "Sanitized Screenshot Placeholder",
+    sanitizedPreviewDataUrl: artifactPreviewPixel,
+  },
+  {
+    id: "artifact-tree-atlas-04",
+    contentHash: "sha256:mock-a04tree01",
+    category: "ui_tree",
+    lifecycleState: "active",
+    retentionClass: "execution_evidence",
+    visibility: "authorized",
+    sizeBytes: 12_440,
+    createdAt: "09:39:13",
+    ownerType: "observation",
+    ownerId: "observation-atlas-04",
+    referenceType: "run_target",
+    referenceId: "target-1042-atlas-04",
+    deviceId: "atlas-04",
+    deletionEligible: false,
+    protectedReason: "Active Execution Evidence Reference",
+    previewKind: "ui_tree",
+    sanitizedPreviewLabel: "Bounded UI-Tree Summary",
+    uiTreeSummary: "nodes=42 · interactive=11 · text redacted · package=com.drift.demo",
+  },
+  {
+    id: "artifact-rec-orion-01",
+    contentHash: "sha256:mock-orionrec1",
+    category: "recording",
+    lifecycleState: "eligible_for_deletion",
+    retentionClass: "disposable",
+    visibility: "authorized",
+    sizeBytes: 1_048_576,
+    createdAt: "08:55:02",
+    ownerType: "recording_session",
+    ownerId: "recording-session-orion-01",
+    referenceType: "recording_session",
+    referenceId: "recording-session-orion-01",
+    deviceId: "orion-01",
+    deletionEligible: true,
+    previewKind: "recording",
+    sanitizedPreviewLabel: "Low-Res Session Thumbnail",
+    sanitizedPreviewDataUrl: artifactPreviewPixel,
+    recordingSessionId: "recording-session-orion-01",
+  },
+  {
+    id: "artifact-audit-policy",
+    contentHash: "sha256:mock-auditpol1",
+    category: "structured_evidence",
+    lifecycleState: "admitted",
+    retentionClass: "audit_security",
+    visibility: "authorized",
+    sizeBytes: 2_048,
+    createdAt: "08:12:40",
+    ownerType: "policy_decision",
+    ownerId: "decision-policy-001",
+    referenceType: "policy",
+    referenceId: "policy-default-safety",
+    deletionEligible: false,
+    protectedReason: "Audit Security Retention Class",
+    previewKind: "none",
+    sanitizedPreviewLabel: "Structured Evidence Metadata Only",
+  },
+  {
+    id: "artifact-redacted-nova",
+    contentHash: "sha256:mock-redacted01",
+    category: "screenshot",
+    lifecycleState: "redacted",
+    retentionClass: "execution_evidence",
+    visibility: "redacted",
+    sizeBytes: 0,
+    createdAt: "09:10:00",
+    ownerType: "observation",
+    ownerId: "observation-nova-02",
+    referenceType: "observation",
+    referenceId: "observation-nova-02",
+    deviceId: "nova-02",
+    deletionEligible: false,
+    protectedReason: "Redacted Content Retained As Marker",
+    previewKind: "none",
+    sanitizedPreviewLabel: "Preview Redacted",
+  },
+  {
+    id: "artifact-partial-atlas-07",
+    contentHash: "sha256:mock-partial07",
+    category: "screenshot",
+    lifecycleState: "partial",
+    retentionClass: "execution_evidence",
+    visibility: "partial",
+    sizeBytes: 8_192,
+    createdAt: "09:22:18",
+    ownerType: "observation",
+    ownerId: "observation-atlas-07",
+    referenceType: "observation",
+    referenceId: "observation-atlas-07",
+    deviceId: "atlas-07",
+    deletionEligible: false,
+    previewKind: "screenshot",
+    sanitizedPreviewLabel: "Partial Capture Placeholder",
+    sanitizedPreviewDataUrl: artifactPreviewPixel,
+    failureClass: "partial_capture",
+  },
+  {
+    id: "artifact-omitted-lab",
+    contentHash: "sha256:mock-omitted01",
+    category: "other",
+    lifecycleState: "eligible_for_deletion",
+    retentionClass: "disposable",
+    visibility: "omitted",
+    sizeBytes: 0,
+    createdAt: "09:01:00",
+    ownerType: "lab_adapter",
+    ownerId: "lab-adapter-local",
+    referenceType: "lab_observation",
+    referenceId: "lab-observation-omitted",
+    deletionEligible: true,
+    previewKind: "none",
+    sanitizedPreviewLabel: "Bytes Omitted From Console",
+  },
+  {
+    id: "artifact-unauthorized-hidden",
+    contentHash: "sha256:mock-unauth01",
+    category: "screenshot",
+    lifecycleState: "unauthorized",
+    retentionClass: "execution_evidence",
+    visibility: "unauthorized",
+    sizeBytes: 0,
+    createdAt: "09:05:00",
+    ownerType: "observation",
+    ownerId: "observation-restricted",
+    referenceType: "observation",
+    referenceId: "observation-restricted",
+    deletionEligible: false,
+    protectedReason: "Operator Not Authorized For This Artifact",
+    previewKind: "none",
+    sanitizedPreviewLabel: "Unauthorized — Content Withheld",
+  },
+  {
+    id: "artifact-cleanup-failed",
+    contentHash: "sha256:mock-cleanup01",
+    category: "recording",
+    lifecycleState: "cleanup_failed",
+    retentionClass: "disposable",
+    visibility: "authorized",
+    sizeBytes: 262_144,
+    createdAt: "07:40:00",
+    ownerType: "recording_session",
+    ownerId: "recording-session-cleanup",
+    referenceType: "recording_session",
+    referenceId: "recording-session-cleanup",
+    deviceId: "nova-05",
+    deletionEligible: true,
+    previewKind: "recording",
+    sanitizedPreviewLabel: "Cleanup Failed — Retry Eligible",
+    sanitizedPreviewDataUrl: artifactPreviewPixel,
+    recordingSessionId: "recording-session-cleanup",
+    failureClass: "cleanup_failed",
+  },
+]
+
+const recordingMedia: RecordingMediaView[] = [
+  {
+    id: "media-orion-01",
+    sessionId: "recording-session-orion-01",
+    deviceId: "orion-01",
+    state: "completed",
+    startedAt: "08:54:00",
+    endedAt: "08:55:02",
+    durationMs: 62_000,
+    artifactId: "artifact-rec-orion-01",
+    lowResPreviewLabel: "Low-Res Grid Thumbnail",
+    fullResAuthorized: true,
+  },
+  {
+    id: "media-atlas-04",
+    sessionId: "recording-session-atlas-04",
+    deviceId: "atlas-04",
+    state: "recording",
+    startedAt: "09:38:00",
+    lowResPreviewLabel: "Live Session Placeholder",
+    fullResAuthorized: true,
+  },
+  {
+    id: "media-nova-05",
+    sessionId: "recording-session-cleanup",
+    deviceId: "nova-05",
+    state: "cleanup_failed",
+    startedAt: "07:30:00",
+    endedAt: "07:40:00",
+    durationMs: 600_000,
+    artifactId: "artifact-cleanup-failed",
+    lowResPreviewLabel: "Cleanup Failed Thumbnail",
+    fullResAuthorized: false,
+    failureClass: "cleanup_failed",
+  },
+  {
+    id: "media-omitted",
+    sessionId: "recording-session-omitted",
+    deviceId: "nova-02",
+    state: "omitted",
+    startedAt: "09:00:00",
+    lowResPreviewLabel: "Recording Bytes Omitted",
+    fullResAuthorized: false,
+  },
+]
+
+const storageHealth: StorageHealthView = {
+  usedBytes: 1_381_512,
+  budgetBytes: 2_097_152,
+  objectCount: artifacts.length,
+  orphanMetadataCount: 1,
+  orphanBytesCount: 0,
+  quotaWarning: true,
+  warningSummary: "Workspace Storage Is Above 60% Of The Local Budget",
+  cleanupFailures: 1,
+}
+
+const artifactAudits: ArtifactAuditView[] = [
+  {
+    id: "artifact-audit-001",
+    action: "read",
+    artifactId: "artifact-shot-atlas-04",
+    actor: "operator-1",
+    occurredAt: "09:40:01",
+    outcome: "accepted",
+    summary: "Authorized Metadata Read For Sanitized Screenshot",
+  },
+  {
+    id: "artifact-audit-002",
+    action: "reject_admission",
+    artifactId: "artifact-rejected-secret",
+    actor: "admission-service",
+    occurredAt: "09:15:22",
+    outcome: "rejected",
+    summary: "Admission Rejected — Sensitive Payload Pattern Detected",
+    failureClass: "admission_rejected",
+  },
+  {
+    id: "artifact-audit-003",
+    action: "cleanup_failure",
+    artifactId: "artifact-cleanup-failed",
+    actor: "retention-worker",
+    occurredAt: "07:41:10",
+    outcome: "failed",
+    summary: "Cleanup Failed — Bytes Remain; Retry Eligible",
+    failureClass: "cleanup_failed",
+  },
+  {
+    id: "artifact-audit-004",
+    action: "delete",
+    artifactId: "artifact-omitted-lab",
+    actor: "operator-1",
+    occurredAt: "09:02:00",
+    outcome: "rejected",
+    summary: "Delete Rejected Without Explicit Confirmation",
+    failureClass: "precondition_failed",
+  },
+]
+
 export function buildMockSnapshot(): ControlPlaneSnapshot {
   return {
     workspaceName: workspace.name,
@@ -486,6 +769,10 @@ export function buildMockSnapshot(): ControlPlaneSnapshot {
     spoolHealth,
     indeterminateActions: [],
     labRegistration: null,
+    artifacts,
+    recordingMedia,
+    storageHealth,
+    artifactAudits,
   }
 }
 
@@ -691,7 +978,196 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.confirmSpoolReplay(intent)
       case "enqueueMockSpoolItem":
         return this.enqueueMockSpoolItem(intent)
+      case "readArtifact":
+        return this.readArtifact(intent)
+      case "deleteArtifact":
+        return this.deleteArtifact(intent)
+      case "cleanupArtifact":
+        return this.cleanupArtifact(intent)
     }
+  }
+
+  private appendArtifactAudit(entry: ArtifactAuditView): readonly ArtifactAuditView[] {
+    return [entry, ...this.snapshot.artifactAudits]
+  }
+
+  private readArtifact(intent: Extract<ControlPlaneIntent, { type: "readArtifact" }>): MutationResult {
+    const artifact = this.snapshot.artifacts.find((candidate) => candidate.id === intent.artifactId)
+    if (!artifact) return rejection(intent, "Artifact was not found in the mock projection.", intent.artifactId, "invalid_input")
+    if (artifact.visibility === "unauthorized") {
+      const audit: ArtifactAuditView = {
+        id: `artifact-audit-read-${this.nextSequence}`,
+        action: "read",
+        artifactId: artifact.id,
+        actor: "operator-1",
+        occurredAt: labStamp(this.nextSequence),
+        outcome: "rejected",
+        summary: "Unauthorized Artifact Read Rejected",
+        failureClass: "unauthorized",
+      }
+      this.nextSequence += 1
+      this.snapshot = { ...this.snapshot, artifactAudits: this.appendArtifactAudit(audit) }
+      return rejection(intent, "Unauthorized — artifact content is withheld.", artifact.id, "unauthorized")
+    }
+    const audit: ArtifactAuditView = {
+      id: `artifact-audit-read-${this.nextSequence}`,
+      action: "read",
+      artifactId: artifact.id,
+      actor: "operator-1",
+      occurredAt: labStamp(this.nextSequence),
+      outcome: "accepted",
+      summary: `Authorized Metadata Read For ${artifact.sanitizedPreviewLabel}`,
+    }
+    this.nextSequence += 1
+    this.snapshot = { ...this.snapshot, artifactAudits: this.appendArtifactAudit(audit) }
+    return result(intent, "Authorized artifact metadata loaded; bytes and secrets remain omitted.", artifact.id)
+  }
+
+  private deleteArtifact(intent: Extract<ControlPlaneIntent, { type: "deleteArtifact" }>): MutationResult {
+    const artifact = this.snapshot.artifacts.find((candidate) => candidate.id === intent.artifactId)
+    if (!artifact) return rejection(intent, "Artifact was not found in the mock projection.", intent.artifactId, "invalid_input")
+    if (!intent.confirmed) {
+      const audit: ArtifactAuditView = {
+        id: `artifact-audit-delete-${this.nextSequence}`,
+        action: "delete",
+        artifactId: artifact.id,
+        actor: "operator-1",
+        occurredAt: labStamp(this.nextSequence),
+        outcome: "rejected",
+        summary: "Delete Rejected Without Explicit Confirmation",
+        failureClass: "precondition_failed",
+      }
+      this.nextSequence += 1
+      this.snapshot = { ...this.snapshot, artifactAudits: this.appendArtifactAudit(audit) }
+      return rejection(intent, "Confirm deletion before removing an artifact.", artifact.id, "precondition_failed")
+    }
+    if (!artifact.deletionEligible || artifact.retentionClass === "audit_security") {
+      const audit: ArtifactAuditView = {
+        id: `artifact-audit-delete-${this.nextSequence}`,
+        action: "delete",
+        artifactId: artifact.id,
+        actor: "operator-1",
+        occurredAt: labStamp(this.nextSequence),
+        outcome: "rejected",
+        summary: artifact.protectedReason ?? "Protected Retention Class Blocks Deletion",
+        failureClass: "policy_denied",
+      }
+      this.nextSequence += 1
+      this.snapshot = { ...this.snapshot, artifactAudits: this.appendArtifactAudit(audit) }
+      return rejection(intent, artifact.protectedReason ?? "Protected artifacts cannot be deleted.", artifact.id, "policy_denied")
+    }
+    const updated: ArtifactView = {
+      ...artifact,
+      lifecycleState: "deleted",
+      deletionEligible: false,
+      sanitizedPreviewDataUrl: undefined,
+      uiTreeSummary: undefined,
+      sanitizedPreviewLabel: "Deleted — Metadata Marker Only",
+      visibility: artifact.visibility === "authorized" ? "omitted" : artifact.visibility,
+      sizeBytes: 0,
+    }
+    const audit: ArtifactAuditView = {
+      id: `artifact-audit-delete-${this.nextSequence}`,
+      action: "delete",
+      artifactId: artifact.id,
+      actor: "operator-1",
+      occurredAt: labStamp(this.nextSequence),
+      outcome: "accepted",
+      summary: "Artifact Deleted After Explicit Confirmation",
+    }
+    this.nextSequence += 1
+    const usedBytes = Math.max(0, this.snapshot.storageHealth.usedBytes - artifact.sizeBytes)
+    this.snapshot = {
+      ...this.snapshot,
+      artifacts: this.snapshot.artifacts.map((candidate) => (candidate.id === artifact.id ? updated : candidate)),
+      artifactAudits: this.appendArtifactAudit(audit),
+      storageHealth: {
+        ...this.snapshot.storageHealth,
+        usedBytes,
+        objectCount: Math.max(0, this.snapshot.storageHealth.objectCount - 1),
+        quotaWarning: usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6,
+        warningSummary:
+          usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6
+            ? "Workspace Storage Is Above 60% Of The Local Budget"
+            : "Workspace Storage Is Within The Local Budget",
+      },
+      events: addEvent(this.snapshot, {
+        id: `event-artifact-delete-${this.nextSequence}`,
+        kind: "audit",
+        name: "artifact.deleted",
+        actor: "operator-1",
+        resourceType: "artifact",
+        resourceId: artifact.id,
+        correlationId: `corr-artifact-${artifact.id}`,
+        occurredAt: audit.occurredAt,
+        payloadSummary: "Artifact metadata marked deleted; bytes omitted from console",
+      }),
+    }
+    return result(intent, "Artifact deleted after confirmation. Bytes are omitted from the console.", artifact.id)
+  }
+
+  private cleanupArtifact(intent: Extract<ControlPlaneIntent, { type: "cleanupArtifact" }>): MutationResult {
+    const artifact = this.snapshot.artifacts.find((candidate) => candidate.id === intent.artifactId)
+    if (!artifact) return rejection(intent, "Artifact was not found in the mock projection.", intent.artifactId, "invalid_input")
+    if (!intent.confirmed) {
+      return rejection(intent, "Confirm cleanup before retrying retention cleanup.", artifact.id, "precondition_failed")
+    }
+    if (artifact.lifecycleState !== "cleanup_failed" && artifact.lifecycleState !== "eligible_for_deletion") {
+      return rejection(intent, "Cleanup is only available for eligible or failed cleanup artifacts.", artifact.id, "precondition_failed")
+    }
+    if (artifact.id === "artifact-cleanup-failed" && artifact.lifecycleState === "cleanup_failed") {
+      const audit: ArtifactAuditView = {
+        id: `artifact-audit-cleanup-${this.nextSequence}`,
+        action: "cleanup_failure",
+        artifactId: artifact.id,
+        actor: "operator-1",
+        occurredAt: labStamp(this.nextSequence),
+        outcome: "failed",
+        summary: "Cleanup Retry Failed — Bytes Remain",
+        failureClass: "cleanup_failed",
+      }
+      this.nextSequence += 1
+      this.snapshot = {
+        ...this.snapshot,
+        artifactAudits: this.appendArtifactAudit(audit),
+        storageHealth: {
+          ...this.snapshot.storageHealth,
+          cleanupFailures: this.snapshot.storageHealth.cleanupFailures + 1,
+        },
+      }
+      return rejection(intent, "Cleanup retry failed in the mock projection. Review audit and retry later.", artifact.id)
+    }
+    const updated: ArtifactView = {
+      ...artifact,
+      lifecycleState: "deleted",
+      deletionEligible: false,
+      failureClass: undefined,
+      sanitizedPreviewDataUrl: undefined,
+      sanitizedPreviewLabel: "Cleaned Up — Metadata Marker Only",
+      sizeBytes: 0,
+      visibility: "omitted",
+    }
+    const audit: ArtifactAuditView = {
+      id: `artifact-audit-cleanup-${this.nextSequence}`,
+      action: "cleanup",
+      artifactId: artifact.id,
+      actor: "operator-1",
+      occurredAt: labStamp(this.nextSequence),
+      outcome: "accepted",
+      summary: "Cleanup Completed After Explicit Confirmation",
+    }
+    this.nextSequence += 1
+    this.snapshot = {
+      ...this.snapshot,
+      artifacts: this.snapshot.artifacts.map((candidate) => (candidate.id === artifact.id ? updated : candidate)),
+      artifactAudits: this.appendArtifactAudit(audit),
+      storageHealth: {
+        ...this.snapshot.storageHealth,
+        usedBytes: Math.max(0, this.snapshot.storageHealth.usedBytes - artifact.sizeBytes),
+        cleanupFailures: Math.max(0, this.snapshot.storageHealth.cleanupFailures - (artifact.lifecycleState === "cleanup_failed" ? 1 : 0)),
+      },
+    }
+    return result(intent, "Cleanup completed after confirmation.", artifact.id)
   }
 
   private discoverLabDevices(intent: Extract<ControlPlaneIntent, { type: "discoverLabDevices" }>): MutationResult {
