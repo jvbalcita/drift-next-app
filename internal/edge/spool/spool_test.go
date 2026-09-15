@@ -148,6 +148,10 @@ func TestSpoolNeverBlindReplaysDispatchedActions(t *testing.T) {
 	if err := q.MarkDispatched(item.Sequence, now.Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
+	_, err = q.ConfirmReplay(item.Sequence, true, now.Add(1500*time.Millisecond))
+	if platformerrors.CodeOf(err) != platformerrors.CodeConflict {
+		t.Fatalf("confirm while still dispatched/connected code = %v, want conflict", platformerrors.CodeOf(err))
+	}
 	q.SetConnectionState(spool.StateDisconnected, 1)
 
 	replay, err := q.NextReplayable(now.Add(2 * time.Second))

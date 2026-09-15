@@ -250,7 +250,7 @@ func (q *Queue) ConfirmReplay(sequence uint64, confirm bool, now time.Time) (Ite
 		if q.items[i].Sequence != sequence {
 			continue
 		}
-		if q.items[i].Outcome != OutcomeIndeterminate && q.items[i].Outcome != OutcomeDispatched {
+		if q.items[i].Outcome != OutcomeIndeterminate {
 			return Item{}, platformerrors.New(platformerrors.CodeConflict, "spool item is not awaiting operator confirmation")
 		}
 		if confirm {
