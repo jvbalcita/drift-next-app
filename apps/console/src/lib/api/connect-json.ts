@@ -6,13 +6,35 @@ export const labTokenHeader = "X-Drift-Lab-Token"
 
 export const defaultWorkspaceId = "workspace-lab-local"
 
-export const defaultOperatorId = import.meta.env.VITE_DRIFT_LAB_OPERATOR_ID?.trim() || "console-local-operator"
-
 const defaultControlPlaneUrl = "http://127.0.0.1:8080"
+const operatorStorageKey = "driftOperatorId:v1"
 
 export function usesMockControlPlane(): boolean {
   return import.meta.env.MODE === "test" || import.meta.env.VITE_DRIFT_USE_MOCK === "true"
 }
+
+export function resolvedOperatorId(options?: {
+  configured?: string
+  useMock?: boolean
+  storage?: { getItem(key: string): string | null; setItem(key: string, value: string): void }
+}): string {
+  const configured = (options?.configured ?? import.meta.env.VITE_DRIFT_LAB_OPERATOR_ID)?.trim()
+  if (configured) return configured
+  const useMock = options?.useMock ?? usesMockControlPlane()
+  if (useMock) return "console-local-operator"
+  const storage = options?.storage ?? (typeof sessionStorage === "undefined" ? undefined : sessionStorage)
+  try {
+    const existing = storage?.getItem(operatorStorageKey)?.trim()
+    if (existing) return existing
+    const id = `console-operator-${crypto.randomUUID()}`
+    storage?.setItem(operatorStorageKey, id)
+    return id
+  } catch {
+    return "console-local-operator"
+  }
+}
+
+export const defaultOperatorId = resolvedOperatorId()
 
 export function controlPlaneBaseUrl(): string {
   const configured = import.meta.env.VITE_DRIFT_CONTROL_PLANE_URL?.trim()

@@ -8,7 +8,7 @@ import {
   labIntentFailure,
 } from "@/lib/api/lab-control-plane"
 import { createLabRegistrationClient, toLabRegistrationView, toProvisioningReadinessView, type LabRegistrationClient } from "@/lib/api/lab-registration-client"
-import { newRequestId, usesMockControlPlane } from "@/lib/api/connect-json"
+import { defaultOperatorId, newRequestId, usesMockControlPlane } from "@/lib/api/connect-json"
 import { createMockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import { createRealControlPlaneClient } from "@/lib/api/real-control-plane"
 import type {
@@ -18,7 +18,18 @@ import type {
   MutationResult,
 } from "@/lib/domain/control-plane"
 
-const operatorId = import.meta.env.VITE_DRIFT_LAB_OPERATOR_ID ?? "console-local-operator"
+const operatorId = defaultOperatorId
+
+export function mergeAdapterProjection(next: ControlPlaneSnapshot, current: ControlPlaneSnapshot): ControlPlaneSnapshot {
+  const nextEmpty = next.labAdapter.discovered.length === 0 && next.labAdapter.confirmedSerial.length === 0
+  const currentEmpty = current.labAdapter.discovered.length === 0 && current.labAdapter.confirmedSerial.length === 0
+  return {
+    ...next,
+    labAdapter: nextEmpty && !currentEmpty ? current.labAdapter : next.labAdapter,
+    provisioningReadiness: next.provisioningReadiness ?? current.provisioningReadiness,
+    labRegistration: next.labRegistration ?? current.labRegistration,
+  }
+}
 
 export interface ControlPlaneViewModel {
   snapshot: ControlPlaneSnapshot
@@ -48,14 +59,14 @@ export function useControlPlane(): ControlPlaneViewModel {
     try {
       const next = await client.refresh()
       const overlay = await overlayAdapterStatus(next, labClient, registrationClient, operatorId)
-      setSnapshot(overlay)
+      setSnapshot((current) => mergeAdapterProjection(overlay, current))
       if (overlay.runtimeConnection.disconnectedReason === "Control plane unreachable." || overlay.runtimeConnection.disconnectedReason === "Control plane authorization failed.") {
         setConnectionError(overlay.runtimeConnection.disconnectedReason)
       }
     } catch (cause: unknown) {
       const message = cause instanceof Error ? cause.message : "Control plane unreachable."
       setConnectionError(message)
-      setSnapshot(client.getSnapshot())
+      setSnapshot((current) => mergeAdapterProjection(client.getSnapshot(), current))
     } finally {
       setLoading(false)
     }
@@ -92,7 +103,7 @@ export function useControlPlane(): ControlPlaneViewModel {
         return { ok: true, kind: intent.type, message }
       }
       const mutation = await client.dispatch(intent)
-      setSnapshot(client.getSnapshot())
+      setSnapshot((current) => mergeAdapterProjection(client.getSnapshot(), current))
       return mutation
     } catch (cause: unknown) {
       if (isLabControlPlaneIntent(intent) || isLabRegistrationControlPlaneIntent(intent)) {
@@ -112,7 +123,7 @@ export function useControlPlane(): ControlPlaneViewModel {
       return applyRemoteLab(intent)
     }
     const mutation = await client.dispatch(intent)
-    setSnapshot(client.getSnapshot())
+    setSnapshot((current) => mergeAdapterProjection(client.getSnapshot(), current))
     return mutation
   }, [applyRemoteLab, client, labClient, registrationClient])
 

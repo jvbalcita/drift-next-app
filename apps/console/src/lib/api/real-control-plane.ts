@@ -51,6 +51,7 @@ import {
   ConnectJsonError,
   configuredLabToken,
   controlPlaneBaseUrl,
+  defaultOperatorId,
   defaultWorkspaceId,
   isAuthorizationFailure,
   isNetworkFailure,
@@ -139,7 +140,7 @@ import type {
   WorkflowView,
 } from "@/lib/domain/control-plane"
 
-const operatorId = import.meta.env.VITE_DRIFT_LAB_OPERATOR_ID ?? "console-local-operator"
+const operatorId = defaultOperatorId
 
 const settingScopes: readonly ProtoSettingScope[] = [
   ProtoSettingScope.WORKSPACE,
