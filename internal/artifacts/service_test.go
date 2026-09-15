@@ -69,6 +69,7 @@ func TestArtifactServiceStoreReadDeleteLifecycleAndQuota(t *testing.T) {
 	payload := []byte("safe-screenshot-bytes")
 	result, err := service.Store(ctx, artifacts.StoreRequest{
 		Workspace: workspace, MediaType: "image/png", Category: artifacts.CategoryScreenshot,
+		Sensitivity:    artifacts.SensitivitySafe,
 		RetentionClass: artifacts.RetentionDisposable, Payload: payload, ActorType: "operator", ActorID: "op-1",
 		OwnerType: "observation", OwnerID: "obs-1",
 	})
@@ -77,6 +78,7 @@ func TestArtifactServiceStoreReadDeleteLifecycleAndQuota(t *testing.T) {
 	}
 	dup, err := service.Store(ctx, artifacts.StoreRequest{
 		Workspace: workspace, MediaType: "image/png", Category: artifacts.CategoryScreenshot,
+		Sensitivity:    artifacts.SensitivitySafe,
 		RetentionClass: artifacts.RetentionDisposable, Payload: payload, ActorType: "operator", ActorID: "op-1",
 	})
 	if err != nil || dup.Artifact.ID != result.Artifact.ID {
@@ -93,7 +95,8 @@ func TestArtifactServiceStoreReadDeleteLifecycleAndQuota(t *testing.T) {
 	oversized := make([]byte, 2048)
 	if _, err := service.Store(ctx, artifacts.StoreRequest{
 		Workspace: workspace, MediaType: "image/png", Category: artifacts.CategoryScreenshot,
-		Payload: oversized, ActorType: "operator", ActorID: "op-1",
+		Sensitivity: artifacts.SensitivitySafe,
+		Payload:     oversized, ActorType: "operator", ActorID: "op-1",
 	}); platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
 		t.Fatalf("quota code = %v", platformerrors.CodeOf(err))
 	}
@@ -121,6 +124,14 @@ func TestArtifactAdmissionRejectsSensitiveAndRecordsOmission(t *testing.T) {
 	if decision.Allowed {
 		t.Fatal("uncertain-sensitive must fail closed")
 	}
+	binary := artifacts.AdmitBytes("image/png", []byte("raw-png-bytes"))
+	if binary.Allowed || binary.Sensitivity != artifacts.SensitivityUncertainSensitive {
+		t.Fatalf("unsanitized binary must fail closed: %#v", binary)
+	}
+	safeBinary := artifacts.AdmitWithClassification("image/png", []byte("raw-png-bytes"), artifacts.SensitivitySafe)
+	if !safeBinary.Allowed {
+		t.Fatalf("explicit SensitivitySafe binary must admit structurally: %#v", safeBinary)
+	}
 }
 
 func TestArtifactWorkspaceIsolation(t *testing.T) {
@@ -132,7 +143,8 @@ func TestArtifactWorkspaceIsolation(t *testing.T) {
 	}
 	result, err := service.Store(ctx, artifacts.StoreRequest{
 		Workspace: workspace, MediaType: "image/png", Category: artifacts.CategoryScreenshot,
-		Payload: []byte("a"), ActorType: "operator", ActorID: "op-1",
+		Sensitivity: artifacts.SensitivitySafe,
+		Payload:     []byte("a"), ActorType: "operator", ActorID: "op-1",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -147,6 +159,7 @@ func TestCleanupFailedVisibilityAndOrphans(t *testing.T) {
 	ctx := context.Background()
 	result, err := service.Store(ctx, artifacts.StoreRequest{
 		Workspace: workspace, MediaType: "image/png", Category: artifacts.CategoryScreenshot,
+		Sensitivity:    artifacts.SensitivitySafe,
 		RetentionClass: artifacts.RetentionDisposable, Payload: []byte("orphan-bytes"),
 		ActorType: "operator", ActorID: "op-1",
 	})
@@ -181,8 +194,12 @@ func TestCapturePersisterIsolation(t *testing.T) {
 	service, _, _, workspace := artifactFixture(t)
 	persister := artifacts.CapturePersister{Service: service, Workspace: workspace}
 	id, err := persister.PersistScreenshot(context.Background(), string(workspace), "owner-1", "op-1", []byte("png-bytes"), "")
+	if err == nil || id == "" || !strings.Contains(err.Error(), "omitted") {
+		t.Fatalf("unsanitized screenshot must omit = %q/%v", id, err)
+	}
+	id, err = persister.PersistSanitizedScreenshot(context.Background(), string(workspace), "owner-1", "op-1", []byte("png-bytes"), "")
 	if err != nil || id == "" {
-		t.Fatalf("persist screenshot = %q/%v", id, err)
+		t.Fatalf("sanitized screenshot persist = %q/%v", id, err)
 	}
 	if _, err := persister.PersistUITree(context.Background(), string(workspace), "owner-1", "op-1", []byte(`{"password":"TEST_ONLY_PASSWORD_SENTINEL"}`)); err == nil || !strings.Contains(err.Error(), "omitted") {
 		t.Fatalf("sensitive ui tree err = %v", err)

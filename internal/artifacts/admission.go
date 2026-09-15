@@ -61,12 +61,13 @@ func AdmitBytes(mediaType string, payload []byte) AdmissionDecision {
 
 	if isBinaryMedia(mediaType) {
 		// Binary screenshots/recordings cannot be string-scanned reliably.
-		// Absence of a text secret is not proof of safety; callers that know
-		// the capture is uncertain must pass an explicit override via
-		// AdmitWithClassification.
+		// Absence of a detected text secret is not proof of safety. Callers
+		// must pass SensitivitySafe only after a trusted sanitization boundary.
 		return AdmissionDecision{
-			Allowed:     true,
-			Sensitivity: SensitivitySafe,
+			Allowed:        false,
+			Sensitivity:    SensitivityUncertainSensitive,
+			FailureClass:   FailureAdmissionRejected,
+			OmissionReason: "binary media omitted as uncertain-sensitive until explicit SensitivitySafe after sanitization",
 		}
 	}
 
@@ -95,7 +96,8 @@ func AdmitBytes(mediaType string, payload []byte) AdmissionDecision {
 }
 
 // AdmitWithClassification applies an explicit sensitivity override. Sensitive
-// and uncertain-sensitive always fail closed.
+// and uncertain-sensitive always fail closed. SensitivitySafe is reserved for
+// a trusted sanitization boundary and performs structural checks only.
 func AdmitWithClassification(mediaType string, payload []byte, classification SensitivityClass) AdmissionDecision {
 	switch classification {
 	case SensitivitySensitive, SensitivityUncertainSensitive:
@@ -105,7 +107,9 @@ func AdmitWithClassification(mediaType string, payload []byte, classification Se
 			FailureClass:   FailureAdmissionRejected,
 			OmissionReason: fmt.Sprintf("explicit %s classification refused admission", classification),
 		}
-	case SensitivitySafe, "":
+	case SensitivitySafe:
+		return admitStructural(mediaType, payload)
+	case "":
 		return AdmitBytes(mediaType, payload)
 	default:
 		return AdmissionDecision{
@@ -115,6 +119,29 @@ func AdmitWithClassification(mediaType string, payload []byte, classification Se
 			OmissionReason: "unknown sensitivity classification refused admission",
 		}
 	}
+}
+
+// admitStructural validates media type and non-empty payload after an explicit
+// SensitivitySafe classification from a trusted sanitizer boundary.
+func admitStructural(mediaType string, payload []byte) AdmissionDecision {
+	mediaType = strings.TrimSpace(mediaType)
+	if mediaType == "" {
+		return AdmissionDecision{
+			Allowed:        false,
+			Sensitivity:    SensitivityUncertainSensitive,
+			FailureClass:   FailureAdmissionRejected,
+			OmissionReason: "media type is required for admission",
+		}
+	}
+	if len(payload) == 0 {
+		return AdmissionDecision{
+			Allowed:        false,
+			Sensitivity:    SensitivityUncertainSensitive,
+			FailureClass:   FailureAdmissionRejected,
+			OmissionReason: "empty payloads are not admitted",
+		}
+	}
+	return AdmissionDecision{Allowed: true, Sensitivity: SensitivitySafe}
 }
 
 func isTextualMedia(mediaType string) bool {

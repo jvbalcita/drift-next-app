@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	envControlPlaneDB   = "DRIFT_CONTROL_PLANE_DB"
-	envArtifactCASRoot  = "DRIFT_ARTIFACT_CAS_ROOT"
+	envControlPlaneDB  = "DRIFT_CONTROL_PLANE_DB"
+	envArtifactCASRoot = "DRIFT_ARTIFACT_CAS_ROOT"
 )
 
 func main() {
@@ -38,37 +38,19 @@ func main() {
 		log.Fatalf("refusing to start: %v (set DRIFT_CONTROL_PLANE_ADDR to 127.0.0.1:PORT, [::1]:PORT, or localhost:PORT)", err)
 	}
 
-	// Lab mode requires an explicit opt-in plus a configured adb path; anything
-	// else yields a deterministic mock service that never reaches a device.
-	labService, err := lab.NewServiceFromEnv(os.LookupEnv)
-	if err != nil {
-		log.Fatal(err)
-	}
-	labMode := "mock"
 	labToken := strings.TrimSpace(os.Getenv(lab.EnvLabToken))
-	if lab.LabModeRequested(os.LookupEnv) {
-		labMode = "lab"
+	if lab.LabModeRequested(os.LookupEnv) && labToken == "" {
 		// Loopback keeps the surface off the network, but it does not
 		// distinguish a hostile local process from the console. Real-device
 		// mode therefore requires a shared secret as well.
-		if labToken == "" {
-			log.Fatalf("refusing to start lab mode: %s must be set to a non-empty local lab token", lab.EnvLabToken)
-		}
+		log.Fatalf("refusing to start lab mode: %s must be set to a non-empty local lab token", lab.EnvLabToken)
 	}
-
-	allowedPorts := []uint16{5555}
-	registrationService := registration.NewService(registration.Config{
-		MaxRegisteredDevices: 1,
-		Probe: registration.LabStatusProbe{
-			Source:       labService,
-			AllowedPorts: allowedPorts,
-		},
-	})
 
 	// Keep the interface typed as LabRegistrationStore so a nil *store.DB is not
 	// stored as a non-nil interface value.
 	var durableStore transportconnect.LabRegistrationStore
 	var artifactAPI transportconnect.ArtifactAPI
+	var labOpts []lab.Option
 	dbPath := strings.TrimSpace(os.Getenv(envControlPlaneDB))
 	if dbPath != "" {
 		db, openErr := store.Open(context.Background(), dbPath, store.Options{})
@@ -105,8 +87,32 @@ func main() {
 			log.Fatalf("refusing to start: construct artifact service: %v", artifactErr)
 		}
 		artifactAPI = artifactService
+		labOpts = append(labOpts, lab.WithEvidencePersister(artifacts.CapturePersister{
+			Service:   artifactService,
+			Workspace: workspaceID,
+		}))
 		log.Printf("control-plane local artifact CAS enabled at %s", casStore.Root())
 	}
+
+	// Lab mode requires an explicit opt-in plus a configured adb path; anything
+	// else yields a deterministic mock service that never reaches a device.
+	labService, err := lab.NewServiceFromEnv(os.LookupEnv, labOpts...)
+	if err != nil {
+		log.Fatal(err)
+	}
+	labMode := "mock"
+	if lab.LabModeRequested(os.LookupEnv) {
+		labMode = "lab"
+	}
+
+	allowedPorts := []uint16{5555}
+	registrationService := registration.NewService(registration.Config{
+		MaxRegisteredDevices: 1,
+		Probe: registration.LabStatusProbe{
+			Source:       labService,
+			AllowedPorts: allowedPorts,
+		},
+	})
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

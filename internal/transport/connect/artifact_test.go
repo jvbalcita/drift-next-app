@@ -40,7 +40,8 @@ func TestArtifactHandlerListGetRead(t *testing.T) {
 	}
 	stored, err := service.Store(context.Background(), artifacts.StoreRequest{
 		Workspace: workspace.ID, MediaType: "image/png", Category: artifacts.CategoryScreenshot,
-		Payload: []byte("connect-png"), ActorType: "operator", ActorID: "op-1",
+		Sensitivity: artifacts.SensitivitySafe,
+		Payload:     []byte("connect-png"), ActorType: "operator", ActorID: "op-1",
 	})
 	if err != nil {
 		t.Fatal(err)

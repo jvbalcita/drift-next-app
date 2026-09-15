@@ -15,7 +15,20 @@ type CapturePersister struct {
 }
 
 // PersistScreenshot stores PNG bytes through the artifact service only.
+// Raw device bytes are admitted only when Sensitivity is left unset: binary
+// media fails closed as uncertain-sensitive and omission metadata is retained.
+// Use PersistSanitizedScreenshot after a trusted sanitization boundary.
 func (p CapturePersister) PersistScreenshot(ctx context.Context, workspace, ownerID, actorID string, png []byte, contentHash string) (string, error) {
+	return p.persistScreenshot(ctx, workspace, ownerID, actorID, png, contentHash, "")
+}
+
+// PersistSanitizedScreenshot admits PNG bytes only after an explicit safe
+// classification from a trusted sanitization boundary.
+func (p CapturePersister) PersistSanitizedScreenshot(ctx context.Context, workspace, ownerID, actorID string, png []byte, contentHash string) (string, error) {
+	return p.persistScreenshot(ctx, workspace, ownerID, actorID, png, contentHash, SensitivitySafe)
+}
+
+func (p CapturePersister) persistScreenshot(ctx context.Context, workspace, ownerID, actorID string, png []byte, contentHash string, sensitivity SensitivityClass) (string, error) {
 	if p.Service == nil {
 		return "", platformerrors.New(platformerrors.CodeInvalidInput, "artifact service is required")
 	}
@@ -34,6 +47,7 @@ func (p CapturePersister) PersistScreenshot(ctx context.Context, workspace, owne
 		SchemaVersion:  1,
 		Payload:        png,
 		DeclaredHash:   contentHash,
+		Sensitivity:    sensitivity,
 		ActorType:      "edge_agent",
 		ActorID:        actorID,
 		OwnerType:      "observation",

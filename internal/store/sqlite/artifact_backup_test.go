@@ -38,7 +38,8 @@ func TestArtifactBackupRestoreVerification(t *testing.T) {
 	}
 	if _, err := service.Store(context.Background(), artifacts.StoreRequest{
 		Workspace: workspace.ID, MediaType: "image/png", Category: artifacts.CategoryScreenshot,
-		Payload: []byte("unit"), ActorType: "operator", ActorID: "op-1",
+		Sensitivity: artifacts.SensitivitySafe,
+		Payload:     []byte("unit"), ActorType: "operator", ActorID: "op-1",
 	}); err != nil {
 		t.Fatal(err)
 	}

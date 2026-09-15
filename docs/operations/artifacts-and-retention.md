@@ -71,6 +71,9 @@ Audited events include: artifact reads, rejected admissions, retention decisions
 
 Before CAS admission, reject screenshots, UI trees, OCR results, annotations, traces, and recordings that contain sensitive or **uncertain-sensitive** content.
 
+- Binary media (`image/*`, `video/*`, `audio/*`, `application/octet-stream`) **fails closed** as uncertain-sensitive by default. String scanning cannot prove a screenshot or recording is safe.
+- Callers may admit binary bytes only with an explicit `SensitivitySafe` classification from a trusted sanitization boundary (`AdmitWithClassification` / `PersistSanitizedScreenshot`).
+- Raw capture paths (`PersistScreenshot`) omit bytes and retain omission metadata when sanitization has not completed.
 - Do not persist unsafe bytes merely because metadata is available.
 - Store bounded omission/error metadata explaining rejection.
 - Redact sensitive text before persistence, audit, logs, previews, and API responses.
