@@ -105,7 +105,11 @@ func (h *LabRegistrationHandler) VerifyLabProvisioning(ctx context.Context, requ
 	var priorApproval registration.Approval
 	var hadPriorApproval bool
 	if h.store != nil {
-		_, _, priorApproval, hadPriorApproval, _, _, _ = h.store.LoadLabRegistrationStatus(ctx, workspace, target.Serial)
+		_, _, prior, hadPrior, _, _, loadErr := h.store.LoadLabRegistrationStatus(ctx, workspace, target.Serial)
+		if loadErr != nil {
+			return nil, MapError(loadErr)
+		}
+		priorApproval, hadPriorApproval = prior, hadPrior
 	}
 	ready, verifyErr := svc.VerifyProvisioning(ctx, target, h.clock())
 	if verifyErr != nil {
