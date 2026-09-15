@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent } from "react"
 import { Check, Edit3, Globe2, Plus, Radar, Save, ShieldCheck, Trash2 } from "lucide-react"
+import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -22,6 +23,10 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
   const [reviewCandidateId, setReviewCandidateId] = useState<string | null>(null)
   const selectedProfile = snapshot.networkProfiles.find((profile) => profile.id === selectedProfileId)
   const reviewCandidate = snapshot.scanCandidates.find((candidate) => candidate.id === reviewCandidateId)
+  const readiness = snapshot.provisioningReadiness
+  const registration = snapshot.labRegistration
+  const runtime = snapshot.runtimeConnection
+  const spool = snapshot.spoolHealth
 
   function selectProfile(profile: NetworkProfileView) { setSelectedProfileId(profile.id); setName(profile.name); setAddressPolicy(profile.addressPolicy); setPorts(profile.ports.join(", ")); setIsDefault(profile.isDefault); setProfileErrors({}); setFeedback("") }
   function beginNewProfile() { setSelectedProfileId("new"); setName(""); setAddressPolicy("192.0.2.0/24"); setPorts("5555"); setIsDefault(false); setProfileErrors({}); setFeedback(""); setProfileDialogOpen(true) }
@@ -34,12 +39,62 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
 
   return <>
     <PageIntro eyebrow="DISCOVERY / NETWORK PROFILES" title="Network Profiles" description="Define bounded, non-authoritative discovery policy separately from scan execution and candidate approval." actions={<div className="flex gap-2"><Button variant="outline" size="sm" onClick={beginNewProfile}><Plus className="size-3.5" aria-hidden="true" />New profile</Button><Button size="sm" onClick={() => setScanDialogOpen(true)} disabled={!selectedProfile || selectedProfile.state !== "active"}><Radar className="size-3.5" aria-hidden="true" />Configure scan</Button></div>} />
-    <MockNotice>Address policies use documentation ranges and the transport is a deterministic mock. Saving or scanning opens no network socket and registers no real endpoint.</MockNotice>
-    <Tabs value={view} onValueChange={onViewChange} className="mt-6"><TabsList className="h-auto flex-wrap rounded-none border border-border bg-background p-0" aria-label="Network profile views"><TabsTrigger value="profiles" className="rounded-none">Profiles</TabsTrigger><TabsTrigger value="scans" className="rounded-none">Discovery scans</TabsTrigger><TabsTrigger value="candidates" className="rounded-none">Pending candidates</TabsTrigger><TabsTrigger value="endpoints" className="rounded-none">Registered endpoints</TabsTrigger><TabsTrigger value="history" className="rounded-none">History</TabsTrigger></TabsList>
+    <MockNotice>Address policies use documentation ranges and the transport is a deterministic mock. Saving or scanning opens no network socket and registers no real endpoint. Lab Provisioning and Mock Lab Registration are labeled separately from Discovery scans.</MockNotice>
+    <Tabs value={view} onValueChange={onViewChange} className="mt-6"><TabsList className="h-auto flex-wrap rounded-none border border-border bg-background p-0" aria-label="Network profile views"><TabsTrigger value="profiles" className="rounded-none">Profiles</TabsTrigger><TabsTrigger value="scans" className="rounded-none">Discovery scans</TabsTrigger><TabsTrigger value="candidates" className="rounded-none">Pending candidates</TabsTrigger><TabsTrigger value="endpoints" className="rounded-none">Registered endpoints</TabsTrigger><TabsTrigger value="provisioning" className="rounded-none">Lab Provisioning</TabsTrigger><TabsTrigger value="history" className="rounded-none">History</TabsTrigger></TabsList>
       <TabsContent value="profiles" className="mt-6"><Panel title="Profile Catalog" description="Profile definitions constrain discovery; they do not establish an endpoint or approval."><ProfileTable profiles={snapshot.networkProfiles} onEdit={(profile) => { selectProfile(profile); setProfileDialogOpen(true) }} /></Panel></TabsContent>
       <TabsContent value="scans" className="mt-6"><Panel title="Discovery scans" description="A scan is an explicit mock intent against an active profile; it never approves candidates." action={<Button size="sm" onClick={() => setScanDialogOpen(true)} disabled={!selectedProfile || selectedProfile.state !== "active"}><Radar className="size-3.5" aria-hidden="true" />Configure scan</Button>}><ScanTable runs={snapshot.scanRuns} /></Panel></TabsContent>
       <TabsContent value="candidates" className="mt-6"><Panel title="Pending candidate review" description="Discovery, approval, and canonical registration remain independent transitions."><div className="mb-4 flex items-start gap-2 border border-border bg-muted/40 p-3 text-[11px] leading-5 text-muted-foreground"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />Candidate evidence is sanitized. Review opens a separate sheet before any mock decision is dispatched.</div><div className="space-y-2">{snapshot.scanCandidates.length === 0 ? <EmptyState label="No scan candidates" detail="Run a mock scan to populate the review queue." /> : snapshot.scanCandidates.map((candidate) => <button key={candidate.id} type="button" onClick={() => setReviewCandidateId(candidate.id)} className="flex w-full flex-wrap items-center justify-between gap-3 border border-border p-3 text-left transition-colors hover:bg-muted focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/30"><div><p className="text-sm font-medium">{candidate.host}:{candidate.port}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{candidate.id} · {candidate.serial} · {candidate.fingerprint}</p><p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground"><Globe2 className="size-3.5 text-primary" aria-hidden="true" />{candidate.evidenceSummary}</p></div><StatusBadge label={candidate.state.replaceAll("_", " ")} tone={candidate.state === "approved" || candidate.state === "registered" ? "healthy" : candidate.state === "rejected" || candidate.state === "expired" ? "danger" : "attention"} /></button>)}</div></Panel></TabsContent>
       <TabsContent value="endpoints" className="mt-6"><Panel title="Registered Endpoints" description="Endpoint records are canonical identities distinct from unapproved scan candidates."><EndpointTable endpoints={snapshot.endpoints} /></Panel></TabsContent>
+      <TabsContent value="provisioning" className="mt-6">
+        <Panel
+          title="Lab Provisioning"
+          description="Discovery, Approval, Provisioning, and Registration are separate stages. Mock Lab Registration is never a real device registration."
+        >
+          <div className="mb-4 flex flex-wrap gap-2" aria-label="Lab provisioning stages">
+            <StatusBadge label="Discovery" tone={snapshot.labAdapter.discovered.length > 0 ? "healthy" : "neutral"} />
+            <StatusBadge label="Approval" tone={registration?.approved ? "healthy" : "attention"} />
+            <StatusBadge label="Provisioning" tone={readiness?.ready ? "healthy" : "attention"} />
+            <StatusBadge label="Registration" tone={registration?.state === "registered" ? "info" : "neutral"} />
+            <StatusBadge label="Mock Only" tone="info" />
+          </div>
+          <dl className="mb-4 grid gap-3 text-[11px] sm:grid-cols-2 xl:grid-cols-4">
+            <div><dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">Runtime</dt><dd className="mt-1 font-medium">{runtime.state}</dd></div>
+            <div><dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">Spool</dt><dd className="mt-1 font-medium">Pending {spool.pending} · Blocked {spool.blocked}</dd></div>
+            <div><dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">Fence Token</dt><dd className="drift-data mt-1 text-[10px]">{spool.fenceToken} (observation, not lease)</dd></div>
+            <div><dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">Indeterminate</dt><dd className="mt-1 font-medium">{snapshot.indeterminateActions.length} awaiting confirmation</dd></div>
+          </dl>
+          {!readiness && !registration
+            ? <EmptyState label="No Lab Provisioning Evidence" detail="Use Control → Lab Provisioning after Discovery and target confirmation, or verify readiness evidence here once a serial is confirmed." />
+            : <div className="space-y-3 border border-border p-3 text-[11px] leading-5">
+              {readiness ? <p><span className="font-semibold">Provisioning:</span> {readiness.serial} · {readiness.ready ? "Ready" : "Blocked"} · {readiness.notes.join(" · ") || "No notes"}{readiness.errorCode ? ` · ${readiness.errorCode.replaceAll("_", " ")}` : ""}</p> : null}
+              {registration ? <p><span className="font-semibold">Mock Lab Registration:</span> {registration.displayName} · {registration.state.replaceAll("_", " ")} · mockLabeled={String(registration.mockLabeled)}</p> : <p className="text-muted-foreground">Registration has not started.</p>}
+            </div>}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" disabled={!snapshot.labAdapter.confirmedSerial} onClick={() => setFeedback(dispatch({
+              type: "verifyLabProvisioning",
+              serial: snapshot.labAdapter.confirmedSerial,
+              transportId: snapshot.labAdapter.transportId || "3",
+              endpointHost: "127.0.0.1",
+              endpointPort: snapshot.labAdapter.connectionType === "tcp" ? 5555 : 0,
+              connectionType: snapshot.labAdapter.connectionType || "usb",
+              pairingAuthorized: true,
+              adbServerOwned: true,
+              platformToolsCompatible: true,
+              portPolicyAllowed: true,
+              rollbackReady: true,
+              operatorAuthorized: true,
+            }).message)}>Verify Provisioning</Button>
+            <AlertDialog>
+              <AlertDialogTrigger render={<Button size="sm" variant="outline" disabled={!readiness?.ready || registration?.state === "registered"} />}>Approve Provisioning</AlertDialogTrigger>
+              <AlertDialogContent title="Approve Lab Provisioning?" description="Approval is separate from Registration. This mock Approval does not register a real device." confirmLabel="Grant Approval" onConfirm={() => setFeedback(dispatch({ type: "approveLabProvisioning", serial: readiness?.serial ?? "", reason: "Network Profiles Approval after Provisioning" }).message)} />
+            </AlertDialog>
+            <AlertDialog>
+              <AlertDialogTrigger render={<Button size="sm" disabled={!registration?.approved || registration.state === "registered"} />}>Register Mock Lab Device</AlertDialogTrigger>
+              <AlertDialogContent title="Register Mock Lab Device?" description="Creates a Mock Lab Registration record only. This is not a real device registration." confirmLabel="Confirm Mock Registration" onConfirm={() => setFeedback(dispatch({ type: "registerLabDevice", serial: registration?.serial ?? "", displayName: registration?.displayName ?? "Mock Lab", approved: true }).message)} />
+            </AlertDialog>
+          </div>
+        </Panel>
+      </TabsContent>
       <TabsContent value="history" className="mt-6"><Panel title="Scan history" description="Every attempted scan retains its profile reference and terminal outcome."><ScanTable runs={snapshot.scanRuns} /></Panel></TabsContent>
     </Tabs>
     <p aria-live="polite" className="mt-6 border-l-2 border-primary bg-secondary/60 p-3 text-xs text-muted-foreground">{feedback || "Discovery status feedback appears here. No external discovery is active."}</p>

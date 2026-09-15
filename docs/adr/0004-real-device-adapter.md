@@ -21,7 +21,9 @@ The slice lives in `internal/edge/adb` (transport and process safety), `internal
 
 The owner authorized, on 2026-09-15, a controlled Phase 13 test against **one confirmed lab device**. Implementation lives on branch `artisan/phase-13-real-device-vertical-slice`.
 
-This authorization does **not** cover production devices, production accounts, a device fleet, multi-device or mirrored execution, unattended operation, or any Phase 14 registration and runtime-spool work. Anything outside one confirmed lab device under operator attendance requires separate owner authorization and Sentinel review.
+This P13 authorization covered one confirmed lab device under attended read-only observation only. It did **not** cover production devices, production accounts, a device fleet, multi-device or mirrored execution, or unattended operation.
+
+**P14 follow-on (2026-09-15):** Boss separately authorized controlled registration and optional edge-runtime spool for one confirmed lab device, including the reviewed USB/wireless provisioning path, on branch `artisan/phase-14-registration-runtime-spool`. Fleet rollout, multi-device/mirrored execution, production devices/accounts, and unattended execution remain out of scope and **NO-GO** without further authorization.
 
 ### One-device boundary
 
@@ -31,7 +33,7 @@ Confirming a target does not register a canonical device, does not write the con
 
 ### Non-goals
 
-- No Phase 14 registration flow, runtime spool, onboarding, or port provisioning.
+- P13 slice itself: no registration flow, runtime spool, onboarding, or port provisioning (those moved to the separately authorized P14 branch).
 - No arbitrary shell. There is no `adb shell <caller text>` path and no string interpolation anywhere in the adapter.
 - No credentials, tokens, secrets, or account material of any kind flow through this slice.
 - No production accounts and no production devices.
@@ -174,7 +176,7 @@ The existing Control page design is preserved: the lab slice adds status, confir
 - Every capture costs an explicit operator confirmation in the current lab. That is deliberate friction and will be felt.
 - An indeterminate outcome requires operator action to clear. There is no automatic recovery path, by design.
 - Semantic targeting and action postconditions remain unproven against a real device; if they later demand accessibility-event data, the helper question reopens under ADR-0005's gate.
-- P14 remains blocked. This slice produces adapter evidence, not registration or spool evidence.
+- P14 registration/runtime spool was blocked by this P13 ADR until separate owner authorization; that authorization was granted 2026-09-15 for one-device attended lab work only. This P13 slice still produces adapter evidence, not P14 completion evidence.
 - Live one-device measurements for the operator-confirmed serial `192.168.1.109:5555` are recorded in `tests/compatibility/adb/matrix.md` and `tests/compatibility/adb/evidence-2026-09-15.md`. Remaining gaps (USB path, forced timeout, transport-id change, dump file-fallback) are listed explicitly and do not reopen helper adoption.
 
 ## Validation

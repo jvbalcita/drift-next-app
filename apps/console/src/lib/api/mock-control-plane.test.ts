@@ -197,6 +197,215 @@ describe("MockControlPlaneClient", () => {
     expect(client.getSnapshot().labAdapter).toMatchObject({ indeterminate: false, readiness: "blocked" })
   })
 
+  it("keeps Discovery, Approval, Provisioning, and Registration as separate mock lab stages", () => {
+    const client = new MockControlPlaneClient()
+    client.dispatch({ type: "discoverLabDevices" })
+    client.dispatch({
+      type: "confirmLabTarget",
+      serial: "MOCKSERIAL0001",
+      displayName: "Lab bench",
+      confirmationText: "MOCKSERIAL0001",
+      reason: "Bring-up",
+    })
+
+    const unauthorized = client.dispatch({
+      type: "verifyLabProvisioning",
+      serial: "MOCKSERIAL0001",
+      transportId: "3",
+      endpointHost: "127.0.0.1",
+      endpointPort: 0,
+      connectionType: "usb",
+      pairingAuthorized: true,
+      adbServerOwned: true,
+      platformToolsCompatible: true,
+      portPolicyAllowed: true,
+      rollbackReady: true,
+      operatorAuthorized: false,
+    })
+    expect(unauthorized.ok).toBe(false)
+    expect(unauthorized.errorCode).toBe("policy_denied")
+
+    const missingPairing = client.dispatch({
+      type: "verifyLabProvisioning",
+      serial: "MOCKSERIAL0001",
+      transportId: "3",
+      endpointHost: "127.0.0.1",
+      endpointPort: 0,
+      connectionType: "usb",
+      pairingAuthorized: false,
+      adbServerOwned: true,
+      platformToolsCompatible: true,
+      portPolicyAllowed: true,
+      rollbackReady: true,
+      operatorAuthorized: true,
+    })
+    expect(missingPairing.ok).toBe(false)
+    expect(missingPairing.errorCode).toBe("precondition_failed")
+
+    const beforeApproval = client.dispatch({
+      type: "registerLabDevice",
+      serial: "MOCKSERIAL0001",
+      displayName: "Lab bench",
+      approved: true,
+    })
+    expect(beforeApproval.ok).toBe(false)
+    expect(beforeApproval.errorCode).toBe("precondition_failed")
+
+    const verified = client.dispatch({
+      type: "verifyLabProvisioning",
+      serial: "MOCKSERIAL0001",
+      transportId: "3",
+      endpointHost: "127.0.0.1",
+      endpointPort: 0,
+      connectionType: "usb",
+      pairingAuthorized: true,
+      adbServerOwned: true,
+      platformToolsCompatible: true,
+      portPolicyAllowed: true,
+      rollbackReady: true,
+      operatorAuthorized: true,
+    })
+    expect(verified.ok).toBe(true)
+    expect(client.getSnapshot().provisioningReadiness).toMatchObject({ ready: true, state: "provision_verified" })
+
+    const unapprovedRegister = client.dispatch({
+      type: "registerLabDevice",
+      serial: "MOCKSERIAL0001",
+      displayName: "Lab bench",
+      approved: false,
+    })
+    expect(unapprovedRegister.ok).toBe(false)
+    expect(unapprovedRegister.errorCode).toBe("policy_denied")
+
+    const approval = client.dispatch({
+      type: "approveLabProvisioning",
+      serial: "MOCKSERIAL0001",
+      reason: "Fixture Approval",
+    })
+    expect(approval.ok).toBe(true)
+    expect(client.getSnapshot().labRegistration).toMatchObject({ approved: true, mockLabeled: true, state: "provision_verified" })
+
+    const registration = client.dispatch({
+      type: "registerLabDevice",
+      serial: "MOCKSERIAL0001",
+      displayName: "Lab bench",
+      approved: true,
+    })
+    expect(registration.ok).toBe(true)
+    expect(registration.message).toMatch(/not a real device registration/i)
+    expect(client.getSnapshot().labRegistration).toMatchObject({
+      state: "registered",
+      mockLabeled: true,
+      displayName: expect.stringContaining("Mock Lab"),
+    })
+
+    const deviceId = client.getSnapshot().labRegistration?.deviceId
+    const reverify = client.dispatch({
+      type: "verifyLabProvisioning",
+      serial: "MOCKSERIAL0001",
+      transportId: "3",
+      endpointHost: "127.0.0.1",
+      endpointPort: 0,
+      connectionType: "usb",
+      pairingAuthorized: true,
+      adbServerOwned: true,
+      platformToolsCompatible: true,
+      portPolicyAllowed: true,
+      rollbackReady: true,
+      operatorAuthorized: true,
+    })
+    expect(reverify.ok).toBe(true)
+    expect(client.getSnapshot().labRegistration).toMatchObject({ state: "registered", deviceId })
+
+    client.dispatch({ type: "clearLabTarget" })
+    expect(client.getSnapshot().provisioningReadiness).toBeNull()
+    expect(client.getSnapshot().labRegistration).toMatchObject({ state: "registered", deviceId })
+    expect(client.getSnapshot().indeterminateActions).toEqual([])
+    expect(client.getSnapshot().runtimeConnection.pendingIndeterminate).toBe(0)
+    expect(client.getSnapshot().spoolHealth).toMatchObject({ pending: 0, blocked: 0, blockedSequences: [] })
+    const verifyWithoutConfirm = client.dispatch({
+      type: "verifyLabProvisioning",
+      serial: "MOCKSERIAL0001",
+      transportId: "3",
+      endpointHost: "127.0.0.1",
+      endpointPort: 0,
+      connectionType: "usb",
+      pairingAuthorized: true,
+      adbServerOwned: true,
+      platformToolsCompatible: true,
+      portPolicyAllowed: true,
+      rollbackReady: true,
+      operatorAuthorized: true,
+    })
+    expect(verifyWithoutConfirm.ok).toBe(false)
+    expect(verifyWithoutConfirm.errorCode).toBe("precondition_failed")
+  })
+
+  it("refuses spool confirmation for unknown sequences even when blocked items exist", () => {
+    const client = new MockControlPlaneClient()
+    client.dispatch({ type: "enqueueMockSpoolItem", kind: "observation", risk: "low", idempotencyKey: "spool-b" })
+    client.dispatch({ type: "simulateRuntimeDisconnect", reason: "Mock drop" })
+    client.dispatch({ type: "beginRuntimeReconnect" })
+    client.dispatch({ type: "completeRuntimeReconnect", transportId: "mock-transport-2", protocol: "mock-adb" })
+    const unknown = client.dispatch({ type: "confirmSpoolReplay", sequence: 999, confirm: true })
+    expect(unknown.ok).toBe(false)
+    expect(unknown.errorCode).toBe("precondition_failed")
+    expect(client.getSnapshot().spoolHealth.blocked).toBeGreaterThan(0)
+  })
+
+  it("refuses blind spool replay and tracks runtime reconnect with fence as observation", () => {
+    const client = new MockControlPlaneClient()
+    expect(client.getSnapshot().runtimeConnection.state).toBe("connected")
+    expect(client.getSnapshot().spoolHealth.fenceIsLease).toBe(false)
+
+    const enqueued = client.dispatch({
+      type: "enqueueMockSpoolItem",
+      kind: "observation",
+      risk: "low",
+      idempotencyKey: "spool-a",
+    })
+    expect(enqueued.ok).toBe(true)
+    expect(client.getSnapshot().spoolHealth.pending).toBe(1)
+
+    const disconnect = client.dispatch({ type: "simulateRuntimeDisconnect", reason: "Mock drop" })
+    expect(disconnect.ok).toBe(true)
+    expect(client.getSnapshot().runtimeConnection.state).toBe("disconnected")
+    expect(client.getSnapshot().spoolHealth.blocked).toBeGreaterThan(0)
+    expect(client.getSnapshot().spoolHealth.blockedSequences.length).toBeGreaterThan(0)
+
+    const blindReplay = client.dispatch({ type: "confirmSpoolReplay", sequence: 1, confirm: true })
+    expect(blindReplay.ok).toBe(false)
+    expect(blindReplay.errorCode).toBe("precondition_failed")
+
+    client.dispatch({ type: "beginRuntimeReconnect" })
+    expect(client.getSnapshot().runtimeConnection.state).toBe("reconnecting")
+    const connected = client.dispatch({
+      type: "completeRuntimeReconnect",
+      transportId: "mock-transport-1",
+      protocol: "mock-adb",
+    })
+    expect(connected.ok).toBe(true)
+    expect(client.getSnapshot().runtimeConnection.state).toBe("connected")
+    expect(client.getSnapshot().spoolHealth.fenceToken).toBe(2)
+
+    const blockedSequence = client.getSnapshot().spoolHealth.blockedSequences[0]
+    expect(blockedSequence).toBeTruthy()
+    const confirmed = client.dispatch({ type: "confirmSpoolReplay", sequence: blockedSequence!, confirm: true })
+    expect(confirmed.ok).toBe(true)
+    expect(confirmed.message).toMatch(/not automatic replay/i)
+
+    const actionId = client.getSnapshot().indeterminateActions[0]?.actionId
+    expect(actionId).toBeTruthy()
+    const resolved = client.dispatch({
+      type: "confirmIndeterminateAction",
+      actionId: actionId!,
+      confirm: true,
+      resolution: "operator_confirmed",
+    })
+    expect(resolved.ok).toBe(true)
+    expect(resolved.message).toMatch(/No automatic replay/i)
+  })
+
   it("validates setting transitions and records their new state", () => {
     const client = new MockControlPlaneClient()
 

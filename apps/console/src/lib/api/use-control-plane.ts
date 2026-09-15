@@ -1,6 +1,13 @@
 import { useCallback, useState } from "react"
 import { createLabAdapterClient } from "@/lib/api/lab-adapter-client"
-import { applyLabIntent, isLabControlPlaneIntent, labIntentFailure } from "@/lib/api/lab-control-plane"
+import {
+  applyLabIntent,
+  applyLabRegistrationIntent,
+  isLabControlPlaneIntent,
+  isLabRegistrationControlPlaneIntent,
+  labIntentFailure,
+} from "@/lib/api/lab-control-plane"
+import { createLabRegistrationClient } from "@/lib/api/lab-registration-client"
 import {
   createMockControlPlaneClient,
 } from "@/lib/api/mock-control-plane"
@@ -29,43 +36,62 @@ export interface ControlPlaneViewModel {
 export function useControlPlane(): ControlPlaneViewModel {
   const [client] = useState<ControlPlaneClient>(() => createMockControlPlaneClient())
   const [labClient] = useState(() => createLabAdapterClient())
+  const [registrationClient] = useState(() => createLabRegistrationClient())
   const [snapshot, setSnapshot] = useState<ControlPlaneSnapshot>(() => client.getSnapshot())
   const [labNotice, setLabNotice] = useState("")
 
   const applyRemoteLab = useCallback(async (intent: ControlPlaneIntent): Promise<MutationResult> => {
-    if (!labClient || !isLabControlPlaneIntent(intent)) {
-      const mutation = client.dispatch(intent)
-      setSnapshot(client.getSnapshot())
-      return mutation
+    const context = {
+      workspaceId: client.getSnapshot().workspaceId,
+      operatorId,
     }
     setLabNotice("")
     try {
-      const labAdapter = await applyLabIntent(labClient, intent, {
-        workspaceId: client.getSnapshot().workspaceId,
-        operatorId,
-      })
-      setSnapshot((current) => ({ ...current, labAdapter }))
-      const message = "The local lab adapter answered. Lab status below reflects the adapter, not the mock fixture."
-      setLabNotice(message)
-      return { ok: true, kind: intent.type, message }
+      if (labClient && isLabControlPlaneIntent(intent)) {
+        const labAdapter = await applyLabIntent(labClient, intent, context)
+        setSnapshot((current) => ({ ...current, labAdapter }))
+        const message = "The local lab adapter answered. Lab status below reflects the adapter, not the mock fixture."
+        setLabNotice(message)
+        return { ok: true, kind: intent.type, message }
+      }
+      if (registrationClient && isLabRegistrationControlPlaneIntent(intent)) {
+        const projection = await applyLabRegistrationIntent(registrationClient, intent, context)
+        setSnapshot((current) => ({
+          ...current,
+          provisioningReadiness: projection.provisioningReadiness ?? current.provisioningReadiness,
+          labRegistration: projection.labRegistration ?? current.labRegistration,
+        }))
+        const message = "The local lab registration service answered. Prerequisite checks were evaluated server-side."
+        setLabNotice(message)
+        return { ok: true, kind: intent.type, message }
+      }
+      const mutation = client.dispatch(intent)
+      setSnapshot(client.getSnapshot())
+      return mutation
     } catch (cause: unknown) {
-      const failure = labIntentFailure(intent, cause)
-      setLabNotice(failure.message)
-      return failure
+      if (isLabControlPlaneIntent(intent) || isLabRegistrationControlPlaneIntent(intent)) {
+        const failure = labIntentFailure(intent, cause)
+        setLabNotice(failure.message)
+        return failure
+      }
+      return { ok: false, kind: intent.type, message: "The local lab service could not be reached." }
     }
-  }, [client, labClient])
+  }, [client, labClient, registrationClient])
 
   const dispatch = useCallback((intent: ControlPlaneIntent): MutationResult => {
-    if (labClient && isLabControlPlaneIntent(intent)) {
+    if (
+      (labClient && isLabControlPlaneIntent(intent)) ||
+      (registrationClient && isLabRegistrationControlPlaneIntent(intent))
+    ) {
       // Non-dialog lab buttons fire-and-forget; the strip live region reports the
       // outcome. Dialogs must call dispatchLab so they await the real result.
       void applyRemoteLab(intent)
-      return { ok: true, kind: intent.type, message: "Sent to the local lab adapter. The lab panel updates when the adapter answers." }
+      return { ok: true, kind: intent.type, message: "Sent to the local lab service. The lab panel updates when the service answers." }
     }
     const mutation = client.dispatch(intent)
     setSnapshot(client.getSnapshot())
     return mutation
-  }, [applyRemoteLab, client, labClient])
+  }, [applyRemoteLab, client, labClient, registrationClient])
 
   return {
     snapshot,

@@ -74,7 +74,18 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
   return <div className="relative min-h-full">
     <div className="mb-5 flex items-center justify-between gap-3"><div className="drift-kicker flex items-center gap-3"><span className="h-px w-8 bg-primary" aria-hidden="true" /><span>Control / Device Workspace</span></div><div className="flex flex-wrap items-center justify-end gap-2"><StatusBadge label="Mock only" tone="info" /><LabModeBadges adapter={snapshot.labAdapter} /></div></div>
     <MockNotice>No lease is acquired, command dispatched, ADB connection opened, or live video displayed. Workspace and console settings only change this local browser view.</MockNotice>
-    <LabStatusStrip adapter={snapshot.labAdapter} dispatch={dispatch} dispatchLab={dispatchLab} onFeedback={setFeedback} notice={labNotice} />
+    <LabStatusStrip
+      adapter={snapshot.labAdapter}
+      runtimeConnection={snapshot.runtimeConnection}
+      spoolHealth={snapshot.spoolHealth}
+      provisioningReadiness={snapshot.provisioningReadiness}
+      indeterminateActions={snapshot.indeterminateActions}
+      labRegistration={snapshot.labRegistration}
+      dispatch={dispatch}
+      dispatchLab={dispatchLab}
+      onFeedback={setFeedback}
+      notice={labNotice}
+    />
     {!workspacePinned ? <WorkspaceToggle side={settings.workspaceSide} onToggle={() => { setWorkspaceOpen(true); setWorkspacePinned(true) }} /> : null}
     <div className="mt-6 flex flex-wrap items-center gap-2 border-y border-border py-3" aria-label="Control workspace toolbar">
       <span className="mr-auto text-xs"><span className="drift-data font-semibold">{selectedCount}</span> selected · {settings.controlSmall ? "compact-frame control enabled" : source ? "click another phone to select followers" : "click a phone to open its large frame"}</span>

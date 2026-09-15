@@ -1,5 +1,16 @@
 import { LabAdapterRequestError, toLabAdapterView, type LabAdapterClient } from "@/lib/api/lab-adapter-client"
-import type { ControlPlaneIntent, LabAdapterView, MutationResult } from "@/lib/domain/control-plane"
+import {
+  toLabRegistrationView,
+  toProvisioningReadinessView,
+  type LabRegistrationClient,
+} from "@/lib/api/lab-registration-client"
+import type {
+  ControlPlaneIntent,
+  LabAdapterView,
+  LabRegistrationView,
+  MutationResult,
+  ProvisioningReadinessView,
+} from "@/lib/domain/control-plane"
 
 // labIntentTypes are the only intents the optional lab Connect client answers.
 // Every other intent stays on the mock control plane.
@@ -10,18 +21,38 @@ const labIntentTypes = new Set<ControlPlaneIntent["type"]>([
   "captureLabObservation",
 ])
 
+const registrationIntentTypes = new Set<ControlPlaneIntent["type"]>([
+  "verifyLabProvisioning",
+  "approveLabProvisioning",
+  "registerLabDevice",
+])
+
 export type LabControlPlaneIntent = Extract<
   ControlPlaneIntent,
   { type: "discoverLabDevices" | "confirmLabTarget" | "clearLabTarget" | "captureLabObservation" }
+>
+
+export type LabRegistrationControlPlaneIntent = Extract<
+  ControlPlaneIntent,
+  { type: "verifyLabProvisioning" | "approveLabProvisioning" | "registerLabDevice" }
 >
 
 export function isLabControlPlaneIntent(intent: ControlPlaneIntent): intent is LabControlPlaneIntent {
   return labIntentTypes.has(intent.type)
 }
 
+export function isLabRegistrationControlPlaneIntent(intent: ControlPlaneIntent): intent is LabRegistrationControlPlaneIntent {
+  return registrationIntentTypes.has(intent.type)
+}
+
 export interface LabIntentContext {
   workspaceId: string
   operatorId: string
+}
+
+export interface LabRegistrationProjection {
+  provisioningReadiness: ProvisioningReadinessView | null
+  labRegistration: LabRegistrationView | null
 }
 
 // applyLabIntent performs one lab RPC and projects the returned status onto the
@@ -60,10 +91,49 @@ export async function applyLabIntent(
   }
 }
 
+// applyLabRegistrationIntent sends identity-only registration RPCs. Client
+// prerequisite booleans on verify intents are ignored on purpose.
+export async function applyLabRegistrationIntent(
+  client: LabRegistrationClient,
+  intent: LabRegistrationControlPlaneIntent,
+  context: LabIntentContext,
+): Promise<LabRegistrationProjection> {
+  const requestId = newRequestId()
+  const options = { workspaceId: context.workspaceId, requestId, operatorId: context.operatorId, correlationId: requestId, idempotencyKey: requestId }
+
+  switch (intent.type) {
+    case "verifyLabProvisioning": {
+      const readiness = await client.verifyLabProvisioning(options, {
+        serial: intent.serial,
+        transportId: intent.transportId,
+        endpointHost: intent.endpointHost,
+        endpointPort: intent.endpointPort,
+        connectionType: intent.connectionType,
+      })
+      if (!readiness) throw new LabAdapterRequestError("invalid_response", "Lab registration returned no readiness.")
+      return { provisioningReadiness: toProvisioningReadinessView(readiness), labRegistration: null }
+    }
+    case "approveLabProvisioning": {
+      const registration = await client.approveLabProvisioning(options, { serial: intent.serial, reason: intent.reason })
+      if (!registration) throw new LabAdapterRequestError("invalid_response", "Lab registration returned no approval record.")
+      return { provisioningReadiness: null, labRegistration: toLabRegistrationView(registration) }
+    }
+    case "registerLabDevice": {
+      const registration = await client.registerLabDevice(options, { serial: intent.serial, displayName: intent.displayName })
+      if (!registration) throw new LabAdapterRequestError("invalid_response", "Lab registration returned no device record.")
+      return { provisioningReadiness: null, labRegistration: toLabRegistrationView(registration) }
+    }
+    default: {
+      const unreachable: never = intent
+      throw new Error(`unhandled lab registration intent ${JSON.stringify(unreachable)}`)
+    }
+  }
+}
+
 // labIntentFailure renders a lab failure as an operator-facing mutation result.
 // A transport failure is reported as such rather than as a rejected intent, so
 // an unreachable adapter is never mistaken for a policy decision.
-export function labIntentFailure(intent: LabControlPlaneIntent, cause: unknown): MutationResult {
+export function labIntentFailure(intent: LabControlPlaneIntent | LabRegistrationControlPlaneIntent, cause: unknown): MutationResult {
   if (cause instanceof LabAdapterRequestError) {
     return { ok: false, kind: intent.type, message: `Lab adapter refused the request (${cause.code}): ${cause.message}` }
   }

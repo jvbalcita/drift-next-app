@@ -109,6 +109,33 @@ func bytesCompare(left, right []byte) int {
 	return 0
 }
 
+// ContainsHost reports whether host falls inside the bounded AddressPolicy.
+// USB / empty hosts are not evaluated against CIDR policy.
+func (p NetworkProfile) ContainsHost(host string) bool {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return false
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	policy := strings.TrimSpace(p.AddressPolicy)
+	if _, network, err := net.ParseCIDR(policy); err == nil {
+		return network.Contains(ip)
+	}
+	parts := strings.Split(policy, "-")
+	if len(parts) != 2 {
+		return false
+	}
+	start, end := net.ParseIP(strings.TrimSpace(parts[0])), net.ParseIP(strings.TrimSpace(parts[1]))
+	if start == nil || end == nil || ip.To4() == nil || start.To4() == nil || end.To4() == nil {
+		return false
+	}
+	v4 := ip.To4()
+	return bytesCompare(start.To4(), v4) <= 0 && bytesCompare(v4, end.To4()) <= 0
+}
+
 // SortedPorts returns a copy suitable for deterministic persistence and
 // request hashing.
 func (p NetworkProfile) SortedPorts() []uint16 {
