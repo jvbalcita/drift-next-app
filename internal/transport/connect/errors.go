@@ -31,7 +31,9 @@ func MapError(err error) error {
 			code = connectrpc.CodeCanceled
 		case platformerrors.CodePolicyDenied:
 			code = connectrpc.CodePermissionDenied
-		case platformerrors.CodeCapabilityMismatch:
+		case platformerrors.CodeCapabilityMismatch,
+			platformerrors.CodePreconditionFailed,
+			platformerrors.CodePostconditionFailed:
 			code = connectrpc.CodeFailedPrecondition
 		case platformerrors.CodeStaleObservation, platformerrors.CodeAmbiguousTarget:
 			code = connectrpc.CodeFailedPrecondition

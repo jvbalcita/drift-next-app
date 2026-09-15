@@ -60,6 +60,8 @@ export type SettingRisk = "safety_critical" | "low_preference"
 export type PolicyState = "draft" | "active" | "superseded" | "retired"
 export type PolicyDecision = "allow" | "deny" | "inconclusive"
 export type EventKind = "operational" | "audit"
+export type LabMode = "mock" | "lab"
+export type LabReadiness = "unavailable" | "ready" | "blocked" | "indeterminate"
 export type MirrorSessionState = "requested" | "active" | "paused" | "stopping" | "completed" | "failed" | "cancelled"
 export type MirrorTargetOutcome = "simulated_success" | "offline" | "incompatible" | "policy_denied" | "lease_conflict" | "target_resolution_failed"
 
@@ -397,6 +399,42 @@ export interface MirrorSessionView {
   stoppedAt?: string
 }
 
+export interface LabDiscoveredDeviceView {
+  serial: string
+  state: string
+  model: string
+  transportId: string
+  connectionType: string
+}
+
+// LabAdapterView projects the read-only lab adapter boundary. It never
+// contributes a DeviceView: a confirmed lab target is an observation subject,
+// not a registered device.
+export interface LabAdapterView {
+  mode: LabMode
+  readiness: LabReadiness
+  adapterVersion: string
+  platformToolsVersion: string
+  confirmedSerial: string
+  confirmedDisplayName: string
+  stableIdentity: string
+  transportId: string
+  connectionState: string
+  connectionType: string
+  lastHealthAt?: string
+  lastObservationAt?: string
+  lastScreenshotHash: string
+  // lastScreenshotPreviewDataUrl is set only for a sanitized, size-bounded
+  // preview. An absent value must never fall back to a mock frame.
+  lastScreenshotPreviewDataUrl?: string
+  lastHierarchySummary: string
+  observationLatencyMs: number
+  failureClass?: string
+  indeterminate: boolean
+  correlationId: string
+  discovered: readonly LabDiscoveredDeviceView[]
+}
+
 export interface ControlPlaneSnapshot {
   workspaceName: string
   workspaceId: string
@@ -430,6 +468,7 @@ export interface ControlPlaneSnapshot {
   policies: readonly PolicyView[]
   policyDecisions: readonly PolicyDecisionView[]
   mirrorSessions: readonly MirrorSessionView[]
+  labAdapter: LabAdapterView
 }
 
 export interface SettingHistoryView {
@@ -473,6 +512,13 @@ export type ControlPlaneIntent =
   | { type: "retirePolicy"; policyId: string; rowVersion: number }
   | { type: "updatePolicy"; policyId: string; ruleSummary: string; rowVersion: number }
   | { type: "updateAccountState"; accountId: string; state: AccountState; rowVersion: number }
+  | { type: "discoverLabDevices" }
+  | { type: "confirmLabTarget"; serial: string; displayName: string; confirmationText: string; reason: string }
+  | { type: "clearLabTarget" }
+  | { type: "captureLabObservation"; serial: string }
+  // simulateLabCaptureFailure is a mock-only QA affordance for the indeterminate
+  // surface. It never reaches the lab adapter and produces no observation.
+  | { type: "simulateLabCaptureFailure" }
 
 export interface MutationResult {
   ok: boolean

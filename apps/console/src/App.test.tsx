@@ -269,6 +269,111 @@ describe("Drift command center", () => {
     expect(screen.getByRole("button", { name: /Reset position/i })).toBeDisabled()
   })
 
+  it("surfaces lab adapter status beside the mock workspace without replacing it", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    const strip = screen.getByRole("region", { name: /Lab Adapter Status/i })
+
+    expect(within(strip).getByText("Mock Adapter")).toBeInTheDocument()
+    expect(within(strip).getByText("Unavailable")).toBeInTheDocument()
+    expect(within(strip).getByText("No target confirmed")).toBeInTheDocument()
+    expect(within(strip).getByRole("button", { name: /Confirm Lab Target/i })).toBeDisabled()
+    expect(within(strip).queryByRole("button", { name: /Capture Observation/i })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Atlas 04/i })).toBeInTheDocument()
+
+    await user.click(within(strip).getByRole("button", { name: /Discover Devices/i }))
+
+    expect(within(strip).getByText("Blocked")).toBeInTheDocument()
+    expect(within(strip).getByRole("button", { name: /Confirm Lab Target/i })).toBeEnabled()
+    expect(screen.getByText(/2 mock serials listed/i)).toBeInTheDocument()
+  })
+
+  it("rejects an incomplete lab target confirmation and reports the errors", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("button", { name: /Discover Devices/i }))
+    await user.click(screen.getByRole("button", { name: /Confirm Lab Target/i }))
+
+    const dialog = screen.getByRole("dialog")
+    await user.click(within(dialog).getByRole("button", { name: /^Confirm Target$/i }))
+
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(/Confirmation was not recorded/i)
+    expect(within(dialog).getByLabelText("Serial")).toHaveAttribute("aria-invalid", "true")
+    expect(within(dialog).getByLabelText("Reason")).toHaveAttribute("aria-invalid", "true")
+
+    await user.selectOptions(within(dialog).getByLabelText("Serial"), "MOCKSERIAL0001")
+    await user.type(within(dialog).getByLabelText("Display Name"), "Lab bench")
+    await user.type(within(dialog).getByLabelText("Confirmation Text"), "MOCKSERIAL0002")
+    await user.type(within(dialog).getByLabelText("Reason"), "Vertical slice bring-up")
+    await user.click(within(dialog).getByRole("button", { name: /^Confirm Target$/i }))
+
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(/must match the selected serial exactly/i)
+    expect(screen.queryByLabelText(/lab observation frame/i)).not.toBeInTheDocument()
+  })
+
+  it("shows the sanitized lab preview only after a confirmed target is observed", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("button", { name: /Discover Devices/i }))
+    await user.click(screen.getByRole("button", { name: /Confirm Lab Target/i }))
+
+    const dialog = screen.getByRole("dialog")
+    await user.selectOptions(within(dialog).getByLabelText("Serial"), "MOCKSERIAL0001")
+    await user.type(within(dialog).getByLabelText("Display Name"), "Lab bench")
+    await user.type(within(dialog).getByLabelText("Confirmation Text"), "MOCKSERIAL0001")
+    await user.type(within(dialog).getByLabelText("Reason"), "Vertical slice bring-up")
+    await user.click(within(dialog).getByRole("button", { name: /^Confirm Target$/i }))
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+    const strip = screen.getByRole("region", { name: /Lab Adapter Status/i })
+    expect(within(strip).getByText("Ready")).toBeInTheDocument()
+    expect(screen.queryByLabelText(/lab observation frame/i)).not.toBeInTheDocument()
+
+    await user.click(within(strip).getByRole("button", { name: /Capture Observation/i }))
+
+    const frame = screen.getByLabelText(/Lab bench lab observation frame/i)
+    expect(within(frame).getByAltText(/Sanitized screenshot preview for Lab bench/i)).toBeInTheDocument()
+    expect(within(frame).getByText("Read Only")).toBeInTheDocument()
+    expect(within(frame).getByText(/sha256:mock-/)).toBeInTheDocument()
+
+    await user.click(within(strip).getByRole("button", { name: /Clear Target/i }))
+    expect(screen.queryByLabelText(/lab observation frame/i)).not.toBeInTheDocument()
+  })
+
+  it("keeps the lab adapter section separate from registered devices", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole("button", { name: /^Devices/ }))
+    expect(await screen.findByText("Lab Adapter Status")).toBeInTheDocument()
+    expect(screen.getByText(/Discovered serials are never registered as devices/i)).toBeInTheDocument()
+    expect(screen.getByText("0 listed, 0 registered")).toBeInTheDocument()
+    expect(screen.getByText("No target confirmed")).toBeInTheDocument()
+    expect(screen.queryByText(/MOCKSERIAL/)).not.toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /Device Registry/i })).toBeInTheDocument()
+  })
+
+  it("lists lab adapter events through the existing event filters", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole("button", { name: /^Events/ }))
+    expect(await screen.findByText("Adapter Readiness")).toBeInTheDocument()
+    expect(screen.getByText("Read-Only Reattach")).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText(/Device or Resource/i), "lab_adapter")
+
+    expect(screen.getByText("Adapter Readiness")).toBeInTheDocument()
+    expect(screen.queryByText("lease.renewed")).not.toBeInTheDocument()
+    expect(screen.getByText("2 Results")).toBeInTheDocument()
+  })
+
   it("loads the typed browser-only destinations through the shell", async () => {
     const user = userEvent.setup()
     render(<App />)

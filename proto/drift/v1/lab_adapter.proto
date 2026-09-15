@@ -1,0 +1,224 @@
+syntax = "proto3";
+
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+// LabMode reports whether the adapter boundary is answering from deterministic
+// fixtures or from a real, explicitly enabled lab device.
+enum LabMode {
+  LAB_MODE_UNSPECIFIED = 0;
+  LAB_MODE_MOCK = 1;
+  LAB_MODE_LAB = 2;
+}
+
+// LabReadiness is the observed readiness of the adapter boundary. It is never
+// inferred from the absence of an error: an indeterminate outcome stays
+// indeterminate until an operator resolves it.
+enum LabReadiness {
+  LAB_READINESS_UNSPECIFIED = 0;
+  LAB_READINESS_UNAVAILABLE = 1;
+  LAB_READINESS_READY = 2;
+  LAB_READINESS_BLOCKED = 3;
+  LAB_READINESS_INDETERMINATE = 4;
+}
+
+// LabEventName is the stable vocabulary of lab adapter audit events.
+enum LabEventName {
+  LAB_EVENT_NAME_UNSPECIFIED = 0;
+  LAB_EVENT_NAME_TARGET_CONFIRMATION = 1;
+  LAB_EVENT_NAME_ADAPTER_READINESS = 2;
+  LAB_EVENT_NAME_OBSERVATION_CAPTURE = 3;
+  LAB_EVENT_NAME_UI_TREE_CAPTURE = 4;
+  LAB_EVENT_NAME_TRANSPORT_CHANGE = 5;
+  LAB_EVENT_NAME_READONLY_REATTACH = 6;
+  LAB_EVENT_NAME_TIMEOUT = 7;
+  LAB_EVENT_NAME_CANCELLATION = 8;
+  LAB_EVENT_NAME_CLEANUP = 9;
+  LAB_EVENT_NAME_INDETERMINATE_OUTCOME = 10;
+  LAB_EVENT_NAME_OPERATOR_CONFIRMATION = 11;
+}
+
+// LabDiscoveredDevice is one enumerated candidate transport. Discovery is
+// deliberately separate from approval: nothing in this message creates or
+// registers a canonical device, and connection_state and transport_id are
+// mutable transport facts that must never be used as device identity.
+message LabDiscoveredDevice {
+  string serial = 1;
+  string connection_state = 2;
+  string connection_type = 3;
+  string transport_id = 4;
+  string model = 5;
+  string product = 6;
+  bool usable = 7;
+}
+
+// LabStatus is the sanitized projection of the lab adapter boundary. Every
+// timestamp is RFC3339 UTC text and is empty when the event never happened.
+message LabStatus {
+  LabMode mode = 1;
+  LabReadiness readiness = 2;
+  string adapter_version = 3;
+  string platform_tools_version = 4;
+  // confirmed_serial is empty until an operator explicitly confirms a target.
+  string confirmed_serial = 5;
+  string confirmed_display_name = 6;
+  // stable_identity is the lab-scoped stable identity, never a transport id.
+  string stable_identity = 7;
+  string transport_id = 8;
+  string connection_state = 9;
+  string connection_type = 10;
+  string last_health_at = 11;
+  string last_observation_at = 12;
+  // last_screenshot_hash is a content hash only; screen bytes are not exposed.
+  string last_screenshot_hash = 13;
+  // last_hierarchy_summary is bounded prose such as "120 nodes, depth 8, complete".
+  string last_hierarchy_summary = 14;
+  int64 observation_latency_ms = 15;
+  string failure_class = 16;
+  bool indeterminate = 17;
+  string correlation_id = 18;
+  repeated LabDiscoveredDevice discovered = 19;
+}
+
+// LabEvent is one sanitized audit record. summary carries redacted prose only,
+// never raw command output, raw view-hierarchy XML, or credential material.
+message LabEvent {
+  LabEventName name = 1;
+  string correlation_id = 2;
+  string serial = 3;
+  string occurred_at = 4;
+  string failure_class = 5;
+  string summary = 6;
+}
+
+// LabObservationBundle carries sanitized observation metadata. It never carries
+// raw view-hierarchy XML and never carries unbounded screen bytes.
+message LabObservationBundle {
+  string serial = 1;
+  string stable_identity = 2;
+  string correlation_id = 3;
+  string idempotency_key = 4;
+  string captured_at = 5;
+  string adapter_version = 6;
+  string platform_tools_version = 7;
+  string health_state = 8;
+  // screenshot references the capture by content hash and media type only.
+  // artifact_id stays empty until this slice persists evidence in the artifact
+  // store; no path or byte payload is ever exposed here.
+  ArtifactReference screenshot = 9;
+  uint32 screenshot_bytes = 10;
+  // preview_base64 is optional, opt-in, and bounded. It is empty unless the
+  // operator enabled previews and the complete PNG fits the configured cap
+  // (hard maximum 32768 bytes of PNG). A capture larger than the cap sets
+  // preview_truncated and leaves this field empty rather than returning a
+  // partial image.
+  string preview_base64 = 11;
+  bool preview_truncated = 12;
+  string hierarchy_summary = 13;
+  uint32 node_count = 14;
+  uint32 max_depth = 15;
+  bool hierarchy_complete = 16;
+  string hierarchy_freshness_token = 17;
+  int64 latency_ms = 18;
+  string failure_class = 19;
+  bool indeterminate = 20;
+  bool postcondition_verified = 21;
+  repeated LabEvent events = 22;
+}
+
+message GetLabStatusRequest {
+  WorkspaceRef workspace = 1;
+  RequestContext context = 2;
+}
+
+message GetLabStatusResponse {
+  LabStatus status = 1;
+  Failure failure = 2;
+}
+
+message DiscoverLabDevicesRequest {
+  WorkspaceRef workspace = 1;
+  RequestContext context = 2;
+  string operator_id = 3;
+}
+
+message DiscoverLabDevicesResponse {
+  LabStatus status = 1;
+  Failure failure = 2;
+}
+
+// ConfirmLabTargetRequest requires an explicit serial plus matching
+// confirmation text. The adapter never infers a target from list order,
+// display name, address, or row position.
+message ConfirmLabTargetRequest {
+  WorkspaceRef workspace = 1;
+  RequestContext context = 2;
+  string serial = 3;
+  string display_name = 4;
+  // confirmation_text must equal the serial, or the literal CONFIRM when
+  // exactly one candidate was discovered.
+  string confirmation_text = 5;
+  string operator_id = 6;
+  string reason = 7;
+}
+
+message ConfirmLabTargetResponse {
+  LabStatus status = 1;
+  Failure failure = 2;
+}
+
+message ClearLabTargetRequest {
+  WorkspaceRef workspace = 1;
+  RequestContext context = 2;
+  string operator_id = 3;
+  string reason = 4;
+}
+
+message ClearLabTargetResponse {
+  LabStatus status = 1;
+  Failure failure = 2;
+}
+
+// CaptureLabObservationRequest requires the serial to match the confirmed
+// target exactly. context.idempotency_key is required: a key whose outcome is
+// unknown is never replayed automatically.
+message CaptureLabObservationRequest {
+  WorkspaceRef workspace = 1;
+  RequestContext context = 2;
+  string serial = 3;
+  string operator_id = 4;
+  uint32 timeout_ms = 5;
+}
+
+message CaptureLabObservationResponse {
+  LabObservationBundle observation = 1;
+  LabStatus status = 2;
+  Failure failure = 3;
+}
+
+message ListLabEventsRequest {
+  WorkspaceRef workspace = 1;
+  RequestContext context = 2;
+  uint32 limit = 3;
+}
+
+message ListLabEventsResponse {
+  repeated LabEvent events = 1;
+  Failure failure = 2;
+}
+
+// LabAdapterService is the read-only-plus-confirmation boundary for the real
+// device lab slice. It exposes observation and explicit target confirmation
+// only: it issues no device input, holds no lease, grants no approval
+// authority, and never registers a canonical device.
+service LabAdapterService {
+  rpc GetLabStatus(GetLabStatusRequest) returns (GetLabStatusResponse);
+  rpc DiscoverLabDevices(DiscoverLabDevicesRequest) returns (DiscoverLabDevicesResponse);
+  rpc ConfirmLabTarget(ConfirmLabTargetRequest) returns (ConfirmLabTargetResponse);
+  rpc ClearLabTarget(ClearLabTargetRequest) returns (ClearLabTargetResponse);
+  rpc CaptureLabObservation(CaptureLabObservationRequest) returns (CaptureLabObservationResponse);
+  rpc ListLabEvents(ListLabEventsRequest) returns (ListLabEventsResponse);
+}

@@ -23,6 +23,8 @@ const (
 	CodeStaleObservation          Code = "stale_observation"
 	CodeAmbiguousTarget           Code = "ambiguous_target"
 	CodeCapabilityMismatch        Code = "capability_mismatch"
+	CodePreconditionFailed        Code = "precondition_failed"
+	CodePostconditionFailed       Code = "postcondition_failed"
 	CodeIndeterminateCompletion   Code = "indeterminate_completion"
 	CodeEmergencyStopped          Code = "emergency_stopped"
 	CodeCleanupFailed             Code = "cleanup_failed"
