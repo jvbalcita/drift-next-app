@@ -412,6 +412,43 @@ describe("RealControlPlaneClient", () => {
     expect(unleashed.message).toMatch(/active lease/i)
   })
 
+  it("submits an observe action with the active lease fencing token", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.LeaseService/ListDeviceLeases")) {
+        return new Response(JSON.stringify({
+          leases: [{
+            id: "lease-1",
+            deviceId: "device-pixel-1",
+            controlSessionId: "session-1",
+            holderId: "console-local-operator",
+            fencingToken: "7",
+            state: "LEASE_STATE_ACTIVE",
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.ActionService/SubmitAction")) {
+        return new Response(JSON.stringify({
+          result: { actionId: "action-1", outcome: "ACTION_OUTCOME_PENDING" },
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+    const result = await client.dispatch({ type: "submitDeviceAction", deviceId: "device-pixel-1", kind: "observe", confirmed: false })
+
+    expect(result.ok).toBe(true)
+    const submitCall = fetchSpy.mock.calls.find((call) => String(call[0]).includes("/drift.v1.ActionService/SubmitAction"))
+    expect(submitCall).toBeDefined()
+    const body = JSON.parse(String((submitCall?.[1] as RequestInit | undefined)?.body)) as {
+      intent?: { leaseId?: string; fencingToken?: string | number }
+    }
+    expect(body.intent?.leaseId).toBe("lease-1")
+    expect(String(body.intent?.fencingToken)).toBe("7")
+  })
+
   it("creates then starts a recording for an explicit device", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input)

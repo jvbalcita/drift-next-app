@@ -20,12 +20,15 @@ import (
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
 	"drift.local/drift-next/gen/go/drift/v1/driftv1connect"
+	"drift.local/drift-next/internal/discovery"
 	"drift.local/drift-next/internal/edge/adb"
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/edge/registration"
 	"drift.local/drift-next/internal/organizations"
+	"drift.local/drift-next/internal/product"
 	"drift.local/drift-next/internal/service"
 	store "drift.local/drift-next/internal/store/sqlite"
+	transportconnect "drift.local/drift-next/internal/transport/connect"
 	realdevice "drift.local/drift-next/tests/integration/realdevice"
 )
 
@@ -75,10 +78,17 @@ func TestAttendedRealDeviceRegistrationAndObservation(t *testing.T) {
 			AllowedPorts: []uint16{5555},
 		},
 	})
-	server := httptest.NewServer(service.NewHTTPServer("realdevice", "127.0.0.1:0",
+	productHandlers := transportconnect.NewProductHandlers(db, discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{
+		Authorized: true,
+		LabMode:    true,
+		Enumerator: product.NewLabRuntimeEnumerator(labService),
+	}))
+	routes := []service.Route{
 		service.LabAdapterRoute(labService, attendedToken),
 		service.LabRegistrationRouteWithStore(registrationService, db, attendedToken, []uint16{5555}),
-	).Handler)
+	}
+	routes = append(routes, service.ProductRoutes(productHandlers, attendedToken)...)
+	server := httptest.NewServer(service.NewHTTPServer("realdevice", "127.0.0.1:0", routes...).Handler)
 	t.Cleanup(server.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -231,6 +241,7 @@ func TestAttendedRealDeviceRegistrationAndObservation(t *testing.T) {
 	if record.GetState() != driftv1.LabRegistrationState_LAB_REGISTRATION_STATE_REGISTERED {
 		t.Fatalf("register state = %v", record.GetState())
 	}
+	exerciseRegisteredProductPath(t, ctx, server.URL, workspaceRef, record.GetDeviceId())
 
 	if _, err := adapter.ClearLabTarget(ctx, connectrpc.NewRequest(&driftv1.ClearLabTargetRequest{
 		Workspace:  workspaceRef,
@@ -250,6 +261,141 @@ func TestAttendedRealDeviceRegistrationAndObservation(t *testing.T) {
 		t.Fatal("CaptureLabObservation succeeded after ClearLabTarget; stale observation must be refused")
 	} else if connectrpc.CodeOf(staleErr) != connectrpc.CodeFailedPrecondition {
 		t.Fatalf("stale CaptureLabObservation code = %v, want %v", connectrpc.CodeOf(staleErr), connectrpc.CodeFailedPrecondition)
+	}
+}
+
+func exerciseRegisteredProductPath(t *testing.T, ctx context.Context, baseURL string, workspace *driftv1.WorkspaceRef, deviceID string) {
+	t.Helper()
+	auth := connectrpc.WithInterceptors(labTokenInterceptor(attendedToken))
+	devices := driftv1connect.NewDeviceServiceClient(http.DefaultClient, baseURL, auth)
+	leases := driftv1connect.NewLeaseServiceClient(http.DefaultClient, baseURL, auth)
+	actions := driftv1connect.NewActionServiceClient(http.DefaultClient, baseURL, auth)
+	groups := driftv1connect.NewGroupServiceClient(http.DefaultClient, baseURL, auth)
+	agents := driftv1connect.NewAutomationAgentServiceClient(http.DefaultClient, baseURL, auth)
+	accounts := driftv1connect.NewAccountServiceClient(http.DefaultClient, baseURL, auth)
+	recordings := driftv1connect.NewRecordingServiceClient(http.DefaultClient, baseURL, auth)
+
+	listed, err := devices.ListDevices(ctx, connectrpc.NewRequest(&driftv1.ListDevicesRequest{Workspace: workspace}))
+	if err != nil {
+		t.Fatalf("ListDevices: %v", err)
+	}
+	found := false
+	for _, device := range listed.Msg.GetDevices() {
+		if device.GetId() == deviceID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("registered device %s was not listed", deviceID)
+	}
+
+	opened, err := leases.OpenControlSession(ctx, connectrpc.NewRequest(&driftv1.OpenControlSessionRequest{
+		Context: requestContext("realdevice-session-1", "realdevice-session-1"), Workspace: workspace,
+	}))
+	if err != nil || opened.Msg.GetSession().GetId() == "" {
+		t.Fatalf("OpenControlSession = %#v err=%v", opened, err)
+	}
+	acquired, err := leases.AcquireDeviceLease(ctx, connectrpc.NewRequest(&driftv1.AcquireDeviceLeaseRequest{
+		Context:          requestContext("realdevice-lease-1", "realdevice-lease-1"),
+		Workspace:        workspace,
+		DeviceId:         deviceID,
+		ControlSessionId: opened.Msg.GetSession().GetId(),
+	}))
+	if err != nil || acquired.Msg.GetLease().GetFencingToken() == 0 {
+		t.Fatalf("AcquireDeviceLease = %#v err=%v", acquired, err)
+	}
+	if _, err := leases.AcquireDeviceLease(ctx, connectrpc.NewRequest(&driftv1.AcquireDeviceLeaseRequest{
+		Context:          &driftv1.RequestContext{RequestId: "realdevice-lease-foreign", IdempotencyKey: "realdevice-lease-foreign", ActorId: "op-2"},
+		Workspace:        workspace,
+		DeviceId:         deviceID,
+		ControlSessionId: opened.Msg.GetSession().GetId(),
+	})); err == nil {
+		t.Fatal("second lease acquire succeeded; exclusive control was not enforced")
+	}
+
+	submitted, err := actions.SubmitAction(ctx, connectrpc.NewRequest(&driftv1.SubmitActionRequest{
+		Context: requestContext("realdevice-observe-1", "realdevice-observe-1"),
+		Intent: &driftv1.ActionIntent{
+			Workspace: workspace, DeviceId: deviceID, Kind: driftv1.ActionKind_ACTION_KIND_OBSERVE,
+			LeaseId: acquired.Msg.GetLease().GetId(), FencingToken: acquired.Msg.GetLease().GetFencingToken(),
+		},
+	}))
+	if err != nil || submitted.Msg.GetResult().GetActionId() == "" {
+		t.Fatalf("SubmitAction observe = %#v err=%v", submitted, err)
+	}
+	if _, err := actions.SubmitAction(ctx, connectrpc.NewRequest(&driftv1.SubmitActionRequest{
+		Context: requestContext("realdevice-observe-stale", "realdevice-observe-stale"),
+		Intent: &driftv1.ActionIntent{
+			Workspace: workspace, DeviceId: deviceID, Kind: driftv1.ActionKind_ACTION_KIND_OBSERVE,
+			LeaseId: acquired.Msg.GetLease().GetId(), FencingToken: acquired.Msg.GetLease().GetFencingToken() + 1,
+		},
+	})); err == nil {
+		t.Fatal("SubmitAction succeeded with a stale fencing token")
+	}
+
+	createdGroup, err := groups.CreateDeviceGroup(ctx, connectrpc.NewRequest(&driftv1.CreateDeviceGroupRequest{
+		Context: requestContext("realdevice-group-1", "realdevice-group-1"), Workspace: workspace, DisplayName: "Assigned Group",
+	}))
+	if err != nil {
+		t.Fatalf("CreateDeviceGroup: %v", err)
+	}
+	if _, err := groups.MoveDeviceToGroup(ctx, connectrpc.NewRequest(&driftv1.MoveDeviceToGroupRequest{
+		Context:   requestContext("realdevice-group-move-1", "realdevice-group-move-1"),
+		Workspace: workspace, DeviceId: deviceID, GroupId: createdGroup.Msg.GetGroup().GetId(),
+	})); err != nil {
+		t.Fatalf("MoveDeviceToGroup: %v", err)
+	}
+
+	createdAgent, err := agents.CreateAutomationAgent(ctx, connectrpc.NewRequest(&driftv1.CreateAutomationAgentRequest{
+		Context: requestContext("realdevice-agent-1", "realdevice-agent-1"), Workspace: workspace, DisplayName: "Observe Agent",
+	}))
+	if err != nil {
+		t.Fatalf("CreateAutomationAgent: %v", err)
+	}
+	if _, err := agents.AssignAutomationAgentDevice(ctx, connectrpc.NewRequest(&driftv1.AssignAutomationAgentDeviceRequest{
+		Context:           requestContext("realdevice-agent-assign-1", "realdevice-agent-assign-1"),
+		Workspace:         workspace,
+		AutomationAgentId: createdAgent.Msg.GetAgent().GetId(),
+		DeviceId:          deviceID,
+	})); err != nil {
+		t.Fatalf("AssignAutomationAgentDevice: %v", err)
+	}
+
+	source, err := accounts.CreateAccountSource(ctx, connectrpc.NewRequest(&driftv1.CreateAccountSourceRequest{
+		Context: requestContext("realdevice-account-source-1", "realdevice-account-source-1"),
+		Source: &driftv1.AccountSource{
+			Workspace: workspace, Provider: "local", DisplayName: "Local Records",
+			State: driftv1.AccountSourceState_ACCOUNT_SOURCE_STATE_ACTIVE,
+		},
+	}))
+	if err != nil {
+		t.Fatalf("CreateAccountSource: %v", err)
+	}
+	account, err := accounts.CreateAccount(ctx, connectrpc.NewRequest(&driftv1.CreateAccountRequest{
+		Context: requestContext("realdevice-account-1", "realdevice-account-1"),
+		Account: &driftv1.AccountReference{
+			Workspace: workspace, SourceId: source.Msg.GetSource().GetId(),
+			ExternalReference: "local-account-1", DisplayName: "Assigned Account",
+			State: driftv1.AccountState_ACCOUNT_STATE_DRAFT,
+		},
+	}))
+	if err != nil {
+		t.Fatalf("CreateAccount: %v", err)
+	}
+	if _, err := accounts.AssignAccountDevice(ctx, connectrpc.NewRequest(&driftv1.AssignAccountDeviceRequest{
+		Context: requestContext("realdevice-account-assign-1", "realdevice-account-assign-1"),
+		Account: &driftv1.ResourceRef{Workspace: workspace, ResourceId: account.Msg.GetAccount().GetId()},
+		Device:  &driftv1.ResourceRef{Workspace: workspace, ResourceId: deviceID},
+	})); err != nil {
+		t.Fatalf("AssignAccountDevice: %v", err)
+	}
+
+	if _, err := recordings.CreateRecordingSession(ctx, connectrpc.NewRequest(&driftv1.CreateRecordingSessionRequest{
+		Context:   requestContext("realdevice-recording-1", "realdevice-recording-1"),
+		Workspace: workspace, DeviceId: deviceID, Source: "device",
+	})); err != nil {
+		t.Fatalf("CreateRecordingSession: %v", err)
 	}
 }
 

@@ -85,6 +85,12 @@ message ActionIntent {
   ActionGesturePath gesture = 8;
   uint32 key_code = 9;
   uint32 value_length = 10;
+  // lease_id and fencing_token must match the caller's active device lease.
+  // Holder identity is taken from RequestContext.actor_id, never from this message.
+  string lease_id = 11;
+  uint64 fencing_token = 12;
+  string observation_token = 13;
+  bool approval_granted = 14;
 }
 message ActionResult {
   string action_id = 1;

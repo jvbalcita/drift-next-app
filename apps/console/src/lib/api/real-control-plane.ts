@@ -1901,6 +1901,9 @@ export class RealControlPlaneClient implements ControlPlaneClient {
             deviceId: intent.deviceId,
             kind: toProtoActionKind(intent.kind),
             idempotencyKey: requestId,
+            leaseId: lease.id,
+            fencingToken: BigInt(lease.fencingToken),
+            approvalGranted: intent.confirmed,
           },
         })
         const outcome = submitted.result?.outcome
