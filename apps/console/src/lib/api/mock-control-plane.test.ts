@@ -448,6 +448,7 @@ describe("MockControlPlaneClient", () => {
 
   it("retries cleanup and records cleanup failures", () => {
     const client = new MockControlPlaneClient()
+    const before = client.getSnapshot().storageHealth.objectCount
 
     const failed = client.dispatch({ type: "cleanupArtifact", artifactId: "artifact-cleanup-failed", confirmed: true })
     const cleaned = client.dispatch({ type: "cleanupArtifact", artifactId: "artifact-rec-orion-01", confirmed: true })
@@ -456,5 +457,6 @@ describe("MockControlPlaneClient", () => {
     expect(client.getSnapshot().storageHealth.cleanupFailures).toBeGreaterThan(1)
     expect(cleaned.ok).toBe(true)
     expect(client.getSnapshot().artifacts.find((artifact) => artifact.id === "artifact-rec-orion-01")?.lifecycleState).toBe("deleted")
+    expect(client.getSnapshot().storageHealth.objectCount).toBe(before - 1)
   })
 })

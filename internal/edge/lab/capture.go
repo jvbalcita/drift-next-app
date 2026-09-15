@@ -10,6 +10,7 @@ import (
 	"drift.local/drift-next/internal/domain"
 	"drift.local/drift-next/internal/edge/adb"
 	"drift.local/drift-next/internal/edge/uiautomator"
+	platformerrors "drift.local/drift-next/internal/platform/errors"
 )
 
 // captureRun is the per-observation scope. It accumulates the audit events for
@@ -110,18 +111,34 @@ func (r *captureRun) persistEvidence(ctx context.Context, bundle *ObservationBun
 	}
 	actorID := r.request.OperatorID
 	if shotID, err := r.service.evidence.PersistScreenshot(ctx, workspace, ownerID, actorID, png, hash); err != nil {
-		bundle.EvidencePersistFailed = true
-		r.emit(EventObservationCapture, domain.FailureInfrastructure, "screenshot artifact persistence failed; observation continues")
+		r.recordEvidencePersist(bundle, "screenshot", shotID, err)
 	} else {
 		bundle.ScreenshotArtifactID = shotID
 	}
 	payload := []byte(fmt.Sprintf(`{"summary":%q,"nodes":%d,"depth":%d,"complete":%t,"freshness":%q}`, bundle.HierarchySummary, tree.NodeCount, tree.MaxDepth, tree.Complete(), tree.FreshnessToken))
 	if treeID, err := r.service.evidence.PersistUITree(ctx, workspace, ownerID, actorID, payload); err != nil {
-		bundle.EvidencePersistFailed = true
-		r.emit(EventObservationCapture, domain.FailureInfrastructure, "ui-tree artifact persistence failed; observation continues")
+		r.recordEvidencePersist(bundle, "ui-tree", treeID, err)
 	} else {
 		bundle.HierarchyArtifactID = treeID
 	}
+}
+
+// recordEvidencePersist isolates artifact write outcomes from observation success.
+// Policy omissions that still return an artifact ID are admission decisions, not
+// infrastructure failures.
+func (r *captureRun) recordEvidencePersist(bundle *ObservationBundle, kind, artifactID string, err error) {
+	if artifactID != "" && platformerrors.CodeOf(err) == platformerrors.CodePolicyDenied {
+		switch kind {
+		case "screenshot":
+			bundle.ScreenshotArtifactID = artifactID
+		case "ui-tree":
+			bundle.HierarchyArtifactID = artifactID
+		}
+		r.emit(EventObservationCapture, domain.FailurePolicyDenied, kind+" artifact omitted by admission; observation continues")
+		return
+	}
+	bundle.EvidencePersistFailed = true
+	r.emit(EventObservationCapture, domain.FailureInfrastructure, kind+" artifact persistence failed; observation continues")
 }
 
 // reconcileTransport reacts to an observed transport-identity change with the

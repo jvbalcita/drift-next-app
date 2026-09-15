@@ -3,7 +3,6 @@ package artifacts_test
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -214,18 +213,27 @@ func TestCapturePersisterIsolation(t *testing.T) {
 	service, _, _, workspace := artifactFixture(t)
 	persister := artifacts.CapturePersister{Service: service, Workspace: workspace}
 	id, err := persister.PersistScreenshot(context.Background(), "caller-should-not-win", "owner-1", "op-1", []byte("png-bytes"), "")
-	if err == nil || id == "" || !strings.Contains(err.Error(), "omitted") {
-		t.Fatalf("unsanitized screenshot must omit = %q/%v", id, err)
+	if err != nil || id == "" {
+		t.Fatalf("unsanitized screenshot must retain omission metadata = %q/%v", id, err)
+	}
+	omitted, err := service.Get(context.Background(), workspace, artifacts.ArtifactID(id), "operator", "op-1")
+	if err != nil || omitted.Category != artifacts.CategoryOmission || omitted.Workspace != workspace {
+		t.Fatalf("unsanitized screenshot omission = %#v/%v", omitted, err)
 	}
 	id, err = persister.PersistSanitizedScreenshot(context.Background(), "caller-should-not-win", "owner-1", "op-1", []byte("png-bytes"), "")
 	if err != nil || id == "" {
 		t.Fatalf("sanitized screenshot persist = %q/%v", id, err)
 	}
 	got, err := service.Get(context.Background(), workspace, artifacts.ArtifactID(id), "operator", "op-1")
-	if err != nil || got.Workspace != workspace {
+	if err != nil || got.Workspace != workspace || got.Category != artifacts.CategoryScreenshot {
 		t.Fatalf("bound workspace must win over caller placeholder: %#v/%v", got, err)
 	}
-	if _, err := persister.PersistUITree(context.Background(), "caller-should-not-win", "owner-1", "op-1", []byte(`{"password":"TEST_ONLY_PASSWORD_SENTINEL"}`)); err == nil || !strings.Contains(err.Error(), "omitted") {
-		t.Fatalf("sensitive ui tree err = %v", err)
+	treeID, err := persister.PersistUITree(context.Background(), "caller-should-not-win", "owner-1", "op-1", []byte(`{"password":"TEST_ONLY_PASSWORD_SENTINEL"}`))
+	if err != nil || treeID == "" {
+		t.Fatalf("sensitive ui tree must retain omission metadata = %q/%v", treeID, err)
+	}
+	tree, err := service.Get(context.Background(), workspace, artifacts.ArtifactID(treeID), "operator", "op-1")
+	if err != nil || tree.Category != artifacts.CategoryOmission {
+		t.Fatalf("sensitive ui tree omission = %#v/%v", tree, err)
 	}
 }

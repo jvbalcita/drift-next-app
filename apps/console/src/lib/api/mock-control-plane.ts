@@ -1157,14 +1157,21 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       summary: "Cleanup Completed After Explicit Confirmation",
     }
     this.nextSequence += 1
+    const usedBytes = Math.max(0, this.snapshot.storageHealth.usedBytes - artifact.sizeBytes)
     this.snapshot = {
       ...this.snapshot,
       artifacts: this.snapshot.artifacts.map((candidate) => (candidate.id === artifact.id ? updated : candidate)),
       artifactAudits: this.appendArtifactAudit(audit),
       storageHealth: {
         ...this.snapshot.storageHealth,
-        usedBytes: Math.max(0, this.snapshot.storageHealth.usedBytes - artifact.sizeBytes),
+        usedBytes,
+        objectCount: Math.max(0, this.snapshot.storageHealth.objectCount - 1),
         cleanupFailures: Math.max(0, this.snapshot.storageHealth.cleanupFailures - (artifact.lifecycleState === "cleanup_failed" ? 1 : 0)),
+        quotaWarning: usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6,
+        warningSummary:
+          usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6
+            ? "Workspace Storage Is Above 60% Of The Local Budget"
+            : "Workspace Storage Is Within The Local Budget",
       },
     }
     return result(intent, "Cleanup completed after confirmation.", artifact.id)
