@@ -8,6 +8,28 @@ import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import { WorkflowsPage } from "./WorkflowsPage"
 
 describe("WorkflowsPage", () => {
+  it("creates a validated observe workflow and publishes it after confirmation", async () => {
+    const user = userEvent.setup()
+    const client = new MockControlPlaneClient()
+    const dispatch = async (intent: Parameters<typeof client.dispatch>[0]) => client.dispatch(intent)
+    const view = () => (
+      <WorkflowsPage snapshot={client.getSnapshot()} dispatch={dispatch} view="definitions" onViewChange={() => undefined} />
+    )
+    const { rerender } = render(view())
+
+    await user.type(screen.getByLabelText("Workflow Name"), "Observe Device")
+    await user.click(screen.getByRole("button", { name: "Create Workflow" }))
+    rerender(view())
+    expect(screen.getByText(/Draft workflow created/i)).toBeInTheDocument()
+    expect(client.getSnapshot().workflows.some((workflow) => workflow.name === "Observe Device" && workflow.latestVersionState === "validated")).toBe(true)
+
+    await user.click(screen.getByRole("button", { name: "Publish Version" }))
+    await user.click(within(document.body).getByRole("button", { name: "Confirm Publish Version" }))
+    rerender(view())
+    expect(screen.getByText(/Workflow version published/i)).toBeInTheDocument()
+    expect(client.getSnapshot().workflows.find((workflow) => workflow.name === "Observe Device")?.state).toBe("published")
+  })
+
   it("reviews and confirms skill publish on an existing version", async () => {
     const user = userEvent.setup()
     const client = new MockControlPlaneClient()

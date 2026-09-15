@@ -195,7 +195,14 @@ import {
   ReviewSkillVersionRequestSchema,
   ReviewSkillVersionResponseSchema,
 } from "@/gen/drift/v1/skill_pb"
-import { ListWorkflowsRequestSchema, ListWorkflowsResponseSchema } from "@/gen/drift/v1/workflow_pb"
+import {
+  CreateWorkflowRequestSchema,
+  CreateWorkflowResponseSchema,
+  ListWorkflowsRequestSchema,
+  ListWorkflowsResponseSchema,
+  PublishWorkflowVersionRequestSchema,
+  PublishWorkflowVersionResponseSchema,
+} from "@/gen/drift/v1/workflow_pb"
 import { ConnectJsonClient, requestContext, workspaceRef } from "@/lib/api/connect-json"
 
 const listPage = create(PageRequestSchema, { pageSize: 200 })
@@ -607,6 +614,20 @@ export class WorkflowClient {
   }
   listWorkflows(workspaceId: string) {
     return this.rpc.call("ListWorkflows", ListWorkflowsRequestSchema, ListWorkflowsResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
+  }
+  createWorkflow(requestId: string, workspaceId: string, displayName: string) {
+    return this.rpc.call("CreateWorkflow", CreateWorkflowRequestSchema, CreateWorkflowResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      displayName,
+    })
+  }
+  publishWorkflowVersion(requestId: string, workspaceId: string, versionId: string) {
+    return this.rpc.call("PublishWorkflowVersion", PublishWorkflowVersionRequestSchema, PublishWorkflowVersionResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      versionId,
+    })
   }
 }
 

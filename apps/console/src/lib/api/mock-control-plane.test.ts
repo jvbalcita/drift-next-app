@@ -504,4 +504,16 @@ describe("MockControlPlaneClient", () => {
     expect(run?.selector).toBe("Explicit devices")
     expect(snapshot.runTargets.filter((target) => target.runId === run?.id).map((target) => target.deviceId)).toEqual(["atlas-04", "nova-02"])
   })
+
+  it("creates a validated observe workflow and publishes only after confirmation", () => {
+    const client = new MockControlPlaneClient()
+    const unconfirmed = client.dispatch({ type: "publishWorkflowVersion", versionId: "missing", confirmed: false })
+    const created = client.dispatch({ type: "createWorkflow", name: "Observe Device" })
+    const published = client.dispatch({ type: "publishWorkflowVersion", versionId: created.resourceId ?? "", confirmed: true })
+
+    expect(unconfirmed.ok).toBe(false)
+    expect(created.ok).toBe(true)
+    expect(published.ok).toBe(true)
+    expect(client.getSnapshot().workflows.find((workflow) => workflow.name === "Observe Device")?.state).toBe("published")
+  })
 })

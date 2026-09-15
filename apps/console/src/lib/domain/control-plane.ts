@@ -220,6 +220,8 @@ export interface WorkflowView {
   state: WorkflowState
   version: number
   publishedVersionId?: string
+  latestVersionId?: string
+  latestVersionState?: WorkflowState
   stepCount: number
   targetSelector: string
   safetySummary: string
@@ -686,6 +688,8 @@ export type ControlPlaneIntent =
   | { type: "assignAutomationAgentDevice"; agentId: string; deviceId: string }
   | { type: "cancelRun"; runId: string }
   | { type: "startWorkflowRun"; workflowId: string; deviceIds: readonly string[]; confirmed: boolean }
+  | { type: "createWorkflow"; name: string }
+  | { type: "publishWorkflowVersion"; versionId: string; confirmed: boolean }
   | { type: "createAccountSource"; provider: string; displayName: string; externalReference: string; metadataJson: string }
   | { type: "updateAccountSource"; sourceId: string; displayName: string; externalReference: string; metadataJson: string; rowVersion: number }
   | { type: "retireAccountSource"; sourceId: string; rowVersion: number }

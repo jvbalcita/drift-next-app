@@ -36,11 +36,19 @@ const (
 	// WorkflowServiceListWorkflowsProcedure is the fully-qualified name of the WorkflowService's
 	// ListWorkflows RPC.
 	WorkflowServiceListWorkflowsProcedure = "/drift.v1.WorkflowService/ListWorkflows"
+	// WorkflowServiceCreateWorkflowProcedure is the fully-qualified name of the WorkflowService's
+	// CreateWorkflow RPC.
+	WorkflowServiceCreateWorkflowProcedure = "/drift.v1.WorkflowService/CreateWorkflow"
+	// WorkflowServicePublishWorkflowVersionProcedure is the fully-qualified name of the
+	// WorkflowService's PublishWorkflowVersion RPC.
+	WorkflowServicePublishWorkflowVersionProcedure = "/drift.v1.WorkflowService/PublishWorkflowVersion"
 )
 
 // WorkflowServiceClient is a client for the drift.v1.WorkflowService service.
 type WorkflowServiceClient interface {
 	ListWorkflows(context.Context, *connect.Request[v1.ListWorkflowsRequest]) (*connect.Response[v1.ListWorkflowsResponse], error)
+	CreateWorkflow(context.Context, *connect.Request[v1.CreateWorkflowRequest]) (*connect.Response[v1.CreateWorkflowResponse], error)
+	PublishWorkflowVersion(context.Context, *connect.Request[v1.PublishWorkflowVersionRequest]) (*connect.Response[v1.PublishWorkflowVersionResponse], error)
 }
 
 // NewWorkflowServiceClient constructs a client for the drift.v1.WorkflowService service. By
@@ -60,12 +68,26 @@ func NewWorkflowServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(workflowServiceMethods.ByName("ListWorkflows")),
 			connect.WithClientOptions(opts...),
 		),
+		createWorkflow: connect.NewClient[v1.CreateWorkflowRequest, v1.CreateWorkflowResponse](
+			httpClient,
+			baseURL+WorkflowServiceCreateWorkflowProcedure,
+			connect.WithSchema(workflowServiceMethods.ByName("CreateWorkflow")),
+			connect.WithClientOptions(opts...),
+		),
+		publishWorkflowVersion: connect.NewClient[v1.PublishWorkflowVersionRequest, v1.PublishWorkflowVersionResponse](
+			httpClient,
+			baseURL+WorkflowServicePublishWorkflowVersionProcedure,
+			connect.WithSchema(workflowServiceMethods.ByName("PublishWorkflowVersion")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // workflowServiceClient implements WorkflowServiceClient.
 type workflowServiceClient struct {
-	listWorkflows *connect.Client[v1.ListWorkflowsRequest, v1.ListWorkflowsResponse]
+	listWorkflows          *connect.Client[v1.ListWorkflowsRequest, v1.ListWorkflowsResponse]
+	createWorkflow         *connect.Client[v1.CreateWorkflowRequest, v1.CreateWorkflowResponse]
+	publishWorkflowVersion *connect.Client[v1.PublishWorkflowVersionRequest, v1.PublishWorkflowVersionResponse]
 }
 
 // ListWorkflows calls drift.v1.WorkflowService.ListWorkflows.
@@ -73,9 +95,21 @@ func (c *workflowServiceClient) ListWorkflows(ctx context.Context, req *connect.
 	return c.listWorkflows.CallUnary(ctx, req)
 }
 
+// CreateWorkflow calls drift.v1.WorkflowService.CreateWorkflow.
+func (c *workflowServiceClient) CreateWorkflow(ctx context.Context, req *connect.Request[v1.CreateWorkflowRequest]) (*connect.Response[v1.CreateWorkflowResponse], error) {
+	return c.createWorkflow.CallUnary(ctx, req)
+}
+
+// PublishWorkflowVersion calls drift.v1.WorkflowService.PublishWorkflowVersion.
+func (c *workflowServiceClient) PublishWorkflowVersion(ctx context.Context, req *connect.Request[v1.PublishWorkflowVersionRequest]) (*connect.Response[v1.PublishWorkflowVersionResponse], error) {
+	return c.publishWorkflowVersion.CallUnary(ctx, req)
+}
+
 // WorkflowServiceHandler is an implementation of the drift.v1.WorkflowService service.
 type WorkflowServiceHandler interface {
 	ListWorkflows(context.Context, *connect.Request[v1.ListWorkflowsRequest]) (*connect.Response[v1.ListWorkflowsResponse], error)
+	CreateWorkflow(context.Context, *connect.Request[v1.CreateWorkflowRequest]) (*connect.Response[v1.CreateWorkflowResponse], error)
+	PublishWorkflowVersion(context.Context, *connect.Request[v1.PublishWorkflowVersionRequest]) (*connect.Response[v1.PublishWorkflowVersionResponse], error)
 }
 
 // NewWorkflowServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -91,10 +125,26 @@ func NewWorkflowServiceHandler(svc WorkflowServiceHandler, opts ...connect.Handl
 		connect.WithSchema(workflowServiceMethods.ByName("ListWorkflows")),
 		connect.WithHandlerOptions(opts...),
 	)
+	workflowServiceCreateWorkflowHandler := connect.NewUnaryHandler(
+		WorkflowServiceCreateWorkflowProcedure,
+		svc.CreateWorkflow,
+		connect.WithSchema(workflowServiceMethods.ByName("CreateWorkflow")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workflowServicePublishWorkflowVersionHandler := connect.NewUnaryHandler(
+		WorkflowServicePublishWorkflowVersionProcedure,
+		svc.PublishWorkflowVersion,
+		connect.WithSchema(workflowServiceMethods.ByName("PublishWorkflowVersion")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.WorkflowService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WorkflowServiceListWorkflowsProcedure:
 			workflowServiceListWorkflowsHandler.ServeHTTP(w, r)
+		case WorkflowServiceCreateWorkflowProcedure:
+			workflowServiceCreateWorkflowHandler.ServeHTTP(w, r)
+		case WorkflowServicePublishWorkflowVersionProcedure:
+			workflowServicePublishWorkflowVersionHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -106,4 +156,12 @@ type UnimplementedWorkflowServiceHandler struct{}
 
 func (UnimplementedWorkflowServiceHandler) ListWorkflows(context.Context, *connect.Request[v1.ListWorkflowsRequest]) (*connect.Response[v1.ListWorkflowsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.WorkflowService.ListWorkflows is not implemented"))
+}
+
+func (UnimplementedWorkflowServiceHandler) CreateWorkflow(context.Context, *connect.Request[v1.CreateWorkflowRequest]) (*connect.Response[v1.CreateWorkflowResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.WorkflowService.CreateWorkflow is not implemented"))
+}
+
+func (UnimplementedWorkflowServiceHandler) PublishWorkflowVersion(context.Context, *connect.Request[v1.PublishWorkflowVersionRequest]) (*connect.Response[v1.PublishWorkflowVersionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.WorkflowService.PublishWorkflowVersion is not implemented"))
 }

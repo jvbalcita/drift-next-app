@@ -82,6 +82,23 @@ func (r *WorkflowRepository) PublishedVersion(ctx context.Context, workspace org
 	return loadWorkflowVersion(ctx, r.store.db, workspace, "", workflowID)
 }
 
+func (r *WorkflowRepository) LatestVersion(ctx context.Context, workspace organizations.WorkspaceID, workflowID workflows.ID) (workflows.Version, error) {
+	if err := validateWorkflowReader(ctx, r, workspace, string(workflowID)); err != nil {
+		return workflows.Version{}, err
+	}
+	var version workflows.Version
+	var state string
+	err := r.store.db.QueryRowContext(ctx, `SELECT id, workspace_id, workflow_id, version, state FROM workflow_versions WHERE workspace_id=? AND workflow_id=? ORDER BY version DESC LIMIT 1`, workspace, workflowID).Scan(&version.ID, &version.Workspace, &version.WorkflowID, &version.Version, &state)
+	if err == sql.ErrNoRows {
+		return version, platformerrors.New(platformerrors.CodeNotFound, "workflow version not found")
+	}
+	if err != nil {
+		return version, classifyContext(err)
+	}
+	version.State = workflows.State(state)
+	return version, nil
+}
+
 func validateWorkflowReader(ctx context.Context, reader *WorkflowRepository, workspace organizations.WorkspaceID, id string) error {
 	if ctx == nil || reader == nil || reader.store == nil || reader.store.db == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite repository are required")

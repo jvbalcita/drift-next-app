@@ -1,18 +1,25 @@
-import { useState } from "react"
+import { useState, type FormEvent } from "react"
 import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import type { ControlPlaneSnapshot, DispatchIntent, SkillView, WorkflowView } from "@/lib/domain/control-plane"
-import { DataTablePagination, EmptyState, OperatorNotice, PageIntro, StatusBadge } from "./shared"
+import { DataTablePagination, EmptyState, FieldLabel, OperatorNotice, PageIntro, StatusBadge } from "./shared"
 
 export function WorkflowsPage({ snapshot, dispatch, view = "definitions", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
   const [feedback, setFeedback] = useState("")
+  const [workflowName, setWorkflowName] = useState("")
+  function createWorkflow(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void reportDispatch(dispatch, { type: "createWorkflow", name: workflowName }, setFeedback).then((outcome) => {
+      if (outcome.ok) setWorkflowName("")
+    })
+  }
   return (
     <>
-      <PageIntro eyebrow="EXECUTION / WORKFLOWS" title="Workflows" description="Definitions, immutable version facts, and promoted skills are separate from run admission and target execution." actions={<StatusBadge label={`${snapshot.workflows.length} definitions`} tone="info" />} />
-      <OperatorNotice>Catalog rows come from the control plane. Start a published workflow from Runs after choosing explicit devices and confirming. Unpublished definitions cannot run.</OperatorNotice>
+      <PageIntro eyebrow="EXECUTION / WORKFLOWS" title="Workflows" description="Definitions, immutable version facts, and promoted skills are separate from run admission and target execution." actions={<StatusBadge label={`${snapshot.workflows.length} Definitions`} tone="info" />} />
+      <OperatorNotice>Create a draft with a validated observe version, then publish after confirmation. Start a published workflow from Runs after choosing explicit devices.</OperatorNotice>
       {feedback ? (
         <p role="status" className="mb-4 border border-border bg-muted/30 px-3 py-2 text-xs" aria-live="polite">
           {feedback}
@@ -24,7 +31,16 @@ export function WorkflowsPage({ snapshot, dispatch, view = "definitions", onView
           <TabsTrigger value="versions" className="rounded-none">Versions</TabsTrigger>
           <TabsTrigger value="skills" className="rounded-none">Skills</TabsTrigger>
         </TabsList>
-        <TabsContent value="definitions" className="mt-4"><WorkflowTable workflows={snapshot.workflows} /></TabsContent>
+        <TabsContent value="definitions" className="mt-4">
+          <form onSubmit={createWorkflow} className="mb-4 flex flex-wrap items-end gap-3 border border-border p-4">
+            <div>
+              <FieldLabel htmlFor="new-workflow-name">Workflow Name</FieldLabel>
+              <input id="new-workflow-name" value={workflowName} onChange={(event) => setWorkflowName(event.target.value)} className="mt-1 h-9 rounded-none border border-input bg-background px-2 text-xs" />
+            </div>
+            <Button type="submit" size="sm" variant="outline" disabled={!workflowName.trim()}>Create Workflow</Button>
+          </form>
+          <WorkflowTable workflows={snapshot.workflows} dispatch={dispatch} onFeedback={setFeedback} />
+        </TabsContent>
         <TabsContent value="versions" className="mt-4">
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">One immutable current version is retained per workflow definition.</p>
@@ -44,18 +60,18 @@ export function WorkflowsPage({ snapshot, dispatch, view = "definitions", onView
   )
 }
 
-function WorkflowTable({ workflows }: { workflows: readonly WorkflowView[] }) {
+function WorkflowTable({ workflows, dispatch, onFeedback }: { workflows: readonly WorkflowView[]; dispatch: DispatchIntent; onFeedback: (message: string) => void }) {
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(10)
   const visible = workflows.slice(page * pageSize, (page + 1) * pageSize)
   return (
     <>
       {workflows.length === 0 ? (
-        <EmptyState label="No Workflow Definitions" detail="No workflow definitions are available in this workspace." />
+        <EmptyState label="No Workflow Definitions" detail="Create a workflow to add a validated observe version. Publish after confirmation before starting a run." />
       ) : (
         <ScrollArea className="h-[min(65vh,700px)] border border-border">
           <table className="w-full min-w-[760px] text-left text-xs">
-            <caption className="sr-only">Workflow definitions</caption>
+            <caption className="sr-only">Workflow Definitions</caption>
             <thead className="sticky top-0 bg-background">
               <tr className="border-b border-border text-[10px] tracking-[.08em] text-muted-foreground">
                 <th className="p-3">Workflow</th>
@@ -63,6 +79,7 @@ function WorkflowTable({ workflows }: { workflows: readonly WorkflowView[] }) {
                 <th className="p-3">Targets</th>
                 <th className="p-3">Safety</th>
                 <th className="p-3">Steps</th>
+                <th className="p-3"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
@@ -76,6 +93,21 @@ function WorkflowTable({ workflows }: { workflows: readonly WorkflowView[] }) {
                   <td className="p-3">{workflow.targetSelector}</td>
                   <td className="p-3 text-muted-foreground">{workflow.safetySummary}</td>
                   <td className="p-3">{workflow.stepCount}</td>
+                  <td className="p-3 text-right">
+                    {workflow.latestVersionId && workflow.latestVersionState === "validated" ? (
+                      <AlertDialog>
+                        <AlertDialogTrigger render={<Button size="sm" variant="outline">Publish Version</Button>} />
+                        <AlertDialogContent
+                          title="Publish Workflow Version?"
+                          description="Publishes the validated observe version. Runs still require explicit device selection and confirmation."
+                          confirmLabel="Confirm Publish Version"
+                          onConfirm={() => {
+                            void reportDispatch(dispatch, { type: "publishWorkflowVersion", versionId: workflow.latestVersionId ?? "", confirmed: true }, onFeedback)
+                          }}
+                        />
+                      </AlertDialog>
+                    ) : null}
+                  </td>
                 </tr>
               ))}
             </tbody>

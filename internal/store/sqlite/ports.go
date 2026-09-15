@@ -84,6 +84,7 @@ type WorkflowReader interface {
 	List(context.Context, organizations.WorkspaceID) ([]workflows.Workflow, error)
 	GetVersion(context.Context, organizations.WorkspaceID, workflows.VersionID) (workflows.Version, error)
 	PublishedVersion(context.Context, organizations.WorkspaceID, workflows.ID) (workflows.Version, error)
+	LatestVersion(context.Context, organizations.WorkspaceID, workflows.ID) (workflows.Version, error)
 }
 type RunReader interface {
 	Get(context.Context, organizations.WorkspaceID, runs.RunID) (runs.ParentRun, error)

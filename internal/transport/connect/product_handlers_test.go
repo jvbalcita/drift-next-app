@@ -395,3 +395,38 @@ func TestStartWorkflowRunRequiresExplicitDevicesAndPublishedVersion(t *testing.T
 		t.Fatalf("list run targets = %#v err=%v", targets, err)
 	}
 }
+
+func TestCreateAndPublishWorkflowVersion(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	handler := transportconnect.NewWorkflowHandler(db)
+	_, err := handler.CreateWorkflow(ctx, connectrpc.NewRequest(&driftv1.CreateWorkflowRequest{
+		Context:   requestContext("workflow-create-empty"),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("empty name code = %v, want invalid_argument; err=%v", connectrpc.CodeOf(err), err)
+	}
+	created, err := handler.CreateWorkflow(ctx, connectrpc.NewRequest(&driftv1.CreateWorkflowRequest{
+		Context:     requestContext("workflow-create-1"),
+		Workspace:   &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		DisplayName: "Observe Device",
+	}))
+	if err != nil || created.Msg.Workflow.GetDisplayName() != "Observe Device" || created.Msg.Version.GetState() != driftv1.WorkflowState_WORKFLOW_STATE_VALIDATED {
+		t.Fatalf("create workflow = %#v err=%v", created, err)
+	}
+	published, err := handler.PublishWorkflowVersion(ctx, connectrpc.NewRequest(&driftv1.PublishWorkflowVersionRequest{
+		Context:   requestContext("workflow-publish-1"),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		VersionId: created.Msg.Version.GetId(),
+	}))
+	if err != nil || published.Msg.Version.GetState() != driftv1.WorkflowState_WORKFLOW_STATE_PUBLISHED {
+		t.Fatalf("publish workflow = %#v err=%v", published, err)
+	}
+	listed, err := handler.ListWorkflows(ctx, connectrpc.NewRequest(&driftv1.ListWorkflowsRequest{
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if err != nil || len(listed.Msg.Workflows) != 1 || listed.Msg.Workflows[0].GetPublishedVersionId() != created.Msg.Version.GetId() {
+		t.Fatalf("list workflows = %#v err=%v", listed, err)
+	}
+}

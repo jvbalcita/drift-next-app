@@ -438,4 +438,24 @@ describe("RealControlPlaneClient", () => {
     ]))
     expect(urls.filter((url) => url.includes("StartWorkflowRun"))).toHaveLength(1)
   })
+
+  it("creates and publishes a workflow version only after confirmation", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
+    )
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+    const unconfirmed = await client.dispatch({ type: "publishWorkflowVersion", versionId: "version-1", confirmed: false })
+    const created = await client.dispatch({ type: "createWorkflow", name: "Observe Device" })
+    const published = await client.dispatch({ type: "publishWorkflowVersion", versionId: "version-1", confirmed: true })
+    const urls = fetchSpy.mock.calls.map((call) => String(call[0]))
+
+    expect(unconfirmed.ok).toBe(false)
+    expect(created.ok).toBe(true)
+    expect(published.ok).toBe(true)
+    expect(urls).toEqual(expect.arrayContaining([
+      "http://127.0.0.1:8080/drift.v1.WorkflowService/CreateWorkflow",
+      "http://127.0.0.1:8080/drift.v1.WorkflowService/PublishWorkflowVersion",
+    ]))
+  })
 })

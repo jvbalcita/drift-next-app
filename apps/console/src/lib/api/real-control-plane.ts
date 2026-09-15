@@ -478,8 +478,10 @@ function mapWorkflow(workflow: Workflow): WorkflowView {
     id: workflow.id,
     name: workflow.displayName || workflow.id,
     state: mapLifecycleState(workflow.state),
-    version: workflow.publishedVersion || Number(workflow.rowVersion),
+    version: workflow.publishedVersion || workflow.latestVersion || Number(workflow.rowVersion),
     ...(workflow.publishedVersionId ? { publishedVersionId: workflow.publishedVersionId } : {}),
+    ...(workflow.latestVersionId ? { latestVersionId: workflow.latestVersionId } : {}),
+    ...(workflow.latestVersionState ? { latestVersionState: mapLifecycleState(workflow.latestVersionState) } : {}),
     stepCount: 0,
     targetSelector: workflow.publishedVersionId ? "Explicit Devices" : "",
     safetySummary: workflow.publishedVersionId ? "Published version required" : "No published version",
@@ -1619,6 +1621,17 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         if (intent.deviceIds.length === 0) return failure(intent, "Choose at least one device before starting a run.", { errorCode: "invalid_input" })
         await this.services.run.startWorkflowRun(requestId, workspaceId, intent.workflowId, intent.deviceIds)
         return mutation(intent, "Workflow run requested for the selected devices.")
+      }
+      case "createWorkflow": {
+        if (!intent.name.trim()) return failure(intent, "Workflow name is required.", { errorCode: "invalid_input" })
+        await this.services.workflow.createWorkflow(requestId, workspaceId, intent.name.trim())
+        return mutation(intent, "Draft workflow created with a validated observe version.")
+      }
+      case "publishWorkflowVersion": {
+        if (!intent.confirmed) return failure(intent, "Publishing a workflow version requires confirmation.", { errorCode: "precondition_failed" })
+        if (!intent.versionId) return failure(intent, "Workflow version is required.", { errorCode: "invalid_input" })
+        await this.services.workflow.publishWorkflowVersion(requestId, workspaceId, intent.versionId)
+        return mutation(intent, "Workflow version published.")
       }
       case "createAccountSource": {
         await this.services.account.createAccountSource(requestId, workspaceId, intent)

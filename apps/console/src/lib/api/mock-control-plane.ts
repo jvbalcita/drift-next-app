@@ -933,6 +933,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.cancelRun(intent)
       case "startWorkflowRun":
         return this.startWorkflowRun(intent)
+      case "createWorkflow":
+        return this.createWorkflow(intent)
+      case "publishWorkflowVersion":
+        return this.publishWorkflowVersion(intent)
       case "createAccountSource":
         return this.createAccountSource(intent)
       case "updateAccountSource":
@@ -2140,6 +2144,54 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       ],
     }
     return result(intent, "Workflow run requested for the selected devices.", runId)
+  }
+
+  private createWorkflow(intent: Extract<ControlPlaneIntent, { type: "createWorkflow" }>): MutationResult {
+    const name = intent.name.trim()
+    if (!name) return rejection(intent, "Workflow name is required.", "", "invalid_input")
+    const id = `workflow-${this.nextSequence++}`
+    const versionId = `${id}-v1`
+    this.snapshot = {
+      ...this.snapshot,
+      workflows: [
+        ...this.snapshot.workflows,
+        {
+          id,
+          name,
+          state: "draft",
+          version: 1,
+          latestVersionId: versionId,
+          latestVersionState: "validated",
+          stepCount: 1,
+          targetSelector: "",
+          safetySummary: "No published version",
+        },
+      ],
+    }
+    return result(intent, "Draft workflow created with a validated observe version.", versionId)
+  }
+
+  private publishWorkflowVersion(intent: Extract<ControlPlaneIntent, { type: "publishWorkflowVersion" }>): MutationResult {
+    if (!intent.confirmed) return rejection(intent, "Publishing a workflow version requires confirmation.", intent.versionId, "precondition_failed")
+    const workflow = this.snapshot.workflows.find((candidate) => candidate.latestVersionId === intent.versionId)
+    if (!workflow) return rejection(intent, "Workflow version was not found.", intent.versionId, "invalid_input")
+    if (workflow.latestVersionState !== "validated") return rejection(intent, "Only a validated workflow version can be published.", intent.versionId, "precondition_failed")
+    this.snapshot = {
+      ...this.snapshot,
+      workflows: this.snapshot.workflows.map((candidate) =>
+        candidate.id === workflow.id
+          ? {
+              ...candidate,
+              state: "published" as const,
+              publishedVersionId: intent.versionId,
+              latestVersionState: "published" as const,
+              targetSelector: "Explicit Devices",
+              safetySummary: "Published version required",
+            }
+          : candidate,
+      ),
+    }
+    return result(intent, "Workflow version published.", intent.versionId)
   }
 
   private cancelRun(intent: Extract<ControlPlaneIntent, { type: "cancelRun" }>): MutationResult {
