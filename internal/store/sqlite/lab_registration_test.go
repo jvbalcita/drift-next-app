@@ -55,8 +55,8 @@ func TestLabRegistrationDurableApproveRegisterCreatesOneDevice(t *testing.T) {
 		t.Fatalf("idempotent register = %#v err=%v", again, err)
 	}
 
-	// Re-verify for a second serial after approval of another would require check+approval;
-	// one-device scope blocks a second registration in the same workspace.
+	// Re-verify for a second serial after approval; unique serial identity is
+	// still enforced, while workspace capacity is an application-service policy.
 	readyB := ready
 	readyB.Serial = "LAB-2"
 	readyB.TransportID = "usb:2"
@@ -71,10 +71,11 @@ func TestLabRegistrationDurableApproveRegisterCreatesOneDevice(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RegisterLabDevice(ctx, workspace, registration.RegisterRequest{
+	second, err := db.RegisterLabDevice(ctx, workspace, registration.RegisterRequest{
 		Serial: "LAB-2", DisplayName: "B", ActorID: "op-1",
-	}); platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
-		t.Fatalf("second device code = %v", platformerrors.CodeOf(err))
+	})
+	if err != nil || second.DeviceID == "" || second.DeviceID == first.DeviceID {
+		t.Fatalf("second device = %#v err=%v", second, err)
 	}
 
 	ready, hasReady, _, hasApproval, registered, hasRegistered, err := db.LoadLabRegistrationStatus(ctx, workspace, "LAB-1")

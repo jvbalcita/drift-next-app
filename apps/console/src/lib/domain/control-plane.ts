@@ -77,7 +77,7 @@ export type SpoolItemOutcome =
 export type IndeterminateResolutionKind = "fresh_observation" | "operator_confirmed"
 export type PrerequisiteErrorCode = "precondition_failed" | "policy_denied" | "unauthorized" | "invalid_input"
 export type MirrorSessionState = "requested" | "active" | "paused" | "stopping" | "completed" | "failed" | "cancelled"
-export type MirrorTargetOutcome = "simulated_success" | "offline" | "incompatible" | "policy_denied" | "lease_conflict" | "target_resolution_failed"
+export type MirrorTargetOutcome = "preview_admitted" | "simulated_success" | "offline" | "incompatible" | "policy_denied" | "lease_conflict" | "target_resolution_failed" | "cancelled"
 
 export interface DeviceView {
   id: string
@@ -219,6 +219,9 @@ export interface WorkflowView {
   name: string
   state: WorkflowState
   version: number
+  publishedVersionId?: string
+  latestVersionId?: string
+  latestVersionState?: WorkflowState
   stepCount: number
   targetSelector: string
   safetySummary: string
@@ -228,6 +231,7 @@ export interface SkillView {
   id: string
   name: string
   version: number
+  versionId?: string
   state: WorkflowState
   trust: TrustState
   capabilities: readonly string[]
@@ -666,6 +670,8 @@ export interface SettingHistoryView {
   changedAt: string
 }
 
+export type DeviceActionKind = "observe" | "health_check" | "capture" | "home" | "back"
+
 export type ControlPlaneIntent =
   | { type: "refresh" }
   | { type: "startMirrorPreview"; sourceDeviceId: string; followerDeviceIds: readonly string[] }
@@ -677,7 +683,13 @@ export type ControlPlaneIntent =
   | { type: "decideScanCandidate"; candidateId: string; approve: boolean; reason: string }
   | { type: "registerScanCandidate"; candidateId: string; displayName: string }
   | { type: "moveDeviceToGroup"; deviceId: string; groupId: string; position: number }
+  | { type: "createDeviceGroup"; name: string }
+  | { type: "createAutomationAgent"; name: string }
+  | { type: "assignAutomationAgentDevice"; agentId: string; deviceId: string }
   | { type: "cancelRun"; runId: string }
+  | { type: "startWorkflowRun"; workflowId: string; deviceIds: readonly string[]; confirmed: boolean }
+  | { type: "createWorkflow"; name: string }
+  | { type: "publishWorkflowVersion"; versionId: string; confirmed: boolean }
   | { type: "createAccountSource"; provider: string; displayName: string; externalReference: string; metadataJson: string }
   | { type: "updateAccountSource"; sourceId: string; displayName: string; externalReference: string; metadataJson: string; rowVersion: number }
   | { type: "retireAccountSource"; sourceId: string; rowVersion: number }
@@ -727,6 +739,15 @@ export type ControlPlaneIntent =
   | { type: "readArtifact"; artifactId: string }
   | { type: "deleteArtifact"; artifactId: string; confirmed: boolean }
   | { type: "cleanupArtifact"; artifactId: string; confirmed: boolean }
+  | { type: "beginDeviceControl"; deviceId: string }
+  | { type: "endDeviceControl"; deviceId: string }
+  | { type: "submitDeviceAction"; deviceId: string; kind: DeviceActionKind; confirmed: boolean }
+  | { type: "beginRecording"; deviceId: string }
+  | { type: "stopRecording"; sessionId: string }
+  | { type: "discardRecording"; sessionId: string }
+  | { type: "deleteRecording"; sessionId: string; confirmed: boolean }
+  | { type: "reviewSkillVersion"; versionId: string; reason: string }
+  | { type: "publishSkillVersion"; versionId: string; reason: string; confirmed: boolean }
 
 export interface MutationResult {
   ok: boolean
@@ -740,7 +761,8 @@ export interface MutationResult {
 
 export interface ControlPlaneClient {
   getSnapshot(): ControlPlaneSnapshot
-  dispatch(intent: ControlPlaneIntent): MutationResult
+  dispatch(intent: ControlPlaneIntent): MutationResult | Promise<MutationResult>
+  refresh(): Promise<ControlPlaneSnapshot>
 }
 
-export type DispatchIntent = (intent: ControlPlaneIntent) => MutationResult
+export type DispatchIntent = (intent: ControlPlaneIntent) => Promise<MutationResult>

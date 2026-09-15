@@ -42,6 +42,8 @@ message RunTarget {
   string device_id = 3;
   RunTargetState state = 4;
   Failure failure = 5;
+  string lease_id = 6;
+  string observation_id = 7;
 }
 message ListWorkflowRunsRequest {
   WorkspaceRef workspace = 1;
@@ -58,7 +60,28 @@ message CancelWorkflowRunRequest {
 message CancelWorkflowRunResponse {
   WorkflowRun run = 1;
 }
+message ListRunTargetsRequest {
+  WorkspaceRef workspace = 1;
+  string run_id = 2;
+  PageRequest page = 3;
+}
+message ListRunTargetsResponse {
+  repeated RunTarget targets = 1;
+  PageResponse page = 2;
+}
+message StartWorkflowRunRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string workflow_id = 3;
+  repeated string device_ids = 4;
+  uint32 concurrency_limit = 5;
+}
+message StartWorkflowRunResponse {
+  WorkflowRun run = 1;
+}
 service RunService {
   rpc ListWorkflowRuns(ListWorkflowRunsRequest) returns (ListWorkflowRunsResponse);
   rpc CancelWorkflowRun(CancelWorkflowRunRequest) returns (CancelWorkflowRunResponse);
+  rpc ListRunTargets(ListRunTargetsRequest) returns (ListRunTargetsResponse);
+  rpc StartWorkflowRun(StartWorkflowRunRequest) returns (StartWorkflowRunResponse);
 }

@@ -2,9 +2,12 @@ import { create, toJson } from "@bufbuild/protobuf"
 import { describe, expect, it, vi } from "vitest"
 import { LabMode, LabObservationBundleSchema, LabReadiness, LabStatusSchema } from "@/gen/drift/v1/lab_adapter_pb"
 import { LabAdapterRequestError, createLabAdapterClient, toLabAdapterView } from "./lab-adapter-client"
+import { adapterServiceBaseUrl } from "./connect-json"
 
 describe("lab adapter client", () => {
-  it("stays on the mock path when no lab endpoint is configured", () => {
+  it("stays on the mock path when no adapter endpoint is configured in tests", () => {
+    expect(adapterServiceBaseUrl("")).toBe("")
+    expect(adapterServiceBaseUrl("http://127.0.0.1:8787/")).toBe("http://127.0.0.1:8787")
     expect(createLabAdapterClient(undefined)).toBeUndefined()
     expect(createLabAdapterClient("")).toBeUndefined()
     expect(createLabAdapterClient("http://127.0.0.1:8787")).toBeDefined()

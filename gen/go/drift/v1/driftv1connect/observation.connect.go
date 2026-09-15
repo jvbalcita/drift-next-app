@@ -36,11 +36,15 @@ const (
 	// ObservationServiceGetObservationSnapshotProcedure is the fully-qualified name of the
 	// ObservationService's GetObservationSnapshot RPC.
 	ObservationServiceGetObservationSnapshotProcedure = "/drift.v1.ObservationService/GetObservationSnapshot"
+	// ObservationServiceListObservationSnapshotsProcedure is the fully-qualified name of the
+	// ObservationService's ListObservationSnapshots RPC.
+	ObservationServiceListObservationSnapshotsProcedure = "/drift.v1.ObservationService/ListObservationSnapshots"
 )
 
 // ObservationServiceClient is a client for the drift.v1.ObservationService service.
 type ObservationServiceClient interface {
 	GetObservationSnapshot(context.Context, *connect.Request[v1.GetObservationSnapshotRequest]) (*connect.Response[v1.GetObservationSnapshotResponse], error)
+	ListObservationSnapshots(context.Context, *connect.Request[v1.ListObservationSnapshotsRequest]) (*connect.Response[v1.ListObservationSnapshotsResponse], error)
 }
 
 // NewObservationServiceClient constructs a client for the drift.v1.ObservationService service. By
@@ -60,12 +64,19 @@ func NewObservationServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(observationServiceMethods.ByName("GetObservationSnapshot")),
 			connect.WithClientOptions(opts...),
 		),
+		listObservationSnapshots: connect.NewClient[v1.ListObservationSnapshotsRequest, v1.ListObservationSnapshotsResponse](
+			httpClient,
+			baseURL+ObservationServiceListObservationSnapshotsProcedure,
+			connect.WithSchema(observationServiceMethods.ByName("ListObservationSnapshots")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // observationServiceClient implements ObservationServiceClient.
 type observationServiceClient struct {
-	getObservationSnapshot *connect.Client[v1.GetObservationSnapshotRequest, v1.GetObservationSnapshotResponse]
+	getObservationSnapshot   *connect.Client[v1.GetObservationSnapshotRequest, v1.GetObservationSnapshotResponse]
+	listObservationSnapshots *connect.Client[v1.ListObservationSnapshotsRequest, v1.ListObservationSnapshotsResponse]
 }
 
 // GetObservationSnapshot calls drift.v1.ObservationService.GetObservationSnapshot.
@@ -73,9 +84,15 @@ func (c *observationServiceClient) GetObservationSnapshot(ctx context.Context, r
 	return c.getObservationSnapshot.CallUnary(ctx, req)
 }
 
+// ListObservationSnapshots calls drift.v1.ObservationService.ListObservationSnapshots.
+func (c *observationServiceClient) ListObservationSnapshots(ctx context.Context, req *connect.Request[v1.ListObservationSnapshotsRequest]) (*connect.Response[v1.ListObservationSnapshotsResponse], error) {
+	return c.listObservationSnapshots.CallUnary(ctx, req)
+}
+
 // ObservationServiceHandler is an implementation of the drift.v1.ObservationService service.
 type ObservationServiceHandler interface {
 	GetObservationSnapshot(context.Context, *connect.Request[v1.GetObservationSnapshotRequest]) (*connect.Response[v1.GetObservationSnapshotResponse], error)
+	ListObservationSnapshots(context.Context, *connect.Request[v1.ListObservationSnapshotsRequest]) (*connect.Response[v1.ListObservationSnapshotsResponse], error)
 }
 
 // NewObservationServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -91,10 +108,18 @@ func NewObservationServiceHandler(svc ObservationServiceHandler, opts ...connect
 		connect.WithSchema(observationServiceMethods.ByName("GetObservationSnapshot")),
 		connect.WithHandlerOptions(opts...),
 	)
+	observationServiceListObservationSnapshotsHandler := connect.NewUnaryHandler(
+		ObservationServiceListObservationSnapshotsProcedure,
+		svc.ListObservationSnapshots,
+		connect.WithSchema(observationServiceMethods.ByName("ListObservationSnapshots")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.ObservationService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ObservationServiceGetObservationSnapshotProcedure:
 			observationServiceGetObservationSnapshotHandler.ServeHTTP(w, r)
+		case ObservationServiceListObservationSnapshotsProcedure:
+			observationServiceListObservationSnapshotsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -106,4 +131,8 @@ type UnimplementedObservationServiceHandler struct{}
 
 func (UnimplementedObservationServiceHandler) GetObservationSnapshot(context.Context, *connect.Request[v1.GetObservationSnapshotRequest]) (*connect.Response[v1.GetObservationSnapshotResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.ObservationService.GetObservationSnapshot is not implemented"))
+}
+
+func (UnimplementedObservationServiceHandler) ListObservationSnapshots(context.Context, *connect.Request[v1.ListObservationSnapshotsRequest]) (*connect.Response[v1.ListObservationSnapshotsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.ObservationService.ListObservationSnapshots is not implemented"))
 }

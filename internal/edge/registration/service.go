@@ -114,8 +114,8 @@ func (p AttestedProbe) Probe(_ context.Context, _ TargetIdentity) (ProbeResult, 
 
 func NewService(cfg Config) *Service {
 	max := cfg.MaxRegisteredDevices
-	if max <= 0 {
-		max = 1
+	if max < 0 {
+		max = 0
 	}
 	return &Service{
 		maxDevices:   max,
@@ -255,8 +255,8 @@ func (s *Service) Register(req RegisterRequest, now time.Time) (RegisterResult, 
 	if _, ok := s.approvals[serial]; !ok {
 		return RegisterResult{}, platformerrors.New(platformerrors.CodePolicyDenied, "operator approval is required before registration")
 	}
-	if len(s.registered) >= s.maxDevices {
-		return RegisterResult{}, platformerrors.New(platformerrors.CodePolicyDenied, "one-device lab registration scope is exhausted")
+	if s.maxDevices > 0 && len(s.registered) >= s.maxDevices {
+		return RegisterResult{}, platformerrors.New(platformerrors.CodePolicyDenied, "registered device capacity is exhausted")
 	}
 
 	result := RegisterResult{
@@ -274,7 +274,8 @@ func (s *Service) Register(req RegisterRequest, now time.Time) (RegisterResult, 
 }
 
 // Lookup returns the durable provisioning and registration projections for a
-// serial. An empty serial returns the sole registered lab device when present.
+// serial. An empty serial never infers a device: operators must select
+// explicitly when more than one transport is present.
 func (s *Service) Lookup(serial string) (ProvisionReady, RegisterResult, bool, bool) {
 	if s == nil {
 		return ProvisionReady{}, RegisterResult{}, false, false
@@ -283,13 +284,6 @@ func (s *Service) Lookup(serial string) (ProvisionReady, RegisterResult, bool, b
 	defer s.mu.Unlock()
 	serial = strings.TrimSpace(serial)
 	if serial == "" {
-		for _, registered := range s.registered {
-			return ProvisionReady{
-				Serial: registered.Serial,
-				State:  StateRegistered,
-				Ready:  true,
-			}, registered, true, true
-		}
 		return ProvisionReady{}, RegisterResult{}, false, false
 	}
 	if registered, ok := s.registered[serial]; ok {

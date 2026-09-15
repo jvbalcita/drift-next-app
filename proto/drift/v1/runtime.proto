@@ -1,0 +1,102 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum RuntimeConnectionState {
+  RUNTIME_CONNECTION_STATE_UNSPECIFIED = 0;
+  RUNTIME_CONNECTION_STATE_CONNECTED = 1;
+  RUNTIME_CONNECTION_STATE_RECONNECTING = 2;
+  RUNTIME_CONNECTION_STATE_DISCONNECTED = 3;
+}
+message RuntimeConnection {
+  RuntimeConnectionState state = 1;
+  string transport_id = 2;
+  string protocol = 3;
+  bool helper_attached = 4;
+  string disconnected_reason = 5;
+  uint32 pending_indeterminate = 6;
+  bool helper_token_is_lease = 7;
+  bool transport_id_is_lease = 8;
+  string updated_at = 9;
+}
+message SpoolHealth {
+  uint32 pending = 1;
+  uint32 blocked = 2;
+  uint32 max_size = 3;
+  int64 retention_ms = 4;
+  bool exhausted = 5;
+  RuntimeConnectionState connection_state = 6;
+  uint64 fence_token = 7;
+  bool fence_is_lease = 8;
+  repeated uint64 blocked_sequences = 9;
+}
+message IndeterminateAction {
+  string action_id = 1;
+  string risk = 2;
+  bool requires_operator_confirmation = 3;
+  string recorded_at = 4;
+  string summary = 5;
+}
+message GetRuntimeStatusRequest {
+  WorkspaceRef workspace = 1;
+}
+message GetRuntimeStatusResponse {
+  RuntimeConnection connection = 1;
+  SpoolHealth spool = 2;
+  repeated IndeterminateAction indeterminate_actions = 3;
+}
+message DisconnectRuntimeRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string reason = 3;
+}
+message DisconnectRuntimeResponse {
+  RuntimeConnection connection = 1;
+  SpoolHealth spool = 2;
+}
+message BeginRuntimeReconnectRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+}
+message BeginRuntimeReconnectResponse {
+  RuntimeConnection connection = 1;
+}
+message CompleteRuntimeReconnectRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string transport_id = 3;
+  string protocol = 4;
+}
+message CompleteRuntimeReconnectResponse {
+  RuntimeConnection connection = 1;
+}
+message ConfirmSpoolReplayRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  uint64 sequence = 3;
+  bool confirm = 4;
+}
+message ConfirmSpoolReplayResponse {
+  SpoolHealth spool = 1;
+}
+message ConfirmIndeterminateActionRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string action_id = 3;
+  bool confirm = 4;
+  string resolution = 5;
+}
+message ConfirmIndeterminateActionResponse {
+  RuntimeConnection connection = 1;
+}
+service RuntimeService {
+  rpc GetRuntimeStatus(GetRuntimeStatusRequest) returns (GetRuntimeStatusResponse);
+  rpc DisconnectRuntime(DisconnectRuntimeRequest) returns (DisconnectRuntimeResponse);
+  rpc BeginRuntimeReconnect(BeginRuntimeReconnectRequest) returns (BeginRuntimeReconnectResponse);
+  rpc CompleteRuntimeReconnect(CompleteRuntimeReconnectRequest) returns (CompleteRuntimeReconnectResponse);
+  rpc ConfirmSpoolReplay(ConfirmSpoolReplayRequest) returns (ConfirmSpoolReplayResponse);
+  rpc ConfirmIndeterminateAction(ConfirmIndeterminateActionRequest) returns (ConfirmIndeterminateActionResponse);
+}

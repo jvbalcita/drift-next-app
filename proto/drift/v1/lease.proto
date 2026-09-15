@@ -21,6 +21,15 @@ message DeviceLease {
   LeaseState state = 5;
   uint64 fencing_token = 6;
   string expires_at = 7;
+  string holder_id = 8;
+}
+message ListDeviceLeasesRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListDeviceLeasesResponse {
+  repeated DeviceLease leases = 1;
+  PageResponse page = 2;
 }
 message AcquireDeviceLeaseRequest {
   RequestContext context = 1;
@@ -47,8 +56,51 @@ message ReleaseDeviceLeaseRequest {
 message ReleaseDeviceLeaseResponse {
   DeviceLease lease = 1;
 }
+enum ControlSessionState {
+  CONTROL_SESSION_STATE_UNSPECIFIED = 0;
+  CONTROL_SESSION_STATE_REQUESTED = 1;
+  CONTROL_SESSION_STATE_ACTIVE = 2;
+  CONTROL_SESSION_STATE_CLOSING = 3;
+  CONTROL_SESSION_STATE_CLOSED = 4;
+  CONTROL_SESSION_STATE_EXPIRED = 5;
+  CONTROL_SESSION_STATE_REVOKED = 6;
+}
+message ControlSession {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string holder_id = 3;
+  ControlSessionState state = 4;
+  string created_at = 5;
+  string expires_at = 6;
+}
+message OpenControlSessionRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+}
+message OpenControlSessionResponse {
+  ControlSession session = 1;
+}
+message CloseControlSessionRequest {
+  RequestContext context = 1;
+  ResourceRef session = 2;
+}
+message CloseControlSessionResponse {
+  ControlSession session = 1;
+}
+message ListControlSessionsRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListControlSessionsResponse {
+  repeated ControlSession sessions = 1;
+  PageResponse page = 2;
+}
 service LeaseService {
   rpc AcquireDeviceLease(AcquireDeviceLeaseRequest) returns (AcquireDeviceLeaseResponse);
   rpc RenewDeviceLease(RenewDeviceLeaseRequest) returns (RenewDeviceLeaseResponse);
   rpc ReleaseDeviceLease(ReleaseDeviceLeaseRequest) returns (ReleaseDeviceLeaseResponse);
+  rpc ListDeviceLeases(ListDeviceLeasesRequest) returns (ListDeviceLeasesResponse);
+  rpc OpenControlSession(OpenControlSessionRequest) returns (OpenControlSessionResponse);
+  rpc CloseControlSession(CloseControlSessionRequest) returns (CloseControlSessionResponse);
+  rpc ListControlSessions(ListControlSessionsRequest) returns (ListControlSessionsResponse);
 }

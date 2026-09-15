@@ -1544,6 +1544,118 @@ func (x *ListRecordingSessionsResponse) GetPage() *PageResponse {
 	return nil
 }
 
+type CreateRecordingSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId      string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	Source        string                 `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateRecordingSessionRequest) Reset() {
+	*x = CreateRecordingSessionRequest{}
+	mi := &file_drift_v1_recording_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateRecordingSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateRecordingSessionRequest) ProtoMessage() {}
+
+func (x *CreateRecordingSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_recording_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateRecordingSessionRequest.ProtoReflect.Descriptor instead.
+func (*CreateRecordingSessionRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CreateRecordingSessionRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *CreateRecordingSessionRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *CreateRecordingSessionRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *CreateRecordingSessionRequest) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+type CreateRecordingSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Session       *RecordingSession      `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateRecordingSessionResponse) Reset() {
+	*x = CreateRecordingSessionResponse{}
+	mi := &file_drift_v1_recording_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateRecordingSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateRecordingSessionResponse) ProtoMessage() {}
+
+func (x *CreateRecordingSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_recording_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateRecordingSessionResponse.ProtoReflect.Descriptor instead.
+func (*CreateRecordingSessionResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *CreateRecordingSessionResponse) GetSession() *RecordingSession {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
 type StartRecordingSessionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
@@ -1554,7 +1666,7 @@ type StartRecordingSessionRequest struct {
 
 func (x *StartRecordingSessionRequest) Reset() {
 	*x = StartRecordingSessionRequest{}
-	mi := &file_drift_v1_recording_proto_msgTypes[9]
+	mi := &file_drift_v1_recording_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1566,7 +1678,7 @@ func (x *StartRecordingSessionRequest) String() string {
 func (*StartRecordingSessionRequest) ProtoMessage() {}
 
 func (x *StartRecordingSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[9]
+	mi := &file_drift_v1_recording_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1579,7 +1691,7 @@ func (x *StartRecordingSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartRecordingSessionRequest.ProtoReflect.Descriptor instead.
 func (*StartRecordingSessionRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{9}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *StartRecordingSessionRequest) GetContext() *RequestContext {
@@ -1605,7 +1717,7 @@ type StartRecordingSessionResponse struct {
 
 func (x *StartRecordingSessionResponse) Reset() {
 	*x = StartRecordingSessionResponse{}
-	mi := &file_drift_v1_recording_proto_msgTypes[10]
+	mi := &file_drift_v1_recording_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1617,7 +1729,7 @@ func (x *StartRecordingSessionResponse) String() string {
 func (*StartRecordingSessionResponse) ProtoMessage() {}
 
 func (x *StartRecordingSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[10]
+	mi := &file_drift_v1_recording_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1630,7 +1742,7 @@ func (x *StartRecordingSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartRecordingSessionResponse.ProtoReflect.Descriptor instead.
 func (*StartRecordingSessionResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{10}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *StartRecordingSessionResponse) GetSession() *RecordingSession {
@@ -1650,7 +1762,7 @@ type StopRecordingSessionRequest struct {
 
 func (x *StopRecordingSessionRequest) Reset() {
 	*x = StopRecordingSessionRequest{}
-	mi := &file_drift_v1_recording_proto_msgTypes[11]
+	mi := &file_drift_v1_recording_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1662,7 +1774,7 @@ func (x *StopRecordingSessionRequest) String() string {
 func (*StopRecordingSessionRequest) ProtoMessage() {}
 
 func (x *StopRecordingSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[11]
+	mi := &file_drift_v1_recording_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1675,7 +1787,7 @@ func (x *StopRecordingSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRecordingSessionRequest.ProtoReflect.Descriptor instead.
 func (*StopRecordingSessionRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{11}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *StopRecordingSessionRequest) GetContext() *RequestContext {
@@ -1701,7 +1813,7 @@ type StopRecordingSessionResponse struct {
 
 func (x *StopRecordingSessionResponse) Reset() {
 	*x = StopRecordingSessionResponse{}
-	mi := &file_drift_v1_recording_proto_msgTypes[12]
+	mi := &file_drift_v1_recording_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1713,7 +1825,7 @@ func (x *StopRecordingSessionResponse) String() string {
 func (*StopRecordingSessionResponse) ProtoMessage() {}
 
 func (x *StopRecordingSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[12]
+	mi := &file_drift_v1_recording_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1726,7 +1838,7 @@ func (x *StopRecordingSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRecordingSessionResponse.ProtoReflect.Descriptor instead.
 func (*StopRecordingSessionResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{12}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *StopRecordingSessionResponse) GetSession() *RecordingSession {
@@ -1746,7 +1858,7 @@ type DiscardRecordingSessionRequest struct {
 
 func (x *DiscardRecordingSessionRequest) Reset() {
 	*x = DiscardRecordingSessionRequest{}
-	mi := &file_drift_v1_recording_proto_msgTypes[13]
+	mi := &file_drift_v1_recording_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1758,7 +1870,7 @@ func (x *DiscardRecordingSessionRequest) String() string {
 func (*DiscardRecordingSessionRequest) ProtoMessage() {}
 
 func (x *DiscardRecordingSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[13]
+	mi := &file_drift_v1_recording_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1771,7 +1883,7 @@ func (x *DiscardRecordingSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscardRecordingSessionRequest.ProtoReflect.Descriptor instead.
 func (*DiscardRecordingSessionRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{13}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DiscardRecordingSessionRequest) GetContext() *RequestContext {
@@ -1797,7 +1909,7 @@ type DiscardRecordingSessionResponse struct {
 
 func (x *DiscardRecordingSessionResponse) Reset() {
 	*x = DiscardRecordingSessionResponse{}
-	mi := &file_drift_v1_recording_proto_msgTypes[14]
+	mi := &file_drift_v1_recording_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1809,7 +1921,7 @@ func (x *DiscardRecordingSessionResponse) String() string {
 func (*DiscardRecordingSessionResponse) ProtoMessage() {}
 
 func (x *DiscardRecordingSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[14]
+	mi := &file_drift_v1_recording_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1822,7 +1934,7 @@ func (x *DiscardRecordingSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscardRecordingSessionResponse.ProtoReflect.Descriptor instead.
 func (*DiscardRecordingSessionResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{14}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DiscardRecordingSessionResponse) GetSession() *RecordingSession {
@@ -1843,7 +1955,7 @@ type DeleteRecordingSessionRequest struct {
 
 func (x *DeleteRecordingSessionRequest) Reset() {
 	*x = DeleteRecordingSessionRequest{}
-	mi := &file_drift_v1_recording_proto_msgTypes[15]
+	mi := &file_drift_v1_recording_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1855,7 +1967,7 @@ func (x *DeleteRecordingSessionRequest) String() string {
 func (*DeleteRecordingSessionRequest) ProtoMessage() {}
 
 func (x *DeleteRecordingSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[15]
+	mi := &file_drift_v1_recording_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1868,7 +1980,7 @@ func (x *DeleteRecordingSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRecordingSessionRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRecordingSessionRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{15}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *DeleteRecordingSessionRequest) GetContext() *RequestContext {
@@ -1901,7 +2013,7 @@ type DeleteRecordingSessionResponse struct {
 
 func (x *DeleteRecordingSessionResponse) Reset() {
 	*x = DeleteRecordingSessionResponse{}
-	mi := &file_drift_v1_recording_proto_msgTypes[16]
+	mi := &file_drift_v1_recording_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1913,7 +2025,7 @@ func (x *DeleteRecordingSessionResponse) String() string {
 func (*DeleteRecordingSessionResponse) ProtoMessage() {}
 
 func (x *DeleteRecordingSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[16]
+	mi := &file_drift_v1_recording_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1926,7 +2038,7 @@ func (x *DeleteRecordingSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRecordingSessionResponse.ProtoReflect.Descriptor instead.
 func (*DeleteRecordingSessionResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{16}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DeleteRecordingSessionResponse) GetSession() *RecordingSession {
@@ -1946,7 +2058,7 @@ type ListRecordingEventsRequest struct {
 
 func (x *ListRecordingEventsRequest) Reset() {
 	*x = ListRecordingEventsRequest{}
-	mi := &file_drift_v1_recording_proto_msgTypes[17]
+	mi := &file_drift_v1_recording_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1958,7 +2070,7 @@ func (x *ListRecordingEventsRequest) String() string {
 func (*ListRecordingEventsRequest) ProtoMessage() {}
 
 func (x *ListRecordingEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[17]
+	mi := &file_drift_v1_recording_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1971,7 +2083,7 @@ func (x *ListRecordingEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordingEventsRequest.ProtoReflect.Descriptor instead.
 func (*ListRecordingEventsRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{17}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListRecordingEventsRequest) GetSession() *ResourceRef {
@@ -1998,7 +2110,7 @@ type ListRecordingEventsResponse struct {
 
 func (x *ListRecordingEventsResponse) Reset() {
 	*x = ListRecordingEventsResponse{}
-	mi := &file_drift_v1_recording_proto_msgTypes[18]
+	mi := &file_drift_v1_recording_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2010,7 +2122,7 @@ func (x *ListRecordingEventsResponse) String() string {
 func (*ListRecordingEventsResponse) ProtoMessage() {}
 
 func (x *ListRecordingEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[18]
+	mi := &file_drift_v1_recording_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2023,7 +2135,7 @@ func (x *ListRecordingEventsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRecordingEventsResponse.ProtoReflect.Descriptor instead.
 func (*ListRecordingEventsResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{18}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListRecordingEventsResponse) GetEvents() []*RecordingEvent {
@@ -2052,7 +2164,7 @@ type ReviewRecordingEventRequest struct {
 
 func (x *ReviewRecordingEventRequest) Reset() {
 	*x = ReviewRecordingEventRequest{}
-	mi := &file_drift_v1_recording_proto_msgTypes[19]
+	mi := &file_drift_v1_recording_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2064,7 +2176,7 @@ func (x *ReviewRecordingEventRequest) String() string {
 func (*ReviewRecordingEventRequest) ProtoMessage() {}
 
 func (x *ReviewRecordingEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[19]
+	mi := &file_drift_v1_recording_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2077,7 +2189,7 @@ func (x *ReviewRecordingEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewRecordingEventRequest.ProtoReflect.Descriptor instead.
 func (*ReviewRecordingEventRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{19}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ReviewRecordingEventRequest) GetContext() *RequestContext {
@@ -2117,7 +2229,7 @@ type ReviewRecordingEventResponse struct {
 
 func (x *ReviewRecordingEventResponse) Reset() {
 	*x = ReviewRecordingEventResponse{}
-	mi := &file_drift_v1_recording_proto_msgTypes[20]
+	mi := &file_drift_v1_recording_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2129,7 +2241,7 @@ func (x *ReviewRecordingEventResponse) String() string {
 func (*ReviewRecordingEventResponse) ProtoMessage() {}
 
 func (x *ReviewRecordingEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_recording_proto_msgTypes[20]
+	mi := &file_drift_v1_recording_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2142,7 +2254,7 @@ func (x *ReviewRecordingEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewRecordingEventResponse.ProtoReflect.Descriptor instead.
 func (*ReviewRecordingEventResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_recording_proto_rawDescGZIP(), []int{20}
+	return file_drift_v1_recording_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ReviewRecordingEventResponse) GetEvent() *RecordingEvent {
@@ -2277,7 +2389,14 @@ const file_drift_v1_recording_proto_rawDesc = "" +
 	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x83\x01\n" +
 	"\x1dListRecordingSessionsResponse\x126\n" +
 	"\bsessions\x18\x01 \x03(\v2\x1a.drift.v1.RecordingSessionR\bsessions\x12*\n" +
-	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\x83\x01\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\xbe\x01\n" +
+	"\x1dCreateRecordingSessionRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12\x16\n" +
+	"\x06source\x18\x04 \x01(\tR\x06source\"V\n" +
+	"\x1eCreateRecordingSessionResponse\x124\n" +
+	"\asession\x18\x01 \x01(\v2\x1a.drift.v1.RecordingSessionR\asession\"\x83\x01\n" +
 	"\x1cStartRecordingSessionRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12/\n" +
 	"\asession\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\asession\"U\n" +
@@ -2365,9 +2484,10 @@ const file_drift_v1_recording_proto_rawDesc = "" +
 	"!RECORDING_SENSITIVITY_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aRECORDING_SENSITIVITY_NONE\x10\x01\x12#\n" +
 	"\x1fRECORDING_SENSITIVITY_SENSITIVE\x10\x02\x12#\n" +
-	"\x1fRECORDING_SENSITIVITY_UNCERTAIN\x10\x032\xf5\x05\n" +
+	"\x1fRECORDING_SENSITIVITY_UNCERTAIN\x10\x032\xe2\x06\n" +
 	"\x10RecordingService\x12h\n" +
-	"\x15ListRecordingSessions\x12&.drift.v1.ListRecordingSessionsRequest\x1a'.drift.v1.ListRecordingSessionsResponse\x12h\n" +
+	"\x15ListRecordingSessions\x12&.drift.v1.ListRecordingSessionsRequest\x1a'.drift.v1.ListRecordingSessionsResponse\x12k\n" +
+	"\x16CreateRecordingSession\x12'.drift.v1.CreateRecordingSessionRequest\x1a(.drift.v1.CreateRecordingSessionResponse\x12h\n" +
 	"\x15StartRecordingSession\x12&.drift.v1.StartRecordingSessionRequest\x1a'.drift.v1.StartRecordingSessionResponse\x12e\n" +
 	"\x14StopRecordingSession\x12%.drift.v1.StopRecordingSessionRequest\x1a&.drift.v1.StopRecordingSessionResponse\x12n\n" +
 	"\x17DiscardRecordingSession\x12(.drift.v1.DiscardRecordingSessionRequest\x1a).drift.v1.DiscardRecordingSessionResponse\x12k\n" +
@@ -2388,7 +2508,7 @@ func file_drift_v1_recording_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_recording_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
-var file_drift_v1_recording_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_drift_v1_recording_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_drift_v1_recording_proto_goTypes = []any{
 	(RecordingState)(0),                     // 0: drift.v1.RecordingState
 	(RecordingCleanupState)(0),              // 1: drift.v1.RecordingCleanupState
@@ -2408,53 +2528,55 @@ var file_drift_v1_recording_proto_goTypes = []any{
 	(*RecordingEvent)(nil),                  // 15: drift.v1.RecordingEvent
 	(*ListRecordingSessionsRequest)(nil),    // 16: drift.v1.ListRecordingSessionsRequest
 	(*ListRecordingSessionsResponse)(nil),   // 17: drift.v1.ListRecordingSessionsResponse
-	(*StartRecordingSessionRequest)(nil),    // 18: drift.v1.StartRecordingSessionRequest
-	(*StartRecordingSessionResponse)(nil),   // 19: drift.v1.StartRecordingSessionResponse
-	(*StopRecordingSessionRequest)(nil),     // 20: drift.v1.StopRecordingSessionRequest
-	(*StopRecordingSessionResponse)(nil),    // 21: drift.v1.StopRecordingSessionResponse
-	(*DiscardRecordingSessionRequest)(nil),  // 22: drift.v1.DiscardRecordingSessionRequest
-	(*DiscardRecordingSessionResponse)(nil), // 23: drift.v1.DiscardRecordingSessionResponse
-	(*DeleteRecordingSessionRequest)(nil),   // 24: drift.v1.DeleteRecordingSessionRequest
-	(*DeleteRecordingSessionResponse)(nil),  // 25: drift.v1.DeleteRecordingSessionResponse
-	(*ListRecordingEventsRequest)(nil),      // 26: drift.v1.ListRecordingEventsRequest
-	(*ListRecordingEventsResponse)(nil),     // 27: drift.v1.ListRecordingEventsResponse
-	(*ReviewRecordingEventRequest)(nil),     // 28: drift.v1.ReviewRecordingEventRequest
-	(*ReviewRecordingEventResponse)(nil),    // 29: drift.v1.ReviewRecordingEventResponse
-	(*WorkspaceRef)(nil),                    // 30: drift.v1.WorkspaceRef
-	(*SemanticTarget)(nil),                  // 31: drift.v1.SemanticTarget
-	(*ArtifactReference)(nil),               // 32: drift.v1.ArtifactReference
-	(*Failure)(nil),                         // 33: drift.v1.Failure
-	(ActionKind)(0),                         // 34: drift.v1.ActionKind
-	(*ActionCoordinate)(nil),                // 35: drift.v1.ActionCoordinate
-	(*ActionGesturePath)(nil),               // 36: drift.v1.ActionGesturePath
-	(FailureCode)(0),                        // 37: drift.v1.FailureCode
-	(*PageRequest)(nil),                     // 38: drift.v1.PageRequest
-	(*PageResponse)(nil),                    // 39: drift.v1.PageResponse
-	(*RequestContext)(nil),                  // 40: drift.v1.RequestContext
-	(*ResourceRef)(nil),                     // 41: drift.v1.ResourceRef
+	(*CreateRecordingSessionRequest)(nil),   // 18: drift.v1.CreateRecordingSessionRequest
+	(*CreateRecordingSessionResponse)(nil),  // 19: drift.v1.CreateRecordingSessionResponse
+	(*StartRecordingSessionRequest)(nil),    // 20: drift.v1.StartRecordingSessionRequest
+	(*StartRecordingSessionResponse)(nil),   // 21: drift.v1.StartRecordingSessionResponse
+	(*StopRecordingSessionRequest)(nil),     // 22: drift.v1.StopRecordingSessionRequest
+	(*StopRecordingSessionResponse)(nil),    // 23: drift.v1.StopRecordingSessionResponse
+	(*DiscardRecordingSessionRequest)(nil),  // 24: drift.v1.DiscardRecordingSessionRequest
+	(*DiscardRecordingSessionResponse)(nil), // 25: drift.v1.DiscardRecordingSessionResponse
+	(*DeleteRecordingSessionRequest)(nil),   // 26: drift.v1.DeleteRecordingSessionRequest
+	(*DeleteRecordingSessionResponse)(nil),  // 27: drift.v1.DeleteRecordingSessionResponse
+	(*ListRecordingEventsRequest)(nil),      // 28: drift.v1.ListRecordingEventsRequest
+	(*ListRecordingEventsResponse)(nil),     // 29: drift.v1.ListRecordingEventsResponse
+	(*ReviewRecordingEventRequest)(nil),     // 30: drift.v1.ReviewRecordingEventRequest
+	(*ReviewRecordingEventResponse)(nil),    // 31: drift.v1.ReviewRecordingEventResponse
+	(*WorkspaceRef)(nil),                    // 32: drift.v1.WorkspaceRef
+	(*SemanticTarget)(nil),                  // 33: drift.v1.SemanticTarget
+	(*ArtifactReference)(nil),               // 34: drift.v1.ArtifactReference
+	(*Failure)(nil),                         // 35: drift.v1.Failure
+	(ActionKind)(0),                         // 36: drift.v1.ActionKind
+	(*ActionCoordinate)(nil),                // 37: drift.v1.ActionCoordinate
+	(*ActionGesturePath)(nil),               // 38: drift.v1.ActionGesturePath
+	(FailureCode)(0),                        // 39: drift.v1.FailureCode
+	(*PageRequest)(nil),                     // 40: drift.v1.PageRequest
+	(*PageResponse)(nil),                    // 41: drift.v1.PageResponse
+	(*RequestContext)(nil),                  // 42: drift.v1.RequestContext
+	(*ResourceRef)(nil),                     // 43: drift.v1.ResourceRef
 }
 var file_drift_v1_recording_proto_depIdxs = []int32{
-	30, // 0: drift.v1.RecordingSession.workspace:type_name -> drift.v1.WorkspaceRef
+	32, // 0: drift.v1.RecordingSession.workspace:type_name -> drift.v1.WorkspaceRef
 	0,  // 1: drift.v1.RecordingSession.state:type_name -> drift.v1.RecordingState
 	1,  // 2: drift.v1.RecordingSession.cleanup_state:type_name -> drift.v1.RecordingCleanupState
 	2,  // 3: drift.v1.RecordingSession.review_state:type_name -> drift.v1.RecordingReviewState
-	31, // 4: drift.v1.RecordedTarget.semantic:type_name -> drift.v1.SemanticTarget
+	33, // 4: drift.v1.RecordedTarget.semantic:type_name -> drift.v1.SemanticTarget
 	6,  // 5: drift.v1.RecordingEvidenceReference.phase:type_name -> drift.v1.RecordingCapturePhase
 	7,  // 6: drift.v1.RecordingEvidenceReference.kind:type_name -> drift.v1.RecordingEvidenceKind
-	32, // 7: drift.v1.RecordingEvidenceReference.artifact:type_name -> drift.v1.ArtifactReference
+	34, // 7: drift.v1.RecordingEvidenceReference.artifact:type_name -> drift.v1.ArtifactReference
 	4,  // 8: drift.v1.RecordingCapture.status:type_name -> drift.v1.RecordingCaptureStatus
 	5,  // 9: drift.v1.RecordingCapture.sanitization:type_name -> drift.v1.RecordingSanitizationState
 	10, // 10: drift.v1.RecordingCapture.target:type_name -> drift.v1.RecordedTarget
 	11, // 11: drift.v1.RecordingCapture.evidence:type_name -> drift.v1.RecordingEvidenceReference
-	33, // 12: drift.v1.RecordingCapture.failure:type_name -> drift.v1.Failure
-	34, // 13: drift.v1.RecordingAction.kind:type_name -> drift.v1.ActionKind
+	35, // 12: drift.v1.RecordingCapture.failure:type_name -> drift.v1.Failure
+	36, // 13: drift.v1.RecordingAction.kind:type_name -> drift.v1.ActionKind
 	10, // 14: drift.v1.RecordingAction.target:type_name -> drift.v1.RecordedTarget
-	35, // 15: drift.v1.RecordingAction.coordinate:type_name -> drift.v1.ActionCoordinate
+	37, // 15: drift.v1.RecordingAction.coordinate:type_name -> drift.v1.ActionCoordinate
 	8,  // 16: drift.v1.RecordingAction.sensitivity:type_name -> drift.v1.RecordingSensitivity
-	36, // 17: drift.v1.RecordingAction.gesture:type_name -> drift.v1.ActionGesturePath
+	38, // 17: drift.v1.RecordingAction.gesture:type_name -> drift.v1.ActionGesturePath
 	6,  // 18: drift.v1.RecordingCaptureError.phase:type_name -> drift.v1.RecordingCapturePhase
-	37, // 19: drift.v1.RecordingCaptureError.failure_code:type_name -> drift.v1.FailureCode
-	30, // 20: drift.v1.RecordingEvent.workspace:type_name -> drift.v1.WorkspaceRef
+	39, // 19: drift.v1.RecordingCaptureError.failure_code:type_name -> drift.v1.FailureCode
+	32, // 20: drift.v1.RecordingEvent.workspace:type_name -> drift.v1.WorkspaceRef
 	13, // 21: drift.v1.RecordingEvent.action:type_name -> drift.v1.RecordingAction
 	12, // 22: drift.v1.RecordingEvent.before:type_name -> drift.v1.RecordingCapture
 	12, // 23: drift.v1.RecordingEvent.after:type_name -> drift.v1.RecordingCapture
@@ -2462,48 +2584,53 @@ var file_drift_v1_recording_proto_depIdxs = []int32{
 	14, // 25: drift.v1.RecordingEvent.capture_errors:type_name -> drift.v1.RecordingCaptureError
 	3,  // 26: drift.v1.RecordingEvent.redaction_state:type_name -> drift.v1.RecordingRedactionState
 	2,  // 27: drift.v1.RecordingEvent.review_state:type_name -> drift.v1.RecordingReviewState
-	30, // 28: drift.v1.ListRecordingSessionsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	38, // 29: drift.v1.ListRecordingSessionsRequest.page:type_name -> drift.v1.PageRequest
+	32, // 28: drift.v1.ListRecordingSessionsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	40, // 29: drift.v1.ListRecordingSessionsRequest.page:type_name -> drift.v1.PageRequest
 	9,  // 30: drift.v1.ListRecordingSessionsResponse.sessions:type_name -> drift.v1.RecordingSession
-	39, // 31: drift.v1.ListRecordingSessionsResponse.page:type_name -> drift.v1.PageResponse
-	40, // 32: drift.v1.StartRecordingSessionRequest.context:type_name -> drift.v1.RequestContext
-	41, // 33: drift.v1.StartRecordingSessionRequest.session:type_name -> drift.v1.ResourceRef
-	9,  // 34: drift.v1.StartRecordingSessionResponse.session:type_name -> drift.v1.RecordingSession
-	40, // 35: drift.v1.StopRecordingSessionRequest.context:type_name -> drift.v1.RequestContext
-	41, // 36: drift.v1.StopRecordingSessionRequest.session:type_name -> drift.v1.ResourceRef
-	9,  // 37: drift.v1.StopRecordingSessionResponse.session:type_name -> drift.v1.RecordingSession
-	40, // 38: drift.v1.DiscardRecordingSessionRequest.context:type_name -> drift.v1.RequestContext
-	41, // 39: drift.v1.DiscardRecordingSessionRequest.session:type_name -> drift.v1.ResourceRef
-	9,  // 40: drift.v1.DiscardRecordingSessionResponse.session:type_name -> drift.v1.RecordingSession
-	40, // 41: drift.v1.DeleteRecordingSessionRequest.context:type_name -> drift.v1.RequestContext
-	41, // 42: drift.v1.DeleteRecordingSessionRequest.session:type_name -> drift.v1.ResourceRef
-	9,  // 43: drift.v1.DeleteRecordingSessionResponse.session:type_name -> drift.v1.RecordingSession
-	41, // 44: drift.v1.ListRecordingEventsRequest.session:type_name -> drift.v1.ResourceRef
-	38, // 45: drift.v1.ListRecordingEventsRequest.page:type_name -> drift.v1.PageRequest
-	15, // 46: drift.v1.ListRecordingEventsResponse.events:type_name -> drift.v1.RecordingEvent
-	39, // 47: drift.v1.ListRecordingEventsResponse.page:type_name -> drift.v1.PageResponse
-	40, // 48: drift.v1.ReviewRecordingEventRequest.context:type_name -> drift.v1.RequestContext
-	41, // 49: drift.v1.ReviewRecordingEventRequest.event:type_name -> drift.v1.ResourceRef
-	15, // 50: drift.v1.ReviewRecordingEventResponse.event:type_name -> drift.v1.RecordingEvent
-	16, // 51: drift.v1.RecordingService.ListRecordingSessions:input_type -> drift.v1.ListRecordingSessionsRequest
-	18, // 52: drift.v1.RecordingService.StartRecordingSession:input_type -> drift.v1.StartRecordingSessionRequest
-	20, // 53: drift.v1.RecordingService.StopRecordingSession:input_type -> drift.v1.StopRecordingSessionRequest
-	22, // 54: drift.v1.RecordingService.DiscardRecordingSession:input_type -> drift.v1.DiscardRecordingSessionRequest
-	24, // 55: drift.v1.RecordingService.DeleteRecordingSession:input_type -> drift.v1.DeleteRecordingSessionRequest
-	26, // 56: drift.v1.RecordingService.ListRecordingEvents:input_type -> drift.v1.ListRecordingEventsRequest
-	28, // 57: drift.v1.RecordingService.ReviewRecordingEvent:input_type -> drift.v1.ReviewRecordingEventRequest
-	17, // 58: drift.v1.RecordingService.ListRecordingSessions:output_type -> drift.v1.ListRecordingSessionsResponse
-	19, // 59: drift.v1.RecordingService.StartRecordingSession:output_type -> drift.v1.StartRecordingSessionResponse
-	21, // 60: drift.v1.RecordingService.StopRecordingSession:output_type -> drift.v1.StopRecordingSessionResponse
-	23, // 61: drift.v1.RecordingService.DiscardRecordingSession:output_type -> drift.v1.DiscardRecordingSessionResponse
-	25, // 62: drift.v1.RecordingService.DeleteRecordingSession:output_type -> drift.v1.DeleteRecordingSessionResponse
-	27, // 63: drift.v1.RecordingService.ListRecordingEvents:output_type -> drift.v1.ListRecordingEventsResponse
-	29, // 64: drift.v1.RecordingService.ReviewRecordingEvent:output_type -> drift.v1.ReviewRecordingEventResponse
-	58, // [58:65] is the sub-list for method output_type
-	51, // [51:58] is the sub-list for method input_type
-	51, // [51:51] is the sub-list for extension type_name
-	51, // [51:51] is the sub-list for extension extendee
-	0,  // [0:51] is the sub-list for field type_name
+	41, // 31: drift.v1.ListRecordingSessionsResponse.page:type_name -> drift.v1.PageResponse
+	42, // 32: drift.v1.CreateRecordingSessionRequest.context:type_name -> drift.v1.RequestContext
+	32, // 33: drift.v1.CreateRecordingSessionRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	9,  // 34: drift.v1.CreateRecordingSessionResponse.session:type_name -> drift.v1.RecordingSession
+	42, // 35: drift.v1.StartRecordingSessionRequest.context:type_name -> drift.v1.RequestContext
+	43, // 36: drift.v1.StartRecordingSessionRequest.session:type_name -> drift.v1.ResourceRef
+	9,  // 37: drift.v1.StartRecordingSessionResponse.session:type_name -> drift.v1.RecordingSession
+	42, // 38: drift.v1.StopRecordingSessionRequest.context:type_name -> drift.v1.RequestContext
+	43, // 39: drift.v1.StopRecordingSessionRequest.session:type_name -> drift.v1.ResourceRef
+	9,  // 40: drift.v1.StopRecordingSessionResponse.session:type_name -> drift.v1.RecordingSession
+	42, // 41: drift.v1.DiscardRecordingSessionRequest.context:type_name -> drift.v1.RequestContext
+	43, // 42: drift.v1.DiscardRecordingSessionRequest.session:type_name -> drift.v1.ResourceRef
+	9,  // 43: drift.v1.DiscardRecordingSessionResponse.session:type_name -> drift.v1.RecordingSession
+	42, // 44: drift.v1.DeleteRecordingSessionRequest.context:type_name -> drift.v1.RequestContext
+	43, // 45: drift.v1.DeleteRecordingSessionRequest.session:type_name -> drift.v1.ResourceRef
+	9,  // 46: drift.v1.DeleteRecordingSessionResponse.session:type_name -> drift.v1.RecordingSession
+	43, // 47: drift.v1.ListRecordingEventsRequest.session:type_name -> drift.v1.ResourceRef
+	40, // 48: drift.v1.ListRecordingEventsRequest.page:type_name -> drift.v1.PageRequest
+	15, // 49: drift.v1.ListRecordingEventsResponse.events:type_name -> drift.v1.RecordingEvent
+	41, // 50: drift.v1.ListRecordingEventsResponse.page:type_name -> drift.v1.PageResponse
+	42, // 51: drift.v1.ReviewRecordingEventRequest.context:type_name -> drift.v1.RequestContext
+	43, // 52: drift.v1.ReviewRecordingEventRequest.event:type_name -> drift.v1.ResourceRef
+	15, // 53: drift.v1.ReviewRecordingEventResponse.event:type_name -> drift.v1.RecordingEvent
+	16, // 54: drift.v1.RecordingService.ListRecordingSessions:input_type -> drift.v1.ListRecordingSessionsRequest
+	18, // 55: drift.v1.RecordingService.CreateRecordingSession:input_type -> drift.v1.CreateRecordingSessionRequest
+	20, // 56: drift.v1.RecordingService.StartRecordingSession:input_type -> drift.v1.StartRecordingSessionRequest
+	22, // 57: drift.v1.RecordingService.StopRecordingSession:input_type -> drift.v1.StopRecordingSessionRequest
+	24, // 58: drift.v1.RecordingService.DiscardRecordingSession:input_type -> drift.v1.DiscardRecordingSessionRequest
+	26, // 59: drift.v1.RecordingService.DeleteRecordingSession:input_type -> drift.v1.DeleteRecordingSessionRequest
+	28, // 60: drift.v1.RecordingService.ListRecordingEvents:input_type -> drift.v1.ListRecordingEventsRequest
+	30, // 61: drift.v1.RecordingService.ReviewRecordingEvent:input_type -> drift.v1.ReviewRecordingEventRequest
+	17, // 62: drift.v1.RecordingService.ListRecordingSessions:output_type -> drift.v1.ListRecordingSessionsResponse
+	19, // 63: drift.v1.RecordingService.CreateRecordingSession:output_type -> drift.v1.CreateRecordingSessionResponse
+	21, // 64: drift.v1.RecordingService.StartRecordingSession:output_type -> drift.v1.StartRecordingSessionResponse
+	23, // 65: drift.v1.RecordingService.StopRecordingSession:output_type -> drift.v1.StopRecordingSessionResponse
+	25, // 66: drift.v1.RecordingService.DiscardRecordingSession:output_type -> drift.v1.DiscardRecordingSessionResponse
+	27, // 67: drift.v1.RecordingService.DeleteRecordingSession:output_type -> drift.v1.DeleteRecordingSessionResponse
+	29, // 68: drift.v1.RecordingService.ListRecordingEvents:output_type -> drift.v1.ListRecordingEventsResponse
+	31, // 69: drift.v1.RecordingService.ReviewRecordingEvent:output_type -> drift.v1.ReviewRecordingEventResponse
+	62, // [62:70] is the sub-list for method output_type
+	54, // [54:62] is the sub-list for method input_type
+	54, // [54:54] is the sub-list for extension type_name
+	54, // [54:54] is the sub-list for extension extendee
+	0,  // [0:54] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_recording_proto_init() }
@@ -2519,7 +2646,7 @@ func file_drift_v1_recording_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_recording_proto_rawDesc), len(file_drift_v1_recording_proto_rawDesc)),
 			NumEnums:      9,
-			NumMessages:   21,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

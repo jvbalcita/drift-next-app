@@ -81,8 +81,8 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM drift_schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("ledger count error = %v", err)
 	}
-	if count != 17 {
-		t.Fatalf("ledger count = %d, want 17 SQLite migrations", count)
+	if count != 18 {
+		t.Fatalf("ledger count = %d, want 18 SQLite migrations", count)
 	}
 
 	var foreignKeys string
@@ -158,7 +158,7 @@ func TestSQLiteMigrationsApplyIncrementally(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	for version := 2; version <= 17; version++ {
+	for version := 2; version <= 19; version++ {
 		runner, err := migrationrunner.NewRunner(db, migrationFilesThrough(t, version), migrationrunner.Options{})
 		if err != nil {
 			t.Fatalf("NewRunner(%d) error = %v", version, err)

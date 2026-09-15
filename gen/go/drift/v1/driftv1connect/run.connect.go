@@ -39,12 +39,20 @@ const (
 	// RunServiceCancelWorkflowRunProcedure is the fully-qualified name of the RunService's
 	// CancelWorkflowRun RPC.
 	RunServiceCancelWorkflowRunProcedure = "/drift.v1.RunService/CancelWorkflowRun"
+	// RunServiceListRunTargetsProcedure is the fully-qualified name of the RunService's ListRunTargets
+	// RPC.
+	RunServiceListRunTargetsProcedure = "/drift.v1.RunService/ListRunTargets"
+	// RunServiceStartWorkflowRunProcedure is the fully-qualified name of the RunService's
+	// StartWorkflowRun RPC.
+	RunServiceStartWorkflowRunProcedure = "/drift.v1.RunService/StartWorkflowRun"
 )
 
 // RunServiceClient is a client for the drift.v1.RunService service.
 type RunServiceClient interface {
 	ListWorkflowRuns(context.Context, *connect.Request[v1.ListWorkflowRunsRequest]) (*connect.Response[v1.ListWorkflowRunsResponse], error)
 	CancelWorkflowRun(context.Context, *connect.Request[v1.CancelWorkflowRunRequest]) (*connect.Response[v1.CancelWorkflowRunResponse], error)
+	ListRunTargets(context.Context, *connect.Request[v1.ListRunTargetsRequest]) (*connect.Response[v1.ListRunTargetsResponse], error)
+	StartWorkflowRun(context.Context, *connect.Request[v1.StartWorkflowRunRequest]) (*connect.Response[v1.StartWorkflowRunResponse], error)
 }
 
 // NewRunServiceClient constructs a client for the drift.v1.RunService service. By default, it uses
@@ -70,6 +78,18 @@ func NewRunServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(runServiceMethods.ByName("CancelWorkflowRun")),
 			connect.WithClientOptions(opts...),
 		),
+		listRunTargets: connect.NewClient[v1.ListRunTargetsRequest, v1.ListRunTargetsResponse](
+			httpClient,
+			baseURL+RunServiceListRunTargetsProcedure,
+			connect.WithSchema(runServiceMethods.ByName("ListRunTargets")),
+			connect.WithClientOptions(opts...),
+		),
+		startWorkflowRun: connect.NewClient[v1.StartWorkflowRunRequest, v1.StartWorkflowRunResponse](
+			httpClient,
+			baseURL+RunServiceStartWorkflowRunProcedure,
+			connect.WithSchema(runServiceMethods.ByName("StartWorkflowRun")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -77,6 +97,8 @@ func NewRunServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 type runServiceClient struct {
 	listWorkflowRuns  *connect.Client[v1.ListWorkflowRunsRequest, v1.ListWorkflowRunsResponse]
 	cancelWorkflowRun *connect.Client[v1.CancelWorkflowRunRequest, v1.CancelWorkflowRunResponse]
+	listRunTargets    *connect.Client[v1.ListRunTargetsRequest, v1.ListRunTargetsResponse]
+	startWorkflowRun  *connect.Client[v1.StartWorkflowRunRequest, v1.StartWorkflowRunResponse]
 }
 
 // ListWorkflowRuns calls drift.v1.RunService.ListWorkflowRuns.
@@ -89,10 +111,22 @@ func (c *runServiceClient) CancelWorkflowRun(ctx context.Context, req *connect.R
 	return c.cancelWorkflowRun.CallUnary(ctx, req)
 }
 
+// ListRunTargets calls drift.v1.RunService.ListRunTargets.
+func (c *runServiceClient) ListRunTargets(ctx context.Context, req *connect.Request[v1.ListRunTargetsRequest]) (*connect.Response[v1.ListRunTargetsResponse], error) {
+	return c.listRunTargets.CallUnary(ctx, req)
+}
+
+// StartWorkflowRun calls drift.v1.RunService.StartWorkflowRun.
+func (c *runServiceClient) StartWorkflowRun(ctx context.Context, req *connect.Request[v1.StartWorkflowRunRequest]) (*connect.Response[v1.StartWorkflowRunResponse], error) {
+	return c.startWorkflowRun.CallUnary(ctx, req)
+}
+
 // RunServiceHandler is an implementation of the drift.v1.RunService service.
 type RunServiceHandler interface {
 	ListWorkflowRuns(context.Context, *connect.Request[v1.ListWorkflowRunsRequest]) (*connect.Response[v1.ListWorkflowRunsResponse], error)
 	CancelWorkflowRun(context.Context, *connect.Request[v1.CancelWorkflowRunRequest]) (*connect.Response[v1.CancelWorkflowRunResponse], error)
+	ListRunTargets(context.Context, *connect.Request[v1.ListRunTargetsRequest]) (*connect.Response[v1.ListRunTargetsResponse], error)
+	StartWorkflowRun(context.Context, *connect.Request[v1.StartWorkflowRunRequest]) (*connect.Response[v1.StartWorkflowRunResponse], error)
 }
 
 // NewRunServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -114,12 +148,28 @@ func NewRunServiceHandler(svc RunServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(runServiceMethods.ByName("CancelWorkflowRun")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runServiceListRunTargetsHandler := connect.NewUnaryHandler(
+		RunServiceListRunTargetsProcedure,
+		svc.ListRunTargets,
+		connect.WithSchema(runServiceMethods.ByName("ListRunTargets")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runServiceStartWorkflowRunHandler := connect.NewUnaryHandler(
+		RunServiceStartWorkflowRunProcedure,
+		svc.StartWorkflowRun,
+		connect.WithSchema(runServiceMethods.ByName("StartWorkflowRun")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.RunService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case RunServiceListWorkflowRunsProcedure:
 			runServiceListWorkflowRunsHandler.ServeHTTP(w, r)
 		case RunServiceCancelWorkflowRunProcedure:
 			runServiceCancelWorkflowRunHandler.ServeHTTP(w, r)
+		case RunServiceListRunTargetsProcedure:
+			runServiceListRunTargetsHandler.ServeHTTP(w, r)
+		case RunServiceStartWorkflowRunProcedure:
+			runServiceStartWorkflowRunHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -135,4 +185,12 @@ func (UnimplementedRunServiceHandler) ListWorkflowRuns(context.Context, *connect
 
 func (UnimplementedRunServiceHandler) CancelWorkflowRun(context.Context, *connect.Request[v1.CancelWorkflowRunRequest]) (*connect.Response[v1.CancelWorkflowRunResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RunService.CancelWorkflowRun is not implemented"))
+}
+
+func (UnimplementedRunServiceHandler) ListRunTargets(context.Context, *connect.Request[v1.ListRunTargetsRequest]) (*connect.Response[v1.ListRunTargetsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RunService.ListRunTargets is not implemented"))
+}
+
+func (UnimplementedRunServiceHandler) StartWorkflowRun(context.Context, *connect.Request[v1.StartWorkflowRunRequest]) (*connect.Response[v1.StartWorkflowRunResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RunService.StartWorkflowRun is not implemented"))
 }

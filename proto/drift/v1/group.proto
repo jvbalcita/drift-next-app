@@ -33,6 +33,7 @@ message ListDeviceGroupsRequest {
 message ListDeviceGroupsResponse {
   repeated DeviceGroup groups = 1;
   PageResponse page = 2;
+  repeated GroupMembership memberships = 3;
 }
 message MoveDeviceToGroupRequest {
   RequestContext context = 1;
@@ -44,7 +45,16 @@ message MoveDeviceToGroupRequest {
 message MoveDeviceToGroupResponse {
   GroupMembership membership = 1;
 }
+message CreateDeviceGroupRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string display_name = 3;
+}
+message CreateDeviceGroupResponse {
+  DeviceGroup group = 1;
+}
 service GroupService {
   rpc ListDeviceGroups(ListDeviceGroupsRequest) returns (ListDeviceGroupsResponse);
   rpc MoveDeviceToGroup(MoveDeviceToGroupRequest) returns (MoveDeviceToGroupResponse);
+  rpc CreateDeviceGroup(CreateDeviceGroupRequest) returns (CreateDeviceGroupResponse);
 }

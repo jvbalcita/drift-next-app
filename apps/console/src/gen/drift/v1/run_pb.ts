@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/run.proto.
  */
 export const file_drift_v1_run: GenFile = /*@__PURE__*/
-  fileDesc("ChJkcmlmdC92MS9ydW4ucHJvdG8SCGRyaWZ0LnYxIsMBCgtXb3JrZmxvd1J1bhIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSGwoTd29ya2Zsb3dfdmVyc2lvbl9pZBgDIAEoCRIhCgVzdGF0ZRgEIAEoDjISLmRyaWZ0LnYxLlJ1blN0YXRlEhkKEWNvbmN1cnJlbmN5X2xpbWl0GAUgASgNEiIKB2ZhaWx1cmUYBiABKAsyES5kcmlmdC52MS5GYWlsdXJlIocBCglSdW5UYXJnZXQSCgoCaWQYASABKAkSDgoGcnVuX2lkGAIgASgJEhEKCWRldmljZV9pZBgDIAEoCRInCgVzdGF0ZRgEIAEoDjIYLmRyaWZ0LnYxLlJ1blRhcmdldFN0YXRlEiIKB2ZhaWx1cmUYBSABKAsyES5kcmlmdC52MS5GYWlsdXJlImkKF0xpc3RXb3JrZmxvd1J1bnNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QiZQoYTGlzdFdvcmtmbG93UnVuc1Jlc3BvbnNlEiMKBHJ1bnMYASADKAsyFS5kcmlmdC52MS5Xb3JrZmxvd1J1bhIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlImkKGENhbmNlbFdvcmtmbG93UnVuUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSIgoDcnVuGAIgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYiPwoZQ2FuY2VsV29ya2Zsb3dSdW5SZXNwb25zZRIiCgNydW4YASABKAsyFS5kcmlmdC52MS5Xb3JrZmxvd1J1birnAQoIUnVuU3RhdGUSGQoVUlVOX1NUQVRFX1VOU1BFQ0lGSUVEEAASFwoTUlVOX1NUQVRFX1JFUVVFU1RFRBABEhgKFFJVTl9TVEFURV9WQUxJREFUSU5HEAISFAoQUlVOX1NUQVRFX1FVRVVFRBADEhUKEVJVTl9TVEFURV9SVU5OSU5HEAQSGAoUUlVOX1NUQVRFX0NPTVBMRVRJTkcQBRIXChNSVU5fU1RBVEVfQ09NUExFVEVEEAYSFAoQUlVOX1NUQVRFX0ZBSUxFRBAHEhcKE1JVTl9TVEFURV9DQU5DRUxMRUQQCCrKAgoOUnVuVGFyZ2V0U3RhdGUSIAocUlVOX1RBUkdFVF9TVEFURV9VTlNQRUNJRklFRBAAEhwKGFJVTl9UQVJHRVRfU1RBVEVfUEVORElORxABEhsKF1JVTl9UQVJHRVRfU1RBVEVfTEVBU0VEEAISGwoXUlVOX1RBUkdFVF9TVEFURV9RVUVVRUQQAxIcChhSVU5fVEFSR0VUX1NUQVRFX1JVTk5JTkcQBBIeChpSVU5fVEFSR0VUX1NUQVRFX1ZFUklGWUlORxAFEh4KGlJVTl9UQVJHRVRfU1RBVEVfU1VDQ0VFREVEEAYSGwoXUlVOX1RBUkdFVF9TVEFURV9GQUlMRUQQBxIeChpSVU5fVEFSR0VUX1NUQVRFX0NBTkNFTExFRBAIEiMKH1JVTl9UQVJHRVRfU1RBVEVfQ0xFQU5VUF9GQUlMRUQQCTLFAQoKUnVuU2VydmljZRJZChBMaXN0V29ya2Zsb3dSdW5zEiEuZHJpZnQudjEuTGlzdFdvcmtmbG93UnVuc1JlcXVlc3QaIi5kcmlmdC52MS5MaXN0V29ya2Zsb3dSdW5zUmVzcG9uc2USXAoRQ2FuY2VsV29ya2Zsb3dSdW4SIi5kcmlmdC52MS5DYW5jZWxXb3JrZmxvd1J1blJlcXVlc3QaIy5kcmlmdC52MS5DYW5jZWxXb3JrZmxvd1J1blJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChJkcmlmdC92MS9ydW4ucHJvdG8SCGRyaWZ0LnYxIsMBCgtXb3JrZmxvd1J1bhIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSGwoTd29ya2Zsb3dfdmVyc2lvbl9pZBgDIAEoCRIhCgVzdGF0ZRgEIAEoDjISLmRyaWZ0LnYxLlJ1blN0YXRlEhkKEWNvbmN1cnJlbmN5X2xpbWl0GAUgASgNEiIKB2ZhaWx1cmUYBiABKAsyES5kcmlmdC52MS5GYWlsdXJlIrEBCglSdW5UYXJnZXQSCgoCaWQYASABKAkSDgoGcnVuX2lkGAIgASgJEhEKCWRldmljZV9pZBgDIAEoCRInCgVzdGF0ZRgEIAEoDjIYLmRyaWZ0LnYxLlJ1blRhcmdldFN0YXRlEiIKB2ZhaWx1cmUYBSABKAsyES5kcmlmdC52MS5GYWlsdXJlEhAKCGxlYXNlX2lkGAYgASgJEhYKDm9ic2VydmF0aW9uX2lkGAcgASgJImkKF0xpc3RXb3JrZmxvd1J1bnNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QiZQoYTGlzdFdvcmtmbG93UnVuc1Jlc3BvbnNlEiMKBHJ1bnMYASADKAsyFS5kcmlmdC52MS5Xb3JrZmxvd1J1bhIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlImkKGENhbmNlbFdvcmtmbG93UnVuUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSIgoDcnVuGAIgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYiPwoZQ2FuY2VsV29ya2Zsb3dSdW5SZXNwb25zZRIiCgNydW4YASABKAsyFS5kcmlmdC52MS5Xb3JrZmxvd1J1biJ3ChVMaXN0UnVuVGFyZ2V0c1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEg4KBnJ1bl9pZBgCIAEoCRIjCgRwYWdlGAMgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QiZAoWTGlzdFJ1blRhcmdldHNSZXNwb25zZRIkCgd0YXJnZXRzGAEgAygLMhMuZHJpZnQudjEuUnVuVGFyZ2V0EiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UiswEKF1N0YXJ0V29ya2Zsb3dSdW5SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEwoLd29ya2Zsb3dfaWQYAyABKAkSEgoKZGV2aWNlX2lkcxgEIAMoCRIZChFjb25jdXJyZW5jeV9saW1pdBgFIAEoDSI+ChhTdGFydFdvcmtmbG93UnVuUmVzcG9uc2USIgoDcnVuGAEgASgLMhUuZHJpZnQudjEuV29ya2Zsb3dSdW4q5wEKCFJ1blN0YXRlEhkKFVJVTl9TVEFURV9VTlNQRUNJRklFRBAAEhcKE1JVTl9TVEFURV9SRVFVRVNURUQQARIYChRSVU5fU1RBVEVfVkFMSURBVElORxACEhQKEFJVTl9TVEFURV9RVUVVRUQQAxIVChFSVU5fU1RBVEVfUlVOTklORxAEEhgKFFJVTl9TVEFURV9DT01QTEVUSU5HEAUSFwoTUlVOX1NUQVRFX0NPTVBMRVRFRBAGEhQKEFJVTl9TVEFURV9GQUlMRUQQBxIXChNSVU5fU1RBVEVfQ0FOQ0VMTEVEEAgqygIKDlJ1blRhcmdldFN0YXRlEiAKHFJVTl9UQVJHRVRfU1RBVEVfVU5TUEVDSUZJRUQQABIcChhSVU5fVEFSR0VUX1NUQVRFX1BFTkRJTkcQARIbChdSVU5fVEFSR0VUX1NUQVRFX0xFQVNFRBACEhsKF1JVTl9UQVJHRVRfU1RBVEVfUVVFVUVEEAMSHAoYUlVOX1RBUkdFVF9TVEFURV9SVU5OSU5HEAQSHgoaUlVOX1RBUkdFVF9TVEFURV9WRVJJRllJTkcQBRIeChpSVU5fVEFSR0VUX1NUQVRFX1NVQ0NFRURFRBAGEhsKF1JVTl9UQVJHRVRfU1RBVEVfRkFJTEVEEAcSHgoaUlVOX1RBUkdFVF9TVEFURV9DQU5DRUxMRUQQCBIjCh9SVU5fVEFSR0VUX1NUQVRFX0NMRUFOVVBfRkFJTEVEEAky9QIKClJ1blNlcnZpY2USWQoQTGlzdFdvcmtmbG93UnVucxIhLmRyaWZ0LnYxLkxpc3RXb3JrZmxvd1J1bnNSZXF1ZXN0GiIuZHJpZnQudjEuTGlzdFdvcmtmbG93UnVuc1Jlc3BvbnNlElwKEUNhbmNlbFdvcmtmbG93UnVuEiIuZHJpZnQudjEuQ2FuY2VsV29ya2Zsb3dSdW5SZXF1ZXN0GiMuZHJpZnQudjEuQ2FuY2VsV29ya2Zsb3dSdW5SZXNwb25zZRJTCg5MaXN0UnVuVGFyZ2V0cxIfLmRyaWZ0LnYxLkxpc3RSdW5UYXJnZXRzUmVxdWVzdBogLmRyaWZ0LnYxLkxpc3RSdW5UYXJnZXRzUmVzcG9uc2USWQoQU3RhcnRXb3JrZmxvd1J1bhIhLmRyaWZ0LnYxLlN0YXJ0V29ya2Zsb3dSdW5SZXF1ZXN0GiIuZHJpZnQudjEuU3RhcnRXb3JrZmxvd1J1blJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.WorkflowRun
@@ -84,6 +84,16 @@ export type RunTarget = Message<"drift.v1.RunTarget"> & {
    * @generated from field: drift.v1.Failure failure = 5;
    */
   failure?: Failure;
+
+  /**
+   * @generated from field: string lease_id = 6;
+   */
+  leaseId: string;
+
+  /**
+   * @generated from field: string observation_id = 7;
+   */
+  observationId: string;
 };
 
 /**
@@ -175,6 +185,109 @@ export type CancelWorkflowRunResponse = Message<"drift.v1.CancelWorkflowRunRespo
  */
 export const CancelWorkflowRunResponseSchema: GenMessage<CancelWorkflowRunResponse> = /*@__PURE__*/
   messageDesc(file_drift_v1_run, 5);
+
+/**
+ * @generated from message drift.v1.ListRunTargetsRequest
+ */
+export type ListRunTargetsRequest = Message<"drift.v1.ListRunTargetsRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string run_id = 2;
+   */
+  runId: string;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 3;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListRunTargetsRequest.
+ * Use `create(ListRunTargetsRequestSchema)` to create a new message.
+ */
+export const ListRunTargetsRequestSchema: GenMessage<ListRunTargetsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_run, 6);
+
+/**
+ * @generated from message drift.v1.ListRunTargetsResponse
+ */
+export type ListRunTargetsResponse = Message<"drift.v1.ListRunTargetsResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.RunTarget targets = 1;
+   */
+  targets: RunTarget[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListRunTargetsResponse.
+ * Use `create(ListRunTargetsResponseSchema)` to create a new message.
+ */
+export const ListRunTargetsResponseSchema: GenMessage<ListRunTargetsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_run, 7);
+
+/**
+ * @generated from message drift.v1.StartWorkflowRunRequest
+ */
+export type StartWorkflowRunRequest = Message<"drift.v1.StartWorkflowRunRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string workflow_id = 3;
+   */
+  workflowId: string;
+
+  /**
+   * @generated from field: repeated string device_ids = 4;
+   */
+  deviceIds: string[];
+
+  /**
+   * @generated from field: uint32 concurrency_limit = 5;
+   */
+  concurrencyLimit: number;
+};
+
+/**
+ * Describes the message drift.v1.StartWorkflowRunRequest.
+ * Use `create(StartWorkflowRunRequestSchema)` to create a new message.
+ */
+export const StartWorkflowRunRequestSchema: GenMessage<StartWorkflowRunRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_run, 8);
+
+/**
+ * @generated from message drift.v1.StartWorkflowRunResponse
+ */
+export type StartWorkflowRunResponse = Message<"drift.v1.StartWorkflowRunResponse"> & {
+  /**
+   * @generated from field: drift.v1.WorkflowRun run = 1;
+   */
+  run?: WorkflowRun;
+};
+
+/**
+ * Describes the message drift.v1.StartWorkflowRunResponse.
+ * Use `create(StartWorkflowRunResponseSchema)` to create a new message.
+ */
+export const StartWorkflowRunResponseSchema: GenMessage<StartWorkflowRunResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_run, 9);
 
 /**
  * @generated from enum drift.v1.RunState
@@ -312,6 +425,22 @@ export const RunService: GenService<{
     methodKind: "unary";
     input: typeof CancelWorkflowRunRequestSchema;
     output: typeof CancelWorkflowRunResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.RunService.ListRunTargets
+   */
+  listRunTargets: {
+    methodKind: "unary";
+    input: typeof ListRunTargetsRequestSchema;
+    output: typeof ListRunTargetsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.RunService.StartWorkflowRun
+   */
+  startWorkflowRun: {
+    methodKind: "unary";
+    input: typeof StartWorkflowRunRequestSchema;
+    output: typeof StartWorkflowRunResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_run, 0);

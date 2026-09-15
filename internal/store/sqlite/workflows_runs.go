@@ -82,6 +82,23 @@ func (r *WorkflowRepository) PublishedVersion(ctx context.Context, workspace org
 	return loadWorkflowVersion(ctx, r.store.db, workspace, "", workflowID)
 }
 
+func (r *WorkflowRepository) LatestVersion(ctx context.Context, workspace organizations.WorkspaceID, workflowID workflows.ID) (workflows.Version, error) {
+	if err := validateWorkflowReader(ctx, r, workspace, string(workflowID)); err != nil {
+		return workflows.Version{}, err
+	}
+	var version workflows.Version
+	var state string
+	err := r.store.db.QueryRowContext(ctx, `SELECT id, workspace_id, workflow_id, version, state FROM workflow_versions WHERE workspace_id=? AND workflow_id=? ORDER BY version DESC LIMIT 1`, workspace, workflowID).Scan(&version.ID, &version.Workspace, &version.WorkflowID, &version.Version, &state)
+	if err == sql.ErrNoRows {
+		return version, platformerrors.New(platformerrors.CodeNotFound, "workflow version not found")
+	}
+	if err != nil {
+		return version, classifyContext(err)
+	}
+	version.State = workflows.State(state)
+	return version, nil
+}
+
 func validateWorkflowReader(ctx context.Context, reader *WorkflowRepository, workspace organizations.WorkspaceID, id string) error {
 	if ctx == nil || reader == nil || reader.store == nil || reader.store.db == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite repository are required")
@@ -566,6 +583,45 @@ func (s *RunService) ListTargets(ctx context.Context, workspace organizations.Wo
 		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "run ID is required")
 	}
 	rows, err := s.store.db.QueryContext(ctx, `SELECT id, workspace_id, run_id, target_snapshot_id, device_id, state, failure_class, lease_id, current_observation_id, created_at, finished_at FROM run_targets WHERE workspace_id=? AND run_id=? ORDER BY device_id,id`, workspace, runID)
+	if err != nil {
+		return nil, classifyContext(err)
+	}
+	defer rows.Close()
+	result := make([]runs.RunTarget, 0)
+	for rows.Next() {
+		var target runs.RunTarget
+		var state, created string
+		var failureValue, leaseValue, observationValue, finishedValue sql.NullString
+		if err := rows.Scan(&target.ID, &target.Workspace, &target.RunID, &target.SnapshotID, &target.DeviceID, &state, &failureValue, &leaseValue, &observationValue, &created, &finishedValue); err != nil {
+			return nil, err
+		}
+		target.State = runs.TargetState(state)
+		if failureValue.Valid {
+			target.Failure = domain.FailureClass(failureValue.String)
+		}
+		if leaseValue.Valid {
+			target.LeaseID = leaseValue.String
+		}
+		if observationValue.Valid {
+			target.CurrentObservation = observationValue.String
+		}
+		target.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
+		if finishedValue.Valid {
+			finishedAt, parseErr := time.Parse(time.RFC3339Nano, finishedValue.String)
+			if parseErr == nil {
+				target.FinishedAt = &finishedAt
+			}
+		}
+		result = append(result, target)
+	}
+	return result, classifyContext(rows.Err())
+}
+
+func (s *RunService) ListAllTargets(ctx context.Context, workspace organizations.WorkspaceID) ([]runs.RunTarget, error) {
+	if err := validateRunServiceInput(ctx, s, workspace, "reader", "reader"); err != nil {
+		return nil, err
+	}
+	rows, err := s.store.db.QueryContext(ctx, `SELECT id, workspace_id, run_id, target_snapshot_id, device_id, state, failure_class, lease_id, current_observation_id, created_at, finished_at FROM run_targets WHERE workspace_id=? ORDER BY run_id, device_id, id`, workspace)
 	if err != nil {
 		return nil, classifyContext(err)
 	}

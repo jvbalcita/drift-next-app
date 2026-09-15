@@ -80,14 +80,19 @@ func (WorkflowState) EnumDescriptor() ([]byte, []int) {
 }
 
 type Workflow struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	State         WorkflowState          `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.WorkflowState" json:"state,omitempty"`
-	RowVersion    uint64                 `protobuf:"varint,5,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Id                 string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace          *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DisplayName        string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	State              WorkflowState          `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.WorkflowState" json:"state,omitempty"`
+	RowVersion         uint64                 `protobuf:"varint,5,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	PublishedVersionId string                 `protobuf:"bytes,6,opt,name=published_version_id,json=publishedVersionId,proto3" json:"published_version_id,omitempty"`
+	PublishedVersion   uint32                 `protobuf:"varint,7,opt,name=published_version,json=publishedVersion,proto3" json:"published_version,omitempty"`
+	LatestVersionId    string                 `protobuf:"bytes,8,opt,name=latest_version_id,json=latestVersionId,proto3" json:"latest_version_id,omitempty"`
+	LatestVersion      uint32                 `protobuf:"varint,9,opt,name=latest_version,json=latestVersion,proto3" json:"latest_version,omitempty"`
+	LatestVersionState WorkflowState          `protobuf:"varint,10,opt,name=latest_version_state,json=latestVersionState,proto3,enum=drift.v1.WorkflowState" json:"latest_version_state,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Workflow) Reset() {
@@ -153,6 +158,41 @@ func (x *Workflow) GetRowVersion() uint64 {
 		return x.RowVersion
 	}
 	return 0
+}
+
+func (x *Workflow) GetPublishedVersionId() string {
+	if x != nil {
+		return x.PublishedVersionId
+	}
+	return ""
+}
+
+func (x *Workflow) GetPublishedVersion() uint32 {
+	if x != nil {
+		return x.PublishedVersion
+	}
+	return 0
+}
+
+func (x *Workflow) GetLatestVersionId() string {
+	if x != nil {
+		return x.LatestVersionId
+	}
+	return ""
+}
+
+func (x *Workflow) GetLatestVersion() uint32 {
+	if x != nil {
+		return x.LatestVersion
+	}
+	return 0
+}
+
+func (x *Workflow) GetLatestVersionState() WorkflowState {
+	if x != nil {
+		return x.LatestVersionState
+	}
+	return WorkflowState_WORKFLOW_STATE_UNSPECIFIED
 }
 
 type WorkflowVersion struct {
@@ -327,18 +367,240 @@ func (x *ListWorkflowsResponse) GetPage() *PageResponse {
 	return nil
 }
 
+type CreateWorkflowRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateWorkflowRequest) Reset() {
+	*x = CreateWorkflowRequest{}
+	mi := &file_drift_v1_workflow_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateWorkflowRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateWorkflowRequest) ProtoMessage() {}
+
+func (x *CreateWorkflowRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_workflow_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateWorkflowRequest.ProtoReflect.Descriptor instead.
+func (*CreateWorkflowRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_workflow_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CreateWorkflowRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *CreateWorkflowRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *CreateWorkflowRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+type CreateWorkflowResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workflow      *Workflow              `protobuf:"bytes,1,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	Version       *WorkflowVersion       `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateWorkflowResponse) Reset() {
+	*x = CreateWorkflowResponse{}
+	mi := &file_drift_v1_workflow_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateWorkflowResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateWorkflowResponse) ProtoMessage() {}
+
+func (x *CreateWorkflowResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_workflow_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateWorkflowResponse.ProtoReflect.Descriptor instead.
+func (*CreateWorkflowResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_workflow_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CreateWorkflowResponse) GetWorkflow() *Workflow {
+	if x != nil {
+		return x.Workflow
+	}
+	return nil
+}
+
+func (x *CreateWorkflowResponse) GetVersion() *WorkflowVersion {
+	if x != nil {
+		return x.Version
+	}
+	return nil
+}
+
+type PublishWorkflowVersionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	VersionId     string                 `protobuf:"bytes,3,opt,name=version_id,json=versionId,proto3" json:"version_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishWorkflowVersionRequest) Reset() {
+	*x = PublishWorkflowVersionRequest{}
+	mi := &file_drift_v1_workflow_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishWorkflowVersionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishWorkflowVersionRequest) ProtoMessage() {}
+
+func (x *PublishWorkflowVersionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_workflow_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishWorkflowVersionRequest.ProtoReflect.Descriptor instead.
+func (*PublishWorkflowVersionRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_workflow_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *PublishWorkflowVersionRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *PublishWorkflowVersionRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *PublishWorkflowVersionRequest) GetVersionId() string {
+	if x != nil {
+		return x.VersionId
+	}
+	return ""
+}
+
+type PublishWorkflowVersionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       *WorkflowVersion       `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishWorkflowVersionResponse) Reset() {
+	*x = PublishWorkflowVersionResponse{}
+	mi := &file_drift_v1_workflow_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishWorkflowVersionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishWorkflowVersionResponse) ProtoMessage() {}
+
+func (x *PublishWorkflowVersionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_workflow_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishWorkflowVersionResponse.ProtoReflect.Descriptor instead.
+func (*PublishWorkflowVersionResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_workflow_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *PublishWorkflowVersionResponse) GetVersion() *WorkflowVersion {
+	if x != nil {
+		return x.Version
+	}
+	return nil
+}
+
 var File_drift_v1_workflow_proto protoreflect.FileDescriptor
 
 const file_drift_v1_workflow_proto_rawDesc = "" +
 	"\n" +
-	"\x17drift/v1/workflow.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xc3\x01\n" +
+	"\x17drift/v1/workflow.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xc0\x03\n" +
 	"\bWorkflow\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12-\n" +
 	"\x05state\x18\x04 \x01(\x0e2\x17.drift.v1.WorkflowStateR\x05state\x12\x1f\n" +
 	"\vrow_version\x18\x05 \x01(\x04R\n" +
-	"rowVersion\"\x8b\x01\n" +
+	"rowVersion\x120\n" +
+	"\x14published_version_id\x18\x06 \x01(\tR\x12publishedVersionId\x12+\n" +
+	"\x11published_version\x18\a \x01(\rR\x10publishedVersion\x12*\n" +
+	"\x11latest_version_id\x18\b \x01(\tR\x0flatestVersionId\x12%\n" +
+	"\x0elatest_version\x18\t \x01(\rR\rlatestVersion\x12I\n" +
+	"\x14latest_version_state\x18\n" +
+	" \x01(\x0e2\x17.drift.v1.WorkflowStateR\x12latestVersionState\"\x8b\x01\n" +
 	"\x0fWorkflowVersion\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vworkflow_id\x18\x02 \x01(\tR\n" +
@@ -350,16 +612,32 @@ const file_drift_v1_workflow_proto_rawDesc = "" +
 	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"u\n" +
 	"\x15ListWorkflowsResponse\x120\n" +
 	"\tworkflows\x18\x01 \x03(\v2\x12.drift.v1.WorkflowR\tworkflows\x12*\n" +
-	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page*\xc0\x01\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\xa4\x01\n" +
+	"\x15CreateWorkflowRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12!\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\"}\n" +
+	"\x16CreateWorkflowResponse\x12.\n" +
+	"\bworkflow\x18\x01 \x01(\v2\x12.drift.v1.WorkflowR\bworkflow\x123\n" +
+	"\aversion\x18\x02 \x01(\v2\x19.drift.v1.WorkflowVersionR\aversion\"\xa8\x01\n" +
+	"\x1dPublishWorkflowVersionRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +
+	"\n" +
+	"version_id\x18\x03 \x01(\tR\tversionId\"U\n" +
+	"\x1ePublishWorkflowVersionResponse\x123\n" +
+	"\aversion\x18\x01 \x01(\v2\x19.drift.v1.WorkflowVersionR\aversion*\xc0\x01\n" +
 	"\rWorkflowState\x12\x1e\n" +
 	"\x1aWORKFLOW_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14WORKFLOW_STATE_DRAFT\x10\x01\x12\x1c\n" +
 	"\x18WORKFLOW_STATE_VALIDATED\x10\x02\x12\x1c\n" +
 	"\x18WORKFLOW_STATE_PUBLISHED\x10\x03\x12\x1d\n" +
 	"\x19WORKFLOW_STATE_DEPRECATED\x10\x04\x12\x1a\n" +
-	"\x16WORKFLOW_STATE_RETIRED\x10\x052c\n" +
+	"\x16WORKFLOW_STATE_RETIRED\x10\x052\xa5\x02\n" +
 	"\x0fWorkflowService\x12P\n" +
-	"\rListWorkflows\x12\x1e.drift.v1.ListWorkflowsRequest\x1a\x1f.drift.v1.ListWorkflowsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\rListWorkflows\x12\x1e.drift.v1.ListWorkflowsRequest\x1a\x1f.drift.v1.ListWorkflowsResponse\x12S\n" +
+	"\x0eCreateWorkflow\x12\x1f.drift.v1.CreateWorkflowRequest\x1a .drift.v1.CreateWorkflowResponse\x12k\n" +
+	"\x16PublishWorkflowVersion\x12'.drift.v1.PublishWorkflowVersionRequest\x1a(.drift.v1.PublishWorkflowVersionResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_workflow_proto_rawDescOnce sync.Once
@@ -374,32 +652,49 @@ func file_drift_v1_workflow_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_workflow_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_drift_v1_workflow_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_drift_v1_workflow_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_drift_v1_workflow_proto_goTypes = []any{
-	(WorkflowState)(0),            // 0: drift.v1.WorkflowState
-	(*Workflow)(nil),              // 1: drift.v1.Workflow
-	(*WorkflowVersion)(nil),       // 2: drift.v1.WorkflowVersion
-	(*ListWorkflowsRequest)(nil),  // 3: drift.v1.ListWorkflowsRequest
-	(*ListWorkflowsResponse)(nil), // 4: drift.v1.ListWorkflowsResponse
-	(*WorkspaceRef)(nil),          // 5: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),           // 6: drift.v1.PageRequest
-	(*PageResponse)(nil),          // 7: drift.v1.PageResponse
+	(WorkflowState)(0),                     // 0: drift.v1.WorkflowState
+	(*Workflow)(nil),                       // 1: drift.v1.Workflow
+	(*WorkflowVersion)(nil),                // 2: drift.v1.WorkflowVersion
+	(*ListWorkflowsRequest)(nil),           // 3: drift.v1.ListWorkflowsRequest
+	(*ListWorkflowsResponse)(nil),          // 4: drift.v1.ListWorkflowsResponse
+	(*CreateWorkflowRequest)(nil),          // 5: drift.v1.CreateWorkflowRequest
+	(*CreateWorkflowResponse)(nil),         // 6: drift.v1.CreateWorkflowResponse
+	(*PublishWorkflowVersionRequest)(nil),  // 7: drift.v1.PublishWorkflowVersionRequest
+	(*PublishWorkflowVersionResponse)(nil), // 8: drift.v1.PublishWorkflowVersionResponse
+	(*WorkspaceRef)(nil),                   // 9: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),                    // 10: drift.v1.PageRequest
+	(*PageResponse)(nil),                   // 11: drift.v1.PageResponse
+	(*RequestContext)(nil),                 // 12: drift.v1.RequestContext
 }
 var file_drift_v1_workflow_proto_depIdxs = []int32{
-	5, // 0: drift.v1.Workflow.workspace:type_name -> drift.v1.WorkspaceRef
-	0, // 1: drift.v1.Workflow.state:type_name -> drift.v1.WorkflowState
-	0, // 2: drift.v1.WorkflowVersion.state:type_name -> drift.v1.WorkflowState
-	5, // 3: drift.v1.ListWorkflowsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	6, // 4: drift.v1.ListWorkflowsRequest.page:type_name -> drift.v1.PageRequest
-	1, // 5: drift.v1.ListWorkflowsResponse.workflows:type_name -> drift.v1.Workflow
-	7, // 6: drift.v1.ListWorkflowsResponse.page:type_name -> drift.v1.PageResponse
-	3, // 7: drift.v1.WorkflowService.ListWorkflows:input_type -> drift.v1.ListWorkflowsRequest
-	4, // 8: drift.v1.WorkflowService.ListWorkflows:output_type -> drift.v1.ListWorkflowsResponse
-	8, // [8:9] is the sub-list for method output_type
-	7, // [7:8] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	9,  // 0: drift.v1.Workflow.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 1: drift.v1.Workflow.state:type_name -> drift.v1.WorkflowState
+	0,  // 2: drift.v1.Workflow.latest_version_state:type_name -> drift.v1.WorkflowState
+	0,  // 3: drift.v1.WorkflowVersion.state:type_name -> drift.v1.WorkflowState
+	9,  // 4: drift.v1.ListWorkflowsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	10, // 5: drift.v1.ListWorkflowsRequest.page:type_name -> drift.v1.PageRequest
+	1,  // 6: drift.v1.ListWorkflowsResponse.workflows:type_name -> drift.v1.Workflow
+	11, // 7: drift.v1.ListWorkflowsResponse.page:type_name -> drift.v1.PageResponse
+	12, // 8: drift.v1.CreateWorkflowRequest.context:type_name -> drift.v1.RequestContext
+	9,  // 9: drift.v1.CreateWorkflowRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	1,  // 10: drift.v1.CreateWorkflowResponse.workflow:type_name -> drift.v1.Workflow
+	2,  // 11: drift.v1.CreateWorkflowResponse.version:type_name -> drift.v1.WorkflowVersion
+	12, // 12: drift.v1.PublishWorkflowVersionRequest.context:type_name -> drift.v1.RequestContext
+	9,  // 13: drift.v1.PublishWorkflowVersionRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	2,  // 14: drift.v1.PublishWorkflowVersionResponse.version:type_name -> drift.v1.WorkflowVersion
+	3,  // 15: drift.v1.WorkflowService.ListWorkflows:input_type -> drift.v1.ListWorkflowsRequest
+	5,  // 16: drift.v1.WorkflowService.CreateWorkflow:input_type -> drift.v1.CreateWorkflowRequest
+	7,  // 17: drift.v1.WorkflowService.PublishWorkflowVersion:input_type -> drift.v1.PublishWorkflowVersionRequest
+	4,  // 18: drift.v1.WorkflowService.ListWorkflows:output_type -> drift.v1.ListWorkflowsResponse
+	6,  // 19: drift.v1.WorkflowService.CreateWorkflow:output_type -> drift.v1.CreateWorkflowResponse
+	8,  // 20: drift.v1.WorkflowService.PublishWorkflowVersion:output_type -> drift.v1.PublishWorkflowVersionResponse
+	18, // [18:21] is the sub-list for method output_type
+	15, // [15:18] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_workflow_proto_init() }
@@ -414,7 +709,7 @@ func file_drift_v1_workflow_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_workflow_proto_rawDesc), len(file_drift_v1_workflow_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   4,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

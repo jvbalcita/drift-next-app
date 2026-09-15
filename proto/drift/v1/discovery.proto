@@ -42,6 +42,7 @@ message ScanCandidate {
   string fingerprint = 8;
   ScanCandidateState state = 9;
   string discovered_at = 10;
+  string evidence_summary = 11;
 }
 message StartScanRequest {
   RequestContext context = 1;
@@ -70,8 +71,26 @@ message RegisterScanCandidateResponse {
   string endpoint_id = 2;
   ScanCandidate candidate = 3;
 }
+message ListScanRunsRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListScanRunsResponse {
+  repeated ScanRun scan_runs = 1;
+  PageResponse page = 2;
+}
+message ListScanCandidatesRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListScanCandidatesResponse {
+  repeated ScanCandidate candidates = 1;
+  PageResponse page = 2;
+}
 service DiscoveryService {
   rpc StartScan(StartScanRequest) returns (StartScanResponse);
   rpc DecideScanCandidate(DecideScanCandidateRequest) returns (DecideScanCandidateResponse);
   rpc RegisterScanCandidate(RegisterScanCandidateRequest) returns (RegisterScanCandidateResponse);
+  rpc ListScanRuns(ListScanRunsRequest) returns (ListScanRunsResponse);
+  rpc ListScanCandidates(ListScanCandidatesRequest) returns (ListScanCandidatesResponse);
 }

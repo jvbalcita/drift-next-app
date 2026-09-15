@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent, SettingScope, SettingView } from "@/lib/domain/control-plane"
-import { DataTablePagination, EmptyState, FieldLabel, MockNotice, PageIntro, StatusBadge } from "./shared"
+import { DataTablePagination, EmptyState, FieldLabel, OperatorNotice, PageIntro, StatusBadge } from "./shared"
 
 const scopes: readonly { value: SettingScope; label: string }[] = [
   { value: "workspace", label: "Workspace" },
@@ -54,7 +54,7 @@ export function SettingsPage({
     setFeedback("")
   }
 
-  function save(event: FormEvent<HTMLFormElement>) {
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selected) return
     const validationError = validateSettingValue(selected, valueJson)
@@ -63,9 +63,9 @@ export function SettingsPage({
       requestAnimationFrame(() => errorSummaryRef.current?.focus())
       return
     }
-    const result = dispatch({ type: "updateSetting", settingId: selected.id, valueJson, rowVersion: selected.rowVersion })
+    const result = await dispatch({ type: "updateSetting", settingId: selected.id, valueJson, rowVersion: selected.rowVersion })
     if (result.ok) {
-      setFeedback("Setting saved. The mock control plane updated the bounded projection.")
+      setFeedback("Setting saved. The control plane updated the bounded projection.")
       setError("")
       return
     }
@@ -81,7 +81,7 @@ export function SettingsPage({
         description="Settings are separated by authority scope. Workspace display preferences are never conflated with safety-critical policy."
         actions={<StatusBadge label={`${snapshot.settings.length} Settings`} tone="info" />}
       />
-      <MockNotice>All settings are mock projections. Browser display preferences cannot authorize device control.</MockNotice>
+      <OperatorNotice>All settings are local projections. Browser display preferences cannot authorize device control.</OperatorNotice>
 
       <Tabs value={view === "history" ? "history" : "settings"} onValueChange={(next) => onViewChange?.(next === "history" ? "history" : activeScope.replaceAll("_", "-"))} className="mt-6">
         <TabsList className="rounded-none border border-border bg-background p-0" aria-label="Settings Views">

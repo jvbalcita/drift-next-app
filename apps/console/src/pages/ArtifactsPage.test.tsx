@@ -11,7 +11,7 @@ describe("ArtifactsPage", () => {
   it("lists artifacts with filters, pagination, and sanitized detail states", async () => {
     const user = userEvent.setup()
     const client = new MockControlPlaneClient()
-    const dispatch = (intent: Parameters<typeof client.dispatch>[0]) => client.dispatch(intent)
+    const dispatch = async (intent: Parameters<typeof client.dispatch>[0]) => client.dispatch(intent)
 
     render(
       <ArtifactsPage snapshot={client.getSnapshot()} dispatch={dispatch} view="library" onViewChange={() => undefined} />,
@@ -40,7 +40,7 @@ describe("ArtifactsPage", () => {
     render(
       <ArtifactsPage
         snapshot={client.getSnapshot()}
-        dispatch={(intent) => client.dispatch(intent)}
+        dispatch={async (intent) => client.dispatch(intent)}
         view="audit"
         onViewChange={() => undefined}
       />,
@@ -51,10 +51,7 @@ describe("ArtifactsPage", () => {
   it("requires confirmation before delete and cleanup", async () => {
     const user = userEvent.setup()
     const client = new MockControlPlaneClient()
-    const dispatch = (intent: Parameters<typeof client.dispatch>[0]) => {
-      const result = client.dispatch(intent)
-      return result
-    }
+    const dispatch = async (intent: Parameters<typeof client.dispatch>[0]) => client.dispatch(intent)
 
     const view = () => <ArtifactsPage snapshot={client.getSnapshot()} dispatch={dispatch} view="library" onViewChange={() => undefined} />
     const { rerender } = render(view())
@@ -76,7 +73,7 @@ describe("ArtifactsPage", () => {
     render(
       <ArtifactsPage
         snapshot={client.getSnapshot()}
-        dispatch={(intent) => client.dispatch(intent)}
+        dispatch={async (intent) => client.dispatch(intent)}
         view="media"
         onViewChange={() => undefined}
       />,
@@ -89,5 +86,33 @@ describe("ArtifactsPage", () => {
 
     await user.selectOptions(screen.getByLabelText("Selected Device"), "atlas-04")
     expect(screen.getByText("Full-Resolution Authorized Preview")).toBeInTheDocument()
+  })
+
+  it("starts, stops, and confirms recording deletion from the recordings view", async () => {
+    const user = userEvent.setup()
+    const client = new MockControlPlaneClient()
+    const dispatch = async (intent: Parameters<typeof client.dispatch>[0]) => client.dispatch(intent)
+    const view = () => (
+      <ArtifactsPage snapshot={client.getSnapshot()} dispatch={dispatch} view="recordings" onViewChange={() => undefined} />
+    )
+    const { rerender } = render(view())
+
+    expect(screen.getByRole("tab", { name: "Recordings" })).toHaveAttribute("aria-selected", "true")
+    const stop = screen.getAllByRole("button", { name: "Stop Recording" }).find((button) => !button.hasAttribute("disabled"))
+    expect(stop).toBeDefined()
+    await user.click(stop!)
+    rerender(view())
+    expect(screen.getByText(/Recording session stopped/i)).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText("Recording Device"), "atlas-04")
+    await user.click(screen.getByRole("button", { name: "Start Recording" }))
+    rerender(view())
+    expect(screen.getByText(/Recording session started/i)).toBeInTheDocument()
+
+    const deleteButtons = screen.getAllByRole("button", { name: "Delete Recording" })
+    await user.click(deleteButtons[0]!)
+    await user.click(within(document.body).getByRole("button", { name: "Confirm Delete" }))
+    rerender(view())
+    expect(screen.getByText(/Recording session deleted/i)).toBeInTheDocument()
   })
 })

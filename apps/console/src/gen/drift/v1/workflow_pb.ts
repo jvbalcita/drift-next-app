@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { PageRequest, PageResponse, WorkspaceRef } from "./common_pb";
+import type { PageRequest, PageResponse, RequestContext, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/workflow.proto.
  */
 export const file_drift_v1_workflow: GenFile = /*@__PURE__*/
-  fileDesc("ChdkcmlmdC92MS93b3JrZmxvdy5wcm90bxIIZHJpZnQudjEilAEKCFdvcmtmbG93EgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIUCgxkaXNwbGF5X25hbWUYAyABKAkSJgoFc3RhdGUYBCABKA4yFy5kcmlmdC52MS5Xb3JrZmxvd1N0YXRlEhMKC3Jvd192ZXJzaW9uGAUgASgEImsKD1dvcmtmbG93VmVyc2lvbhIKCgJpZBgBIAEoCRITCgt3b3JrZmxvd19pZBgCIAEoCRIPCgd2ZXJzaW9uGAMgASgNEiYKBXN0YXRlGAQgASgOMhcuZHJpZnQudjEuV29ya2Zsb3dTdGF0ZSJmChRMaXN0V29ya2Zsb3dzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgCIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0ImQKFUxpc3RXb3JrZmxvd3NSZXNwb25zZRIlCgl3b3JrZmxvd3MYASADKAsyEi5kcmlmdC52MS5Xb3JrZmxvdxIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlKsABCg1Xb3JrZmxvd1N0YXRlEh4KGldPUktGTE9XX1NUQVRFX1VOU1BFQ0lGSUVEEAASGAoUV09SS0ZMT1dfU1RBVEVfRFJBRlQQARIcChhXT1JLRkxPV19TVEFURV9WQUxJREFURUQQAhIcChhXT1JLRkxPV19TVEFURV9QVUJMSVNIRUQQAxIdChlXT1JLRkxPV19TVEFURV9ERVBSRUNBVEVEEAQSGgoWV09SS0ZMT1dfU1RBVEVfUkVUSVJFRBAFMmMKD1dvcmtmbG93U2VydmljZRJQCg1MaXN0V29ya2Zsb3dzEh4uZHJpZnQudjEuTGlzdFdvcmtmbG93c1JlcXVlc3QaHy5kcmlmdC52MS5MaXN0V29ya2Zsb3dzUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChdkcmlmdC92MS93b3JrZmxvdy5wcm90bxIIZHJpZnQudjEitwIKCFdvcmtmbG93EgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIUCgxkaXNwbGF5X25hbWUYAyABKAkSJgoFc3RhdGUYBCABKA4yFy5kcmlmdC52MS5Xb3JrZmxvd1N0YXRlEhMKC3Jvd192ZXJzaW9uGAUgASgEEhwKFHB1Ymxpc2hlZF92ZXJzaW9uX2lkGAYgASgJEhkKEXB1Ymxpc2hlZF92ZXJzaW9uGAcgASgNEhkKEWxhdGVzdF92ZXJzaW9uX2lkGAggASgJEhYKDmxhdGVzdF92ZXJzaW9uGAkgASgNEjUKFGxhdGVzdF92ZXJzaW9uX3N0YXRlGAogASgOMhcuZHJpZnQudjEuV29ya2Zsb3dTdGF0ZSJrCg9Xb3JrZmxvd1ZlcnNpb24SCgoCaWQYASABKAkSEwoLd29ya2Zsb3dfaWQYAiABKAkSDwoHdmVyc2lvbhgDIAEoDRImCgVzdGF0ZRgEIAEoDjIXLmRyaWZ0LnYxLldvcmtmbG93U3RhdGUiZgoUTGlzdFdvcmtmbG93c1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJkChVMaXN0V29ya2Zsb3dzUmVzcG9uc2USJQoJd29ya2Zsb3dzGAEgAygLMhIuZHJpZnQudjEuV29ya2Zsb3cSJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSKDAQoVQ3JlYXRlV29ya2Zsb3dSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSFAoMZGlzcGxheV9uYW1lGAMgASgJImoKFkNyZWF0ZVdvcmtmbG93UmVzcG9uc2USJAoId29ya2Zsb3cYASABKAsyEi5kcmlmdC52MS5Xb3JrZmxvdxIqCgd2ZXJzaW9uGAIgASgLMhkuZHJpZnQudjEuV29ya2Zsb3dWZXJzaW9uIokBCh1QdWJsaXNoV29ya2Zsb3dWZXJzaW9uUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhIKCnZlcnNpb25faWQYAyABKAkiTAoeUHVibGlzaFdvcmtmbG93VmVyc2lvblJlc3BvbnNlEioKB3ZlcnNpb24YASABKAsyGS5kcmlmdC52MS5Xb3JrZmxvd1ZlcnNpb24qwAEKDVdvcmtmbG93U3RhdGUSHgoaV09SS0ZMT1dfU1RBVEVfVU5TUEVDSUZJRUQQABIYChRXT1JLRkxPV19TVEFURV9EUkFGVBABEhwKGFdPUktGTE9XX1NUQVRFX1ZBTElEQVRFRBACEhwKGFdPUktGTE9XX1NUQVRFX1BVQkxJU0hFRBADEh0KGVdPUktGTE9XX1NUQVRFX0RFUFJFQ0FURUQQBBIaChZXT1JLRkxPV19TVEFURV9SRVRJUkVEEAUypQIKD1dvcmtmbG93U2VydmljZRJQCg1MaXN0V29ya2Zsb3dzEh4uZHJpZnQudjEuTGlzdFdvcmtmbG93c1JlcXVlc3QaHy5kcmlmdC52MS5MaXN0V29ya2Zsb3dzUmVzcG9uc2USUwoOQ3JlYXRlV29ya2Zsb3cSHy5kcmlmdC52MS5DcmVhdGVXb3JrZmxvd1JlcXVlc3QaIC5kcmlmdC52MS5DcmVhdGVXb3JrZmxvd1Jlc3BvbnNlEmsKFlB1Ymxpc2hXb3JrZmxvd1ZlcnNpb24SJy5kcmlmdC52MS5QdWJsaXNoV29ya2Zsb3dWZXJzaW9uUmVxdWVzdBooLmRyaWZ0LnYxLlB1Ymxpc2hXb3JrZmxvd1ZlcnNpb25SZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.Workflow
@@ -42,6 +42,31 @@ export type Workflow = Message<"drift.v1.Workflow"> & {
    * @generated from field: uint64 row_version = 5;
    */
   rowVersion: bigint;
+
+  /**
+   * @generated from field: string published_version_id = 6;
+   */
+  publishedVersionId: string;
+
+  /**
+   * @generated from field: uint32 published_version = 7;
+   */
+  publishedVersion: number;
+
+  /**
+   * @generated from field: string latest_version_id = 8;
+   */
+  latestVersionId: string;
+
+  /**
+   * @generated from field: uint32 latest_version = 9;
+   */
+  latestVersion: number;
+
+  /**
+   * @generated from field: drift.v1.WorkflowState latest_version_state = 10;
+   */
+  latestVersionState: WorkflowState;
 };
 
 /**
@@ -128,6 +153,99 @@ export const ListWorkflowsResponseSchema: GenMessage<ListWorkflowsResponse> = /*
   messageDesc(file_drift_v1_workflow, 3);
 
 /**
+ * @generated from message drift.v1.CreateWorkflowRequest
+ */
+export type CreateWorkflowRequest = Message<"drift.v1.CreateWorkflowRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string display_name = 3;
+   */
+  displayName: string;
+};
+
+/**
+ * Describes the message drift.v1.CreateWorkflowRequest.
+ * Use `create(CreateWorkflowRequestSchema)` to create a new message.
+ */
+export const CreateWorkflowRequestSchema: GenMessage<CreateWorkflowRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_workflow, 4);
+
+/**
+ * @generated from message drift.v1.CreateWorkflowResponse
+ */
+export type CreateWorkflowResponse = Message<"drift.v1.CreateWorkflowResponse"> & {
+  /**
+   * @generated from field: drift.v1.Workflow workflow = 1;
+   */
+  workflow?: Workflow;
+
+  /**
+   * @generated from field: drift.v1.WorkflowVersion version = 2;
+   */
+  version?: WorkflowVersion;
+};
+
+/**
+ * Describes the message drift.v1.CreateWorkflowResponse.
+ * Use `create(CreateWorkflowResponseSchema)` to create a new message.
+ */
+export const CreateWorkflowResponseSchema: GenMessage<CreateWorkflowResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_workflow, 5);
+
+/**
+ * @generated from message drift.v1.PublishWorkflowVersionRequest
+ */
+export type PublishWorkflowVersionRequest = Message<"drift.v1.PublishWorkflowVersionRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string version_id = 3;
+   */
+  versionId: string;
+};
+
+/**
+ * Describes the message drift.v1.PublishWorkflowVersionRequest.
+ * Use `create(PublishWorkflowVersionRequestSchema)` to create a new message.
+ */
+export const PublishWorkflowVersionRequestSchema: GenMessage<PublishWorkflowVersionRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_workflow, 6);
+
+/**
+ * @generated from message drift.v1.PublishWorkflowVersionResponse
+ */
+export type PublishWorkflowVersionResponse = Message<"drift.v1.PublishWorkflowVersionResponse"> & {
+  /**
+   * @generated from field: drift.v1.WorkflowVersion version = 1;
+   */
+  version?: WorkflowVersion;
+};
+
+/**
+ * Describes the message drift.v1.PublishWorkflowVersionResponse.
+ * Use `create(PublishWorkflowVersionResponseSchema)` to create a new message.
+ */
+export const PublishWorkflowVersionResponseSchema: GenMessage<PublishWorkflowVersionResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_workflow, 7);
+
+/**
  * @generated from enum drift.v1.WorkflowState
  */
 export enum WorkflowState {
@@ -179,6 +297,22 @@ export const WorkflowService: GenService<{
     methodKind: "unary";
     input: typeof ListWorkflowsRequestSchema;
     output: typeof ListWorkflowsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.WorkflowService.CreateWorkflow
+   */
+  createWorkflow: {
+    methodKind: "unary";
+    input: typeof CreateWorkflowRequestSchema;
+    output: typeof CreateWorkflowResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.WorkflowService.PublishWorkflowVersion
+   */
+  publishWorkflowVersion: {
+    methodKind: "unary";
+    input: typeof PublishWorkflowVersionRequestSchema;
+    output: typeof PublishWorkflowVersionResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_workflow, 0);

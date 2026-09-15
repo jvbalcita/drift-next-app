@@ -36,6 +36,9 @@ const (
 	// RecordingServiceListRecordingSessionsProcedure is the fully-qualified name of the
 	// RecordingService's ListRecordingSessions RPC.
 	RecordingServiceListRecordingSessionsProcedure = "/drift.v1.RecordingService/ListRecordingSessions"
+	// RecordingServiceCreateRecordingSessionProcedure is the fully-qualified name of the
+	// RecordingService's CreateRecordingSession RPC.
+	RecordingServiceCreateRecordingSessionProcedure = "/drift.v1.RecordingService/CreateRecordingSession"
 	// RecordingServiceStartRecordingSessionProcedure is the fully-qualified name of the
 	// RecordingService's StartRecordingSession RPC.
 	RecordingServiceStartRecordingSessionProcedure = "/drift.v1.RecordingService/StartRecordingSession"
@@ -59,6 +62,7 @@ const (
 // RecordingServiceClient is a client for the drift.v1.RecordingService service.
 type RecordingServiceClient interface {
 	ListRecordingSessions(context.Context, *connect.Request[v1.ListRecordingSessionsRequest]) (*connect.Response[v1.ListRecordingSessionsResponse], error)
+	CreateRecordingSession(context.Context, *connect.Request[v1.CreateRecordingSessionRequest]) (*connect.Response[v1.CreateRecordingSessionResponse], error)
 	StartRecordingSession(context.Context, *connect.Request[v1.StartRecordingSessionRequest]) (*connect.Response[v1.StartRecordingSessionResponse], error)
 	StopRecordingSession(context.Context, *connect.Request[v1.StopRecordingSessionRequest]) (*connect.Response[v1.StopRecordingSessionResponse], error)
 	DiscardRecordingSession(context.Context, *connect.Request[v1.DiscardRecordingSessionRequest]) (*connect.Response[v1.DiscardRecordingSessionResponse], error)
@@ -82,6 +86,12 @@ func NewRecordingServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			httpClient,
 			baseURL+RecordingServiceListRecordingSessionsProcedure,
 			connect.WithSchema(recordingServiceMethods.ByName("ListRecordingSessions")),
+			connect.WithClientOptions(opts...),
+		),
+		createRecordingSession: connect.NewClient[v1.CreateRecordingSessionRequest, v1.CreateRecordingSessionResponse](
+			httpClient,
+			baseURL+RecordingServiceCreateRecordingSessionProcedure,
+			connect.WithSchema(recordingServiceMethods.ByName("CreateRecordingSession")),
 			connect.WithClientOptions(opts...),
 		),
 		startRecordingSession: connect.NewClient[v1.StartRecordingSessionRequest, v1.StartRecordingSessionResponse](
@@ -126,6 +136,7 @@ func NewRecordingServiceClient(httpClient connect.HTTPClient, baseURL string, op
 // recordingServiceClient implements RecordingServiceClient.
 type recordingServiceClient struct {
 	listRecordingSessions   *connect.Client[v1.ListRecordingSessionsRequest, v1.ListRecordingSessionsResponse]
+	createRecordingSession  *connect.Client[v1.CreateRecordingSessionRequest, v1.CreateRecordingSessionResponse]
 	startRecordingSession   *connect.Client[v1.StartRecordingSessionRequest, v1.StartRecordingSessionResponse]
 	stopRecordingSession    *connect.Client[v1.StopRecordingSessionRequest, v1.StopRecordingSessionResponse]
 	discardRecordingSession *connect.Client[v1.DiscardRecordingSessionRequest, v1.DiscardRecordingSessionResponse]
@@ -137,6 +148,11 @@ type recordingServiceClient struct {
 // ListRecordingSessions calls drift.v1.RecordingService.ListRecordingSessions.
 func (c *recordingServiceClient) ListRecordingSessions(ctx context.Context, req *connect.Request[v1.ListRecordingSessionsRequest]) (*connect.Response[v1.ListRecordingSessionsResponse], error) {
 	return c.listRecordingSessions.CallUnary(ctx, req)
+}
+
+// CreateRecordingSession calls drift.v1.RecordingService.CreateRecordingSession.
+func (c *recordingServiceClient) CreateRecordingSession(ctx context.Context, req *connect.Request[v1.CreateRecordingSessionRequest]) (*connect.Response[v1.CreateRecordingSessionResponse], error) {
+	return c.createRecordingSession.CallUnary(ctx, req)
 }
 
 // StartRecordingSession calls drift.v1.RecordingService.StartRecordingSession.
@@ -172,6 +188,7 @@ func (c *recordingServiceClient) ReviewRecordingEvent(ctx context.Context, req *
 // RecordingServiceHandler is an implementation of the drift.v1.RecordingService service.
 type RecordingServiceHandler interface {
 	ListRecordingSessions(context.Context, *connect.Request[v1.ListRecordingSessionsRequest]) (*connect.Response[v1.ListRecordingSessionsResponse], error)
+	CreateRecordingSession(context.Context, *connect.Request[v1.CreateRecordingSessionRequest]) (*connect.Response[v1.CreateRecordingSessionResponse], error)
 	StartRecordingSession(context.Context, *connect.Request[v1.StartRecordingSessionRequest]) (*connect.Response[v1.StartRecordingSessionResponse], error)
 	StopRecordingSession(context.Context, *connect.Request[v1.StopRecordingSessionRequest]) (*connect.Response[v1.StopRecordingSessionResponse], error)
 	DiscardRecordingSession(context.Context, *connect.Request[v1.DiscardRecordingSessionRequest]) (*connect.Response[v1.DiscardRecordingSessionResponse], error)
@@ -191,6 +208,12 @@ func NewRecordingServiceHandler(svc RecordingServiceHandler, opts ...connect.Han
 		RecordingServiceListRecordingSessionsProcedure,
 		svc.ListRecordingSessions,
 		connect.WithSchema(recordingServiceMethods.ByName("ListRecordingSessions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	recordingServiceCreateRecordingSessionHandler := connect.NewUnaryHandler(
+		RecordingServiceCreateRecordingSessionProcedure,
+		svc.CreateRecordingSession,
+		connect.WithSchema(recordingServiceMethods.ByName("CreateRecordingSession")),
 		connect.WithHandlerOptions(opts...),
 	)
 	recordingServiceStartRecordingSessionHandler := connect.NewUnaryHandler(
@@ -233,6 +256,8 @@ func NewRecordingServiceHandler(svc RecordingServiceHandler, opts ...connect.Han
 		switch r.URL.Path {
 		case RecordingServiceListRecordingSessionsProcedure:
 			recordingServiceListRecordingSessionsHandler.ServeHTTP(w, r)
+		case RecordingServiceCreateRecordingSessionProcedure:
+			recordingServiceCreateRecordingSessionHandler.ServeHTTP(w, r)
 		case RecordingServiceStartRecordingSessionProcedure:
 			recordingServiceStartRecordingSessionHandler.ServeHTTP(w, r)
 		case RecordingServiceStopRecordingSessionProcedure:
@@ -256,6 +281,10 @@ type UnimplementedRecordingServiceHandler struct{}
 
 func (UnimplementedRecordingServiceHandler) ListRecordingSessions(context.Context, *connect.Request[v1.ListRecordingSessionsRequest]) (*connect.Response[v1.ListRecordingSessionsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RecordingService.ListRecordingSessions is not implemented"))
+}
+
+func (UnimplementedRecordingServiceHandler) CreateRecordingSession(context.Context, *connect.Request[v1.CreateRecordingSessionRequest]) (*connect.Response[v1.CreateRecordingSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.RecordingService.CreateRecordingSession is not implemented"))
 }
 
 func (UnimplementedRecordingServiceHandler) StartRecordingSession(context.Context, *connect.Request[v1.StartRecordingSessionRequest]) (*connect.Response[v1.StartRecordingSessionResponse], error) {

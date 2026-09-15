@@ -286,9 +286,11 @@ func (x *ListAutomationAgentsRequest) GetPage() *PageRequest {
 }
 
 type ListAutomationAgentsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Agents        []*AutomationAgent     `protobuf:"bytes,1,rep,name=agents,proto3" json:"agents,omitempty"`
-	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Agents        []*AutomationAgent           `protobuf:"bytes,1,rep,name=agents,proto3" json:"agents,omitempty"`
+	Page          *PageResponse                `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	Profiles      []*AutomationAgentProfile    `protobuf:"bytes,3,rep,name=profiles,proto3" json:"profiles,omitempty"`
+	Assignments   []*AutomationAgentAssignment `protobuf:"bytes,4,rep,name=assignments,proto3" json:"assignments,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -337,6 +339,320 @@ func (x *ListAutomationAgentsResponse) GetPage() *PageResponse {
 	return nil
 }
 
+func (x *ListAutomationAgentsResponse) GetProfiles() []*AutomationAgentProfile {
+	if x != nil {
+		return x.Profiles
+	}
+	return nil
+}
+
+func (x *ListAutomationAgentsResponse) GetAssignments() []*AutomationAgentAssignment {
+	if x != nil {
+		return x.Assignments
+	}
+	return nil
+}
+
+type AutomationAgentAssignment struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	AutomationAgentId string                 `protobuf:"bytes,2,opt,name=automation_agent_id,json=automationAgentId,proto3" json:"automation_agent_id,omitempty"`
+	ProfileId         string                 `protobuf:"bytes,3,opt,name=profile_id,json=profileId,proto3" json:"profile_id,omitempty"`
+	DeviceId          string                 `protobuf:"bytes,4,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	State             string                 `protobuf:"bytes,5,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AutomationAgentAssignment) Reset() {
+	*x = AutomationAgentAssignment{}
+	mi := &file_drift_v1_automation_agent_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutomationAgentAssignment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutomationAgentAssignment) ProtoMessage() {}
+
+func (x *AutomationAgentAssignment) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_automation_agent_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutomationAgentAssignment.ProtoReflect.Descriptor instead.
+func (*AutomationAgentAssignment) Descriptor() ([]byte, []int) {
+	return file_drift_v1_automation_agent_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *AutomationAgentAssignment) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AutomationAgentAssignment) GetAutomationAgentId() string {
+	if x != nil {
+		return x.AutomationAgentId
+	}
+	return ""
+}
+
+func (x *AutomationAgentAssignment) GetProfileId() string {
+	if x != nil {
+		return x.ProfileId
+	}
+	return ""
+}
+
+func (x *AutomationAgentAssignment) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *AutomationAgentAssignment) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+type CreateAutomationAgentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAutomationAgentRequest) Reset() {
+	*x = CreateAutomationAgentRequest{}
+	mi := &file_drift_v1_automation_agent_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAutomationAgentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAutomationAgentRequest) ProtoMessage() {}
+
+func (x *CreateAutomationAgentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_automation_agent_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAutomationAgentRequest.ProtoReflect.Descriptor instead.
+func (*CreateAutomationAgentRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_automation_agent_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CreateAutomationAgentRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *CreateAutomationAgentRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *CreateAutomationAgentRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+type CreateAutomationAgentResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Agent         *AutomationAgent        `protobuf:"bytes,1,opt,name=agent,proto3" json:"agent,omitempty"`
+	Profile       *AutomationAgentProfile `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAutomationAgentResponse) Reset() {
+	*x = CreateAutomationAgentResponse{}
+	mi := &file_drift_v1_automation_agent_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAutomationAgentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAutomationAgentResponse) ProtoMessage() {}
+
+func (x *CreateAutomationAgentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_automation_agent_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAutomationAgentResponse.ProtoReflect.Descriptor instead.
+func (*CreateAutomationAgentResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_automation_agent_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CreateAutomationAgentResponse) GetAgent() *AutomationAgent {
+	if x != nil {
+		return x.Agent
+	}
+	return nil
+}
+
+func (x *CreateAutomationAgentResponse) GetProfile() *AutomationAgentProfile {
+	if x != nil {
+		return x.Profile
+	}
+	return nil
+}
+
+type AssignAutomationAgentDeviceRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Context           *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace         *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	AutomationAgentId string                 `protobuf:"bytes,3,opt,name=automation_agent_id,json=automationAgentId,proto3" json:"automation_agent_id,omitempty"`
+	DeviceId          string                 `protobuf:"bytes,4,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AssignAutomationAgentDeviceRequest) Reset() {
+	*x = AssignAutomationAgentDeviceRequest{}
+	mi := &file_drift_v1_automation_agent_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AssignAutomationAgentDeviceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AssignAutomationAgentDeviceRequest) ProtoMessage() {}
+
+func (x *AssignAutomationAgentDeviceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_automation_agent_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AssignAutomationAgentDeviceRequest.ProtoReflect.Descriptor instead.
+func (*AssignAutomationAgentDeviceRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_automation_agent_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *AssignAutomationAgentDeviceRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *AssignAutomationAgentDeviceRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *AssignAutomationAgentDeviceRequest) GetAutomationAgentId() string {
+	if x != nil {
+		return x.AutomationAgentId
+	}
+	return ""
+}
+
+func (x *AssignAutomationAgentDeviceRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+type AssignAutomationAgentDeviceResponse struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Assignment    *AutomationAgentAssignment `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AssignAutomationAgentDeviceResponse) Reset() {
+	*x = AssignAutomationAgentDeviceResponse{}
+	mi := &file_drift_v1_automation_agent_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AssignAutomationAgentDeviceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AssignAutomationAgentDeviceResponse) ProtoMessage() {}
+
+func (x *AssignAutomationAgentDeviceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_automation_agent_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AssignAutomationAgentDeviceResponse.ProtoReflect.Descriptor instead.
+func (*AssignAutomationAgentDeviceResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_automation_agent_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *AssignAutomationAgentDeviceResponse) GetAssignment() *AutomationAgentAssignment {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
 var File_drift_v1_automation_agent_proto protoreflect.FileDescriptor
 
 const file_drift_v1_automation_agent_proto_rawDesc = "" +
@@ -359,17 +675,44 @@ const file_drift_v1_automation_agent_proto_rawDesc = "" +
 	"trustState\"~\n" +
 	"\x1bListAutomationAgentsRequest\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
-	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"}\n" +
+	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x82\x02\n" +
 	"\x1cListAutomationAgentsResponse\x121\n" +
 	"\x06agents\x18\x01 \x03(\v2\x19.drift.v1.AutomationAgentR\x06agents\x12*\n" +
-	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page*\xab\x01\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\x12<\n" +
+	"\bprofiles\x18\x03 \x03(\v2 .drift.v1.AutomationAgentProfileR\bprofiles\x12E\n" +
+	"\vassignments\x18\x04 \x03(\v2#.drift.v1.AutomationAgentAssignmentR\vassignments\"\xad\x01\n" +
+	"\x19AutomationAgentAssignment\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12.\n" +
+	"\x13automation_agent_id\x18\x02 \x01(\tR\x11automationAgentId\x12\x1d\n" +
+	"\n" +
+	"profile_id\x18\x03 \x01(\tR\tprofileId\x12\x1b\n" +
+	"\tdevice_id\x18\x04 \x01(\tR\bdeviceId\x12\x14\n" +
+	"\x05state\x18\x05 \x01(\tR\x05state\"\xab\x01\n" +
+	"\x1cCreateAutomationAgentRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12!\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\"\x8c\x01\n" +
+	"\x1dCreateAutomationAgentResponse\x12/\n" +
+	"\x05agent\x18\x01 \x01(\v2\x19.drift.v1.AutomationAgentR\x05agent\x12:\n" +
+	"\aprofile\x18\x02 \x01(\v2 .drift.v1.AutomationAgentProfileR\aprofile\"\xdb\x01\n" +
+	"\"AssignAutomationAgentDeviceRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12.\n" +
+	"\x13automation_agent_id\x18\x03 \x01(\tR\x11automationAgentId\x12\x1b\n" +
+	"\tdevice_id\x18\x04 \x01(\tR\bdeviceId\"j\n" +
+	"#AssignAutomationAgentDeviceResponse\x12C\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2#.drift.v1.AutomationAgentAssignmentR\n" +
+	"assignment*\xab\x01\n" +
 	"\x14AutomationAgentState\x12&\n" +
 	"\"AUTOMATION_AGENT_STATE_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dAUTOMATION_AGENT_STATE_ACTIVE\x10\x01\x12$\n" +
 	" AUTOMATION_AGENT_STATE_SUSPENDED\x10\x02\x12\"\n" +
-	"\x1eAUTOMATION_AGENT_STATE_RETIRED\x10\x032\x7f\n" +
+	"\x1eAUTOMATION_AGENT_STATE_RETIRED\x10\x032\xe5\x02\n" +
 	"\x16AutomationAgentService\x12e\n" +
-	"\x14ListAutomationAgents\x12%.drift.v1.ListAutomationAgentsRequest\x1a&.drift.v1.ListAutomationAgentsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\x14ListAutomationAgents\x12%.drift.v1.ListAutomationAgentsRequest\x1a&.drift.v1.ListAutomationAgentsResponse\x12h\n" +
+	"\x15CreateAutomationAgent\x12&.drift.v1.CreateAutomationAgentRequest\x1a'.drift.v1.CreateAutomationAgentResponse\x12z\n" +
+	"\x1bAssignAutomationAgentDevice\x12,.drift.v1.AssignAutomationAgentDeviceRequest\x1a-.drift.v1.AssignAutomationAgentDeviceResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_automation_agent_proto_rawDescOnce sync.Once
@@ -384,31 +727,50 @@ func file_drift_v1_automation_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_automation_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_drift_v1_automation_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_drift_v1_automation_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_drift_v1_automation_agent_proto_goTypes = []any{
-	(AutomationAgentState)(0),            // 0: drift.v1.AutomationAgentState
-	(*AutomationAgent)(nil),              // 1: drift.v1.AutomationAgent
-	(*AutomationAgentProfile)(nil),       // 2: drift.v1.AutomationAgentProfile
-	(*ListAutomationAgentsRequest)(nil),  // 3: drift.v1.ListAutomationAgentsRequest
-	(*ListAutomationAgentsResponse)(nil), // 4: drift.v1.ListAutomationAgentsResponse
-	(*WorkspaceRef)(nil),                 // 5: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),                  // 6: drift.v1.PageRequest
-	(*PageResponse)(nil),                 // 7: drift.v1.PageResponse
+	(AutomationAgentState)(0),                   // 0: drift.v1.AutomationAgentState
+	(*AutomationAgent)(nil),                     // 1: drift.v1.AutomationAgent
+	(*AutomationAgentProfile)(nil),              // 2: drift.v1.AutomationAgentProfile
+	(*ListAutomationAgentsRequest)(nil),         // 3: drift.v1.ListAutomationAgentsRequest
+	(*ListAutomationAgentsResponse)(nil),        // 4: drift.v1.ListAutomationAgentsResponse
+	(*AutomationAgentAssignment)(nil),           // 5: drift.v1.AutomationAgentAssignment
+	(*CreateAutomationAgentRequest)(nil),        // 6: drift.v1.CreateAutomationAgentRequest
+	(*CreateAutomationAgentResponse)(nil),       // 7: drift.v1.CreateAutomationAgentResponse
+	(*AssignAutomationAgentDeviceRequest)(nil),  // 8: drift.v1.AssignAutomationAgentDeviceRequest
+	(*AssignAutomationAgentDeviceResponse)(nil), // 9: drift.v1.AssignAutomationAgentDeviceResponse
+	(*WorkspaceRef)(nil),                        // 10: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),                         // 11: drift.v1.PageRequest
+	(*PageResponse)(nil),                        // 12: drift.v1.PageResponse
+	(*RequestContext)(nil),                      // 13: drift.v1.RequestContext
 }
 var file_drift_v1_automation_agent_proto_depIdxs = []int32{
-	5, // 0: drift.v1.AutomationAgent.workspace:type_name -> drift.v1.WorkspaceRef
-	0, // 1: drift.v1.AutomationAgent.state:type_name -> drift.v1.AutomationAgentState
-	5, // 2: drift.v1.ListAutomationAgentsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	6, // 3: drift.v1.ListAutomationAgentsRequest.page:type_name -> drift.v1.PageRequest
-	1, // 4: drift.v1.ListAutomationAgentsResponse.agents:type_name -> drift.v1.AutomationAgent
-	7, // 5: drift.v1.ListAutomationAgentsResponse.page:type_name -> drift.v1.PageResponse
-	3, // 6: drift.v1.AutomationAgentService.ListAutomationAgents:input_type -> drift.v1.ListAutomationAgentsRequest
-	4, // 7: drift.v1.AutomationAgentService.ListAutomationAgents:output_type -> drift.v1.ListAutomationAgentsResponse
-	7, // [7:8] is the sub-list for method output_type
-	6, // [6:7] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	10, // 0: drift.v1.AutomationAgent.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 1: drift.v1.AutomationAgent.state:type_name -> drift.v1.AutomationAgentState
+	10, // 2: drift.v1.ListAutomationAgentsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	11, // 3: drift.v1.ListAutomationAgentsRequest.page:type_name -> drift.v1.PageRequest
+	1,  // 4: drift.v1.ListAutomationAgentsResponse.agents:type_name -> drift.v1.AutomationAgent
+	12, // 5: drift.v1.ListAutomationAgentsResponse.page:type_name -> drift.v1.PageResponse
+	2,  // 6: drift.v1.ListAutomationAgentsResponse.profiles:type_name -> drift.v1.AutomationAgentProfile
+	5,  // 7: drift.v1.ListAutomationAgentsResponse.assignments:type_name -> drift.v1.AutomationAgentAssignment
+	13, // 8: drift.v1.CreateAutomationAgentRequest.context:type_name -> drift.v1.RequestContext
+	10, // 9: drift.v1.CreateAutomationAgentRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	1,  // 10: drift.v1.CreateAutomationAgentResponse.agent:type_name -> drift.v1.AutomationAgent
+	2,  // 11: drift.v1.CreateAutomationAgentResponse.profile:type_name -> drift.v1.AutomationAgentProfile
+	13, // 12: drift.v1.AssignAutomationAgentDeviceRequest.context:type_name -> drift.v1.RequestContext
+	10, // 13: drift.v1.AssignAutomationAgentDeviceRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	5,  // 14: drift.v1.AssignAutomationAgentDeviceResponse.assignment:type_name -> drift.v1.AutomationAgentAssignment
+	3,  // 15: drift.v1.AutomationAgentService.ListAutomationAgents:input_type -> drift.v1.ListAutomationAgentsRequest
+	6,  // 16: drift.v1.AutomationAgentService.CreateAutomationAgent:input_type -> drift.v1.CreateAutomationAgentRequest
+	8,  // 17: drift.v1.AutomationAgentService.AssignAutomationAgentDevice:input_type -> drift.v1.AssignAutomationAgentDeviceRequest
+	4,  // 18: drift.v1.AutomationAgentService.ListAutomationAgents:output_type -> drift.v1.ListAutomationAgentsResponse
+	7,  // 19: drift.v1.AutomationAgentService.CreateAutomationAgent:output_type -> drift.v1.CreateAutomationAgentResponse
+	9,  // 20: drift.v1.AutomationAgentService.AssignAutomationAgentDevice:output_type -> drift.v1.AssignAutomationAgentDeviceResponse
+	18, // [18:21] is the sub-list for method output_type
+	15, // [15:18] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_automation_agent_proto_init() }
@@ -423,7 +785,7 @@ func file_drift_v1_automation_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_automation_agent_proto_rawDesc), len(file_drift_v1_automation_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   4,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -33,7 +33,36 @@ message ListAutomationAgentsRequest {
 message ListAutomationAgentsResponse {
   repeated AutomationAgent agents = 1;
   PageResponse page = 2;
+  repeated AutomationAgentProfile profiles = 3;
+  repeated AutomationAgentAssignment assignments = 4;
+}
+message AutomationAgentAssignment {
+  string id = 1;
+  string automation_agent_id = 2;
+  string profile_id = 3;
+  string device_id = 4;
+  string state = 5;
+}
+message CreateAutomationAgentRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string display_name = 3;
+}
+message CreateAutomationAgentResponse {
+  AutomationAgent agent = 1;
+  AutomationAgentProfile profile = 2;
+}
+message AssignAutomationAgentDeviceRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string automation_agent_id = 3;
+  string device_id = 4;
+}
+message AssignAutomationAgentDeviceResponse {
+  AutomationAgentAssignment assignment = 1;
 }
 service AutomationAgentService {
   rpc ListAutomationAgents(ListAutomationAgentsRequest) returns (ListAutomationAgentsResponse);
+  rpc CreateAutomationAgent(CreateAutomationAgentRequest) returns (CreateAutomationAgentResponse);
+  rpc AssignAutomationAgentDevice(AssignAutomationAgentDeviceRequest) returns (AssignAutomationAgentDeviceResponse);
 }

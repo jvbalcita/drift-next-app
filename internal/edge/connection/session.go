@@ -28,8 +28,8 @@ const (
 type ResolutionKind string
 
 const (
-	ResolutionFreshObservation   ResolutionKind = "fresh_observation"
-	ResolutionOperatorConfirmed  ResolutionKind = "operator_confirmed"
+	ResolutionFreshObservation  ResolutionKind = "fresh_observation"
+	ResolutionOperatorConfirmed ResolutionKind = "operator_confirmed"
 )
 
 type SessionConfig struct {
@@ -41,17 +41,17 @@ type SessionConfig struct {
 }
 
 type Status struct {
-	State               RuntimeState
-	TransportID         string
-	Protocol            string
-	HelperAttached      bool
+	State                RuntimeState
+	TransportID          string
+	Protocol             string
+	HelperAttached       bool
 	HelperTokenRotatedAt *time.Time
-	DisconnectedReason  string
-	PolicyVersion       uint64
+	DisconnectedReason   string
+	PolicyVersion        uint64
 	PendingIndeterminate int
-	HelperTokenIsLease  bool
-	TransportIDIsLease  bool
-	UpdatedAt           time.Time
+	HelperTokenIsLease   bool
+	TransportIDIsLease   bool
+	UpdatedAt            time.Time
 }
 
 type ReconnectEvidence struct {
@@ -281,6 +281,21 @@ func (s *Session) ResolveIndeterminate(actionID string, kind ResolutionKind, now
 	s.dispatches[actionID] = DispatchResolved
 	s.updatedAt = now
 	return nil
+}
+
+func (s *Session) IndeterminateActionIDs() []string {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ids := make([]string, 0)
+	for actionID, outcome := range s.dispatches {
+		if outcome == DispatchIndeterminate {
+			ids = append(ids, actionID)
+		}
+	}
+	return ids
 }
 
 func (s *Session) PendingIndeterminate() int {

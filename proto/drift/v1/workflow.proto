@@ -19,6 +19,11 @@ message Workflow {
   string display_name = 3;
   WorkflowState state = 4;
   uint64 row_version = 5;
+  string published_version_id = 6;
+  uint32 published_version = 7;
+  string latest_version_id = 8;
+  uint32 latest_version = 9;
+  WorkflowState latest_version_state = 10;
 }
 message WorkflowVersion {
   string id = 1;
@@ -34,6 +39,25 @@ message ListWorkflowsResponse {
   repeated Workflow workflows = 1;
   PageResponse page = 2;
 }
+message CreateWorkflowRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string display_name = 3;
+}
+message CreateWorkflowResponse {
+  Workflow workflow = 1;
+  WorkflowVersion version = 2;
+}
+message PublishWorkflowVersionRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string version_id = 3;
+}
+message PublishWorkflowVersionResponse {
+  WorkflowVersion version = 1;
+}
 service WorkflowService {
   rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
+  rpc CreateWorkflow(CreateWorkflowRequest) returns (CreateWorkflowResponse);
+  rpc PublishWorkflowVersion(PublishWorkflowVersionRequest) returns (PublishWorkflowVersionResponse);
 }

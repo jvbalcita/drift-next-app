@@ -249,6 +249,8 @@ type RunTarget struct {
 	DeviceId      string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	State         RunTargetState         `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.RunTargetState" json:"state,omitempty"`
 	Failure       *Failure               `protobuf:"bytes,5,opt,name=failure,proto3" json:"failure,omitempty"`
+	LeaseId       string                 `protobuf:"bytes,6,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	ObservationId string                 `protobuf:"bytes,7,opt,name=observation_id,json=observationId,proto3" json:"observation_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -316,6 +318,20 @@ func (x *RunTarget) GetFailure() *Failure {
 		return x.Failure
 	}
 	return nil
+}
+
+func (x *RunTarget) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+func (x *RunTarget) GetObservationId() string {
+	if x != nil {
+		return x.ObservationId
+	}
+	return ""
 }
 
 type ListWorkflowRunsRequest struct {
@@ -518,6 +534,238 @@ func (x *CancelWorkflowRunResponse) GetRun() *WorkflowRun {
 	return nil
 }
 
+type ListRunTargetsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	RunId         string                 `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRunTargetsRequest) Reset() {
+	*x = ListRunTargetsRequest{}
+	mi := &file_drift_v1_run_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRunTargetsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRunTargetsRequest) ProtoMessage() {}
+
+func (x *ListRunTargetsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_run_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRunTargetsRequest.ProtoReflect.Descriptor instead.
+func (*ListRunTargetsRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_run_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListRunTargetsRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListRunTargetsRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ListRunTargetsRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListRunTargetsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Targets       []*RunTarget           `protobuf:"bytes,1,rep,name=targets,proto3" json:"targets,omitempty"`
+	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRunTargetsResponse) Reset() {
+	*x = ListRunTargetsResponse{}
+	mi := &file_drift_v1_run_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRunTargetsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRunTargetsResponse) ProtoMessage() {}
+
+func (x *ListRunTargetsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_run_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRunTargetsResponse.ProtoReflect.Descriptor instead.
+func (*ListRunTargetsResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_run_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ListRunTargetsResponse) GetTargets() []*RunTarget {
+	if x != nil {
+		return x.Targets
+	}
+	return nil
+}
+
+func (x *ListRunTargetsResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type StartWorkflowRunRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Context          *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace        *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	WorkflowId       string                 `protobuf:"bytes,3,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	DeviceIds        []string               `protobuf:"bytes,4,rep,name=device_ids,json=deviceIds,proto3" json:"device_ids,omitempty"`
+	ConcurrencyLimit uint32                 `protobuf:"varint,5,opt,name=concurrency_limit,json=concurrencyLimit,proto3" json:"concurrency_limit,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *StartWorkflowRunRequest) Reset() {
+	*x = StartWorkflowRunRequest{}
+	mi := &file_drift_v1_run_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartWorkflowRunRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartWorkflowRunRequest) ProtoMessage() {}
+
+func (x *StartWorkflowRunRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_run_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartWorkflowRunRequest.ProtoReflect.Descriptor instead.
+func (*StartWorkflowRunRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_run_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *StartWorkflowRunRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *StartWorkflowRunRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *StartWorkflowRunRequest) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
+func (x *StartWorkflowRunRequest) GetDeviceIds() []string {
+	if x != nil {
+		return x.DeviceIds
+	}
+	return nil
+}
+
+func (x *StartWorkflowRunRequest) GetConcurrencyLimit() uint32 {
+	if x != nil {
+		return x.ConcurrencyLimit
+	}
+	return 0
+}
+
+type StartWorkflowRunResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Run           *WorkflowRun           `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartWorkflowRunResponse) Reset() {
+	*x = StartWorkflowRunResponse{}
+	mi := &file_drift_v1_run_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartWorkflowRunResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartWorkflowRunResponse) ProtoMessage() {}
+
+func (x *StartWorkflowRunResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_run_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartWorkflowRunResponse.ProtoReflect.Descriptor instead.
+func (*StartWorkflowRunResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_run_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *StartWorkflowRunResponse) GetRun() *WorkflowRun {
+	if x != nil {
+		return x.Run
+	}
+	return nil
+}
+
 var File_drift_v1_run_proto protoreflect.FileDescriptor
 
 const file_drift_v1_run_proto_rawDesc = "" +
@@ -529,13 +777,15 @@ const file_drift_v1_run_proto_rawDesc = "" +
 	"\x13workflow_version_id\x18\x03 \x01(\tR\x11workflowVersionId\x12(\n" +
 	"\x05state\x18\x04 \x01(\x0e2\x12.drift.v1.RunStateR\x05state\x12+\n" +
 	"\x11concurrency_limit\x18\x05 \x01(\rR\x10concurrencyLimit\x12+\n" +
-	"\afailure\x18\x06 \x01(\v2\x11.drift.v1.FailureR\afailure\"\xac\x01\n" +
+	"\afailure\x18\x06 \x01(\v2\x11.drift.v1.FailureR\afailure\"\xee\x01\n" +
 	"\tRunTarget\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x15\n" +
 	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12\x1b\n" +
 	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12.\n" +
 	"\x05state\x18\x04 \x01(\x0e2\x18.drift.v1.RunTargetStateR\x05state\x12+\n" +
-	"\afailure\x18\x05 \x01(\v2\x11.drift.v1.FailureR\afailure\"z\n" +
+	"\afailure\x18\x05 \x01(\v2\x11.drift.v1.FailureR\afailure\x12\x19\n" +
+	"\blease_id\x18\x06 \x01(\tR\aleaseId\x12%\n" +
+	"\x0eobservation_id\x18\a \x01(\tR\robservationId\"z\n" +
 	"\x17ListWorkflowRunsRequest\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
 	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"q\n" +
@@ -546,6 +796,23 @@ const file_drift_v1_run_proto_rawDesc = "" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12'\n" +
 	"\x03run\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\x03run\"D\n" +
 	"\x19CancelWorkflowRunResponse\x12'\n" +
+	"\x03run\x18\x01 \x01(\v2\x15.drift.v1.WorkflowRunR\x03run\"\x8f\x01\n" +
+	"\x15ListRunTargetsRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x15\n" +
+	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12)\n" +
+	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"s\n" +
+	"\x16ListRunTargetsResponse\x12-\n" +
+	"\atargets\x18\x01 \x03(\v2\x13.drift.v1.RunTargetR\atargets\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\xf0\x01\n" +
+	"\x17StartWorkflowRunRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1f\n" +
+	"\vworkflow_id\x18\x03 \x01(\tR\n" +
+	"workflowId\x12\x1d\n" +
+	"\n" +
+	"device_ids\x18\x04 \x03(\tR\tdeviceIds\x12+\n" +
+	"\x11concurrency_limit\x18\x05 \x01(\rR\x10concurrencyLimit\"C\n" +
+	"\x18StartWorkflowRunResponse\x12'\n" +
 	"\x03run\x18\x01 \x01(\v2\x15.drift.v1.WorkflowRunR\x03run*\xe7\x01\n" +
 	"\bRunState\x12\x19\n" +
 	"\x15RUN_STATE_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -567,11 +834,13 @@ const file_drift_v1_run_proto_rawDesc = "" +
 	"\x1aRUN_TARGET_STATE_SUCCEEDED\x10\x06\x12\x1b\n" +
 	"\x17RUN_TARGET_STATE_FAILED\x10\a\x12\x1e\n" +
 	"\x1aRUN_TARGET_STATE_CANCELLED\x10\b\x12#\n" +
-	"\x1fRUN_TARGET_STATE_CLEANUP_FAILED\x10\t2\xc5\x01\n" +
+	"\x1fRUN_TARGET_STATE_CLEANUP_FAILED\x10\t2\xf5\x02\n" +
 	"\n" +
 	"RunService\x12Y\n" +
 	"\x10ListWorkflowRuns\x12!.drift.v1.ListWorkflowRunsRequest\x1a\".drift.v1.ListWorkflowRunsResponse\x12\\\n" +
-	"\x11CancelWorkflowRun\x12\".drift.v1.CancelWorkflowRunRequest\x1a#.drift.v1.CancelWorkflowRunResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\x11CancelWorkflowRun\x12\".drift.v1.CancelWorkflowRunRequest\x1a#.drift.v1.CancelWorkflowRunResponse\x12S\n" +
+	"\x0eListRunTargets\x12\x1f.drift.v1.ListRunTargetsRequest\x1a .drift.v1.ListRunTargetsResponse\x12Y\n" +
+	"\x10StartWorkflowRun\x12!.drift.v1.StartWorkflowRunRequest\x1a\".drift.v1.StartWorkflowRunResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_run_proto_rawDescOnce sync.Once
@@ -586,7 +855,7 @@ func file_drift_v1_run_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_run_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_drift_v1_run_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_drift_v1_run_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_drift_v1_run_proto_goTypes = []any{
 	(RunState)(0),                     // 0: drift.v1.RunState
 	(RunTargetState)(0),               // 1: drift.v1.RunTargetState
@@ -596,35 +865,50 @@ var file_drift_v1_run_proto_goTypes = []any{
 	(*ListWorkflowRunsResponse)(nil),  // 5: drift.v1.ListWorkflowRunsResponse
 	(*CancelWorkflowRunRequest)(nil),  // 6: drift.v1.CancelWorkflowRunRequest
 	(*CancelWorkflowRunResponse)(nil), // 7: drift.v1.CancelWorkflowRunResponse
-	(*WorkspaceRef)(nil),              // 8: drift.v1.WorkspaceRef
-	(*Failure)(nil),                   // 9: drift.v1.Failure
-	(*PageRequest)(nil),               // 10: drift.v1.PageRequest
-	(*PageResponse)(nil),              // 11: drift.v1.PageResponse
-	(*RequestContext)(nil),            // 12: drift.v1.RequestContext
-	(*ResourceRef)(nil),               // 13: drift.v1.ResourceRef
+	(*ListRunTargetsRequest)(nil),     // 8: drift.v1.ListRunTargetsRequest
+	(*ListRunTargetsResponse)(nil),    // 9: drift.v1.ListRunTargetsResponse
+	(*StartWorkflowRunRequest)(nil),   // 10: drift.v1.StartWorkflowRunRequest
+	(*StartWorkflowRunResponse)(nil),  // 11: drift.v1.StartWorkflowRunResponse
+	(*WorkspaceRef)(nil),              // 12: drift.v1.WorkspaceRef
+	(*Failure)(nil),                   // 13: drift.v1.Failure
+	(*PageRequest)(nil),               // 14: drift.v1.PageRequest
+	(*PageResponse)(nil),              // 15: drift.v1.PageResponse
+	(*RequestContext)(nil),            // 16: drift.v1.RequestContext
+	(*ResourceRef)(nil),               // 17: drift.v1.ResourceRef
 }
 var file_drift_v1_run_proto_depIdxs = []int32{
-	8,  // 0: drift.v1.WorkflowRun.workspace:type_name -> drift.v1.WorkspaceRef
+	12, // 0: drift.v1.WorkflowRun.workspace:type_name -> drift.v1.WorkspaceRef
 	0,  // 1: drift.v1.WorkflowRun.state:type_name -> drift.v1.RunState
-	9,  // 2: drift.v1.WorkflowRun.failure:type_name -> drift.v1.Failure
+	13, // 2: drift.v1.WorkflowRun.failure:type_name -> drift.v1.Failure
 	1,  // 3: drift.v1.RunTarget.state:type_name -> drift.v1.RunTargetState
-	9,  // 4: drift.v1.RunTarget.failure:type_name -> drift.v1.Failure
-	8,  // 5: drift.v1.ListWorkflowRunsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	10, // 6: drift.v1.ListWorkflowRunsRequest.page:type_name -> drift.v1.PageRequest
+	13, // 4: drift.v1.RunTarget.failure:type_name -> drift.v1.Failure
+	12, // 5: drift.v1.ListWorkflowRunsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	14, // 6: drift.v1.ListWorkflowRunsRequest.page:type_name -> drift.v1.PageRequest
 	2,  // 7: drift.v1.ListWorkflowRunsResponse.runs:type_name -> drift.v1.WorkflowRun
-	11, // 8: drift.v1.ListWorkflowRunsResponse.page:type_name -> drift.v1.PageResponse
-	12, // 9: drift.v1.CancelWorkflowRunRequest.context:type_name -> drift.v1.RequestContext
-	13, // 10: drift.v1.CancelWorkflowRunRequest.run:type_name -> drift.v1.ResourceRef
+	15, // 8: drift.v1.ListWorkflowRunsResponse.page:type_name -> drift.v1.PageResponse
+	16, // 9: drift.v1.CancelWorkflowRunRequest.context:type_name -> drift.v1.RequestContext
+	17, // 10: drift.v1.CancelWorkflowRunRequest.run:type_name -> drift.v1.ResourceRef
 	2,  // 11: drift.v1.CancelWorkflowRunResponse.run:type_name -> drift.v1.WorkflowRun
-	4,  // 12: drift.v1.RunService.ListWorkflowRuns:input_type -> drift.v1.ListWorkflowRunsRequest
-	6,  // 13: drift.v1.RunService.CancelWorkflowRun:input_type -> drift.v1.CancelWorkflowRunRequest
-	5,  // 14: drift.v1.RunService.ListWorkflowRuns:output_type -> drift.v1.ListWorkflowRunsResponse
-	7,  // 15: drift.v1.RunService.CancelWorkflowRun:output_type -> drift.v1.CancelWorkflowRunResponse
-	14, // [14:16] is the sub-list for method output_type
-	12, // [12:14] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	12, // 12: drift.v1.ListRunTargetsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	14, // 13: drift.v1.ListRunTargetsRequest.page:type_name -> drift.v1.PageRequest
+	3,  // 14: drift.v1.ListRunTargetsResponse.targets:type_name -> drift.v1.RunTarget
+	15, // 15: drift.v1.ListRunTargetsResponse.page:type_name -> drift.v1.PageResponse
+	16, // 16: drift.v1.StartWorkflowRunRequest.context:type_name -> drift.v1.RequestContext
+	12, // 17: drift.v1.StartWorkflowRunRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	2,  // 18: drift.v1.StartWorkflowRunResponse.run:type_name -> drift.v1.WorkflowRun
+	4,  // 19: drift.v1.RunService.ListWorkflowRuns:input_type -> drift.v1.ListWorkflowRunsRequest
+	6,  // 20: drift.v1.RunService.CancelWorkflowRun:input_type -> drift.v1.CancelWorkflowRunRequest
+	8,  // 21: drift.v1.RunService.ListRunTargets:input_type -> drift.v1.ListRunTargetsRequest
+	10, // 22: drift.v1.RunService.StartWorkflowRun:input_type -> drift.v1.StartWorkflowRunRequest
+	5,  // 23: drift.v1.RunService.ListWorkflowRuns:output_type -> drift.v1.ListWorkflowRunsResponse
+	7,  // 24: drift.v1.RunService.CancelWorkflowRun:output_type -> drift.v1.CancelWorkflowRunResponse
+	9,  // 25: drift.v1.RunService.ListRunTargets:output_type -> drift.v1.ListRunTargetsResponse
+	11, // 26: drift.v1.RunService.StartWorkflowRun:output_type -> drift.v1.StartWorkflowRunResponse
+	23, // [23:27] is the sub-list for method output_type
+	19, // [19:23] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_run_proto_init() }
@@ -639,7 +923,7 @@ func file_drift_v1_run_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_run_proto_rawDesc), len(file_drift_v1_run_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   6,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -460,4 +460,60 @@ describe("MockControlPlaneClient", () => {
     // Metadata rows remain counted (matches backend Usage COUNT including deleted).
     expect(client.getSnapshot().storageHealth.objectCount).toBe(before)
   })
+
+  it("creates a device group without inventing an Ungrouped row", () => {
+    const client = new MockControlPlaneClient()
+    const empty = client.dispatch({ type: "createDeviceGroup", name: "   " })
+    const created = client.dispatch({ type: "createDeviceGroup", name: "Rack D" })
+    const snapshot = client.getSnapshot()
+
+    expect(empty.ok).toBe(false)
+    expect(created.ok).toBe(true)
+    expect(snapshot.groups.some((group) => group.name === "Rack D" && group.state === "active")).toBe(true)
+    expect(snapshot.groups.some((group) => group.id === "ungrouped")).toBe(false)
+  })
+
+  it("creates an automation agent and assigns an explicit device", () => {
+    const client = new MockControlPlaneClient()
+    const created = client.dispatch({ type: "createAutomationAgent", name: "Night steward" })
+    const assigned = client.dispatch({ type: "assignAutomationAgentDevice", agentId: created.resourceId ?? "", deviceId: "atlas-04" })
+    const snapshot = client.getSnapshot()
+
+    expect(created.ok).toBe(true)
+    expect(assigned.ok).toBe(true)
+    expect(snapshot.automationAgents.some((agent) => agent.name === "Night steward")).toBe(true)
+    expect(snapshot.automationAgentProfiles.find((profile) => profile.automationAgentId === created.resourceId)?.assignmentSummary).toBe("Atlas 04")
+  })
+
+  it("starts a published workflow only after confirmation and explicit devices", () => {
+    const client = new MockControlPlaneClient()
+    const unconfirmed = client.dispatch({ type: "startWorkflowRun", workflowId: "workflow-content", deviceIds: ["atlas-04"], confirmed: false })
+    const noDevices = client.dispatch({ type: "startWorkflowRun", workflowId: "workflow-content", deviceIds: [], confirmed: true })
+    const unpublished = client.dispatch({ type: "startWorkflowRun", workflowId: "workflow-readiness", deviceIds: ["atlas-04"], confirmed: true })
+    const started = client.dispatch({ type: "startWorkflowRun", workflowId: "workflow-content", deviceIds: ["atlas-04", "nova-02"], confirmed: true })
+    const snapshot = client.getSnapshot()
+    const run = snapshot.runs.find((candidate) => candidate.id === started.resourceId)
+
+    expect(unconfirmed.ok).toBe(false)
+    expect(unconfirmed.errorCode).toBe("precondition_failed")
+    expect(noDevices.ok).toBe(false)
+    expect(unpublished.ok).toBe(false)
+    expect(started.ok).toBe(true)
+    expect(run?.state).toBe("requested")
+    expect(run?.approval).toBe("pending")
+    expect(run?.selector).toBe("Explicit devices")
+    expect(snapshot.runTargets.filter((target) => target.runId === run?.id).map((target) => target.deviceId)).toEqual(["atlas-04", "nova-02"])
+  })
+
+  it("creates a validated observe workflow and publishes only after confirmation", () => {
+    const client = new MockControlPlaneClient()
+    const unconfirmed = client.dispatch({ type: "publishWorkflowVersion", versionId: "missing", confirmed: false })
+    const created = client.dispatch({ type: "createWorkflow", name: "Observe Device" })
+    const published = client.dispatch({ type: "publishWorkflowVersion", versionId: created.resourceId ?? "", confirmed: true })
+
+    expect(unconfirmed.ok).toBe(false)
+    expect(created.ok).toBe(true)
+    expect(published.ok).toBe(true)
+    expect(client.getSnapshot().workflows.find((workflow) => workflow.name === "Observe Device")?.state).toBe("published")
+  })
 })

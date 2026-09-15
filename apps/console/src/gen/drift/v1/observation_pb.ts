@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { ArtifactReference, Failure, ResourceRef, WorkspaceRef } from "./common_pb";
+import type { ArtifactReference, Failure, PageRequest, PageResponse, ResourceRef, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/observation.proto.
  */
 export const file_drift_v1_observation: GenFile = /*@__PURE__*/
-  fileDesc("ChpkcmlmdC92MS9vYnNlcnZhdGlvbi5wcm90bxIIZHJpZnQudjEihQQKE09ic2VydmF0aW9uU25hcHNob3QSCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRITCgtjYXB0dXJlZF9hdBgEIAEoCRIeChZjYXB0dXJlX2NvcnJlbGF0aW9uX2lkGAUgASgJEhgKEGNvb3JkaW5hdGVfc3BhY2UYBiABKAkSFAoMcGFja2FnZV9uYW1lGAcgASgJEhUKDWFjdGl2aXR5X25hbWUYCCABKAkSFQoNZGlzcGxheV93aWR0aBgJIAEoDRIWCg5kaXNwbGF5X2hlaWdodBgKIAEoDRIOCgZzb3VyY2UYCyABKAkSGAoQcHJvdG9jb2xfdmVyc2lvbhgMIAEoCRIVCg1tb2RlbF92ZXJzaW9uGA0gASgJEjgKDWNhcHR1cmVfc3RhdGUYDiABKA4yIS5kcmlmdC52MS5PYnNlcnZhdGlvbkNhcHR1cmVTdGF0ZRIRCgl0cnVuY2F0ZWQYDyABKAgSFwoPZnJlc2huZXNzX3Rva2VuGBAgASgJEi4KCWFydGlmYWN0cxgRIAMoCzIbLmRyaWZ0LnYxLkFydGlmYWN0UmVmZXJlbmNlEiIKB2ZhaWx1cmUYEiABKAsyES5kcmlmdC52MS5GYWlsdXJlIksKHUdldE9ic2VydmF0aW9uU25hcHNob3RSZXF1ZXN0EioKC29ic2VydmF0aW9uGAEgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYiVAoeR2V0T2JzZXJ2YXRpb25TbmFwc2hvdFJlc3BvbnNlEjIKC29ic2VydmF0aW9uGAEgASgLMh0uZHJpZnQudjEuT2JzZXJ2YXRpb25TbmFwc2hvdCq5AQoXT2JzZXJ2YXRpb25DYXB0dXJlU3RhdGUSKQolT0JTRVJWQVRJT05fQ0FQVFVSRV9TVEFURV9VTlNQRUNJRklFRBAAEiYKIk9CU0VSVkFUSU9OX0NBUFRVUkVfU1RBVEVfQ09NUExFVEUQARIlCiFPQlNFUlZBVElPTl9DQVBUVVJFX1NUQVRFX1BBUlRJQUwQAhIkCiBPQlNFUlZBVElPTl9DQVBUVVJFX1NUQVRFX0ZBSUxFRBADMoEBChJPYnNlcnZhdGlvblNlcnZpY2USawoWR2V0T2JzZXJ2YXRpb25TbmFwc2hvdBInLmRyaWZ0LnYxLkdldE9ic2VydmF0aW9uU25hcHNob3RSZXF1ZXN0GiguZHJpZnQudjEuR2V0T2JzZXJ2YXRpb25TbmFwc2hvdFJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChpkcmlmdC92MS9vYnNlcnZhdGlvbi5wcm90bxIIZHJpZnQudjEihQQKE09ic2VydmF0aW9uU25hcHNob3QSCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRITCgtjYXB0dXJlZF9hdBgEIAEoCRIeChZjYXB0dXJlX2NvcnJlbGF0aW9uX2lkGAUgASgJEhgKEGNvb3JkaW5hdGVfc3BhY2UYBiABKAkSFAoMcGFja2FnZV9uYW1lGAcgASgJEhUKDWFjdGl2aXR5X25hbWUYCCABKAkSFQoNZGlzcGxheV93aWR0aBgJIAEoDRIWCg5kaXNwbGF5X2hlaWdodBgKIAEoDRIOCgZzb3VyY2UYCyABKAkSGAoQcHJvdG9jb2xfdmVyc2lvbhgMIAEoCRIVCg1tb2RlbF92ZXJzaW9uGA0gASgJEjgKDWNhcHR1cmVfc3RhdGUYDiABKA4yIS5kcmlmdC52MS5PYnNlcnZhdGlvbkNhcHR1cmVTdGF0ZRIRCgl0cnVuY2F0ZWQYDyABKAgSFwoPZnJlc2huZXNzX3Rva2VuGBAgASgJEi4KCWFydGlmYWN0cxgRIAMoCzIbLmRyaWZ0LnYxLkFydGlmYWN0UmVmZXJlbmNlEiIKB2ZhaWx1cmUYEiABKAsyES5kcmlmdC52MS5GYWlsdXJlIksKHUdldE9ic2VydmF0aW9uU25hcHNob3RSZXF1ZXN0EioKC29ic2VydmF0aW9uGAEgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYiVAoeR2V0T2JzZXJ2YXRpb25TbmFwc2hvdFJlc3BvbnNlEjIKC29ic2VydmF0aW9uGAEgASgLMh0uZHJpZnQudjEuT2JzZXJ2YXRpb25TbmFwc2hvdCKEAQofTGlzdE9ic2VydmF0aW9uU25hcHNob3RzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAIgASgJEiMKBHBhZ2UYAyABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJ9CiBMaXN0T2JzZXJ2YXRpb25TbmFwc2hvdHNSZXNwb25zZRIzCgxvYnNlcnZhdGlvbnMYASADKAsyHS5kcmlmdC52MS5PYnNlcnZhdGlvblNuYXBzaG90EiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UquQEKF09ic2VydmF0aW9uQ2FwdHVyZVN0YXRlEikKJU9CU0VSVkFUSU9OX0NBUFRVUkVfU1RBVEVfVU5TUEVDSUZJRUQQABImCiJPQlNFUlZBVElPTl9DQVBUVVJFX1NUQVRFX0NPTVBMRVRFEAESJQohT0JTRVJWQVRJT05fQ0FQVFVSRV9TVEFURV9QQVJUSUFMEAISJAogT0JTRVJWQVRJT05fQ0FQVFVSRV9TVEFURV9GQUlMRUQQAzL0AQoST2JzZXJ2YXRpb25TZXJ2aWNlEmsKFkdldE9ic2VydmF0aW9uU25hcHNob3QSJy5kcmlmdC52MS5HZXRPYnNlcnZhdGlvblNuYXBzaG90UmVxdWVzdBooLmRyaWZ0LnYxLkdldE9ic2VydmF0aW9uU25hcHNob3RSZXNwb25zZRJxChhMaXN0T2JzZXJ2YXRpb25TbmFwc2hvdHMSKS5kcmlmdC52MS5MaXN0T2JzZXJ2YXRpb25TbmFwc2hvdHNSZXF1ZXN0GiouZHJpZnQudjEuTGlzdE9ic2VydmF0aW9uU25hcHNob3RzUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.ObservationSnapshot
@@ -151,6 +151,55 @@ export const GetObservationSnapshotResponseSchema: GenMessage<GetObservationSnap
   messageDesc(file_drift_v1_observation, 2);
 
 /**
+ * @generated from message drift.v1.ListObservationSnapshotsRequest
+ */
+export type ListObservationSnapshotsRequest = Message<"drift.v1.ListObservationSnapshotsRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string device_id = 2;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 3;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListObservationSnapshotsRequest.
+ * Use `create(ListObservationSnapshotsRequestSchema)` to create a new message.
+ */
+export const ListObservationSnapshotsRequestSchema: GenMessage<ListObservationSnapshotsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_observation, 3);
+
+/**
+ * @generated from message drift.v1.ListObservationSnapshotsResponse
+ */
+export type ListObservationSnapshotsResponse = Message<"drift.v1.ListObservationSnapshotsResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.ObservationSnapshot observations = 1;
+   */
+  observations: ObservationSnapshot[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListObservationSnapshotsResponse.
+ * Use `create(ListObservationSnapshotsResponseSchema)` to create a new message.
+ */
+export const ListObservationSnapshotsResponseSchema: GenMessage<ListObservationSnapshotsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_observation, 4);
+
+/**
  * @generated from enum drift.v1.ObservationCaptureState
  */
 export enum ObservationCaptureState {
@@ -192,6 +241,14 @@ export const ObservationService: GenService<{
     methodKind: "unary";
     input: typeof GetObservationSnapshotRequestSchema;
     output: typeof GetObservationSnapshotResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.ObservationService.ListObservationSnapshots
+   */
+  listObservationSnapshots: {
+    methodKind: "unary";
+    input: typeof ListObservationSnapshotsRequestSchema;
+    output: typeof ListObservationSnapshotsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_observation, 0);

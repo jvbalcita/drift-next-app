@@ -18,6 +18,8 @@ import type {
   RuntimeConnectionView,
   SpoolHealthView,
 } from "@/lib/domain/control-plane"
+import { usesMockControlPlane } from "@/lib/api/connect-json"
+import { reportDispatch } from "@/lib/api/report-dispatch"
 import { EmptyState, FailureBadge, Panel, StatusBadge, type StatusTone } from "./shared"
 
 type DispatchLab = (intent: ControlPlaneIntent) => Promise<MutationResult>
@@ -38,7 +40,7 @@ const value = (input: string | undefined) => (input && input.length > 0 ? input 
 export function LabModeBadges({ adapter }: { adapter: LabAdapterView }) {
   return (
     <>
-      <StatusBadge label={adapter.mode === "lab" ? "Lab Only" : "Mock Adapter"} tone={adapter.mode === "lab" ? "attention" : "info"} />
+      <StatusBadge label={adapter.mode === "lab" && adapter.readiness !== "unavailable" ? "Connected" : "Unavailable"} tone={adapter.mode === "lab" && adapter.readiness !== "unavailable" ? "healthy" : "neutral"} />
       <StatusBadge label={readinessLabels[adapter.readiness]} tone={readinessTones[adapter.readiness]} />
       {adapter.indeterminate ? <StatusBadge label="Indeterminate Outcome" tone="attention" /> : null}
       <FailureBadge failureClass={adapter.failureClass} />
@@ -77,9 +79,9 @@ export function LabStatusStrip({
   const confirmed = adapter.confirmedSerial.length > 0
   const canCapture = confirmed && adapter.readiness === "ready"
   return (
-    <section className="mt-6 border border-border bg-muted/20" aria-label="Lab Adapter Status">
+    <section className="mt-6 border border-border bg-muted/20" aria-label="Device Adapter Status">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-        <span className="mr-auto flex items-center gap-2 text-xs font-semibold"><Activity className="size-3.5 text-primary" aria-hidden="true" />Lab Adapter</span>
+        <span className="mr-auto flex items-center gap-2 text-xs font-semibold"><Activity className="size-3.5 text-primary" aria-hidden="true" />Device Adapter</span>
         <LabModeBadges adapter={adapter} />
         <StatusBadge label={runtimeLabels[runtimeConnection.state]} tone={runtimeTones[runtimeConnection.state]} />
         <StatusBadge label={spoolHealth.exhausted ? "Spool Exhausted" : spoolHealth.blocked > 0 ? "Spool Blocked" : "Spool Clear"} tone={spoolHealth.exhausted || spoolHealth.blocked > 0 ? "attention" : "neutral"} />
@@ -104,7 +106,7 @@ export function LabStatusStrip({
         <RuntimeSpoolSheet runtimeConnection={runtimeConnection} spoolHealth={spoolHealth} indeterminateActions={indeterminateActions} dispatch={dispatch} onFeedback={onFeedback} />
         <LabProvisioningSheet adapter={adapter} provisioningReadiness={provisioningReadiness} labRegistration={labRegistration} dispatch={dispatch} onFeedback={onFeedback} />
       </div>
-      <p aria-live="polite" className="border-t border-border px-3 py-2 text-[11px] leading-5 text-muted-foreground">{notice || "Lab actions are read-only. Discovery lists candidates; Approval and Registration stay separate; spool fence tokens are observations, not leases."}</p>
+      <p aria-live="polite" className="border-t border-border px-3 py-2 text-[11px] leading-5 text-muted-foreground">{notice || "Adapter actions are read-only. Discovery lists candidates; Approval and Registration stay separate; spool fence tokens are observations, not leases."}</p>
     </section>
   )
 }
@@ -138,7 +140,7 @@ export function ConfirmLabTargetDialog({ adapter, dispatch, dispatchLab, onFeedb
 
   async function submit() {
     const next: ConfirmErrors = {}
-    if (!serial.trim()) next.serial = "Choose the serial of the lab target to confirm."
+    if (!serial.trim()) next.serial = "Choose the serial of the connected device to confirm."
     if (!displayName.trim()) next.displayName = "Enter an operator-facing display name."
     if (requiresConfirmationText && confirmationText.trim() !== serial.trim()) next.confirmationText = "Confirmation text must match the selected serial exactly."
     if (!reason.trim()) next.reason = "Record why this target is being confirmed."
@@ -176,10 +178,10 @@ export function ConfirmLabTargetDialog({ adapter, dispatch, dispatchLab, onFeedb
 
   return (
     <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) reset() }}>
-      <DialogTrigger render={<Button size="sm" variant="outline" disabled={adapter.discovered.length === 0} />}><ShieldCheck className="size-3.5" aria-hidden="true" />Confirm Lab Target</DialogTrigger>
+      <DialogTrigger render={<Button size="sm" variant="outline" disabled={adapter.discovered.length === 0} />}><ShieldCheck className="size-3.5" aria-hidden="true" />Confirm Target</DialogTrigger>
       <DialogContent className="max-w-lg rounded-none">
         <DialogHeader>
-          <DialogTitle>Confirm Lab Target</DialogTitle>
+          <DialogTitle>Confirm Target</DialogTitle>
           <DialogDescription>Confirmation authorizes read-only observation of one serial. It acquires no lease, grants no approval, and registers no device.</DialogDescription>
         </DialogHeader>
         <div ref={summary} tabIndex={-1} role={messages.length > 0 ? "alert" : undefined} className="focus-visible:outline-2 focus-visible:outline-primary">
@@ -229,12 +231,12 @@ export function LabDiagnosticsSheet({ adapter }: { adapter: LabAdapterView }) {
       <SheetTrigger render={<Button size="sm" variant="outline" />}><Stethoscope className="size-3.5" aria-hidden="true" />Adapter Diagnostics</SheetTrigger>
       <SheetContent className="w-full rounded-none sm:max-w-xl">
         <SheetHeader className="border-b border-border">
-          <SheetTitle>Lab Adapter Diagnostics</SheetTitle>
+          <SheetTitle>Device Adapter Diagnostics</SheetTitle>
           <SheetDescription>Bounded adapter metadata. Raw hierarchies, screenshot bytes, and protocol output stay out of this view.</SheetDescription>
         </SheetHeader>
         <div className="space-y-4 p-4">
           <dl className="grid gap-4 text-xs sm:grid-cols-2">
-            <LabField label="Mode" detail={adapter.mode === "lab" ? "Lab only" : "Mock"} mono={false} />
+            <LabField label="Mode" detail={adapter.mode === "lab" && adapter.readiness !== "unavailable" ? "Connected Adapter" : "Unavailable"} mono={false} />
             <LabField label="Readiness" detail={readinessLabels[adapter.readiness]} mono={false} />
             <LabField label="Adapter Version" detail={value(adapter.adapterVersion)} mono={false} />
             <LabField label="Platform Tools" detail={value(adapter.platformToolsVersion)} mono={false} />
@@ -257,7 +259,7 @@ export function LabDiagnosticsSheet({ adapter }: { adapter: LabAdapterView }) {
             {adapter.discovered.length === 0
               ? <div className="mt-3"><EmptyState label="No Discovered Serials" detail="Run discovery from the control workspace to list candidate serials." /></div>
               : <table className="mt-3 w-full border-collapse text-left text-[11px]">
-                <caption className="sr-only">Discovered lab serials</caption>
+                <caption className="sr-only">Discovered serials</caption>
                 <thead><tr className="border-b border-border text-[10px] uppercase tracking-[.08em] text-muted-foreground"><th className="py-2">Serial</th><th className="py-2">State</th><th className="py-2">Model</th><th className="py-2">Transport</th></tr></thead>
                 <tbody>{adapter.discovered.map((device) => <tr key={device.serial} className="border-b border-border/70"><td className="drift-data py-2 text-[10px]">{device.serial}</td><td className="py-2">{device.state}</td><td className="py-2">{device.model}</td><td className="drift-data py-2 text-[10px]">{device.transportId} · {device.connectionType}</td></tr>)}</tbody>
               </table>}
@@ -275,7 +277,7 @@ export function LabObservationFrame({ adapter, height }: { adapter: LabAdapterVi
   if (adapter.readiness !== "ready" || !adapter.confirmedSerial || !adapter.lastScreenshotPreviewDataUrl) return null
   const width = Math.round(height * 9 / 16)
   return (
-    <div className="mb-4 flex flex-wrap items-start gap-4 border border-border bg-card p-3" aria-label={`${adapter.confirmedDisplayName} lab observation frame`}>
+    <div className="mb-4 flex flex-wrap items-start gap-4 border border-border bg-card p-3" aria-label={`${adapter.confirmedDisplayName} observation frame`}>
       <div className="border border-border bg-muted" style={{ width, height }}>
         <img src={adapter.lastScreenshotPreviewDataUrl} alt={`Sanitized screenshot preview for ${adapter.confirmedDisplayName}`} className="size-full object-contain" />
       </div>
@@ -285,7 +287,7 @@ export function LabObservationFrame({ adapter, height }: { adapter: LabAdapterVi
           <StatusBadge label="Read Only" tone="info" />
           <StatusBadge label="Sanitized Preview" tone="healthy" />
         </div>
-        <p className="text-[11px] leading-5 text-muted-foreground">This frame shows the sanitized observation preview for the confirmed lab target only. No mock frame on this page represents live device output.</p>
+        <p className="text-[11px] leading-5 text-muted-foreground">This frame shows the sanitized observation preview for the confirmed target only. No placeholder frame on this page represents live device output.</p>
         <p className="text-[11px] leading-5 text-muted-foreground">
           Browse fleet media and retention in{" "}
           <a href="#artifacts/media" className="font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-primary">
@@ -310,14 +312,14 @@ export function LabAdapterStatusPanel({ adapter }: { adapter: LabAdapterView }) 
   const confirmed = adapter.confirmedSerial.length > 0
   return (
     <Panel
-      title="Lab Adapter Status"
-      description="Read-only observation boundary for one confirmed lab serial. Discovered serials are never registered as devices and never appear in the registry table below."
+      title="Device Adapter Status"
+      description="Read-only observation boundary for one confirmed serial. Discovered serials are never registered as devices and never appear in the registry table below."
       action={<div className="flex flex-wrap items-center gap-2"><LabModeBadges adapter={adapter} /></div>}
       className="mb-6"
     >
       <dl className="grid gap-4 text-[11px] sm:grid-cols-2 xl:grid-cols-4">
         <LabField label="Adapter Availability" detail={adapter.readiness === "unavailable" ? "Unavailable" : "Available"} mono={false} />
-        <LabField label="Confirmed Lab Target" detail={confirmed ? `${adapter.confirmedDisplayName} · ${adapter.confirmedSerial}` : "No target confirmed"} mono={false} />
+        <LabField label="Confirmed Target" detail={confirmed ? `${adapter.confirmedDisplayName} · ${adapter.confirmedSerial}` : "No target confirmed"} mono={false} />
         <LabField label="Authorization State" detail={confirmed ? value(adapter.connectionState) : "Operator confirmation required"} mono={false} />
         <LabField label="Transport" detail={confirmed ? `${value(adapter.transportId)} · ${value(adapter.connectionType)}` : placeholder} />
         <LabField label="Last Health" detail={value(adapter.lastHealthAt)} />
@@ -374,17 +376,19 @@ function RuntimeSpoolSheet({
             <LabField label="Exhausted" detail={spoolHealth.exhausted ? "Yes" : "No"} mono={false} />
           </dl>
           <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-            <Button size="sm" variant="outline" onClick={() => onFeedback(dispatch({ type: "simulateRuntimeDisconnect", reason: "Mock operator disconnect" }).message)}>Simulate Disconnect</Button>
-            <Button size="sm" variant="outline" disabled={runtimeConnection.state === "connected"} onClick={() => onFeedback(dispatch({ type: "beginRuntimeReconnect" }).message)}>Begin Reconnect</Button>
-            <Button size="sm" variant="outline" disabled={runtimeConnection.state !== "reconnecting"} onClick={() => onFeedback(dispatch({ type: "completeRuntimeReconnect", transportId: runtimeConnection.transportId || "mock-transport-0", protocol: runtimeConnection.protocol || "mock-adb" }).message)}>Complete Reconnect</Button>
-            <Button size="sm" variant="outline" onClick={() => onFeedback(dispatch({ type: "enqueueMockSpoolItem", kind: "observation", risk: "low", idempotencyKey: `mock-spool-${Date.now()}` }).message)}>Enqueue Mock Spool Item</Button>
+            <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "simulateRuntimeDisconnect", reason: "Operator disconnect" }, onFeedback)}>Disconnect Runtime</Button>
+            <Button size="sm" variant="outline" disabled={runtimeConnection.state === "connected"} onClick={() => void reportDispatch(dispatch, { type: "beginRuntimeReconnect" }, onFeedback)}>Begin Reconnect</Button>
+            <Button size="sm" variant="outline" disabled={runtimeConnection.state !== "reconnecting"} onClick={() => void reportDispatch(dispatch, { type: "completeRuntimeReconnect", transportId: runtimeConnection.transportId || "transport-0", protocol: runtimeConnection.protocol || "adb" }, onFeedback)}>Complete Reconnect</Button>
+            {usesMockControlPlane() ? (
+              <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "enqueueMockSpoolItem", kind: "observation", risk: "low", idempotencyKey: `spool-${Date.now()}` }, onFeedback)}>Enqueue Spool Item</Button>
+            ) : null}
             <AlertDialog>
               <AlertDialogTrigger render={<Button size="sm" variant="outline" disabled={!hasBlockedSequence || runtimeConnection.state !== "connected"} />}>Confirm Spool Replay</AlertDialogTrigger>
               <AlertDialogContent
                 title="Confirm Spool Replay?"
-                description={`Blocked spool items never auto-replay. Confirming records operator intent for mock sequence ${blockedSequence || "—"}; it does not blind-retry indeterminate actions.`}
-                confirmLabel="Confirm Mock Replay"
-                onConfirm={() => onFeedback(dispatch({ type: "confirmSpoolReplay", sequence: blockedSequence, confirm: true }).message)}
+                description={`Blocked spool items never auto-replay. Confirming records operator intent for sequence ${blockedSequence || "—"}; it does not blind-retry indeterminate actions.`}
+                confirmLabel="Confirm Replay"
+                onConfirm={() => void reportDispatch(dispatch, { type: "confirmSpoolReplay", sequence: blockedSequence, confirm: true }, onFeedback)}
               />
             </AlertDialog>
           </div>
@@ -392,7 +396,7 @@ function RuntimeSpoolSheet({
             <p className="text-xs font-semibold">Indeterminate Actions</p>
             <p className="mt-1 text-[11px] text-muted-foreground">Each item requires operator confirmation. Blind replay is refused.</p>
             {indeterminateActions.length === 0
-              ? <div className="mt-3"><EmptyState label="No Indeterminate Actions" detail="Simulate a disconnect or indeterminate capture to populate this queue." /></div>
+              ? <div className="mt-3"><EmptyState label="No Indeterminate Actions" detail="Disconnected or changed-transport outcomes appear here until an operator confirms them." /></div>
               : <ul className="mt-3 space-y-2">
                 {indeterminateActions.map((action) => (
                   <li key={action.actionId} className="border border-border p-3">
@@ -409,10 +413,10 @@ function RuntimeSpoolSheet({
                           title="Confirm Indeterminate Outcome?"
                           description="Confirmation records operator judgment after a fresh observation path. It never blind-replays the original action."
                           confirmLabel="Confirm Without Replay"
-                          onConfirm={() => onFeedback(dispatch({ type: "confirmIndeterminateAction", actionId: action.actionId, confirm: true, resolution: "operator_confirmed" }).message)}
+                          onConfirm={() => void reportDispatch(dispatch, { type: "confirmIndeterminateAction", actionId: action.actionId, confirm: true, resolution: "operator_confirmed" }, onFeedback)}
                         />
                       </AlertDialog>
-                      <Button size="sm" variant="outline" onClick={() => onFeedback(dispatch({ type: "confirmIndeterminateAction", actionId: action.actionId, confirm: false, resolution: "fresh_observation" }).message)}>Drop Without Replay</Button>
+                      <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "confirmIndeterminateAction", actionId: action.actionId, confirm: false, resolution: "fresh_observation" }, onFeedback)}>Drop Without Replay</Button>
                     </div>
                   </li>
                 ))}
@@ -443,11 +447,11 @@ function LabProvisioningSheet({
   const registered = labRegistration?.state === "registered"
   return (
     <Sheet>
-      <SheetTrigger render={<Button size="sm" variant="outline" />}><ShieldCheck className="size-3.5" aria-hidden="true" />Lab Provisioning</SheetTrigger>
+      <SheetTrigger render={<Button size="sm" variant="outline" />}><ShieldCheck className="size-3.5" aria-hidden="true" />Device Provisioning</SheetTrigger>
       <SheetContent className="w-full rounded-none sm:max-w-xl">
         <SheetHeader className="border-b border-border">
-          <SheetTitle>Lab Provisioning And Registration</SheetTitle>
-          <SheetDescription>Discovery, Approval, Provisioning, and Registration stay independent. Mock Lab Registration is never presented as a real device registration.</SheetDescription>
+          <SheetTitle>Device Provisioning And Registration</SheetTitle>
+          <SheetDescription>Discovery, Approval, Provisioning, and Registration stay independent. Registration is never implied by Discovery or Approval.</SheetDescription>
         </SheetHeader>
         <div className="space-y-4 p-4">
           <div className="flex flex-wrap gap-2" aria-label="Provisioning stage badges">
@@ -455,7 +459,7 @@ function LabProvisioningSheet({
             <StatusBadge label="Approval" tone={approved ? "healthy" : "attention"} />
             <StatusBadge label="Provisioning" tone={provisioningReadiness?.ready ? "healthy" : "attention"} />
             <StatusBadge label="Registration" tone={registered ? "info" : "neutral"} />
-            <StatusBadge label="Mock Only" tone="info" />
+            {adapter.mode === "mock" ? <StatusBadge label="Awaiting Approval" tone="attention" /> : <StatusBadge label={registered ? "Registered" : "Awaiting Approval"} tone={registered ? "info" : "attention"} />}
           </div>
           {provisioningReadiness ? (
             <dl className="grid gap-3 text-[11px] sm:grid-cols-2">
@@ -471,20 +475,20 @@ function LabProvisioningSheet({
               {provisioningReadiness.errorCode ? <LabField label="Error Code" detail={provisioningReadiness.errorCode.replaceAll("_", " ")} mono={false} /> : null}
             </dl>
           ) : (
-            <EmptyState label="No Provisioning Evidence" detail="Confirm a lab target, then verify Provisioning readiness evidence." />
+            <EmptyState label="No Provisioning Evidence" detail="Confirm a target, then verify Provisioning readiness evidence." />
           )}
           {labRegistration ? (
             <div className="border border-border bg-muted/30 p-3 text-[11px] leading-5">
-              <p className="font-semibold">Mock Lab Registration Record</p>
+              <p className="font-semibold">Registration Record</p>
               <p className="mt-1 text-muted-foreground">{labRegistration.displayName} · {labRegistration.serial} · {labRegistration.state.replaceAll("_", " ")}</p>
-              <p className="mt-1 text-muted-foreground">mockLabeled={String(labRegistration.mockLabeled)} — not a real device registration.</p>
+              <p className="mt-1 text-muted-foreground">{labRegistration.mockLabeled ? "Registration recorded. Fleet registry unchanged." : "Registration recorded."}</p>
             </div>
           ) : null}
           <div className="flex flex-wrap gap-2 border-t border-border pt-4">
             <Button
               size="sm"
               disabled={!canVerify}
-              onClick={() => onFeedback(dispatch({
+              onClick={() => void reportDispatch(dispatch, {
                 type: "verifyLabProvisioning",
                 serial,
                 transportId: adapter.transportId || "3",
@@ -497,26 +501,26 @@ function LabProvisioningSheet({
                 portPolicyAllowed: true,
                 rollbackReady: true,
                 operatorAuthorized: true,
-              }).message)}
+              }, onFeedback)}
             >
               Verify Provisioning
             </Button>
             <AlertDialog>
               <AlertDialogTrigger render={<Button size="sm" variant="outline" disabled={!provisioningReadiness?.ready || registered} />}>Approve Provisioning</AlertDialogTrigger>
               <AlertDialogContent
-                title="Approve Lab Provisioning?"
-                description="Approval is separate from Registration. This mock Approval does not register a real device."
+                title="Approve Provisioning?"
+                description="Approval is separate from Registration. This Approval does not register a device."
                 confirmLabel="Grant Approval"
-                onConfirm={() => onFeedback(dispatch({ type: "approveLabProvisioning", serial, reason: "Mock lab Approval after Provisioning verification" }).message)}
+                onConfirm={() => void reportDispatch(dispatch, { type: "approveLabProvisioning", serial, reason: "Approval after Provisioning verification" }, onFeedback)}
               />
             </AlertDialog>
             <AlertDialog>
-              <AlertDialogTrigger render={<Button size="sm" variant="secondary" disabled={!approved || registered} />}>Register Mock Lab Device</AlertDialogTrigger>
+              <AlertDialogTrigger render={<Button size="sm" variant="secondary" disabled={!approved || registered} />}>Register Device</AlertDialogTrigger>
               <AlertDialogContent
-                title="Register Mock Lab Device?"
-                description="This creates a Mock Lab Registration record only. It is not a real device registration and does not mutate the fleet registry."
-                confirmLabel="Confirm Mock Registration"
-                onConfirm={() => onFeedback(dispatch({ type: "registerLabDevice", serial, displayName: adapter.confirmedDisplayName || serial, approved: true }).message)}
+                title="Register Device?"
+                description="This creates a registration record only. It does not mutate the fleet registry until the control plane accepts it."
+                confirmLabel="Confirm Registration"
+                onConfirm={() => void reportDispatch(dispatch, { type: "registerLabDevice", serial, displayName: adapter.confirmedDisplayName || serial, approved: true }, onFeedback)}
               />
             </AlertDialog>
           </div>

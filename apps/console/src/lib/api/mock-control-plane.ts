@@ -50,7 +50,7 @@ import type {
 
 const workspace = {
   id: "workspace-demo",
-  name: "Demo workspace",
+  name: "Local Workspace",
 }
 
 const devices: DeviceView[] = [
@@ -304,8 +304,9 @@ const workflows: WorkflowView[] = [
 ]
 
 const skills: SkillView[] = [
-  { id: "skill-inbox", name: "Inbox triage", version: 4, state: "published", trust: "approved", capabilities: ["observe", "tap", "capture"], sourceRecording: "recording-session-014" },
-  { id: "skill-review", name: "Screen review", version: 1, state: "validated", trust: "reviewed", capabilities: ["observe", "capture"], sourceRecording: "recording-session-018" },
+  { id: "skill-inbox", name: "Inbox triage", version: 4, versionId: "skill-inbox-v4", state: "published", trust: "approved", capabilities: ["observe", "tap", "capture"], sourceRecording: "recording-session-014" },
+  { id: "skill-review", name: "Screen review", version: 1, versionId: "skill-review-v1", state: "validated", trust: "reviewed", capabilities: ["observe", "capture"], sourceRecording: "recording-session-018" },
+  { id: "skill-draft", name: "Draft capture", version: 1, versionId: "skill-draft-v1", state: "draft", trust: "unreviewed", capabilities: ["observe"], sourceRecording: "" },
 ]
 
 const runs: RunView[] = [
@@ -896,6 +897,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     return cloneSnapshot(this.snapshot)
   }
 
+  async refresh(): Promise<ControlPlaneSnapshot> {
+    return this.getSnapshot()
+  }
+
   dispatch(intent: ControlPlaneIntent): MutationResult {
     switch (intent.type) {
       case "refresh":
@@ -918,8 +923,20 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.registerScanCandidate(intent)
       case "moveDeviceToGroup":
         return this.moveDeviceToGroup(intent)
+      case "createDeviceGroup":
+        return this.createDeviceGroup(intent)
+      case "createAutomationAgent":
+        return this.createAutomationAgent(intent)
+      case "assignAutomationAgentDevice":
+        return this.assignAutomationAgentDevice(intent)
       case "cancelRun":
         return this.cancelRun(intent)
+      case "startWorkflowRun":
+        return this.startWorkflowRun(intent)
+      case "createWorkflow":
+        return this.createWorkflow(intent)
+      case "publishWorkflowVersion":
+        return this.publishWorkflowVersion(intent)
       case "createAccountSource":
         return this.createAccountSource(intent)
       case "updateAccountSource":
@@ -984,6 +1001,24 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.deleteArtifact(intent)
       case "cleanupArtifact":
         return this.cleanupArtifact(intent)
+      case "beginDeviceControl":
+        return this.beginDeviceControl(intent)
+      case "endDeviceControl":
+        return this.endDeviceControl(intent)
+      case "submitDeviceAction":
+        return this.submitDeviceAction(intent)
+      case "beginRecording":
+        return this.beginRecording(intent)
+      case "stopRecording":
+        return this.stopRecording(intent)
+      case "discardRecording":
+        return this.discardRecording(intent)
+      case "deleteRecording":
+        return this.deleteRecording(intent)
+      case "reviewSkillVersion":
+        return this.reviewSkillVersion(intent)
+      case "publishSkillVersion":
+        return this.publishSkillVersion(intent)
     }
   }
 
@@ -1177,6 +1212,134 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     return result(intent, "Cleanup completed after confirmation.", artifact.id)
   }
 
+  private beginDeviceControl(intent: Extract<ControlPlaneIntent, { type: "beginDeviceControl" }>): MutationResult {
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) return rejection(intent, "Device was not found.", intent.deviceId, "invalid_input")
+    const existing = this.snapshot.leases.find((lease) => lease.deviceId === intent.deviceId && lease.state === "active")
+    if (existing) return result(intent, "Device already has an active lease.", existing.id)
+    const sessionId = `session-${intent.deviceId}`
+    const leaseId = `lease-${intent.deviceId}`
+    this.snapshot = {
+      ...this.snapshot,
+      leases: [
+        {
+          id: leaseId,
+          deviceId: intent.deviceId,
+          controlSessionId: sessionId,
+          holder: "operator-1",
+          fencingToken: 1,
+          state: "active",
+          expiresAt: "later",
+        },
+        ...this.snapshot.leases.filter((lease) => lease.deviceId !== intent.deviceId),
+      ],
+    }
+    return result(intent, "Control session opened and device lease acquired.", leaseId)
+  }
+
+  private endDeviceControl(intent: Extract<ControlPlaneIntent, { type: "endDeviceControl" }>): MutationResult {
+    const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
+    if (!lease) return rejection(intent, "No active lease for this device.", intent.deviceId, "precondition_failed")
+    this.snapshot = {
+      ...this.snapshot,
+      leases: this.snapshot.leases.map((candidate) => candidate.id === lease.id ? { ...candidate, state: "released" as const } : candidate),
+    }
+    return result(intent, "Device lease released and control session closed.", lease.id)
+  }
+
+  private submitDeviceAction(intent: Extract<ControlPlaneIntent, { type: "submitDeviceAction" }>): MutationResult {
+    if (!intent.confirmed && intent.kind !== "observe" && intent.kind !== "health_check") {
+      return rejection(intent, "This action requires confirmation.", intent.deviceId, "precondition_failed")
+    }
+    const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
+    if (!lease) return rejection(intent, "Acquire an active lease before submitting a device action.", intent.deviceId, "precondition_failed")
+    return result(intent, `Action submitted (${intent.kind}).`, intent.deviceId)
+  }
+
+  private beginRecording(intent: Extract<ControlPlaneIntent, { type: "beginRecording" }>): MutationResult {
+    if (!intent.deviceId) return rejection(intent, "Choose a connected device before starting a recording.", "", "invalid_input")
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) return rejection(intent, "Device was not found.", intent.deviceId, "invalid_input")
+    const active = this.snapshot.recordingMedia.find((session) => session.state === "recording")
+    if (active) return rejection(intent, "Stop or discard the active recording before starting another.", active.sessionId, "precondition_failed")
+    const sessionId = `recording-session-${this.nextSequence}`
+    this.nextSequence += 1
+    const session: RecordingMediaView = {
+      id: sessionId,
+      sessionId,
+      deviceId: intent.deviceId,
+      state: "recording",
+      startedAt: labStamp(this.nextSequence),
+      lowResPreviewLabel: "Preview withheld",
+      fullResAuthorized: false,
+    }
+    this.snapshot = { ...this.snapshot, recordingMedia: [session, ...this.snapshot.recordingMedia] }
+    return result(intent, "Recording session started.", sessionId)
+  }
+
+  private stopRecording(intent: Extract<ControlPlaneIntent, { type: "stopRecording" }>): MutationResult {
+    const session = this.snapshot.recordingMedia.find((candidate) => candidate.sessionId === intent.sessionId)
+    if (!session) return rejection(intent, "Recording session was not found.", intent.sessionId, "invalid_input")
+    if (session.state !== "recording") return rejection(intent, "Only an active recording can be stopped.", intent.sessionId, "precondition_failed")
+    this.snapshot = {
+      ...this.snapshot,
+      recordingMedia: this.snapshot.recordingMedia.map((candidate) =>
+        candidate.sessionId === intent.sessionId ? { ...candidate, state: "completed" as const, endedAt: labStamp(this.nextSequence) } : candidate,
+      ),
+    }
+    return result(intent, "Recording session stopped.", intent.sessionId)
+  }
+
+  private discardRecording(intent: Extract<ControlPlaneIntent, { type: "discardRecording" }>): MutationResult {
+    const session = this.snapshot.recordingMedia.find((candidate) => candidate.sessionId === intent.sessionId)
+    if (!session) return rejection(intent, "Recording session was not found.", intent.sessionId, "invalid_input")
+    this.snapshot = {
+      ...this.snapshot,
+      recordingMedia: this.snapshot.recordingMedia.map((candidate) =>
+        candidate.sessionId === intent.sessionId ? { ...candidate, state: "omitted" as const, endedAt: labStamp(this.nextSequence) } : candidate,
+      ),
+    }
+    return result(intent, "Recording session discarded.", intent.sessionId)
+  }
+
+  private deleteRecording(intent: Extract<ControlPlaneIntent, { type: "deleteRecording" }>): MutationResult {
+    if (!intent.confirmed) return rejection(intent, "Deletion requires confirmation.", intent.sessionId, "precondition_failed")
+    const session = this.snapshot.recordingMedia.find((candidate) => candidate.sessionId === intent.sessionId)
+    if (!session) return rejection(intent, "Recording session was not found.", intent.sessionId, "invalid_input")
+    this.snapshot = {
+      ...this.snapshot,
+      recordingMedia: this.snapshot.recordingMedia.filter((candidate) => candidate.sessionId !== intent.sessionId),
+    }
+    return result(intent, "Recording session deleted.", intent.sessionId)
+  }
+
+  private reviewSkillVersion(intent: Extract<ControlPlaneIntent, { type: "reviewSkillVersion" }>): MutationResult {
+    if (!intent.versionId) return rejection(intent, "Skill version is required.", "", "invalid_input")
+    const skill = this.snapshot.skills.find((candidate) => candidate.versionId === intent.versionId || candidate.id === intent.versionId)
+    if (!skill) return rejection(intent, "Skill version was not found.", intent.versionId, "invalid_input")
+    this.snapshot = {
+      ...this.snapshot,
+      skills: this.snapshot.skills.map((candidate) =>
+        candidate.id === skill.id ? { ...candidate, trust: "reviewed" as const } : candidate,
+      ),
+    }
+    return result(intent, "Skill version reviewed.", intent.versionId)
+  }
+
+  private publishSkillVersion(intent: Extract<ControlPlaneIntent, { type: "publishSkillVersion" }>): MutationResult {
+    if (!intent.confirmed) return rejection(intent, "Publishing a skill requires confirmation.", intent.versionId, "precondition_failed")
+    if (!intent.versionId) return rejection(intent, "Skill version is required.", "", "invalid_input")
+    const skill = this.snapshot.skills.find((candidate) => candidate.versionId === intent.versionId || candidate.id === intent.versionId)
+    if (!skill) return rejection(intent, "Skill version was not found.", intent.versionId, "invalid_input")
+    this.snapshot = {
+      ...this.snapshot,
+      skills: this.snapshot.skills.map((candidate) =>
+        candidate.id === skill.id ? { ...candidate, trust: "approved" as const, state: "published" as const } : candidate,
+      ),
+    }
+    return result(intent, "Skill version published.", intent.versionId)
+  }
+
   private discoverLabDevices(intent: Extract<ControlPlaneIntent, { type: "discoverLabDevices" }>): MutationResult {
     const sequence = this.nextLabSequence()
     const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
@@ -1187,7 +1350,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       labAdapter: { ...this.snapshot.labAdapter, discovered, readiness: "blocked", failureClass: undefined, indeterminate: false, correlationId, lastHealthAt: occurredAt, connectionState: "detached" },
       events: addEvent(this.snapshot, labEvent(`event-lab-discover-${sequence}`, "Adapter Readiness", "operational", correlationId, occurredAt, `${discovered.length} mock serials listed; no ADB transport was opened and no device was registered`)),
     }
-    return result(intent, `${discovered.length} mock serials listed. Confirm a target before any observation is possible.`)
+    return result(intent, `${discovered.length} serials listed. Confirm a target before any observation is possible.`)
   }
 
   private confirmLabTarget(intent: Extract<ControlPlaneIntent, { type: "confirmLabTarget" }>): MutationResult {
@@ -1210,7 +1373,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       labAdapter: { ...adapter, readiness: "ready", confirmedSerial: serial, confirmedDisplayName: displayName, stableIdentity: `lab-${labDigest(serial).slice(-8)}`, transportId: candidate.transportId, connectionState: candidate.state, connectionType: candidate.connectionType, correlationId, lastHealthAt: occurredAt, failureClass: undefined, indeterminate: false },
       events: addEvent(this.snapshot, labEvent(`event-lab-confirm-${sequence}`, "Target Confirmation", "audit", correlationId, occurredAt, "Operator confirmed a read-only observation target; no lease, approval, or device registration was created")),
     }
-    return result(intent, `${displayName} confirmed as the read-only lab target. No lease was acquired and no device was registered.`, serial)
+    return result(intent, `${displayName} confirmed as the read-only target. No lease was acquired and no device was registered.`, serial)
   }
 
   private clearLabTarget(intent: Extract<ControlPlaneIntent, { type: "clearLabTarget" }>): MutationResult {
@@ -1408,7 +1571,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         ),
       ),
     }
-    return result(intent, "Provisioning verified (mock). Next: Approval, then Registration. This is not a real device registration.", serial)
+    return result(intent, "Provisioning verified. Next: Approval, then Registration. This is not a real device registration.", serial)
   }
 
   private approveLabProvisioning(intent: Extract<ControlPlaneIntent, { type: "approveLabProvisioning" }>): MutationResult {
@@ -1449,7 +1612,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         ),
       ),
     }
-    return result(intent, "Approval recorded (mock). Registration remains a separate explicit step.", serial)
+    return result(intent, "Approval recorded. Registration remains a separate explicit step.", serial)
   }
 
   private registerLabDevice(intent: Extract<ControlPlaneIntent, { type: "registerLabDevice" }>): MutationResult {
@@ -1504,7 +1667,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         ),
       ),
     }
-    return result(intent, `Mock Lab Registration recorded for ${displayName}. This is not a real device registration.`, deviceId)
+    return result(intent, `Registration recorded for ${displayName}. This is not a real device registration.`, deviceId)
   }
 
   private simulateRuntimeDisconnect(intent: Extract<ControlPlaneIntent, { type: "simulateRuntimeDisconnect" }>): MutationResult {
@@ -1889,6 +2052,146 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const nextMemberships = intent.groupId === "ungrouped" ? nowEnded : [...nowEnded, { id: `membership-${this.nextSequence++}`, groupId: intent.groupId, deviceId: device.id, position: intent.position, state: "active" as const, startedAt: "just now" }]
     this.snapshot = { ...this.snapshot, memberships: nextMemberships }
     return result(intent, intent.groupId === "ungrouped" ? `${device.displayName} moved to computed Ungrouped.` : `${device.displayName} moved in the mock projection.`, device.id)
+  }
+
+  private createDeviceGroup(intent: Extract<ControlPlaneIntent, { type: "createDeviceGroup" }>): MutationResult {
+    const name = intent.name.trim()
+    if (!name) return rejection(intent, "Group name is required.", "", "invalid_input")
+    const id = `group-${this.nextSequence++}`
+    this.snapshot = {
+      ...this.snapshot,
+      groups: [...this.snapshot.groups, { id, name, state: "active", rowVersion: 1 }],
+    }
+    return result(intent, "Device group created.", id)
+  }
+
+  private createAutomationAgent(intent: Extract<ControlPlaneIntent, { type: "createAutomationAgent" }>): MutationResult {
+    const name = intent.name.trim()
+    if (!name) return rejection(intent, "Automation agent name is required.", "", "invalid_input")
+    const id = `agent-${this.nextSequence++}`
+    const profileId = `${id}-profile`
+    this.snapshot = {
+      ...this.snapshot,
+      automationAgents: [...this.snapshot.automationAgents, { id, name, state: "active" }],
+      automationAgentProfiles: [
+        ...this.snapshot.automationAgentProfiles,
+        {
+          id: profileId,
+          automationAgentId: id,
+          version: 1,
+          state: "draft",
+          personality: "",
+          goals: [],
+          rules: [],
+          capabilities: [],
+          memoryScope: "none",
+          trust: "unreviewed",
+          assignmentSummary: "Unassigned",
+        },
+      ],
+    }
+    return result(intent, "Automation agent created.", id)
+  }
+
+  private assignAutomationAgentDevice(intent: Extract<ControlPlaneIntent, { type: "assignAutomationAgentDevice" }>): MutationResult {
+    const agent = this.snapshot.automationAgents.find((candidate) => candidate.id === intent.agentId)
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!agent || !device) return rejection(intent, "Choose an agent and a device before assigning.", "", "invalid_input")
+    this.snapshot = {
+      ...this.snapshot,
+      automationAgentProfiles: this.snapshot.automationAgentProfiles.map((profile) =>
+        profile.automationAgentId === agent.id ? { ...profile, assignmentSummary: device.displayName } : profile,
+      ),
+    }
+    return result(intent, "Automation agent assigned to the selected device.", agent.id)
+  }
+
+  private startWorkflowRun(intent: Extract<ControlPlaneIntent, { type: "startWorkflowRun" }>): MutationResult {
+    if (!intent.confirmed) return rejection(intent, "Starting a run requires confirmation.", intent.workflowId, "precondition_failed")
+    const workflow = this.snapshot.workflows.find((candidate) => candidate.id === intent.workflowId)
+    if (!workflow) return rejection(intent, "Workflow was not found.", intent.workflowId, "invalid_input")
+    if (workflow.state !== "published") return rejection(intent, "Only a published workflow can run.", intent.workflowId, "precondition_failed")
+    if (intent.deviceIds.length === 0) return rejection(intent, "Choose at least one device before starting a run.", intent.workflowId, "invalid_input")
+    const missing = intent.deviceIds.filter((id) => !this.snapshot.devices.some((device) => device.id === id))
+    if (missing.length > 0) return rejection(intent, "One or more selected devices were not found.", missing[0], "invalid_input")
+    const runId = `run-${this.nextSequence++}`
+    this.snapshot = {
+      ...this.snapshot,
+      runs: [
+        {
+          id: runId,
+          workflowName: workflow.name,
+          workflowVersion: workflow.version,
+          state: "requested",
+          approval: "pending",
+          selector: "Explicit devices",
+          targetSnapshotId: `snapshot-${runId}`,
+          concurrencyLimit: 1,
+          retryBudget: 0,
+          createdAt: labStamp(this.nextSequence),
+        },
+        ...this.snapshot.runs,
+      ],
+      runTargets: [
+        ...intent.deviceIds.map((deviceId, index) => ({
+          id: `${runId}-target-${index}`,
+          runId,
+          deviceId,
+          state: "pending" as const,
+          attemptCount: 0,
+        })),
+        ...this.snapshot.runTargets,
+      ],
+    }
+    return result(intent, "Workflow run requested for the selected devices.", runId)
+  }
+
+  private createWorkflow(intent: Extract<ControlPlaneIntent, { type: "createWorkflow" }>): MutationResult {
+    const name = intent.name.trim()
+    if (!name) return rejection(intent, "Workflow name is required.", "", "invalid_input")
+    const id = `workflow-${this.nextSequence++}`
+    const versionId = `${id}-v1`
+    this.snapshot = {
+      ...this.snapshot,
+      workflows: [
+        ...this.snapshot.workflows,
+        {
+          id,
+          name,
+          state: "draft",
+          version: 1,
+          latestVersionId: versionId,
+          latestVersionState: "validated",
+          stepCount: 1,
+          targetSelector: "",
+          safetySummary: "No published version",
+        },
+      ],
+    }
+    return result(intent, "Draft workflow created with a validated observe version.", versionId)
+  }
+
+  private publishWorkflowVersion(intent: Extract<ControlPlaneIntent, { type: "publishWorkflowVersion" }>): MutationResult {
+    if (!intent.confirmed) return rejection(intent, "Publishing a workflow version requires confirmation.", intent.versionId, "precondition_failed")
+    const workflow = this.snapshot.workflows.find((candidate) => candidate.latestVersionId === intent.versionId)
+    if (!workflow) return rejection(intent, "Workflow version was not found.", intent.versionId, "invalid_input")
+    if (workflow.latestVersionState !== "validated") return rejection(intent, "Only a validated workflow version can be published.", intent.versionId, "precondition_failed")
+    this.snapshot = {
+      ...this.snapshot,
+      workflows: this.snapshot.workflows.map((candidate) =>
+        candidate.id === workflow.id
+          ? {
+              ...candidate,
+              state: "published" as const,
+              publishedVersionId: intent.versionId,
+              latestVersionState: "published" as const,
+              targetSelector: "Explicit Devices",
+              safetySummary: "Published version required",
+            }
+          : candidate,
+      ),
+    }
+    return result(intent, "Workflow version published.", intent.versionId)
   }
 
   private cancelRun(intent: Extract<ControlPlaneIntent, { type: "cancelRun" }>): MutationResult {

@@ -37,6 +37,16 @@ message GetObservationSnapshotRequest {
 message GetObservationSnapshotResponse {
   ObservationSnapshot observation = 1;
 }
+message ListObservationSnapshotsRequest {
+  WorkspaceRef workspace = 1;
+  string device_id = 2;
+  PageRequest page = 3;
+}
+message ListObservationSnapshotsResponse {
+  repeated ObservationSnapshot observations = 1;
+  PageResponse page = 2;
+}
 service ObservationService {
   rpc GetObservationSnapshot(GetObservationSnapshotRequest) returns (GetObservationSnapshotResponse);
+  rpc ListObservationSnapshots(ListObservationSnapshotsRequest) returns (ListObservationSnapshotsResponse);
 }

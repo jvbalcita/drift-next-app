@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { PageRequest, PageResponse, WorkspaceRef } from "./common_pb";
+import type { PageRequest, PageResponse, RequestContext, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/automation_agent.proto.
  */
 export const file_drift_v1_automation_agent: GenFile = /*@__PURE__*/
-  fileDesc("Ch9kcmlmdC92MS9hdXRvbWF0aW9uX2FnZW50LnByb3RvEghkcmlmdC52MSKiAQoPQXV0b21hdGlvbkFnZW50EgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIUCgxkaXNwbGF5X25hbWUYAyABKAkSLQoFc3RhdGUYBCABKA4yHi5kcmlmdC52MS5BdXRvbWF0aW9uQWdlbnRTdGF0ZRITCgtyb3dfdmVyc2lvbhgFIAEoBCKMAQoWQXV0b21hdGlvbkFnZW50UHJvZmlsZRIKCgJpZBgBIAEoCRIbChNhdXRvbWF0aW9uX2FnZW50X2lkGAIgASgJEg8KB3ZlcnNpb24YAyABKA0SDQoFc3RhdGUYBCABKAkSFAoMY2FwYWJpbGl0aWVzGAUgAygJEhMKC3RydXN0X3N0YXRlGAYgASgJIm0KG0xpc3RBdXRvbWF0aW9uQWdlbnRzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgCIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0Im8KHExpc3RBdXRvbWF0aW9uQWdlbnRzUmVzcG9uc2USKQoGYWdlbnRzGAEgAygLMhkuZHJpZnQudjEuQXV0b21hdGlvbkFnZW50EiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UqqwEKFEF1dG9tYXRpb25BZ2VudFN0YXRlEiYKIkFVVE9NQVRJT05fQUdFTlRfU1RBVEVfVU5TUEVDSUZJRUQQABIhCh1BVVRPTUFUSU9OX0FHRU5UX1NUQVRFX0FDVElWRRABEiQKIEFVVE9NQVRJT05fQUdFTlRfU1RBVEVfU1VTUEVOREVEEAISIgoeQVVUT01BVElPTl9BR0VOVF9TVEFURV9SRVRJUkVEEAMyfwoWQXV0b21hdGlvbkFnZW50U2VydmljZRJlChRMaXN0QXV0b21hdGlvbkFnZW50cxIlLmRyaWZ0LnYxLkxpc3RBdXRvbWF0aW9uQWdlbnRzUmVxdWVzdBomLmRyaWZ0LnYxLkxpc3RBdXRvbWF0aW9uQWdlbnRzUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("Ch9kcmlmdC92MS9hdXRvbWF0aW9uX2FnZW50LnByb3RvEghkcmlmdC52MSKiAQoPQXV0b21hdGlvbkFnZW50EgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIUCgxkaXNwbGF5X25hbWUYAyABKAkSLQoFc3RhdGUYBCABKA4yHi5kcmlmdC52MS5BdXRvbWF0aW9uQWdlbnRTdGF0ZRITCgtyb3dfdmVyc2lvbhgFIAEoBCKMAQoWQXV0b21hdGlvbkFnZW50UHJvZmlsZRIKCgJpZBgBIAEoCRIbChNhdXRvbWF0aW9uX2FnZW50X2lkGAIgASgJEg8KB3ZlcnNpb24YAyABKA0SDQoFc3RhdGUYBCABKAkSFAoMY2FwYWJpbGl0aWVzGAUgAygJEhMKC3RydXN0X3N0YXRlGAYgASgJIm0KG0xpc3RBdXRvbWF0aW9uQWdlbnRzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgCIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0It0BChxMaXN0QXV0b21hdGlvbkFnZW50c1Jlc3BvbnNlEikKBmFnZW50cxgBIAMoCzIZLmRyaWZ0LnYxLkF1dG9tYXRpb25BZ2VudBIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlEjIKCHByb2ZpbGVzGAMgAygLMiAuZHJpZnQudjEuQXV0b21hdGlvbkFnZW50UHJvZmlsZRI4Cgthc3NpZ25tZW50cxgEIAMoCzIjLmRyaWZ0LnYxLkF1dG9tYXRpb25BZ2VudEFzc2lnbm1lbnQiegoZQXV0b21hdGlvbkFnZW50QXNzaWdubWVudBIKCgJpZBgBIAEoCRIbChNhdXRvbWF0aW9uX2FnZW50X2lkGAIgASgJEhIKCnByb2ZpbGVfaWQYAyABKAkSEQoJZGV2aWNlX2lkGAQgASgJEg0KBXN0YXRlGAUgASgJIooBChxDcmVhdGVBdXRvbWF0aW9uQWdlbnRSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSFAoMZGlzcGxheV9uYW1lGAMgASgJInwKHUNyZWF0ZUF1dG9tYXRpb25BZ2VudFJlc3BvbnNlEigKBWFnZW50GAEgASgLMhkuZHJpZnQudjEuQXV0b21hdGlvbkFnZW50EjEKB3Byb2ZpbGUYAiABKAsyIC5kcmlmdC52MS5BdXRvbWF0aW9uQWdlbnRQcm9maWxlIqoBCiJBc3NpZ25BdXRvbWF0aW9uQWdlbnREZXZpY2VSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSGwoTYXV0b21hdGlvbl9hZ2VudF9pZBgDIAEoCRIRCglkZXZpY2VfaWQYBCABKAkiXgojQXNzaWduQXV0b21hdGlvbkFnZW50RGV2aWNlUmVzcG9uc2USNwoKYXNzaWdubWVudBgBIAEoCzIjLmRyaWZ0LnYxLkF1dG9tYXRpb25BZ2VudEFzc2lnbm1lbnQqqwEKFEF1dG9tYXRpb25BZ2VudFN0YXRlEiYKIkFVVE9NQVRJT05fQUdFTlRfU1RBVEVfVU5TUEVDSUZJRUQQABIhCh1BVVRPTUFUSU9OX0FHRU5UX1NUQVRFX0FDVElWRRABEiQKIEFVVE9NQVRJT05fQUdFTlRfU1RBVEVfU1VTUEVOREVEEAISIgoeQVVUT01BVElPTl9BR0VOVF9TVEFURV9SRVRJUkVEEAMy5QIKFkF1dG9tYXRpb25BZ2VudFNlcnZpY2USZQoUTGlzdEF1dG9tYXRpb25BZ2VudHMSJS5kcmlmdC52MS5MaXN0QXV0b21hdGlvbkFnZW50c1JlcXVlc3QaJi5kcmlmdC52MS5MaXN0QXV0b21hdGlvbkFnZW50c1Jlc3BvbnNlEmgKFUNyZWF0ZUF1dG9tYXRpb25BZ2VudBImLmRyaWZ0LnYxLkNyZWF0ZUF1dG9tYXRpb25BZ2VudFJlcXVlc3QaJy5kcmlmdC52MS5DcmVhdGVBdXRvbWF0aW9uQWdlbnRSZXNwb25zZRJ6ChtBc3NpZ25BdXRvbWF0aW9uQWdlbnREZXZpY2USLC5kcmlmdC52MS5Bc3NpZ25BdXRvbWF0aW9uQWdlbnREZXZpY2VSZXF1ZXN0Gi0uZHJpZnQudjEuQXNzaWduQXV0b21hdGlvbkFnZW50RGV2aWNlUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.AutomationAgent
@@ -128,6 +128,16 @@ export type ListAutomationAgentsResponse = Message<"drift.v1.ListAutomationAgent
    * @generated from field: drift.v1.PageResponse page = 2;
    */
   page?: PageResponse;
+
+  /**
+   * @generated from field: repeated drift.v1.AutomationAgentProfile profiles = 3;
+   */
+  profiles: AutomationAgentProfile[];
+
+  /**
+   * @generated from field: repeated drift.v1.AutomationAgentAssignment assignments = 4;
+   */
+  assignments: AutomationAgentAssignment[];
 };
 
 /**
@@ -136,6 +146,141 @@ export type ListAutomationAgentsResponse = Message<"drift.v1.ListAutomationAgent
  */
 export const ListAutomationAgentsResponseSchema: GenMessage<ListAutomationAgentsResponse> = /*@__PURE__*/
   messageDesc(file_drift_v1_automation_agent, 3);
+
+/**
+ * @generated from message drift.v1.AutomationAgentAssignment
+ */
+export type AutomationAgentAssignment = Message<"drift.v1.AutomationAgentAssignment"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string automation_agent_id = 2;
+   */
+  automationAgentId: string;
+
+  /**
+   * @generated from field: string profile_id = 3;
+   */
+  profileId: string;
+
+  /**
+   * @generated from field: string device_id = 4;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: string state = 5;
+   */
+  state: string;
+};
+
+/**
+ * Describes the message drift.v1.AutomationAgentAssignment.
+ * Use `create(AutomationAgentAssignmentSchema)` to create a new message.
+ */
+export const AutomationAgentAssignmentSchema: GenMessage<AutomationAgentAssignment> = /*@__PURE__*/
+  messageDesc(file_drift_v1_automation_agent, 4);
+
+/**
+ * @generated from message drift.v1.CreateAutomationAgentRequest
+ */
+export type CreateAutomationAgentRequest = Message<"drift.v1.CreateAutomationAgentRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string display_name = 3;
+   */
+  displayName: string;
+};
+
+/**
+ * Describes the message drift.v1.CreateAutomationAgentRequest.
+ * Use `create(CreateAutomationAgentRequestSchema)` to create a new message.
+ */
+export const CreateAutomationAgentRequestSchema: GenMessage<CreateAutomationAgentRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_automation_agent, 5);
+
+/**
+ * @generated from message drift.v1.CreateAutomationAgentResponse
+ */
+export type CreateAutomationAgentResponse = Message<"drift.v1.CreateAutomationAgentResponse"> & {
+  /**
+   * @generated from field: drift.v1.AutomationAgent agent = 1;
+   */
+  agent?: AutomationAgent;
+
+  /**
+   * @generated from field: drift.v1.AutomationAgentProfile profile = 2;
+   */
+  profile?: AutomationAgentProfile;
+};
+
+/**
+ * Describes the message drift.v1.CreateAutomationAgentResponse.
+ * Use `create(CreateAutomationAgentResponseSchema)` to create a new message.
+ */
+export const CreateAutomationAgentResponseSchema: GenMessage<CreateAutomationAgentResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_automation_agent, 6);
+
+/**
+ * @generated from message drift.v1.AssignAutomationAgentDeviceRequest
+ */
+export type AssignAutomationAgentDeviceRequest = Message<"drift.v1.AssignAutomationAgentDeviceRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string automation_agent_id = 3;
+   */
+  automationAgentId: string;
+
+  /**
+   * @generated from field: string device_id = 4;
+   */
+  deviceId: string;
+};
+
+/**
+ * Describes the message drift.v1.AssignAutomationAgentDeviceRequest.
+ * Use `create(AssignAutomationAgentDeviceRequestSchema)` to create a new message.
+ */
+export const AssignAutomationAgentDeviceRequestSchema: GenMessage<AssignAutomationAgentDeviceRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_automation_agent, 7);
+
+/**
+ * @generated from message drift.v1.AssignAutomationAgentDeviceResponse
+ */
+export type AssignAutomationAgentDeviceResponse = Message<"drift.v1.AssignAutomationAgentDeviceResponse"> & {
+  /**
+   * @generated from field: drift.v1.AutomationAgentAssignment assignment = 1;
+   */
+  assignment?: AutomationAgentAssignment;
+};
+
+/**
+ * Describes the message drift.v1.AssignAutomationAgentDeviceResponse.
+ * Use `create(AssignAutomationAgentDeviceResponseSchema)` to create a new message.
+ */
+export const AssignAutomationAgentDeviceResponseSchema: GenMessage<AssignAutomationAgentDeviceResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_automation_agent, 8);
 
 /**
  * @generated from enum drift.v1.AutomationAgentState
@@ -179,6 +324,22 @@ export const AutomationAgentService: GenService<{
     methodKind: "unary";
     input: typeof ListAutomationAgentsRequestSchema;
     output: typeof ListAutomationAgentsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AutomationAgentService.CreateAutomationAgent
+   */
+  createAutomationAgent: {
+    methodKind: "unary";
+    input: typeof CreateAutomationAgentRequestSchema;
+    output: typeof CreateAutomationAgentResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.AutomationAgentService.AssignAutomationAgentDevice
+   */
+  assignAutomationAgentDevice: {
+    methodKind: "unary";
+    input: typeof AssignAutomationAgentDeviceRequestSchema;
+    output: typeof AssignAutomationAgentDeviceResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_automation_agent, 0);

@@ -4,12 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
+	"time"
 
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 )
 
-// WithTx gives one application command an explicit transaction boundary. The
-// callback must not perform network, device, filesystem, or UI work.
+// WithTx gives one application command an explicit write reservation. The
+// callback must not perform network, device, filesystem, or UI work. SQLITE_BUSY
+// from a deferred-upgrade deadlock is retried so lease/fencing races surface as
+// typed conflicts instead of driver lock errors.
 func WithTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
 	if ctx == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "context is required")
@@ -20,9 +24,25 @@ func WithTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
 	if fn == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "transaction callback is required")
 	}
-	if err := ctx.Err(); err != nil {
-		return classifyContext(err)
+	var last error
+	for attempt := 0; attempt < 16; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return classifyContext(err)
+		}
+		last = withTxOnce(ctx, db, fn)
+		if last == nil || !isBusyError(last) {
+			return last
+		}
+		select {
+		case <-ctx.Done():
+			return classifyContext(ctx.Err())
+		case <-time.After(time.Duration(5*(attempt+1)) * time.Millisecond):
+		}
 	}
+	return platformerrors.Wrap(platformerrors.CodeUnavailable, "SQLite write reservation is busy", last)
+}
+
+func withTxOnce(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return classifyContext(err)
@@ -43,6 +63,14 @@ func WithTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
 	return nil
 }
 
+func isBusyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	value := strings.ToLower(err.Error())
+	return strings.Contains(value, "busy") || strings.Contains(value, "database is locked")
+}
+
 func classifyContext(err error) error {
 	if err == nil {
 		return nil
@@ -52,6 +80,9 @@ func classifyContext(err error) error {
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return platformerrors.Wrap(platformerrors.CodeDeadlineExceeded, "operation deadline exceeded", err)
+	}
+	if isBusyError(err) {
+		return err
 	}
 	return err
 }

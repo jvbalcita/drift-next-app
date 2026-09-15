@@ -1,32 +1,78 @@
 import { useState } from "react"
 import { Ban, FileText, ListChecks, ShieldCheck } from "lucide-react"
+import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent, RunState } from "@/lib/domain/control-plane"
-import { DataTablePagination, EmptyState, FailureBadge, MockNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
-import { textForDevice } from "./page-utils"
+import { reportDispatch } from "@/lib/api/report-dispatch"
+import { DataTablePagination, EmptyState, FailureBadge, FieldLabel, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
+import { resolvedDeviceIds, resolvedId, textForDevice } from "./page-utils"
 
 export function RunsPage({ snapshot, dispatch, view = "active", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState("")
+  const publishedWorkflows = snapshot.workflows.filter((workflow) => workflow.state === "published" || Boolean(workflow.publishedVersionId))
+  const [workflowId, setWorkflowId] = useState("")
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([])
+  const selectedWorkflowId = resolvedId(publishedWorkflows.map((workflow) => workflow.id), workflowId)
+  const effectiveDeviceIds = resolvedDeviceIds(snapshot.devices.map((device) => device.id), selectedDeviceIds)
   const selectedRun = snapshot.runs.find((run) => run.id === selectedRunId)
   const activeRuns = snapshot.runs.filter((run) => !isTerminal(run.state))
   const historicalRuns = snapshot.runs.filter((run) => isTerminal(run.state))
   const failedRuns = snapshot.runs.filter((run) => run.state === "failed" || run.state === "paused" || run.failureClass)
   function inspect(id: string) { setSelectedRunId(id) }
-  function cancel(id: string) { setFeedback(dispatch({ type: "cancelRun", runId: id }).message) }
+  function cancel(id: string) { void reportDispatch(dispatch, { type: "cancelRun", runId: id }, setFeedback) }
+  function toggleDevice(deviceId: string) {
+    setSelectedDeviceIds((current) => {
+      const effective = resolvedDeviceIds(snapshot.devices.map((device) => device.id), current)
+      return effective.includes(deviceId) ? effective.filter((id) => id !== deviceId) : [...effective, deviceId]
+    })
+  }
+  function startRun() {
+    void reportDispatch(dispatch, { type: "startWorkflowRun", workflowId: selectedWorkflowId, deviceIds: effectiveDeviceIds, confirmed: true }, setFeedback)
+  }
   return <>
-    <PageIntro eyebrow="EXECUTION / RUNS" title="Runs and targets" description="Inspect parent runs and independent per-device outcomes without conflating target state with aggregate state." actions={<StatusBadge label="Execution mocked" tone="info" />} />
-    <MockNotice>Runs are read-only projections in this browser slice. Cancelling a fixture run updates mock state only; no workflow worker or device actor is called.</MockNotice>
-    <Tabs value={view} onValueChange={onViewChange} className="mt-6"><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Run views"><TabsTrigger value="active" className="rounded-none">Active</TabsTrigger><TabsTrigger value="history" className="rounded-none">History</TabsTrigger><TabsTrigger value="failed" className="rounded-none">Failed / indeterminate</TabsTrigger></TabsList>
-      <TabsContent value="active" className="mt-6"><Panel title="Active runs" description="Admission and aggregate state are visible here; inspect a row for targets, steps, evidence, and events."><RunTable runs={activeRuns} onInspect={inspect} /></Panel></TabsContent>
-      <TabsContent value="history" className="mt-6"><Panel title="Run history" description="Completed, failed, and cancelled parent runs retain their immutable target snapshot."><RunTable runs={historicalRuns} onInspect={inspect} /></Panel></TabsContent>
-      <TabsContent value="failed" className="mt-6"><Panel title="Failed or indeterminate runs" description="Failure classification is kept alongside independent target results, not hidden by aggregate status."><RunTable runs={failedRuns} onInspect={inspect} /></Panel></TabsContent>
+    <PageIntro eyebrow="EXECUTION / RUNS" title="Runs and Targets" description="Inspect parent runs and independent per-device outcomes without conflating target state with aggregate state." actions={<StatusBadge label="Independent Targets" tone="info" />} />
+    <OperatorNotice>Parent runs and per-device targets are independent. Starting a run requires a published workflow, explicit device selection, and confirmation. Cancel requests the control plane; blocked, stale, or unauthorized targets stay unexecuted.</OperatorNotice>
+    <form className="mt-6 grid gap-3 border border-border p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]" onSubmit={(event) => event.preventDefault()}>
+      <div>
+        <FieldLabel htmlFor="start-run-workflow">Published Workflow</FieldLabel>
+        <select id="start-run-workflow" value={selectedWorkflowId} onChange={(event) => setWorkflowId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">
+          {publishedWorkflows.length === 0 ? <option value="">No Published Workflows</option> : null}
+          {selectedWorkflowId.length === 0 && publishedWorkflows.length > 1 ? <option value="">Select Workflow</option> : null}
+          {publishedWorkflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name} · v{workflow.version}</option>)}
+        </select>
+      </div>
+      <fieldset className="min-w-0">
+        <legend className="text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">Devices</legend>
+        <div className="mt-1 max-h-28 overflow-y-auto border border-border p-2">
+          {snapshot.devices.length === 0 ? <p className="text-xs text-muted-foreground">No Registered Devices</p> : snapshot.devices.map((device) => (
+            <label key={device.id} className="flex items-center gap-2 py-1 text-xs">
+              <input type="checkbox" checked={effectiveDeviceIds.includes(device.id)} onChange={() => toggleDevice(device.id)} />
+              {device.displayName}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <AlertDialog>
+        <AlertDialogTrigger render={<Button type="button" size="sm" variant="outline" className="self-end" disabled={!selectedWorkflowId || effectiveDeviceIds.length === 0}>Start Run</Button>} />
+        <AlertDialogContent
+          title="Start Workflow Run?"
+          description="Creates a parent run for the selected devices only. Each device keeps an independent target, lease, fencing token, and outcome. Actions are not replayed after disconnect or timeout."
+          confirmLabel="Confirm Start Run"
+          onConfirm={startRun}
+        />
+      </AlertDialog>
+    </form>
+    <Tabs value={view} onValueChange={onViewChange} className="mt-6"><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Run views"><TabsTrigger value="active" className="rounded-none">Active</TabsTrigger><TabsTrigger value="history" className="rounded-none">History</TabsTrigger><TabsTrigger value="failed" className="rounded-none">Failed / Indeterminate</TabsTrigger></TabsList>
+      <TabsContent value="active" className="mt-6"><Panel title="Active Runs" description="Admission and aggregate state are visible here; inspect a row for targets, steps, evidence, and events."><RunTable runs={activeRuns} onInspect={inspect} /></Panel></TabsContent>
+      <TabsContent value="history" className="mt-6"><Panel title="Run History" description="Completed, failed, and cancelled parent runs retain their immutable target snapshot."><RunTable runs={historicalRuns} onInspect={inspect} /></Panel></TabsContent>
+      <TabsContent value="failed" className="mt-6"><Panel title="Failed or Indeterminate Runs" description="Failure classification is kept alongside independent target results, not hidden by aggregate status."><RunTable runs={failedRuns} onInspect={inspect} /></Panel></TabsContent>
     </Tabs>
-    <div className="mt-6 grid gap-4 md:grid-cols-3"><Posture icon={ShieldCheck} label="Admission facts" detail="Approval, policy, lease, fencing, and observation are independent." /><Posture icon={ListChecks} label="Target independence" detail="Each target retains retries, cleanup, and failure facts." /><Posture icon={FileText} label="Mock boundary" detail="Browser actions do not invoke workflow or device runtimes." /></div>
-    <p aria-live="polite" className="mt-6 border-l-2 border-primary bg-secondary/60 p-3 text-xs text-muted-foreground">{feedback || "Run feedback appears here. Device execution is unavailable in this browser phase."}</p>
-    <Sheet open={selectedRunId !== null} onOpenChange={(open) => { if (!open) setSelectedRunId(null) }}><SheetContent className="w-full rounded-none sm:max-w-2xl"><SheetHeader><SheetTitle>{selectedRun?.workflowName ?? "Run detail"}</SheetTitle><SheetDescription>Parent summary, independent targets, steps, evidence, and events are separated below.</SheetDescription></SheetHeader>{selectedRun ? <Tabs defaultValue="summary" className="flex min-h-0 flex-1 flex-col px-4 pb-4"><TabsList className="h-auto flex-wrap rounded-none border border-border bg-background p-0"><TabsTrigger value="summary" className="rounded-none">Summary</TabsTrigger><TabsTrigger value="targets" className="rounded-none">Targets</TabsTrigger><TabsTrigger value="steps" className="rounded-none">Steps</TabsTrigger><TabsTrigger value="evidence" className="rounded-none">Evidence</TabsTrigger><TabsTrigger value="events" className="rounded-none">Events</TabsTrigger></TabsList><TabsContent value="summary" className="mt-4"><dl className="grid gap-3 border-y border-border py-4 text-xs sm:grid-cols-2"><Fact label="Run ID" value={selectedRun.id} mono /><Fact label="State" value={selectedRun.state} /><Fact label="Target snapshot" value={selectedRun.targetSnapshotId} mono /><Fact label="Selector" value={selectedRun.selector} /><Fact label="Concurrency" value={String(selectedRun.concurrencyLimit)} /><Fact label="Retry budget" value={String(selectedRun.retryBudget)} /></dl><div className="mt-4 flex flex-wrap gap-2"><StatusBadge label={`approval ${selectedRun.approval}`} tone={selectedRun.approval === "approved" ? "healthy" : "attention"} />{!isTerminal(selectedRun.state) ? <Button size="sm" variant="outline" onClick={() => cancel(selectedRun.id)}><Ban className="size-3.5" aria-hidden="true" />Cancel mock run</Button> : null}</div></TabsContent><TabsContent value="targets" className="mt-4"><div className="space-y-2">{snapshot.runTargets.filter((target) => target.runId === selectedRun.id).map((target) => <div key={target.id} className="flex flex-wrap items-center justify-between gap-3 border border-border p-3 text-xs"><div><p className="font-medium">{textForDevice(snapshot.devices, target.deviceId)}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{target.id} · attempts {target.attemptCount}{target.leaseId ? ` · lease ${target.leaseId}` : ""}</p>{target.failureClass ? <FailureBadge failureClass={target.failureClass} /> : null}</div><StatusBadge label={target.state.replaceAll("_", " ")} tone={targetTone(target.state)} /></div>)}</div></TabsContent><TabsContent value="steps" className="mt-4"><p className="border border-border bg-muted/40 p-3 text-xs text-muted-foreground">Step projections are intentionally bounded in this fixture. The workflow definition retains {selectedRun.workflowName} version {selectedRun.workflowVersion}; no runtime trace is fetched by the browser.</p></TabsContent><TabsContent value="evidence" className="mt-4"><p className="border border-border bg-muted/40 p-3 text-xs text-muted-foreground">Evidence references are retained through target observation IDs. Artifact bytes and device payloads remain unavailable in this browser-only mock.</p></TabsContent><TabsContent value="events" className="mt-4"><div className="space-y-2">{snapshot.events.filter((event) => event.correlationId === selectedRun.id || event.resourceId === selectedRun.id).map((event) => <div key={event.id} className="border-b border-border/70 py-2 text-xs"><p className="font-medium">{event.name}</p><p className="mt-1 text-muted-foreground">{event.actor} · {event.occurredAt} · {event.payloadSummary}</p></div>)}{snapshot.events.filter((event) => event.correlationId === selectedRun.id || event.resourceId === selectedRun.id).length === 0 ? <p className="text-xs text-muted-foreground">No mock events linked to this run.</p> : null}</div></TabsContent></Tabs> : null}</SheetContent></Sheet>
+    <div className="mt-6 grid gap-4 md:grid-cols-3"><Posture icon={ShieldCheck} label="Admission facts" detail="Approval, policy, lease, fencing, and observation are independent." /><Posture icon={ListChecks} label="Target independence" detail="Each target retains retries, cleanup, and failure facts." /><Posture icon={FileText} label="Operator Boundary" detail="Cancel does not replay blocked or stale target actions." /></div>
+    <p aria-live="polite" className="mt-6 border-l-2 border-primary bg-secondary/60 p-3 text-xs text-muted-foreground">{feedback || "Run feedback appears here. Independent target outcomes stay visible after cancel."}</p>
+    <Sheet open={selectedRunId !== null} onOpenChange={(open) => { if (!open) setSelectedRunId(null) }}><SheetContent className="w-full rounded-none sm:max-w-2xl"><SheetHeader><SheetTitle>{selectedRun?.workflowName ?? "Run Detail"}</SheetTitle><SheetDescription>Parent summary, independent targets, steps, evidence, and events are separated below.</SheetDescription></SheetHeader>{selectedRun ? <Tabs defaultValue="summary" className="flex min-h-0 flex-1 flex-col px-4 pb-4"><TabsList className="h-auto flex-wrap rounded-none border border-border bg-background p-0"><TabsTrigger value="summary" className="rounded-none">Summary</TabsTrigger><TabsTrigger value="targets" className="rounded-none">Targets</TabsTrigger><TabsTrigger value="steps" className="rounded-none">Steps</TabsTrigger><TabsTrigger value="evidence" className="rounded-none">Evidence</TabsTrigger><TabsTrigger value="events" className="rounded-none">Events</TabsTrigger></TabsList><TabsContent value="summary" className="mt-4"><dl className="grid gap-3 border-y border-border py-4 text-xs sm:grid-cols-2"><Fact label="Run ID" value={selectedRun.id} mono /><Fact label="State" value={selectedRun.state} /><Fact label="Target snapshot" value={selectedRun.targetSnapshotId} mono /><Fact label="Selector" value={selectedRun.selector} /><Fact label="Concurrency" value={String(selectedRun.concurrencyLimit)} /><Fact label="Retry budget" value={String(selectedRun.retryBudget)} /></dl><div className="mt-4 flex flex-wrap gap-2"><StatusBadge label={`approval ${selectedRun.approval}`} tone={selectedRun.approval === "approved" ? "healthy" : "attention"} />{!isTerminal(selectedRun.state) ? <Button size="sm" variant="outline" onClick={() => cancel(selectedRun.id)}><Ban className="size-3.5" aria-hidden="true" />Cancel Run</Button> : null}</div></TabsContent><TabsContent value="targets" className="mt-4"><div className="space-y-2">{snapshot.runTargets.filter((target) => target.runId === selectedRun.id).map((target) => <div key={target.id} className="flex flex-wrap items-center justify-between gap-3 border border-border p-3 text-xs"><div><p className="font-medium">{textForDevice(snapshot.devices, target.deviceId)}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{target.id} · attempts {target.attemptCount}{target.leaseId ? ` · lease ${target.leaseId}` : ""}</p>{target.failureClass ? <FailureBadge failureClass={target.failureClass} /> : null}</div><StatusBadge label={target.state.replaceAll("_", " ")} tone={targetTone(target.state)} /></div>)}</div></TabsContent><TabsContent value="steps" className="mt-4"><p className="border border-border bg-muted/40 p-3 text-xs text-muted-foreground">Step traces are not listed here. The workflow definition retains {selectedRun.workflowName} version {selectedRun.workflowVersion}. Independent target state remains on the Targets tab.</p></TabsContent><TabsContent value="evidence" className="mt-4"><p className="border border-border bg-muted/40 p-3 text-xs text-muted-foreground">Evidence references are retained through target observation IDs. Open Artifacts for authorized media access; raw device payloads are not shown here.</p></TabsContent><TabsContent value="events" className="mt-4"><div className="space-y-2">{snapshot.events.filter((event) => event.correlationId === selectedRun.id || event.resourceId === selectedRun.id).map((event) => <div key={event.id} className="border-b border-border/70 py-2 text-xs"><p className="font-medium">{event.name}</p><p className="mt-1 text-muted-foreground">{event.actor} · {event.occurredAt} · {event.payloadSummary}</p></div>)}{snapshot.events.filter((event) => event.correlationId === selectedRun.id || event.resourceId === selectedRun.id).length === 0 ? <p className="text-xs text-muted-foreground">No events linked to this run.</p> : null}</div></TabsContent></Tabs> : null}</SheetContent></Sheet>
   </>
 }
 

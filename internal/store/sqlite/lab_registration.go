@@ -121,7 +121,7 @@ ON CONFLICT(workspace_id, serial) DO UPDATE SET
 	})
 }
 
-// RegisterLabDevice creates the canonical device/endpoint and one-device lab registration row.
+// RegisterLabDevice creates the canonical device/endpoint and lab registration row.
 // It requires a prior provisioning check and durable approval for the serial.
 func (d *DB) RegisterLabDevice(ctx context.Context, workspace organizations.WorkspaceID, req registration.RegisterRequest) (registration.RegisterResult, error) {
 	var result registration.RegisterResult
@@ -171,14 +171,8 @@ FROM lab_device_registrations WHERE workspace_id=? AND serial=?`, workspace, ser
 			return err
 		}
 
-		var occupied string
-		err := tx.QueryRowContext(ctx, `SELECT serial FROM lab_device_registrations WHERE workspace_id=?`, workspace).Scan(&occupied)
-		if err == nil && occupied != serial {
-			return platformerrors.New(platformerrors.CodePolicyDenied, "one-device lab registration scope is exhausted")
-		}
-		if err != nil && err != sql.ErrNoRows {
-			return err
-		}
+		// Capacity is an application-service policy (MaxRegisteredDevices).
+		// Persistence only enforces unique serial identity.
 
 		var host, transportID, connectionType string
 		var port int

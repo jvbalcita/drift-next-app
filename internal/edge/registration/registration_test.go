@@ -150,3 +150,45 @@ func TestWirelessPortPolicyAndReverifyDoesNotWipeRegistered(t *testing.T) {
 		t.Fatalf("idempotent after re-verify = %#v err=%v", again, err)
 	}
 }
+
+func TestMaxRegisteredDevicesZeroAllowsTwoSerials(t *testing.T) {
+	now := time.Date(2026, 9, 15, 5, 0, 0, 0, time.UTC)
+	svc := registration.NewService(registration.Config{MaxRegisteredDevices: 0, Probe: passingProbe()})
+	ctx := context.Background()
+	mustRegister := func(serial string, at time.Time) {
+		t.Helper()
+		if _, err := svc.VerifyProvisioning(ctx, registration.TargetIdentity{
+			Serial: serial, TransportID: "usb:" + serial, ConnectionType: "usb", ActorID: "op", AllowedPorts: []uint16{5555},
+		}, at); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.Approve(serial, "op", "lab", at.Add(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.Register(registration.RegisterRequest{Serial: serial, DisplayName: serial, ActorID: "op"}, at.Add(2*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustRegister("LAB-A", now)
+	mustRegister("LAB-B", now.Add(time.Minute))
+}
+
+func TestMaxRegisteredDevicesTwoAllowsTwoSerials(t *testing.T) {
+	now := time.Date(2026, 9, 15, 6, 0, 0, 0, time.UTC)
+	svc := registration.NewService(registration.Config{MaxRegisteredDevices: 2, Probe: passingProbe()})
+	ctx := context.Background()
+	for i, serial := range []string{"LAB-A", "LAB-B"} {
+		at := now.Add(time.Duration(i) * time.Minute)
+		if _, err := svc.VerifyProvisioning(ctx, registration.TargetIdentity{
+			Serial: serial, TransportID: "usb:" + serial, ConnectionType: "usb", ActorID: "op", AllowedPorts: []uint16{5555},
+		}, at); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.Approve(serial, "op", "lab", at.Add(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.Register(registration.RegisterRequest{Serial: serial, DisplayName: serial, ActorID: "op"}, at.Add(2*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
