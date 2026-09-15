@@ -349,7 +349,7 @@ describe("Drift command center", () => {
     expect(within(sheet).getByRole("button", { name: /Confirm Spool Replay/i })).toBeDisabled()
 
     await user.click(within(sheet).getByRole("button", { name: /Enqueue Spool Item/i }))
-    await user.click(within(sheet).getByRole("button", { name: /Simulate Disconnect/i }))
+    await user.click(within(sheet).getByRole("button", { name: /Disconnect Runtime/i }))
     expect(within(sheet).getAllByText(/Disconnected/i).length).toBeGreaterThan(0)
     expect(within(sheet).getByText(/Confirmation Required/i)).toBeInTheDocument()
     expect(within(sheet).getByRole("button", { name: /Confirm Spool Replay/i })).toBeDisabled()

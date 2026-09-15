@@ -211,6 +211,20 @@ import {
   StopMirrorPreviewRequestSchema,
   StopMirrorPreviewResponseSchema,
 } from "@/gen/drift/v1/mirror_pb"
+import {
+  BeginRuntimeReconnectRequestSchema,
+  BeginRuntimeReconnectResponseSchema,
+  CompleteRuntimeReconnectRequestSchema,
+  CompleteRuntimeReconnectResponseSchema,
+  ConfirmIndeterminateActionRequestSchema,
+  ConfirmIndeterminateActionResponseSchema,
+  ConfirmSpoolReplayRequestSchema,
+  ConfirmSpoolReplayResponseSchema,
+  DisconnectRuntimeRequestSchema,
+  DisconnectRuntimeResponseSchema,
+  GetRuntimeStatusRequestSchema,
+  GetRuntimeStatusResponseSchema,
+} from "@/gen/drift/v1/runtime_pb"
 import { ConnectJsonClient, requestContext, workspaceRef } from "@/lib/api/connect-json"
 
 const listPage = create(PageRequestSchema, { pageSize: 200 })
@@ -813,6 +827,54 @@ export class MirrorClient {
   }
 }
 
+export class RuntimeClient {
+  private readonly rpc: TypedConnectClient
+  constructor(json: ConnectJsonClient) {
+    this.rpc = new TypedConnectClient(json, "drift.v1.RuntimeService")
+  }
+  getRuntimeStatus(workspaceId: string) {
+    return this.rpc.call("GetRuntimeStatus", GetRuntimeStatusRequestSchema, GetRuntimeStatusResponseSchema, { workspace: workspaceRef(workspaceId) })
+  }
+  disconnectRuntime(requestId: string, workspaceId: string, reason: string) {
+    return this.rpc.call("DisconnectRuntime", DisconnectRuntimeRequestSchema, DisconnectRuntimeResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      reason,
+    })
+  }
+  beginRuntimeReconnect(requestId: string, workspaceId: string) {
+    return this.rpc.call("BeginRuntimeReconnect", BeginRuntimeReconnectRequestSchema, BeginRuntimeReconnectResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+    })
+  }
+  completeRuntimeReconnect(requestId: string, workspaceId: string, transportId: string, protocol: string) {
+    return this.rpc.call("CompleteRuntimeReconnect", CompleteRuntimeReconnectRequestSchema, CompleteRuntimeReconnectResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      transportId,
+      protocol,
+    })
+  }
+  confirmSpoolReplay(requestId: string, workspaceId: string, sequence: number, confirm: boolean) {
+    return this.rpc.call("ConfirmSpoolReplay", ConfirmSpoolReplayRequestSchema, ConfirmSpoolReplayResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      sequence: BigInt(sequence),
+      confirm,
+    })
+  }
+  confirmIndeterminateAction(requestId: string, workspaceId: string, actionId: string, confirm: boolean, resolution: string) {
+    return this.rpc.call("ConfirmIndeterminateAction", ConfirmIndeterminateActionRequestSchema, ConfirmIndeterminateActionResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      actionId,
+      confirm,
+      resolution,
+    })
+  }
+}
+
 export class WorkspaceClient {
   private readonly rpc: TypedConnectClient
   constructor(json: ConnectJsonClient) {
@@ -848,6 +910,7 @@ export interface ControlPlaneServices {
   skill: SkillClient
   workspace: WorkspaceClient
   mirror: MirrorClient
+  runtime: RuntimeClient
 }
 
 export function createControlPlaneServices(json: ConnectJsonClient): ControlPlaneServices {
@@ -873,5 +936,6 @@ export function createControlPlaneServices(json: ConnectJsonClient): ControlPlan
     skill: new SkillClient(json),
     workspace: new WorkspaceClient(json),
     mirror: new MirrorClient(json),
+    runtime: new RuntimeClient(json),
   }
 }

@@ -44,6 +44,8 @@ import type { Workflow } from "@/gen/drift/v1/workflow_pb"
 import { WorkflowState } from "@/gen/drift/v1/workflow_pb"
 import type { MirrorSession as ProtoMirrorSession, MirrorTarget as ProtoMirrorTarget } from "@/gen/drift/v1/mirror_pb"
 import { MirrorSessionState, MirrorTargetState } from "@/gen/drift/v1/mirror_pb"
+import type { IndeterminateAction as ProtoIndeterminateAction, RuntimeConnection as ProtoRuntimeConnection, SpoolHealth as ProtoSpoolHealth } from "@/gen/drift/v1/runtime_pb"
+import { RuntimeConnectionState } from "@/gen/drift/v1/runtime_pb"
 import {
   ConnectJsonClient,
   ConnectJsonError,
@@ -93,6 +95,7 @@ import type {
   EventView,
   GroupState as GroupViewState,
   GroupView,
+  IndeterminateActionView,
   LeaseState as LeaseViewState,
   LeaseView,
   MembershipState,
@@ -477,6 +480,61 @@ function mapLifecycleState(state: WorkflowState | SkillState): WorkflowViewState
   if (state === WorkflowState.RETIRED || state === SkillState.RETIRED) return "retired"
   const _exhaustive: never = state
   return _exhaustive
+}
+
+function mapRuntimeConnectionState(state: RuntimeConnectionState): RuntimeConnectionView["state"] {
+  switch (state) {
+    case RuntimeConnectionState.CONNECTED:
+    case RuntimeConnectionState.UNSPECIFIED:
+      return "connected"
+    case RuntimeConnectionState.RECONNECTING:
+      return "reconnecting"
+    case RuntimeConnectionState.DISCONNECTED:
+      return "disconnected"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapRuntimeStatus(
+  connection: ProtoRuntimeConnection | undefined,
+  spool: ProtoSpoolHealth | undefined,
+  actions: readonly ProtoIndeterminateAction[],
+): { connection: RuntimeConnectionView; spool: SpoolHealthView; indeterminateActions: IndeterminateActionView[] } {
+  const connectionState = mapRuntimeConnectionState(connection?.state ?? RuntimeConnectionState.UNSPECIFIED)
+  return {
+    connection: {
+      state: connectionState,
+      transportId: connection?.transportId ?? "",
+      protocol: connection?.protocol ?? "",
+      helperAttached: connection?.helperAttached ?? false,
+      disconnectedReason: connection?.disconnectedReason ?? "",
+      pendingIndeterminate: connection?.pendingIndeterminate ?? 0,
+      helperTokenIsLease: false,
+      transportIdIsLease: false,
+      updatedAt: connection?.updatedAt || new Date().toISOString(),
+    },
+    spool: {
+      pending: spool?.pending ?? 0,
+      blocked: spool?.blocked ?? 0,
+      maxSize: spool?.maxSize ?? 0,
+      retentionMs: Number(spool?.retentionMs ?? 0),
+      exhausted: spool?.exhausted ?? false,
+      connectionState: mapRuntimeConnectionState(spool?.connectionState ?? connection?.state ?? RuntimeConnectionState.UNSPECIFIED),
+      fenceToken: Number(spool?.fenceToken ?? 0),
+      fenceIsLease: false,
+      blockedSequences: (spool?.blockedSequences ?? []).map((sequence) => Number(sequence)),
+    },
+    indeterminateActions: actions.map((action) => ({
+      actionId: action.actionId,
+      risk: action.risk,
+      requiresOperatorConfirmation: action.requiresOperatorConfirmation,
+      recordedAt: action.recordedAt,
+      summary: action.summary,
+    })),
+  }
 }
 
 function mapMirrorSessionState(state: MirrorSessionState): MirrorViewState {
@@ -1490,6 +1548,11 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       })), { agents: [] as AutomationAgentView[], profiles: [] as AutomationAgentProfileView[] }),
       settle(this.services.recording.listRecordingSessions(workspaceId).then((response) => response.sessions.map(mapRecording)), [] as RecordingMediaView[]),
       settle(this.services.mirror.listMirrorSessions(workspaceId).then((response) => response.sessions.map(mapMirrorSession)), [] as MirrorSessionView[]),
+      settle(this.services.runtime.getRuntimeStatus(workspaceId).then((response) => mapRuntimeStatus(response.connection, response.spool, response.indeterminateActions)), {
+        connection: emptyRuntime("connected"),
+        spool: emptySpool("connected"),
+        indeterminateActions: [] as IndeterminateActionView[],
+      }),
     ])
 
     const failed = results.filter((result) => result.failed)
@@ -1536,6 +1599,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       automationAgents,
       recordingMedia,
       mirrorSessions,
+      runtimeStatus,
     ] = results
 
     const workspaceRecord = workspace.value as Workspace | undefined
@@ -1585,8 +1649,9 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       provisioningReadiness: previous.provisioningReadiness,
       labRegistration: previous.labRegistration,
       mirrorSessions: mirrorSessions.value,
-      runtimeConnection: emptyRuntime("connected"),
-      spoolHealth: emptySpool("connected"),
+      runtimeConnection: runtimeStatus.value.connection,
+      spoolHealth: runtimeStatus.value.spool,
+      indeterminateActions: runtimeStatus.value.indeterminateActions,
     }
     return this.getSnapshot()
   }
@@ -1878,6 +1943,31 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         await this.services.mirror.stopMirrorPreview(requestId, workspaceId, intent.sessionId)
         return mutation(intent, "Preview stopped; no device command was sent.", { resourceId: intent.sessionId })
       }
+      case "simulateRuntimeDisconnect": {
+        await this.services.runtime.disconnectRuntime(requestId, workspaceId, intent.reason)
+        return mutation(intent, "Runtime marked Disconnected. Indeterminate outcomes require confirmation — not blind replay.")
+      }
+      case "beginRuntimeReconnect": {
+        await this.services.runtime.beginRuntimeReconnect(requestId, workspaceId)
+        return mutation(intent, "Runtime entered Reconnecting. Spool items still require confirmation before replay.")
+      }
+      case "completeRuntimeReconnect": {
+        if (!intent.transportId.trim() || !intent.protocol.trim()) {
+          return failure(intent, "Reconnect requires a transport identity and protocol.", { errorCode: "invalid_input" })
+        }
+        await this.services.runtime.completeRuntimeReconnect(requestId, workspaceId, intent.transportId, intent.protocol)
+        return mutation(intent, "Runtime reconnected with a new transport identity. Blocked spool items were not replayed.")
+      }
+      case "confirmIndeterminateAction": {
+        if (!intent.actionId.trim()) return failure(intent, "Action ID is required.", { errorCode: "invalid_input" })
+        await this.services.runtime.confirmIndeterminateAction(requestId, workspaceId, intent.actionId, intent.confirm, intent.resolution)
+        return mutation(intent, "Indeterminate outcome recorded. The original action was not replayed.")
+      }
+      case "confirmSpoolReplay": {
+        if (!intent.sequence) return failure(intent, "Spool sequence is required.", { errorCode: "invalid_input" })
+        await this.services.runtime.confirmSpoolReplay(requestId, workspaceId, intent.sequence, intent.confirm)
+        return mutation(intent, intent.confirm ? "Spool replay confirmed for the selected sequence." : "Spool item dropped without replay.")
+      }
       case "updatePolicy":
       case "discoverLabDevices":
       case "confirmLabTarget":
@@ -1887,11 +1977,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       case "verifyLabProvisioning":
       case "approveLabProvisioning":
       case "registerLabDevice":
-      case "simulateRuntimeDisconnect":
-      case "beginRuntimeReconnect":
-      case "completeRuntimeReconnect":
-      case "confirmIndeterminateAction":
-      case "confirmSpoolReplay":
       case "enqueueMockSpoolItem":
         return failure(intent, "This action is unavailable on the connected control plane.")
       default: {

@@ -501,6 +501,7 @@ func normalizeBusyTimeout(timeout time.Duration) (time.Duration, error) {
 
 func sqliteDSNWithPragmas(dsn string, timeout time.Duration) (string, error) {
 	pragmas := url.Values{}
+	pragmas.Set("_txlock", "immediate")
 	pragmas.Add("_pragma", "journal_mode=wal")
 	pragmas.Add("_pragma", "foreign_keys=on")
 	pragmas.Add("_pragma", fmt.Sprintf("busy_timeout=%d", timeout/time.Millisecond))

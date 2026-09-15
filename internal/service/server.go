@@ -94,6 +94,7 @@ func ProductRoutes(handlers *transportconnect.ProductHandlers, token string) []R
 		mount(driftv1connect.NewSkillServiceHandler(handlers.Skill)),
 		mount(driftv1connect.NewWorkspaceServiceHandler(handlers.Workspace)),
 		mount(driftv1connect.NewMirrorServiceHandler(handlers.Mirror)),
+		mount(driftv1connect.NewRuntimeServiceHandler(handlers.Runtime)),
 	}
 }
 

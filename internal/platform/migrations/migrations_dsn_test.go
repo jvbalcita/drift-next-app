@@ -36,6 +36,9 @@ func TestSQLiteDSNWithPragmasAddsToExplicitFileURI(t *testing.T) {
 	if parsed.Query().Get("cache") != "shared" {
 		t.Fatalf("sqliteDSNWithPragmas() = %q, want cache=shared preserved", got)
 	}
+	if parsed.Query().Get("_txlock") != "immediate" {
+		t.Fatalf("sqliteDSNWithPragmas() = %q, want _txlock=immediate", got)
+	}
 }
 
 func TestSQLiteDSNWithPragmasOpensBareMemoryDSN(t *testing.T) {

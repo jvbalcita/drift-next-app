@@ -28,6 +28,7 @@ type ProductHandlers struct {
 	Skill           *SkillHandler
 	Workspace       *WorkspaceHandler
 	Mirror          *MirrorHandler
+	Runtime         *RuntimeHandler
 }
 
 func NewProductHandlers(db *store.DB, scanner discovery.Scanner) *ProductHandlers {
@@ -55,5 +56,6 @@ func NewProductHandlers(db *store.DB, scanner discovery.Scanner) *ProductHandler
 		Skill:           NewSkillHandler(db),
 		Workspace:       NewWorkspaceHandler(db),
 		Mirror:          NewMirrorHandler(db),
+		Runtime:         NewRuntimeHandler(db, nil, nil),
 	}
 }

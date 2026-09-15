@@ -4,12 +4,15 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
 	"drift.local/drift-next/internal/action"
 	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/discovery"
+	"drift.local/drift-next/internal/edge/connection"
+	"drift.local/drift-next/internal/edge/spool"
 	"drift.local/drift-next/internal/groups"
 	"drift.local/drift-next/internal/networkprofiles"
 	"drift.local/drift-next/internal/organizations"
@@ -502,5 +505,67 @@ func TestStartMirrorPreviewRequiresExplicitFollowersAndRecordsIndependentOutcome
 	}
 	if !cancelled {
 		t.Fatalf("pending follower was not cancelled independently = %#v", stopped.Msg.Session.Targets)
+	}
+}
+
+func TestRuntimeReconnectRefusesBlindReplayAndRequiresNewTransport(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	session := connection.NewSession(connection.SessionConfig{AgentID: "edge-1", TransportID: "usb-a", Protocol: "adb", PolicyVersion: 1}, time.Now().UTC())
+	queue := spool.New(spool.Config{})
+	if _, err := session.RecordDispatch("action-1", action.RiskMedium, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	handler := transportconnect.NewRuntimeHandler(db, session, queue)
+	_, err := handler.BeginRuntimeReconnect(ctx, connectrpc.NewRequest(&driftv1.BeginRuntimeReconnectRequest{
+		Context:   requestContext("runtime-begin-connected"),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if connectrpc.CodeOf(err) != connectrpc.CodeFailedPrecondition {
+		t.Fatalf("begin while connected code = %v, want failed_precondition; err=%v", connectrpc.CodeOf(err), err)
+	}
+	disconnected, err := handler.DisconnectRuntime(ctx, connectrpc.NewRequest(&driftv1.DisconnectRuntimeRequest{
+		Context:   requestContext("runtime-disconnect"),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		Reason:    "cable removed",
+	}))
+	if err != nil || disconnected.Msg.Connection.GetState() != driftv1.RuntimeConnectionState_RUNTIME_CONNECTION_STATE_DISCONNECTED {
+		t.Fatalf("disconnect = %#v err=%v", disconnected, err)
+	}
+	if disconnected.Msg.Connection.GetPendingIndeterminate() != 1 {
+		t.Fatalf("pending indeterminate = %d, want 1", disconnected.Msg.Connection.GetPendingIndeterminate())
+	}
+	begun, err := handler.BeginRuntimeReconnect(ctx, connectrpc.NewRequest(&driftv1.BeginRuntimeReconnectRequest{
+		Context:   requestContext("runtime-begin"),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if err != nil || begun.Msg.Connection.GetState() != driftv1.RuntimeConnectionState_RUNTIME_CONNECTION_STATE_RECONNECTING {
+		t.Fatalf("begin reconnect = %#v err=%v", begun, err)
+	}
+	_, err = handler.CompleteRuntimeReconnect(ctx, connectrpc.NewRequest(&driftv1.CompleteRuntimeReconnectRequest{
+		Context:   requestContext("runtime-complete-empty"),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("complete without transport code = %v, want invalid_argument; err=%v", connectrpc.CodeOf(err), err)
+	}
+	completed, err := handler.CompleteRuntimeReconnect(ctx, connectrpc.NewRequest(&driftv1.CompleteRuntimeReconnectRequest{
+		Context:     requestContext("runtime-complete"),
+		Workspace:   &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		TransportId: "usb-b",
+		Protocol:    "adb",
+	}))
+	if err != nil || completed.Msg.Connection.GetTransportId() != "usb-b" || completed.Msg.Connection.GetState() != driftv1.RuntimeConnectionState_RUNTIME_CONNECTION_STATE_CONNECTED {
+		t.Fatalf("complete reconnect = %#v err=%v", completed, err)
+	}
+	confirmed, err := handler.ConfirmIndeterminateAction(ctx, connectrpc.NewRequest(&driftv1.ConfirmIndeterminateActionRequest{
+		Context:    requestContext("runtime-confirm"),
+		Workspace:  &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		ActionId:   "action-1",
+		Confirm:    true,
+		Resolution: "operator_confirmed",
+	}))
+	if err != nil || confirmed.Msg.Connection.GetPendingIndeterminate() != 0 {
+		t.Fatalf("confirm indeterminate = %#v err=%v", confirmed, err)
 	}
 }

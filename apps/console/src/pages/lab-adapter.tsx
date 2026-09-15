@@ -376,13 +376,11 @@ function RuntimeSpoolSheet({
             <LabField label="Exhausted" detail={spoolHealth.exhausted ? "Yes" : "No"} mono={false} />
           </dl>
           <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+            <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "simulateRuntimeDisconnect", reason: "Operator disconnect" }, onFeedback)}>Disconnect Runtime</Button>
+            <Button size="sm" variant="outline" disabled={runtimeConnection.state === "connected"} onClick={() => void reportDispatch(dispatch, { type: "beginRuntimeReconnect" }, onFeedback)}>Begin Reconnect</Button>
+            <Button size="sm" variant="outline" disabled={runtimeConnection.state !== "reconnecting"} onClick={() => void reportDispatch(dispatch, { type: "completeRuntimeReconnect", transportId: runtimeConnection.transportId || "transport-0", protocol: runtimeConnection.protocol || "adb" }, onFeedback)}>Complete Reconnect</Button>
             {usesMockControlPlane() ? (
-              <>
-                <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "simulateRuntimeDisconnect", reason: "Operator disconnect" }, onFeedback)}>Simulate Disconnect</Button>
-                <Button size="sm" variant="outline" disabled={runtimeConnection.state === "connected"} onClick={() => void reportDispatch(dispatch, { type: "beginRuntimeReconnect" }, onFeedback)}>Begin Reconnect</Button>
-                <Button size="sm" variant="outline" disabled={runtimeConnection.state !== "reconnecting"} onClick={() => void reportDispatch(dispatch, { type: "completeRuntimeReconnect", transportId: runtimeConnection.transportId || "transport-0", protocol: runtimeConnection.protocol || "adb" }, onFeedback)}>Complete Reconnect</Button>
-                <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "enqueueMockSpoolItem", kind: "observation", risk: "low", idempotencyKey: `spool-${Date.now()}` }, onFeedback)}>Enqueue Spool Item</Button>
-              </>
+              <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "enqueueMockSpoolItem", kind: "observation", risk: "low", idempotencyKey: `spool-${Date.now()}` }, onFeedback)}>Enqueue Spool Item</Button>
             ) : null}
             <AlertDialog>
               <AlertDialogTrigger render={<Button size="sm" variant="outline" disabled={!hasBlockedSequence || runtimeConnection.state !== "connected"} />}>Confirm Spool Replay</AlertDialogTrigger>

@@ -513,4 +513,35 @@ describe("RealControlPlaneClient", () => {
       "http://127.0.0.1:8080/drift.v1.MirrorService/ListMirrorSessions",
     ]))
   })
+
+  it("disconnects and reconnects runtime without replaying blocked spool items", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.RuntimeService/GetRuntimeStatus")) {
+        return new Response(JSON.stringify({
+          connection: { state: "RUNTIME_CONNECTION_STATE_CONNECTED", transportId: "usb-a", protocol: "adb" },
+          spool: { pending: 0, blocked: 0, fenceToken: 1, connectionState: "RUNTIME_CONNECTION_STATE_CONNECTED", blockedSequences: [] },
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+    const disconnected = await client.dispatch({ type: "simulateRuntimeDisconnect", reason: "cable removed" })
+    const begun = await client.dispatch({ type: "beginRuntimeReconnect" })
+    const missingTransport = await client.dispatch({ type: "completeRuntimeReconnect", transportId: "", protocol: "adb" })
+    const completed = await client.dispatch({ type: "completeRuntimeReconnect", transportId: "usb-b", protocol: "adb" })
+    const urls = fetchSpy.mock.calls.map((call) => String(call[0]))
+
+    expect(disconnected.ok).toBe(true)
+    expect(begun.ok).toBe(true)
+    expect(missingTransport.ok).toBe(false)
+    expect(completed.ok).toBe(true)
+    expect(urls).toEqual(expect.arrayContaining([
+      "http://127.0.0.1:8080/drift.v1.RuntimeService/GetRuntimeStatus",
+      "http://127.0.0.1:8080/drift.v1.RuntimeService/DisconnectRuntime",
+      "http://127.0.0.1:8080/drift.v1.RuntimeService/BeginRuntimeReconnect",
+      "http://127.0.0.1:8080/drift.v1.RuntimeService/CompleteRuntimeReconnect",
+    ]))
+  })
 })
