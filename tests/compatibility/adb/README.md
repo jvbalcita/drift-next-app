@@ -95,3 +95,7 @@ live device. Do not estimate a live cell, do not copy a number from another proj
 do not mark a row measured without the command output to support it. Live cells stay
 `pending operator serial confirmation` until an operator confirms a serial and the
 measurement is actually taken.
+
+2026-09-15: operator confirmed `192.168.1.109:5555`. Measured results and the opt-in
+PASS are recorded in `matrix.md` and `evidence-2026-09-15.md`. Remaining gaps are listed
+in the matrix footer and must not be filled by estimation.

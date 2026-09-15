@@ -147,7 +147,7 @@ The existing Control page design is preserved: the lab slice adds status, confir
 
 ### Operational limitations
 
-- Multi-device environments require explicit serial confirmation. The current lab host has 20 attached transports, so no capture can proceed without an operator typing the serial.
+- Multi-device environments require explicit serial confirmation. The lab host had 20 attached transports; capture proceeded only after the operator typed `192.168.1.109:5555`.
 - CI skips real-device tests. They are opt-in, gated on `DRIFT_P13_LAB_MODE`, `DRIFT_P13_ADB_PATH`, and `DRIFT_P13_LAB_SERIAL`, and CI sets none of them.
 - The wireless fleet attached in the lab must not be auto-targeted. Enumeration is not selection, and no heuristic may promote a candidate.
 - Evidence persistence is not part of this slice: `artifact_id` stays empty until the artifact store is wired in, so bundles reference captures by content hash only.
@@ -175,7 +175,7 @@ The existing Control page design is preserved: the lab slice adds status, confir
 - An indeterminate outcome requires operator action to clear. There is no automatic recovery path, by design.
 - Semantic targeting and action postconditions remain unproven against a real device; if they later demand accessibility-event data, the helper question reopens under ADR-0005's gate.
 - P14 remains blocked. This slice produces adapter evidence, not registration or spool evidence.
-- Real-device measurements stay absent from the matrix until an operator confirms a serial, so the compatibility matrix is honest but incomplete.
+- Live one-device measurements for the operator-confirmed serial `192.168.1.109:5555` are recorded in `tests/compatibility/adb/matrix.md` and `tests/compatibility/adb/evidence-2026-09-15.md`. Remaining gaps (USB path, forced timeout, transport-id change, dump file-fallback) are listed explicitly and do not reopen helper adoption.
 
 ## Validation
 
