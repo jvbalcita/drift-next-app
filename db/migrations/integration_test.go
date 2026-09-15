@@ -195,6 +195,93 @@ func TestNetworkProfileDeletionSucceedsWithScanHistory(t *testing.T) {
 	}
 }
 
+// seedLegacyLifecycleRows inserts the upgrade state a released control plane
+// left behind for the removed discovery lifecycle: a pending candidate with its
+// approval decision, plus lab provisioning/registration rows. scan_candidates
+// references scan_runs through an ON DELETE RESTRICT key, so this state blocks
+// the scan_runs rebuild until the doomed tables are dropped.
+func seedLegacyLifecycleRows(t *testing.T, db *sql.DB) {
+	t.Helper()
+	seedScannedDefaultProfile(t, db)
+	execSQL(t, db, `INSERT INTO scan_candidates (id, workspace_id, scan_run_id, candidate_key, host, port, serial, fingerprint, state, discovered_at, expires_at, evidence_json) VALUES ('legacy-candidate', 'phase-a-w', 'phase-a-run', 'legacy-key', '192.0.2.4', 5555, 'legacy-serial', 'sha256:fake', 'pending_approval', ?, NULL, '{}')`, testTime)
+	execSQL(t, db, `INSERT INTO approval_decisions (id, workspace_id, candidate_id, decision, actor_id, decided_at, reason) VALUES ('legacy-decision', 'phase-a-w', 'legacy-candidate', 'approved', 'op-1', ?, 'lab approval')`, testTime)
+	execSQL(t, db, `INSERT INTO lab_provisioning_checks (id, workspace_id, serial, transport_id, connection_type, endpoint_host, endpoint_port, notes_json, actor_id, checked_at) VALUES ('legacy-check', 'phase-a-w', 'legacy-serial', 'transport-1', 'usb', '', 0, '[]', 'op-1', ?)`, testTime)
+	execSQL(t, db, `INSERT INTO lab_registration_approvals (id, workspace_id, serial, actor_id, reason, decided_at) VALUES ('legacy-approval', 'phase-a-w', 'legacy-serial', 'op-1', 'lab approval', ?)`, testTime)
+	execSQL(t, db, `INSERT INTO devices (id, workspace_id, display_name, platform_version, state, created_at, updated_at) VALUES ('legacy-device', 'phase-a-w', 'Legacy Device', 'fake', 'registered', ?, ?)`, testTime, testTime)
+	execSQL(t, db, `INSERT INTO device_endpoints (id, workspace_id, device_id, endpoint_type, serial, state, observed_at) VALUES ('legacy-endpoint', 'phase-a-w', 'legacy-device', 'mock', 'legacy-serial', 'current', ?)`, testTime)
+	execSQL(t, db, `INSERT INTO lab_device_registrations (id, workspace_id, serial, device_id, endpoint_id, display_name, actor_id, registered_at) VALUES ('legacy-registration', 'phase-a-w', 'legacy-serial', 'legacy-device', 'legacy-endpoint', 'Legacy Device', 'op-1', ?)`, testTime)
+}
+
+func tableCount(t *testing.T, db *sql.DB, table string) int {
+	t.Helper()
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&count); err != nil {
+		t.Fatalf("count %s error = %v", table, err)
+	}
+	return count
+}
+
+func foreignKeyViolations(t *testing.T, db *sql.DB) int {
+	t.Helper()
+	rows, err := db.Query(`PRAGMA foreign_key_check`)
+	if err != nil {
+		t.Fatalf("foreign_key_check error = %v", err)
+	}
+	defer rows.Close()
+	violations := 0
+	for rows.Next() {
+		violations++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("foreign_key_check rows error = %v", err)
+	}
+	return violations
+}
+
+// TestDiscoverySimplificationAppliesWithLegacyLifecycleRows is the upgrade path
+// that matters: a database holding a pending scan candidate and lab
+// registration rows must still reach the simplified schema.
+func TestDiscoverySimplificationAppliesWithLegacyLifecycleRows(t *testing.T) {
+	db := openUpgradeDB(t, 19)
+	seedLegacyLifecycleRows(t, db)
+	if before := tableCount(t, db, "scan_candidates"); before != 1 {
+		t.Fatalf("scan_candidates before 0020 = %d, want 1", before)
+	}
+
+	if err := applyLatestMigrations(t, db); err != nil {
+		t.Fatalf("Apply(0020) on a database with lifecycle rows error = %v", err)
+	}
+
+	if violations := foreignKeyViolations(t, db); violations != 0 {
+		t.Fatalf("foreign_key_check violations = %d, want 0", violations)
+	}
+	if runs := scanRunCount(t, db); runs != 1 {
+		t.Fatalf("scan_runs after 0020 = %d, want preserved 1", runs)
+	}
+	var profiles int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM network_profiles WHERE workspace_id = 'phase-a-w'`).Scan(&profiles); err != nil {
+		t.Fatalf("network_profiles count error = %v", err)
+	}
+	if profiles != 1 {
+		t.Fatalf("network_profiles after 0020 = %d, want preserved 1", profiles)
+	}
+	for _, table := range []string{
+		"scan_candidates", "approval_decisions", "registration_events",
+		"lab_provisioning_checks", "lab_registration_approvals", "lab_device_registrations",
+	} {
+		var exists int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&exists); err != nil {
+			t.Fatalf("table %q lookup error = %v", table, err)
+		}
+		if exists != 0 {
+			t.Errorf("removed lifecycle table %q still exists", table)
+		}
+	}
+	if devices := tableCount(t, db, "devices"); devices != 1 {
+		t.Fatalf("devices after 0020 = %d, want the retained canonical device", devices)
+	}
+}
+
 func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	db := migratedDB(t)
 
@@ -224,13 +311,12 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 
 	for _, table := range []string{
 		"workspaces", "principals", "operators", "edge_agents", "devices", "device_endpoints",
-		"network_profiles", "scan_runs", "scan_candidates", "device_groups", "device_group_memberships",
+		"network_profiles", "scan_runs", "device_groups", "device_group_memberships",
 		"automation_agents", "automation_agent_device_assignments", "observation_snapshots", "device_inventory", "inventory_snapshots", "health_samples", "device_health_current", "device_events",
 		"control_sessions", "device_leases", "mirror_sessions", "mirror_targets", "workflows", "workflow_versions",
 		"workflow_steps", "runs", "target_set_snapshots", "run_targets", "target_run_steps", "action_attempts", "run_events", "run_ai_candidates", "replay_evidence",
 		"account_sources", "accounts", "account_service_states", "account_service_state_history", "account_runs", "account_run_events", "account_device_assignments", "account_sync_events", "settings", "setting_history", "policies", "artifacts", "recording_sessions", "recording_event_evidence",
 		"skills", "audit_events", "idempotency_keys", "outbox_messages",
-		"lab_provisioning_checks", "lab_registration_approvals", "lab_device_registrations",
 	} {
 		var exists int
 		if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&exists); err != nil {
@@ -238,6 +324,19 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 		}
 		if exists != 1 {
 			t.Fatalf("table %q is missing", table)
+		}
+	}
+
+	for _, table := range []string{
+		"scan_candidates", "approval_decisions", "registration_events",
+		"lab_provisioning_checks", "lab_registration_approvals", "lab_device_registrations",
+	} {
+		var exists int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&exists); err != nil {
+			t.Fatalf("table %q lookup error = %v", table, err)
+		}
+		if exists != 0 {
+			t.Fatalf("removed discovery lifecycle table %q still exists on a fresh install", table)
 		}
 	}
 }

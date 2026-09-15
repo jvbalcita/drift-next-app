@@ -88,18 +88,6 @@ func TestDiscoveryTransitionsRequireApproval(t *testing.T) {
 		{name: "running to completed", from: discovery.ScanRunning, to: discovery.ScanCompleted, want: true},
 		{name: "completed is terminal", from: discovery.ScanCompleted, to: discovery.ScanRunning, want: false},
 	}, discovery.CanTransitionScanRun, discovery.TransitionScanRun)
-	checkTransitions(t, "scan_candidate", []transitionCase[discovery.CandidateState]{
-		{name: "discovered to approval", from: discovery.CandidateDiscovered, to: discovery.CandidatePendingApproval, want: true},
-		{name: "pending to approved", from: discovery.CandidatePendingApproval, to: discovery.CandidateApproved, want: true},
-		{name: "approved to registered", from: discovery.CandidateApproved, to: discovery.CandidateRegistered, want: true},
-		{name: "discovered to registered is illegal", from: discovery.CandidateDiscovered, to: discovery.CandidateRegistered, want: false},
-	}, discovery.CanTransitionCandidate, discovery.TransitionCandidate)
-	if discovery.CanRegister(discovery.CandidatePendingApproval) {
-		t.Fatal("pending candidate can register without approval")
-	}
-	if !discovery.CanRegister(discovery.CandidateApproved) {
-		t.Fatal("approved candidate cannot register")
-	}
 }
 
 func TestRelationshipTransitions(t *testing.T) {

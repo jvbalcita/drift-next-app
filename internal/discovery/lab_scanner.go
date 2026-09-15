@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -11,13 +10,16 @@ import (
 )
 
 // RuntimeDevice is one transport observation from an authorized local runtime.
-// It is never a canonical device and never auto-registered.
+// It is never a canonical device on its own: the scan that carries it persists
+// the device.
 type RuntimeDevice struct {
 	Serial      string
 	Host        string
 	Port        uint16
 	TransportID string
+	Model       string
 	Fingerprint string
+	State       DeviceLinkState
 }
 
 // RuntimeEnumerator is the narrow seam used by lab Network Profile scans.
@@ -33,8 +35,8 @@ type LabScannerConfig struct {
 }
 
 // AuthorizedLabScanner executes Network Profile scans only through an
-// authorized local runtime in lab mode. It never installs tools, opens
-// firewall exposure, or registers devices.
+// authorized local runtime in lab mode. It never installs tools or opens
+// firewall exposure.
 type AuthorizedLabScanner struct {
 	authorized bool
 	labMode    bool
@@ -49,7 +51,7 @@ func NewAuthorizedLabScanner(cfg LabScannerConfig) *AuthorizedLabScanner {
 	}
 }
 
-func (s *AuthorizedLabScanner) Scan(ctx context.Context, profile networkprofiles.NetworkProfile) ([]ObservedCandidate, error) {
+func (s *AuthorizedLabScanner) Scan(ctx context.Context, profile networkprofiles.NetworkProfile) ([]ObservedDevice, error) {
 	if s == nil || s.enumerator == nil {
 		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "authorized lab scanner dependencies are required")
 	}
@@ -63,7 +65,7 @@ func (s *AuthorizedLabScanner) Scan(ctx context.Context, profile networkprofiles
 		return nil, err
 	}
 
-	devices, err := s.enumerator.Enumerate(ctx)
+	found, err := s.enumerator.Enumerate(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -73,8 +75,8 @@ func (s *AuthorizedLabScanner) Scan(ctx context.Context, profile networkprofiles
 		allowed[port] = struct{}{}
 	}
 
-	out := make([]ObservedCandidate, 0, len(devices))
-	for _, device := range devices {
+	out := make([]ObservedDevice, 0, len(found))
+	for _, device := range found {
 		usb := device.Port == 0 && strings.TrimSpace(device.Host) == "" && strings.TrimSpace(device.Serial) != ""
 		if !usb {
 			if device.Port == 0 {
@@ -87,29 +89,20 @@ func (s *AuthorizedLabScanner) Scan(ctx context.Context, profile networkprofiles
 				continue
 			}
 		}
-		key := device.Serial
-		if key == "" {
-			key = fmt.Sprintf("%s:%d", device.Host, device.Port)
-		}
-		port := device.Port
-		if usb {
-			// USB candidates carry no TCP port; record a sentinel allowed by
-			// ObservedCandidate.Valid via the serial identity path.
-			port = 1
-		}
 		evidence := map[string]string{
 			"source":       "authorized_lab_runtime",
 			"transport_id": device.TransportID,
 			"port":         strconv.FormatUint(uint64(device.Port), 10),
 			"connection":   map[bool]string{true: "usb", false: "tcp"}[usb],
 		}
-		out = append(out, ObservedCandidate{
-			CandidateKey: key,
-			Host:         device.Host,
-			Port:         port,
-			Serial:       device.Serial,
-			Fingerprint:  device.Fingerprint,
-			Evidence:     evidence,
+		out = append(out, ObservedDevice{
+			Host:        device.Host,
+			Port:        device.Port,
+			Serial:      device.Serial,
+			Model:       device.Model,
+			Fingerprint: device.Fingerprint,
+			State:       device.State,
+			Evidence:    evidence,
 		})
 	}
 	return out, nil

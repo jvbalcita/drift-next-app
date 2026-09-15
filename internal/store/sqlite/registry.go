@@ -104,12 +104,17 @@ func (d *DB) MarkScanRunning(ctx context.Context, workspace organizations.Worksp
 	})
 }
 
-func (d *DB) FinishScan(ctx context.Context, workspace organizations.WorkspaceID, id discovery.ScanRunID, candidates []discovery.ObservedCandidate, actorType, actorID string) (discovery.ScanRun, error) {
+// FinishScan completes a running scan by upserting every observed device and
+// its current endpoint. A scan observes; it does not stage an approval. A known
+// serial keeps its existing stable device_id, while the endpoint stays the
+// mutable transport record and is superseded when the transport changes.
+func (d *DB) FinishScan(ctx context.Context, workspace organizations.WorkspaceID, id discovery.ScanRunID, observations []discovery.ObservedDevice, actorType, actorID string) (discovery.ScanRun, []discovery.ObservedDevice, error) {
 	var run discovery.ScanRun
 	if err := validateWorkspace(string(workspace)); err != nil {
-		return run, err
+		return run, nil, err
 	}
 	now := d.clock.Now().UTC()
+	observed := make([]discovery.ObservedDevice, 0, len(observations))
 	err := WithTx(ctx, d.db, func(tx *sql.Tx) error {
 		if err := scanRunRow(tx.QueryRowContext(ctx, `SELECT id, workspace_id, network_profile_id, state, requested_at, started_at, finished_at, idempotency_key, failure_class FROM scan_runs WHERE workspace_id=? AND id=?`, workspace, id), &run); err != nil {
 			if err == sql.ErrNoRows {
@@ -120,35 +125,19 @@ func (d *DB) FinishScan(ctx context.Context, workspace organizations.WorkspaceID
 		if run.State != discovery.ScanRunning {
 			return platformerrors.New(platformerrors.CodeConflict, "scan run is not running")
 		}
-		for _, candidate := range candidates {
-			evidence := candidate.EvidenceJSON()
+		for _, observation := range observations {
+			evidence := observation.EvidenceJSON()
 			if redaction.RedactString(evidence) != evidence {
-				return platformerrors.New(platformerrors.CodeInvalidInput, "scan candidate evidence contains sensitive material")
+				return platformerrors.New(platformerrors.CodeInvalidInput, "scan evidence contains sensitive material")
 			}
-			candidateID, err := d.ids.NewID()
+			persisted, err := d.upsertObservedDevice(ctx, tx, workspace, observation, now)
 			if err != nil {
-				return platformerrors.Wrap(platformerrors.CodeInternal, "generate scan candidate ID", err)
-			}
-			var expires any
-			if candidate.ExpiresAt != nil {
-				expires = candidate.ExpiresAt.UTC().Format(time.RFC3339Nano)
-			}
-			var host, serial, fingerprint any
-			if candidate.Host != "" {
-				host = candidate.Host
-			}
-			if candidate.Serial != "" {
-				serial = candidate.Serial
-			}
-			if candidate.Fingerprint != "" {
-				fingerprint = candidate.Fingerprint
-			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO scan_candidates (id, workspace_id, scan_run_id, candidate_key, host, port, serial, fingerprint, state, discovered_at, expires_at, evidence_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', ?, ?, ?)`, candidateID, workspace, id, candidate.CandidateKey, host, candidate.Port, serial, fingerprint, now.Format(time.RFC3339Nano), expires, evidence); err != nil {
-				return mapConstraint(err)
-			}
-			if err := d.recordMutation(ctx, tx, string(workspace), "scan_candidate", candidateID, "scan.candidate.discovered", actorType, actorID); err != nil {
 				return err
 			}
+			if err := d.recordMutation(ctx, tx, string(workspace), "device", string(persisted.DeviceID), "device.observed", actorType, actorID); err != nil {
+				return err
+			}
+			observed = append(observed, persisted)
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE scan_runs SET state='completed', finished_at=? WHERE workspace_id=? AND id=? AND state='running'`, now.Format(time.RFC3339Nano), workspace, id); err != nil {
 			return err
@@ -160,7 +149,125 @@ func (d *DB) FinishScan(ctx context.Context, workspace organizations.WorkspaceID
 		run.CompletedAt = &now
 		return nil
 	})
-	return run, err
+	if err != nil {
+		return discovery.ScanRun{}, nil, err
+	}
+	return run, observed, nil
+}
+
+// upsertObservedDevice matches an observation to its canonical device by
+// (workspace_id, serial) so a known device keeps its stable device_id, then
+// keeps exactly one current endpoint per device.
+func (d *DB) upsertObservedDevice(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, observation discovery.ObservedDevice, now time.Time) (discovery.ObservedDevice, error) {
+	at := now.Format(time.RFC3339Nano)
+	result := observation
+	result.LastSeenAt = now
+
+	deviceID, known, err := deviceIDForObservation(ctx, tx, workspace, observation)
+	if err != nil {
+		return result, err
+	}
+	if !known {
+		generated, idErr := d.ids.NewID()
+		if idErr != nil {
+			return result, platformerrors.Wrap(platformerrors.CodeInternal, "generate device ID", idErr)
+		}
+		deviceID = devices.DeviceID(generated)
+		displayName := strings.TrimSpace(observation.Model)
+		if displayName == "" {
+			displayName = strings.TrimSpace(observation.Serial)
+		}
+		if displayName == "" {
+			displayName = observation.Host
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO devices (id, workspace_id, display_name, platform_version, state, last_seen_at, created_at, updated_at, row_version) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 1)`, deviceID, workspace, displayName, platformVersionFor(observation), at, at, at); err != nil {
+			return result, mapConstraint(err)
+		}
+	} else if _, err := tx.ExecContext(ctx, `UPDATE devices SET last_seen_at=?, updated_at=?, row_version=row_version+1 WHERE workspace_id=? AND id=?`, at, at, workspace, deviceID); err != nil {
+		return result, err
+	}
+
+	endpointID, err := d.upsertEndpoint(ctx, tx, workspace, deviceID, observation, at)
+	if err != nil {
+		return result, err
+	}
+	result.DeviceID = deviceID
+	result.EndpointID = endpointID
+	result.Known = known
+	return result, nil
+}
+
+// deviceIDForObservation resolves an observation to an existing device through
+// its transport history. A serial is the only reliable cross-scan identity;
+// a serial-less observation falls back to its transport address.
+func deviceIDForObservation(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, observation discovery.ObservedDevice) (devices.DeviceID, bool, error) {
+	var stored string
+	var err error
+	if strings.TrimSpace(observation.Serial) != "" {
+		err = tx.QueryRowContext(ctx, `SELECT device_id FROM device_endpoints WHERE workspace_id=? AND serial=? ORDER BY observed_at DESC, id LIMIT 1`, workspace, observation.Serial).Scan(&stored)
+	} else {
+		err = tx.QueryRowContext(ctx, `SELECT device_id FROM device_endpoints WHERE workspace_id=? AND host=? AND port=? ORDER BY observed_at DESC, id LIMIT 1`, workspace, observation.Host, observation.Port).Scan(&stored)
+	}
+	switch err {
+	case nil:
+		return devices.DeviceID(stored), true, nil
+	case sql.ErrNoRows:
+		return "", false, nil
+	default:
+		return "", false, classifyContext(err)
+	}
+}
+
+// upsertEndpoint keeps one current endpoint per device. An unchanged transport
+// only refreshes its observation time; a changed transport supersedes the
+// previous endpoint and records a new one, so endpoint identity stays mutable
+// while device identity does not.
+func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, deviceID devices.DeviceID, observation discovery.ObservedDevice, at string) (string, error) {
+	endpointType := "adb_tcp"
+	if strings.TrimSpace(observation.Host) == "" {
+		endpointType = "adb_usb"
+	}
+	var currentID, currentHost string
+	var currentPort int64
+	err := tx.QueryRowContext(ctx, `SELECT id, COALESCE(host, ''), COALESCE(port, 0) FROM device_endpoints WHERE workspace_id=? AND device_id=? AND state='current'`, workspace, deviceID).Scan(&currentID, &currentHost, &currentPort)
+	switch err {
+	case nil:
+		if currentHost == observation.Host && uint16(currentPort) == observation.Port {
+			if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET observed_at=?, endpoint_type=? WHERE workspace_id=? AND id=?`, at, endpointType, workspace, currentID); err != nil {
+				return "", err
+			}
+			return currentID, nil
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET state='superseded', superseded_at=? WHERE workspace_id=? AND id=? AND state='current'`, at, workspace, currentID); err != nil {
+			return "", err
+		}
+	case sql.ErrNoRows:
+	default:
+		return "", classifyContext(err)
+	}
+
+	endpointID, err := d.ids.NewID()
+	if err != nil {
+		return "", platformerrors.Wrap(platformerrors.CodeInternal, "generate endpoint ID", err)
+	}
+	var serial, host any
+	if strings.TrimSpace(observation.Serial) != "" {
+		serial = observation.Serial
+	}
+	if strings.TrimSpace(observation.Host) != "" {
+		host = observation.Host
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id, workspace_id, device_id, endpoint_type, serial, host, port, state, observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'current', ?)`, endpointID, workspace, deviceID, endpointType, serial, host, observation.Port, at); err != nil {
+		return "", mapConstraint(err)
+	}
+	return endpointID, nil
+}
+
+func platformVersionFor(observation discovery.ObservedDevice) string {
+	if model := strings.TrimSpace(observation.Model); model != "" {
+		return model
+	}
+	return "unknown"
 }
 
 func (d *DB) FailScan(ctx context.Context, workspace organizations.WorkspaceID, id discovery.ScanRunID, actorType, actorID string, cause error) (discovery.ScanRun, error) {
@@ -193,175 +300,6 @@ func (d *DB) FailScan(ctx context.Context, workspace organizations.WorkspaceID, 
 		return nil
 	})
 	return run, err
-}
-
-func (d *DB) DecideCandidate(ctx context.Context, workspace organizations.WorkspaceID, id discovery.ScanCandidateID, approve bool, reason, actorType, actorID string) (discovery.ScanCandidate, error) {
-	var candidate discovery.ScanCandidate
-	if err := validateWorkspace(string(workspace)); err != nil {
-		return candidate, err
-	}
-	if strings.TrimSpace(string(id)) == "" || strings.TrimSpace(actorType) == "" || strings.TrimSpace(actorID) == "" {
-		return candidate, platformerrors.New(platformerrors.CodeInvalidInput, "candidate and actor fields are required")
-	}
-	next := discovery.CandidateRejected
-	decision := discovery.DecisionRejected
-	if approve {
-		next, decision = discovery.CandidateApproved, discovery.DecisionApproved
-	}
-	now := d.clock.Now().UTC()
-	err := WithTx(ctx, d.db, func(tx *sql.Tx) error {
-		if err := candidateRow(tx.QueryRowContext(ctx, `SELECT id, workspace_id, scan_run_id, candidate_key, host, port, serial, fingerprint, state, discovered_at, expires_at, evidence_json FROM scan_candidates WHERE workspace_id=? AND id=?`, workspace, id), &candidate); err != nil {
-			if err == sql.ErrNoRows {
-				return platformerrors.New(platformerrors.CodeNotFound, "scan candidate not found")
-			}
-			return err
-		}
-		if candidate.State != discovery.CandidatePendingApproval {
-			return platformerrors.New(platformerrors.CodeConflict, "scan candidate is no longer awaiting approval")
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE scan_candidates SET state=? WHERE workspace_id=? AND id=? AND state='pending_approval'`, next, workspace, id); err != nil {
-			return err
-		}
-		decisionID, err := d.ids.NewID()
-		if err != nil {
-			return platformerrors.Wrap(platformerrors.CodeInternal, "generate approval decision ID", err)
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO approval_decisions (id, workspace_id, candidate_id, decision, actor_id, decided_at, reason) VALUES (?, ?, ?, ?, ?, ?, ?)`, decisionID, workspace, id, decision, actorID, now.Format(time.RFC3339Nano), safeReason(reason)); err != nil {
-			return mapConstraint(err)
-		}
-		if err := d.recordMutation(ctx, tx, string(workspace), "scan_candidate", string(id), "scan.candidate."+string(decision), actorType, actorID); err != nil {
-			return err
-		}
-		candidate.State = next
-		return nil
-	})
-	return candidate, err
-}
-
-func (d *DB) ExpireCandidate(ctx context.Context, workspace organizations.WorkspaceID, id discovery.ScanCandidateID, actorType, actorID string) (discovery.ScanCandidate, error) {
-	var candidate discovery.ScanCandidate
-	if err := validateWorkspace(string(workspace)); err != nil {
-		return candidate, err
-	}
-	now := d.clock.Now().UTC()
-	err := WithTx(ctx, d.db, func(tx *sql.Tx) error {
-		if err := candidateRow(tx.QueryRowContext(ctx, `SELECT id, workspace_id, scan_run_id, candidate_key, host, port, serial, fingerprint, state, discovered_at, expires_at, evidence_json FROM scan_candidates WHERE workspace_id=? AND id=?`, workspace, id), &candidate); err != nil {
-			if err == sql.ErrNoRows {
-				return platformerrors.New(platformerrors.CodeNotFound, "scan candidate not found")
-			}
-			return err
-		}
-		if candidate.State != discovery.CandidatePendingApproval && candidate.State != discovery.CandidateApproved {
-			return platformerrors.New(platformerrors.CodeConflict, "scan candidate cannot expire from its current state")
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE scan_candidates SET state='expired' WHERE workspace_id=? AND id=?`, workspace, id); err != nil {
-			return err
-		}
-		decisionID, err := d.ids.NewID()
-		if err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO approval_decisions (id, workspace_id, candidate_id, decision, actor_id, decided_at, reason) VALUES (?, ?, ?, 'expired', ?, ?, 'candidate expired')`, decisionID, workspace, id, actorID, now.Format(time.RFC3339Nano)); err != nil {
-			return mapConstraint(err)
-		}
-		if err := d.recordMutation(ctx, tx, string(workspace), "scan_candidate", string(id), "scan.candidate.expired", actorType, actorID); err != nil {
-			return err
-		}
-		candidate.State = discovery.CandidateExpired
-		return nil
-	})
-	return candidate, err
-}
-
-func (d *DB) RegisterCandidate(ctx context.Context, workspace organizations.WorkspaceID, id discovery.ScanCandidateID, displayName, actorType, actorID string) (discovery.RegistrationEvent, discovery.ScanCandidate, error) {
-	var registration discovery.RegistrationEvent
-	var candidate discovery.ScanCandidate
-	if err := validateWorkspace(string(workspace)); err != nil {
-		return registration, candidate, err
-	}
-	if strings.TrimSpace(string(id)) == "" || strings.TrimSpace(displayName) == "" || strings.TrimSpace(actorType) == "" || strings.TrimSpace(actorID) == "" {
-		return registration, candidate, platformerrors.New(platformerrors.CodeInvalidInput, "candidate, display name, and actor fields are required")
-	}
-	now := d.clock.Now().UTC()
-	err := WithTx(ctx, d.db, func(tx *sql.Tx) error {
-		if err := candidateRow(tx.QueryRowContext(ctx, `SELECT id, workspace_id, scan_run_id, candidate_key, host, port, serial, fingerprint, state, discovered_at, expires_at, evidence_json FROM scan_candidates WHERE workspace_id=? AND id=?`, workspace, id), &candidate); err != nil {
-			if err == sql.ErrNoRows {
-				return platformerrors.New(platformerrors.CodeNotFound, "scan candidate not found")
-			}
-			return err
-		}
-		if candidate.State == discovery.CandidateRegistered {
-			return loadRegistration(tx, workspace, id, &registration)
-		}
-		if !discovery.CanRegister(candidate.State) {
-			return platformerrors.New(platformerrors.CodePolicyDenied, "candidate requires an approved registration decision")
-		}
-		deviceID, err := d.ids.NewID()
-		if err != nil {
-			return err
-		}
-		endpointID, err := d.ids.NewID()
-		if err != nil {
-			return err
-		}
-		registrationID, err := d.ids.NewID()
-		if err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO devices (id, workspace_id, display_name, platform_version, state, created_at, updated_at, row_version) VALUES (?, ?, ?, 'fake', 'registered', ?, ?, 1)`, deviceID, workspace, displayName, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)); err != nil {
-			return mapConstraint(err)
-		}
-		var host, serial any
-		if candidate.Host != "" {
-			host = candidate.Host
-		}
-		if candidate.Serial != "" {
-			serial = candidate.Serial
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id, workspace_id, device_id, endpoint_type, serial, host, port, state, observed_at) VALUES (?, ?, ?, 'mock', ?, ?, ?, 'current', ?)`, endpointID, workspace, deviceID, serial, host, candidate.Port, now.Format(time.RFC3339Nano)); err != nil {
-			return mapConstraint(err)
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE scan_candidates SET state='registered' WHERE workspace_id=? AND id=? AND state='approved'`, workspace, id); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO registration_events (id, workspace_id, candidate_id, device_id, endpoint_id, outcome, actor_id, occurred_at, details_json) VALUES (?, ?, ?, ?, ?, 'registered', ?, ?, ?)`, registrationID, workspace, id, deviceID, endpointID, actorID, now.Format(time.RFC3339Nano), `{"source":"approved_scan_candidate"}`); err != nil {
-			return mapConstraint(err)
-		}
-		if err := d.recordMutation(ctx, tx, string(workspace), "registration_event", registrationID, "device.registered", actorType, actorID); err != nil {
-			return err
-		}
-		deviceEventID, err := d.ids.NewID()
-		if err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO device_events (id, workspace_id, device_id, event_name, schema_version, correlation_id, actor_id, source, payload_json, occurred_at) VALUES (?, ?, ?, 'device.registered', 1, ?, ?, 'control_plane', ?, ?)`, deviceEventID, workspace, deviceID, "registration:"+registrationID, actorID, `{"candidate_id":"`+string(id)+`"}`, now.Format(time.RFC3339Nano)); err != nil {
-			return err
-		}
-		registration = discovery.RegistrationEvent{ID: registrationID, Workspace: workspace, CandidateID: id, DeviceID: devices.DeviceID(deviceID), EndpointID: endpointID, Outcome: "registered", ActorID: actorID, OccurredAt: now, DetailsJSON: `{"source":"approved_scan_candidate"}`}
-		candidate.State = discovery.CandidateRegistered
-		return nil
-	})
-	return registration, candidate, err
-}
-
-func loadRegistration(tx *sql.Tx, workspace organizations.WorkspaceID, candidateID discovery.ScanCandidateID, result *discovery.RegistrationEvent) error {
-	var at string
-	var deviceID, endpointID sql.NullString
-	err := tx.QueryRow(`SELECT id, workspace_id, candidate_id, device_id, endpoint_id, outcome, actor_id, occurred_at, details_json FROM registration_events WHERE workspace_id=? AND candidate_id=? AND outcome='registered'`, workspace, candidateID).Scan(&result.ID, &result.Workspace, &result.CandidateID, &deviceID, &endpointID, &result.Outcome, &result.ActorID, &at, &result.DetailsJSON)
-	if err == sql.ErrNoRows {
-		return platformerrors.New(platformerrors.CodeInternal, "registered candidate has no registration event")
-	}
-	if err != nil {
-		return err
-	}
-	if deviceID.Valid {
-		result.DeviceID = devices.DeviceID(deviceID.String)
-	}
-	if endpointID.Valid {
-		result.EndpointID = endpointID.String
-	}
-	result.OccurredAt, _ = time.Parse(time.RFC3339Nano, at)
-	return nil
 }
 
 func (d *DB) scanRunByKey(ctx context.Context, workspace organizations.WorkspaceID, key string) (discovery.ScanRun, error) {
@@ -397,43 +335,6 @@ func scanRunRow(row interface{ Scan(...any) error }, run *discovery.ScanRun) err
 		run.FailureClass = domain.FailureClass(failure.String)
 	}
 	return nil
-}
-
-func candidateRow(row interface{ Scan(...any) error }, candidate *discovery.ScanCandidate) error {
-	var host, serial, fingerprint, discovered, expires, evidence sql.NullString
-	var port sql.NullInt64
-	var id, workspace, runID, key, state string
-	if err := row.Scan(&id, &workspace, &runID, &key, &host, &port, &serial, &fingerprint, &state, &discovered, &expires, &evidence); err != nil {
-		return err
-	}
-	candidate.ID, candidate.Workspace, candidate.ScanRunID, candidate.CandidateKey, candidate.State = discovery.ScanCandidateID(id), organizations.WorkspaceID(workspace), discovery.ScanRunID(runID), key, discovery.CandidateState(state)
-	if host.Valid {
-		candidate.Host = host.String
-	}
-	if port.Valid {
-		candidate.Port = uint16(port.Int64)
-	}
-	if serial.Valid {
-		candidate.Serial = serial.String
-	}
-	if fingerprint.Valid {
-		candidate.Fingerprint = fingerprint.String
-	}
-	candidate.DiscoveredAt, _ = time.Parse(time.RFC3339Nano, discovered.String)
-	if expires.Valid {
-		t, _ := time.Parse(time.RFC3339Nano, expires.String)
-		candidate.ExpiresAt = &t
-	}
-	candidate.EvidenceJSON = evidence.String
-	return nil
-}
-
-func safeReason(reason string) string {
-	reason = strings.TrimSpace(reason)
-	if len(reason) > 512 {
-		reason = reason[:512]
-	}
-	return redaction.RedactString(reason)
 }
 
 // ListScanRuns returns immutable scan history in request order.

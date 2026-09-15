@@ -3,48 +3,12 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"drift.local/drift-next/internal/assignments"
-	"drift.local/drift-next/internal/devices"
-	"drift.local/drift-next/internal/discovery"
-	platformerrors "drift.local/drift-next/internal/platform/errors"
 	"time"
 
+	"drift.local/drift-next/internal/assignments"
+	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/organizations"
 )
-
-type DiscoveryRepository struct{ store *DB }
-
-func NewDiscoveryRepository(store *DB) *DiscoveryRepository {
-	return &DiscoveryRepository{store: store}
-}
-func (r *DiscoveryRepository) ListCandidates(ctx context.Context, w organizations.WorkspaceID, state discovery.CandidateState) ([]discovery.ScanCandidate, error) {
-	rows, err := r.store.db.QueryContext(ctx, `SELECT id, workspace_id, scan_run_id, candidate_key, host, port, serial, fingerprint, state, discovered_at, expires_at, evidence_json FROM scan_candidates WHERE workspace_id=? AND (?='' OR state=?) ORDER BY discovered_at,id`, w, state, state)
-	if err != nil {
-		return nil, classifyContext(err)
-	}
-	defer rows.Close()
-	out := []discovery.ScanCandidate{}
-	for rows.Next() {
-		var c discovery.ScanCandidate
-		if err := candidateRow(rows, &c); err != nil {
-			return nil, err
-		}
-		out = append(out, c)
-	}
-	return out, classifyContext(rows.Err())
-}
-
-func (r *DiscoveryRepository) GetCandidate(ctx context.Context, w organizations.WorkspaceID, id discovery.ScanCandidateID) (discovery.ScanCandidate, error) {
-	var candidate discovery.ScanCandidate
-	if err := validateWorkspace(string(w)); err != nil {
-		return candidate, err
-	}
-	err := candidateRow(r.store.db.QueryRowContext(ctx, `SELECT id, workspace_id, scan_run_id, candidate_key, host, port, serial, fingerprint, state, discovered_at, expires_at, evidence_json FROM scan_candidates WHERE workspace_id=? AND id=?`, w, id), &candidate)
-	if err == sql.ErrNoRows {
-		return candidate, platformerrors.New(platformerrors.CodeNotFound, "scan candidate not found")
-	}
-	return candidate, classifyContext(err)
-}
 
 type AssignmentRepository struct{ store *DB }
 

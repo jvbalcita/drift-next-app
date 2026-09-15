@@ -1,19 +1,32 @@
--- Simplify saved network profiles: a profile is saved scan policy, not a lifecycle.
--- Discovery and registration tables remain until later phases.
+-- Simplify discovery: a saved network profile is scan policy, a scan run is
+-- history, and the pending-candidate / registration / provisioning lifecycle is
+-- removed outright.
 --
 -- SQLite evaluates an ON DELETE RESTRICT constraint immediately and cannot defer
 -- it, and `PRAGMA foreign_keys` is a no-op inside the transaction the migration
 -- runner already holds, so foreign keys are enforced while this file runs.
--- scan_runs referenced network_profiles through a composite RESTRICT key, so
--- DROP TABLE network_profiles would perform an implicit DELETE and fail for every
--- database that has ever been scanned. scan_runs is therefore rebuilt first,
--- keeping network_profile_id as a nullable historical column: scan history is
--- immutable evidence that must neither block profile deletion nor disappear with
--- the profile it names.
 --
--- scan_candidates still references scan_runs with its own ON DELETE RESTRICT key.
--- A database that holds candidate rows therefore still blocks this rebuild until
--- the discovery tables are dropped; that is later-phase work, not this file's.
+-- The removed lifecycle tables are dropped first, children before parents:
+-- approval_decisions and registration_events both reference scan_candidates,
+-- and scan_candidates references scan_runs. Dropping scan_candidates while those
+-- rows exist performs an implicit DELETE against scan_runs and fails on its
+-- RESTRICT key, which is exactly what blocked the scan_runs rebuild below for
+-- any database that had ever produced a candidate. Dropping the doomed tables
+-- removes the blocker.
+--
+-- scan_runs is then rebuilt without its composite network_profiles reference,
+-- keeping network_profile_id as a nullable historical column: scan history is
+-- immutable evidence that must neither block profile deletion nor disappear
+-- with the profile it names. Its idempotency_key column and partial unique
+-- index are preserved. network_profiles is rebuilt to the saved-policy shape
+-- (delete-only: no state, no row_version, one default per workspace).
+
+DROP TABLE IF EXISTS registration_events;
+DROP TABLE IF EXISTS approval_decisions;
+DROP TABLE IF EXISTS scan_candidates;
+DROP TABLE IF EXISTS lab_device_registrations;
+DROP TABLE IF EXISTS lab_provisioning_checks;
+DROP TABLE IF EXISTS lab_registration_approvals;
 
 CREATE TABLE scan_runs_next (
     id TEXT PRIMARY KEY,

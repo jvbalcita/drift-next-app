@@ -30,25 +30,6 @@ func LabAdapterRoute(service transportconnect.LabAdapter, token string) Route {
 	return Route{Path: path, Handler: RequireLabToken(token, handler)}
 }
 
-// LabRegistrationRoute builds the Connect route for controlled one-device
-// registration. The route is only mounted when a registration service is
-// constructed; prerequisite booleans never come from the client.
-func LabRegistrationRoute(service transportconnect.LabRegistration, token string, allowedPorts []uint16) Route {
-	path, handler := driftv1connect.NewLabRegistrationServiceHandler(
-		transportconnect.NewLabRegistrationHandler(service, allowedPorts),
-	)
-	return Route{Path: path, Handler: RequireLabToken(token, handler)}
-}
-
-// LabRegistrationRouteWithStore is LabRegistrationRoute with durable SQLite
-// staging for Approve→Register. Pass a nil store for in-memory-only operation.
-func LabRegistrationRouteWithStore(service transportconnect.LabRegistration, store transportconnect.LabRegistrationStore, token string, allowedPorts []uint16) Route {
-	path, handler := driftv1connect.NewLabRegistrationServiceHandler(
-		transportconnect.NewLabRegistrationHandlerWithStore(service, store, allowedPorts),
-	)
-	return Route{Path: path, Handler: RequireLabToken(token, handler)}
-}
-
 // ArtifactRoute mounts artifact list/get/read/delete/health RPCs only when an
 // artifact application service has been constructed.
 func ArtifactRoute(service transportconnect.ArtifactAPI, token string) Route {

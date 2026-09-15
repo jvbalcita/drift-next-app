@@ -14,7 +14,6 @@ import (
 	"drift.local/drift-next/internal/discovery"
 	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/edge/lab"
-	"drift.local/drift-next/internal/edge/registration"
 	"drift.local/drift-next/internal/organizations"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 	"drift.local/drift-next/internal/product"
@@ -52,9 +51,8 @@ func main() {
 		log.Fatalf("refusing to start lab mode: %s must be set to a non-empty local lab token", lab.EnvLabToken)
 	}
 
-	// Keep the interface typed as LabRegistrationStore so a nil *store.DB is not
-	// stored as a non-nil interface value.
-	var durableStore transportconnect.LabRegistrationStore
+	// Keep the interface typed as ArtifactAPI so a nil *store.DB-derived value
+	// is not stored as a non-nil interface value.
 	var artifactAPI transportconnect.ArtifactAPI
 	var productHandlers *transportconnect.ProductHandlers
 	var labOpts []lab.Option
@@ -76,7 +74,6 @@ func main() {
 	}, "system", "control-plane"); createErr != nil && platformerrors.CodeOf(createErr) != platformerrors.CodeConflict {
 		log.Fatalf("refusing to start: ensure lab workspace: %v", createErr)
 	}
-	durableStore = db
 	log.Printf("control-plane durable store enabled at %s", dbPath)
 
 	casRoot := strings.TrimSpace(os.Getenv(envArtifactCASRoot))
@@ -116,15 +113,6 @@ func main() {
 		labMode = "lab"
 	}
 
-	allowedPorts := []uint16{5555}
-	registrationService := registration.NewService(registration.Config{
-		MaxRegisteredDevices: 0,
-		Probe: registration.LabStatusProbe{
-			Source:       labService,
-			AllowedPorts: allowedPorts,
-		},
-	})
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -140,7 +128,6 @@ func main() {
 
 	routes := []service.Route{
 		service.LabAdapterRoute(labService, labToken),
-		service.LabRegistrationRouteWithStore(registrationService, durableStore, labToken, allowedPorts),
 	}
 	if artifactAPI != nil {
 		routes = append(routes, service.ArtifactRoute(artifactAPI, labToken))

@@ -36,27 +36,15 @@ const (
 	// DiscoveryServiceStartScanProcedure is the fully-qualified name of the DiscoveryService's
 	// StartScan RPC.
 	DiscoveryServiceStartScanProcedure = "/drift.v1.DiscoveryService/StartScan"
-	// DiscoveryServiceDecideScanCandidateProcedure is the fully-qualified name of the
-	// DiscoveryService's DecideScanCandidate RPC.
-	DiscoveryServiceDecideScanCandidateProcedure = "/drift.v1.DiscoveryService/DecideScanCandidate"
-	// DiscoveryServiceRegisterScanCandidateProcedure is the fully-qualified name of the
-	// DiscoveryService's RegisterScanCandidate RPC.
-	DiscoveryServiceRegisterScanCandidateProcedure = "/drift.v1.DiscoveryService/RegisterScanCandidate"
 	// DiscoveryServiceListScanRunsProcedure is the fully-qualified name of the DiscoveryService's
 	// ListScanRuns RPC.
 	DiscoveryServiceListScanRunsProcedure = "/drift.v1.DiscoveryService/ListScanRuns"
-	// DiscoveryServiceListScanCandidatesProcedure is the fully-qualified name of the DiscoveryService's
-	// ListScanCandidates RPC.
-	DiscoveryServiceListScanCandidatesProcedure = "/drift.v1.DiscoveryService/ListScanCandidates"
 )
 
 // DiscoveryServiceClient is a client for the drift.v1.DiscoveryService service.
 type DiscoveryServiceClient interface {
 	StartScan(context.Context, *connect.Request[v1.StartScanRequest]) (*connect.Response[v1.StartScanResponse], error)
-	DecideScanCandidate(context.Context, *connect.Request[v1.DecideScanCandidateRequest]) (*connect.Response[v1.DecideScanCandidateResponse], error)
-	RegisterScanCandidate(context.Context, *connect.Request[v1.RegisterScanCandidateRequest]) (*connect.Response[v1.RegisterScanCandidateResponse], error)
 	ListScanRuns(context.Context, *connect.Request[v1.ListScanRunsRequest]) (*connect.Response[v1.ListScanRunsResponse], error)
-	ListScanCandidates(context.Context, *connect.Request[v1.ListScanCandidatesRequest]) (*connect.Response[v1.ListScanCandidatesResponse], error)
 }
 
 // NewDiscoveryServiceClient constructs a client for the drift.v1.DiscoveryService service. By
@@ -76,28 +64,10 @@ func NewDiscoveryServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(discoveryServiceMethods.ByName("StartScan")),
 			connect.WithClientOptions(opts...),
 		),
-		decideScanCandidate: connect.NewClient[v1.DecideScanCandidateRequest, v1.DecideScanCandidateResponse](
-			httpClient,
-			baseURL+DiscoveryServiceDecideScanCandidateProcedure,
-			connect.WithSchema(discoveryServiceMethods.ByName("DecideScanCandidate")),
-			connect.WithClientOptions(opts...),
-		),
-		registerScanCandidate: connect.NewClient[v1.RegisterScanCandidateRequest, v1.RegisterScanCandidateResponse](
-			httpClient,
-			baseURL+DiscoveryServiceRegisterScanCandidateProcedure,
-			connect.WithSchema(discoveryServiceMethods.ByName("RegisterScanCandidate")),
-			connect.WithClientOptions(opts...),
-		),
 		listScanRuns: connect.NewClient[v1.ListScanRunsRequest, v1.ListScanRunsResponse](
 			httpClient,
 			baseURL+DiscoveryServiceListScanRunsProcedure,
 			connect.WithSchema(discoveryServiceMethods.ByName("ListScanRuns")),
-			connect.WithClientOptions(opts...),
-		),
-		listScanCandidates: connect.NewClient[v1.ListScanCandidatesRequest, v1.ListScanCandidatesResponse](
-			httpClient,
-			baseURL+DiscoveryServiceListScanCandidatesProcedure,
-			connect.WithSchema(discoveryServiceMethods.ByName("ListScanCandidates")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -105,11 +75,8 @@ func NewDiscoveryServiceClient(httpClient connect.HTTPClient, baseURL string, op
 
 // discoveryServiceClient implements DiscoveryServiceClient.
 type discoveryServiceClient struct {
-	startScan             *connect.Client[v1.StartScanRequest, v1.StartScanResponse]
-	decideScanCandidate   *connect.Client[v1.DecideScanCandidateRequest, v1.DecideScanCandidateResponse]
-	registerScanCandidate *connect.Client[v1.RegisterScanCandidateRequest, v1.RegisterScanCandidateResponse]
-	listScanRuns          *connect.Client[v1.ListScanRunsRequest, v1.ListScanRunsResponse]
-	listScanCandidates    *connect.Client[v1.ListScanCandidatesRequest, v1.ListScanCandidatesResponse]
+	startScan    *connect.Client[v1.StartScanRequest, v1.StartScanResponse]
+	listScanRuns *connect.Client[v1.ListScanRunsRequest, v1.ListScanRunsResponse]
 }
 
 // StartScan calls drift.v1.DiscoveryService.StartScan.
@@ -117,33 +84,15 @@ func (c *discoveryServiceClient) StartScan(ctx context.Context, req *connect.Req
 	return c.startScan.CallUnary(ctx, req)
 }
 
-// DecideScanCandidate calls drift.v1.DiscoveryService.DecideScanCandidate.
-func (c *discoveryServiceClient) DecideScanCandidate(ctx context.Context, req *connect.Request[v1.DecideScanCandidateRequest]) (*connect.Response[v1.DecideScanCandidateResponse], error) {
-	return c.decideScanCandidate.CallUnary(ctx, req)
-}
-
-// RegisterScanCandidate calls drift.v1.DiscoveryService.RegisterScanCandidate.
-func (c *discoveryServiceClient) RegisterScanCandidate(ctx context.Context, req *connect.Request[v1.RegisterScanCandidateRequest]) (*connect.Response[v1.RegisterScanCandidateResponse], error) {
-	return c.registerScanCandidate.CallUnary(ctx, req)
-}
-
 // ListScanRuns calls drift.v1.DiscoveryService.ListScanRuns.
 func (c *discoveryServiceClient) ListScanRuns(ctx context.Context, req *connect.Request[v1.ListScanRunsRequest]) (*connect.Response[v1.ListScanRunsResponse], error) {
 	return c.listScanRuns.CallUnary(ctx, req)
 }
 
-// ListScanCandidates calls drift.v1.DiscoveryService.ListScanCandidates.
-func (c *discoveryServiceClient) ListScanCandidates(ctx context.Context, req *connect.Request[v1.ListScanCandidatesRequest]) (*connect.Response[v1.ListScanCandidatesResponse], error) {
-	return c.listScanCandidates.CallUnary(ctx, req)
-}
-
 // DiscoveryServiceHandler is an implementation of the drift.v1.DiscoveryService service.
 type DiscoveryServiceHandler interface {
 	StartScan(context.Context, *connect.Request[v1.StartScanRequest]) (*connect.Response[v1.StartScanResponse], error)
-	DecideScanCandidate(context.Context, *connect.Request[v1.DecideScanCandidateRequest]) (*connect.Response[v1.DecideScanCandidateResponse], error)
-	RegisterScanCandidate(context.Context, *connect.Request[v1.RegisterScanCandidateRequest]) (*connect.Response[v1.RegisterScanCandidateResponse], error)
 	ListScanRuns(context.Context, *connect.Request[v1.ListScanRunsRequest]) (*connect.Response[v1.ListScanRunsResponse], error)
-	ListScanCandidates(context.Context, *connect.Request[v1.ListScanCandidatesRequest]) (*connect.Response[v1.ListScanCandidatesResponse], error)
 }
 
 // NewDiscoveryServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -159,42 +108,18 @@ func NewDiscoveryServiceHandler(svc DiscoveryServiceHandler, opts ...connect.Han
 		connect.WithSchema(discoveryServiceMethods.ByName("StartScan")),
 		connect.WithHandlerOptions(opts...),
 	)
-	discoveryServiceDecideScanCandidateHandler := connect.NewUnaryHandler(
-		DiscoveryServiceDecideScanCandidateProcedure,
-		svc.DecideScanCandidate,
-		connect.WithSchema(discoveryServiceMethods.ByName("DecideScanCandidate")),
-		connect.WithHandlerOptions(opts...),
-	)
-	discoveryServiceRegisterScanCandidateHandler := connect.NewUnaryHandler(
-		DiscoveryServiceRegisterScanCandidateProcedure,
-		svc.RegisterScanCandidate,
-		connect.WithSchema(discoveryServiceMethods.ByName("RegisterScanCandidate")),
-		connect.WithHandlerOptions(opts...),
-	)
 	discoveryServiceListScanRunsHandler := connect.NewUnaryHandler(
 		DiscoveryServiceListScanRunsProcedure,
 		svc.ListScanRuns,
 		connect.WithSchema(discoveryServiceMethods.ByName("ListScanRuns")),
 		connect.WithHandlerOptions(opts...),
 	)
-	discoveryServiceListScanCandidatesHandler := connect.NewUnaryHandler(
-		DiscoveryServiceListScanCandidatesProcedure,
-		svc.ListScanCandidates,
-		connect.WithSchema(discoveryServiceMethods.ByName("ListScanCandidates")),
-		connect.WithHandlerOptions(opts...),
-	)
 	return "/drift.v1.DiscoveryService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DiscoveryServiceStartScanProcedure:
 			discoveryServiceStartScanHandler.ServeHTTP(w, r)
-		case DiscoveryServiceDecideScanCandidateProcedure:
-			discoveryServiceDecideScanCandidateHandler.ServeHTTP(w, r)
-		case DiscoveryServiceRegisterScanCandidateProcedure:
-			discoveryServiceRegisterScanCandidateHandler.ServeHTTP(w, r)
 		case DiscoveryServiceListScanRunsProcedure:
 			discoveryServiceListScanRunsHandler.ServeHTTP(w, r)
-		case DiscoveryServiceListScanCandidatesProcedure:
-			discoveryServiceListScanCandidatesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -208,18 +133,6 @@ func (UnimplementedDiscoveryServiceHandler) StartScan(context.Context, *connect.
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DiscoveryService.StartScan is not implemented"))
 }
 
-func (UnimplementedDiscoveryServiceHandler) DecideScanCandidate(context.Context, *connect.Request[v1.DecideScanCandidateRequest]) (*connect.Response[v1.DecideScanCandidateResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DiscoveryService.DecideScanCandidate is not implemented"))
-}
-
-func (UnimplementedDiscoveryServiceHandler) RegisterScanCandidate(context.Context, *connect.Request[v1.RegisterScanCandidateRequest]) (*connect.Response[v1.RegisterScanCandidateResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DiscoveryService.RegisterScanCandidate is not implemented"))
-}
-
 func (UnimplementedDiscoveryServiceHandler) ListScanRuns(context.Context, *connect.Request[v1.ListScanRunsRequest]) (*connect.Response[v1.ListScanRunsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DiscoveryService.ListScanRuns is not implemented"))
-}
-
-func (UnimplementedDiscoveryServiceHandler) ListScanCandidates(context.Context, *connect.Request[v1.ListScanCandidatesRequest]) (*connect.Response[v1.ListScanCandidatesResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DiscoveryService.ListScanCandidates is not implemented"))
 }

@@ -79,64 +79,58 @@ func (ScanRunState) EnumDescriptor() ([]byte, []int) {
 	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{0}
 }
 
-type ScanCandidateState int32
+// DeviceLinkState is the observed transport state of a scanned device. It is a
+// fact about the current link, not a lifecycle an operator must advance: an
+// offline or unauthorized device is reported as such and is not actionable.
+type DeviceLinkState int32
 
 const (
-	ScanCandidateState_SCAN_CANDIDATE_STATE_UNSPECIFIED      ScanCandidateState = 0
-	ScanCandidateState_SCAN_CANDIDATE_STATE_DISCOVERED       ScanCandidateState = 1
-	ScanCandidateState_SCAN_CANDIDATE_STATE_PENDING_APPROVAL ScanCandidateState = 2
-	ScanCandidateState_SCAN_CANDIDATE_STATE_APPROVED         ScanCandidateState = 3
-	ScanCandidateState_SCAN_CANDIDATE_STATE_REJECTED         ScanCandidateState = 4
-	ScanCandidateState_SCAN_CANDIDATE_STATE_EXPIRED          ScanCandidateState = 5
-	ScanCandidateState_SCAN_CANDIDATE_STATE_REGISTERED       ScanCandidateState = 6
+	DeviceLinkState_DEVICE_LINK_STATE_UNSPECIFIED  DeviceLinkState = 0
+	DeviceLinkState_DEVICE_LINK_STATE_ONLINE       DeviceLinkState = 1
+	DeviceLinkState_DEVICE_LINK_STATE_OFFLINE      DeviceLinkState = 2
+	DeviceLinkState_DEVICE_LINK_STATE_UNAUTHORIZED DeviceLinkState = 3
 )
 
-// Enum value maps for ScanCandidateState.
+// Enum value maps for DeviceLinkState.
 var (
-	ScanCandidateState_name = map[int32]string{
-		0: "SCAN_CANDIDATE_STATE_UNSPECIFIED",
-		1: "SCAN_CANDIDATE_STATE_DISCOVERED",
-		2: "SCAN_CANDIDATE_STATE_PENDING_APPROVAL",
-		3: "SCAN_CANDIDATE_STATE_APPROVED",
-		4: "SCAN_CANDIDATE_STATE_REJECTED",
-		5: "SCAN_CANDIDATE_STATE_EXPIRED",
-		6: "SCAN_CANDIDATE_STATE_REGISTERED",
+	DeviceLinkState_name = map[int32]string{
+		0: "DEVICE_LINK_STATE_UNSPECIFIED",
+		1: "DEVICE_LINK_STATE_ONLINE",
+		2: "DEVICE_LINK_STATE_OFFLINE",
+		3: "DEVICE_LINK_STATE_UNAUTHORIZED",
 	}
-	ScanCandidateState_value = map[string]int32{
-		"SCAN_CANDIDATE_STATE_UNSPECIFIED":      0,
-		"SCAN_CANDIDATE_STATE_DISCOVERED":       1,
-		"SCAN_CANDIDATE_STATE_PENDING_APPROVAL": 2,
-		"SCAN_CANDIDATE_STATE_APPROVED":         3,
-		"SCAN_CANDIDATE_STATE_REJECTED":         4,
-		"SCAN_CANDIDATE_STATE_EXPIRED":          5,
-		"SCAN_CANDIDATE_STATE_REGISTERED":       6,
+	DeviceLinkState_value = map[string]int32{
+		"DEVICE_LINK_STATE_UNSPECIFIED":  0,
+		"DEVICE_LINK_STATE_ONLINE":       1,
+		"DEVICE_LINK_STATE_OFFLINE":      2,
+		"DEVICE_LINK_STATE_UNAUTHORIZED": 3,
 	}
 )
 
-func (x ScanCandidateState) Enum() *ScanCandidateState {
-	p := new(ScanCandidateState)
+func (x DeviceLinkState) Enum() *DeviceLinkState {
+	p := new(DeviceLinkState)
 	*p = x
 	return p
 }
 
-func (x ScanCandidateState) String() string {
+func (x DeviceLinkState) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (ScanCandidateState) Descriptor() protoreflect.EnumDescriptor {
+func (DeviceLinkState) Descriptor() protoreflect.EnumDescriptor {
 	return file_drift_v1_discovery_proto_enumTypes[1].Descriptor()
 }
 
-func (ScanCandidateState) Type() protoreflect.EnumType {
+func (DeviceLinkState) Type() protoreflect.EnumType {
 	return &file_drift_v1_discovery_proto_enumTypes[1]
 }
 
-func (x ScanCandidateState) Number() protoreflect.EnumNumber {
+func (x DeviceLinkState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ScanCandidateState.Descriptor instead.
-func (ScanCandidateState) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use DeviceLinkState.Descriptor instead.
+func (DeviceLinkState) EnumDescriptor() ([]byte, []int) {
 	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{1}
 }
 
@@ -232,37 +226,37 @@ func (x *ScanRun) GetFailure() *Failure {
 	return nil
 }
 
-type ScanCandidate struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Workspace       *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	ScanRunId       string                 `protobuf:"bytes,3,opt,name=scan_run_id,json=scanRunId,proto3" json:"scan_run_id,omitempty"`
-	CandidateKey    string                 `protobuf:"bytes,4,opt,name=candidate_key,json=candidateKey,proto3" json:"candidate_key,omitempty"`
-	Host            string                 `protobuf:"bytes,5,opt,name=host,proto3" json:"host,omitempty"`
-	Port            uint32                 `protobuf:"varint,6,opt,name=port,proto3" json:"port,omitempty"`
-	Serial          string                 `protobuf:"bytes,7,opt,name=serial,proto3" json:"serial,omitempty"`
-	Fingerprint     string                 `protobuf:"bytes,8,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	State           ScanCandidateState     `protobuf:"varint,9,opt,name=state,proto3,enum=drift.v1.ScanCandidateState" json:"state,omitempty"`
-	DiscoveredAt    string                 `protobuf:"bytes,10,opt,name=discovered_at,json=discoveredAt,proto3" json:"discovered_at,omitempty"`
-	EvidenceSummary string                 `protobuf:"bytes,11,opt,name=evidence_summary,json=evidenceSummary,proto3" json:"evidence_summary,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+// ObservedDevice is one device a scan saw. device_id and endpoint_id are set
+// once the serial is already known in this workspace, so a known device keeps
+// its stable device identity while its endpoint stays mutable transport fact.
+type ObservedDevice struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Host          string                 `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
+	Port          uint32                 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	Serial        string                 `protobuf:"bytes,3,opt,name=serial,proto3" json:"serial,omitempty"`
+	Model         string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	State         DeviceLinkState        `protobuf:"varint,5,opt,name=state,proto3,enum=drift.v1.DeviceLinkState" json:"state,omitempty"`
+	Known         bool                   `protobuf:"varint,6,opt,name=known,proto3" json:"known,omitempty"`
+	DeviceId      string                 `protobuf:"bytes,7,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	EndpointId    string                 `protobuf:"bytes,8,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ScanCandidate) Reset() {
-	*x = ScanCandidate{}
+func (x *ObservedDevice) Reset() {
+	*x = ObservedDevice{}
 	mi := &file_drift_v1_discovery_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ScanCandidate) String() string {
+func (x *ObservedDevice) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ScanCandidate) ProtoMessage() {}
+func (*ObservedDevice) ProtoMessage() {}
 
-func (x *ScanCandidate) ProtoReflect() protoreflect.Message {
+func (x *ObservedDevice) ProtoReflect() protoreflect.Message {
 	mi := &file_drift_v1_discovery_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -274,84 +268,63 @@ func (x *ScanCandidate) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ScanCandidate.ProtoReflect.Descriptor instead.
-func (*ScanCandidate) Descriptor() ([]byte, []int) {
+// Deprecated: Use ObservedDevice.ProtoReflect.Descriptor instead.
+func (*ObservedDevice) Descriptor() ([]byte, []int) {
 	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *ScanCandidate) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *ScanCandidate) GetWorkspace() *WorkspaceRef {
-	if x != nil {
-		return x.Workspace
-	}
-	return nil
-}
-
-func (x *ScanCandidate) GetScanRunId() string {
-	if x != nil {
-		return x.ScanRunId
-	}
-	return ""
-}
-
-func (x *ScanCandidate) GetCandidateKey() string {
-	if x != nil {
-		return x.CandidateKey
-	}
-	return ""
-}
-
-func (x *ScanCandidate) GetHost() string {
+func (x *ObservedDevice) GetHost() string {
 	if x != nil {
 		return x.Host
 	}
 	return ""
 }
 
-func (x *ScanCandidate) GetPort() uint32 {
+func (x *ObservedDevice) GetPort() uint32 {
 	if x != nil {
 		return x.Port
 	}
 	return 0
 }
 
-func (x *ScanCandidate) GetSerial() string {
+func (x *ObservedDevice) GetSerial() string {
 	if x != nil {
 		return x.Serial
 	}
 	return ""
 }
 
-func (x *ScanCandidate) GetFingerprint() string {
+func (x *ObservedDevice) GetModel() string {
 	if x != nil {
-		return x.Fingerprint
+		return x.Model
 	}
 	return ""
 }
 
-func (x *ScanCandidate) GetState() ScanCandidateState {
+func (x *ObservedDevice) GetState() DeviceLinkState {
 	if x != nil {
 		return x.State
 	}
-	return ScanCandidateState_SCAN_CANDIDATE_STATE_UNSPECIFIED
+	return DeviceLinkState_DEVICE_LINK_STATE_UNSPECIFIED
 }
 
-func (x *ScanCandidate) GetDiscoveredAt() string {
+func (x *ObservedDevice) GetKnown() bool {
 	if x != nil {
-		return x.DiscoveredAt
+		return x.Known
+	}
+	return false
+}
+
+func (x *ObservedDevice) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
 	}
 	return ""
 }
 
-func (x *ScanCandidate) GetEvidenceSummary() string {
+func (x *ObservedDevice) GetEndpointId() string {
 	if x != nil {
-		return x.EvidenceSummary
+		return x.EndpointId
 	}
 	return ""
 }
@@ -419,6 +392,7 @@ func (x *StartScanRequest) GetNetworkProfileId() string {
 type StartScanResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ScanRun       *ScanRun               `protobuf:"bytes,1,opt,name=scan_run,json=scanRun,proto3" json:"scan_run,omitempty"`
+	Devices       []*ObservedDevice      `protobuf:"bytes,2,rep,name=devices,proto3" json:"devices,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -460,234 +434,9 @@ func (x *StartScanResponse) GetScanRun() *ScanRun {
 	return nil
 }
 
-type DecideScanCandidateRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	Candidate     *ResourceRef           `protobuf:"bytes,2,opt,name=candidate,proto3" json:"candidate,omitempty"`
-	Approve       bool                   `protobuf:"varint,3,opt,name=approve,proto3" json:"approve,omitempty"`
-	Reason        string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DecideScanCandidateRequest) Reset() {
-	*x = DecideScanCandidateRequest{}
-	mi := &file_drift_v1_discovery_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DecideScanCandidateRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DecideScanCandidateRequest) ProtoMessage() {}
-
-func (x *DecideScanCandidateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_discovery_proto_msgTypes[4]
+func (x *StartScanResponse) GetDevices() []*ObservedDevice {
 	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DecideScanCandidateRequest.ProtoReflect.Descriptor instead.
-func (*DecideScanCandidateRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *DecideScanCandidateRequest) GetContext() *RequestContext {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-func (x *DecideScanCandidateRequest) GetCandidate() *ResourceRef {
-	if x != nil {
-		return x.Candidate
-	}
-	return nil
-}
-
-func (x *DecideScanCandidateRequest) GetApprove() bool {
-	if x != nil {
-		return x.Approve
-	}
-	return false
-}
-
-func (x *DecideScanCandidateRequest) GetReason() string {
-	if x != nil {
-		return x.Reason
-	}
-	return ""
-}
-
-type DecideScanCandidateResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Candidate     *ScanCandidate         `protobuf:"bytes,1,opt,name=candidate,proto3" json:"candidate,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DecideScanCandidateResponse) Reset() {
-	*x = DecideScanCandidateResponse{}
-	mi := &file_drift_v1_discovery_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DecideScanCandidateResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DecideScanCandidateResponse) ProtoMessage() {}
-
-func (x *DecideScanCandidateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_discovery_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DecideScanCandidateResponse.ProtoReflect.Descriptor instead.
-func (*DecideScanCandidateResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *DecideScanCandidateResponse) GetCandidate() *ScanCandidate {
-	if x != nil {
-		return x.Candidate
-	}
-	return nil
-}
-
-type RegisterScanCandidateRequest struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Context           *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	Candidate         *ResourceRef           `protobuf:"bytes,2,opt,name=candidate,proto3" json:"candidate,omitempty"`
-	DeviceDisplayName string                 `protobuf:"bytes,3,opt,name=device_display_name,json=deviceDisplayName,proto3" json:"device_display_name,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
-}
-
-func (x *RegisterScanCandidateRequest) Reset() {
-	*x = RegisterScanCandidateRequest{}
-	mi := &file_drift_v1_discovery_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RegisterScanCandidateRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RegisterScanCandidateRequest) ProtoMessage() {}
-
-func (x *RegisterScanCandidateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_discovery_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RegisterScanCandidateRequest.ProtoReflect.Descriptor instead.
-func (*RegisterScanCandidateRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *RegisterScanCandidateRequest) GetContext() *RequestContext {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-func (x *RegisterScanCandidateRequest) GetCandidate() *ResourceRef {
-	if x != nil {
-		return x.Candidate
-	}
-	return nil
-}
-
-func (x *RegisterScanCandidateRequest) GetDeviceDisplayName() string {
-	if x != nil {
-		return x.DeviceDisplayName
-	}
-	return ""
-}
-
-type RegisterScanCandidateResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	DeviceId      string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
-	EndpointId    string                 `protobuf:"bytes,2,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
-	Candidate     *ScanCandidate         `protobuf:"bytes,3,opt,name=candidate,proto3" json:"candidate,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RegisterScanCandidateResponse) Reset() {
-	*x = RegisterScanCandidateResponse{}
-	mi := &file_drift_v1_discovery_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RegisterScanCandidateResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RegisterScanCandidateResponse) ProtoMessage() {}
-
-func (x *RegisterScanCandidateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_discovery_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RegisterScanCandidateResponse.ProtoReflect.Descriptor instead.
-func (*RegisterScanCandidateResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *RegisterScanCandidateResponse) GetDeviceId() string {
-	if x != nil {
-		return x.DeviceId
-	}
-	return ""
-}
-
-func (x *RegisterScanCandidateResponse) GetEndpointId() string {
-	if x != nil {
-		return x.EndpointId
-	}
-	return ""
-}
-
-func (x *RegisterScanCandidateResponse) GetCandidate() *ScanCandidate {
-	if x != nil {
-		return x.Candidate
+		return x.Devices
 	}
 	return nil
 }
@@ -702,7 +451,7 @@ type ListScanRunsRequest struct {
 
 func (x *ListScanRunsRequest) Reset() {
 	*x = ListScanRunsRequest{}
-	mi := &file_drift_v1_discovery_proto_msgTypes[8]
+	mi := &file_drift_v1_discovery_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -714,7 +463,7 @@ func (x *ListScanRunsRequest) String() string {
 func (*ListScanRunsRequest) ProtoMessage() {}
 
 func (x *ListScanRunsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_discovery_proto_msgTypes[8]
+	mi := &file_drift_v1_discovery_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -727,7 +476,7 @@ func (x *ListScanRunsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListScanRunsRequest.ProtoReflect.Descriptor instead.
 func (*ListScanRunsRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{8}
+	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListScanRunsRequest) GetWorkspace() *WorkspaceRef {
@@ -754,7 +503,7 @@ type ListScanRunsResponse struct {
 
 func (x *ListScanRunsResponse) Reset() {
 	*x = ListScanRunsResponse{}
-	mi := &file_drift_v1_discovery_proto_msgTypes[9]
+	mi := &file_drift_v1_discovery_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -766,7 +515,7 @@ func (x *ListScanRunsResponse) String() string {
 func (*ListScanRunsResponse) ProtoMessage() {}
 
 func (x *ListScanRunsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_discovery_proto_msgTypes[9]
+	mi := &file_drift_v1_discovery_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -779,7 +528,7 @@ func (x *ListScanRunsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListScanRunsResponse.ProtoReflect.Descriptor instead.
 func (*ListScanRunsResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{9}
+	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ListScanRunsResponse) GetScanRuns() []*ScanRun {
@@ -790,110 +539,6 @@ func (x *ListScanRunsResponse) GetScanRuns() []*ScanRun {
 }
 
 func (x *ListScanRunsResponse) GetPage() *PageResponse {
-	if x != nil {
-		return x.Page
-	}
-	return nil
-}
-
-type ListScanCandidatesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	Page          *PageRequest           `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListScanCandidatesRequest) Reset() {
-	*x = ListScanCandidatesRequest{}
-	mi := &file_drift_v1_discovery_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListScanCandidatesRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListScanCandidatesRequest) ProtoMessage() {}
-
-func (x *ListScanCandidatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_discovery_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListScanCandidatesRequest.ProtoReflect.Descriptor instead.
-func (*ListScanCandidatesRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *ListScanCandidatesRequest) GetWorkspace() *WorkspaceRef {
-	if x != nil {
-		return x.Workspace
-	}
-	return nil
-}
-
-func (x *ListScanCandidatesRequest) GetPage() *PageRequest {
-	if x != nil {
-		return x.Page
-	}
-	return nil
-}
-
-type ListScanCandidatesResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Candidates    []*ScanCandidate       `protobuf:"bytes,1,rep,name=candidates,proto3" json:"candidates,omitempty"`
-	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListScanCandidatesResponse) Reset() {
-	*x = ListScanCandidatesResponse{}
-	mi := &file_drift_v1_discovery_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListScanCandidatesResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListScanCandidatesResponse) ProtoMessage() {}
-
-func (x *ListScanCandidatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_discovery_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListScanCandidatesResponse.ProtoReflect.Descriptor instead.
-func (*ListScanCandidatesResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *ListScanCandidatesResponse) GetCandidates() []*ScanCandidate {
-	if x != nil {
-		return x.Candidates
-	}
-	return nil
-}
-
-func (x *ListScanCandidatesResponse) GetPage() *PageResponse {
 	if x != nil {
 		return x.Page
 	}
@@ -913,55 +558,29 @@ const file_drift_v1_discovery_proto_rawDesc = "" +
 	"\frequested_at\x18\x05 \x01(\tR\vrequestedAt\x12\x1f\n" +
 	"\vfinished_at\x18\x06 \x01(\tR\n" +
 	"finishedAt\x12+\n" +
-	"\afailure\x18\a \x01(\v2\x11.drift.v1.FailureR\afailure\"\x80\x03\n" +
-	"\rScanCandidate\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
-	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1e\n" +
-	"\vscan_run_id\x18\x03 \x01(\tR\tscanRunId\x12#\n" +
-	"\rcandidate_key\x18\x04 \x01(\tR\fcandidateKey\x12\x12\n" +
-	"\x04host\x18\x05 \x01(\tR\x04host\x12\x12\n" +
-	"\x04port\x18\x06 \x01(\rR\x04port\x12\x16\n" +
-	"\x06serial\x18\a \x01(\tR\x06serial\x12 \n" +
-	"\vfingerprint\x18\b \x01(\tR\vfingerprint\x122\n" +
-	"\x05state\x18\t \x01(\x0e2\x1c.drift.v1.ScanCandidateStateR\x05state\x12#\n" +
-	"\rdiscovered_at\x18\n" +
-	" \x01(\tR\fdiscoveredAt\x12)\n" +
-	"\x10evidence_summary\x18\v \x01(\tR\x0fevidenceSummary\"\xaa\x01\n" +
+	"\afailure\x18\a \x01(\v2\x11.drift.v1.FailureR\afailure\"\xeb\x01\n" +
+	"\x0eObservedDevice\x12\x12\n" +
+	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
+	"\x04port\x18\x02 \x01(\rR\x04port\x12\x16\n" +
+	"\x06serial\x18\x03 \x01(\tR\x06serial\x12\x14\n" +
+	"\x05model\x18\x04 \x01(\tR\x05model\x12/\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x19.drift.v1.DeviceLinkStateR\x05state\x12\x14\n" +
+	"\x05known\x18\x06 \x01(\bR\x05known\x12\x1b\n" +
+	"\tdevice_id\x18\a \x01(\tR\bdeviceId\x12\x1f\n" +
+	"\vendpoint_id\x18\b \x01(\tR\n" +
+	"endpointId\"\xaa\x01\n" +
 	"\x10StartScanRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12,\n" +
-	"\x12network_profile_id\x18\x03 \x01(\tR\x10networkProfileId\"A\n" +
+	"\x12network_profile_id\x18\x03 \x01(\tR\x10networkProfileId\"u\n" +
 	"\x11StartScanResponse\x12,\n" +
-	"\bscan_run\x18\x01 \x01(\v2\x11.drift.v1.ScanRunR\ascanRun\"\xb7\x01\n" +
-	"\x1aDecideScanCandidateRequest\x122\n" +
-	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x123\n" +
-	"\tcandidate\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\tcandidate\x12\x18\n" +
-	"\aapprove\x18\x03 \x01(\bR\aapprove\x12\x16\n" +
-	"\x06reason\x18\x04 \x01(\tR\x06reason\"T\n" +
-	"\x1bDecideScanCandidateResponse\x125\n" +
-	"\tcandidate\x18\x01 \x01(\v2\x17.drift.v1.ScanCandidateR\tcandidate\"\xb7\x01\n" +
-	"\x1cRegisterScanCandidateRequest\x122\n" +
-	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x123\n" +
-	"\tcandidate\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\tcandidate\x12.\n" +
-	"\x13device_display_name\x18\x03 \x01(\tR\x11deviceDisplayName\"\x94\x01\n" +
-	"\x1dRegisterScanCandidateResponse\x12\x1b\n" +
-	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12\x1f\n" +
-	"\vendpoint_id\x18\x02 \x01(\tR\n" +
-	"endpointId\x125\n" +
-	"\tcandidate\x18\x03 \x01(\v2\x17.drift.v1.ScanCandidateR\tcandidate\"v\n" +
+	"\bscan_run\x18\x01 \x01(\v2\x11.drift.v1.ScanRunR\ascanRun\x122\n" +
+	"\adevices\x18\x02 \x03(\v2\x18.drift.v1.ObservedDeviceR\adevices\"v\n" +
 	"\x13ListScanRunsRequest\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
 	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"r\n" +
 	"\x14ListScanRunsResponse\x12.\n" +
 	"\tscan_runs\x18\x01 \x03(\v2\x11.drift.v1.ScanRunR\bscanRuns\x12*\n" +
-	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"|\n" +
-	"\x19ListScanCandidatesRequest\x124\n" +
-	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
-	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x81\x01\n" +
-	"\x1aListScanCandidatesResponse\x127\n" +
-	"\n" +
-	"candidates\x18\x01 \x03(\v2\x17.drift.v1.ScanCandidateR\n" +
-	"candidates\x12*\n" +
 	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page*\xbf\x01\n" +
 	"\fScanRunState\x12\x1e\n" +
 	"\x1aSCAN_RUN_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
@@ -969,21 +588,15 @@ const file_drift_v1_discovery_proto_rawDesc = "" +
 	"\x16SCAN_RUN_STATE_RUNNING\x10\x02\x12\x1c\n" +
 	"\x18SCAN_RUN_STATE_COMPLETED\x10\x03\x12\x19\n" +
 	"\x15SCAN_RUN_STATE_FAILED\x10\x04\x12\x1c\n" +
-	"\x18SCAN_RUN_STATE_CANCELLED\x10\x05*\x97\x02\n" +
-	"\x12ScanCandidateState\x12$\n" +
-	" SCAN_CANDIDATE_STATE_UNSPECIFIED\x10\x00\x12#\n" +
-	"\x1fSCAN_CANDIDATE_STATE_DISCOVERED\x10\x01\x12)\n" +
-	"%SCAN_CANDIDATE_STATE_PENDING_APPROVAL\x10\x02\x12!\n" +
-	"\x1dSCAN_CANDIDATE_STATE_APPROVED\x10\x03\x12!\n" +
-	"\x1dSCAN_CANDIDATE_STATE_REJECTED\x10\x04\x12 \n" +
-	"\x1cSCAN_CANDIDATE_STATE_EXPIRED\x10\x05\x12#\n" +
-	"\x1fSCAN_CANDIDATE_STATE_REGISTERED\x10\x062\xd6\x03\n" +
+	"\x18SCAN_RUN_STATE_CANCELLED\x10\x05*\x95\x01\n" +
+	"\x0fDeviceLinkState\x12!\n" +
+	"\x1dDEVICE_LINK_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18DEVICE_LINK_STATE_ONLINE\x10\x01\x12\x1d\n" +
+	"\x19DEVICE_LINK_STATE_OFFLINE\x10\x02\x12\"\n" +
+	"\x1eDEVICE_LINK_STATE_UNAUTHORIZED\x10\x032\xa7\x01\n" +
 	"\x10DiscoveryService\x12D\n" +
-	"\tStartScan\x12\x1a.drift.v1.StartScanRequest\x1a\x1b.drift.v1.StartScanResponse\x12b\n" +
-	"\x13DecideScanCandidate\x12$.drift.v1.DecideScanCandidateRequest\x1a%.drift.v1.DecideScanCandidateResponse\x12h\n" +
-	"\x15RegisterScanCandidate\x12&.drift.v1.RegisterScanCandidateRequest\x1a'.drift.v1.RegisterScanCandidateResponse\x12M\n" +
-	"\fListScanRuns\x12\x1d.drift.v1.ListScanRunsRequest\x1a\x1e.drift.v1.ListScanRunsResponse\x12_\n" +
-	"\x12ListScanCandidates\x12#.drift.v1.ListScanCandidatesRequest\x1a$.drift.v1.ListScanCandidatesResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\tStartScan\x12\x1a.drift.v1.StartScanRequest\x1a\x1b.drift.v1.StartScanResponse\x12M\n" +
+	"\fListScanRuns\x12\x1d.drift.v1.ListScanRunsRequest\x1a\x1e.drift.v1.ListScanRunsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_discovery_proto_rawDescOnce sync.Once
@@ -998,67 +611,44 @@ func file_drift_v1_discovery_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_discovery_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_drift_v1_discovery_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_drift_v1_discovery_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_drift_v1_discovery_proto_goTypes = []any{
-	(ScanRunState)(0),                     // 0: drift.v1.ScanRunState
-	(ScanCandidateState)(0),               // 1: drift.v1.ScanCandidateState
-	(*ScanRun)(nil),                       // 2: drift.v1.ScanRun
-	(*ScanCandidate)(nil),                 // 3: drift.v1.ScanCandidate
-	(*StartScanRequest)(nil),              // 4: drift.v1.StartScanRequest
-	(*StartScanResponse)(nil),             // 5: drift.v1.StartScanResponse
-	(*DecideScanCandidateRequest)(nil),    // 6: drift.v1.DecideScanCandidateRequest
-	(*DecideScanCandidateResponse)(nil),   // 7: drift.v1.DecideScanCandidateResponse
-	(*RegisterScanCandidateRequest)(nil),  // 8: drift.v1.RegisterScanCandidateRequest
-	(*RegisterScanCandidateResponse)(nil), // 9: drift.v1.RegisterScanCandidateResponse
-	(*ListScanRunsRequest)(nil),           // 10: drift.v1.ListScanRunsRequest
-	(*ListScanRunsResponse)(nil),          // 11: drift.v1.ListScanRunsResponse
-	(*ListScanCandidatesRequest)(nil),     // 12: drift.v1.ListScanCandidatesRequest
-	(*ListScanCandidatesResponse)(nil),    // 13: drift.v1.ListScanCandidatesResponse
-	(*WorkspaceRef)(nil),                  // 14: drift.v1.WorkspaceRef
-	(*Failure)(nil),                       // 15: drift.v1.Failure
-	(*RequestContext)(nil),                // 16: drift.v1.RequestContext
-	(*ResourceRef)(nil),                   // 17: drift.v1.ResourceRef
-	(*PageRequest)(nil),                   // 18: drift.v1.PageRequest
-	(*PageResponse)(nil),                  // 19: drift.v1.PageResponse
+	(ScanRunState)(0),            // 0: drift.v1.ScanRunState
+	(DeviceLinkState)(0),         // 1: drift.v1.DeviceLinkState
+	(*ScanRun)(nil),              // 2: drift.v1.ScanRun
+	(*ObservedDevice)(nil),       // 3: drift.v1.ObservedDevice
+	(*StartScanRequest)(nil),     // 4: drift.v1.StartScanRequest
+	(*StartScanResponse)(nil),    // 5: drift.v1.StartScanResponse
+	(*ListScanRunsRequest)(nil),  // 6: drift.v1.ListScanRunsRequest
+	(*ListScanRunsResponse)(nil), // 7: drift.v1.ListScanRunsResponse
+	(*WorkspaceRef)(nil),         // 8: drift.v1.WorkspaceRef
+	(*Failure)(nil),              // 9: drift.v1.Failure
+	(*RequestContext)(nil),       // 10: drift.v1.RequestContext
+	(*PageRequest)(nil),          // 11: drift.v1.PageRequest
+	(*PageResponse)(nil),         // 12: drift.v1.PageResponse
 }
 var file_drift_v1_discovery_proto_depIdxs = []int32{
-	14, // 0: drift.v1.ScanRun.workspace:type_name -> drift.v1.WorkspaceRef
+	8,  // 0: drift.v1.ScanRun.workspace:type_name -> drift.v1.WorkspaceRef
 	0,  // 1: drift.v1.ScanRun.state:type_name -> drift.v1.ScanRunState
-	15, // 2: drift.v1.ScanRun.failure:type_name -> drift.v1.Failure
-	14, // 3: drift.v1.ScanCandidate.workspace:type_name -> drift.v1.WorkspaceRef
-	1,  // 4: drift.v1.ScanCandidate.state:type_name -> drift.v1.ScanCandidateState
-	16, // 5: drift.v1.StartScanRequest.context:type_name -> drift.v1.RequestContext
-	14, // 6: drift.v1.StartScanRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	2,  // 7: drift.v1.StartScanResponse.scan_run:type_name -> drift.v1.ScanRun
-	16, // 8: drift.v1.DecideScanCandidateRequest.context:type_name -> drift.v1.RequestContext
-	17, // 9: drift.v1.DecideScanCandidateRequest.candidate:type_name -> drift.v1.ResourceRef
-	3,  // 10: drift.v1.DecideScanCandidateResponse.candidate:type_name -> drift.v1.ScanCandidate
-	16, // 11: drift.v1.RegisterScanCandidateRequest.context:type_name -> drift.v1.RequestContext
-	17, // 12: drift.v1.RegisterScanCandidateRequest.candidate:type_name -> drift.v1.ResourceRef
-	3,  // 13: drift.v1.RegisterScanCandidateResponse.candidate:type_name -> drift.v1.ScanCandidate
-	14, // 14: drift.v1.ListScanRunsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	18, // 15: drift.v1.ListScanRunsRequest.page:type_name -> drift.v1.PageRequest
-	2,  // 16: drift.v1.ListScanRunsResponse.scan_runs:type_name -> drift.v1.ScanRun
-	19, // 17: drift.v1.ListScanRunsResponse.page:type_name -> drift.v1.PageResponse
-	14, // 18: drift.v1.ListScanCandidatesRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	18, // 19: drift.v1.ListScanCandidatesRequest.page:type_name -> drift.v1.PageRequest
-	3,  // 20: drift.v1.ListScanCandidatesResponse.candidates:type_name -> drift.v1.ScanCandidate
-	19, // 21: drift.v1.ListScanCandidatesResponse.page:type_name -> drift.v1.PageResponse
-	4,  // 22: drift.v1.DiscoveryService.StartScan:input_type -> drift.v1.StartScanRequest
-	6,  // 23: drift.v1.DiscoveryService.DecideScanCandidate:input_type -> drift.v1.DecideScanCandidateRequest
-	8,  // 24: drift.v1.DiscoveryService.RegisterScanCandidate:input_type -> drift.v1.RegisterScanCandidateRequest
-	10, // 25: drift.v1.DiscoveryService.ListScanRuns:input_type -> drift.v1.ListScanRunsRequest
-	12, // 26: drift.v1.DiscoveryService.ListScanCandidates:input_type -> drift.v1.ListScanCandidatesRequest
-	5,  // 27: drift.v1.DiscoveryService.StartScan:output_type -> drift.v1.StartScanResponse
-	7,  // 28: drift.v1.DiscoveryService.DecideScanCandidate:output_type -> drift.v1.DecideScanCandidateResponse
-	9,  // 29: drift.v1.DiscoveryService.RegisterScanCandidate:output_type -> drift.v1.RegisterScanCandidateResponse
-	11, // 30: drift.v1.DiscoveryService.ListScanRuns:output_type -> drift.v1.ListScanRunsResponse
-	13, // 31: drift.v1.DiscoveryService.ListScanCandidates:output_type -> drift.v1.ListScanCandidatesResponse
-	27, // [27:32] is the sub-list for method output_type
-	22, // [22:27] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	9,  // 2: drift.v1.ScanRun.failure:type_name -> drift.v1.Failure
+	1,  // 3: drift.v1.ObservedDevice.state:type_name -> drift.v1.DeviceLinkState
+	10, // 4: drift.v1.StartScanRequest.context:type_name -> drift.v1.RequestContext
+	8,  // 5: drift.v1.StartScanRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	2,  // 6: drift.v1.StartScanResponse.scan_run:type_name -> drift.v1.ScanRun
+	3,  // 7: drift.v1.StartScanResponse.devices:type_name -> drift.v1.ObservedDevice
+	8,  // 8: drift.v1.ListScanRunsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	11, // 9: drift.v1.ListScanRunsRequest.page:type_name -> drift.v1.PageRequest
+	2,  // 10: drift.v1.ListScanRunsResponse.scan_runs:type_name -> drift.v1.ScanRun
+	12, // 11: drift.v1.ListScanRunsResponse.page:type_name -> drift.v1.PageResponse
+	4,  // 12: drift.v1.DiscoveryService.StartScan:input_type -> drift.v1.StartScanRequest
+	6,  // 13: drift.v1.DiscoveryService.ListScanRuns:input_type -> drift.v1.ListScanRunsRequest
+	5,  // 14: drift.v1.DiscoveryService.StartScan:output_type -> drift.v1.StartScanResponse
+	7,  // 15: drift.v1.DiscoveryService.ListScanRuns:output_type -> drift.v1.ListScanRunsResponse
+	14, // [14:16] is the sub-list for method output_type
+	12, // [12:14] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_discovery_proto_init() }
@@ -1073,7 +663,7 @@ func file_drift_v1_discovery_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_discovery_proto_rawDesc), len(file_drift_v1_discovery_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   12,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
