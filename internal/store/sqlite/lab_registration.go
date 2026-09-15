@@ -241,3 +241,113 @@ INSERT INTO lab_device_registrations (
 	})
 	return result, err
 }
+
+// LoadLabRegistrationStatus reads durable staging/registration rows. Empty serial
+// returns the sole registered lab device for the workspace when present.
+func (d *DB) LoadLabRegistrationStatus(ctx context.Context, workspace organizations.WorkspaceID, serial string) (
+	ready registration.ProvisionReady,
+	hasReady bool,
+	approval registration.Approval,
+	hasApproval bool,
+	registered registration.RegisterResult,
+	hasRegistered bool,
+	err error,
+) {
+	if d == nil {
+		return ready, false, approval, false, registered, false, platformerrors.New(platformerrors.CodeInvalidInput, "database is required")
+	}
+	if err := validateWorkspace(string(workspace)); err != nil {
+		return ready, false, approval, false, registered, false, err
+	}
+	serial = strings.TrimSpace(serial)
+	if serial == "" {
+		var registeredAt string
+		scanErr := d.db.QueryRowContext(ctx, `
+SELECT serial, device_id, endpoint_id, display_name, registered_at
+FROM lab_device_registrations WHERE workspace_id=? LIMIT 1`, workspace).Scan(
+			&registered.Serial, &registered.DeviceID, &registered.EndpointID,
+			&registered.DisplayName, &registeredAt,
+		)
+		if scanErr == sql.ErrNoRows {
+			return ready, false, approval, false, registered, false, nil
+		}
+		if scanErr != nil {
+			return ready, false, approval, false, registered, false, scanErr
+		}
+		registered.State = registration.StateRegistered
+		registered.OccurredAt, _ = time.Parse(time.RFC3339Nano, registeredAt)
+		ready = registration.ProvisionReady{
+			Serial: registered.Serial,
+			State:  registration.StateRegistered,
+			Ready:  true,
+		}
+		return ready, true, approval, false, registered, true, nil
+	}
+
+	var transportID, notesJSON, actorID, checkedAt, connectionType, host string
+	var port int
+	scanErr := d.db.QueryRowContext(ctx, `
+SELECT transport_id, connection_type, endpoint_host, endpoint_port, notes_json, actor_id, checked_at
+FROM lab_provisioning_checks WHERE workspace_id=? AND serial=?`, workspace, serial).Scan(
+		&transportID, &connectionType, &host, &port, &notesJSON, &actorID, &checkedAt,
+	)
+	if scanErr == nil {
+		var notes []string
+		_ = json.Unmarshal([]byte(notesJSON), &notes)
+		checked, _ := time.Parse(time.RFC3339Nano, checkedAt)
+		ready = registration.ProvisionReady{
+			Serial: serial, TransportID: transportID, State: registration.StateProvisionVerified,
+			Ready: true, CheckedAt: checked, Notes: notes,
+		}
+		hasReady = true
+		_ = connectionType
+		_ = host
+		_ = port
+		_ = actorID
+	} else if scanErr != sql.ErrNoRows {
+		return ready, false, approval, false, registered, false, scanErr
+	}
+
+	var reason, decidedAt string
+	scanErr = d.db.QueryRowContext(ctx, `
+SELECT actor_id, reason, decided_at FROM lab_registration_approvals WHERE workspace_id=? AND serial=?`,
+		workspace, serial).Scan(&approval.ActorID, &reason, &decidedAt)
+	if scanErr == nil {
+		approval.Serial = serial
+		approval.Reason = reason
+		approval.DecidedAt, _ = time.Parse(time.RFC3339Nano, decidedAt)
+		hasApproval = true
+		if hasReady {
+			ready.State = registration.StateApproved
+		}
+	} else if scanErr != sql.ErrNoRows {
+		return ready, false, approval, false, registered, false, scanErr
+	}
+
+	var registeredAt string
+	scanErr = d.db.QueryRowContext(ctx, `
+SELECT device_id, endpoint_id, serial, display_name, registered_at
+FROM lab_device_registrations WHERE workspace_id=? AND serial=?`, workspace, serial).Scan(
+		&registered.DeviceID, &registered.EndpointID, &registered.Serial,
+		&registered.DisplayName, &registeredAt,
+	)
+	if scanErr == nil {
+		registered.State = registration.StateRegistered
+		registered.OccurredAt, _ = time.Parse(time.RFC3339Nano, registeredAt)
+		hasRegistered = true
+		ready = registration.ProvisionReady{
+			Serial:      registered.Serial,
+			TransportID: transportID,
+			State:       registration.StateRegistered,
+			Ready:       true,
+			CheckedAt:   ready.CheckedAt,
+			Notes:       ready.Notes,
+		}
+		hasReady = true
+	} else if scanErr != sql.ErrNoRows {
+		return ready, false, approval, false, registered, false, scanErr
+	}
+	return ready, hasReady, approval, hasApproval, registered, hasRegistered, nil
+}
+
+

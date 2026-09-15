@@ -309,6 +309,57 @@ func (s *Service) Lookup(serial string) (ProvisionReady, RegisterResult, bool, b
 	return ready, RegisterResult{}, true, false
 }
 
+// RevertVerify undoes an in-memory verify when durable persistence fails.
+func (s *Service) RevertVerify(serial string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.verified, strings.TrimSpace(serial))
+}
+
+// RevertApprove undoes an in-memory approval when durable persistence fails.
+func (s *Service) RevertApprove(serial string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.approvals, strings.TrimSpace(serial))
+}
+
+// RevertRegister undoes an in-memory registration when durable persistence fails.
+func (s *Service) RevertRegister(serial string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.registered, strings.TrimSpace(serial))
+}
+
+// ReplaceRegistered overwrites the in-memory registration with durable IDs.
+func (s *Service) ReplaceRegistered(result RegisterResult) {
+	if s == nil || strings.TrimSpace(result.Serial) == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.registered[strings.TrimSpace(result.Serial)] = result
+}
+
+// RestoreApproval puts an approval back after a failed durable verify that
+// cleared it, so in-memory state matches the still-present SQLite approval.
+func (s *Service) RestoreApproval(approval Approval) {
+	if s == nil || strings.TrimSpace(approval.Serial) == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.approvals[strings.TrimSpace(approval.Serial)] = approval
+}
+
 func portAllowed(port uint16, allowed []uint16) bool {
 	if port == 0 {
 		return false

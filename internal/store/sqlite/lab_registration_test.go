@@ -76,4 +76,12 @@ func TestLabRegistrationDurableApproveRegisterCreatesOneDevice(t *testing.T) {
 	}); platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
 		t.Fatalf("second device code = %v", platformerrors.CodeOf(err))
 	}
+
+	ready, hasReady, _, hasApproval, registered, hasRegistered, err := db.LoadLabRegistrationStatus(ctx, workspace, "LAB-1")
+	if err != nil || !hasReady || !hasRegistered || registered.DeviceID != first.DeviceID {
+		t.Fatalf("load status = ready=%v/%v registered=%#v err=%v", hasReady, hasApproval, registered, err)
+	}
+	if ready.State != registration.StateRegistered {
+		t.Fatalf("loaded state = %s", ready.State)
+	}
 }

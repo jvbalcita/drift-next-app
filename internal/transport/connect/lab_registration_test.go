@@ -9,6 +9,8 @@ import (
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/edge/registration"
+	"drift.local/drift-next/internal/organizations"
+	platformerrors "drift.local/drift-next/internal/platform/errors"
 	transportconnect "drift.local/drift-next/internal/transport/connect"
 )
 
@@ -90,3 +92,66 @@ func TestLabRegistrationHandlerVerifyApproveRegisterWithStatusProbe(t *testing.T
 		t.Fatalf("register = %#v", register.Msg.GetRegistration())
 	}
 }
+
+type failingLabStore struct {
+	failOn string
+}
+
+func (f failingLabStore) SaveLabProvisioningCheck(context.Context, organizations.WorkspaceID, registration.ProvisionReady, registration.TargetIdentity) error {
+	if f.failOn == "check" {
+		return platformerrors.New(platformerrors.CodeInternal, "persist check failed")
+	}
+	return nil
+}
+
+func (f failingLabStore) SaveLabRegistrationApproval(context.Context, organizations.WorkspaceID, registration.Approval) error {
+	if f.failOn == "approve" {
+		return platformerrors.New(platformerrors.CodeInternal, "persist approval failed")
+	}
+	return nil
+}
+
+func (f failingLabStore) RegisterLabDevice(context.Context, organizations.WorkspaceID, registration.RegisterRequest) (registration.RegisterResult, error) {
+	if f.failOn == "register" {
+		return registration.RegisterResult{}, platformerrors.New(platformerrors.CodeInternal, "persist register failed")
+	}
+	return registration.RegisterResult{
+		DeviceID: "durable-device", EndpointID: "durable-endpoint", Serial: "LAB-1",
+		DisplayName: "Lab", State: registration.StateRegistered,
+	}, nil
+}
+
+func (f failingLabStore) LoadLabRegistrationStatus(context.Context, organizations.WorkspaceID, string) (
+	registration.ProvisionReady, bool, registration.Approval, bool, registration.RegisterResult, bool, error,
+) {
+	return registration.ProvisionReady{}, false, registration.Approval{}, false, registration.RegisterResult{}, false, nil
+}
+
+func TestLabRegistrationHandlerRollsBackMemoryWhenDurablePersistFails(t *testing.T) {
+	svc := registration.NewService(registration.Config{
+		MaxRegisteredDevices: 1,
+		Probe: registration.AttestedProbe{Result: registration.ProbeResult{
+			PairingAuthorized: true, ADBServerOwned: true, PlatformToolsCompatible: true,
+			PortPolicyAllowed: true, RollbackReady: true,
+		}},
+	})
+	handler := transportconnect.NewLabRegistrationHandlerWithStore(svc, failingLabStore{failOn: "approve"}, []uint16{5555})
+	workspace := &driftv1.WorkspaceRef{WorkspaceId: "workspace-1"}
+	reqCtx := &driftv1.RequestContext{RequestId: "request-1"}
+	if _, err := handler.VerifyLabProvisioning(context.Background(), connectrpc.NewRequest(&driftv1.VerifyLabProvisioningRequest{
+		Workspace: workspace, Context: reqCtx, OperatorId: "operator-1",
+		Serial: "LAB-1", TransportId: "usb:1", ConnectionType: "usb",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handler.ApproveLabProvisioning(context.Background(), connectrpc.NewRequest(&driftv1.ApproveLabProvisioningRequest{
+		Workspace: workspace, Context: reqCtx, OperatorId: "operator-1",
+		Serial: "LAB-1", Reason: "authorized",
+	})); err == nil {
+		t.Fatal("expected durable approve failure")
+	}
+	if _, err := svc.Register(registration.RegisterRequest{Serial: "LAB-1", DisplayName: "Lab", ActorID: "operator-1"}, time.Now().UTC()); platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
+		t.Fatalf("approval must be rolled back; register code = %v", platformerrors.CodeOf(err))
+	}
+}
+

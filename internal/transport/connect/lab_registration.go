@@ -19,12 +19,22 @@ type LabRegistration interface {
 	Lookup(serial string) (registration.ProvisionReady, registration.RegisterResult, bool, bool)
 }
 
+// labRegistrationMemory rolls back or syncs in-memory state when durable
+// persistence fails or returns canonical IDs. *registration.Service implements it.
+type labRegistrationMemory interface {
+	RevertVerify(serial string)
+	RevertApprove(serial string)
+	RevertRegister(serial string)
+	ReplaceRegistered(result registration.RegisterResult)
+}
+
 // LabRegistrationStore persists controlled-registration transitions in the
 // canonical SQLite database. Nil means in-memory only (still probe-backed).
 type LabRegistrationStore interface {
 	SaveLabProvisioningCheck(ctx context.Context, workspace organizations.WorkspaceID, ready registration.ProvisionReady, target registration.TargetIdentity) error
 	SaveLabRegistrationApproval(ctx context.Context, workspace organizations.WorkspaceID, approval registration.Approval) error
 	RegisterLabDevice(ctx context.Context, workspace organizations.WorkspaceID, req registration.RegisterRequest) (registration.RegisterResult, error)
+	LoadLabRegistrationStatus(ctx context.Context, workspace organizations.WorkspaceID, serial string) (ready registration.ProvisionReady, hasReady bool, approval registration.Approval, hasApproval bool, registered registration.RegisterResult, hasRegistered bool, err error)
 }
 
 // LabRegistrationHandler adapts registration.Service to Connect. It injects
@@ -95,6 +105,9 @@ func (h *LabRegistrationHandler) VerifyLabProvisioning(ctx context.Context, requ
 	}
 	if h.store != nil {
 		if persistErr := h.store.SaveLabProvisioningCheck(ctx, organizations.WorkspaceID(request.Msg.GetWorkspace().GetWorkspaceId()), ready, target); persistErr != nil {
+			if memory, ok := svc.(labRegistrationMemory); ok {
+				memory.RevertVerify(target.Serial)
+			}
 			return nil, MapError(persistErr)
 		}
 	}
@@ -132,6 +145,9 @@ func (h *LabRegistrationHandler) ApproveLabProvisioning(ctx context.Context, req
 	}
 	if h.store != nil {
 		if persistErr := h.store.SaveLabRegistrationApproval(ctx, organizations.WorkspaceID(request.Msg.GetWorkspace().GetWorkspaceId()), approval); persistErr != nil {
+			if memory, ok := svc.(labRegistrationMemory); ok {
+				memory.RevertApprove(approval.Serial)
+			}
 			return nil, MapError(persistErr)
 		}
 	}
@@ -180,7 +196,13 @@ func (h *LabRegistrationHandler) RegisterLabDevice(ctx context.Context, request 
 	if h.store != nil {
 		durable, persistErr := h.store.RegisterLabDevice(ctx, organizations.WorkspaceID(request.Msg.GetWorkspace().GetWorkspaceId()), req)
 		if persistErr != nil {
+			if memory, ok := svc.(labRegistrationMemory); ok {
+				memory.RevertRegister(req.Serial)
+			}
 			return nil, MapError(persistErr)
+		}
+		if memory, ok := svc.(labRegistrationMemory); ok {
+			memory.ReplaceRegistered(durable)
 		}
 		result = durable
 	}
@@ -189,7 +211,7 @@ func (h *LabRegistrationHandler) RegisterLabDevice(ctx context.Context, request 
 	}), nil
 }
 
-func (h *LabRegistrationHandler) GetLabRegistrationStatus(_ context.Context, request *connectrpc.Request[driftv1.GetLabRegistrationStatusRequest]) (*connectrpc.Response[driftv1.GetLabRegistrationStatusResponse], error) {
+func (h *LabRegistrationHandler) GetLabRegistrationStatus(ctx context.Context, request *connectrpc.Request[driftv1.GetLabRegistrationStatusRequest]) (*connectrpc.Response[driftv1.GetLabRegistrationStatusResponse], error) {
 	if request == nil {
 		return nil, invalidArgument("lab registration status request is required")
 	}
@@ -204,6 +226,41 @@ func (h *LabRegistrationHandler) GetLabRegistrationStatus(_ context.Context, req
 		return nil, err
 	}
 	serial := strings.TrimSpace(request.Msg.GetSerial())
+	workspace := organizations.WorkspaceID(request.Msg.GetWorkspace().GetWorkspaceId())
+
+	if h.store != nil {
+		ready, hasReady, approval, hasApproval, registered, hasRegistered, loadErr := h.store.LoadLabRegistrationStatus(ctx, workspace, serial)
+		if loadErr != nil {
+			return nil, MapError(loadErr)
+		}
+		if hasReady || hasRegistered || hasApproval {
+			if hasRegistered {
+				if memory, ok := svc.(labRegistrationMemory); ok {
+					memory.ReplaceRegistered(registered)
+				}
+			}
+			response := &driftv1.GetLabRegistrationStatusResponse{}
+			if hasReady {
+				response.Readiness = labProvisioningReadyProto(ready)
+			}
+			if hasRegistered {
+				response.Registration = labRegistrationRecordProto(registered, true)
+			} else if hasApproval {
+				serialValue := approval.Serial
+				if serialValue == "" {
+					serialValue = ready.Serial
+				}
+				response.Registration = &driftv1.LabRegistrationRecord{
+					Serial:      serialValue,
+					State:       driftv1.LabRegistrationState_LAB_REGISTRATION_STATE_APPROVED,
+					ApprovedAt:  approval.DecidedAt.UTC().Format(time.RFC3339Nano),
+					MockLabeled: false,
+				}
+			}
+			return connectrpc.NewResponse(response), nil
+		}
+	}
+
 	ready, registered, hasReady, hasRegistered := svc.Lookup(serial)
 	response := &driftv1.GetLabRegistrationStatusResponse{}
 	if hasReady {
