@@ -66,13 +66,13 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
     }
     if (action === "Screenshot" && source) {
       void (async () => {
-        const authorized = await reportDispatch(dispatch, { type: "submitDeviceAction", deviceId: source.id, kind: "capture", confirmed: true }, setFeedback)
-        if (!authorized.ok) return
         const serial = captureSerialForDevice(source.id, snapshot.labAdapter, snapshot.labRegistration)
         if (!serial) {
           setFeedback("Confirm the connected transport for this device before capturing observation.")
           return
         }
+        const authorized = await reportDispatch(dispatch, { type: "submitDeviceAction", deviceId: source.id, kind: "capture", confirmed: true }, setFeedback)
+        if (!authorized.ok) return
         await reportDispatch(dispatch, { type: "captureLabObservation", serial }, setFeedback)
       })()
       return
