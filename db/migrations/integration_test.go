@@ -81,8 +81,8 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM drift_schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("ledger count error = %v", err)
 	}
-	if count != 15 {
-		t.Fatalf("ledger count = %d, want 15 SQLite migrations", count)
+	if count != 16 {
+		t.Fatalf("ledger count = %d, want 16 SQLite migrations", count)
 	}
 
 	var foreignKeys string
@@ -109,6 +109,7 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 		"workflow_steps", "runs", "target_set_snapshots", "run_targets", "target_run_steps", "action_attempts", "run_events", "run_ai_candidates", "replay_evidence",
 		"account_sources", "accounts", "account_service_states", "account_service_state_history", "account_runs", "account_run_events", "account_device_assignments", "account_sync_events", "settings", "setting_history", "policies", "artifacts", "recording_sessions", "recording_event_evidence",
 		"skills", "audit_events", "idempotency_keys", "outbox_messages",
+		"lab_provisioning_checks", "lab_registration_approvals", "lab_device_registrations",
 	} {
 		var exists int
 		if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&exists); err != nil {

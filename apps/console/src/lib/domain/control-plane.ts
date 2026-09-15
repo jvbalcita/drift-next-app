@@ -65,7 +65,7 @@ export type LabReadiness = "unavailable" | "ready" | "blocked" | "indeterminate"
 /** Runtime link observation for an edge agent. Never a control-plane lease. */
 export type RuntimeConnectionState = "connected" | "reconnecting" | "disconnected"
 /** Lab provisioning / registration stage. Discovery ≠ Approval ≠ Provisioning ≠ Registration. */
-export type LabProvisionState = "discovered" | "approval_pending" | "provision_verified" | "registered"
+export type LabProvisionState = "discovered" | "approval_pending" | "provision_verified" | "approved" | "registered"
 export type SpoolItemKind = "cursor" | "outbox" | "observation"
 export type SpoolItemOutcome =
   | "pending"
@@ -520,7 +520,8 @@ export interface LabRegistrationView {
   displayName: string
   state: LabProvisionState
   approved: boolean
-  mockLabeled: true
+  /** Mock console paths keep this true; Connect paths set false. */
+  mockLabeled: boolean
   deviceId?: string
   endpointId?: string
   approvedAt?: string

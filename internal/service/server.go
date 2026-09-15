@@ -30,6 +30,25 @@ func LabAdapterRoute(service transportconnect.LabAdapter, token string) Route {
 	return Route{Path: path, Handler: RequireLabToken(token, handler)}
 }
 
+// LabRegistrationRoute builds the Connect route for controlled one-device
+// registration. The route is only mounted when a registration service is
+// constructed; prerequisite booleans never come from the client.
+func LabRegistrationRoute(service transportconnect.LabRegistration, token string, allowedPorts []uint16) Route {
+	path, handler := driftv1connect.NewLabRegistrationServiceHandler(
+		transportconnect.NewLabRegistrationHandler(service, allowedPorts),
+	)
+	return Route{Path: path, Handler: RequireLabToken(token, handler)}
+}
+
+// LabRegistrationRouteWithStore is LabRegistrationRoute with durable SQLite
+// staging for Approve→Register. Pass a nil store for in-memory-only operation.
+func LabRegistrationRouteWithStore(service transportconnect.LabRegistration, store transportconnect.LabRegistrationStore, token string, allowedPorts []uint16) Route {
+	path, handler := driftv1connect.NewLabRegistrationServiceHandler(
+		transportconnect.NewLabRegistrationHandlerWithStore(service, store, allowedPorts),
+	)
+	return Route{Path: path, Handler: RequireLabToken(token, handler)}
+}
+
 // NewHTTPServer returns a loopback-oriented server exposing health endpoints
 // plus any explicitly mounted Connect routes. Adding a route is deliberate:
 // nothing is mounted by reflection or by package initialization.

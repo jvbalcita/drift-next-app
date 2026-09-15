@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+// LabRegistrationState is the durable controlled-registration projection.
+// Discovery, provisioning verification, approval, and registration remain
+// separate transitions.
+enum LabRegistrationState {
+  LAB_REGISTRATION_STATE_UNSPECIFIED = 0;
+  LAB_REGISTRATION_STATE_DISCOVERED = 1;
+  LAB_REGISTRATION_STATE_PROVISION_VERIFIED = 2;
+  LAB_REGISTRATION_STATE_APPROVED = 3;
+  LAB_REGISTRATION_STATE_REGISTERED = 4;
+}
+
+// LabProvisioningReady is the sanitized verification projection. Prerequisite
+// booleans are never accepted from the client; they are produced only by the
+// server-side runtime probe.
+message LabProvisioningReady {
+  string serial = 1;
+  string transport_id = 2;
+  LabRegistrationState state = 3;
+  bool ready = 4;
+  string checked_at = 5;
+  repeated string notes = 6;
+}
+
+message LabRegistrationRecord {
+  string serial = 1;
+  string display_name = 2;
+  LabRegistrationState state = 3;
+  string device_id = 4;
+  string endpoint_id = 5;
+  string approved_at = 6;
+  string registered_at = 7;
+  // mock_labeled is always false on the Connect path; mock console paths set
+  // this in the browser client only.
+  bool mock_labeled = 8;
+}
+
+// VerifyLabProvisioningRequest carries identity only. It must not include
+// client-attested pairing/ADB/platform-tools/port/rollback booleans.
+message VerifyLabProvisioningRequest {
+  WorkspaceRef workspace = 1;
+  RequestContext context = 2;
+  string operator_id = 3;
+  string serial = 4;
+  string transport_id = 5;
+  string endpoint_host = 6;
+  uint32 endpoint_port = 7;
+  string connection_type = 8;
+}
+
+message VerifyLabProvisioningResponse {
+  LabProvisioningReady readiness = 1;
+  Failure failure = 2;
+}
+
+message ApproveLabProvisioningRequest {
+  WorkspaceRef workspace = 1;
+  RequestContext context = 2;
+  string operator_id = 3;
+  string serial = 4;
+  string reason = 5;
+}
+
+message ApproveLabProvisioningResponse {
+  LabRegistrationRecord registration = 1;
+  Failure failure = 2;
+}
+
+message RegisterLabDeviceRequest {
+  WorkspaceRef workspace = 1;
+  RequestContext context = 2;
+  string operator_id = 3;
+  string serial = 4;
+  string display_name = 5;
+}
+
+message RegisterLabDeviceResponse {
+  LabRegistrationRecord registration = 1;
+  Failure failure = 2;
+}
+
+message GetLabRegistrationStatusRequest {
+  WorkspaceRef workspace = 1;
+  RequestContext context = 2;
+  string serial = 3;
+}
+
+message GetLabRegistrationStatusResponse {
+  LabProvisioningReady readiness = 1;
+  LabRegistrationRecord registration = 2;
+  Failure failure = 3;
+}
+
+// LabRegistrationService is the controlled one-device registration boundary.
+// It never accepts client-attested prerequisite booleans and never expands
+// beyond one registered lab device per workspace without a later phase gate.
+service LabRegistrationService {
+  rpc VerifyLabProvisioning(VerifyLabProvisioningRequest) returns (VerifyLabProvisioningResponse);
+  rpc ApproveLabProvisioning(ApproveLabProvisioningRequest) returns (ApproveLabProvisioningResponse);
+  rpc RegisterLabDevice(RegisterLabDeviceRequest) returns (RegisterLabDeviceResponse);
+  rpc GetLabRegistrationStatus(GetLabRegistrationStatusRequest) returns (GetLabRegistrationStatusResponse);
+}

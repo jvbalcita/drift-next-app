@@ -74,11 +74,12 @@ type RegisterRequest struct {
 }
 
 type RegisterResult struct {
-	DeviceID   string
-	EndpointID string
-	Serial     string
-	State      State
-	OccurredAt time.Time
+	DeviceID    string
+	EndpointID  string
+	Serial      string
+	DisplayName string
+	State       State
+	OccurredAt  time.Time
 }
 
 type Config struct {
@@ -259,16 +260,53 @@ func (s *Service) Register(req RegisterRequest, now time.Time) (RegisterResult, 
 	}
 
 	result := RegisterResult{
-		DeviceID:   fmt.Sprintf("device-lab-%d", s.nextDevice),
-		EndpointID: fmt.Sprintf("endpoint-lab-%d", s.nextEndpoint),
-		Serial:     serial,
-		State:      StateRegistered,
-		OccurredAt: now,
+		DeviceID:    fmt.Sprintf("device-lab-%d", s.nextDevice),
+		EndpointID:  fmt.Sprintf("endpoint-lab-%d", s.nextEndpoint),
+		Serial:      serial,
+		DisplayName: strings.TrimSpace(req.DisplayName),
+		State:       StateRegistered,
+		OccurredAt:  now,
 	}
 	s.nextDevice++
 	s.nextEndpoint++
 	s.registered[serial] = result
 	return result, nil
+}
+
+// Lookup returns the durable provisioning and registration projections for a
+// serial. An empty serial returns the sole registered lab device when present.
+func (s *Service) Lookup(serial string) (ProvisionReady, RegisterResult, bool, bool) {
+	if s == nil {
+		return ProvisionReady{}, RegisterResult{}, false, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	serial = strings.TrimSpace(serial)
+	if serial == "" {
+		for _, registered := range s.registered {
+			return ProvisionReady{
+				Serial: registered.Serial,
+				State:  StateRegistered,
+				Ready:  true,
+			}, registered, true, true
+		}
+		return ProvisionReady{}, RegisterResult{}, false, false
+	}
+	if registered, ok := s.registered[serial]; ok {
+		return ProvisionReady{
+			Serial: registered.Serial,
+			State:  StateRegistered,
+			Ready:  true,
+		}, registered, true, true
+	}
+	ready, hasReady := s.verified[serial]
+	if !hasReady {
+		return ProvisionReady{}, RegisterResult{}, false, false
+	}
+	if _, approved := s.approvals[serial]; approved {
+		ready.State = StateApproved
+	}
+	return ready, RegisterResult{}, true, false
 }
 
 func portAllowed(port uint16, allowed []uint16) bool {
