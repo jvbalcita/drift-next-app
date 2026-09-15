@@ -30,6 +30,7 @@ func main() {
 	}
 	supervisor := runtime.NewSupervisor(cfg, dataDir)
 	supervisor.SetEventSink(func(event string) { fmt.Printf("  %s•%s %s\n", dim, reset, event) })
+	supervisor.RefreshStatus(context.Background())
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		printDashboard(supervisor)

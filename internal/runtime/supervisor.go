@@ -85,6 +85,26 @@ func (s *Supervisor) SetEventSink(sink func(string)) {
 	s.eventSink = sink
 }
 
+// RefreshStatus observes already-running local services without starting or
+// stopping anything. This keeps a restarted TUI honest about runtime state.
+func (s *Supervisor) RefreshStatus(ctx context.Context) {
+	for name, address := range map[string]string{
+		"Control Plane":  s.config.ControlPlaneAddress,
+		"Device Service": s.config.EdgeAgentAddress,
+	} {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+address+"/readyz", nil)
+		response, err := s.client.Do(req)
+		if err == nil {
+			_ = response.Body.Close()
+			if response.StatusCode == http.StatusOK {
+				s.setStatus(name, stateReady, "Ready (already running)")
+				continue
+			}
+		}
+		s.setStatus(name, stateStopped, "Not started")
+	}
+}
+
 // RunChecks executes the repository's fixed validation commands without a shell.
 func (s *Supervisor) RunChecks(ctx context.Context) error {
 	commands := [][]string{{"pnpm", "typecheck"}, {"pnpm", "lint"}, {"pnpm", "test", "--", "--reporter=dot"}, {"pnpm", "build"}, {"go", "test", "./..."}, {"go", "vet", "./..."}, {"go", "build", "./..."}, {"buf", "lint"}, {"buf", "build"}, {"bash", "scripts/secret-scan.sh"}, {"git", "diff", "--check"}}
