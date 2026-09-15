@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { ControlPlaneSnapshot, DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
+import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
+import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
 import { MockNotice, StatusBadge } from "./shared"
 
 type Workspace = { largeHeight: number; smallHeight: number; quality: "Low" | "Medium" | "High" | "Extra"; frameRate: number; orientation: "portrait" | "landscape" }
@@ -19,7 +20,7 @@ const settingsDefaults: ConsoleSettings = { gap: 16, opacity: 100, autoScreenOff
 const initialPosition: FloatingPosition = { x: 120, y: 88 }
 const phoneColors = ["bg-emerald-700", "bg-sky-700", "bg-teal-700", "bg-fuchsia-700", "bg-rose-700", "bg-slate-950", "bg-neutral-950", "bg-cyan-800", "bg-violet-800", "bg-purple-800", "bg-teal-800", "bg-slate-600"]
 
-export function ControlPage({ snapshot, dispatch }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent }) {
+export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; dispatchLab?: (intent: ControlPlaneIntent) => Promise<MutationResult>; labNotice?: string }) {
   const [workspace, setWorkspace] = useState(workspaceDefaults)
   const [settings, setSettings] = useState(settingsDefaults)
   const [sourceId, setSourceId] = useState<string | null>(null)
@@ -71,8 +72,9 @@ export function ControlPage({ snapshot, dispatch }: { snapshot: ControlPlaneSnap
   const selectedCount = (source ? 1 : 0) + followers.length
 
   return <div className="relative min-h-full">
-    <div className="mb-5 flex items-center justify-between gap-3"><div className="drift-kicker flex items-center gap-3"><span className="h-px w-8 bg-primary" aria-hidden="true" /><span>Control / Device Workspace</span></div><StatusBadge label="Mock only" tone="info" /></div>
+    <div className="mb-5 flex items-center justify-between gap-3"><div className="drift-kicker flex items-center gap-3"><span className="h-px w-8 bg-primary" aria-hidden="true" /><span>Control / Device Workspace</span></div><div className="flex flex-wrap items-center justify-end gap-2"><StatusBadge label="Mock only" tone="info" /><LabModeBadges adapter={snapshot.labAdapter} /></div></div>
     <MockNotice>No lease is acquired, command dispatched, ADB connection opened, or live video displayed. Workspace and console settings only change this local browser view.</MockNotice>
+    <LabStatusStrip adapter={snapshot.labAdapter} dispatch={dispatch} dispatchLab={dispatchLab} onFeedback={setFeedback} notice={labNotice} />
     {!workspacePinned ? <WorkspaceToggle side={settings.workspaceSide} onToggle={() => { setWorkspaceOpen(true); setWorkspacePinned(true) }} /> : null}
     <div className="mt-6 flex flex-wrap items-center gap-2 border-y border-border py-3" aria-label="Control workspace toolbar">
       <span className="mr-auto text-xs"><span className="drift-data font-semibold">{selectedCount}</span> selected · {settings.controlSmall ? "compact-frame control enabled" : source ? "click another phone to select followers" : "click a phone to open its large frame"}</span>
@@ -84,6 +86,7 @@ export function ControlPage({ snapshot, dispatch }: { snapshot: ControlPlaneSnap
     <div className={`mt-4 grid items-start gap-4 ${workspaceOpen ? settings.workspaceSide === "right" ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
       {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setEndIp} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} onActivate={() => setFeedback(`Port ${port} activated for discovered mock phones. No device transport was unlocked.`)} onScan={scan} onFeedback={setFeedback} /></div> : null}
       <section className={`min-w-0 ${workspaceOpen && settings.workspaceSide === "left" ? "xl:order-2" : ""}`} aria-label="Phone control workspace">
+        <LabObservationFrame adapter={snapshot.labAdapter} height={workspace.largeHeight} />
         <div className={`grid items-start gap-4 ${modalPinned && source ? "xl:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
           <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${workspace.orientation === "portrait" ? Math.round(workspace.smallHeight * 9 / 16) : workspace.smallHeight}px)`, gap: settings.gap }} aria-label="Compact mock phone frames">{snapshot.devices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} onClick={() => choosePhone(device)} />)}</div></ScrollArea>
           {modalPinned ? deviceModal : null}

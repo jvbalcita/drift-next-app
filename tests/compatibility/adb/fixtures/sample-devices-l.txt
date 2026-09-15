@@ -1,0 +1,7 @@
+List of devices attached
+LABSERIAL001           device product:lab_a model:Lab_Device_A device:lab_a transport_id:1
+LABSERIAL002           unauthorized usb:1-4 transport_id:2
+LABSERIAL003           offline product:lab_c model:Lab_Device_C device:lab_c transport_id:3
+192.0.2.10:5555        device product:lab_w model:Lab_Device_W device:lab_w transport_id:4
+192.0.2.11:5555        device product:lab_x model:Lab_Device_X device:lab_x transport_id:5
+192.0.2.12:41237       offline transport_id:6

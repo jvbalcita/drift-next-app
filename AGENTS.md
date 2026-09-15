@@ -89,6 +89,7 @@ React/Vite operator UI
 - Validate contracts with `buf lint` and `buf build`.
 - Regenerate code with `buf generate` when contracts or generator configuration change. Never hand-edit generated files under `gen/` or `apps/console/src/gen/`.
 - Keep transport handlers thin: authenticate/authorize, validate input, call an application service, and map known errors to stable typed responses.
+- Mount Connect services explicitly as `service.Route` values passed to `service.NewHTTPServer`. Never mount handlers by reflection or package initialization, and never mount a route whose application service was not constructed.
 - Treat transport/API errors as contracts: stable codes and safe user-facing messages; no database, filesystem, device, or stack-trace leakage.
 
 ## 7. React, TypeScript, Vite, and Tailwind

@@ -15,8 +15,11 @@ import type {
   DeviceView,
   EdgeAgentView,
   EndpointView,
+  EventKind,
   EventView,
   GroupView,
+  LabAdapterView,
+  LabDiscoveredDeviceView,
   LeaseView,
   MembershipView,
   MirrorSessionView,
@@ -316,6 +319,8 @@ const events: EventView[] = [
   { id: "event-003", kind: "operational", name: "observation.captured", actor: "fake edge agent", resourceType: "observation", resourceId: "observation-atlas-04", correlationId: "corr-1042", occurredAt: "09:39:57", payloadSummary: "Artifact bytes omitted from event view" },
   { id: "event-004", kind: "audit", name: "run.target_failed", actor: "run service", resourceType: "run_target", resourceId: "target-1041-nova-02", correlationId: "corr-1041", occurredAt: "09:35:02", failureClass: "policy_denied", payloadSummary: "Failure label retained; sensitive payload omitted" },
   { id: "event-005", kind: "operational", name: "agent.heartbeat", actor: "fake edge agent", resourceType: "edge_agent", resourceId: "edge-agent-gamma", correlationId: "corr-agent", occurredAt: "09:38:04", payloadSummary: "Version and health metadata only" },
+  { id: "event-lab-001", kind: "operational", name: "Adapter Readiness", actor: "lab adapter", resourceType: "lab_adapter", resourceId: "lab-adapter-local", correlationId: "corr-lab-000", occurredAt: "09:37:40", payloadSummary: "Mock adapter mode; no ADB transport was opened" },
+  { id: "event-lab-002", kind: "operational", name: "Read-Only Reattach", actor: "lab adapter", resourceType: "lab_adapter", resourceId: "lab-adapter-local", correlationId: "corr-lab-000", occurredAt: "09:37:41", payloadSummary: "Observation boundary reattached read-only; no lease was held" },
 ]
 
 const accountSources: AccountSourceView[] = [
@@ -380,6 +385,37 @@ const policyDecisions: PolicyDecisionView[] = [
   { id: "decision-003", policyId: "policy-lab-review", resourceType: "mirror_target", resourceId: "orion-01", action: "mirror", decision: "inconclusive", reasonCode: "capability_unavailable", correlationId: "corr-preview", actorId: "policy-service-1", decidedAt: "09:28:09" },
 ]
 
+// labDiscoveryFixture is the deterministic result of a mock discovery pass. The
+// second entry stays unusable so operator confirmation has a rejection path.
+const labDiscoveryFixture: LabDiscoveredDeviceView[] = [
+  { serial: "MOCKSERIAL0001", state: "device", model: "Mock Pixel 7a", transportId: "3", connectionType: "usb" },
+  { serial: "MOCKSERIAL0002", state: "unauthorized", model: "Mock Pixel 6", transportId: "4", connectionType: "tcp" },
+]
+
+// labPreviewPixel is a 1x1 transparent PNG standing in for a sanitized,
+// size-bounded screenshot preview. No device pixels are represented.
+const labPreviewPixel = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
+const labAdapter: LabAdapterView = {
+  mode: "mock",
+  readiness: "unavailable",
+  adapterVersion: "lab-adapter 0.13.0-mock",
+  platformToolsVersion: "not detected in mock mode",
+  confirmedSerial: "",
+  confirmedDisplayName: "",
+  stableIdentity: "",
+  transportId: "",
+  connectionState: "detached",
+  connectionType: "",
+  lastHealthAt: "09:37:40",
+  lastScreenshotHash: "",
+  lastHierarchySummary: "",
+  observationLatencyMs: 0,
+  indeterminate: false,
+  correlationId: "corr-lab-000",
+  discovered: [],
+}
+
 export function buildMockSnapshot(): ControlPlaneSnapshot {
   return {
     workspaceName: workspace.name,
@@ -414,6 +450,7 @@ export function buildMockSnapshot(): ControlPlaneSnapshot {
     policies,
     policyDecisions,
     mirrorSessions: [],
+    labAdapter,
   }
 }
 
@@ -431,6 +468,25 @@ function rejection(intent: ControlPlaneIntent, message: string, resourceId?: str
 
 function addEvent(snapshot: ControlPlaneSnapshot, event: EventView): readonly EventView[] {
   return [event, ...snapshot.events]
+}
+
+function labStamp(sequence: number): string {
+  const seconds = 40 + sequence
+  return `09:${String(38 + Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
+}
+
+// labDigest is a deterministic non-cryptographic digest used so mock observation
+// hashes stay stable across runs without carrying device content.
+function labDigest(value: string): string {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < value.length; index += 1) {
+    hash = Math.imul(hash ^ value.charCodeAt(index), 0x01000193) >>> 0
+  }
+  return `sha256:mock-${hash.toString(16).padStart(8, "0")}`
+}
+
+function labEvent(id: string, name: string, kind: EventKind, correlationId: string, occurredAt: string, payloadSummary: string, failureClass?: string): EventView {
+  return { id, kind, name, actor: "lab adapter", resourceType: "lab_adapter", resourceId: "lab-adapter-local", correlationId, occurredAt, payloadSummary, ...(failureClass ? { failureClass } : {}) }
 }
 
 function isTerminalTarget(state: RunTargetView["state"]): boolean {
@@ -495,6 +551,7 @@ function settingSummary(valueJson: string, valueKind: SettingView["valueKind"]):
 export class MockControlPlaneClient implements ControlPlaneClient {
   private snapshot: ControlPlaneSnapshot
   private nextSequence = 3
+  private labSequence = 0
 
   constructor(initialSnapshot: ControlPlaneSnapshot = buildMockSnapshot()) {
     this.snapshot = cloneSnapshot(initialSnapshot)
@@ -558,7 +615,118 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.updatePolicy(intent)
       case "updateAccountState":
         return this.updateAccountState(intent)
+      case "discoverLabDevices":
+        return this.discoverLabDevices(intent)
+      case "confirmLabTarget":
+        return this.confirmLabTarget(intent)
+      case "clearLabTarget":
+        return this.clearLabTarget(intent)
+      case "captureLabObservation":
+        return this.captureLabObservation(intent)
+      case "simulateLabCaptureFailure":
+        return this.simulateLabCaptureFailure(intent)
     }
+  }
+
+  private discoverLabDevices(intent: Extract<ControlPlaneIntent, { type: "discoverLabDevices" }>): MutationResult {
+    const sequence = this.nextLabSequence()
+    const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
+    const occurredAt = labStamp(sequence)
+    const discovered = structuredClone(labDiscoveryFixture)
+    this.snapshot = {
+      ...this.snapshot,
+      labAdapter: { ...this.snapshot.labAdapter, discovered, readiness: "blocked", failureClass: undefined, indeterminate: false, correlationId, lastHealthAt: occurredAt, connectionState: "detached" },
+      events: addEvent(this.snapshot, labEvent(`event-lab-discover-${sequence}`, "Adapter Readiness", "operational", correlationId, occurredAt, `${discovered.length} mock serials listed; no ADB transport was opened and no device was registered`)),
+    }
+    return result(intent, `${discovered.length} mock serials listed. Confirm a target before any observation is possible.`)
+  }
+
+  private confirmLabTarget(intent: Extract<ControlPlaneIntent, { type: "confirmLabTarget" }>): MutationResult {
+    const serial = intent.serial.trim()
+    const displayName = intent.displayName.trim()
+    const reason = intent.reason.trim()
+    const adapter = this.snapshot.labAdapter
+    if (!serial) return rejection(intent, "Enter the serial of the lab target to confirm.")
+    if (!displayName) return rejection(intent, "Enter an operator-facing display name for the lab target.")
+    if (!reason) return rejection(intent, "Record why this lab target is being confirmed.")
+    const candidate = adapter.discovered.find((device) => device.serial === serial)
+    if (!candidate) return rejection(intent, "That serial is not in the current discovery result. Run discovery again before confirming.")
+    if (candidate.state !== "device") return rejection(intent, `Serial ${serial} reports ${candidate.state}; only an authorized serial can be confirmed.`)
+    if (adapter.discovered.length > 1 && intent.confirmationText.trim() !== serial) return rejection(intent, "Confirmation text must match the serial exactly when more than one serial is listed.")
+    const sequence = this.nextLabSequence()
+    const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
+    const occurredAt = labStamp(sequence)
+    this.snapshot = {
+      ...this.snapshot,
+      labAdapter: { ...adapter, readiness: "ready", confirmedSerial: serial, confirmedDisplayName: displayName, stableIdentity: `lab-${labDigest(serial).slice(-8)}`, transportId: candidate.transportId, connectionState: candidate.state, connectionType: candidate.connectionType, correlationId, lastHealthAt: occurredAt, failureClass: undefined, indeterminate: false },
+      events: addEvent(this.snapshot, labEvent(`event-lab-confirm-${sequence}`, "Target Confirmation", "audit", correlationId, occurredAt, "Operator confirmed a read-only observation target; no lease, approval, or device registration was created")),
+    }
+    return result(intent, `${displayName} confirmed as the read-only lab target. No lease was acquired and no device was registered.`, serial)
+  }
+
+  private clearLabTarget(intent: Extract<ControlPlaneIntent, { type: "clearLabTarget" }>): MutationResult {
+    const adapter = this.snapshot.labAdapter
+    if (!adapter.confirmedSerial) return rejection(intent, "No lab target is confirmed.")
+    const sequence = this.nextLabSequence()
+    const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
+    const occurredAt = labStamp(sequence)
+    this.snapshot = {
+      ...this.snapshot,
+      labAdapter: { ...adapter, readiness: adapter.discovered.length > 0 ? "blocked" : "unavailable", confirmedSerial: "", confirmedDisplayName: "", stableIdentity: "", transportId: "", connectionState: "detached", connectionType: "", lastObservationAt: undefined, lastScreenshotHash: "", lastScreenshotPreviewDataUrl: undefined, lastHierarchySummary: "", observationLatencyMs: 0, failureClass: undefined, indeterminate: false, correlationId, lastHealthAt: occurredAt },
+      events: addEvent(this.snapshot, labEvent(`event-lab-clear-${sequence}`, "Cleanup", "audit", correlationId, occurredAt, "Confirmed lab target cleared and cached observation metadata dropped")),
+    }
+    return result(intent, "Lab target cleared. Observation metadata and the sanitized preview were dropped.")
+  }
+
+  private captureLabObservation(intent: Extract<ControlPlaneIntent, { type: "captureLabObservation" }>): MutationResult {
+    const adapter = this.snapshot.labAdapter
+    if (!adapter.confirmedSerial) return rejection(intent, "Confirm a lab target before capturing an observation.")
+    if (intent.serial.trim() !== adapter.confirmedSerial) return rejection(intent, "Capture serial must match the confirmed lab target exactly.")
+    if (adapter.readiness !== "ready") return rejection(intent, "The lab adapter is not ready to observe the confirmed target.")
+    const sequence = this.nextLabSequence()
+    const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
+    const occurredAt = labStamp(sequence)
+    const hash = labDigest(`${adapter.confirmedSerial}:${sequence}`)
+    this.snapshot = {
+      ...this.snapshot,
+      // Latency stays 0 and the hierarchy summary says so: nothing here was
+      // measured against a device, and a fabricated number would read as
+      // evidence in the UI.
+      labAdapter: { ...adapter, correlationId, lastObservationAt: occurredAt, lastHealthAt: occurredAt, lastScreenshotHash: hash, lastScreenshotPreviewDataUrl: labPreviewPixel, lastHierarchySummary: "mock hierarchy summary (not measured)", observationLatencyMs: 0, failureClass: undefined, indeterminate: false },
+      events: [
+        labEvent(`event-lab-tree-${sequence}`, "UI-Tree Capture", "operational", correlationId, occurredAt, "Bounded node summary retained; node text and raw hierarchy omitted"),
+        labEvent(`event-lab-observation-${sequence}`, "Observation Capture", "operational", correlationId, occurredAt, `Sanitized preview and hash retained; artifact bytes omitted · ${hash}`),
+        ...this.snapshot.events,
+      ],
+    }
+    return result(intent, `Observation captured for ${adapter.confirmedDisplayName}. Preview is sanitized metadata only.`, adapter.confirmedSerial)
+  }
+
+  // simulateLabCaptureFailure exists so operators can exercise the indeterminate
+  // surface without a device. It is mock-only: the lab-backed path never routes
+  // here, and it fabricates no observation evidence.
+  private simulateLabCaptureFailure(intent: Extract<ControlPlaneIntent, { type: "simulateLabCaptureFailure" }>): MutationResult {
+    const adapter = this.snapshot.labAdapter
+    if (adapter.mode !== "mock") return rejection(intent, "Indeterminate simulation is available in mock mode only.")
+    if (!adapter.confirmedSerial) return rejection(intent, "Confirm a lab target before simulating an indeterminate capture.")
+    const sequence = this.nextLabSequence()
+    const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
+    const occurredAt = labStamp(sequence)
+    this.snapshot = {
+      ...this.snapshot,
+      labAdapter: { ...adapter, correlationId, readiness: "indeterminate", indeterminate: true, failureClass: "indeterminate", lastHealthAt: occurredAt, observationLatencyMs: 0 },
+      events: [
+        labEvent(`event-lab-timeout-${sequence}`, "Timeout", "operational", correlationId, occurredAt, "Deadline expired after the observation command may already have been dispatched", "timeout"),
+        labEvent(`event-lab-indeterminate-${sequence}`, "Indeterminate Outcome", "audit", correlationId, occurredAt, "Outcome is unknown; this idempotency key is never replayed automatically", "indeterminate"),
+        ...this.snapshot.events,
+      ],
+    }
+    return result(intent, "Simulated an indeterminate capture. Clear the target to acknowledge the unknown outcome.", adapter.confirmedSerial)
+  }
+
+  private nextLabSequence(): number {
+    this.labSequence += 1
+    return this.labSequence
   }
 
   private startMirrorPreview(intent: Extract<ControlPlaneIntent, { type: "startMirrorPreview" }>): MutationResult {

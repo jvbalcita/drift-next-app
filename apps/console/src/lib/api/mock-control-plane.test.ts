@@ -113,6 +113,90 @@ describe("MockControlPlaneClient", () => {
     expect(client.getSnapshot().settingHistory.find((change) => change.rowVersion === 3)?.valueJson).toBe("45")
   })
 
+  it("keeps lab discovery separate from device registration and target confirmation", () => {
+    const client = new MockControlPlaneClient()
+    const deviceCount = client.getSnapshot().devices.length
+
+    const discovery = client.dispatch({ type: "discoverLabDevices" })
+    const snapshot = client.getSnapshot()
+
+    expect(discovery.ok).toBe(true)
+    expect(snapshot.devices).toHaveLength(deviceCount)
+    expect(snapshot.labAdapter.discovered.map((device) => device.serial)).toEqual(["MOCKSERIAL0001", "MOCKSERIAL0002"])
+    expect(snapshot.labAdapter.confirmedSerial).toBe("")
+    expect(snapshot.labAdapter.readiness).toBe("blocked")
+    expect(snapshot.events[0]).toMatchObject({ name: "Adapter Readiness", resourceType: "lab_adapter" })
+  })
+
+  it("requires a matching confirmation text, a reason, and an authorized serial", () => {
+    const client = new MockControlPlaneClient()
+    client.dispatch({ type: "discoverLabDevices" })
+
+    const missingSerial = client.dispatch({ type: "confirmLabTarget", serial: "", displayName: "Lab bench", confirmationText: "", reason: "Bring-up" })
+    const mismatched = client.dispatch({ type: "confirmLabTarget", serial: "MOCKSERIAL0001", displayName: "Lab bench", confirmationText: "MOCKSERIAL0002", reason: "Bring-up" })
+    const missingReason = client.dispatch({ type: "confirmLabTarget", serial: "MOCKSERIAL0001", displayName: "Lab bench", confirmationText: "MOCKSERIAL0001", reason: " " })
+    const unauthorized = client.dispatch({ type: "confirmLabTarget", serial: "MOCKSERIAL0002", displayName: "Lab bench", confirmationText: "MOCKSERIAL0002", reason: "Bring-up" })
+    const unknown = client.dispatch({ type: "confirmLabTarget", serial: "MOCKSERIAL9999", displayName: "Lab bench", confirmationText: "MOCKSERIAL9999", reason: "Bring-up" })
+    const confirmed = client.dispatch({ type: "confirmLabTarget", serial: "MOCKSERIAL0001", displayName: "Lab bench", confirmationText: "MOCKSERIAL0001", reason: "Bring-up" })
+    const adapter = client.getSnapshot().labAdapter
+
+    expect([missingSerial.ok, mismatched.ok, missingReason.ok, unauthorized.ok, unknown.ok]).toEqual([false, false, false, false, false])
+    expect(unauthorized.message).toMatch(/unauthorized/i)
+    expect(confirmed.ok).toBe(true)
+    expect(adapter).toMatchObject({ readiness: "ready", confirmedSerial: "MOCKSERIAL0001", confirmedDisplayName: "Lab bench", transportId: "3", connectionType: "usb" })
+    expect(client.getSnapshot().events[0]).toMatchObject({ name: "Target Confirmation", kind: "audit", resourceType: "lab_adapter" })
+  })
+
+  it("captures an observation only for the confirmed serial and clears it on release", () => {
+    const client = new MockControlPlaneClient()
+
+    const beforeConfirmation = client.dispatch({ type: "captureLabObservation", serial: "MOCKSERIAL0001" })
+    client.dispatch({ type: "discoverLabDevices" })
+    client.dispatch({ type: "confirmLabTarget", serial: "MOCKSERIAL0001", displayName: "Lab bench", confirmationText: "MOCKSERIAL0001", reason: "Bring-up" })
+    const wrongSerial = client.dispatch({ type: "captureLabObservation", serial: "MOCKSERIAL0002" })
+    const capture = client.dispatch({ type: "captureLabObservation", serial: "MOCKSERIAL0001" })
+    const captured = client.getSnapshot()
+
+    expect(beforeConfirmation.ok).toBe(false)
+    expect(wrongSerial.ok).toBe(false)
+    expect(capture.ok).toBe(true)
+    expect(captured.labAdapter.lastScreenshotHash).toMatch(/^sha256:mock-/)
+    expect(captured.labAdapter.lastScreenshotPreviewDataUrl).toMatch(/^data:image\/png;base64,/)
+    // Mock latency stays 0 and the summary says it was not measured, so the UI
+    // cannot present fixture timing as a device measurement.
+    expect(captured.labAdapter.observationLatencyMs).toBe(0)
+    expect(captured.labAdapter.lastHierarchySummary).toBe("mock hierarchy summary (not measured)")
+    expect(captured.events.slice(0, 2).map((event) => event.name)).toEqual(["UI-Tree Capture", "Observation Capture"])
+    expect(captured.events[0]?.correlationId).toBe(captured.events[1]?.correlationId)
+
+    const cleared = client.dispatch({ type: "clearLabTarget" })
+    const afterClear = client.getSnapshot().labAdapter
+
+    expect(cleared.ok).toBe(true)
+    expect(afterClear).toMatchObject({ readiness: "blocked", confirmedSerial: "", lastScreenshotHash: "", observationLatencyMs: 0 })
+    expect(afterClear.lastScreenshotPreviewDataUrl).toBeUndefined()
+  })
+
+  it("simulates an indeterminate capture only after a target is confirmed", () => {
+    const client = new MockControlPlaneClient()
+
+    const beforeConfirmation = client.dispatch({ type: "simulateLabCaptureFailure" })
+    client.dispatch({ type: "discoverLabDevices" })
+    client.dispatch({ type: "confirmLabTarget", serial: "MOCKSERIAL0001", displayName: "Lab bench", confirmationText: "MOCKSERIAL0001", reason: "Bring-up" })
+    const simulated = client.dispatch({ type: "simulateLabCaptureFailure" })
+    const snapshot = client.getSnapshot()
+
+    expect(beforeConfirmation.ok).toBe(false)
+    expect(simulated.ok).toBe(true)
+    expect(snapshot.labAdapter).toMatchObject({ readiness: "indeterminate", indeterminate: true, failureClass: "indeterminate" })
+    expect(snapshot.events.slice(0, 2).map((event) => event.name)).toEqual(["Timeout", "Indeterminate Outcome"])
+
+    const cleared = client.dispatch({ type: "clearLabTarget" })
+
+    expect(cleared.ok).toBe(true)
+    expect(client.getSnapshot().labAdapter).toMatchObject({ indeterminate: false, readiness: "blocked" })
+  })
+
   it("validates setting transitions and records their new state", () => {
     const client = new MockControlPlaneClient()
 
