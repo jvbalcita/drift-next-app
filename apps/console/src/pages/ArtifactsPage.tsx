@@ -13,7 +13,7 @@ import type {
   DispatchIntent,
   RecordingMediaView,
 } from "@/lib/domain/control-plane"
-import { DataTablePagination, EmptyState, FailureBadge, MockNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
+import { DataTablePagination, EmptyState, FailureBadge, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 
 type ArtifactLoadState = "ready" | "loading" | "error"
 
@@ -181,9 +181,9 @@ export function ArtifactsPage({
           </>
         }
       />
-      <MockNotice>
-        Artifact bytes stay in the mock CAS projection. Screenshots are sanitized placeholders, UI trees are bounded summaries, and unauthorized content is withheld.
-      </MockNotice>
+      <OperatorNotice>
+        Artifact bytes stay in object storage. Screenshots are sanitized placeholders, UI trees are bounded summaries, and unauthorized content is withheld.
+      </OperatorNotice>
 
       {storage.quotaWarning ? (
         <div role="status" className="mb-4 border border-border bg-muted/40 p-3 text-xs" aria-label="Storage Quota Warning">
@@ -203,14 +203,14 @@ export function ArtifactsPage({
       {loadState === "loading" ? (
         <div role="status" className="border border-border bg-muted/40 px-4 py-8 text-center" aria-label="Loading Artifacts">
           <p className="text-sm font-medium">Loading Artifacts</p>
-          <p className="mt-1 text-xs text-muted-foreground">Refreshing the mock artifact projection.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Refreshing the artifact projection.</p>
         </div>
       ) : null}
 
       {loadState === "error" ? (
         <div role="alert" className="border border-border bg-muted/40 px-4 py-8 text-center">
           <p className="text-sm font-medium">Artifacts Unavailable</p>
-          <p className="mt-1 text-xs text-muted-foreground">The mock projection failed to refresh.</p>
+          <p className="mt-1 text-xs text-muted-foreground">The artifact projection failed to refresh.</p>
           <Button size="sm" variant="outline" className="mt-4" onClick={retryLoad}>
             <RefreshCw className="size-3.5" aria-hidden="true" />
             Retry
@@ -278,7 +278,7 @@ export function ArtifactsPage({
             </div>
             <div className="mt-4">
               {filtered.length === 0 ? (
-                <EmptyState label="No Artifacts Match" detail="Adjust filters or refresh the mock artifact projection." />
+                <EmptyState label="No Artifacts Match" detail="Adjust filters or refresh the artifact projection." />
               ) : (
                 <ArtifactTable artifacts={visible} onOpen={openArtifact} />
               )}
@@ -379,7 +379,7 @@ export function ArtifactsPage({
                 <p className="text-2xl font-semibold tabular-nums">{formatBytes(storage.usedBytes)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">Of {formatBytes(storage.budgetBytes)}</p>
               </Panel>
-              <Panel title="Object Count" description="Metadata rows in the mock projection.">
+              <Panel title="Object Count" description="Metadata rows in the artifact projection.">
                 <p className="text-2xl font-semibold tabular-nums">{storage.objectCount}</p>
                 <p className="mt-1 text-xs text-muted-foreground">Orphan Metadata {storage.orphanMetadataCount} · Orphan Bytes {storage.orphanBytesCount}</p>
               </Panel>

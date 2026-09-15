@@ -34,6 +34,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { DataTablePagination } from "./shared"
 import type {
   ControlPlaneSnapshot,
   DeviceStatus,
@@ -46,11 +47,14 @@ export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [lastRefresh, setLastRefresh] = useState("just now")
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
   const selectedDevice = snapshot.devices.find((device) => device.id === selectedDeviceId) ?? snapshot.devices[0]
   const filteredDevices = useMemo(
     () => snapshot.devices.filter((device) => `${device.displayName} ${device.location} ${device.workflow}`.toLowerCase().includes(query.toLowerCase())),
     [query, snapshot.devices],
   )
+  const visibleDevices = filteredDevices.slice(page * pageSize, (page + 1) * pageSize)
   const onlineCount = snapshot.devices.filter((device) => device.status === "online").length
   const attentionCount = snapshot.devices.filter((device) => device.status === "attention").length
   const activeRuns = snapshot.runs.filter((run) => run.state === "running" || run.state === "paused").length
@@ -70,7 +74,7 @@ export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
               <RefreshCw className="size-3.5" aria-hidden="true" />
               Refresh
             </Button>
-            <Button size="sm" disabled title="Actions are disabled in demo mode">
+            <Button size="sm" disabled title="Requires Confirmation">
               <Play className="size-3.5" aria-hidden="true" />
               Run workflow
             </Button>
@@ -82,7 +86,7 @@ export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
         <MetricCard label="Devices online" value={`${onlineCount}/${snapshot.devices.length}`} detail="All agents reporting" icon={Wifi} accent="cobalt" />
         <MetricCard label="Needs attention" value={String(attentionCount)} detail="Reconnecting or offline" icon={AlertTriangle} accent="amber" />
         <MetricCard label="Active runs" value={String(activeRuns)} detail="Independent target state" icon={Activity} accent="violet" />
-        <MetricCard label="Median latency" value="48 ms" detail="Mock observation window" icon={Network} accent="emerald" />
+        <MetricCard label="Median latency" value="48 ms" detail="Observation window" icon={Network} accent="emerald" />
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
@@ -95,20 +99,20 @@ export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
               </div>
               <div className="relative w-full sm:w-52">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                <input aria-label="Search devices" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search devices" className="h-8 w-full rounded-none border border-input bg-background px-3 pl-8 text-xs outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20" />
+                <input aria-label="Search devices" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0) }} placeholder="Search devices" className="h-8 w-full rounded-none border border-input bg-background px-3 pl-8 text-xs outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20" />
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-3 sm:p-4">
-            <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-xs"><caption className="sr-only">Fleet devices</caption><thead><tr className="border-b border-border text-[10px] uppercase tracking-[.08em] text-muted-foreground"><th className="pb-3">Device</th><th className="pb-3">Location</th><th className="pb-3">Health</th><th className="pb-3">Current work</th><th className="pb-3">Battery</th><th className="pb-3">Last seen</th></tr></thead><tbody>{filteredDevices.map((device) => <DeviceCard key={device.id} device={device} selected={device.id === selectedDevice?.id} onSelect={() => { setSelectedDeviceId(device.id); setInspectorOpen(true) }} />)}</tbody></table></div>
-            {filteredDevices.length === 0 ? <p className="px-2 py-8 text-center text-sm text-muted-foreground">No devices match “{query}”.</p> : null}
+            <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-xs"><caption className="sr-only">Fleet devices</caption><thead><tr className="border-b border-border text-[10px] uppercase tracking-[.08em] text-muted-foreground"><th className="pb-3">Device</th><th className="pb-3">Location</th><th className="pb-3">Health</th><th className="pb-3">Current work</th><th className="pb-3">Battery</th><th className="pb-3">Last seen</th></tr></thead><tbody>{visibleDevices.map((device) => <DeviceCard key={device.id} device={device} selected={device.id === selectedDevice?.id} onSelect={() => { setSelectedDeviceId(device.id); setInspectorOpen(true) }} />)}</tbody></table></div>
+            {filteredDevices.length === 0 ? <p className="px-2 py-8 text-center text-sm text-muted-foreground">No devices match “{query}”.</p> : <DataTablePagination page={page} pageSize={pageSize} total={filteredDevices.length} onPageChange={setPage} onPageSizeChange={(next) => { setPageSize(next); setPage(0) }} />}
           </CardContent>
         </Card>
 
         {selectedDevice ? <Card className="hidden rounded-none border-border bg-card">
           <CardHeader className="border-b border-border pb-4">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Smartphone className="size-4 text-primary" aria-hidden="true" /><h2>Selected device</h2></CardTitle>
-            <CardDescription className="mt-2 text-xs">Current device, edge-agent, and observation projections · read-only demo</CardDescription>
+            <CardDescription className="mt-2 text-xs">Current device, edge-agent, and observation projections</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="flex items-center gap-3 border-b border-border px-4 py-4">
@@ -133,7 +137,7 @@ export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
                   <p className="mb-2 text-xs text-muted-foreground">{selectedDevice.workflow}</p>
                   <div className="h-1.5 overflow-hidden rounded-none bg-background"><div className="h-full rounded-none bg-primary transition-all" style={{ width: `${selectedDevice.taskProgress}%` }} /></div>
                 </div>
-                <div className="mt-4 flex items-start gap-2 rounded-none border-l-2 border-primary bg-secondary/70 p-3 text-[11px] leading-relaxed text-muted-foreground"><CircleHelp className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />This inspector is backed by a deterministic mock client. It does not connect to a device.</div>
+                <div className="mt-4 flex items-start gap-2 rounded-none border-l-2 border-primary bg-secondary/70 p-3 text-[11px] leading-relaxed text-muted-foreground"><CircleHelp className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />This inspector shows current projections. It does not send device commands.</div>
               </TabsContent>
               <TabsContent value="activity" className="px-4 pb-4 pt-4"><ActivityTimeline events={snapshot.events.slice(0, 4)} compact /></TabsContent>
             </Tabs>
@@ -143,11 +147,11 @@ export function OverviewPage({ snapshot, dispatch }: { snapshot: ControlPlaneSna
       <Sheet modal={false} open={inspectorOpen} onOpenChange={setInspectorOpen}><SheetContent className="w-full rounded-none sm:max-w-xl"><SheetHeader className="border-b border-border"><SheetTitle>{selectedDevice?.displayName ?? "Device inspector"}</SheetTitle><SheetDescription>Current device, activity, and health projections.</SheetDescription></SheetHeader>{selectedDevice ? <Tabs defaultValue="overview" className="p-4"><TabsList className="rounded-none border border-border bg-background p-0"><TabsTrigger value="overview" className="rounded-none">Overview</TabsTrigger><TabsTrigger value="activity" className="rounded-none">Activity</TabsTrigger><TabsTrigger value="health" className="rounded-none">Health</TabsTrigger></TabsList><TabsContent value="overview" className="space-y-3 text-xs"><DeviceStatusBadge status={selectedDevice.status} /><p>{selectedDevice.location}</p><p>Edge agent {selectedDevice.agentId} · last seen {selectedDevice.lastSeen}</p></TabsContent><TabsContent value="activity"><ActivityTimeline events={snapshot.events.slice(0, 4)} compact /></TabsContent><TabsContent value="health" className="text-xs">Battery {selectedDevice.batteryPercent}% · latency {selectedDevice.latencyMs} ms · {selectedDevice.workflow}</TabsContent></Tabs> : null}</SheetContent></Sheet>
 
       <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.42fr)]">
-        <Collapsible className="border border-border bg-card"><CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left"><span><span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Activity className="size-4 text-primary" aria-hidden="true" />Recent activity</span><span className="mt-2 block text-xs text-muted-foreground">Auditable events from the mock workspace</span></span><span className="text-xs text-muted-foreground">Show</span></CollapsibleTrigger><CollapsibleContent className="border-t border-border p-4"><ActivityTimeline events={snapshot.events.slice(0, 4)} /></CollapsibleContent></Collapsible>
-        <Collapsible className="border border-border bg-card"><CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left"><span><span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Server className="size-4 text-primary" aria-hidden="true" />Runtime readiness</span><span className="mt-2 block text-xs text-muted-foreground">Local bootstrap readiness</span></span><span className="text-xs text-muted-foreground">Show</span></CollapsibleTrigger><CollapsibleContent className="space-y-3 border-t border-border p-4"><ReadinessRow label="Web console" state="Ready" /><ReadinessRow label="Typed mock client" state="Ready" /><ReadinessRow label="Go services" state="Planned" muted /><ReadinessRow label="Device adapters" state="Disabled" muted /></CollapsibleContent></Collapsible>
+        <Collapsible className="border border-border bg-card"><CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left"><span><span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Activity className="size-4 text-primary" aria-hidden="true" />Recent activity</span><span className="mt-2 block text-xs text-muted-foreground">Auditable events from this workspace</span></span><span className="text-xs text-muted-foreground">Show</span></CollapsibleTrigger><CollapsibleContent className="border-t border-border p-4"><ActivityTimeline events={snapshot.events.slice(0, 4)} /></CollapsibleContent></Collapsible>
+        <Collapsible className="border border-border bg-card"><CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-left"><span><span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em]"><Server className="size-4 text-primary" aria-hidden="true" />Runtime readiness</span><span className="mt-2 block text-xs text-muted-foreground">Local bootstrap readiness</span></span><span className="text-xs text-muted-foreground">Show</span></CollapsibleTrigger><CollapsibleContent className="space-y-3 border-t border-border p-4"><ReadinessRow label="Web console" state="Ready" /><ReadinessRow label="Control plane" state={snapshot.runtimeConnection.state === "connected" ? "Ready" : "Unavailable"} /><ReadinessRow label="Go services" state={snapshot.runtimeConnection.state === "connected" ? "Ready" : "Unavailable"} muted={snapshot.runtimeConnection.state !== "connected"} /><ReadinessRow label="Device adapters" state={snapshot.labAdapter.readiness === "unavailable" ? "Unavailable" : "Ready"} muted={snapshot.labAdapter.readiness === "unavailable"} /></CollapsibleContent></Collapsible>
       </section>
 
-      <footer className="mt-6 flex flex-col gap-2 border-t border-border pt-4 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>Drift Command Center · local bootstrap</span><span className="flex items-center gap-1.5 font-mono uppercase tracking-[0.08em] text-amber-700"><XCircle className="size-3" aria-hidden="true" />Demo mode · actions disabled</span></footer>
+      <footer className="mt-6 flex flex-col gap-2 border-t border-border pt-4 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>Drift Command Center</span><span className={`flex items-center gap-1.5 font-mono uppercase tracking-[0.08em] ${snapshot.runtimeConnection.state === "connected" ? "text-emerald-700" : "text-amber-700"}`}>{snapshot.runtimeConnection.state === "connected" ? <Check className="size-3" aria-hidden="true" /> : <XCircle className="size-3" aria-hidden="true" />}{snapshot.runtimeConnection.state === "connected" ? "Connected" : snapshot.runtimeConnection.state === "reconnecting" ? "Reconnecting" : "Disconnected"}</span></footer>
     </>
   )
 }

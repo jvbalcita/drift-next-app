@@ -1,6 +1,4 @@
-import { create, fromJson, toJson } from "@bufbuild/protobuf"
 import type { DescMessage, MessageInitShape, MessageShape } from "@bufbuild/protobuf"
-import { RequestContextSchema, WorkspaceRefSchema } from "@/gen/drift/v1/common_pb"
 import {
   CaptureLabObservationRequestSchema,
   CaptureLabObservationResponseSchema,
@@ -19,19 +17,23 @@ import {
   type LabObservationBundle,
   type LabStatus,
 } from "@/gen/drift/v1/lab_adapter_pb"
+import {
+  ConnectJsonClient,
+  ConnectJsonError,
+  LabAdapterRequestError,
+  configuredLabToken,
+  requestContext,
+  workspaceRef,
+} from "@/lib/api/connect-json"
 import type { LabAdapterView, LabDiscoveredDeviceView, LabMode as LabModeView, LabReadiness as LabReadinessView } from "@/lib/domain/control-plane"
+
+export { LabAdapterRequestError }
 
 // labAdapterBaseUrl is set only when an operator opts into the local lab
 // Connect endpoint. When it is unset the console stays on the mock path.
 const configuredBaseUrl = import.meta.env.VITE_DRIFT_LAB_ADAPTER_URL
 
-// configuredToken is the local lab shared secret. The service requires it in
-// lab mode, because loopback reachability alone does not distinguish the
-// console from any other local process.
-const configuredToken = import.meta.env.VITE_DRIFT_LAB_TOKEN
-
-// labTokenHeader mirrors service.LabTokenHeader on the Go side.
-const labTokenHeader = "X-Drift-Lab-Token"
+const configuredToken = configuredLabToken()
 
 const serviceName = "drift.v1.LabAdapterService"
 // previewByteCap mirrors the adapter's sanitized preview cap so an oversized or
@@ -46,25 +48,14 @@ export interface LabAdapterCallOptions {
   idempotencyKey?: string
 }
 
-export class LabAdapterRequestError extends Error {
-  readonly code: string
-  constructor(code: string, message: string) {
-    super(message)
-    this.name = "LabAdapterRequestError"
-    this.code = code
-  }
-}
-
 // LabAdapterClient is a thin optional seam over the local Connect endpoint. It
 // performs unary JSON calls only: it opens no ADB transport, holds no lease, and
 // issues no device input.
 export class LabAdapterClient {
-  private readonly baseUrl: string
-  private readonly token: string
+  private readonly json: ConnectJsonClient
 
   constructor(baseUrl: string, token = "") {
-    this.baseUrl = baseUrl.replace(/\/+$/, "")
-    this.token = token.trim()
+    this.json = new ConnectJsonClient(baseUrl, token)
   }
 
   async getLabStatus(options: LabAdapterCallOptions): Promise<LabStatus | undefined> {
@@ -98,22 +89,22 @@ export class LabAdapterClient {
   }
 
   private workspace(options: LabAdapterCallOptions) {
-    return create(WorkspaceRefSchema, { workspaceId: options.workspaceId })
+    return workspaceRef(options.workspaceId)
   }
 
   private context(options: LabAdapterCallOptions) {
-    return create(RequestContextSchema, { requestId: options.requestId, correlationId: options.correlationId ?? options.requestId, idempotencyKey: options.idempotencyKey ?? options.requestId })
+    return requestContext(options)
   }
 
   private async call<Request extends DescMessage, Response extends DescMessage>(method: string, requestSchema: Request, responseSchema: Response, init: MessageInitShape<Request>): Promise<MessageShape<Response>> {
-    const response = await fetch(`${this.baseUrl}/${serviceName}/${method}`, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...(this.token ? { [labTokenHeader]: this.token } : {}) },
-      body: JSON.stringify(toJson(requestSchema, create(requestSchema, init))),
-    })
-    const payload: unknown = await response.json().catch(() => undefined)
-    if (!response.ok) throw new LabAdapterRequestError(readString(payload, "code") ?? "unknown", readString(payload, "message") ?? `Lab adapter request ${method} failed.`)
-    return fromJson(responseSchema, payload as Parameters<typeof fromJson>[1])
+    try {
+      return await this.json.call(serviceName, method, requestSchema, responseSchema, init)
+    } catch (cause: unknown) {
+      if (cause instanceof ConnectJsonError) {
+        throw new LabAdapterRequestError(cause.code, cause.message.startsWith("Request ") ? `Lab adapter request ${method} failed.` : cause.message)
+      }
+      throw cause
+    }
   }
 }
 
@@ -167,10 +158,4 @@ function previewFields(status: LabStatus, observation?: LabObservationBundle): P
 
 function toDiscoveredView(device: LabStatus["discovered"][number]): LabDiscoveredDeviceView {
   return { serial: device.serial, state: device.connectionState, model: device.model, transportId: device.transportId, connectionType: device.connectionType }
-}
-
-function readString(payload: unknown, key: string): string | undefined {
-  if (typeof payload !== "object" || payload === null) return undefined
-  const candidate = (payload as Record<string, unknown>)[key]
-  return typeof candidate === "string" ? candidate : undefined
 }

@@ -896,6 +896,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     return cloneSnapshot(this.snapshot)
   }
 
+  async refresh(): Promise<ControlPlaneSnapshot> {
+    return this.getSnapshot()
+  }
+
   dispatch(intent: ControlPlaneIntent): MutationResult {
     switch (intent.type) {
       case "refresh":
@@ -1187,7 +1191,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       labAdapter: { ...this.snapshot.labAdapter, discovered, readiness: "blocked", failureClass: undefined, indeterminate: false, correlationId, lastHealthAt: occurredAt, connectionState: "detached" },
       events: addEvent(this.snapshot, labEvent(`event-lab-discover-${sequence}`, "Adapter Readiness", "operational", correlationId, occurredAt, `${discovered.length} mock serials listed; no ADB transport was opened and no device was registered`)),
     }
-    return result(intent, `${discovered.length} mock serials listed. Confirm a target before any observation is possible.`)
+    return result(intent, `${discovered.length} serials listed. Confirm a target before any observation is possible.`)
   }
 
   private confirmLabTarget(intent: Extract<ControlPlaneIntent, { type: "confirmLabTarget" }>): MutationResult {
@@ -1210,7 +1214,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       labAdapter: { ...adapter, readiness: "ready", confirmedSerial: serial, confirmedDisplayName: displayName, stableIdentity: `lab-${labDigest(serial).slice(-8)}`, transportId: candidate.transportId, connectionState: candidate.state, connectionType: candidate.connectionType, correlationId, lastHealthAt: occurredAt, failureClass: undefined, indeterminate: false },
       events: addEvent(this.snapshot, labEvent(`event-lab-confirm-${sequence}`, "Target Confirmation", "audit", correlationId, occurredAt, "Operator confirmed a read-only observation target; no lease, approval, or device registration was created")),
     }
-    return result(intent, `${displayName} confirmed as the read-only lab target. No lease was acquired and no device was registered.`, serial)
+    return result(intent, `${displayName} confirmed as the read-only target. No lease was acquired and no device was registered.`, serial)
   }
 
   private clearLabTarget(intent: Extract<ControlPlaneIntent, { type: "clearLabTarget" }>): MutationResult {
@@ -1408,7 +1412,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         ),
       ),
     }
-    return result(intent, "Provisioning verified (mock). Next: Approval, then Registration. This is not a real device registration.", serial)
+    return result(intent, "Provisioning verified. Next: Approval, then Registration. This is not a real device registration.", serial)
   }
 
   private approveLabProvisioning(intent: Extract<ControlPlaneIntent, { type: "approveLabProvisioning" }>): MutationResult {
@@ -1449,7 +1453,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         ),
       ),
     }
-    return result(intent, "Approval recorded (mock). Registration remains a separate explicit step.", serial)
+    return result(intent, "Approval recorded. Registration remains a separate explicit step.", serial)
   }
 
   private registerLabDevice(intent: Extract<ControlPlaneIntent, { type: "registerLabDevice" }>): MutationResult {
@@ -1504,7 +1508,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         ),
       ),
     }
-    return result(intent, `Mock Lab Registration recorded for ${displayName}. This is not a real device registration.`, deviceId)
+    return result(intent, `Registration recorded for ${displayName}. This is not a real device registration.`, deviceId)
   }
 
   private simulateRuntimeDisconnect(intent: Extract<ControlPlaneIntent, { type: "simulateRuntimeDisconnect" }>): MutationResult {

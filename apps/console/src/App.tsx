@@ -36,7 +36,7 @@ const ArtifactsPage = lazy(async () => ({ default: (await import("./pages/Artifa
 
 function App() {
   const [route, setRoute] = useState<Route>(() => routeFromHash(window.location.hash))
-  const { snapshot, dispatch, dispatchLab, labNotice } = useControlPlane()
+  const { snapshot, dispatch, dispatchLab, labNotice, loading, connectionError, reload } = useControlPlane()
   useEffect(() => {
     const syncRoute = () => setRoute(routeFromHash(window.location.hash))
     window.addEventListener("hashchange", syncRoute)
@@ -72,6 +72,13 @@ function App() {
             </div>
           </header>
           <main className="drift-editorial-grid mx-auto w-full max-w-[1800px] flex-1 p-4 sm:p-6 lg:p-8">
+            {loading ? <p role="status" className="mb-4 border border-border bg-muted/30 p-3 text-xs text-muted-foreground">Loading Control Plane…</p> : null}
+            {connectionError ? (
+              <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 border border-border bg-red-50 p-3 text-xs text-red-800">
+                <span className="flex-1">{connectionError}</span>
+                <Button size="sm" variant="outline" onClick={() => void reload()}>Retry</Button>
+              </div>
+            ) : null}
             <Suspense fallback={<ConsoleLoadingState />}>
               {renderSection(route, snapshot, dispatch, dispatchLab, labNotice, (view) => navigate(route.section, view))}
             </Suspense>

@@ -3,7 +3,7 @@ import { Filter, Search } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import type { ControlPlaneSnapshot, EventKind, EventView } from "@/lib/domain/control-plane"
-import { DataTablePagination, EmptyState, FailureBadge, MockNotice, PageIntro, StatusBadge } from "./shared"
+import { DataTablePagination, EmptyState, FailureBadge, OperatorNotice, PageIntro, StatusBadge } from "./shared"
 
 export function EventsPage({ snapshot }: { snapshot: ControlPlaneSnapshot }) {
   const [kind, setKind] = useState<EventKind | "all">("all")
@@ -30,7 +30,7 @@ export function EventsPage({ snapshot }: { snapshot: ControlPlaneSnapshot }) {
 
   return <>
     <PageIntro eyebrow="OBSERVABILITY / EVENTS" title="Events and Audit" description="A dense, searchable event ledger. Bounded metadata stays visible while raw payloads and sensitive evidence remain unavailable." actions={<StatusBadge label="Redacted View" tone="info" />} />
-    <MockNotice>Payload bodies, screenshots, credentials, and protocol data are omitted. This is a mock-control-plane ledger only.</MockNotice>
+    <OperatorNotice>Payload bodies, screenshots, credentials, and protocol data are omitted. This is a control-plane ledger only.</OperatorNotice>
     <div className="flex flex-wrap items-end gap-3 border-y border-border py-3" aria-label="Event Filters">
       <FilterSelect id="event-kind" label="Event Type" value={kind} onChange={(next) => { setKind(next as EventKind | "all"); resetPage() }}><option value="all">All Events</option><option value="operational">Operational</option><option value="audit">Audit</option></FilterSelect>
       <FilterInput id="event-actor" label="Actor" value={actor} onChange={(next) => { setActor(next); resetPage() }} />
@@ -41,7 +41,7 @@ export function EventsPage({ snapshot }: { snapshot: ControlPlaneSnapshot }) {
       <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground"><Filter className="size-3.5" aria-hidden="true" />{events.length} Results</span>
     </div>
     <div className="mt-4">
-      {events.length === 0 ? <EmptyState label="No Events Match" detail="Adjust one or more filters to see mock event ledger entries." /> : <EventTable events={visibleEvents} onOpen={setSelectedId} />}
+      {events.length === 0 ? <EmptyState label="No Events Match" detail="Adjust one or more filters to see event ledger entries." /> : <EventTable events={visibleEvents} onOpen={setSelectedId} />}
       <DataTablePagination page={page} pageSize={pageSize} total={events.length} onPageChange={setPage} onPageSizeChange={(nextSize) => { setPageSize(nextSize); setPage(0) }} />
     </div>
     <Sheet open={Boolean(selected)} onOpenChange={(open) => !open && setSelectedId(null)}><SheetContent className="w-full rounded-none sm:max-w-xl"><SheetHeader className="border-b border-border"><SheetTitle>{selected?.name ?? "Event Detail"}</SheetTitle><SheetDescription>Sanitized, bounded event metadata.</SheetDescription></SheetHeader>{selected ? <dl className="grid gap-4 p-4 text-xs"><Detail label="Occurred" value={selected.occurredAt} /><Detail label="Actor" value={selected.actor} /><Detail label="Resource" value={`${selected.resourceType} / ${selected.resourceId}`} /><Detail label="Correlation ID" value={selected.correlationId} mono /><Detail label="Payload Summary" value={selected.payloadSummary} /><div><dt className="text-muted-foreground">Failure Classification</dt><dd className="mt-1"><FailureBadge failureClass={selected.failureClass} />{!selected.failureClass ? "None" : null}</dd></div></dl> : null}</SheetContent></Sheet>

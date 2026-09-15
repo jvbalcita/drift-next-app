@@ -17,7 +17,9 @@ describe("Drift command center", () => {
     expect(screen.getByRole("heading", { name: /fleet overview/i })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: /device fleet/i })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: /selected device/i })).toBeInTheDocument()
-    expect(screen.getByText("Demo mode · actions disabled")).toBeInTheDocument()
+    expect(screen.getByText("Connected")).toBeInTheDocument()
+    expect(screen.getByLabelText("Rows per page")).toBeInTheDocument()
+    expect(screen.getByText(/Showing 1–6 of 6 results/i)).toBeInTheDocument()
   })
 
   it("keeps navigation breadcrumbs in the shell header only", () => {
@@ -132,7 +134,7 @@ describe("Drift command center", () => {
     const routes = [
       ["#accounts/run-history", "Run history"],
       ["#network-profiles/endpoints", "Registered endpoints"],
-      ["#network-profiles/provisioning", "Lab Provisioning"],
+      ["#network-profiles/provisioning", "Device Provisioning"],
       ["#groups/membership", "Membership"],
       ["#workflows/skills", "Skills"],
       ["#agents/capabilities", "Capabilities"],
@@ -189,7 +191,7 @@ describe("Drift command center", () => {
 
     expect(screen.getByText("Control / Device Workspace")).toBeInTheDocument()
     expect(screen.getByText("Control Center", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
-    expect(screen.getByText("Mock Only")).toBeInTheDocument()
+    expect(screen.getAllByText("Simulator").length).toBeGreaterThan(0)
     expect(screen.getByRole("slider", { name: /Floating frame size/i })).toHaveAttribute("min", "480")
     expect(screen.getByRole("slider", { name: /Small screen/i })).toHaveAttribute("max", "840")
     expect(screen.getByRole("slider", { name: /Floating frame size/i })).toHaveAttribute("step", "40")
@@ -276,15 +278,15 @@ describe("Drift command center", () => {
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
-    const strip = screen.getByRole("region", { name: /Lab Adapter Status/i })
+    const strip = screen.getByRole("region", { name: /Device Adapter Status/i })
 
-    expect(within(strip).getByText("Mock Adapter")).toBeInTheDocument()
+    expect(within(strip).getByText("Simulator")).toBeInTheDocument()
     expect(within(strip).getByText("Unavailable")).toBeInTheDocument()
     expect(within(strip).getAllByText("Connected").length).toBeGreaterThan(0)
     expect(within(strip).getByText("Spool Clear")).toBeInTheDocument()
     expect(within(strip).getByText("No target confirmed")).toBeInTheDocument()
-    expect(within(strip).getByRole("button", { name: /Confirm Lab Target/i })).toBeDisabled()
-    expect(within(strip).getByRole("button", { name: /Lab Provisioning/i })).toBeEnabled()
+    expect(within(strip).getByRole("button", { name: /Confirm Target/i })).toBeDisabled()
+    expect(within(strip).getByRole("button", { name: /Device Provisioning/i })).toBeEnabled()
     expect(within(strip).getByRole("button", { name: /Runtime And Spool/i })).toBeEnabled()
     expect(within(strip).queryByRole("button", { name: /Capture Observation/i })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Atlas 04/i })).toBeInTheDocument()
@@ -292,8 +294,8 @@ describe("Drift command center", () => {
     await user.click(within(strip).getByRole("button", { name: /Discover Devices/i }))
 
     expect(within(strip).getByText("Blocked")).toBeInTheDocument()
-    expect(within(strip).getByRole("button", { name: /Confirm Lab Target/i })).toBeEnabled()
-    expect(screen.getByText(/2 mock serials listed/i)).toBeInTheDocument()
+    expect(within(strip).getByRole("button", { name: /Confirm Target/i })).toBeEnabled()
+    expect(screen.getByText(/2 serials listed/i)).toBeInTheDocument()
   })
 
   it("keeps Lab Provisioning empty until evidence exists and disables Registration without Approval", async () => {
@@ -301,20 +303,20 @@ describe("Drift command center", () => {
     window.location.hash = "#network-profiles/provisioning"
     render(<App />)
 
-    expect(await screen.findByRole("tab", { name: "Lab Provisioning" })).toHaveAttribute("data-active")
-    expect(screen.getByText("No Lab Provisioning Evidence")).toBeInTheDocument()
+    expect(await screen.findByRole("tab", { name: "Device Provisioning" })).toHaveAttribute("data-active")
+    expect(screen.getByText("No Device Provisioning Evidence")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Verify Provisioning/i })).toBeDisabled()
     expect(screen.getByRole("button", { name: /Approve Provisioning/i })).toBeDisabled()
-    expect(screen.getByRole("button", { name: /Register Mock Lab Device/i })).toBeDisabled()
-    expect(screen.getByLabelText(/Lab provisioning stages/i)).toHaveTextContent("Discovery")
-    expect(screen.getByLabelText(/Lab provisioning stages/i)).toHaveTextContent("Approval")
-    expect(screen.getByLabelText(/Lab provisioning stages/i)).toHaveTextContent("Provisioning")
-    expect(screen.getByLabelText(/Lab provisioning stages/i)).toHaveTextContent("Registration")
-    expect(screen.getByLabelText(/Lab provisioning stages/i)).toHaveTextContent("Mock Only")
+    expect(screen.getByRole("button", { name: /Register Device/i })).toBeDisabled()
+    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Discovery")
+    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Approval")
+    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Provisioning")
+    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Registration")
+    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Simulator")
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
     await user.click(screen.getByRole("button", { name: /Discover Devices/i }))
-    await user.click(screen.getByRole("button", { name: /Confirm Lab Target/i }))
+    await user.click(screen.getByRole("button", { name: /Confirm Target/i }))
     const dialog = screen.getByRole("dialog")
     await user.selectOptions(within(dialog).getByLabelText("Serial"), "MOCKSERIAL0001")
     await user.type(within(dialog).getByLabelText("Display Name"), "Lab bench")
@@ -322,17 +324,17 @@ describe("Drift command center", () => {
     await user.type(within(dialog).getByLabelText("Reason"), "Vertical slice bring-up")
     await user.click(within(dialog).getByRole("button", { name: /^Confirm Target$/i }))
 
-    await user.click(screen.getByRole("button", { name: /Lab Provisioning/i }))
+    await user.click(screen.getByRole("button", { name: /Device Provisioning/i }))
     const sheet = screen.getByRole("dialog")
     await user.click(within(sheet).getByRole("button", { name: /Verify Provisioning/i }))
-    expect(screen.getByText(/Provisioning verified \(mock\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/Provisioning verified/i)).toBeInTheDocument()
 
     await user.click(within(sheet).getByRole("button", { name: /Approve Provisioning/i }))
     await user.click(screen.getByRole("button", { name: /Grant Approval/i }))
-    expect(screen.getByText(/Approval recorded \(mock\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/Approval recorded/i)).toBeInTheDocument()
 
-    await user.click(within(sheet).getByRole("button", { name: /Register Mock Lab Device/i }))
-    await user.click(screen.getByRole("button", { name: /Confirm Mock Registration/i }))
+    await user.click(within(sheet).getByRole("button", { name: /Register Device/i }))
+    await user.click(screen.getByRole("button", { name: /Confirm Registration/i }))
     expect(screen.getAllByText(/not a real device registration/i).length).toBeGreaterThan(0)
   })
 
@@ -346,7 +348,7 @@ describe("Drift command center", () => {
     expect(within(sheet).getByText("No Indeterminate Actions")).toBeInTheDocument()
     expect(within(sheet).getByRole("button", { name: /Confirm Spool Replay/i })).toBeDisabled()
 
-    await user.click(within(sheet).getByRole("button", { name: /Enqueue Mock Spool Item/i }))
+    await user.click(within(sheet).getByRole("button", { name: /Enqueue Spool Item/i }))
     await user.click(within(sheet).getByRole("button", { name: /Simulate Disconnect/i }))
     expect(within(sheet).getAllByText(/Disconnected/i).length).toBeGreaterThan(0)
     expect(within(sheet).getByText(/Confirmation Required/i)).toBeInTheDocument()
@@ -357,7 +359,7 @@ describe("Drift command center", () => {
     expect(within(sheet).getByRole("button", { name: /Confirm Spool Replay/i })).toBeEnabled()
 
     await user.click(within(sheet).getByRole("button", { name: /Confirm Spool Replay/i }))
-    await user.click(screen.getByRole("button", { name: /Confirm Mock Replay/i }))
+    await user.click(screen.getByRole("button", { name: /Confirm Replay/i }))
     expect(screen.getByText(/not automatic replay/i)).toBeInTheDocument()
   })
 
@@ -367,7 +369,7 @@ describe("Drift command center", () => {
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
     await user.click(screen.getByRole("button", { name: /Discover Devices/i }))
-    await user.click(screen.getByRole("button", { name: /Confirm Lab Target/i }))
+    await user.click(screen.getByRole("button", { name: /Confirm Target/i }))
 
     const dialog = screen.getByRole("dialog")
     await user.click(within(dialog).getByRole("button", { name: /^Confirm Target$/i }))
@@ -383,7 +385,7 @@ describe("Drift command center", () => {
     await user.click(within(dialog).getByRole("button", { name: /^Confirm Target$/i }))
 
     expect(within(dialog).getByRole("alert")).toHaveTextContent(/must match the selected serial exactly/i)
-    expect(screen.queryByLabelText(/lab observation frame/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/observation frame/i)).not.toBeInTheDocument()
   })
 
   it("shows the sanitized lab preview only after a confirmed target is observed", async () => {
@@ -392,7 +394,7 @@ describe("Drift command center", () => {
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
     await user.click(screen.getByRole("button", { name: /Discover Devices/i }))
-    await user.click(screen.getByRole("button", { name: /Confirm Lab Target/i }))
+    await user.click(screen.getByRole("button", { name: /Confirm Target/i }))
 
     const dialog = screen.getByRole("dialog")
     await user.selectOptions(within(dialog).getByLabelText("Serial"), "MOCKSERIAL0001")
@@ -402,19 +404,19 @@ describe("Drift command center", () => {
     await user.click(within(dialog).getByRole("button", { name: /^Confirm Target$/i }))
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
-    const strip = screen.getByRole("region", { name: /Lab Adapter Status/i })
+    const strip = screen.getByRole("region", { name: /Device Adapter Status/i })
     expect(within(strip).getByText("Ready")).toBeInTheDocument()
-    expect(screen.queryByLabelText(/lab observation frame/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/observation frame/i)).not.toBeInTheDocument()
 
     await user.click(within(strip).getByRole("button", { name: /Capture Observation/i }))
 
-    const frame = screen.getByLabelText(/Lab bench lab observation frame/i)
+    const frame = screen.getByLabelText(/Lab bench observation frame/i)
     expect(within(frame).getByAltText(/Sanitized screenshot preview for Lab bench/i)).toBeInTheDocument()
     expect(within(frame).getByText("Read Only")).toBeInTheDocument()
     expect(within(frame).getByText(/sha256:mock-/)).toBeInTheDocument()
 
     await user.click(within(strip).getByRole("button", { name: /Clear Target/i }))
-    expect(screen.queryByLabelText(/lab observation frame/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/observation frame/i)).not.toBeInTheDocument()
   })
 
   it("keeps the lab adapter section separate from registered devices", async () => {
@@ -422,7 +424,7 @@ describe("Drift command center", () => {
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Devices/ }))
-    expect(await screen.findByText("Lab Adapter Status")).toBeInTheDocument()
+    expect(await screen.findByText("Device Adapter Status")).toBeInTheDocument()
     expect(screen.getByText(/Discovered serials are never registered as devices/i)).toBeInTheDocument()
     expect(screen.getByText("0 listed, 0 registered")).toBeInTheDocument()
     expect(screen.getByText("No target confirmed")).toBeInTheDocument()
@@ -493,7 +495,7 @@ describe("Drift command center", () => {
     const workspaceLabel = document.querySelector('[data-slot="sidebar-group-label"]')
     const footerMenuButton = document.querySelector('[data-slot="sidebar-footer"] [data-sidebar="menu-button"]')
 
-    expect(screen.getByRole("button", { name: /DRIFT.*Demo control plane/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /DRIFT.*Local Control Plane/i })).toBeInTheDocument()
     expect(footerMenuButton).toHaveAttribute("data-size", "lg")
     expect(footerMenuButton).toHaveClass("h-12", "text-sm")
     expect(workspaceLabel).toHaveTextContent("Workspace")

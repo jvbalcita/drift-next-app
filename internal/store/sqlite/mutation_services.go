@@ -52,6 +52,25 @@ func (s *GroupService) ReplacePlacement(ctx context.Context, m groups.Membership
 	})
 }
 
+func (s *GroupService) Create(ctx context.Context, g groups.Group, actorType, actorID string) error {
+	if ctx == nil || s == nil || s.store == nil {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite store are required")
+	}
+	if strings.TrimSpace(string(g.ID)) == "" || strings.TrimSpace(string(g.Workspace)) == "" || strings.TrimSpace(g.Name) == "" || !g.State.Valid() {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "group fields are required")
+	}
+	if strings.TrimSpace(actorType) == "" || strings.TrimSpace(actorID) == "" {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "actor fields are required")
+	}
+	now := s.store.clock.Now().UTC().Format(time.RFC3339Nano)
+	return WithTx(ctx, s.store.db, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO device_groups (id,workspace_id,name,state,created_at,updated_at,row_version) VALUES (?,?,?,?,?,?,1)`, g.ID, g.Workspace, g.Name, g.State, now, now); err != nil {
+			return mapConstraint(err)
+		}
+		return s.store.recordMutation(ctx, tx, string(g.Workspace), "device_group", string(g.ID), "group.created", actorType, actorID)
+	})
+}
+
 type AssignmentService struct{ store *DB }
 
 func NewAssignmentService(store *DB) *AssignmentService { return &AssignmentService{store: store} }

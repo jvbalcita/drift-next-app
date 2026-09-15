@@ -198,6 +198,24 @@ func (r *AccountRepository) ListAssignments(ctx context.Context, workspace organ
 	return result, classifyContext(rows.Err())
 }
 
+func (r *AccountRepository) GetAssignment(ctx context.Context, workspace organizations.WorkspaceID, id accounts.AccountDeviceAssignmentID) (accounts.AccountDeviceAssignment, error) {
+	var assignment accounts.AccountDeviceAssignment
+	if err := r.validate(ctx, workspace); err != nil {
+		return assignment, err
+	}
+	if strings.TrimSpace(string(id)) == "" {
+		return assignment, platformerrors.New(platformerrors.CodeInvalidInput, "assignment ID is required")
+	}
+	err := scanAccountAssignment(r.store.db.QueryRowContext(ctx, `SELECT id, workspace_id, account_id, device_id, state, assigned_at, ended_at, row_version FROM account_device_assignments WHERE workspace_id=? AND id=?`, workspace, id), &assignment)
+	if err == sql.ErrNoRows {
+		return assignment, platformerrors.New(platformerrors.CodeNotFound, "account-device assignment not found")
+	}
+	if err != nil {
+		return assignment, classifyContext(err)
+	}
+	return assignment, nil
+}
+
 func (r *AccountRepository) ListSyncEvents(ctx context.Context, workspace organizations.WorkspaceID, sourceID accounts.AccountSourceID) ([]accounts.SyncEvent, error) {
 	if err := r.validate(ctx, workspace); err != nil {
 		return nil, err

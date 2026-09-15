@@ -740,7 +740,8 @@ export interface MutationResult {
 
 export interface ControlPlaneClient {
   getSnapshot(): ControlPlaneSnapshot
-  dispatch(intent: ControlPlaneIntent): MutationResult
+  dispatch(intent: ControlPlaneIntent): MutationResult | Promise<MutationResult>
+  refresh(): Promise<ControlPlaneSnapshot>
 }
 
 export type DispatchIntent = (intent: ControlPlaneIntent) => MutationResult

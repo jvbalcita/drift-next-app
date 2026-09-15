@@ -1,6 +1,4 @@
-import { create, fromJson, toJson } from "@bufbuild/protobuf"
 import type { DescMessage, MessageInitShape, MessageShape } from "@bufbuild/protobuf"
-import { RequestContextSchema, WorkspaceRefSchema } from "@/gen/drift/v1/common_pb"
 import {
   ApproveLabProvisioningRequestSchema,
   ApproveLabProvisioningResponseSchema,
@@ -16,10 +14,10 @@ import {
 } from "@/gen/drift/v1/lab_registration_pb"
 import type { LabProvisionState, LabRegistrationView, ProvisioningReadinessView } from "@/lib/domain/control-plane"
 import { LabAdapterRequestError, type LabAdapterCallOptions } from "@/lib/api/lab-adapter-client"
+import { ConnectJsonClient, ConnectJsonError, configuredLabToken, requestContext, workspaceRef } from "@/lib/api/connect-json"
 
 const configuredBaseUrl = import.meta.env.VITE_DRIFT_LAB_ADAPTER_URL
-const configuredToken = import.meta.env.VITE_DRIFT_LAB_TOKEN
-const labTokenHeader = "X-Drift-Lab-Token"
+const configuredToken = configuredLabToken()
 const serviceName = "drift.v1.LabRegistrationService"
 
 const provisionStates: Record<LabRegistrationState, LabProvisionState> = {
@@ -33,12 +31,10 @@ const provisionStates: Record<LabRegistrationState, LabProvisionState> = {
 // LabRegistrationClient is the optional Connect seam for controlled one-device
 // registration. It sends identity only — never client-attested prerequisites.
 export class LabRegistrationClient {
-  private readonly baseUrl: string
-  private readonly token: string
+  private readonly json: ConnectJsonClient
 
   constructor(baseUrl: string, token = "") {
-    this.baseUrl = baseUrl.replace(/\/+$/, "")
-    this.token = token.trim()
+    this.json = new ConnectJsonClient(baseUrl, token)
   }
 
   async verifyLabProvisioning(
@@ -84,15 +80,11 @@ export class LabRegistrationClient {
   }
 
   private workspace(options: LabAdapterCallOptions) {
-    return create(WorkspaceRefSchema, { workspaceId: options.workspaceId })
+    return workspaceRef(options.workspaceId)
   }
 
   private context(options: LabAdapterCallOptions) {
-    return create(RequestContextSchema, {
-      requestId: options.requestId,
-      correlationId: options.correlationId ?? options.requestId,
-      idempotencyKey: options.idempotencyKey ?? options.requestId,
-    })
+    return requestContext(options)
   }
 
   private async call<Request extends DescMessage, Response extends DescMessage>(
@@ -101,16 +93,14 @@ export class LabRegistrationClient {
     responseSchema: Response,
     init: MessageInitShape<Request>,
   ): Promise<MessageShape<Response>> {
-    const response = await fetch(`${this.baseUrl}/${serviceName}/${method}`, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...(this.token ? { [labTokenHeader]: this.token } : {}) },
-      body: JSON.stringify(toJson(requestSchema, create(requestSchema, init))),
-    })
-    const payload: unknown = await response.json().catch(() => undefined)
-    if (!response.ok) {
-      throw new LabAdapterRequestError(readString(payload, "code") ?? "unknown", readString(payload, "message") ?? `Lab registration request ${method} failed.`)
+    try {
+      return await this.json.call(serviceName, method, requestSchema, responseSchema, init)
+    } catch (cause: unknown) {
+      if (cause instanceof ConnectJsonError) {
+        throw new LabAdapterRequestError(cause.code, cause.message.startsWith("Request ") ? `Lab registration request ${method} failed.` : cause.message)
+      }
+      throw cause
     }
-    return fromJson(responseSchema, payload as Parameters<typeof fromJson>[1])
   }
 }
 
@@ -157,10 +147,4 @@ export function toLabRegistrationView(record: LabRegistrationRecord): LabRegistr
     approvedAt: record.approvedAt || undefined,
     registeredAt: record.registeredAt || undefined,
   }
-}
-
-function readString(payload: unknown, key: string): string | undefined {
-  if (!payload || typeof payload !== "object") return undefined
-  const value = (payload as Record<string, unknown>)[key]
-  return typeof value === "string" ? value : undefined
 }

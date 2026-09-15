@@ -90,4 +90,35 @@ func (r *GroupRepository) ListMemberships(ctx context.Context, w organizations.W
 	}
 	return out, rows.Err()
 }
+
+func (r *GroupRepository) ListAllMemberships(ctx context.Context, w organizations.WorkspaceID) ([]groups.Membership, error) {
+	if r == nil || r.store == nil {
+		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "SQLite store is required")
+	}
+	if err := validateWorkspace(string(w)); err != nil {
+		return nil, err
+	}
+	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,group_id,device_id,position,state,started_at,ended_at FROM device_group_memberships WHERE workspace_id=? ORDER BY group_id,position,id`, w)
+	if err != nil {
+		return nil, classifyContext(err)
+	}
+	defer rows.Close()
+	out := []groups.Membership{}
+	for rows.Next() {
+		var m groups.Membership
+		var started string
+		var ended sql.NullString
+		if err := rows.Scan(&m.ID, &m.Workspace, &m.GroupID, &m.DeviceID, &m.Position, &m.State, &started, &ended); err != nil {
+			return nil, err
+		}
+		m.StartedAt, _ = parseTime(started)
+		if ended.Valid {
+			t, _ := parseTime(ended.String)
+			m.EndedAt = &t
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 func parseTime(s string) (t time.Time, err error) { return time.Parse(time.RFC3339Nano, s) }

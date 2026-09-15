@@ -4,11 +4,11 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { AutomationAgentProfileView, ControlPlaneSnapshot, DispatchIntent } from "@/lib/domain/control-plane"
-import { DataTablePagination, EmptyState, MockNotice, PageIntro, StatusBadge, type StatusTone } from "./shared"
+import { DataTablePagination, EmptyState, OperatorNotice, PageIntro, StatusBadge, type StatusTone } from "./shared"
 
 export function AgentsPage({ snapshot, view = "runtimes", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(null); const selected = snapshot.edgeAgents.find((agent) => agent.id === selectedId)
-  return <><PageIntro eyebrow="AUTOMATION / AGENTS" title="Agent profiles" description="Edge runtime health is separate from logical profiles, their assignments, and declarative capabilities." actions={<StatusBadge label="No profile bypass" tone="info" />} /><MockNotice>Profiles are declarative metadata. They cannot access device protocols, credentials, arbitrary scripts, or bypass policy and leases.</MockNotice>
+  return <><PageIntro eyebrow="AUTOMATION / AGENTS" title="Agent profiles" description="Edge runtime health is separate from logical profiles, their assignments, and declarative capabilities." actions={<StatusBadge label="No profile bypass" tone="info" />} /><OperatorNotice>Profiles are declarative metadata. They cannot access device protocols, credentials, arbitrary scripts, or bypass policy and leases.</OperatorNotice>
     <Tabs value={view} onValueChange={onViewChange}><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Agent views"><TabsTrigger value="runtimes" className="rounded-none">Edge runtimes</TabsTrigger><TabsTrigger value="profiles" className="rounded-none">Logical profiles</TabsTrigger><TabsTrigger value="assignments" className="rounded-none">Assignments</TabsTrigger><TabsTrigger value="capabilities" className="rounded-none">Capabilities</TabsTrigger></TabsList>
       <TabsContent value="runtimes"><RuntimeTable snapshot={snapshot} onOpen={setSelectedId} /></TabsContent>
       <TabsContent value="profiles"><ProfileList profiles={snapshot.automationAgentProfiles} /></TabsContent>

@@ -36,7 +36,7 @@ const teams = [
   {
     name: "DRIFT",
     logo: <CommandIcon className="size-4" aria-hidden="true" />,
-    plan: "Demo control plane",
+    plan: "Local Control Plane",
   },
   {
     name: "Fleet Ops",
@@ -44,9 +44,9 @@ const teams = [
     plan: "Read-only workspace",
   },
   {
-    name: "Automation Lab",
+    name: "Automation",
     logo: <ActivityIcon className="size-4" aria-hidden="true" />,
-    plan: "Mock environment",
+    plan: "Operator Workspace",
   },
 ]
 
@@ -70,7 +70,7 @@ const projects = [
 
 const user = {
   name: "Drift Operator",
-  email: "Demo session",
+  email: "Operator session",
   avatar: "",
 }
 

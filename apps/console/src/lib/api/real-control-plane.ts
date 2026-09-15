@@ -1,0 +1,1462 @@
+import { create } from "@bufbuild/protobuf"
+import {
+  AccountSourceState,
+  AccountState as ProtoAccountState,
+  AccountAssignmentState,
+  AccountRunState,
+  AccountServiceStage,
+  AccountServiceState as ProtoAccountServiceState,
+  AccountSyncOutcome,
+} from "@/gen/drift/v1/account_pb"
+import type { ArtifactRecord } from "@/gen/drift/v1/artifact_pb"
+import type { AutomationAgent } from "@/gen/drift/v1/automation_agent_pb"
+import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
+import type { Device } from "@/gen/drift/v1/device_pb"
+import { DeviceStatus } from "@/gen/drift/v1/device_pb"
+import type { ScanCandidate, ScanRun } from "@/gen/drift/v1/discovery_pb"
+import { ScanCandidateState, ScanRunState } from "@/gen/drift/v1/discovery_pb"
+import type { EdgeAgent } from "@/gen/drift/v1/edge_agent_pb"
+import { EdgeAgentState } from "@/gen/drift/v1/edge_agent_pb"
+import type { DeviceEndpoint } from "@/gen/drift/v1/endpoint_pb"
+import { EndpointState } from "@/gen/drift/v1/endpoint_pb"
+import type { AuditEvent, OperationalEvent } from "@/gen/drift/v1/event_pb"
+import type { DeviceGroup } from "@/gen/drift/v1/group_pb"
+import { GroupState } from "@/gen/drift/v1/group_pb"
+import type { NetworkProfile } from "@/gen/drift/v1/network_profile_pb"
+import { NetworkProfileSchema, NetworkProfileState } from "@/gen/drift/v1/network_profile_pb"
+import type { Workspace } from "@/gen/drift/v1/organization_pb"
+import type { Policy, PolicyDecisionRecord } from "@/gen/drift/v1/policy_pb"
+import { PolicyDecision as ProtoPolicyDecision } from "@/gen/drift/v1/policy_pb"
+import type { RecordingSession } from "@/gen/drift/v1/recording_pb"
+import { RecordingState } from "@/gen/drift/v1/recording_pb"
+import type { WorkflowRun } from "@/gen/drift/v1/run_pb"
+import { RunState } from "@/gen/drift/v1/run_pb"
+import type { Setting, SettingHistory } from "@/gen/drift/v1/settings_pb"
+import { SettingRisk, SettingSchema, SettingScope as ProtoSettingScope, SettingValueKind } from "@/gen/drift/v1/settings_pb"
+import type { Skill } from "@/gen/drift/v1/skill_pb"
+import { SkillState } from "@/gen/drift/v1/skill_pb"
+import type { Workflow } from "@/gen/drift/v1/workflow_pb"
+import { WorkflowState } from "@/gen/drift/v1/workflow_pb"
+import {
+  ConnectJsonClient,
+  ConnectJsonError,
+  configuredLabToken,
+  controlPlaneBaseUrl,
+  defaultWorkspaceId,
+  isNetworkFailure,
+  newRequestId,
+  workspaceRef,
+} from "@/lib/api/connect-json"
+import { createControlPlaneServices, type ControlPlaneServices } from "@/lib/api/control-plane-clients"
+import type {
+  AccountAssignmentState as AccountAssignmentViewState,
+  AccountDeviceAssignmentView,
+  AccountReferenceView,
+  AccountRunEventView,
+  AccountRunState as AccountRunViewState,
+  AccountRunView,
+  AccountServiceStage as AccountServiceStageView,
+  AccountServiceState as AccountServiceStateViewKind,
+  AccountServiceStateHistoryView,
+  AccountServiceStateView,
+  AccountSourceState as AccountSourceViewState,
+  AccountSourceView,
+  AccountState,
+  AccountSyncEventView,
+  AccountSyncOutcome as AccountSyncOutcomeView,
+  ArtifactCategory,
+  ArtifactLifecycleState,
+  ArtifactRetentionClass,
+  ArtifactView,
+  AutomationAgentView,
+  ControlEligibility,
+  ControlPlaneClient,
+  ControlPlaneIntent,
+  ControlPlaneSnapshot,
+  DeviceLifecycleState,
+  DeviceStatus as DeviceStatusView,
+  DeviceView,
+  EdgeAgentState as EdgeAgentViewState,
+  EdgeAgentView,
+  EndpointState as EndpointViewState,
+  EndpointView,
+  EventView,
+  GroupState as GroupViewState,
+  GroupView,
+  LabAdapterView,
+  MutationResult,
+  NetworkProfileView,
+  PolicyDecision,
+  PolicyDecisionView,
+  PolicyState,
+  PolicyView,
+  RecordingMediaView,
+  RecordingSessionState,
+  RunState as RunViewState,
+  RunView,
+  RuntimeConnectionView,
+  ScanCandidateState as ScanCandidateViewState,
+  ScanCandidateView,
+  ScanRunState as ScanRunViewState,
+  ScanRunView,
+  SettingHistoryView,
+  SettingRisk as SettingRiskView,
+  SettingScope,
+  SettingState,
+  SettingValueKind as SettingValueKindView,
+  SettingView,
+  SkillView,
+  SpoolHealthView,
+  StorageHealthView,
+  TrustState,
+  WorkflowState as WorkflowViewState,
+  WorkflowView,
+} from "@/lib/domain/control-plane"
+
+const operatorId = import.meta.env.VITE_DRIFT_LAB_OPERATOR_ID ?? "console-local-operator"
+
+const settingScopes: readonly ProtoSettingScope[] = [
+  ProtoSettingScope.WORKSPACE,
+  ProtoSettingScope.CONTROL_PLANE,
+  ProtoSettingScope.EDGE_HOST,
+  ProtoSettingScope.DEVICE,
+  ProtoSettingScope.AUTOMATION_AGENT,
+  ProtoSettingScope.OPERATOR_PREFERENCE,
+]
+
+function cloneSnapshot(snapshot: ControlPlaneSnapshot): ControlPlaneSnapshot {
+  return structuredClone(snapshot)
+}
+
+function emptyLabAdapter(): LabAdapterView {
+  return {
+    mode: "lab",
+    readiness: "unavailable",
+    adapterVersion: "",
+    platformToolsVersion: "",
+    confirmedSerial: "",
+    confirmedDisplayName: "",
+    stableIdentity: "",
+    transportId: "",
+    connectionState: "",
+    connectionType: "",
+    lastScreenshotHash: "",
+    lastHierarchySummary: "",
+    observationLatencyMs: 0,
+    indeterminate: false,
+    correlationId: "",
+    discovered: [],
+  }
+}
+
+function emptyRuntime(state: RuntimeConnectionView["state"], reason = ""): RuntimeConnectionView {
+  return {
+    state,
+    transportId: "",
+    protocol: "",
+    helperAttached: false,
+    disconnectedReason: reason,
+    pendingIndeterminate: 0,
+    helperTokenIsLease: false,
+    transportIdIsLease: false,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+function emptySpool(connectionState: RuntimeConnectionView["state"]): SpoolHealthView {
+  return {
+    pending: 0,
+    blocked: 0,
+    maxSize: 0,
+    retentionMs: 0,
+    exhausted: false,
+    connectionState,
+    fenceToken: 0,
+    fenceIsLease: false,
+    blockedSequences: [],
+  }
+}
+
+function emptyStorage(): StorageHealthView {
+  return {
+    usedBytes: 0,
+    budgetBytes: 0,
+    objectCount: 0,
+    orphanMetadataCount: 0,
+    orphanBytesCount: 0,
+    quotaWarning: false,
+    warningSummary: "",
+    cleanupFailures: 0,
+  }
+}
+
+export function emptyControlPlaneSnapshot(options?: {
+  workspaceId?: string
+  workspaceName?: string
+  disconnectedReason?: string
+  connected?: boolean
+}): ControlPlaneSnapshot {
+  const connected = options?.connected ?? false
+  const runtimeState = connected ? "connected" : "disconnected"
+  return {
+    workspaceName: options?.workspaceName ?? "",
+    workspaceId: options?.workspaceId ?? defaultWorkspaceId,
+    devices: [],
+    edgeAgents: [],
+    endpoints: [],
+    leases: [],
+    observations: [],
+    networkProfiles: [],
+    scanRuns: [],
+    scanCandidates: [],
+    groups: [],
+    memberships: [],
+    automationAgents: [],
+    automationAgentProfiles: [],
+    workflows: [],
+    skills: [],
+    runs: [],
+    runTargets: [],
+    events: [],
+    accountSources: [],
+    accounts: [],
+    accountServiceStates: [],
+    accountServiceStateHistory: [],
+    accountRuns: [],
+    accountRunEvents: [],
+    accountDeviceAssignments: [],
+    accountSyncEvents: [],
+    settings: [],
+    settingHistory: [],
+    policies: [],
+    policyDecisions: [],
+    mirrorSessions: [],
+    labAdapter: { ...emptyLabAdapter(), readiness: connected ? "unavailable" : "unavailable" },
+    provisioningReadiness: null,
+    runtimeConnection: emptyRuntime(runtimeState, options?.disconnectedReason ?? ""),
+    spoolHealth: emptySpool(runtimeState),
+    indeterminateActions: [],
+    labRegistration: null,
+    artifacts: [],
+    recordingMedia: [],
+    storageHealth: emptyStorage(),
+    artifactAudits: [],
+  }
+}
+
+function redact(value: string): string {
+  if (!value) return ""
+  const lowered = value.toLowerCase()
+  if (lowered.includes("token") || lowered.includes("password") || lowered.includes("secret") || lowered.includes("/") && lowered.includes(".db")) {
+    return "[REDACTED]"
+  }
+  return value.length > 120 ? `${value.slice(0, 117)}…` : value
+}
+
+function mapDeviceStatus(status: DeviceStatus): DeviceStatusView {
+  switch (status) {
+    case DeviceStatus.ONLINE:
+      return "online"
+    case DeviceStatus.ATTENTION:
+      return "attention"
+    case DeviceStatus.OFFLINE:
+    case DeviceStatus.UNSPECIFIED:
+      return "offline"
+    default: {
+      const _exhaustive: never = status
+      return _exhaustive
+    }
+  }
+}
+
+function eligibilityFor(status: DeviceStatusView): ControlEligibility {
+  switch (status) {
+    case "online":
+      return "eligible"
+    case "attention":
+      return "incompatible"
+    case "offline":
+      return "offline"
+    default: {
+      const _exhaustive: never = status
+      return _exhaustive
+    }
+  }
+}
+
+function lifecycleFor(status: DeviceStatusView): DeviceLifecycleState {
+  return status === "offline" ? "unavailable" : "active"
+}
+
+export function mapDevice(device: Device): DeviceView {
+  const status = mapDeviceStatus(device.status)
+  return {
+    id: device.id,
+    displayName: device.displayName || device.id,
+    stableIdentity: device.id,
+    lifecycle: lifecycleFor(status),
+    status,
+    platformVersion: device.platformVersion,
+    batteryPercent: device.batteryPercent,
+    latencyMs: device.latencyMs,
+    lastSeen: device.lastSeenAt,
+    agentId: device.agentId,
+    endpointId: device.endpointId,
+    location: "",
+    packageName: "",
+    activityName: "",
+    workflow: "",
+    workflowStatus: "",
+    taskProgress: 0,
+    controlEligibility: eligibilityFor(status),
+    capabilities: [],
+  }
+}
+
+function mapEdgeState(state: EdgeAgentState): EdgeAgentViewState {
+  switch (state) {
+    case EdgeAgentState.PENDING:
+      return "pending"
+    case EdgeAgentState.ACTIVE:
+      return "active"
+    case EdgeAgentState.UNHEALTHY:
+      return "unhealthy"
+    case EdgeAgentState.OFFLINE:
+      return "offline"
+    case EdgeAgentState.RETIRED:
+      return "retired"
+    case EdgeAgentState.UNSPECIFIED:
+      return "offline"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapEdgeAgent(agent: EdgeAgent): EdgeAgentView {
+  return {
+    id: agent.id,
+    displayName: agent.displayName || agent.id,
+    version: agent.version,
+    state: mapEdgeState(agent.state),
+    lastSeen: agent.lastSeenAt,
+    deviceIds: [],
+  }
+}
+
+function mapEndpointState(state: EndpointState): EndpointViewState {
+  switch (state) {
+    case EndpointState.OBSERVED:
+      return "observed"
+    case EndpointState.CURRENT:
+      return "current"
+    case EndpointState.SUPERSEDED:
+      return "superseded"
+    case EndpointState.RETIRED:
+      return "retired"
+    case EndpointState.UNSPECIFIED:
+      return "observed"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapEndpoint(endpoint: DeviceEndpoint): EndpointView {
+  return {
+    id: endpoint.id,
+    deviceId: endpoint.deviceId,
+    endpointType: endpoint.endpointType,
+    serial: endpoint.serial,
+    host: endpoint.host,
+    port: endpoint.port,
+    state: mapEndpointState(endpoint.state),
+    observedAt: endpoint.observedAt,
+  }
+}
+
+function mapProfileState(state: NetworkProfileState): NetworkProfileView["state"] {
+  switch (state) {
+    case NetworkProfileState.DRAFT:
+      return "draft"
+    case NetworkProfileState.ACTIVE:
+      return "active"
+    case NetworkProfileState.DISABLED:
+      return "disabled"
+    case NetworkProfileState.RETIRED:
+      return "retired"
+    case NetworkProfileState.UNSPECIFIED:
+      return "draft"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapNetworkProfile(profile: NetworkProfile): NetworkProfileView {
+  return {
+    id: profile.id,
+    name: profile.displayName || profile.id,
+    addressPolicy: profile.addressPolicy,
+    ports: profile.allowedPorts,
+    isDefault: profile.isDefault,
+    state: mapProfileState(profile.state),
+    rowVersion: Number(profile.rowVersion),
+  }
+}
+
+function mapGroupState(state: GroupState): GroupViewState {
+  switch (state) {
+    case GroupState.ACTIVE:
+      return "active"
+    case GroupState.RETIRED:
+      return "retired"
+    case GroupState.UNSPECIFIED:
+      return "active"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapGroup(group: DeviceGroup): GroupView {
+  return {
+    id: group.id,
+    name: group.displayName || group.id,
+    state: mapGroupState(group.state),
+    rowVersion: Number(group.rowVersion),
+  }
+}
+
+function mapLifecycleState(state: WorkflowState | SkillState): WorkflowViewState {
+  if (state === WorkflowState.UNSPECIFIED || state === SkillState.UNSPECIFIED) return "draft"
+  if (state === WorkflowState.DRAFT || state === SkillState.DRAFT) return "draft"
+  if (state === WorkflowState.VALIDATED || state === SkillState.VALIDATED) return "validated"
+  if (state === WorkflowState.PUBLISHED || state === SkillState.PUBLISHED) return "published"
+  if (state === WorkflowState.DEPRECATED || state === SkillState.DEPRECATED) return "deprecated"
+  if (state === WorkflowState.RETIRED || state === SkillState.RETIRED) return "retired"
+  const _exhaustive: never = state
+  return _exhaustive
+}
+
+function mapWorkflow(workflow: Workflow): WorkflowView {
+  return {
+    id: workflow.id,
+    name: workflow.displayName || workflow.id,
+    state: mapLifecycleState(workflow.state),
+    version: Number(workflow.rowVersion),
+    stepCount: 0,
+    targetSelector: "",
+    safetySummary: "",
+  }
+}
+
+function mapSkill(skill: Skill): SkillView {
+  return {
+    id: skill.id,
+    name: skill.displayName || skill.id,
+    version: 0,
+    state: mapLifecycleState(skill.state),
+    trust: "unreviewed" satisfies TrustState,
+    capabilities: [],
+    sourceRecording: "",
+  }
+}
+
+function mapRunState(state: RunState): RunViewState {
+  switch (state) {
+    case RunState.REQUESTED:
+      return "requested"
+    case RunState.VALIDATING:
+      return "validating"
+    case RunState.QUEUED:
+      return "queued"
+    case RunState.RUNNING:
+      return "running"
+    case RunState.COMPLETING:
+      return "completing"
+    case RunState.COMPLETED:
+      return "completed"
+    case RunState.FAILED:
+      return "failed"
+    case RunState.CANCELLED:
+      return "cancelled"
+    case RunState.UNSPECIFIED:
+      return "requested"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapRun(run: WorkflowRun): RunView {
+  return {
+    id: run.id,
+    workflowName: run.workflowVersionId || "Workflow",
+    workflowVersion: 0,
+    state: mapRunState(run.state),
+    approval: "approved",
+    selector: "",
+    targetSnapshotId: "",
+    concurrencyLimit: run.concurrencyLimit,
+    retryBudget: 0,
+    createdAt: "",
+    ...(run.failure?.message ? { failureClass: run.failure.message } : {}),
+  }
+}
+
+function mapOperationalEvent(event: OperationalEvent): EventView {
+  return {
+    id: event.id,
+    kind: "operational",
+    name: event.eventName,
+    actor: "",
+    resourceType: event.resourceType,
+    resourceId: event.resourceId,
+    correlationId: event.correlationId,
+    occurredAt: event.occurredAt,
+    payloadSummary: event.eventName,
+  }
+}
+
+function mapAuditEvent(event: AuditEvent): EventView {
+  return {
+    id: event.id,
+    kind: "audit",
+    name: event.eventName,
+    actor: event.actorId,
+    resourceType: event.resourceType,
+    resourceId: event.resourceId,
+    correlationId: event.correlationId,
+    occurredAt: event.occurredAt,
+    payloadSummary: event.eventName,
+  }
+}
+
+function mapAccountSourceState(state: AccountSourceState): AccountSourceViewState {
+  switch (state) {
+    case AccountSourceState.ACTIVE:
+      return "active"
+    case AccountSourceState.DISABLED:
+      return "disabled"
+    case AccountSourceState.RETIRED:
+      return "retired"
+    case AccountSourceState.UNSPECIFIED:
+      return "disabled"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapAccountState(state: ProtoAccountState): AccountState {
+  switch (state) {
+    case ProtoAccountState.DRAFT:
+      return "draft"
+    case ProtoAccountState.ACTIVE:
+      return "active"
+    case ProtoAccountState.INACTIVE:
+    case ProtoAccountState.SUSPENDED:
+      return "inactive"
+    case ProtoAccountState.RETIRED:
+      return "retired"
+    case ProtoAccountState.UNSPECIFIED:
+      return "draft"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function toProtoAccountState(state: AccountState): ProtoAccountState {
+  switch (state) {
+    case "draft":
+      return ProtoAccountState.DRAFT
+    case "active":
+      return ProtoAccountState.ACTIVE
+    case "inactive":
+      return ProtoAccountState.INACTIVE
+    case "retired":
+      return ProtoAccountState.RETIRED
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapServiceState(state: ProtoAccountServiceState): AccountServiceStateViewKind {
+  switch (state) {
+    case ProtoAccountServiceState.HEALTHY:
+      return "healthy"
+    case ProtoAccountServiceState.DEGRADED:
+      return "degraded"
+    case ProtoAccountServiceState.FAILED:
+      return "failed"
+    case ProtoAccountServiceState.DISABLED:
+      return "disabled"
+    case ProtoAccountServiceState.UNSPECIFIED:
+      return "unknown"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapServiceStage(stage: AccountServiceStage): AccountServiceStageView {
+  switch (stage) {
+    case AccountServiceStage.QUEUED:
+      return "queued"
+    case AccountServiceStage.READY:
+      return "ready"
+    case AccountServiceStage.RUNNING:
+      return "running"
+    case AccountServiceStage.BLOCKED:
+      return "blocked"
+    case AccountServiceStage.COMPLETED:
+      return "completed"
+    case AccountServiceStage.UNSPECIFIED:
+      return "unknown"
+    default: {
+      const _exhaustive: never = stage
+      return _exhaustive
+    }
+  }
+}
+
+function mapAccountRunState(state: AccountRunState): AccountRunViewState {
+  switch (state) {
+    case AccountRunState.REQUESTED:
+      return "requested"
+    case AccountRunState.RUNNING:
+      return "running"
+    case AccountRunState.COMPLETED:
+      return "completed"
+    case AccountRunState.FAILED:
+      return "failed"
+    case AccountRunState.CANCELLED:
+      return "cancelled"
+    case AccountRunState.UNSPECIFIED:
+      return "requested"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapAssignmentState(state: AccountAssignmentState): AccountAssignmentViewState {
+  switch (state) {
+    case AccountAssignmentState.ACTIVE:
+      return "active"
+    case AccountAssignmentState.ENDED:
+      return "ended"
+    case AccountAssignmentState.UNSPECIFIED:
+      return "ended"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapSyncOutcome(outcome: AccountSyncOutcome): AccountSyncOutcomeView {
+  switch (outcome) {
+    case AccountSyncOutcome.ACCEPTED:
+      return "accepted"
+    case AccountSyncOutcome.REJECTED:
+      return "rejected"
+    case AccountSyncOutcome.FAILED:
+      return "failed"
+    case AccountSyncOutcome.DISABLED:
+      return "disabled"
+    case AccountSyncOutcome.UNSPECIFIED:
+      return "disabled"
+    default: {
+      const _exhaustive: never = outcome
+      return _exhaustive
+    }
+  }
+}
+
+function mapSettingScope(scope: ProtoSettingScope): SettingScope {
+  switch (scope) {
+    case ProtoSettingScope.WORKSPACE:
+      return "workspace"
+    case ProtoSettingScope.CONTROL_PLANE:
+      return "control_plane"
+    case ProtoSettingScope.EDGE_HOST:
+      return "edge_host"
+    case ProtoSettingScope.DEVICE:
+      return "device"
+    case ProtoSettingScope.AUTOMATION_AGENT:
+      return "automation_agent"
+    case ProtoSettingScope.OPERATOR_PREFERENCE:
+      return "operator_preference"
+    case ProtoSettingScope.UNSPECIFIED:
+      return "workspace"
+    default: {
+      const _exhaustive: never = scope
+      return _exhaustive
+    }
+  }
+}
+
+function toProtoSettingScope(scope: SettingScope): ProtoSettingScope {
+  switch (scope) {
+    case "workspace":
+      return ProtoSettingScope.WORKSPACE
+    case "control_plane":
+      return ProtoSettingScope.CONTROL_PLANE
+    case "edge_host":
+      return ProtoSettingScope.EDGE_HOST
+    case "device":
+      return ProtoSettingScope.DEVICE
+    case "automation_agent":
+      return ProtoSettingScope.AUTOMATION_AGENT
+    case "operator_preference":
+      return ProtoSettingScope.OPERATOR_PREFERENCE
+    default: {
+      const _exhaustive: never = scope
+      return _exhaustive
+    }
+  }
+}
+
+function mapSettingState(state: string): SettingState {
+  if (state === "active" || state === "draft" || state === "superseded" || state === "retired") return state
+  return "draft"
+}
+
+function mapValueKind(kind: SettingValueKind): SettingValueKindView {
+  switch (kind) {
+    case SettingValueKind.BOOLEAN:
+      return "boolean"
+    case SettingValueKind.INTEGER:
+      return "integer"
+    case SettingValueKind.ENUM:
+      return "enum"
+    case SettingValueKind.JSON:
+    case SettingValueKind.UNSPECIFIED:
+      return "json"
+    default: {
+      const _exhaustive: never = kind
+      return _exhaustive
+    }
+  }
+}
+
+function mapSettingRisk(risk: SettingRisk): SettingRiskView {
+  switch (risk) {
+    case SettingRisk.SAFETY_CRITICAL:
+      return "safety_critical"
+    case SettingRisk.LOW_PREFERENCE:
+    case SettingRisk.UNSPECIFIED:
+      return "low_preference"
+    default: {
+      const _exhaustive: never = risk
+      return _exhaustive
+    }
+  }
+}
+
+function mapSetting(setting: Setting): SettingView {
+  return {
+    id: setting.id,
+    scope: mapSettingScope(setting.scope),
+    targetId: setting.targetId,
+    key: setting.settingKey,
+    valueSummary: redact(setting.valueJson),
+    valueJson: redact(setting.valueJson),
+    state: mapSettingState(setting.state),
+    rowVersion: Number(setting.rowVersion),
+    valueKind: mapValueKind(setting.valueKind),
+    risk: mapSettingRisk(setting.risk),
+  }
+}
+
+function mapSettingHistory(record: SettingHistory): SettingHistoryView {
+  return {
+    id: record.id,
+    settingId: record.settingId,
+    scope: mapSettingScope(record.scope),
+    targetId: record.targetId,
+    key: record.settingKey,
+    valueJson: redact(record.valueJson),
+    state: mapSettingState(record.state),
+    rowVersion: Number(record.rowVersion),
+    actorType: record.actorType,
+    actorId: record.actorId,
+    changedAt: record.changedAt,
+  }
+}
+
+function mapPolicyState(state: string): PolicyState {
+  if (state === "active" || state === "draft" || state === "superseded" || state === "retired") return state
+  return "draft"
+}
+
+function mapPolicy(policy: Policy): PolicyView {
+  return {
+    id: policy.id,
+    name: policy.displayName || policy.id,
+    version: policy.version,
+    state: mapPolicyState(policy.state),
+    ruleSummary: redact(policy.ruleJson),
+    ruleJson: redact(policy.ruleJson),
+    rowVersion: Number(policy.rowVersion),
+  }
+}
+
+function mapPolicyDecision(decision: ProtoPolicyDecision): PolicyDecision {
+  switch (decision) {
+    case ProtoPolicyDecision.ALLOW:
+      return "allow"
+    case ProtoPolicyDecision.DENY:
+      return "deny"
+    case ProtoPolicyDecision.INCONCLUSIVE:
+    case ProtoPolicyDecision.UNSPECIFIED:
+      return "inconclusive"
+    default: {
+      const _exhaustive: never = decision
+      return _exhaustive
+    }
+  }
+}
+
+function mapPolicyDecisionRecord(record: PolicyDecisionRecord): PolicyDecisionView {
+  return {
+    id: record.id,
+    policyId: record.policyId,
+    resourceType: record.resourceType,
+    resourceId: record.resourceId,
+    action: record.action,
+    decision: mapPolicyDecision(record.decision),
+    reasonCode: record.reasonCode,
+    correlationId: record.correlationId,
+    actorId: record.actorId,
+    decidedAt: record.decidedAt,
+  }
+}
+
+function mapArtifactCategory(category: string): ArtifactCategory {
+  if (category === "screenshot" || category === "ui_tree" || category === "recording" || category === "structured_evidence") return category
+  return "other"
+}
+
+function mapArtifactLifecycle(state: string): ArtifactLifecycleState {
+  const allowed: ArtifactLifecycleState[] = ["admitted", "active", "eligible_for_deletion", "deleted", "cleanup_failed", "omitted", "redacted", "partial", "unauthorized"]
+  return allowed.find((item) => item === state) ?? "omitted"
+}
+
+function mapRetention(value: string): ArtifactRetentionClass {
+  if (value === "execution_evidence" || value === "audit_security" || value === "disposable") return value
+  return "disposable"
+}
+
+function mapArtifact(record: ArtifactRecord): ArtifactView {
+  const lifecycleState = mapArtifactLifecycle(record.state)
+  return {
+    id: record.artifactId,
+    contentHash: record.contentHash,
+    category: mapArtifactCategory(record.category),
+    lifecycleState,
+    retentionClass: mapRetention(record.retentionClass),
+    visibility: lifecycleState === "unauthorized" ? "unauthorized" : lifecycleState === "redacted" ? "redacted" : "authorized",
+    sizeBytes: Number(record.sizeBytes),
+    createdAt: record.createdAt,
+    ownerType: "",
+    ownerId: "",
+    referenceType: "",
+    referenceId: "",
+    deletionEligible: lifecycleState === "eligible_for_deletion",
+    previewKind: "none",
+    sanitizedPreviewLabel: "Preview withheld",
+    ...(record.failureClassification ? { failureClass: record.failureClassification } : {}),
+  }
+}
+
+function mapRecordingState(state: RecordingState): RecordingSessionState {
+  switch (state) {
+    case RecordingState.REQUESTED:
+    case RecordingState.RECORDING:
+    case RecordingState.STOPPING:
+      return "recording"
+    case RecordingState.COMPLETED:
+      return "completed"
+    case RecordingState.FAILED:
+      return "failed"
+    case RecordingState.DISCARDED:
+    case RecordingState.UNSPECIFIED:
+      return "omitted"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapRecording(session: RecordingSession): RecordingMediaView {
+  return {
+    id: session.id,
+    sessionId: session.id,
+    deviceId: session.deviceId,
+    state: mapRecordingState(session.state),
+    startedAt: session.startedAt,
+    ...(session.finishedAt ? { endedAt: session.finishedAt } : {}),
+    lowResPreviewLabel: "Preview withheld",
+    fullResAuthorized: false,
+  }
+}
+
+function mapScanRunState(state: ScanRunState): ScanRunViewState {
+  switch (state) {
+    case ScanRunState.REQUESTED:
+      return "requested"
+    case ScanRunState.RUNNING:
+      return "running"
+    case ScanRunState.COMPLETED:
+      return "completed"
+    case ScanRunState.FAILED:
+      return "failed"
+    case ScanRunState.CANCELLED:
+      return "cancelled"
+    case ScanRunState.UNSPECIFIED:
+      return "requested"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapScanRun(run: ScanRun): ScanRunView {
+  return {
+    id: run.id,
+    networkProfileId: run.networkProfileId,
+    state: mapScanRunState(run.state),
+    requestedAt: run.requestedAt,
+    ...(run.finishedAt ? { finishedAt: run.finishedAt } : {}),
+    ...(run.failure?.message ? { failureClass: run.failure.message } : {}),
+  }
+}
+
+function mapScanCandidateState(state: ScanCandidateState): ScanCandidateViewState {
+  switch (state) {
+    case ScanCandidateState.DISCOVERED:
+      return "discovered"
+    case ScanCandidateState.PENDING_APPROVAL:
+      return "pending_approval"
+    case ScanCandidateState.APPROVED:
+      return "approved"
+    case ScanCandidateState.REJECTED:
+      return "rejected"
+    case ScanCandidateState.EXPIRED:
+      return "expired"
+    case ScanCandidateState.REGISTERED:
+      return "registered"
+    case ScanCandidateState.UNSPECIFIED:
+      return "discovered"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapScanCandidate(candidate: ScanCandidate): ScanCandidateView {
+  return {
+    id: candidate.id,
+    scanRunId: candidate.scanRunId,
+    candidateKey: candidate.candidateKey,
+    host: candidate.host,
+    port: candidate.port,
+    serial: candidate.serial,
+    fingerprint: candidate.fingerprint,
+    state: mapScanCandidateState(candidate.state),
+    discoveredAt: candidate.discoveredAt,
+    evidenceSummary: "",
+  }
+}
+
+function mapAutomationAgent(agent: AutomationAgent): AutomationAgentView {
+  switch (agent.state) {
+    case AutomationAgentState.ACTIVE:
+      return { id: agent.id, name: agent.displayName || agent.id, state: "active" }
+    case AutomationAgentState.SUSPENDED:
+      return { id: agent.id, name: agent.displayName || agent.id, state: "suspended" }
+    case AutomationAgentState.RETIRED:
+      return { id: agent.id, name: agent.displayName || agent.id, state: "retired" }
+    case AutomationAgentState.UNSPECIFIED:
+      return { id: agent.id, name: agent.displayName || agent.id, state: "active" }
+    default: {
+      const _exhaustive: never = agent.state
+      return _exhaustive
+    }
+  }
+}
+
+function mapProfileToProto(profile: NetworkProfileView, workspaceId: string, state: NetworkProfileState): NetworkProfile {
+  return create(NetworkProfileSchema, {
+    id: profile.id,
+    workspace: workspaceRef(workspaceId),
+    displayName: profile.name,
+    addressPolicy: profile.addressPolicy,
+    allowedPorts: [...profile.ports],
+    isDefault: profile.isDefault,
+    state,
+    rowVersion: BigInt(profile.rowVersion),
+  })
+}
+
+async function settle<T>(promise: Promise<T>, fallback: T): Promise<{ value: T; failed: boolean; network: boolean }> {
+  try {
+    return { value: await promise, failed: false, network: false }
+  } catch (cause: unknown) {
+    return { value: fallback, failed: true, network: isNetworkFailure(cause) }
+  }
+}
+
+function mutation(intent: ControlPlaneIntent, message: string, extra?: Partial<MutationResult>): MutationResult {
+  return { ok: true, kind: intent.type, message, ...extra }
+}
+
+function failure(intent: ControlPlaneIntent, message: string, extra?: Partial<MutationResult>): MutationResult {
+  return { ok: false, kind: intent.type, message, errorCode: extra?.errorCode ?? "precondition_failed", ...extra }
+}
+
+export class RealControlPlaneClient implements ControlPlaneClient {
+  private snapshot: ControlPlaneSnapshot
+  private readonly services: ControlPlaneServices
+  private readonly workspaceId: string
+
+  constructor(
+    options: {
+      baseUrl?: string
+      token?: string
+      workspaceId?: string
+      services?: ControlPlaneServices
+    } = {},
+  ) {
+    this.workspaceId = options.workspaceId ?? defaultWorkspaceId
+    this.snapshot = emptyControlPlaneSnapshot({ workspaceId: this.workspaceId })
+    this.services = options.services ?? createControlPlaneServices(new ConnectJsonClient(options.baseUrl ?? controlPlaneBaseUrl(), options.token ?? configuredLabToken()))
+  }
+
+  getSnapshot(): ControlPlaneSnapshot {
+    return cloneSnapshot(this.snapshot)
+  }
+
+  async refresh(): Promise<ControlPlaneSnapshot> {
+    const workspaceId = this.workspaceId
+    const actorId = operatorId
+    const previous = this.snapshot
+    const results = await Promise.all([
+      settle(this.services.workspace.getWorkspace(workspaceId).then((response) => response.workspace), undefined),
+      settle(this.services.device.listDevices(workspaceId).then((response) => response.devices.map(mapDevice)), [] as DeviceView[]),
+      settle(this.services.edgeAgent.listEdgeAgents(workspaceId).then((response) => response.edgeAgents.map(mapEdgeAgent)), [] as EdgeAgentView[]),
+      settle(this.services.endpoint.listDeviceEndpoints(workspaceId).then((response) => response.endpoints.map(mapEndpoint)), [] as EndpointView[]),
+      settle(this.services.networkProfile.listNetworkProfiles(workspaceId).then((response) => response.profiles.map(mapNetworkProfile)), [] as NetworkProfileView[]),
+      settle(this.services.group.listDeviceGroups(workspaceId).then((response) => response.groups.map(mapGroup)), [] as GroupView[]),
+      settle(this.services.event.listOperationalEvents(workspaceId).then((response) => response.events.map(mapOperationalEvent)), [] as EventView[]),
+      settle(this.services.event.listAuditEvents(workspaceId).then((response) => response.events.map(mapAuditEvent)), [] as EventView[]),
+      settle(this.services.account.listAccountSources(workspaceId).then((response) => response.sources.map((source) => ({
+        id: source.id,
+        provider: source.provider,
+        displayName: source.displayName || source.id,
+        state: mapAccountSourceState(source.state),
+        externalReference: source.externalReference,
+        metadataJson: redact(source.metadataJson),
+        rowVersion: Number(source.rowVersion),
+      }))), [] as AccountSourceView[]),
+      settle(this.services.account.listAccountReferences(workspaceId).then((response) => response.accounts.map((account) => ({
+        id: account.id,
+        sourceId: account.sourceId,
+        externalReference: account.externalReference,
+        label: account.displayName || account.id,
+        metadataJson: redact(account.metadataJson),
+        rowVersion: Number(account.rowVersion),
+        sourceProvider: account.sourceProvider,
+        state: mapAccountState(account.state),
+        serviceState: "unknown",
+        lastRun: "",
+      }))), [] as AccountReferenceView[]),
+      settle(this.services.account.listAccountServiceStates(workspaceId).then((response) => response.states.map((state) => ({
+        id: state.id,
+        accountId: state.accountId,
+        serviceName: state.serviceName,
+        stage: mapServiceStage(state.stage),
+        state: mapServiceState(state.state),
+        observedAt: state.observedAt,
+        ...(state.failureClass ? { failureClass: state.failureClass } : {}),
+        detailsJson: redact(state.detailsJson),
+        rowVersion: Number(state.rowVersion),
+      }))), [] as AccountServiceStateView[]),
+      settle(this.services.account.listAccountServiceStateHistory(workspaceId).then((response) => response.history.map((state) => ({
+        id: state.id,
+        accountId: state.accountId,
+        serviceName: state.serviceName,
+        stage: mapServiceStage(state.stage),
+        state: mapServiceState(state.state),
+        observedAt: state.observedAt,
+        ...(state.failureClass ? { failureClass: state.failureClass } : {}),
+        detailsJson: redact(state.detailsJson),
+        rowVersion: Number(state.rowVersion),
+        recordedAt: state.recordedAt,
+      }))), [] as AccountServiceStateHistoryView[]),
+      settle(this.services.account.listAccountRuns(workspaceId).then((response) => response.runs.map((run) => ({
+        id: run.id,
+        accountId: run.accountId,
+        state: mapAccountRunState(run.state),
+        requestedAt: run.requestedAt,
+        ...(run.startedAt ? { startedAt: run.startedAt } : {}),
+        ...(run.finishedAt ? { finishedAt: run.finishedAt } : {}),
+        ...(run.failureClass ? { failureClass: run.failureClass } : {}),
+        correlationId: run.correlationId,
+        rowVersion: Number(run.rowVersion),
+      }))), [] as AccountRunView[]),
+      settle(this.services.account.listAccountRunEvents(workspaceId).then((response) => response.events.map((event) => ({
+        id: event.id,
+        runId: event.runId,
+        state: mapAccountRunState(event.state),
+        ...(event.failureClass ? { failureClass: event.failureClass } : {}),
+        occurredAt: event.occurredAt,
+        actorType: event.actorType,
+        actorId: event.actorId,
+        correlationId: event.correlationId,
+      }))), [] as AccountRunEventView[]),
+      settle(this.services.account.listAccountDeviceAssignments(workspaceId).then((response) => response.assignments.map((assignment) => ({
+        id: assignment.id,
+        accountId: assignment.accountId,
+        deviceId: assignment.deviceId,
+        state: mapAssignmentState(assignment.state),
+        assignedAt: assignment.assignedAt,
+        ...(assignment.endedAt ? { endedAt: assignment.endedAt } : {}),
+        rowVersion: Number(assignment.rowVersion),
+      }))), [] as AccountDeviceAssignmentView[]),
+      settle(this.services.account.listAccountSyncEvents(workspaceId).then((response) => response.events.map((event) => ({
+        id: event.id,
+        sourceId: event.sourceId,
+        eventName: event.eventName,
+        ...(event.accountId ? { accountId: event.accountId } : {}),
+        outcome: mapSyncOutcome(event.outcome),
+        idempotencyKey: event.idempotencyKey,
+        correlationId: event.correlationId,
+        occurredAt: event.occurredAt,
+        detailsJson: redact(event.detailsJson),
+      }))), [] as AccountSyncEventView[]),
+      settle(Promise.all(settingScopes.map((scope) => this.services.settings.listSettings(workspaceId, scope).then((response) => response.settings.map(mapSetting)))).then((groups) => groups.flat()), [] as SettingView[]),
+      settle(this.services.settings.listSettingHistory(workspaceId).then((response) => response.history.map(mapSettingHistory)), [] as SettingHistoryView[]),
+      settle(this.services.policy.listPolicies(workspaceId).then((response) => response.policies.map(mapPolicy)), [] as PolicyView[]),
+      settle(this.services.policy.listPolicyDecisions(workspaceId).then((response) => response.decisions.map(mapPolicyDecisionRecord)), [] as PolicyDecisionView[]),
+      settle(this.services.workflow.listWorkflows(workspaceId).then((response) => response.workflows.map(mapWorkflow)), [] as WorkflowView[]),
+      settle(this.services.skill.listSkills(workspaceId).then((response) => response.skills.map(mapSkill)), [] as SkillView[]),
+      settle(this.services.run.listWorkflowRuns(workspaceId).then((response) => response.runs.map(mapRun)), [] as RunView[]),
+      settle(this.services.artifact.listArtifacts(workspaceId, actorId).then((response) => response.artifacts.map(mapArtifact)), [] as ArtifactView[]),
+      settle(this.services.artifact.getStorageHealth(workspaceId, actorId).then((health) => ({
+        usedBytes: Number(health.totalBytes),
+        budgetBytes: 0,
+        objectCount: Number(health.objectCount),
+        orphanMetadataCount: 0,
+        orphanBytesCount: 0,
+        quotaWarning: !health.casRootConfigured,
+        warningSummary: health.casRootConfigured ? "" : "Object storage is not configured.",
+        cleanupFailures: Number(health.cleanupFailedCount),
+      })), emptyStorage()),
+      settle(this.services.automationAgent.listAutomationAgents(workspaceId).then((response) => response.agents.map(mapAutomationAgent)), [] as AutomationAgentView[]),
+      settle(this.services.recording.listRecordingSessions(workspaceId).then((response) => response.sessions.map(mapRecording)), [] as RecordingMediaView[]),
+    ])
+
+    const failed = results.filter((result) => result.failed)
+    const networkFailed = results.some((result) => result.network)
+    if (failed.length === results.length && networkFailed) {
+      this.snapshot = emptyControlPlaneSnapshot({
+        workspaceId,
+        disconnectedReason: "Control plane unreachable.",
+      })
+      return this.getSnapshot()
+    }
+
+    const [
+      workspace,
+      devices,
+      edgeAgents,
+      endpoints,
+      networkProfiles,
+      groups,
+      operationalEvents,
+      auditEvents,
+      accountSources,
+      accounts,
+      accountServiceStates,
+      accountServiceStateHistory,
+      accountRuns,
+      accountRunEvents,
+      accountDeviceAssignments,
+      accountSyncEvents,
+      settings,
+      settingHistory,
+      policies,
+      policyDecisions,
+      workflows,
+      skills,
+      runs,
+      artifacts,
+      storageHealth,
+      automationAgents,
+      recordingMedia,
+    ] = results
+
+    const workspaceRecord = workspace.value as Workspace | undefined
+    const assigned = new Map(accountDeviceAssignments.value.filter((item) => item.state === "active").map((item) => [item.accountId, item.deviceId]))
+    const serviceByAccount = new Map(accountServiceStates.value.map((item) => [item.accountId, item.state]))
+    this.snapshot = {
+      ...emptyControlPlaneSnapshot({ workspaceId, connected: true }),
+      workspaceName: workspaceRecord?.displayName ?? previous.workspaceName,
+      workspaceId,
+      devices: devices.value,
+      edgeAgents: edgeAgents.value,
+      endpoints: endpoints.value,
+      networkProfiles: networkProfiles.value,
+      groups: groups.value,
+      events: [...operationalEvents.value, ...auditEvents.value],
+      accountSources: accountSources.value,
+      accounts: accounts.value.map((account) => ({
+        ...account,
+        assignedDeviceId: assigned.get(account.id),
+        serviceState: serviceByAccount.get(account.id) ?? "unknown",
+      })),
+      accountServiceStates: accountServiceStates.value,
+      accountServiceStateHistory: accountServiceStateHistory.value,
+      accountRuns: accountRuns.value,
+      accountRunEvents: accountRunEvents.value,
+      accountDeviceAssignments: accountDeviceAssignments.value,
+      accountSyncEvents: accountSyncEvents.value,
+      settings: settings.value,
+      settingHistory: settingHistory.value,
+      policies: policies.value,
+      policyDecisions: policyDecisions.value,
+      workflows: workflows.value,
+      skills: skills.value,
+      runs: runs.value,
+      artifacts: artifacts.value,
+      storageHealth: storageHealth.value,
+      automationAgents: automationAgents.value,
+      recordingMedia: recordingMedia.value,
+      scanRuns: previous.scanRuns,
+      scanCandidates: previous.scanCandidates,
+      labAdapter: previous.labAdapter.mode === "lab" ? previous.labAdapter : emptyLabAdapter(),
+      provisioningReadiness: previous.provisioningReadiness,
+      labRegistration: previous.labRegistration,
+      mirrorSessions: previous.mirrorSessions,
+      runtimeConnection: emptyRuntime("connected"),
+      spoolHealth: emptySpool("connected"),
+    }
+    return this.getSnapshot()
+  }
+
+  async dispatch(intent: ControlPlaneIntent): Promise<MutationResult> {
+    const requestId = newRequestId()
+    const workspaceId = this.workspaceId
+    try {
+      const result = await this.execute(intent, requestId, workspaceId)
+      if (result.ok && intent.type !== "refresh") {
+        await this.refresh()
+      }
+      if (intent.type === "refresh") {
+        await this.refresh()
+        return mutation(intent, "Control plane projection refreshed.")
+      }
+      return result
+    } catch (cause: unknown) {
+      const message = cause instanceof ConnectJsonError ? cause.message : "The control plane could not complete this action."
+      if (isNetworkFailure(cause)) {
+        this.snapshot = emptyControlPlaneSnapshot({ workspaceId, disconnectedReason: message })
+      }
+      return failure(intent, message, { errorCode: cause instanceof ConnectJsonError && cause.code === "unauthorized" ? "unauthorized" : "precondition_failed" })
+    }
+  }
+
+  private async execute(intent: ControlPlaneIntent, requestId: string, workspaceId: string): Promise<MutationResult> {
+    switch (intent.type) {
+      case "refresh":
+        return mutation(intent, "Control plane projection refreshed.")
+      case "createNetworkProfile": {
+        await this.services.networkProfile.createNetworkProfile(requestId, create(NetworkProfileSchema, {
+          id: "",
+          workspace: workspaceRef(workspaceId),
+          displayName: intent.name,
+          addressPolicy: intent.addressPolicy,
+          allowedPorts: [...intent.ports],
+          isDefault: intent.isDefault,
+          state: NetworkProfileState.ACTIVE,
+          rowVersion: 0n,
+        }))
+        return mutation(intent, "Network profile created.")
+      }
+      case "updateNetworkProfile": {
+        await this.services.networkProfile.updateNetworkProfile(requestId, create(NetworkProfileSchema, {
+          id: intent.profileId,
+          workspace: workspaceRef(workspaceId),
+          displayName: intent.name,
+          addressPolicy: intent.addressPolicy,
+          allowedPorts: [...intent.ports],
+          isDefault: intent.isDefault,
+          state: NetworkProfileState.ACTIVE,
+          rowVersion: BigInt(intent.rowVersion),
+        }), BigInt(intent.rowVersion))
+        return mutation(intent, "Network profile updated.")
+      }
+      case "retireNetworkProfile": {
+        const current = this.snapshot.networkProfiles.find((profile) => profile.id === intent.profileId)
+        if (!current) return failure(intent, "Network profile was not found.", { errorCode: "invalid_input" })
+        await this.services.networkProfile.updateNetworkProfile(requestId, mapProfileToProto(current, workspaceId, NetworkProfileState.RETIRED), BigInt(intent.rowVersion))
+        return mutation(intent, "Network profile retired.")
+      }
+      case "startScan": {
+        const response = await this.services.discovery.startScan(requestId, workspaceId, intent.profileId)
+        if (response.scanRun) {
+          this.snapshot = { ...this.snapshot, scanRuns: [mapScanRun(response.scanRun), ...this.snapshot.scanRuns] }
+        }
+        return mutation(intent, "Discovery scan started.")
+      }
+      case "decideScanCandidate": {
+        const response = await this.services.discovery.decideScanCandidate(requestId, workspaceId, intent.candidateId, intent.approve, intent.reason)
+        if (response.candidate) {
+          const mapped = mapScanCandidate(response.candidate)
+          this.snapshot = { ...this.snapshot, scanCandidates: this.snapshot.scanCandidates.map((candidate) => candidate.id === mapped.id ? mapped : candidate) }
+        }
+        return mutation(intent, intent.approve ? "Candidate approved." : "Candidate rejected.")
+      }
+      case "registerScanCandidate": {
+        await this.services.discovery.registerScanCandidate(requestId, workspaceId, intent.candidateId, intent.displayName)
+        return mutation(intent, "Candidate registered.")
+      }
+      case "moveDeviceToGroup": {
+        await this.services.group.moveDeviceToGroup(requestId, workspaceId, intent.deviceId, intent.groupId, intent.position)
+        return mutation(intent, "Device moved to group.")
+      }
+      case "cancelRun": {
+        await this.services.run.cancelWorkflowRun(requestId, workspaceId, intent.runId)
+        return mutation(intent, "Run cancellation requested.")
+      }
+      case "createAccountSource": {
+        await this.services.account.createAccountSource(requestId, workspaceId, intent)
+        return mutation(intent, "Account source created. External connectors remain unavailable.")
+      }
+      case "updateAccountSource": {
+        await this.services.account.updateAccountSource(requestId, workspaceId, intent.sourceId, intent)
+        return mutation(intent, "Account source updated.")
+      }
+      case "retireAccountSource": {
+        await this.services.account.transitionAccountSource(requestId, workspaceId, intent.sourceId, AccountSourceState.RETIRED, intent.rowVersion)
+        return mutation(intent, "Account source retired.")
+      }
+      case "createAccount": {
+        await this.services.account.createAccount(requestId, workspaceId, intent)
+        return mutation(intent, "Account reference created.")
+      }
+      case "updateAccount": {
+        await this.services.account.updateAccount(requestId, workspaceId, intent.accountId, intent)
+        return mutation(intent, "Account reference updated.")
+      }
+      case "updateAccountState": {
+        await this.services.account.updateAccountState(requestId, workspaceId, intent.accountId, toProtoAccountState(intent.state), intent.rowVersion)
+        return mutation(intent, "Account state updated.")
+      }
+      case "assignAccountDevice": {
+        await this.services.account.assignAccountDevice(requestId, workspaceId, intent.accountId, intent.deviceId)
+        return mutation(intent, "Device assignment recorded.")
+      }
+      case "endAccountDeviceAssignment": {
+        await this.services.account.endAccountDeviceAssignment(requestId, workspaceId, intent.assignmentId)
+        return mutation(intent, "Device assignment ended.")
+      }
+      case "updateSetting": {
+        await this.services.settings.updateSetting(requestId, workspaceId, intent.settingId, intent.valueJson, intent.rowVersion)
+        return mutation(intent, "Setting updated.")
+      }
+      case "createSetting": {
+        await this.services.settings.createSetting(requestId, create(SettingSchema, {
+          id: "",
+          workspace: workspaceRef(workspaceId),
+          scope: toProtoSettingScope(intent.scope),
+          targetId: intent.targetId,
+          settingKey: intent.key,
+          valueJson: intent.valueJson,
+          state: "draft",
+          rowVersion: 0n,
+          valueKind: SettingValueKind.JSON,
+          risk: SettingRisk.LOW_PREFERENCE,
+          createdAt: "",
+          updatedAt: "",
+        }))
+        return mutation(intent, "Setting created.")
+      }
+      case "transitionSetting": {
+        await this.services.settings.transitionSetting(requestId, workspaceId, intent.settingId, intent.state, intent.rowVersion)
+        return mutation(intent, "Setting state updated.")
+      }
+      case "createPolicyVersion": {
+        await this.services.policy.createPolicyVersion(requestId, workspaceId, intent.basePolicyId, intent.ruleJson)
+        return mutation(intent, "Policy version created.")
+      }
+      case "activatePolicy": {
+        await this.services.policy.activatePolicy(requestId, workspaceId, intent.policyId, intent.rowVersion)
+        return mutation(intent, "Policy activated.")
+      }
+      case "retirePolicy": {
+        await this.services.policy.retirePolicy(requestId, workspaceId, intent.policyId, intent.rowVersion)
+        return mutation(intent, "Policy retired.")
+      }
+      case "readArtifact": {
+        await this.services.artifact.readArtifact(workspaceId, intent.artifactId, operatorId)
+        return mutation(intent, "Artifact metadata authorized for read.")
+      }
+      case "deleteArtifact": {
+        if (!intent.confirmed) return failure(intent, "Deletion requires confirmation.", { errorCode: "precondition_failed" })
+        await this.services.artifact.deleteArtifact(workspaceId, intent.artifactId, operatorId)
+        return mutation(intent, "Artifact deleted.")
+      }
+      case "cleanupArtifact": {
+        if (!intent.confirmed) return failure(intent, "Cleanup requires confirmation.", { errorCode: "precondition_failed" })
+        await this.services.artifact.deleteArtifact(workspaceId, intent.artifactId, operatorId)
+        return mutation(intent, "Artifact cleanup requested.")
+      }
+      case "startMirrorPreview":
+      case "stopMirrorPreview":
+      case "updatePolicy":
+      case "discoverLabDevices":
+      case "confirmLabTarget":
+      case "clearLabTarget":
+      case "captureLabObservation":
+      case "simulateLabCaptureFailure":
+      case "verifyLabProvisioning":
+      case "approveLabProvisioning":
+      case "registerLabDevice":
+      case "simulateRuntimeDisconnect":
+      case "beginRuntimeReconnect":
+      case "completeRuntimeReconnect":
+      case "confirmIndeterminateAction":
+      case "confirmSpoolReplay":
+      case "enqueueMockSpoolItem":
+        return failure(intent, "This action is unavailable on the connected control plane.")
+      default: {
+        const _exhaustive: never = intent
+        return _exhaustive
+      }
+    }
+  }
+}
+
+export function createRealControlPlaneClient(options?: ConstructorParameters<typeof RealControlPlaneClient>[0]): ControlPlaneClient {
+  return new RealControlPlaneClient(options)
+}

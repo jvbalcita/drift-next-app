@@ -55,3 +55,9 @@ func TestRequireLabTokenRejectsAMissingOrWrongLocalToken(t *testing.T) {
 		t.Fatalf("GetLabStatus with the configured token = %d, want %d", status, http.StatusOK)
 	}
 }
+
+func TestProductRoutesSkipNilHandlers(t *testing.T) {
+	if routes := service.ProductRoutes(nil, "token"); len(routes) != 0 {
+		t.Fatalf("ProductRoutes(nil) = %d routes, want 0", len(routes))
+	}
+}

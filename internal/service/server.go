@@ -61,6 +61,41 @@ func ArtifactRoute(service transportconnect.ArtifactAPI, token string) Route {
 	return Route{Path: path, Handler: RequireLabToken(token, handler)}
 }
 
+// ProductRoutes mounts the local product Connect surfaces when handlers were
+// constructed against an open SQLite store. Empty handlers are skipped.
+func ProductRoutes(handlers *transportconnect.ProductHandlers, token string) []Route {
+	if handlers == nil {
+		return nil
+	}
+	mount := func(path string, handler http.Handler) Route {
+		if path == "" || handler == nil {
+			return Route{}
+		}
+		return Route{Path: path, Handler: RequireLabToken(token, handler)}
+	}
+	return []Route{
+		mount(driftv1connect.NewDeviceServiceHandler(handlers.Device)),
+		mount(driftv1connect.NewNetworkProfileServiceHandler(handlers.NetworkProfile)),
+		mount(driftv1connect.NewDiscoveryServiceHandler(handlers.Discovery)),
+		mount(driftv1connect.NewGroupServiceHandler(handlers.Group)),
+		mount(driftv1connect.NewEndpointServiceHandler(handlers.Endpoint)),
+		mount(driftv1connect.NewObservationServiceHandler(handlers.Observation)),
+		mount(driftv1connect.NewEventServiceHandler(handlers.Event)),
+		mount(driftv1connect.NewEdgeAgentServiceHandler(handlers.EdgeAgent)),
+		mount(driftv1connect.NewLeaseServiceHandler(handlers.Lease)),
+		mount(driftv1connect.NewActionServiceHandler(handlers.Action)),
+		mount(driftv1connect.NewAutomationAgentServiceHandler(handlers.AutomationAgent)),
+		mount(driftv1connect.NewAccountServiceHandler(handlers.Account)),
+		mount(driftv1connect.NewSettingsServiceHandler(handlers.Settings)),
+		mount(driftv1connect.NewPolicyServiceHandler(handlers.Policy)),
+		mount(driftv1connect.NewWorkflowServiceHandler(handlers.Workflow)),
+		mount(driftv1connect.NewRunServiceHandler(handlers.Run)),
+		mount(driftv1connect.NewRecordingServiceHandler(handlers.Recording)),
+		mount(driftv1connect.NewSkillServiceHandler(handlers.Skill)),
+		mount(driftv1connect.NewWorkspaceServiceHandler(handlers.Workspace)),
+	}
+}
+
 // NewHTTPServer returns a loopback-oriented server exposing health endpoints
 // plus any explicitly mounted Connect routes. Adding a route is deliberate:
 // nothing is mounted by reflection or by package initialization.

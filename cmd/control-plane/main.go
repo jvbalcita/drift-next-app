@@ -11,10 +11,12 @@ import (
 
 	"drift.local/drift-next/internal/artifacts"
 	"drift.local/drift-next/internal/artifacts/cas"
+	"drift.local/drift-next/internal/discovery"
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/edge/registration"
 	"drift.local/drift-next/internal/organizations"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
+	"drift.local/drift-next/internal/product"
 	"drift.local/drift-next/internal/service"
 	store "drift.local/drift-next/internal/store/sqlite"
 	transportconnect "drift.local/drift-next/internal/transport/connect"
@@ -50,49 +52,54 @@ func main() {
 	// stored as a non-nil interface value.
 	var durableStore transportconnect.LabRegistrationStore
 	var artifactAPI transportconnect.ArtifactAPI
+	var productHandlers *transportconnect.ProductHandlers
 	var labOpts []lab.Option
 	dbPath := strings.TrimSpace(os.Getenv(envControlPlaneDB))
-	if dbPath != "" {
-		db, openErr := store.Open(context.Background(), dbPath, store.Options{})
-		if openErr != nil {
-			log.Fatalf("refusing to start: open %s: %v", envControlPlaneDB, openErr)
-		}
-		defer func() { _ = db.Close() }()
-		workspaceID := organizations.WorkspaceID("workspace-lab-local")
-		if createErr := store.NewWorkspaceService(db).Create(context.Background(), organizations.Workspace{
-			ID: workspaceID, Name: "Local Lab", State: organizations.WorkspaceActive,
-		}, "system", "control-plane"); createErr != nil && platformerrors.CodeOf(createErr) != platformerrors.CodeConflict {
-			log.Fatalf("refusing to start: ensure lab workspace: %v", createErr)
-		}
-		durableStore = db
-		log.Printf("control-plane durable lab registration enabled at %s", dbPath)
-
-		casRoot := strings.TrimSpace(os.Getenv(envArtifactCASRoot))
-		if casRoot == "" {
-			casRoot = filepath.Join(filepath.Dir(dbPath), "artifacts", "cas")
-		}
-		if !filepath.IsAbs(casRoot) {
-			absRoot, absErr := filepath.Abs(casRoot)
-			if absErr != nil {
-				log.Fatalf("refusing to start: resolve %s: %v", envArtifactCASRoot, absErr)
-			}
-			casRoot = absRoot
-		}
-		casStore, casErr := cas.Open(casRoot)
-		if casErr != nil {
-			log.Fatalf("refusing to start: open artifact CAS at %s: %v", casRoot, casErr)
-		}
-		artifactService, artifactErr := artifacts.NewService(store.NewArtifactService(db), casStore)
-		if artifactErr != nil {
-			log.Fatalf("refusing to start: construct artifact service: %v", artifactErr)
-		}
-		artifactAPI = artifactService
-		labOpts = append(labOpts, lab.WithEvidencePersister(artifacts.CapturePersister{
-			Service:   artifactService,
-			Workspace: workspaceID,
-		}))
-		log.Printf("control-plane local artifact CAS enabled at %s", casStore.Root())
+	if dbPath == "" {
+		dbPath = product.DefaultControlPlaneDBPath()
 	}
+	if mkdirErr := os.MkdirAll(filepath.Dir(dbPath), 0o700); mkdirErr != nil {
+		log.Fatalf("refusing to start: create control-plane data directory: %v", mkdirErr)
+	}
+	db, openErr := store.Open(context.Background(), dbPath, store.Options{})
+	if openErr != nil {
+		log.Fatalf("refusing to start: open control-plane sqlite: %v", openErr)
+	}
+	defer func() { _ = db.Close() }()
+	workspaceID := organizations.WorkspaceID("workspace-lab-local")
+	if createErr := store.NewWorkspaceService(db).Create(context.Background(), organizations.Workspace{
+		ID: workspaceID, Name: "Local Workspace", State: organizations.WorkspaceActive,
+	}, "system", "control-plane"); createErr != nil && platformerrors.CodeOf(createErr) != platformerrors.CodeConflict {
+		log.Fatalf("refusing to start: ensure lab workspace: %v", createErr)
+	}
+	durableStore = db
+	log.Printf("control-plane durable store enabled at %s", dbPath)
+
+	casRoot := strings.TrimSpace(os.Getenv(envArtifactCASRoot))
+	if casRoot == "" {
+		casRoot = filepath.Join(filepath.Dir(dbPath), "artifacts", "cas")
+	}
+	if !filepath.IsAbs(casRoot) {
+		absRoot, absErr := filepath.Abs(casRoot)
+		if absErr != nil {
+			log.Fatalf("refusing to start: resolve %s: %v", envArtifactCASRoot, absErr)
+		}
+		casRoot = absRoot
+	}
+	casStore, casErr := cas.Open(casRoot)
+	if casErr != nil {
+		log.Fatalf("refusing to start: open artifact CAS at %s: %v", casRoot, casErr)
+	}
+	artifactService, artifactErr := artifacts.NewService(store.NewArtifactService(db), casStore)
+	if artifactErr != nil {
+		log.Fatalf("refusing to start: construct artifact service: %v", artifactErr)
+	}
+	artifactAPI = artifactService
+	labOpts = append(labOpts, lab.WithEvidencePersister(artifacts.CapturePersister{
+		Service:   artifactService,
+		Workspace: workspaceID,
+	}))
+	log.Printf("control-plane local artifact CAS enabled at %s", casStore.Root())
 
 	// Lab mode requires an explicit opt-in plus a configured adb path; anything
 	// else yields a deterministic mock service that never reaches a device.
@@ -107,7 +114,7 @@ func main() {
 
 	allowedPorts := []uint16{5555}
 	registrationService := registration.NewService(registration.Config{
-		MaxRegisteredDevices: 1,
+		MaxRegisteredDevices: 0,
 		Probe: registration.LabStatusProbe{
 			Source:       labService,
 			AllowedPorts: allowedPorts,
@@ -117,6 +124,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{
+		Authorized: true,
+		LabMode:    lab.LabModeRequested(os.LookupEnv),
+		Enumerator: product.NewLabRuntimeEnumerator(labService),
+	})
+	productHandlers = transportconnect.NewProductHandlers(db, scanner)
+
 	routes := []service.Route{
 		service.LabAdapterRoute(labService, labToken),
 		service.LabRegistrationRouteWithStore(registrationService, durableStore, labToken, allowedPorts),
@@ -124,6 +138,7 @@ func main() {
 	if artifactAPI != nil {
 		routes = append(routes, service.ArtifactRoute(artifactAPI, labToken))
 	}
+	routes = append(routes, service.ProductRoutes(productHandlers, labToken)...)
 	server := service.NewHTTPServer("control-plane", address, routes...)
 	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s)", address, labMode, tokenState(labToken))
 	if err := service.Serve(ctx, server); err != nil {

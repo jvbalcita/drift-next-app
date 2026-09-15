@@ -47,11 +47,11 @@ export function PageIntro({
   )
 }
 
-export function MockNotice({ children }: { children: ReactNode }) {
+export function OperatorNotice({ children }: { children: ReactNode }) {
   return (
     <div role="note" className="mb-6 flex items-start gap-2 border-l-2 border-primary bg-secondary/70 p-3 text-xs leading-5 text-muted-foreground">
       <CircleHelp className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-      <span><strong className="font-semibold text-foreground">Mock control plane.</strong> {children}</span>
+      <span><strong className="font-semibold text-foreground">Control Plane.</strong> {children}</span>
     </div>
   )
 }
