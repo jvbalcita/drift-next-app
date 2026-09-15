@@ -8,6 +8,9 @@ interface ImportMetaEnv {
   readonly VITE_DRIFT_LAB_TOKEN?: string
   // VITE_DRIFT_LAB_OPERATOR_ID attributes adapter calls in the audit ledger.
   readonly VITE_DRIFT_LAB_OPERATOR_ID?: string
+  readonly VITE_DRIFT_RUNTIME_ADAPTER_URL?: string
+  readonly VITE_DRIFT_RUNTIME_SERVICE_TOKEN?: string
+  readonly VITE_DRIFT_RUNTIME_OPERATOR_ID?: string
   // VITE_DRIFT_CONTROL_PLANE_URL is the Go control-plane base URL.
   readonly VITE_DRIFT_CONTROL_PLANE_URL?: string
   // VITE_DRIFT_USE_MOCK forces the in-process client outside Vitest.

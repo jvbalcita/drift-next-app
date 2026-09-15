@@ -41,7 +41,10 @@ func main() {
 		log.Fatalf("refusing to start: %v (set DRIFT_CONTROL_PLANE_ADDR to 127.0.0.1:PORT, [::1]:PORT, or localhost:PORT)", err)
 	}
 
-	labToken := strings.TrimSpace(os.Getenv(lab.EnvLabToken))
+	labToken := strings.TrimSpace(os.Getenv(lab.EnvRuntimeToken))
+	if labToken == "" {
+		labToken = strings.TrimSpace(os.Getenv(lab.EnvLabToken))
+	}
 	if lab.LabModeRequested(os.LookupEnv) && labToken == "" {
 		// Loopback keeps the surface off the network, but it does not
 		// distinguish a hostile local process from the console. Real-device

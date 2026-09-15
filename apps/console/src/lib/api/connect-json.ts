@@ -18,7 +18,7 @@ export function resolvedOperatorId(options?: {
   useMock?: boolean
   storage?: { getItem(key: string): string | null; setItem(key: string, value: string): void }
 }): string {
-  const configured = (options?.configured ?? import.meta.env.VITE_DRIFT_LAB_OPERATOR_ID)?.trim()
+  const configured = (options?.configured ?? import.meta.env.VITE_DRIFT_RUNTIME_OPERATOR_ID ?? import.meta.env.VITE_DRIFT_LAB_OPERATOR_ID)?.trim()
   if (configured) return configured
   const useMock = options?.useMock ?? usesMockControlPlane()
   if (useMock) return "console-local-operator"
@@ -43,14 +43,14 @@ export function controlPlaneBaseUrl(): string {
   return defaultControlPlaneUrl
 }
 
-export function adapterServiceBaseUrl(configured = import.meta.env.VITE_DRIFT_LAB_ADAPTER_URL): string {
+export function adapterServiceBaseUrl(configured = import.meta.env.VITE_DRIFT_RUNTIME_ADAPTER_URL ?? import.meta.env.VITE_DRIFT_LAB_ADAPTER_URL): string {
   const explicit = configured?.trim()
   if (explicit) return explicit.replace(/\/+$/, "")
   return controlPlaneBaseUrl()
 }
 
 export function configuredLabToken(): string {
-  return import.meta.env.VITE_DRIFT_LAB_TOKEN?.trim() ?? ""
+  return (import.meta.env.VITE_DRIFT_RUNTIME_SERVICE_TOKEN ?? import.meta.env.VITE_DRIFT_LAB_TOKEN)?.trim() ?? ""
 }
 
 export function newRequestId(): string {
@@ -83,7 +83,7 @@ export function requestContext(options: { requestId: string; correlationId?: str
     requestId: options.requestId,
     correlationId: options.correlationId ?? options.requestId,
     idempotencyKey: options.idempotencyKey ?? options.requestId,
-    actorId: options.actorId ?? defaultOperatorId,
+    actorId: options.actorId?.trim() || defaultOperatorId || "console-local-operator",
   })
 }
 

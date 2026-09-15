@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { resolvedOperatorId } from "@/lib/api/connect-json"
+import { requestContext, resolvedOperatorId } from "@/lib/api/connect-json"
 
 describe("resolvedOperatorId", () => {
   it("prefers an explicit configured operator id", () => {
@@ -24,5 +24,9 @@ describe("resolvedOperatorId", () => {
 
     expect(first).toMatch(/^console-operator-/)
     expect(second).toBe(first)
+  })
+
+  it("always includes an actor id in mutation contexts", () => {
+    expect(requestContext({ requestId: "request-1", actorId: "  " }).actorId).toBeTruthy()
   })
 })

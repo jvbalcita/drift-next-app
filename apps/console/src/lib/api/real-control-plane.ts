@@ -1401,12 +1401,13 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       baseUrl?: string
       token?: string
       workspaceId?: string
+      operatorId?: string
       services?: ControlPlaneServices
     } = {},
   ) {
     this.workspaceId = options.workspaceId ?? defaultWorkspaceId
     this.snapshot = emptyControlPlaneSnapshot({ workspaceId: this.workspaceId })
-    this.services = options.services ?? createControlPlaneServices(new ConnectJsonClient(options.baseUrl ?? controlPlaneBaseUrl(), options.token ?? configuredLabToken()))
+    this.services = options.services ?? createControlPlaneServices(new ConnectJsonClient(options.baseUrl ?? controlPlaneBaseUrl(), options.token ?? configuredLabToken()), options.operatorId ?? defaultOperatorId)
   }
 
   getSnapshot(): ControlPlaneSnapshot {

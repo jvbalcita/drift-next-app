@@ -112,7 +112,7 @@ func NewHTTPServer(name, address string, routes ...Route) *http.Server {
 	}
 	return &http.Server{
 		Addr:              address,
-		Handler:           mux,
+		Handler:           localCORS(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 }

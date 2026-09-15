@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/lab-control-plane"
 import { createLabRegistrationClient, toLabRegistrationView, toProvisioningReadinessView, type LabRegistrationClient } from "@/lib/api/lab-registration-client"
 import { defaultOperatorId, newRequestId, usesMockControlPlane } from "@/lib/api/connect-json"
+import { loadRuntimeConfig, type RuntimeConfig } from "@/lib/runtime-config"
 import { createMockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import { createRealControlPlaneClient } from "@/lib/api/real-control-plane"
 import type {
@@ -18,8 +19,6 @@ import type {
   LabAdapterView,
   MutationResult,
 } from "@/lib/domain/control-plane"
-
-const operatorId = defaultOperatorId
 
 function isControlPlaneOutage(snapshot: ControlPlaneSnapshot): boolean {
   const reason = snapshot.runtimeConnection.disconnectedReason
@@ -70,15 +69,30 @@ export interface ControlPlaneViewModel {
 }
 
 export function useControlPlane(): ControlPlaneViewModel {
-  const [client] = useState<ControlPlaneClient>(() => (
+  const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig | undefined>()
+  const [client, setClient] = useState<ControlPlaneClient>(() => (
     usesMockControlPlane() ? createMockControlPlaneClient() : createRealControlPlaneClient()
   ))
-  const [labClient] = useState(() => createLabAdapterClient())
-  const [registrationClient] = useState(() => createLabRegistrationClient())
+  const [labClient, setLabClient] = useState<LabAdapterClient | undefined>(() => createLabAdapterClient())
+  const [registrationClient, setRegistrationClient] = useState<LabRegistrationClient | undefined>(() => createLabRegistrationClient())
+  const operatorId = runtimeConfig?.operatorId ?? defaultOperatorId
   const [snapshot, setSnapshot] = useState<ControlPlaneSnapshot>(() => client.getSnapshot())
   const [labNotice, setLabNotice] = useState("")
   const [loading, setLoading] = useState(!usesMockControlPlane())
   const [connectionError, setConnectionError] = useState("")
+
+  useEffect(() => {
+    if (usesMockControlPlane()) return
+    let active = true
+    void loadRuntimeConfig().then((config) => {
+      if (!active || !config) return
+      setRuntimeConfig(config)
+      setClient(createRealControlPlaneClient({ baseUrl: config.controlPlaneUrl, token: config.serviceToken, operatorId: config.operatorId }))
+      setLabClient(createLabAdapterClient(config.controlPlaneUrl, config.serviceToken))
+      setRegistrationClient(createLabRegistrationClient(config.controlPlaneUrl, config.serviceToken))
+    })
+    return () => { active = false }
+  }, [])
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -97,7 +111,7 @@ export function useControlPlane(): ControlPlaneViewModel {
     } finally {
       setLoading(false)
     }
-  }, [client, labClient, registrationClient])
+  }, [client, labClient, operatorId, registrationClient])
 
   useEffect(() => {
     if (usesMockControlPlane()) return
@@ -111,7 +125,7 @@ export function useControlPlane(): ControlPlaneViewModel {
     } catch {
       setSnapshot((current) => mergeAdapterProjection(client.getSnapshot(), current))
     }
-  }, [client, labClient, registrationClient])
+  }, [client, labClient, operatorId, registrationClient])
 
   const applyRemoteLab = useCallback(async (intent: ControlPlaneIntent): Promise<MutationResult> => {
     const context = {
@@ -149,7 +163,7 @@ export function useControlPlane(): ControlPlaneViewModel {
       }
       return { ok: false, kind: intent.type, message: "The device adapter could not be reached." }
     }
-  }, [client, commitProductSnapshot, labClient, registrationClient])
+  }, [client, commitProductSnapshot, labClient, operatorId, registrationClient])
 
   const dispatch = useCallback(async (intent: ControlPlaneIntent): Promise<MutationResult> => {
     if (
