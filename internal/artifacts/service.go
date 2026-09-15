@@ -382,10 +382,14 @@ func (s *Service) Delete(ctx context.Context, workspace organizations.WorkspaceI
 		_ = s.auditEvent(ctx, workspace, "artifact", string(id), "artifact.delete.protected", actorType, actorID)
 		return DeletionOutcomeSkippedProtected, platformerrors.New(platformerrors.CodeConflict, "artifact has protected references")
 	}
-	if artifact.State != EligibleForDeletion && artifact.State != CleanupFailed && artifact.State != Stored {
-		if artifact.RetentionClass == RetentionAuditSecurity || artifact.RetentionClass == RetentionExecutionEvidence {
-			return DeletionOutcomeSkippedProtected, platformerrors.New(platformerrors.CodeConflict, "protected retention class cannot be deleted")
-		}
+	// Audit/security and execution-evidence retention classes are never
+	// ordinary-delete targets, including while still in stored/referenced state
+	// without an active reference row.
+	if artifact.RetentionClass == RetentionAuditSecurity || artifact.RetentionClass == RetentionExecutionEvidence {
+		_ = s.auditEvent(ctx, workspace, "artifact", string(id), "artifact.delete.protected", actorType, actorID)
+		return DeletionOutcomeSkippedProtected, platformerrors.New(platformerrors.CodeConflict, "protected retention class cannot be deleted")
+	}
+	if artifact.State != EligibleForDeletion && artifact.State != CleanupFailed {
 		if err := s.meta.UpdateLifecycle(ctx, workspace, id, artifact.State, EligibleForDeletion, DeletionOutcomeNone, FailureNone, "", s.clock.Now().UTC(), actorType, actorID); err != nil {
 			return DeletionOutcomeNone, err
 		}

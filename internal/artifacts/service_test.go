@@ -110,6 +110,26 @@ func TestArtifactServiceStoreReadDeleteLifecycleAndQuota(t *testing.T) {
 	_ = casStore
 }
 
+func TestDeleteBlocksProtectedRetentionWhileStored(t *testing.T) {
+	service, _, _, workspace := artifactFixture(t)
+	ctx := context.Background()
+	result, err := service.Store(ctx, artifacts.StoreRequest{
+		Workspace: workspace, MediaType: "image/png", Category: artifacts.CategoryScreenshot,
+		Sensitivity: artifacts.SensitivitySafe, RetentionClass: artifacts.RetentionExecutionEvidence,
+		Payload: []byte("evidence-bytes"), ActorType: "operator", ActorID: "op-1",
+	})
+	if err != nil || result.Omitted {
+		t.Fatalf("store = %#v err=%v", result, err)
+	}
+	if result.Artifact.State != artifacts.Stored && result.Artifact.State != artifacts.Referenced {
+		t.Fatalf("state = %s", result.Artifact.State)
+	}
+	outcome, err := service.Delete(ctx, workspace, result.Artifact.ID, "operator", "op-1")
+	if platformerrors.CodeOf(err) != platformerrors.CodeConflict || outcome != artifacts.DeletionOutcomeSkippedProtected {
+		t.Fatalf("protected retention delete = %v/%v", outcome, err)
+	}
+}
+
 func TestArtifactAdmissionRejectsSensitiveAndRecordsOmission(t *testing.T) {
 	service, _, _, workspace := artifactFixture(t)
 	ctx := context.Background()

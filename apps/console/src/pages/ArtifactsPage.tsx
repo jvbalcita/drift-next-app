@@ -478,8 +478,9 @@ export function ArtifactsPage({
                     description="Deletes eligible artifact metadata after confirmation. Protected retention classes and active references remain blocked. No filesystem paths are exposed."
                     confirmLabel="Confirm Delete"
                     onConfirm={() => {
-                      setFeedback(dispatch({ type: "deleteArtifact", artifactId: selected.id, confirmed: true }).message)
-                      setSelectedId(null)
+                      const outcome = dispatch({ type: "deleteArtifact", artifactId: selected.id, confirmed: true })
+                      setFeedback(outcome.message)
+                      if (outcome.ok) setSelectedId(null)
                     }}
                   />
                 </AlertDialog>
@@ -501,8 +502,9 @@ export function ArtifactsPage({
                     description="Runs retention cleanup for an eligible or failed-cleanup artifact after confirmation. Failures remain visible in audit."
                     confirmLabel="Confirm Cleanup"
                     onConfirm={() => {
-                      setFeedback(dispatch({ type: "cleanupArtifact", artifactId: selected.id, confirmed: true }).message)
-                      setSelectedId(null)
+                      const outcome = dispatch({ type: "cleanupArtifact", artifactId: selected.id, confirmed: true })
+                      setFeedback(outcome.message)
+                      if (outcome.ok) setSelectedId(null)
                     }}
                   />
                 </AlertDialog>
