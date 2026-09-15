@@ -69,7 +69,7 @@ pnpm dev
 Start the complete local runtime with one command:
 
 ```bash
-pnpm runtime
+pnpm run drift
 ```
 
 The runtime menu discovers ADB, creates local storage and credentials, starts
