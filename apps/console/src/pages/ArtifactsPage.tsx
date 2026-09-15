@@ -144,7 +144,6 @@ export function ArtifactsPage({
   const visible = filtered.slice(page * pageSize, (page + 1) * pageSize)
   const selected = snapshot.artifacts.find((artifact) => artifact.id === selectedId)
   const storage = snapshot.storageHealth
-  const deviceMedia = snapshot.recordingMedia.filter((media) => media.deviceId === selectedDeviceId)
   const deviceArtifacts = snapshot.artifacts.filter(
     (artifact) => artifact.deviceId === selectedDeviceId && artifact.previewKind === "screenshot" && artifact.visibility === "authorized",
   )
