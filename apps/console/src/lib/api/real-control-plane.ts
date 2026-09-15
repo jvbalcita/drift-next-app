@@ -9,6 +9,7 @@ import {
   AccountSyncOutcome,
 } from "@/gen/drift/v1/account_pb"
 import type { ArtifactRecord } from "@/gen/drift/v1/artifact_pb"
+import { ActionKind } from "@/gen/drift/v1/action_pb"
 import type { AutomationAgent } from "@/gen/drift/v1/automation_agent_pb"
 import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
@@ -81,6 +82,7 @@ import type {
   DeviceLifecycleState,
   DeviceStatus as DeviceStatusView,
   DeviceView,
+  DeviceActionKind,
   EdgeAgentState as EdgeAgentViewState,
   EdgeAgentView,
   EndpointState as EndpointViewState,
@@ -1125,6 +1127,25 @@ function mapRunTarget(target: RunTarget): RunTargetView {
   }
 }
 
+function toProtoActionKind(kind: DeviceActionKind): ActionKind {
+  switch (kind) {
+    case "observe":
+      return ActionKind.OBSERVE
+    case "health_check":
+      return ActionKind.HEALTH_CHECK
+    case "capture":
+      return ActionKind.CAPTURE
+    case "home":
+      return ActionKind.HOME
+    case "back":
+      return ActionKind.BACK
+    default: {
+      const _exhaustive: never = kind
+      return _exhaustive
+    }
+  }
+}
+
 function mapAutomationAgent(agent: AutomationAgent): AutomationAgentView {
   switch (agent.state) {
     case AutomationAgentState.ACTIVE:
@@ -1590,6 +1611,43 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         if (!intent.confirmed) return failure(intent, "Cleanup requires confirmation.", { errorCode: "precondition_failed" })
         await this.services.artifact.deleteArtifact(workspaceId, intent.artifactId, operatorId)
         return mutation(intent, "Artifact cleanup requested.")
+      }
+      case "beginDeviceControl": {
+        const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+        if (!device) return failure(intent, "Device was not found.", { errorCode: "invalid_input" })
+        const existing = this.snapshot.leases.find((lease) => lease.deviceId === intent.deviceId && lease.state === "active")
+        if (existing) return mutation(intent, "Device already has an active lease.")
+        const opened = await this.services.lease.openControlSession(requestId, workspaceId)
+        const sessionId = opened.session?.id
+        if (!sessionId) return failure(intent, "Control session was not opened.")
+        await this.services.lease.acquireDeviceLease(requestId, workspaceId, intent.deviceId, sessionId)
+        return mutation(intent, "Control session opened and device lease acquired.")
+      }
+      case "endDeviceControl": {
+        const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
+        if (!lease) return failure(intent, "No active lease for this device.", { errorCode: "precondition_failed" })
+        await this.services.lease.releaseDeviceLease(requestId, workspaceId, lease.id, BigInt(lease.fencingToken))
+        if (lease.controlSessionId) {
+          await this.services.lease.closeControlSession(requestId, workspaceId, lease.controlSessionId)
+        }
+        return mutation(intent, "Device lease released and control session closed.")
+      }
+      case "submitDeviceAction": {
+        if (!intent.confirmed && intent.kind !== "observe" && intent.kind !== "health_check") {
+          return failure(intent, "This action requires confirmation.", { errorCode: "precondition_failed" })
+        }
+        const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
+        if (!lease) return failure(intent, "Acquire an active lease before submitting a device action.", { errorCode: "precondition_failed" })
+        const submitted = await this.services.action.submitAction(requestId, {
+          intent: {
+            workspace: workspaceRef(workspaceId),
+            deviceId: intent.deviceId,
+            kind: toProtoActionKind(intent.kind),
+            idempotencyKey: requestId,
+          },
+        })
+        const outcome = submitted.result?.outcome
+        return mutation(intent, outcome ? `Action submitted (${outcome}).` : "Action submitted.")
       }
       case "startMirrorPreview":
       case "stopMirrorPreview":

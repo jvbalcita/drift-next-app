@@ -666,6 +666,8 @@ export interface SettingHistoryView {
   changedAt: string
 }
 
+export type DeviceActionKind = "observe" | "health_check" | "capture" | "home" | "back"
+
 export type ControlPlaneIntent =
   | { type: "refresh" }
   | { type: "startMirrorPreview"; sourceDeviceId: string; followerDeviceIds: readonly string[] }
@@ -727,6 +729,9 @@ export type ControlPlaneIntent =
   | { type: "readArtifact"; artifactId: string }
   | { type: "deleteArtifact"; artifactId: string; confirmed: boolean }
   | { type: "cleanupArtifact"; artifactId: string; confirmed: boolean }
+  | { type: "beginDeviceControl"; deviceId: string }
+  | { type: "endDeviceControl"; deviceId: string }
+  | { type: "submitDeviceAction"; deviceId: string; kind: DeviceActionKind; confirmed: boolean }
 
 export interface MutationResult {
   ok: boolean

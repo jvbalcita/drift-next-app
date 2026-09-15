@@ -79,6 +79,67 @@ func (LeaseState) EnumDescriptor() ([]byte, []int) {
 	return file_drift_v1_lease_proto_rawDescGZIP(), []int{0}
 }
 
+type ControlSessionState int32
+
+const (
+	ControlSessionState_CONTROL_SESSION_STATE_UNSPECIFIED ControlSessionState = 0
+	ControlSessionState_CONTROL_SESSION_STATE_REQUESTED   ControlSessionState = 1
+	ControlSessionState_CONTROL_SESSION_STATE_ACTIVE      ControlSessionState = 2
+	ControlSessionState_CONTROL_SESSION_STATE_CLOSING     ControlSessionState = 3
+	ControlSessionState_CONTROL_SESSION_STATE_CLOSED      ControlSessionState = 4
+	ControlSessionState_CONTROL_SESSION_STATE_EXPIRED     ControlSessionState = 5
+	ControlSessionState_CONTROL_SESSION_STATE_REVOKED     ControlSessionState = 6
+)
+
+// Enum value maps for ControlSessionState.
+var (
+	ControlSessionState_name = map[int32]string{
+		0: "CONTROL_SESSION_STATE_UNSPECIFIED",
+		1: "CONTROL_SESSION_STATE_REQUESTED",
+		2: "CONTROL_SESSION_STATE_ACTIVE",
+		3: "CONTROL_SESSION_STATE_CLOSING",
+		4: "CONTROL_SESSION_STATE_CLOSED",
+		5: "CONTROL_SESSION_STATE_EXPIRED",
+		6: "CONTROL_SESSION_STATE_REVOKED",
+	}
+	ControlSessionState_value = map[string]int32{
+		"CONTROL_SESSION_STATE_UNSPECIFIED": 0,
+		"CONTROL_SESSION_STATE_REQUESTED":   1,
+		"CONTROL_SESSION_STATE_ACTIVE":      2,
+		"CONTROL_SESSION_STATE_CLOSING":     3,
+		"CONTROL_SESSION_STATE_CLOSED":      4,
+		"CONTROL_SESSION_STATE_EXPIRED":     5,
+		"CONTROL_SESSION_STATE_REVOKED":     6,
+	}
+)
+
+func (x ControlSessionState) Enum() *ControlSessionState {
+	p := new(ControlSessionState)
+	*p = x
+	return p
+}
+
+func (x ControlSessionState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ControlSessionState) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_lease_proto_enumTypes[1].Descriptor()
+}
+
+func (ControlSessionState) Type() protoreflect.EnumType {
+	return &file_drift_v1_lease_proto_enumTypes[1]
+}
+
+func (x ControlSessionState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ControlSessionState.Descriptor instead.
+func (ControlSessionState) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{1}
+}
+
 type DeviceLease struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -603,6 +664,386 @@ func (x *ReleaseDeviceLeaseResponse) GetLease() *DeviceLease {
 	return nil
 }
 
+type ControlSession struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	HolderId      string                 `protobuf:"bytes,3,opt,name=holder_id,json=holderId,proto3" json:"holder_id,omitempty"`
+	State         ControlSessionState    `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.ControlSessionState" json:"state,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ExpiresAt     string                 `protobuf:"bytes,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlSession) Reset() {
+	*x = ControlSession{}
+	mi := &file_drift_v1_lease_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlSession) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlSession) ProtoMessage() {}
+
+func (x *ControlSession) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_lease_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlSession.ProtoReflect.Descriptor instead.
+func (*ControlSession) Descriptor() ([]byte, []int) {
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ControlSession) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ControlSession) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ControlSession) GetHolderId() string {
+	if x != nil {
+		return x.HolderId
+	}
+	return ""
+}
+
+func (x *ControlSession) GetState() ControlSessionState {
+	if x != nil {
+		return x.State
+	}
+	return ControlSessionState_CONTROL_SESSION_STATE_UNSPECIFIED
+}
+
+func (x *ControlSession) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *ControlSession) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return ""
+}
+
+type OpenControlSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenControlSessionRequest) Reset() {
+	*x = OpenControlSessionRequest{}
+	mi := &file_drift_v1_lease_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenControlSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenControlSessionRequest) ProtoMessage() {}
+
+func (x *OpenControlSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_lease_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenControlSessionRequest.ProtoReflect.Descriptor instead.
+func (*OpenControlSessionRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *OpenControlSessionRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *OpenControlSessionRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+type OpenControlSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Session       *ControlSession        `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenControlSessionResponse) Reset() {
+	*x = OpenControlSessionResponse{}
+	mi := &file_drift_v1_lease_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenControlSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenControlSessionResponse) ProtoMessage() {}
+
+func (x *OpenControlSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_lease_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenControlSessionResponse.ProtoReflect.Descriptor instead.
+func (*OpenControlSessionResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *OpenControlSessionResponse) GetSession() *ControlSession {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+type CloseControlSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Session       *ResourceRef           `protobuf:"bytes,2,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CloseControlSessionRequest) Reset() {
+	*x = CloseControlSessionRequest{}
+	mi := &file_drift_v1_lease_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CloseControlSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CloseControlSessionRequest) ProtoMessage() {}
+
+func (x *CloseControlSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_lease_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CloseControlSessionRequest.ProtoReflect.Descriptor instead.
+func (*CloseControlSessionRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CloseControlSessionRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *CloseControlSessionRequest) GetSession() *ResourceRef {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+type CloseControlSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Session       *ControlSession        `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CloseControlSessionResponse) Reset() {
+	*x = CloseControlSessionResponse{}
+	mi := &file_drift_v1_lease_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CloseControlSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CloseControlSessionResponse) ProtoMessage() {}
+
+func (x *CloseControlSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_lease_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CloseControlSessionResponse.ProtoReflect.Descriptor instead.
+func (*CloseControlSessionResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CloseControlSessionResponse) GetSession() *ControlSession {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+type ListControlSessionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	Page          *PageRequest           `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListControlSessionsRequest) Reset() {
+	*x = ListControlSessionsRequest{}
+	mi := &file_drift_v1_lease_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListControlSessionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListControlSessionsRequest) ProtoMessage() {}
+
+func (x *ListControlSessionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_lease_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListControlSessionsRequest.ProtoReflect.Descriptor instead.
+func (*ListControlSessionsRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ListControlSessionsRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ListControlSessionsRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ListControlSessionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sessions      []*ControlSession      `protobuf:"bytes,1,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	Page          *PageResponse          `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListControlSessionsResponse) Reset() {
+	*x = ListControlSessionsResponse{}
+	mi := &file_drift_v1_lease_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListControlSessionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListControlSessionsResponse) ProtoMessage() {}
+
+func (x *ListControlSessionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_lease_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListControlSessionsResponse.ProtoReflect.Descriptor instead.
+func (*ListControlSessionsResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_lease_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ListControlSessionsResponse) GetSessions() []*ControlSession {
+	if x != nil {
+		return x.Sessions
+	}
+	return nil
+}
+
+func (x *ListControlSessionsResponse) GetPage() *PageResponse {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 var File_drift_v1_lease_proto protoreflect.FileDescriptor
 
 const file_drift_v1_lease_proto_rawDesc = "" +
@@ -642,7 +1083,32 @@ const file_drift_v1_lease_proto_rawDesc = "" +
 	"\x05lease\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\x05lease\x12#\n" +
 	"\rfencing_token\x18\x03 \x01(\x04R\ffencingToken\"I\n" +
 	"\x1aReleaseDeviceLeaseResponse\x12+\n" +
-	"\x05lease\x18\x01 \x01(\v2\x15.drift.v1.DeviceLeaseR\x05lease*\xa8\x01\n" +
+	"\x05lease\x18\x01 \x01(\v2\x15.drift.v1.DeviceLeaseR\x05lease\"\xe6\x01\n" +
+	"\x0eControlSession\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tholder_id\x18\x03 \x01(\tR\bholderId\x123\n" +
+	"\x05state\x18\x04 \x01(\x0e2\x1d.drift.v1.ControlSessionStateR\x05state\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\x06 \x01(\tR\texpiresAt\"\x85\x01\n" +
+	"\x19OpenControlSessionRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\"P\n" +
+	"\x1aOpenControlSessionResponse\x122\n" +
+	"\asession\x18\x01 \x01(\v2\x18.drift.v1.ControlSessionR\asession\"\x81\x01\n" +
+	"\x1aCloseControlSessionRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12/\n" +
+	"\asession\x18\x02 \x01(\v2\x15.drift.v1.ResourceRefR\asession\"Q\n" +
+	"\x1bCloseControlSessionResponse\x122\n" +
+	"\asession\x18\x01 \x01(\v2\x18.drift.v1.ControlSessionR\asession\"}\n" +
+	"\x1aListControlSessionsRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
+	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x7f\n" +
+	"\x1bListControlSessionsResponse\x124\n" +
+	"\bsessions\x18\x01 \x03(\v2\x18.drift.v1.ControlSessionR\bsessions\x12*\n" +
+	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page*\xa8\x01\n" +
 	"\n" +
 	"LeaseState\x12\x1b\n" +
 	"\x17LEASE_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
@@ -650,12 +1116,23 @@ const file_drift_v1_lease_proto_rawDesc = "" +
 	"\x12LEASE_STATE_ACTIVE\x10\x02\x12\x18\n" +
 	"\x14LEASE_STATE_RELEASED\x10\x03\x12\x17\n" +
 	"\x13LEASE_STATE_EXPIRED\x10\x04\x12\x17\n" +
-	"\x13LEASE_STATE_REVOKED\x10\x052\x86\x03\n" +
+	"\x13LEASE_STATE_REVOKED\x10\x05*\x8e\x02\n" +
+	"\x13ControlSessionState\x12%\n" +
+	"!CONTROL_SESSION_STATE_UNSPECIFIED\x10\x00\x12#\n" +
+	"\x1fCONTROL_SESSION_STATE_REQUESTED\x10\x01\x12 \n" +
+	"\x1cCONTROL_SESSION_STATE_ACTIVE\x10\x02\x12!\n" +
+	"\x1dCONTROL_SESSION_STATE_CLOSING\x10\x03\x12 \n" +
+	"\x1cCONTROL_SESSION_STATE_CLOSED\x10\x04\x12!\n" +
+	"\x1dCONTROL_SESSION_STATE_EXPIRED\x10\x05\x12!\n" +
+	"\x1dCONTROL_SESSION_STATE_REVOKED\x10\x062\xaf\x05\n" +
 	"\fLeaseService\x12_\n" +
 	"\x12AcquireDeviceLease\x12#.drift.v1.AcquireDeviceLeaseRequest\x1a$.drift.v1.AcquireDeviceLeaseResponse\x12Y\n" +
 	"\x10RenewDeviceLease\x12!.drift.v1.RenewDeviceLeaseRequest\x1a\".drift.v1.RenewDeviceLeaseResponse\x12_\n" +
 	"\x12ReleaseDeviceLease\x12#.drift.v1.ReleaseDeviceLeaseRequest\x1a$.drift.v1.ReleaseDeviceLeaseResponse\x12Y\n" +
-	"\x10ListDeviceLeases\x12!.drift.v1.ListDeviceLeasesRequest\x1a\".drift.v1.ListDeviceLeasesResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\x10ListDeviceLeases\x12!.drift.v1.ListDeviceLeasesRequest\x1a\".drift.v1.ListDeviceLeasesResponse\x12_\n" +
+	"\x12OpenControlSession\x12#.drift.v1.OpenControlSessionRequest\x1a$.drift.v1.OpenControlSessionResponse\x12b\n" +
+	"\x13CloseControlSession\x12$.drift.v1.CloseControlSessionRequest\x1a%.drift.v1.CloseControlSessionResponse\x12b\n" +
+	"\x13ListControlSessions\x12$.drift.v1.ListControlSessionsRequest\x1a%.drift.v1.ListControlSessionsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_lease_proto_rawDescOnce sync.Once
@@ -669,54 +1146,80 @@ func file_drift_v1_lease_proto_rawDescGZIP() []byte {
 	return file_drift_v1_lease_proto_rawDescData
 }
 
-var file_drift_v1_lease_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_drift_v1_lease_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_drift_v1_lease_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_drift_v1_lease_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_drift_v1_lease_proto_goTypes = []any{
-	(LeaseState)(0),                    // 0: drift.v1.LeaseState
-	(*DeviceLease)(nil),                // 1: drift.v1.DeviceLease
-	(*ListDeviceLeasesRequest)(nil),    // 2: drift.v1.ListDeviceLeasesRequest
-	(*ListDeviceLeasesResponse)(nil),   // 3: drift.v1.ListDeviceLeasesResponse
-	(*AcquireDeviceLeaseRequest)(nil),  // 4: drift.v1.AcquireDeviceLeaseRequest
-	(*AcquireDeviceLeaseResponse)(nil), // 5: drift.v1.AcquireDeviceLeaseResponse
-	(*RenewDeviceLeaseRequest)(nil),    // 6: drift.v1.RenewDeviceLeaseRequest
-	(*RenewDeviceLeaseResponse)(nil),   // 7: drift.v1.RenewDeviceLeaseResponse
-	(*ReleaseDeviceLeaseRequest)(nil),  // 8: drift.v1.ReleaseDeviceLeaseRequest
-	(*ReleaseDeviceLeaseResponse)(nil), // 9: drift.v1.ReleaseDeviceLeaseResponse
-	(*WorkspaceRef)(nil),               // 10: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),                // 11: drift.v1.PageRequest
-	(*PageResponse)(nil),               // 12: drift.v1.PageResponse
-	(*RequestContext)(nil),             // 13: drift.v1.RequestContext
-	(*ResourceRef)(nil),                // 14: drift.v1.ResourceRef
+	(LeaseState)(0),                     // 0: drift.v1.LeaseState
+	(ControlSessionState)(0),            // 1: drift.v1.ControlSessionState
+	(*DeviceLease)(nil),                 // 2: drift.v1.DeviceLease
+	(*ListDeviceLeasesRequest)(nil),     // 3: drift.v1.ListDeviceLeasesRequest
+	(*ListDeviceLeasesResponse)(nil),    // 4: drift.v1.ListDeviceLeasesResponse
+	(*AcquireDeviceLeaseRequest)(nil),   // 5: drift.v1.AcquireDeviceLeaseRequest
+	(*AcquireDeviceLeaseResponse)(nil),  // 6: drift.v1.AcquireDeviceLeaseResponse
+	(*RenewDeviceLeaseRequest)(nil),     // 7: drift.v1.RenewDeviceLeaseRequest
+	(*RenewDeviceLeaseResponse)(nil),    // 8: drift.v1.RenewDeviceLeaseResponse
+	(*ReleaseDeviceLeaseRequest)(nil),   // 9: drift.v1.ReleaseDeviceLeaseRequest
+	(*ReleaseDeviceLeaseResponse)(nil),  // 10: drift.v1.ReleaseDeviceLeaseResponse
+	(*ControlSession)(nil),              // 11: drift.v1.ControlSession
+	(*OpenControlSessionRequest)(nil),   // 12: drift.v1.OpenControlSessionRequest
+	(*OpenControlSessionResponse)(nil),  // 13: drift.v1.OpenControlSessionResponse
+	(*CloseControlSessionRequest)(nil),  // 14: drift.v1.CloseControlSessionRequest
+	(*CloseControlSessionResponse)(nil), // 15: drift.v1.CloseControlSessionResponse
+	(*ListControlSessionsRequest)(nil),  // 16: drift.v1.ListControlSessionsRequest
+	(*ListControlSessionsResponse)(nil), // 17: drift.v1.ListControlSessionsResponse
+	(*WorkspaceRef)(nil),                // 18: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),                 // 19: drift.v1.PageRequest
+	(*PageResponse)(nil),                // 20: drift.v1.PageResponse
+	(*RequestContext)(nil),              // 21: drift.v1.RequestContext
+	(*ResourceRef)(nil),                 // 22: drift.v1.ResourceRef
 }
 var file_drift_v1_lease_proto_depIdxs = []int32{
-	10, // 0: drift.v1.DeviceLease.workspace:type_name -> drift.v1.WorkspaceRef
+	18, // 0: drift.v1.DeviceLease.workspace:type_name -> drift.v1.WorkspaceRef
 	0,  // 1: drift.v1.DeviceLease.state:type_name -> drift.v1.LeaseState
-	10, // 2: drift.v1.ListDeviceLeasesRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	11, // 3: drift.v1.ListDeviceLeasesRequest.page:type_name -> drift.v1.PageRequest
-	1,  // 4: drift.v1.ListDeviceLeasesResponse.leases:type_name -> drift.v1.DeviceLease
-	12, // 5: drift.v1.ListDeviceLeasesResponse.page:type_name -> drift.v1.PageResponse
-	13, // 6: drift.v1.AcquireDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
-	10, // 7: drift.v1.AcquireDeviceLeaseRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	1,  // 8: drift.v1.AcquireDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
-	13, // 9: drift.v1.RenewDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
-	14, // 10: drift.v1.RenewDeviceLeaseRequest.lease:type_name -> drift.v1.ResourceRef
-	1,  // 11: drift.v1.RenewDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
-	13, // 12: drift.v1.ReleaseDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
-	14, // 13: drift.v1.ReleaseDeviceLeaseRequest.lease:type_name -> drift.v1.ResourceRef
-	1,  // 14: drift.v1.ReleaseDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
-	4,  // 15: drift.v1.LeaseService.AcquireDeviceLease:input_type -> drift.v1.AcquireDeviceLeaseRequest
-	6,  // 16: drift.v1.LeaseService.RenewDeviceLease:input_type -> drift.v1.RenewDeviceLeaseRequest
-	8,  // 17: drift.v1.LeaseService.ReleaseDeviceLease:input_type -> drift.v1.ReleaseDeviceLeaseRequest
-	2,  // 18: drift.v1.LeaseService.ListDeviceLeases:input_type -> drift.v1.ListDeviceLeasesRequest
-	5,  // 19: drift.v1.LeaseService.AcquireDeviceLease:output_type -> drift.v1.AcquireDeviceLeaseResponse
-	7,  // 20: drift.v1.LeaseService.RenewDeviceLease:output_type -> drift.v1.RenewDeviceLeaseResponse
-	9,  // 21: drift.v1.LeaseService.ReleaseDeviceLease:output_type -> drift.v1.ReleaseDeviceLeaseResponse
-	3,  // 22: drift.v1.LeaseService.ListDeviceLeases:output_type -> drift.v1.ListDeviceLeasesResponse
-	19, // [19:23] is the sub-list for method output_type
-	15, // [15:19] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	18, // 2: drift.v1.ListDeviceLeasesRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	19, // 3: drift.v1.ListDeviceLeasesRequest.page:type_name -> drift.v1.PageRequest
+	2,  // 4: drift.v1.ListDeviceLeasesResponse.leases:type_name -> drift.v1.DeviceLease
+	20, // 5: drift.v1.ListDeviceLeasesResponse.page:type_name -> drift.v1.PageResponse
+	21, // 6: drift.v1.AcquireDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
+	18, // 7: drift.v1.AcquireDeviceLeaseRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	2,  // 8: drift.v1.AcquireDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
+	21, // 9: drift.v1.RenewDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
+	22, // 10: drift.v1.RenewDeviceLeaseRequest.lease:type_name -> drift.v1.ResourceRef
+	2,  // 11: drift.v1.RenewDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
+	21, // 12: drift.v1.ReleaseDeviceLeaseRequest.context:type_name -> drift.v1.RequestContext
+	22, // 13: drift.v1.ReleaseDeviceLeaseRequest.lease:type_name -> drift.v1.ResourceRef
+	2,  // 14: drift.v1.ReleaseDeviceLeaseResponse.lease:type_name -> drift.v1.DeviceLease
+	18, // 15: drift.v1.ControlSession.workspace:type_name -> drift.v1.WorkspaceRef
+	1,  // 16: drift.v1.ControlSession.state:type_name -> drift.v1.ControlSessionState
+	21, // 17: drift.v1.OpenControlSessionRequest.context:type_name -> drift.v1.RequestContext
+	18, // 18: drift.v1.OpenControlSessionRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	11, // 19: drift.v1.OpenControlSessionResponse.session:type_name -> drift.v1.ControlSession
+	21, // 20: drift.v1.CloseControlSessionRequest.context:type_name -> drift.v1.RequestContext
+	22, // 21: drift.v1.CloseControlSessionRequest.session:type_name -> drift.v1.ResourceRef
+	11, // 22: drift.v1.CloseControlSessionResponse.session:type_name -> drift.v1.ControlSession
+	18, // 23: drift.v1.ListControlSessionsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	19, // 24: drift.v1.ListControlSessionsRequest.page:type_name -> drift.v1.PageRequest
+	11, // 25: drift.v1.ListControlSessionsResponse.sessions:type_name -> drift.v1.ControlSession
+	20, // 26: drift.v1.ListControlSessionsResponse.page:type_name -> drift.v1.PageResponse
+	5,  // 27: drift.v1.LeaseService.AcquireDeviceLease:input_type -> drift.v1.AcquireDeviceLeaseRequest
+	7,  // 28: drift.v1.LeaseService.RenewDeviceLease:input_type -> drift.v1.RenewDeviceLeaseRequest
+	9,  // 29: drift.v1.LeaseService.ReleaseDeviceLease:input_type -> drift.v1.ReleaseDeviceLeaseRequest
+	3,  // 30: drift.v1.LeaseService.ListDeviceLeases:input_type -> drift.v1.ListDeviceLeasesRequest
+	12, // 31: drift.v1.LeaseService.OpenControlSession:input_type -> drift.v1.OpenControlSessionRequest
+	14, // 32: drift.v1.LeaseService.CloseControlSession:input_type -> drift.v1.CloseControlSessionRequest
+	16, // 33: drift.v1.LeaseService.ListControlSessions:input_type -> drift.v1.ListControlSessionsRequest
+	6,  // 34: drift.v1.LeaseService.AcquireDeviceLease:output_type -> drift.v1.AcquireDeviceLeaseResponse
+	8,  // 35: drift.v1.LeaseService.RenewDeviceLease:output_type -> drift.v1.RenewDeviceLeaseResponse
+	10, // 36: drift.v1.LeaseService.ReleaseDeviceLease:output_type -> drift.v1.ReleaseDeviceLeaseResponse
+	4,  // 37: drift.v1.LeaseService.ListDeviceLeases:output_type -> drift.v1.ListDeviceLeasesResponse
+	13, // 38: drift.v1.LeaseService.OpenControlSession:output_type -> drift.v1.OpenControlSessionResponse
+	15, // 39: drift.v1.LeaseService.CloseControlSession:output_type -> drift.v1.CloseControlSessionResponse
+	17, // 40: drift.v1.LeaseService.ListControlSessions:output_type -> drift.v1.ListControlSessionsResponse
+	34, // [34:41] is the sub-list for method output_type
+	27, // [27:34] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_lease_proto_init() }
@@ -730,8 +1233,8 @@ func file_drift_v1_lease_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_lease_proto_rawDesc), len(file_drift_v1_lease_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   9,
+			NumEnums:      2,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

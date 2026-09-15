@@ -110,6 +110,94 @@ func (h *LeaseHandler) ListDeviceLeases(ctx context.Context, request *connectrpc
 	return connectrpc.NewResponse(&driftv1.ListDeviceLeasesResponse{Leases: out, Page: pageResponse(next)}), nil
 }
 
+func (h *LeaseHandler) OpenControlSession(ctx context.Context, request *connectrpc.Request[driftv1.OpenControlSessionRequest]) (*connectrpc.Response[driftv1.OpenControlSessionResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("open control session request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	session, openErr := store.NewSessionService(h.db, 0).Open(ctx, workspace, actorID, actorType, actorID)
+	if openErr != nil {
+		return nil, MapError(openErr)
+	}
+	return connectrpc.NewResponse(&driftv1.OpenControlSessionResponse{Session: controlSessionProto(session)}), nil
+}
+
+func (h *LeaseHandler) CloseControlSession(ctx context.Context, request *connectrpc.Request[driftv1.CloseControlSessionRequest]) (*connectrpc.Response[driftv1.CloseControlSessionResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("close control session request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, id, err := lookupResourceWorkspace(ctx, h.db, request.Msg.GetSession())
+	if err != nil {
+		return nil, err
+	}
+	session, closeErr := store.NewSessionService(h.db, 0).Close(ctx, workspace, leases.ControlSessionID(id), actorType, actorID)
+	if closeErr != nil {
+		return nil, MapError(closeErr)
+	}
+	return connectrpc.NewResponse(&driftv1.CloseControlSessionResponse{Session: controlSessionProto(session)}), nil
+}
+
+func (h *LeaseHandler) ListControlSessions(ctx context.Context, request *connectrpc.Request[driftv1.ListControlSessionsRequest]) (*connectrpc.Response[driftv1.ListControlSessionsResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("list control sessions request is required")
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	offset, limit, err := parsePage(request.Msg.GetPage())
+	if err != nil {
+		return nil, err
+	}
+	listed, listErr := store.NewSessionService(h.db, 0).List(ctx, workspace)
+	if listErr != nil {
+		return nil, MapError(listErr)
+	}
+	page, next := applyPage(listed, offset, limit)
+	out := make([]*driftv1.ControlSession, 0, len(page))
+	for _, session := range page {
+		out = append(out, controlSessionProto(session))
+	}
+	return connectrpc.NewResponse(&driftv1.ListControlSessionsResponse{Sessions: out, Page: pageResponse(next)}), nil
+}
+
+func controlSessionProto(session leases.ControlSession) *driftv1.ControlSession {
+	state := driftv1.ControlSessionState_CONTROL_SESSION_STATE_UNSPECIFIED
+	switch session.State {
+	case leases.SessionRequested:
+		state = driftv1.ControlSessionState_CONTROL_SESSION_STATE_REQUESTED
+	case leases.SessionActive:
+		state = driftv1.ControlSessionState_CONTROL_SESSION_STATE_ACTIVE
+	case leases.SessionClosing:
+		state = driftv1.ControlSessionState_CONTROL_SESSION_STATE_CLOSING
+	case leases.SessionClosed:
+		state = driftv1.ControlSessionState_CONTROL_SESSION_STATE_CLOSED
+	case leases.SessionExpired:
+		state = driftv1.ControlSessionState_CONTROL_SESSION_STATE_EXPIRED
+	case leases.SessionRevoked:
+		state = driftv1.ControlSessionState_CONTROL_SESSION_STATE_REVOKED
+	}
+	return &driftv1.ControlSession{
+		Id:        string(session.ID),
+		Workspace: workspaceRef(session.Workspace),
+		HolderId:  session.HolderID,
+		State:     state,
+		CreatedAt: formatTime(session.CreatedAt),
+		ExpiresAt: formatTime(session.ExpiresAt),
+	}
+}
+
 func deviceLeaseProto(lease leases.DeviceLease) *driftv1.DeviceLease {
 	state := driftv1.LeaseState_LEASE_STATE_UNSPECIFIED
 	switch lease.State {

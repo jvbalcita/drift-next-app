@@ -361,6 +361,29 @@ func (s *LeaseService) List(ctx context.Context, workspace organizations.Workspa
 	return result, classifyContext(rows.Err())
 }
 
+func (s *SessionService) List(ctx context.Context, workspace organizations.WorkspaceID) ([]leases.ControlSession, error) {
+	if err := validateWorkspace(string(workspace)); err != nil {
+		return nil, err
+	}
+	rows, err := s.store.db.QueryContext(ctx, `SELECT id, workspace_id, holder_id, state, created_at, expires_at FROM control_sessions WHERE workspace_id=? ORDER BY created_at DESC, id`, workspace)
+	if err != nil {
+		return nil, classifyContext(err)
+	}
+	defer rows.Close()
+	result := make([]leases.ControlSession, 0)
+	for rows.Next() {
+		var session leases.ControlSession
+		var created, expires string
+		if err := rows.Scan(&session.ID, &session.Workspace, &session.HolderID, &session.State, &created, &expires); err != nil {
+			return nil, err
+		}
+		session.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
+		session.ExpiresAt, _ = time.Parse(time.RFC3339Nano, expires)
+		result = append(result, session)
+	}
+	return result, classifyContext(rows.Err())
+}
+
 func loadSessionTx(row interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }, workspace organizations.WorkspaceID, id leases.ControlSessionID, session *leases.ControlSession) error {

@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/lease.proto.
  */
 export const file_drift_v1_lease: GenFile = /*@__PURE__*/
-  fileDesc("ChRkcmlmdC92MS9sZWFzZS5wcm90bxIIZHJpZnQudjEi1gEKC0RldmljZUxlYXNlEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSGgoSY29udHJvbF9zZXNzaW9uX2lkGAQgASgJEiMKBXN0YXRlGAUgASgOMhQuZHJpZnQudjEuTGVhc2VTdGF0ZRIVCg1mZW5jaW5nX3Rva2VuGAYgASgEEhIKCmV4cGlyZXNfYXQYByABKAkSEQoJaG9sZGVyX2lkGAggASgJImkKF0xpc3REZXZpY2VMZWFzZXNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QiZwoYTGlzdERldmljZUxlYXNlc1Jlc3BvbnNlEiUKBmxlYXNlcxgBIAMoCzIVLmRyaWZ0LnYxLkRldmljZUxlYXNlEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UioAEKGUFjcXVpcmVEZXZpY2VMZWFzZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSGgoSY29udHJvbF9zZXNzaW9uX2lkGAQgASgJIkIKGkFjcXVpcmVEZXZpY2VMZWFzZVJlc3BvbnNlEiQKBWxlYXNlGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlTGVhc2UigQEKF1JlbmV3RGV2aWNlTGVhc2VSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIkCgVsZWFzZRgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmEhUKDWZlbmNpbmdfdG9rZW4YAyABKAQiQAoYUmVuZXdEZXZpY2VMZWFzZVJlc3BvbnNlEiQKBWxlYXNlGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlTGVhc2UigwEKGVJlbGVhc2VEZXZpY2VMZWFzZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EiQKBWxlYXNlGAIgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYSFQoNZmVuY2luZ190b2tlbhgDIAEoBCJCChpSZWxlYXNlRGV2aWNlTGVhc2VSZXNwb25zZRIkCgVsZWFzZRgBIAEoCzIVLmRyaWZ0LnYxLkRldmljZUxlYXNlKqgBCgpMZWFzZVN0YXRlEhsKF0xFQVNFX1NUQVRFX1VOU1BFQ0lGSUVEEAASGQoVTEVBU0VfU1RBVEVfUkVRVUVTVEVEEAESFgoSTEVBU0VfU1RBVEVfQUNUSVZFEAISGAoUTEVBU0VfU1RBVEVfUkVMRUFTRUQQAxIXChNMRUFTRV9TVEFURV9FWFBJUkVEEAQSFwoTTEVBU0VfU1RBVEVfUkVWT0tFRBAFMoYDCgxMZWFzZVNlcnZpY2USXwoSQWNxdWlyZURldmljZUxlYXNlEiMuZHJpZnQudjEuQWNxdWlyZURldmljZUxlYXNlUmVxdWVzdBokLmRyaWZ0LnYxLkFjcXVpcmVEZXZpY2VMZWFzZVJlc3BvbnNlElkKEFJlbmV3RGV2aWNlTGVhc2USIS5kcmlmdC52MS5SZW5ld0RldmljZUxlYXNlUmVxdWVzdBoiLmRyaWZ0LnYxLlJlbmV3RGV2aWNlTGVhc2VSZXNwb25zZRJfChJSZWxlYXNlRGV2aWNlTGVhc2USIy5kcmlmdC52MS5SZWxlYXNlRGV2aWNlTGVhc2VSZXF1ZXN0GiQuZHJpZnQudjEuUmVsZWFzZURldmljZUxlYXNlUmVzcG9uc2USWQoQTGlzdERldmljZUxlYXNlcxIhLmRyaWZ0LnYxLkxpc3REZXZpY2VMZWFzZXNSZXF1ZXN0GiIuZHJpZnQudjEuTGlzdERldmljZUxlYXNlc1Jlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChRkcmlmdC92MS9sZWFzZS5wcm90bxIIZHJpZnQudjEi1gEKC0RldmljZUxlYXNlEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSGgoSY29udHJvbF9zZXNzaW9uX2lkGAQgASgJEiMKBXN0YXRlGAUgASgOMhQuZHJpZnQudjEuTGVhc2VTdGF0ZRIVCg1mZW5jaW5nX3Rva2VuGAYgASgEEhIKCmV4cGlyZXNfYXQYByABKAkSEQoJaG9sZGVyX2lkGAggASgJImkKF0xpc3REZXZpY2VMZWFzZXNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QiZwoYTGlzdERldmljZUxlYXNlc1Jlc3BvbnNlEiUKBmxlYXNlcxgBIAMoCzIVLmRyaWZ0LnYxLkRldmljZUxlYXNlEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UioAEKGUFjcXVpcmVEZXZpY2VMZWFzZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSGgoSY29udHJvbF9zZXNzaW9uX2lkGAQgASgJIkIKGkFjcXVpcmVEZXZpY2VMZWFzZVJlc3BvbnNlEiQKBWxlYXNlGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlTGVhc2UigQEKF1JlbmV3RGV2aWNlTGVhc2VSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIkCgVsZWFzZRgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmEhUKDWZlbmNpbmdfdG9rZW4YAyABKAQiQAoYUmVuZXdEZXZpY2VMZWFzZVJlc3BvbnNlEiQKBWxlYXNlGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlTGVhc2UigwEKGVJlbGVhc2VEZXZpY2VMZWFzZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EiQKBWxlYXNlGAIgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYSFQoNZmVuY2luZ190b2tlbhgDIAEoBCJCChpSZWxlYXNlRGV2aWNlTGVhc2VSZXNwb25zZRIkCgVsZWFzZRgBIAEoCzIVLmRyaWZ0LnYxLkRldmljZUxlYXNlIrABCg5Db250cm9sU2Vzc2lvbhIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJaG9sZGVyX2lkGAMgASgJEiwKBXN0YXRlGAQgASgOMh0uZHJpZnQudjEuQ29udHJvbFNlc3Npb25TdGF0ZRISCgpjcmVhdGVkX2F0GAUgASgJEhIKCmV4cGlyZXNfYXQYBiABKAkicQoZT3BlbkNvbnRyb2xTZXNzaW9uUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmIkcKGk9wZW5Db250cm9sU2Vzc2lvblJlc3BvbnNlEikKB3Nlc3Npb24YASABKAsyGC5kcmlmdC52MS5Db250cm9sU2Vzc2lvbiJvChpDbG9zZUNvbnRyb2xTZXNzaW9uUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSJgoHc2Vzc2lvbhgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmIkgKG0Nsb3NlQ29udHJvbFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhguZHJpZnQudjEuQ29udHJvbFNlc3Npb24ibAoaTGlzdENvbnRyb2xTZXNzaW9uc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJvChtMaXN0Q29udHJvbFNlc3Npb25zUmVzcG9uc2USKgoIc2Vzc2lvbnMYASADKAsyGC5kcmlmdC52MS5Db250cm9sU2Vzc2lvbhIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlKqgBCgpMZWFzZVN0YXRlEhsKF0xFQVNFX1NUQVRFX1VOU1BFQ0lGSUVEEAASGQoVTEVBU0VfU1RBVEVfUkVRVUVTVEVEEAESFgoSTEVBU0VfU1RBVEVfQUNUSVZFEAISGAoUTEVBU0VfU1RBVEVfUkVMRUFTRUQQAxIXChNMRUFTRV9TVEFURV9FWFBJUkVEEAQSFwoTTEVBU0VfU1RBVEVfUkVWT0tFRBAFKo4CChNDb250cm9sU2Vzc2lvblN0YXRlEiUKIUNPTlRST0xfU0VTU0lPTl9TVEFURV9VTlNQRUNJRklFRBAAEiMKH0NPTlRST0xfU0VTU0lPTl9TVEFURV9SRVFVRVNURUQQARIgChxDT05UUk9MX1NFU1NJT05fU1RBVEVfQUNUSVZFEAISIQodQ09OVFJPTF9TRVNTSU9OX1NUQVRFX0NMT1NJTkcQAxIgChxDT05UUk9MX1NFU1NJT05fU1RBVEVfQ0xPU0VEEAQSIQodQ09OVFJPTF9TRVNTSU9OX1NUQVRFX0VYUElSRUQQBRIhCh1DT05UUk9MX1NFU1NJT05fU1RBVEVfUkVWT0tFRBAGMq8FCgxMZWFzZVNlcnZpY2USXwoSQWNxdWlyZURldmljZUxlYXNlEiMuZHJpZnQudjEuQWNxdWlyZURldmljZUxlYXNlUmVxdWVzdBokLmRyaWZ0LnYxLkFjcXVpcmVEZXZpY2VMZWFzZVJlc3BvbnNlElkKEFJlbmV3RGV2aWNlTGVhc2USIS5kcmlmdC52MS5SZW5ld0RldmljZUxlYXNlUmVxdWVzdBoiLmRyaWZ0LnYxLlJlbmV3RGV2aWNlTGVhc2VSZXNwb25zZRJfChJSZWxlYXNlRGV2aWNlTGVhc2USIy5kcmlmdC52MS5SZWxlYXNlRGV2aWNlTGVhc2VSZXF1ZXN0GiQuZHJpZnQudjEuUmVsZWFzZURldmljZUxlYXNlUmVzcG9uc2USWQoQTGlzdERldmljZUxlYXNlcxIhLmRyaWZ0LnYxLkxpc3REZXZpY2VMZWFzZXNSZXF1ZXN0GiIuZHJpZnQudjEuTGlzdERldmljZUxlYXNlc1Jlc3BvbnNlEl8KEk9wZW5Db250cm9sU2Vzc2lvbhIjLmRyaWZ0LnYxLk9wZW5Db250cm9sU2Vzc2lvblJlcXVlc3QaJC5kcmlmdC52MS5PcGVuQ29udHJvbFNlc3Npb25SZXNwb25zZRJiChNDbG9zZUNvbnRyb2xTZXNzaW9uEiQuZHJpZnQudjEuQ2xvc2VDb250cm9sU2Vzc2lvblJlcXVlc3QaJS5kcmlmdC52MS5DbG9zZUNvbnRyb2xTZXNzaW9uUmVzcG9uc2USYgoTTGlzdENvbnRyb2xTZXNzaW9ucxIkLmRyaWZ0LnYxLkxpc3RDb250cm9sU2Vzc2lvbnNSZXF1ZXN0GiUuZHJpZnQudjEuTGlzdENvbnRyb2xTZXNzaW9uc1Jlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.DeviceLease
@@ -248,6 +248,170 @@ export const ReleaseDeviceLeaseResponseSchema: GenMessage<ReleaseDeviceLeaseResp
   messageDesc(file_drift_v1_lease, 8);
 
 /**
+ * @generated from message drift.v1.ControlSession
+ */
+export type ControlSession = Message<"drift.v1.ControlSession"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string holder_id = 3;
+   */
+  holderId: string;
+
+  /**
+   * @generated from field: drift.v1.ControlSessionState state = 4;
+   */
+  state: ControlSessionState;
+
+  /**
+   * @generated from field: string created_at = 5;
+   */
+  createdAt: string;
+
+  /**
+   * @generated from field: string expires_at = 6;
+   */
+  expiresAt: string;
+};
+
+/**
+ * Describes the message drift.v1.ControlSession.
+ * Use `create(ControlSessionSchema)` to create a new message.
+ */
+export const ControlSessionSchema: GenMessage<ControlSession> = /*@__PURE__*/
+  messageDesc(file_drift_v1_lease, 9);
+
+/**
+ * @generated from message drift.v1.OpenControlSessionRequest
+ */
+export type OpenControlSessionRequest = Message<"drift.v1.OpenControlSessionRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+};
+
+/**
+ * Describes the message drift.v1.OpenControlSessionRequest.
+ * Use `create(OpenControlSessionRequestSchema)` to create a new message.
+ */
+export const OpenControlSessionRequestSchema: GenMessage<OpenControlSessionRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_lease, 10);
+
+/**
+ * @generated from message drift.v1.OpenControlSessionResponse
+ */
+export type OpenControlSessionResponse = Message<"drift.v1.OpenControlSessionResponse"> & {
+  /**
+   * @generated from field: drift.v1.ControlSession session = 1;
+   */
+  session?: ControlSession;
+};
+
+/**
+ * Describes the message drift.v1.OpenControlSessionResponse.
+ * Use `create(OpenControlSessionResponseSchema)` to create a new message.
+ */
+export const OpenControlSessionResponseSchema: GenMessage<OpenControlSessionResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_lease, 11);
+
+/**
+ * @generated from message drift.v1.CloseControlSessionRequest
+ */
+export type CloseControlSessionRequest = Message<"drift.v1.CloseControlSessionRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.ResourceRef session = 2;
+   */
+  session?: ResourceRef;
+};
+
+/**
+ * Describes the message drift.v1.CloseControlSessionRequest.
+ * Use `create(CloseControlSessionRequestSchema)` to create a new message.
+ */
+export const CloseControlSessionRequestSchema: GenMessage<CloseControlSessionRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_lease, 12);
+
+/**
+ * @generated from message drift.v1.CloseControlSessionResponse
+ */
+export type CloseControlSessionResponse = Message<"drift.v1.CloseControlSessionResponse"> & {
+  /**
+   * @generated from field: drift.v1.ControlSession session = 1;
+   */
+  session?: ControlSession;
+};
+
+/**
+ * Describes the message drift.v1.CloseControlSessionResponse.
+ * Use `create(CloseControlSessionResponseSchema)` to create a new message.
+ */
+export const CloseControlSessionResponseSchema: GenMessage<CloseControlSessionResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_lease, 13);
+
+/**
+ * @generated from message drift.v1.ListControlSessionsRequest
+ */
+export type ListControlSessionsRequest = Message<"drift.v1.ListControlSessionsRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: drift.v1.PageRequest page = 2;
+   */
+  page?: PageRequest;
+};
+
+/**
+ * Describes the message drift.v1.ListControlSessionsRequest.
+ * Use `create(ListControlSessionsRequestSchema)` to create a new message.
+ */
+export const ListControlSessionsRequestSchema: GenMessage<ListControlSessionsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_lease, 14);
+
+/**
+ * @generated from message drift.v1.ListControlSessionsResponse
+ */
+export type ListControlSessionsResponse = Message<"drift.v1.ListControlSessionsResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.ControlSession sessions = 1;
+   */
+  sessions: ControlSession[];
+
+  /**
+   * @generated from field: drift.v1.PageResponse page = 2;
+   */
+  page?: PageResponse;
+};
+
+/**
+ * Describes the message drift.v1.ListControlSessionsResponse.
+ * Use `create(ListControlSessionsResponseSchema)` to create a new message.
+ */
+export const ListControlSessionsResponseSchema: GenMessage<ListControlSessionsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_lease, 15);
+
+/**
  * @generated from enum drift.v1.LeaseState
  */
 export enum LeaseState {
@@ -289,6 +453,52 @@ export const LeaseStateSchema: GenEnum<LeaseState> = /*@__PURE__*/
   enumDesc(file_drift_v1_lease, 0);
 
 /**
+ * @generated from enum drift.v1.ControlSessionState
+ */
+export enum ControlSessionState {
+  /**
+   * @generated from enum value: CONTROL_SESSION_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: CONTROL_SESSION_STATE_REQUESTED = 1;
+   */
+  REQUESTED = 1,
+
+  /**
+   * @generated from enum value: CONTROL_SESSION_STATE_ACTIVE = 2;
+   */
+  ACTIVE = 2,
+
+  /**
+   * @generated from enum value: CONTROL_SESSION_STATE_CLOSING = 3;
+   */
+  CLOSING = 3,
+
+  /**
+   * @generated from enum value: CONTROL_SESSION_STATE_CLOSED = 4;
+   */
+  CLOSED = 4,
+
+  /**
+   * @generated from enum value: CONTROL_SESSION_STATE_EXPIRED = 5;
+   */
+  EXPIRED = 5,
+
+  /**
+   * @generated from enum value: CONTROL_SESSION_STATE_REVOKED = 6;
+   */
+  REVOKED = 6,
+}
+
+/**
+ * Describes the enum drift.v1.ControlSessionState.
+ */
+export const ControlSessionStateSchema: GenEnum<ControlSessionState> = /*@__PURE__*/
+  enumDesc(file_drift_v1_lease, 1);
+
+/**
  * @generated from service drift.v1.LeaseService
  */
 export const LeaseService: GenService<{
@@ -323,6 +533,30 @@ export const LeaseService: GenService<{
     methodKind: "unary";
     input: typeof ListDeviceLeasesRequestSchema;
     output: typeof ListDeviceLeasesResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.LeaseService.OpenControlSession
+   */
+  openControlSession: {
+    methodKind: "unary";
+    input: typeof OpenControlSessionRequestSchema;
+    output: typeof OpenControlSessionResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.LeaseService.CloseControlSession
+   */
+  closeControlSession: {
+    methodKind: "unary";
+    input: typeof CloseControlSessionRequestSchema;
+    output: typeof CloseControlSessionResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.LeaseService.ListControlSessions
+   */
+  listControlSessions: {
+    methodKind: "unary";
+    input: typeof ListControlSessionsRequestSchema;
+    output: typeof ListControlSessionsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_lease, 0);

@@ -268,4 +268,59 @@ describe("RealControlPlaneClient", () => {
       failureClass: "postcondition_failed",
     })])
   })
+
+  it("opens a control session and acquires a lease for an explicitly selected device", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.DeviceService/ListDevices")) {
+        return new Response(JSON.stringify({
+          devices: [{ id: "device-pixel-1", displayName: "Pixel One", status: "DEVICE_STATUS_ONLINE" }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.LeaseService/OpenControlSession")) {
+        return new Response(JSON.stringify({
+          session: { id: "session-1", holderId: "operator", state: "CONTROL_SESSION_STATE_ACTIVE" },
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.LeaseService/AcquireDeviceLease")) {
+        return new Response(JSON.stringify({
+          lease: {
+            id: "lease-1",
+            deviceId: "device-pixel-1",
+            controlSessionId: "session-1",
+            state: "LEASE_STATE_ACTIVE",
+            fencingToken: "1",
+          },
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+    const result = await client.dispatch({ type: "beginDeviceControl", deviceId: "device-pixel-1" })
+
+    expect(result.ok).toBe(true)
+    expect(result.message).toMatch(/lease acquired/i)
+    expect(fetchSpy.mock.calls.map((call) => String(call[0]))).toEqual(expect.arrayContaining([
+      "http://127.0.0.1:8080/drift.v1.LeaseService/OpenControlSession",
+      "http://127.0.0.1:8080/drift.v1.LeaseService/AcquireDeviceLease",
+    ]))
+  })
+
+  it("blocks unconfirmed capture and actions without an active lease", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
+    )
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+
+    const unconfirmed = await client.dispatch({ type: "submitDeviceAction", deviceId: "device-pixel-1", kind: "capture", confirmed: false })
+    expect(unconfirmed.ok).toBe(false)
+    expect(unconfirmed.errorCode).toBe("precondition_failed")
+
+    const unleashed = await client.dispatch({ type: "submitDeviceAction", deviceId: "device-pixel-1", kind: "observe", confirmed: false })
+    expect(unleashed.ok).toBe(false)
+    expect(unleashed.message).toMatch(/active lease/i)
+  })
 })

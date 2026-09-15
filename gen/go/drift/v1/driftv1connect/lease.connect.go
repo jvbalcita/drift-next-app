@@ -45,6 +45,15 @@ const (
 	// LeaseServiceListDeviceLeasesProcedure is the fully-qualified name of the LeaseService's
 	// ListDeviceLeases RPC.
 	LeaseServiceListDeviceLeasesProcedure = "/drift.v1.LeaseService/ListDeviceLeases"
+	// LeaseServiceOpenControlSessionProcedure is the fully-qualified name of the LeaseService's
+	// OpenControlSession RPC.
+	LeaseServiceOpenControlSessionProcedure = "/drift.v1.LeaseService/OpenControlSession"
+	// LeaseServiceCloseControlSessionProcedure is the fully-qualified name of the LeaseService's
+	// CloseControlSession RPC.
+	LeaseServiceCloseControlSessionProcedure = "/drift.v1.LeaseService/CloseControlSession"
+	// LeaseServiceListControlSessionsProcedure is the fully-qualified name of the LeaseService's
+	// ListControlSessions RPC.
+	LeaseServiceListControlSessionsProcedure = "/drift.v1.LeaseService/ListControlSessions"
 )
 
 // LeaseServiceClient is a client for the drift.v1.LeaseService service.
@@ -53,6 +62,9 @@ type LeaseServiceClient interface {
 	RenewDeviceLease(context.Context, *connect.Request[v1.RenewDeviceLeaseRequest]) (*connect.Response[v1.RenewDeviceLeaseResponse], error)
 	ReleaseDeviceLease(context.Context, *connect.Request[v1.ReleaseDeviceLeaseRequest]) (*connect.Response[v1.ReleaseDeviceLeaseResponse], error)
 	ListDeviceLeases(context.Context, *connect.Request[v1.ListDeviceLeasesRequest]) (*connect.Response[v1.ListDeviceLeasesResponse], error)
+	OpenControlSession(context.Context, *connect.Request[v1.OpenControlSessionRequest]) (*connect.Response[v1.OpenControlSessionResponse], error)
+	CloseControlSession(context.Context, *connect.Request[v1.CloseControlSessionRequest]) (*connect.Response[v1.CloseControlSessionResponse], error)
+	ListControlSessions(context.Context, *connect.Request[v1.ListControlSessionsRequest]) (*connect.Response[v1.ListControlSessionsResponse], error)
 }
 
 // NewLeaseServiceClient constructs a client for the drift.v1.LeaseService service. By default, it
@@ -90,15 +102,36 @@ func NewLeaseServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(leaseServiceMethods.ByName("ListDeviceLeases")),
 			connect.WithClientOptions(opts...),
 		),
+		openControlSession: connect.NewClient[v1.OpenControlSessionRequest, v1.OpenControlSessionResponse](
+			httpClient,
+			baseURL+LeaseServiceOpenControlSessionProcedure,
+			connect.WithSchema(leaseServiceMethods.ByName("OpenControlSession")),
+			connect.WithClientOptions(opts...),
+		),
+		closeControlSession: connect.NewClient[v1.CloseControlSessionRequest, v1.CloseControlSessionResponse](
+			httpClient,
+			baseURL+LeaseServiceCloseControlSessionProcedure,
+			connect.WithSchema(leaseServiceMethods.ByName("CloseControlSession")),
+			connect.WithClientOptions(opts...),
+		),
+		listControlSessions: connect.NewClient[v1.ListControlSessionsRequest, v1.ListControlSessionsResponse](
+			httpClient,
+			baseURL+LeaseServiceListControlSessionsProcedure,
+			connect.WithSchema(leaseServiceMethods.ByName("ListControlSessions")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // leaseServiceClient implements LeaseServiceClient.
 type leaseServiceClient struct {
-	acquireDeviceLease *connect.Client[v1.AcquireDeviceLeaseRequest, v1.AcquireDeviceLeaseResponse]
-	renewDeviceLease   *connect.Client[v1.RenewDeviceLeaseRequest, v1.RenewDeviceLeaseResponse]
-	releaseDeviceLease *connect.Client[v1.ReleaseDeviceLeaseRequest, v1.ReleaseDeviceLeaseResponse]
-	listDeviceLeases   *connect.Client[v1.ListDeviceLeasesRequest, v1.ListDeviceLeasesResponse]
+	acquireDeviceLease  *connect.Client[v1.AcquireDeviceLeaseRequest, v1.AcquireDeviceLeaseResponse]
+	renewDeviceLease    *connect.Client[v1.RenewDeviceLeaseRequest, v1.RenewDeviceLeaseResponse]
+	releaseDeviceLease  *connect.Client[v1.ReleaseDeviceLeaseRequest, v1.ReleaseDeviceLeaseResponse]
+	listDeviceLeases    *connect.Client[v1.ListDeviceLeasesRequest, v1.ListDeviceLeasesResponse]
+	openControlSession  *connect.Client[v1.OpenControlSessionRequest, v1.OpenControlSessionResponse]
+	closeControlSession *connect.Client[v1.CloseControlSessionRequest, v1.CloseControlSessionResponse]
+	listControlSessions *connect.Client[v1.ListControlSessionsRequest, v1.ListControlSessionsResponse]
 }
 
 // AcquireDeviceLease calls drift.v1.LeaseService.AcquireDeviceLease.
@@ -121,12 +154,30 @@ func (c *leaseServiceClient) ListDeviceLeases(ctx context.Context, req *connect.
 	return c.listDeviceLeases.CallUnary(ctx, req)
 }
 
+// OpenControlSession calls drift.v1.LeaseService.OpenControlSession.
+func (c *leaseServiceClient) OpenControlSession(ctx context.Context, req *connect.Request[v1.OpenControlSessionRequest]) (*connect.Response[v1.OpenControlSessionResponse], error) {
+	return c.openControlSession.CallUnary(ctx, req)
+}
+
+// CloseControlSession calls drift.v1.LeaseService.CloseControlSession.
+func (c *leaseServiceClient) CloseControlSession(ctx context.Context, req *connect.Request[v1.CloseControlSessionRequest]) (*connect.Response[v1.CloseControlSessionResponse], error) {
+	return c.closeControlSession.CallUnary(ctx, req)
+}
+
+// ListControlSessions calls drift.v1.LeaseService.ListControlSessions.
+func (c *leaseServiceClient) ListControlSessions(ctx context.Context, req *connect.Request[v1.ListControlSessionsRequest]) (*connect.Response[v1.ListControlSessionsResponse], error) {
+	return c.listControlSessions.CallUnary(ctx, req)
+}
+
 // LeaseServiceHandler is an implementation of the drift.v1.LeaseService service.
 type LeaseServiceHandler interface {
 	AcquireDeviceLease(context.Context, *connect.Request[v1.AcquireDeviceLeaseRequest]) (*connect.Response[v1.AcquireDeviceLeaseResponse], error)
 	RenewDeviceLease(context.Context, *connect.Request[v1.RenewDeviceLeaseRequest]) (*connect.Response[v1.RenewDeviceLeaseResponse], error)
 	ReleaseDeviceLease(context.Context, *connect.Request[v1.ReleaseDeviceLeaseRequest]) (*connect.Response[v1.ReleaseDeviceLeaseResponse], error)
 	ListDeviceLeases(context.Context, *connect.Request[v1.ListDeviceLeasesRequest]) (*connect.Response[v1.ListDeviceLeasesResponse], error)
+	OpenControlSession(context.Context, *connect.Request[v1.OpenControlSessionRequest]) (*connect.Response[v1.OpenControlSessionResponse], error)
+	CloseControlSession(context.Context, *connect.Request[v1.CloseControlSessionRequest]) (*connect.Response[v1.CloseControlSessionResponse], error)
+	ListControlSessions(context.Context, *connect.Request[v1.ListControlSessionsRequest]) (*connect.Response[v1.ListControlSessionsResponse], error)
 }
 
 // NewLeaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -160,6 +211,24 @@ func NewLeaseServiceHandler(svc LeaseServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(leaseServiceMethods.ByName("ListDeviceLeases")),
 		connect.WithHandlerOptions(opts...),
 	)
+	leaseServiceOpenControlSessionHandler := connect.NewUnaryHandler(
+		LeaseServiceOpenControlSessionProcedure,
+		svc.OpenControlSession,
+		connect.WithSchema(leaseServiceMethods.ByName("OpenControlSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	leaseServiceCloseControlSessionHandler := connect.NewUnaryHandler(
+		LeaseServiceCloseControlSessionProcedure,
+		svc.CloseControlSession,
+		connect.WithSchema(leaseServiceMethods.ByName("CloseControlSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	leaseServiceListControlSessionsHandler := connect.NewUnaryHandler(
+		LeaseServiceListControlSessionsProcedure,
+		svc.ListControlSessions,
+		connect.WithSchema(leaseServiceMethods.ByName("ListControlSessions")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.LeaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LeaseServiceAcquireDeviceLeaseProcedure:
@@ -170,6 +239,12 @@ func NewLeaseServiceHandler(svc LeaseServiceHandler, opts ...connect.HandlerOpti
 			leaseServiceReleaseDeviceLeaseHandler.ServeHTTP(w, r)
 		case LeaseServiceListDeviceLeasesProcedure:
 			leaseServiceListDeviceLeasesHandler.ServeHTTP(w, r)
+		case LeaseServiceOpenControlSessionProcedure:
+			leaseServiceOpenControlSessionHandler.ServeHTTP(w, r)
+		case LeaseServiceCloseControlSessionProcedure:
+			leaseServiceCloseControlSessionHandler.ServeHTTP(w, r)
+		case LeaseServiceListControlSessionsProcedure:
+			leaseServiceListControlSessionsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -193,4 +268,16 @@ func (UnimplementedLeaseServiceHandler) ReleaseDeviceLease(context.Context, *con
 
 func (UnimplementedLeaseServiceHandler) ListDeviceLeases(context.Context, *connect.Request[v1.ListDeviceLeasesRequest]) (*connect.Response[v1.ListDeviceLeasesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.LeaseService.ListDeviceLeases is not implemented"))
+}
+
+func (UnimplementedLeaseServiceHandler) OpenControlSession(context.Context, *connect.Request[v1.OpenControlSessionRequest]) (*connect.Response[v1.OpenControlSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.LeaseService.OpenControlSession is not implemented"))
+}
+
+func (UnimplementedLeaseServiceHandler) CloseControlSession(context.Context, *connect.Request[v1.CloseControlSessionRequest]) (*connect.Response[v1.CloseControlSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.LeaseService.CloseControlSession is not implemented"))
+}
+
+func (UnimplementedLeaseServiceHandler) ListControlSessions(context.Context, *connect.Request[v1.ListControlSessionsRequest]) (*connect.Response[v1.ListControlSessionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.LeaseService.ListControlSessions is not implemented"))
 }

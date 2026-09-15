@@ -211,3 +211,42 @@ func TestMutationsRejectMissingRequestID(t *testing.T) {
 		t.Fatalf("missing request id code = %v, want invalid_argument; err=%v", connectrpc.CodeOf(err), err)
 	}
 }
+
+func TestOpenControlSessionAcquireAndListLease(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	if err := store.NewDeviceService(db).Create(ctx, devices.Device{
+		ID: "device-1", Workspace: "workspace-a", DisplayName: "One", State: devices.Active,
+	}, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	handler := transportconnect.NewLeaseHandler(db)
+	opened, err := handler.OpenControlSession(ctx, connectrpc.NewRequest(&driftv1.OpenControlSessionRequest{
+		Context:   requestContext("session-open-1"),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if err != nil || opened.Msg.Session.GetId() == "" || opened.Msg.Session.GetState() != driftv1.ControlSessionState_CONTROL_SESSION_STATE_ACTIVE {
+		t.Fatalf("open session = %#v err=%v", opened, err)
+	}
+	acquired, err := handler.AcquireDeviceLease(ctx, connectrpc.NewRequest(&driftv1.AcquireDeviceLeaseRequest{
+		Context:          requestContext("lease-acquire-1"),
+		Workspace:        &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		DeviceId:         "device-1",
+		ControlSessionId: opened.Msg.Session.GetId(),
+	}))
+	if err != nil || acquired.Msg.Lease.GetDeviceId() != "device-1" || acquired.Msg.Lease.GetFencingToken() == 0 {
+		t.Fatalf("acquire lease = %#v err=%v", acquired, err)
+	}
+	listed, err := handler.ListDeviceLeases(ctx, connectrpc.NewRequest(&driftv1.ListDeviceLeasesRequest{
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if err != nil || len(listed.Msg.Leases) != 1 || listed.Msg.Leases[0].GetId() != acquired.Msg.Lease.GetId() {
+		t.Fatalf("list leases = %#v err=%v", listed, err)
+	}
+	sessions, err := handler.ListControlSessions(ctx, connectrpc.NewRequest(&driftv1.ListControlSessionsRequest{
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if err != nil || len(sessions.Msg.Sessions) != 1 || sessions.Msg.Sessions[0].GetId() != opened.Msg.Session.GetId() {
+		t.Fatalf("list sessions = %#v err=%v", sessions, err)
+	}
+}

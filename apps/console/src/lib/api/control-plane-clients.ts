@@ -95,8 +95,14 @@ import {
 import {
   AcquireDeviceLeaseRequestSchema,
   AcquireDeviceLeaseResponseSchema,
+  CloseControlSessionRequestSchema,
+  CloseControlSessionResponseSchema,
+  ListControlSessionsRequestSchema,
+  ListControlSessionsResponseSchema,
   ListDeviceLeasesRequestSchema,
   ListDeviceLeasesResponseSchema,
+  OpenControlSessionRequestSchema,
+  OpenControlSessionResponseSchema,
   ReleaseDeviceLeaseRequestSchema,
   ReleaseDeviceLeaseResponseSchema,
   RenewDeviceLeaseRequestSchema,
@@ -365,6 +371,21 @@ export class LeaseClient {
   }
   listDeviceLeases(workspaceId: string) {
     return this.rpc.call("ListDeviceLeases", ListDeviceLeasesRequestSchema, ListDeviceLeasesResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
+  }
+  openControlSession(requestId: string, workspaceId: string) {
+    return this.rpc.call("OpenControlSession", OpenControlSessionRequestSchema, OpenControlSessionResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+    })
+  }
+  closeControlSession(requestId: string, workspaceId: string, sessionId: string) {
+    return this.rpc.call("CloseControlSession", CloseControlSessionRequestSchema, CloseControlSessionResponseSchema, {
+      context: requestContext({ requestId }),
+      session: resourceRef(workspaceId, sessionId),
+    })
+  }
+  listControlSessions(workspaceId: string) {
+    return this.rpc.call("ListControlSessions", ListControlSessionsRequestSchema, ListControlSessionsResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
   }
 }
 

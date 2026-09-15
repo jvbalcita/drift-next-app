@@ -988,6 +988,12 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.deleteArtifact(intent)
       case "cleanupArtifact":
         return this.cleanupArtifact(intent)
+      case "beginDeviceControl":
+        return this.beginDeviceControl(intent)
+      case "endDeviceControl":
+        return this.endDeviceControl(intent)
+      case "submitDeviceAction":
+        return this.submitDeviceAction(intent)
     }
   }
 
@@ -1179,6 +1185,50 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       },
     }
     return result(intent, "Cleanup completed after confirmation.", artifact.id)
+  }
+
+  private beginDeviceControl(intent: Extract<ControlPlaneIntent, { type: "beginDeviceControl" }>): MutationResult {
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) return rejection(intent, "Device was not found.", intent.deviceId, "invalid_input")
+    const existing = this.snapshot.leases.find((lease) => lease.deviceId === intent.deviceId && lease.state === "active")
+    if (existing) return result(intent, "Device already has an active lease.", existing.id)
+    const sessionId = `session-${intent.deviceId}`
+    const leaseId = `lease-${intent.deviceId}`
+    this.snapshot = {
+      ...this.snapshot,
+      leases: [
+        {
+          id: leaseId,
+          deviceId: intent.deviceId,
+          controlSessionId: sessionId,
+          holder: "operator-1",
+          fencingToken: 1,
+          state: "active",
+          expiresAt: "later",
+        },
+        ...this.snapshot.leases.filter((lease) => lease.deviceId !== intent.deviceId),
+      ],
+    }
+    return result(intent, "Control session opened and device lease acquired.", leaseId)
+  }
+
+  private endDeviceControl(intent: Extract<ControlPlaneIntent, { type: "endDeviceControl" }>): MutationResult {
+    const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
+    if (!lease) return rejection(intent, "No active lease for this device.", intent.deviceId, "precondition_failed")
+    this.snapshot = {
+      ...this.snapshot,
+      leases: this.snapshot.leases.map((candidate) => candidate.id === lease.id ? { ...candidate, state: "released" as const } : candidate),
+    }
+    return result(intent, "Device lease released and control session closed.", lease.id)
+  }
+
+  private submitDeviceAction(intent: Extract<ControlPlaneIntent, { type: "submitDeviceAction" }>): MutationResult {
+    if (!intent.confirmed && intent.kind !== "observe" && intent.kind !== "health_check") {
+      return rejection(intent, "This action requires confirmation.", intent.deviceId, "precondition_failed")
+    }
+    const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
+    if (!lease) return rejection(intent, "Acquire an active lease before submitting a device action.", intent.deviceId, "precondition_failed")
+    return result(intent, `Action submitted (${intent.kind}).`, intent.deviceId)
   }
 
   private discoverLabDevices(intent: Extract<ControlPlaneIntent, { type: "discoverLabDevices" }>): MutationResult {

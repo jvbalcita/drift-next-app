@@ -42,10 +42,32 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
 
   function choosePhone(device: DeviceView) {
     if (settings.controlSmall) { setFeedback(`${device.displayName} received a compact-frame control selection. No device command was sent.`); return }
-    if (!source) { setSourceId(device.id); setFollowerIds([]); setFeedback(`${device.displayName} opened in the floating workspace.`); return }
-    if (source.id === device.id) { setSourceId(null); setFollowerIds([]); setFeedback("Floating workspace closed."); return }
+    if (!source) {
+      setSourceId(device.id)
+      setFollowerIds([])
+      void reportDispatch(dispatch, { type: "beginDeviceControl", deviceId: device.id }, setFeedback)
+      return
+    }
+    if (source.id === device.id) {
+      void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: device.id }, setFeedback)
+      setSourceId(null)
+      setFollowerIds([])
+      return
+    }
     setFollowerIds((ids) => ids.includes(device.id) ? ids.filter((id) => id !== device.id) : [...ids, device.id])
-    setFeedback(`${device.displayName} ${followerIds.includes(device.id) ? "removed from" : "added to"} the follower selection.`)
+    setFeedback(`${device.displayName} ${followerIds.includes(device.id) ? "removed from" : "added to"} the follower selection. No command was sent to followers.`)
+  }
+  function handleDeviceAction(action: string) {
+    const blocked = new Set(["Install APK", "Import File", "Export File", "ADB Command", "Quick Phrase"])
+    if (blocked.has(action)) {
+      setFeedback(`${action} is unavailable. Packages cannot use shell, unrestricted files, or credentials.`)
+      return
+    }
+    if (action === "Screenshot" && source) {
+      void reportDispatch(dispatch, { type: "submitDeviceAction", deviceId: source.id, kind: "capture", confirmed: true }, setFeedback)
+      return
+    }
+    setFeedback(`${action} requires confirmation. No unauthorized command was sent.`)
   }
   function beginDrag(event: PointerEvent<HTMLDivElement>) {
     if (modalPinned || (event.target as HTMLElement).closest("button")) return
@@ -69,7 +91,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
     void reportDispatch(dispatch, { type: "startScan", profileId: selectedProfile.id }, setFeedback)
   }
 
-  const deviceModal = source ? <FloatingDevice device={source} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { setSourceId(null); setFollowerIds([]) }} onPreview={startPreview} onAction={(action) => setFeedback(`${action} requires confirmation. No Android command, ADB session, or file transfer was started.`)} /> : null
+  const deviceModal = source ? <FloatingDevice device={source} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, setFeedback); setSourceId(null); setFollowerIds([]) }} onPreview={startPreview} onAction={handleDeviceAction} /> : null
   const selectedCount = (source ? 1 : 0) + followers.length
 
   return <div className="relative min-h-full">
@@ -92,7 +114,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
       <span className="mr-auto text-xs"><span className="drift-data font-semibold">{selectedCount}</span> selected · {settings.controlSmall ? "compact-frame control enabled" : source ? "click another phone to select followers" : "click a phone to open its large frame"}</span>
       <ConsoleSettingsDialog settings={settings} onChange={setSettings} modalPinned={modalPinned} onModalPinnedChange={setModalPinned} />
       <DeviceListDialog devices={snapshot.devices} port={port} onFeedback={setFeedback} />
-      {source ? <Button size="sm" variant="outline" onClick={() => { setSourceId(null); setFollowerIds([]) }}><X className="size-3.5" aria-hidden="true" />Close Screen</Button> : null}
+      {source ? <Button size="sm" variant="outline" onClick={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, setFeedback); setSourceId(null); setFollowerIds([]) }}><X className="size-3.5" aria-hidden="true" />Close Screen</Button> : null}
       <Button size="sm" variant="outline" disabled={!source || modalPinned} onClick={() => setPosition(initialPosition)}><Crosshair className="size-3.5" aria-hidden="true" />Reset Position</Button>
     </div>
     <div className={`mt-4 grid items-start gap-4 ${workspaceOpen ? settings.workspaceSide === "right" ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
