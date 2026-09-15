@@ -10,6 +10,7 @@ struct StoredRuntimeConfig {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct RuntimeConfig {
     control_plane_url: String,
     operator_id: String,
