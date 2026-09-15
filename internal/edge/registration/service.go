@@ -360,6 +360,38 @@ func (s *Service) RestoreApproval(approval Approval) {
 	s.approvals[strings.TrimSpace(approval.Serial)] = approval
 }
 
+// Hydrate loads durable projections into memory so Approve→Register survives
+// process restart when SQLite is the system of record.
+func (s *Service) Hydrate(ready ProvisionReady, hasReady bool, approval Approval, hasApproval bool, registered RegisterResult, hasRegistered bool) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if hasRegistered && strings.TrimSpace(registered.Serial) != "" {
+		serial := strings.TrimSpace(registered.Serial)
+		s.registered[serial] = registered
+		s.verified[serial] = ProvisionReady{
+			Serial:      serial,
+			TransportID: ready.TransportID,
+			State:       StateRegistered,
+			Ready:       true,
+			CheckedAt:   ready.CheckedAt,
+			Notes:       append([]string(nil), ready.Notes...),
+		}
+		return
+	}
+	if hasReady && strings.TrimSpace(ready.Serial) != "" {
+		serial := strings.TrimSpace(ready.Serial)
+		projected := ready
+		projected.State = StateProvisionVerified
+		s.verified[serial] = projected
+	}
+	if hasApproval && strings.TrimSpace(approval.Serial) != "" {
+		s.approvals[strings.TrimSpace(approval.Serial)] = approval
+	}
+}
+
 func portAllowed(port uint16, allowed []uint16) bool {
 	if port == 0 {
 		return false

@@ -155,3 +155,75 @@ func TestLabRegistrationHandlerRollsBackMemoryWhenDurablePersistFails(t *testing
 	}
 }
 
+type memoryLabStore struct {
+	ready         registration.ProvisionReady
+	hasReady      bool
+	approval      registration.Approval
+	hasApproval   bool
+	registered    registration.RegisterResult
+	hasRegistered bool
+}
+
+func (m *memoryLabStore) SaveLabProvisioningCheck(_ context.Context, _ organizations.WorkspaceID, ready registration.ProvisionReady, _ registration.TargetIdentity) error {
+	m.ready = ready
+	m.hasReady = true
+	m.hasApproval = false
+	m.approval = registration.Approval{}
+	return nil
+}
+
+func (m *memoryLabStore) SaveLabRegistrationApproval(_ context.Context, _ organizations.WorkspaceID, approval registration.Approval) error {
+	m.approval = approval
+	m.hasApproval = true
+	return nil
+}
+
+func (m *memoryLabStore) RegisterLabDevice(_ context.Context, _ organizations.WorkspaceID, req registration.RegisterRequest) (registration.RegisterResult, error) {
+	result := registration.RegisterResult{
+		DeviceID: "durable-device", EndpointID: "durable-endpoint", Serial: req.Serial,
+		DisplayName: req.DisplayName, State: registration.StateRegistered, OccurredAt: time.Now().UTC(),
+	}
+	m.registered = result
+	m.hasRegistered = true
+	return result, nil
+}
+
+func (m *memoryLabStore) LoadLabRegistrationStatus(context.Context, organizations.WorkspaceID, string) (
+	registration.ProvisionReady, bool, registration.Approval, bool, registration.RegisterResult, bool, error,
+) {
+	return m.ready, m.hasReady, m.approval, m.hasApproval, m.registered, m.hasRegistered, nil
+}
+
+func TestLabRegistrationHandlerHydratesMemoryFromStoreBeforeRegister(t *testing.T) {
+	store := &memoryLabStore{
+		ready: registration.ProvisionReady{
+			Serial: "LAB-1", TransportID: "usb:1", State: registration.StateProvisionVerified, Ready: true,
+		},
+		hasReady: true,
+		approval: registration.Approval{Serial: "LAB-1", ActorID: "operator-1", Reason: "authorized", DecidedAt: time.Now().UTC()},
+		hasApproval: true,
+	}
+	// Fresh in-memory service simulates process restart with empty maps.
+	svc := registration.NewService(registration.Config{
+		MaxRegisteredDevices: 1,
+		Probe: registration.AttestedProbe{Result: registration.ProbeResult{
+			PairingAuthorized: true, ADBServerOwned: true, PlatformToolsCompatible: true,
+			PortPolicyAllowed: true, RollbackReady: true,
+		}},
+	})
+	handler := transportconnect.NewLabRegistrationHandlerWithStore(svc, store, []uint16{5555})
+	workspace := &driftv1.WorkspaceRef{WorkspaceId: "workspace-1"}
+	reqCtx := &driftv1.RequestContext{RequestId: "request-1"}
+	register, err := handler.RegisterLabDevice(context.Background(), connectrpc.NewRequest(&driftv1.RegisterLabDeviceRequest{
+		Workspace: workspace, Context: reqCtx, OperatorId: "operator-1",
+		Serial: "LAB-1", DisplayName: "Lab Phone",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if register.Msg.GetRegistration().GetDeviceId() != "durable-device" {
+		t.Fatalf("register = %#v", register.Msg.GetRegistration())
+	}
+}
+
+

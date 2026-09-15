@@ -26,6 +26,8 @@ type labRegistrationMemory interface {
 	RevertApprove(serial string)
 	RevertRegister(serial string)
 	ReplaceRegistered(result registration.RegisterResult)
+	RestoreApproval(approval registration.Approval)
+	Hydrate(ready registration.ProvisionReady, hasReady bool, approval registration.Approval, hasApproval bool, registered registration.RegisterResult, hasRegistered bool)
 }
 
 // LabRegistrationStore persists controlled-registration transitions in the
@@ -99,14 +101,23 @@ func (h *LabRegistrationHandler) VerifyLabProvisioning(ctx context.Context, requ
 		AllowedPorts:   append([]uint16(nil), h.allowedPorts...),
 		ActorID:        request.Msg.GetOperatorId(),
 	}
+	workspace := organizations.WorkspaceID(request.Msg.GetWorkspace().GetWorkspaceId())
+	var priorApproval registration.Approval
+	var hadPriorApproval bool
+	if h.store != nil {
+		_, _, priorApproval, hadPriorApproval, _, _, _ = h.store.LoadLabRegistrationStatus(ctx, workspace, target.Serial)
+	}
 	ready, verifyErr := svc.VerifyProvisioning(ctx, target, h.clock())
 	if verifyErr != nil {
 		return nil, MapError(verifyErr)
 	}
 	if h.store != nil {
-		if persistErr := h.store.SaveLabProvisioningCheck(ctx, organizations.WorkspaceID(request.Msg.GetWorkspace().GetWorkspaceId()), ready, target); persistErr != nil {
+		if persistErr := h.store.SaveLabProvisioningCheck(ctx, workspace, ready, target); persistErr != nil {
 			if memory, ok := svc.(labRegistrationMemory); ok {
 				memory.RevertVerify(target.Serial)
+				if hadPriorApproval {
+					memory.RestoreApproval(priorApproval)
+				}
 			}
 			return nil, MapError(persistErr)
 		}
@@ -139,12 +150,16 @@ func (h *LabRegistrationHandler) ApproveLabProvisioning(ctx context.Context, req
 	if err != nil {
 		return nil, err
 	}
+	workspace := organizations.WorkspaceID(request.Msg.GetWorkspace().GetWorkspaceId())
+	if err := h.hydrateMemoryFromStore(ctx, svc, workspace, request.Msg.GetSerial()); err != nil {
+		return nil, MapError(err)
+	}
 	approval, approveErr := svc.Approve(request.Msg.GetSerial(), request.Msg.GetOperatorId(), request.Msg.GetReason(), h.clock())
 	if approveErr != nil {
 		return nil, MapError(approveErr)
 	}
 	if h.store != nil {
-		if persistErr := h.store.SaveLabRegistrationApproval(ctx, organizations.WorkspaceID(request.Msg.GetWorkspace().GetWorkspaceId()), approval); persistErr != nil {
+		if persistErr := h.store.SaveLabRegistrationApproval(ctx, workspace, approval); persistErr != nil {
 			if memory, ok := svc.(labRegistrationMemory); ok {
 				memory.RevertApprove(approval.Serial)
 			}
@@ -189,12 +204,16 @@ func (h *LabRegistrationHandler) RegisterLabDevice(ctx context.Context, request 
 		DisplayName: request.Msg.GetDisplayName(),
 		ActorID:     request.Msg.GetOperatorId(),
 	}
+	workspace := organizations.WorkspaceID(request.Msg.GetWorkspace().GetWorkspaceId())
+	if err := h.hydrateMemoryFromStore(ctx, svc, workspace, req.Serial); err != nil {
+		return nil, MapError(err)
+	}
 	result, registerErr := svc.Register(req, h.clock())
 	if registerErr != nil {
 		return nil, MapError(registerErr)
 	}
 	if h.store != nil {
-		durable, persistErr := h.store.RegisterLabDevice(ctx, organizations.WorkspaceID(request.Msg.GetWorkspace().GetWorkspaceId()), req)
+		durable, persistErr := h.store.RegisterLabDevice(ctx, workspace, req)
 		if persistErr != nil {
 			if memory, ok := svc.(labRegistrationMemory); ok {
 				memory.RevertRegister(req.Serial)
@@ -283,6 +302,22 @@ func (h *LabRegistrationHandler) registration() (LabRegistration, error) {
 		return nil, invalidArgument("lab registration service is required")
 	}
 	return h.service, nil
+}
+
+func (h *LabRegistrationHandler) hydrateMemoryFromStore(ctx context.Context, svc LabRegistration, workspace organizations.WorkspaceID, serial string) error {
+	if h.store == nil {
+		return nil
+	}
+	memory, ok := svc.(labRegistrationMemory)
+	if !ok {
+		return nil
+	}
+	ready, hasReady, approval, hasApproval, registered, hasRegistered, err := h.store.LoadLabRegistrationStatus(ctx, workspace, serial)
+	if err != nil {
+		return err
+	}
+	memory.Hydrate(ready, hasReady, approval, hasApproval, registered, hasRegistered)
+	return nil
 }
 
 func labProvisioningReadyProto(ready registration.ProvisionReady) *driftv1.LabProvisioningReady {
