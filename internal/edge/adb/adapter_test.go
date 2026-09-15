@@ -481,7 +481,7 @@ func TestRunAllowlistedPlacesTheSerialInItsOwnToken(t *testing.T) {
 }
 
 func TestOperationErrorsCarryRedactedStderr(t *testing.T) {
-	stderr := "adb: error: failed to authenticate with /Users/operator/.android/adbkey (api_key=sk-live-1234abcd)"
+	stderr := "adb: error: failed to authenticate with /Users/operator/.android/adbkey (api_key=TEST_ONLY_sk_live_1234abcd)"
 	runner := NewFakeRunner().
 		Respond(deviceArgs(getStateArgv()...), FakeResponse{Result: Result{ExitCode: 1, Stderr: []byte(stderr)}})
 	adapter := newTestAdapter(t, runner)
@@ -496,7 +496,7 @@ func TestOperationErrorsCarryRedactedStderr(t *testing.T) {
 	if !errors.As(runErr, &operationErr) {
 		t.Fatalf("RunAllowlisted() = %v, want an *OperationError", runErr)
 	}
-	for _, leaked := range []string{"adbkey", "sk-live-1234abcd"} {
+	for _, leaked := range []string{"adbkey", "TEST_ONLY_sk_live_1234abcd"} {
 		if strings.Contains(operationErr.Detail, leaked) || strings.Contains(operationErr.Error(), leaked) {
 			t.Fatalf("OperationError leaked %q: %s", leaked, operationErr.Error())
 		}

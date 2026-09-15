@@ -247,20 +247,20 @@ func TestRedactOutputRemovesSensitiveMaterial(t *testing.T) {
 	stderr := []byte(strings.Join([]string{
 		"adb: error: failed to authenticate",
 		"tried key /Users/operator/.android/adbkey and /Users/operator/.android/adbkey.pub",
-		"ADB_VENDOR_KEYS=/opt/vendor/private-keys",
-		"api_key=sk-live-9f8e7d6c5b4a",
-		"authorization: Bearer eyJhbGciOiJIUzI1NiJ9",
-		"session_token: 'abcd-1234-secret'",
+		"ADB_VENDOR_KEYS=/opt/vendor/TEST_ONLY_private_keys",
+		"api_key=TEST_ONLY_sk_live_9f8e7d6c5b4a",
+		"authorization: Bearer TEST_ONLY_eyJhbGciOiJIUzI1NiJ9padding",
+		"session_token: 'TEST_ONLY_abcd_1234_secret'",
 	}, "\n"))
 
 	redacted := RedactOutput(stderr)
 
 	for _, leaked := range []string{
 		"adbkey",
-		"sk-live-9f8e7d6c5b4a",
-		"eyJhbGciOiJIUzI1NiJ9",
-		"abcd-1234-secret",
-		"/opt/vendor/private-keys",
+		"TEST_ONLY_sk_live_9f8e7d6c5b4a",
+		"TEST_ONLY_eyJhbGciOiJIUzI1NiJ9padding",
+		"TEST_ONLY_abcd_1234_secret",
+		"TEST_ONLY_private_keys",
 	} {
 		if strings.Contains(redacted, leaked) {
 			t.Fatalf("RedactOutput() leaked %q:\n%s", leaked, redacted)

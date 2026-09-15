@@ -33,8 +33,8 @@ const smallHierarchy = `<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
 <hierarchy rotation="0">
   <node index="0" text="" resource-id="" class="android.widget.FrameLayout" package="com.example" content-desc="" checkable="false" enabled="true" clickable="false" scrollable="false" long-clickable="false" password="false" bounds="[0,0][1080,2340]">
     <node index="0" text="Sign in" resource-id="com.example:id/title" class="android.widget.TextView" package="com.example" content-desc="Sign in heading" checkable="false" enabled="true" clickable="false" scrollable="false" long-clickable="false" password="false" bounds="[40,120][1040,200]" />
-    <node index="1" text="hunter2" resource-id="com.example:id/password" class="android.widget.EditText" package="com.example" content-desc="Password" checkable="false" enabled="true" clickable="true" scrollable="false" long-clickable="true" password="true" bounds="[40,240][1040,320]" />
-    <node index="2" text="api_key=sk-live-9f8e7d6c" resource-id="com.example:id/debug" class="android.widget.TextView" package="com.example" content-desc="" checkable="false" enabled="false" clickable="false" scrollable="false" long-clickable="false" password="false" bounds="[40,360][1040,400]" />
+    <node index="1" text="TEST_ONLY_password_value" resource-id="com.example:id/password" class="android.widget.EditText" package="com.example" content-desc="Password" checkable="false" enabled="true" clickable="true" scrollable="false" long-clickable="true" password="true" bounds="[40,240][1040,320]" />
+    <node index="2" text="api_key=TEST_ONLY_sk_live_9f8e7d6c" resource-id="com.example:id/debug" class="android.widget.TextView" package="com.example" content-desc="" checkable="false" enabled="false" clickable="false" scrollable="false" long-clickable="false" password="false" bounds="[40,360][1040,400]" />
   </node>
 </hierarchy>
 `
@@ -174,7 +174,7 @@ func TestCaptureMapsNodesAndSanitizesObservedText(t *testing.T) {
 	}
 
 	debug := capture.Nodes[3]
-	if strings.Contains(debug.StableText, "sk-live-9f8e7d6c") {
+	if strings.Contains(debug.StableText, "TEST_ONLY_sk_live_9f8e7d6c") {
 		t.Fatalf("credential material survived sanitization: %q", debug.StableText)
 	}
 	if debug.Enabled {
