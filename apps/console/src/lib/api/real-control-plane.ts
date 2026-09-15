@@ -42,6 +42,8 @@ import type { Skill, SkillVersion } from "@/gen/drift/v1/skill_pb"
 import { SkillState, TrustState as ProtoTrustState } from "@/gen/drift/v1/skill_pb"
 import type { Workflow } from "@/gen/drift/v1/workflow_pb"
 import { WorkflowState } from "@/gen/drift/v1/workflow_pb"
+import type { MirrorSession as ProtoMirrorSession, MirrorTarget as ProtoMirrorTarget } from "@/gen/drift/v1/mirror_pb"
+import { MirrorSessionState, MirrorTargetState } from "@/gen/drift/v1/mirror_pb"
 import {
   ConnectJsonClient,
   ConnectJsonError,
@@ -95,6 +97,10 @@ import type {
   LeaseView,
   MembershipState,
   MembershipView,
+  MirrorSessionState as MirrorViewState,
+  MirrorSessionView,
+  MirrorTargetOutcome,
+  MirrorTargetResultView,
   ObservationCaptureStatus,
   ObservationView,
   LabAdapterView,
@@ -471,6 +477,74 @@ function mapLifecycleState(state: WorkflowState | SkillState): WorkflowViewState
   if (state === WorkflowState.RETIRED || state === SkillState.RETIRED) return "retired"
   const _exhaustive: never = state
   return _exhaustive
+}
+
+function mapMirrorSessionState(state: MirrorSessionState): MirrorViewState {
+  switch (state) {
+    case MirrorSessionState.REQUESTED:
+      return "requested"
+    case MirrorSessionState.ACTIVE:
+      return "active"
+    case MirrorSessionState.PAUSED:
+      return "paused"
+    case MirrorSessionState.STOPPING:
+      return "stopping"
+    case MirrorSessionState.COMPLETED:
+      return "completed"
+    case MirrorSessionState.FAILED:
+      return "failed"
+    case MirrorSessionState.CANCELLED:
+      return "cancelled"
+    case MirrorSessionState.UNSPECIFIED:
+      return "requested"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapMirrorTargetOutcome(target: ProtoMirrorTarget): MirrorTargetOutcome {
+  switch (target.state) {
+    case MirrorTargetState.FAILED:
+      if (target.failureClass === "device_offline") return "offline"
+      if (target.failureClass === "policy_denied") return "policy_denied"
+      if (target.failureClass === "lease_conflict") return "lease_conflict"
+      return "incompatible"
+    case MirrorTargetState.CANCELLED:
+      return "cancelled"
+    case MirrorTargetState.PENDING:
+    case MirrorTargetState.LEASED:
+    case MirrorTargetState.QUEUED:
+    case MirrorTargetState.RUNNING:
+    case MirrorTargetState.SUCCEEDED:
+    case MirrorTargetState.UNSPECIFIED:
+      return "preview_admitted"
+    case MirrorTargetState.CLEANUP_FAILED:
+      return "target_resolution_failed"
+    default: {
+      const _exhaustive: never = target.state
+      return _exhaustive
+    }
+  }
+}
+
+function mapMirrorSession(session: ProtoMirrorSession): MirrorSessionView {
+  const followerResults: MirrorTargetResultView[] = session.targets.map((target) => ({
+    deviceId: target.deviceId,
+    outcome: mapMirrorTargetOutcome(target),
+    detail: target.detail,
+  }))
+  return {
+    id: session.id,
+    sourceDeviceId: session.sourceDeviceId,
+    followerDeviceIds: session.targets.map((target) => target.deviceId),
+    state: mapMirrorSessionState(session.state),
+    sourceResult: "Preview admitted; source control not dispatched.",
+    followerResults,
+    startedAt: session.createdAt,
+    ...(session.finishedAt ? { stoppedAt: session.finishedAt } : {}),
+  }
 }
 
 function mapWorkflow(workflow: Workflow): WorkflowView {
@@ -1415,6 +1489,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         profiles: mapAutomationAgentProfiles(response.profiles, response.assignments),
       })), { agents: [] as AutomationAgentView[], profiles: [] as AutomationAgentProfileView[] }),
       settle(this.services.recording.listRecordingSessions(workspaceId).then((response) => response.sessions.map(mapRecording)), [] as RecordingMediaView[]),
+      settle(this.services.mirror.listMirrorSessions(workspaceId).then((response) => response.sessions.map(mapMirrorSession)), [] as MirrorSessionView[]),
     ])
 
     const failed = results.filter((result) => result.failed)
@@ -1460,6 +1535,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       storageHealth,
       automationAgents,
       recordingMedia,
+      mirrorSessions,
     ] = results
 
     const workspaceRecord = workspace.value as Workspace | undefined
@@ -1508,7 +1584,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       labAdapter: previous.labAdapter.mode === "lab" ? previous.labAdapter : emptyLabAdapter(),
       provisioningReadiness: previous.provisioningReadiness,
       labRegistration: previous.labRegistration,
-      mirrorSessions: previous.mirrorSessions,
+      mirrorSessions: mirrorSessions.value,
       runtimeConnection: emptyRuntime("connected"),
       spoolHealth: emptySpool("connected"),
     }
@@ -1789,8 +1865,19 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         await this.services.skill.publishSkillVersion(requestId, workspaceId, intent.versionId, intent.reason)
         return mutation(intent, "Skill version published.", { resourceId: intent.versionId })
       }
-      case "startMirrorPreview":
-      case "stopMirrorPreview":
+      case "startMirrorPreview": {
+        const followerIds = [...new Set(intent.followerDeviceIds)].filter((id) => id !== intent.sourceDeviceId && id.trim() !== "")
+        if (!intent.sourceDeviceId.trim() || followerIds.length === 0) {
+          return failure(intent, "Preview needs one source and at least one follower.", { errorCode: "invalid_input" })
+        }
+        const response = await this.services.mirror.startMirrorPreview(requestId, workspaceId, intent.sourceDeviceId, followerIds)
+        return mutation(intent, "Preview started; no device command was sent.", { resourceId: response.session?.id })
+      }
+      case "stopMirrorPreview": {
+        if (!intent.sessionId.trim()) return failure(intent, "Preview session is required.", { errorCode: "invalid_input" })
+        await this.services.mirror.stopMirrorPreview(requestId, workspaceId, intent.sessionId)
+        return mutation(intent, "Preview stopped; no device command was sent.", { resourceId: intent.sessionId })
+      }
       case "updatePolicy":
       case "discoverLabDevices":
       case "confirmLabTarget":

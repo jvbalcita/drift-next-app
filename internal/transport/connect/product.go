@@ -27,6 +27,7 @@ type ProductHandlers struct {
 	Recording       *RecordingHandler
 	Skill           *SkillHandler
 	Workspace       *WorkspaceHandler
+	Mirror          *MirrorHandler
 }
 
 func NewProductHandlers(db *store.DB, scanner discovery.Scanner) *ProductHandlers {
@@ -53,5 +54,6 @@ func NewProductHandlers(db *store.DB, scanner discovery.Scanner) *ProductHandler
 		Recording:       NewRecordingHandler(db),
 		Skill:           NewSkillHandler(db),
 		Workspace:       NewWorkspaceHandler(db),
+		Mirror:          NewMirrorHandler(db),
 	}
 }

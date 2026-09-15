@@ -458,4 +458,59 @@ describe("RealControlPlaneClient", () => {
       "http://127.0.0.1:8080/drift.v1.WorkflowService/PublishWorkflowVersion",
     ]))
   })
+
+  it("starts and stops mirror preview with explicit followers and lists sessions", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.MirrorService/StartMirrorPreview")) {
+        return new Response(JSON.stringify({
+          session: {
+            id: "mirror-1",
+            sourceDeviceId: "device-source",
+            controlSessionId: "session-1",
+            state: "MIRROR_SESSION_STATE_ACTIVE",
+            targets: [
+              { id: "target-1", deviceId: "device-follower", state: "MIRROR_TARGET_STATE_PENDING", detail: "Preview admitted; no command sent." },
+              { id: "target-2", deviceId: "device-offline", state: "MIRROR_TARGET_STATE_FAILED", failureClass: "device_offline", detail: "Preview withheld: follower is not an active connected device." },
+            ],
+          },
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.MirrorService/ListMirrorSessions")) {
+        return new Response(JSON.stringify({
+          sessions: [{
+            id: "mirror-1",
+            sourceDeviceId: "device-source",
+            state: "MIRROR_SESSION_STATE_ACTIVE",
+            createdAt: "now",
+            targets: [
+              { id: "target-1", deviceId: "device-follower", state: "MIRROR_TARGET_STATE_PENDING", detail: "Preview admitted; no command sent." },
+            ],
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+    const missingFollowers = await client.dispatch({ type: "startMirrorPreview", sourceDeviceId: "device-source", followerDeviceIds: ["device-source"] })
+    const started = await client.dispatch({ type: "startMirrorPreview", sourceDeviceId: "device-source", followerDeviceIds: ["device-follower", "device-offline"] })
+    const stopped = await client.dispatch({ type: "stopMirrorPreview", sessionId: "mirror-1" })
+    const urls = fetchSpy.mock.calls.map((call) => String(call[0]))
+
+    expect(missingFollowers.ok).toBe(false)
+    expect(started.ok).toBe(true)
+    expect(stopped.ok).toBe(true)
+    expect(client.getSnapshot().mirrorSessions).toEqual([expect.objectContaining({
+      id: "mirror-1",
+      sourceDeviceId: "device-source",
+      state: "active",
+      followerResults: [expect.objectContaining({ deviceId: "device-follower", outcome: "preview_admitted" })],
+    })])
+    expect(urls).toEqual(expect.arrayContaining([
+      "http://127.0.0.1:8080/drift.v1.MirrorService/StartMirrorPreview",
+      "http://127.0.0.1:8080/drift.v1.MirrorService/StopMirrorPreview",
+      "http://127.0.0.1:8080/drift.v1.MirrorService/ListMirrorSessions",
+    ]))
+  })
 })

@@ -96,7 +96,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
 
   return <div className="relative min-h-full">
     <div className="mb-5 flex items-center justify-between gap-3"><div className="drift-kicker flex items-center gap-3"><span className="h-px w-8 bg-primary" aria-hidden="true" /><span>Control / Device Workspace</span></div><div className="flex flex-wrap items-center justify-end gap-2"><StatusBadge label={snapshot.runtimeConnection.state} tone={snapshot.runtimeConnection.state === "connected" ? "healthy" : snapshot.runtimeConnection.state === "reconnecting" ? "attention" : "danger"} /><LabModeBadges adapter={snapshot.labAdapter} /></div></div>
-    <OperatorNotice>No lease is acquired, command dispatched, ADB connection opened, or live video displayed. Workspace and console settings only change this local browser view.</OperatorNotice>
+    <OperatorNotice>Selecting a phone opens a control session and acquires a per-device lease. Preview admits followers independently and does not copy commands. High-risk shell, APK, and file actions stay blocked. Workspace display settings only change this local view.</OperatorNotice>
     <LabStatusStrip
       adapter={snapshot.labAdapter}
       runtimeConnection={snapshot.runtimeConnection}

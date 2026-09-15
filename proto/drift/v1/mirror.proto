@@ -1,0 +1,76 @@
+syntax = "proto3";
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+enum MirrorSessionState {
+  MIRROR_SESSION_STATE_UNSPECIFIED = 0;
+  MIRROR_SESSION_STATE_REQUESTED = 1;
+  MIRROR_SESSION_STATE_ACTIVE = 2;
+  MIRROR_SESSION_STATE_PAUSED = 3;
+  MIRROR_SESSION_STATE_STOPPING = 4;
+  MIRROR_SESSION_STATE_COMPLETED = 5;
+  MIRROR_SESSION_STATE_FAILED = 6;
+  MIRROR_SESSION_STATE_CANCELLED = 7;
+}
+enum MirrorTargetState {
+  MIRROR_TARGET_STATE_UNSPECIFIED = 0;
+  MIRROR_TARGET_STATE_PENDING = 1;
+  MIRROR_TARGET_STATE_LEASED = 2;
+  MIRROR_TARGET_STATE_QUEUED = 3;
+  MIRROR_TARGET_STATE_RUNNING = 4;
+  MIRROR_TARGET_STATE_SUCCEEDED = 5;
+  MIRROR_TARGET_STATE_FAILED = 6;
+  MIRROR_TARGET_STATE_CANCELLED = 7;
+  MIRROR_TARGET_STATE_CLEANUP_FAILED = 8;
+}
+message MirrorTarget {
+  string id = 1;
+  string device_id = 2;
+  MirrorTargetState state = 3;
+  string failure_class = 4;
+  string detail = 5;
+}
+message MirrorSession {
+  string id = 1;
+  WorkspaceRef workspace = 2;
+  string source_device_id = 3;
+  string control_session_id = 4;
+  MirrorSessionState state = 5;
+  string failure_policy = 6;
+  string created_at = 7;
+  string finished_at = 8;
+  repeated MirrorTarget targets = 9;
+}
+message StartMirrorPreviewRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string source_device_id = 3;
+  repeated string follower_device_ids = 4;
+}
+message StartMirrorPreviewResponse {
+  MirrorSession session = 1;
+}
+message StopMirrorPreviewRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string session_id = 3;
+}
+message StopMirrorPreviewResponse {
+  MirrorSession session = 1;
+}
+message ListMirrorSessionsRequest {
+  WorkspaceRef workspace = 1;
+  PageRequest page = 2;
+}
+message ListMirrorSessionsResponse {
+  repeated MirrorSession sessions = 1;
+  PageResponse page = 2;
+}
+service MirrorService {
+  rpc StartMirrorPreview(StartMirrorPreviewRequest) returns (StartMirrorPreviewResponse);
+  rpc StopMirrorPreview(StopMirrorPreviewRequest) returns (StopMirrorPreviewResponse);
+  rpc ListMirrorSessions(ListMirrorSessionsRequest) returns (ListMirrorSessionsResponse);
+}

@@ -203,6 +203,14 @@ import {
   PublishWorkflowVersionRequestSchema,
   PublishWorkflowVersionResponseSchema,
 } from "@/gen/drift/v1/workflow_pb"
+import {
+  ListMirrorSessionsRequestSchema,
+  ListMirrorSessionsResponseSchema,
+  StartMirrorPreviewRequestSchema,
+  StartMirrorPreviewResponseSchema,
+  StopMirrorPreviewRequestSchema,
+  StopMirrorPreviewResponseSchema,
+} from "@/gen/drift/v1/mirror_pb"
 import { ConnectJsonClient, requestContext, workspaceRef } from "@/lib/api/connect-json"
 
 const listPage = create(PageRequestSchema, { pageSize: 200 })
@@ -780,6 +788,31 @@ export class SkillClient {
   }
 }
 
+export class MirrorClient {
+  private readonly rpc: TypedConnectClient
+  constructor(json: ConnectJsonClient) {
+    this.rpc = new TypedConnectClient(json, "drift.v1.MirrorService")
+  }
+  listMirrorSessions(workspaceId: string) {
+    return this.rpc.call("ListMirrorSessions", ListMirrorSessionsRequestSchema, ListMirrorSessionsResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
+  }
+  startMirrorPreview(requestId: string, workspaceId: string, sourceDeviceId: string, followerDeviceIds: readonly string[]) {
+    return this.rpc.call("StartMirrorPreview", StartMirrorPreviewRequestSchema, StartMirrorPreviewResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      sourceDeviceId,
+      followerDeviceIds: [...followerDeviceIds],
+    })
+  }
+  stopMirrorPreview(requestId: string, workspaceId: string, sessionId: string) {
+    return this.rpc.call("StopMirrorPreview", StopMirrorPreviewRequestSchema, StopMirrorPreviewResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      sessionId,
+    })
+  }
+}
+
 export class WorkspaceClient {
   private readonly rpc: TypedConnectClient
   constructor(json: ConnectJsonClient) {
@@ -814,6 +847,7 @@ export interface ControlPlaneServices {
   recording: RecordingClient
   skill: SkillClient
   workspace: WorkspaceClient
+  mirror: MirrorClient
 }
 
 export function createControlPlaneServices(json: ConnectJsonClient): ControlPlaneServices {
@@ -838,5 +872,6 @@ export function createControlPlaneServices(json: ConnectJsonClient): ControlPlan
     recording: new RecordingClient(json),
     skill: new SkillClient(json),
     workspace: new WorkspaceClient(json),
+    mirror: new MirrorClient(json),
   }
 }

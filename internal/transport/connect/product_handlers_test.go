@@ -430,3 +430,77 @@ func TestCreateAndPublishWorkflowVersion(t *testing.T) {
 		t.Fatalf("list workflows = %#v err=%v", listed, err)
 	}
 }
+
+func TestStartMirrorPreviewRequiresExplicitFollowersAndRecordsIndependentOutcomes(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	for _, device := range []devices.Device{
+		{ID: "device-source", Workspace: "workspace-a", DisplayName: "Source", State: devices.Active},
+		{ID: "device-follower", Workspace: "workspace-a", DisplayName: "Follower", State: devices.Active},
+		{ID: "device-offline", Workspace: "workspace-a", DisplayName: "Offline", State: devices.Unavailable},
+	} {
+		if err := store.NewDeviceService(db).Create(ctx, device, "operator", "op-1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := transportconnect.NewMirrorHandler(db)
+	_, err := handler.StartMirrorPreview(ctx, connectrpc.NewRequest(&driftv1.StartMirrorPreviewRequest{
+		Context:        requestContext("mirror-empty"),
+		Workspace:      &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		SourceDeviceId: "device-source",
+	}))
+	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("empty followers code = %v, want invalid_argument; err=%v", connectrpc.CodeOf(err), err)
+	}
+	started, err := handler.StartMirrorPreview(ctx, connectrpc.NewRequest(&driftv1.StartMirrorPreviewRequest{
+		Context:           requestContext("mirror-start-1"),
+		Workspace:         &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		SourceDeviceId:    "device-source",
+		FollowerDeviceIds: []string{"device-source", "device-follower", "device-offline"},
+	}))
+	if err != nil || started.Msg.Session.GetSourceDeviceId() != "device-source" || started.Msg.Session.GetState() != driftv1.MirrorSessionState_MIRROR_SESSION_STATE_ACTIVE {
+		t.Fatalf("start preview = %#v err=%v", started, err)
+	}
+	if started.Msg.Session.GetControlSessionId() == "" {
+		t.Fatal("preview did not record a control session")
+	}
+	if len(started.Msg.Session.Targets) != 2 {
+		t.Fatalf("preview targets = %#v, want source excluded and two followers", started.Msg.Session.Targets)
+	}
+	byDevice := map[string]*driftv1.MirrorTarget{}
+	for _, target := range started.Msg.Session.Targets {
+		byDevice[target.GetDeviceId()] = target
+	}
+	if byDevice["device-follower"].GetState() != driftv1.MirrorTargetState_MIRROR_TARGET_STATE_PENDING {
+		t.Fatalf("active follower = %#v", byDevice["device-follower"])
+	}
+	if byDevice["device-offline"].GetState() != driftv1.MirrorTargetState_MIRROR_TARGET_STATE_FAILED || byDevice["device-offline"].GetFailureClass() != "device_offline" {
+		t.Fatalf("offline follower = %#v", byDevice["device-offline"])
+	}
+	listed, err := handler.ListMirrorSessions(ctx, connectrpc.NewRequest(&driftv1.ListMirrorSessionsRequest{
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if err != nil || len(listed.Msg.Sessions) != 1 || listed.Msg.Sessions[0].GetId() != started.Msg.Session.GetId() {
+		t.Fatalf("list previews = %#v err=%v", listed, err)
+	}
+	stopped, err := handler.StopMirrorPreview(ctx, connectrpc.NewRequest(&driftv1.StopMirrorPreviewRequest{
+		Context:   requestContext("mirror-stop-1"),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		SessionId: started.Msg.Session.GetId(),
+	}))
+	if err != nil || stopped.Msg.Session.GetState() != driftv1.MirrorSessionState_MIRROR_SESSION_STATE_COMPLETED {
+		t.Fatalf("stop preview = %#v err=%v", stopped, err)
+	}
+	cancelled := false
+	for _, target := range stopped.Msg.Session.Targets {
+		if target.GetDeviceId() == "device-follower" && target.GetState() == driftv1.MirrorTargetState_MIRROR_TARGET_STATE_CANCELLED {
+			cancelled = true
+		}
+		if target.GetDeviceId() == "device-offline" && target.GetState() != driftv1.MirrorTargetState_MIRROR_TARGET_STATE_FAILED {
+			t.Fatalf("offline target mutated after stop = %#v", target)
+		}
+	}
+	if !cancelled {
+		t.Fatalf("pending follower was not cancelled independently = %#v", stopped.Msg.Session.Targets)
+	}
+}
