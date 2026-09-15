@@ -743,9 +743,15 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       labAdapter: { ...adapter, readiness: adapter.discovered.length > 0 ? "blocked" : "unavailable", confirmedSerial: "", confirmedDisplayName: "", stableIdentity: "", transportId: "", connectionState: "detached", connectionType: "", lastObservationAt: undefined, lastScreenshotHash: "", lastScreenshotPreviewDataUrl: undefined, lastHierarchySummary: "", observationLatencyMs: 0, failureClass: undefined, indeterminate: false, correlationId, lastHealthAt: occurredAt },
       provisioningReadiness: null,
       labRegistration: keepRegistered,
-      events: addEvent(this.snapshot, labEvent(`event-lab-clear-${sequence}`, "Cleanup", "audit", correlationId, occurredAt, "Confirmed lab target cleared; unverified provisioning and pending Approval were dropped")),
+      indeterminateActions: [],
+      runtimeConnection: {
+        ...this.snapshot.runtimeConnection,
+        pendingIndeterminate: 0,
+        updatedAt: occurredAt,
+      },
+      events: addEvent(this.snapshot, labEvent(`event-lab-clear-${sequence}`, "Cleanup", "audit", correlationId, occurredAt, "Confirmed lab target cleared; unverified provisioning, pending Approval, and indeterminate queues were dropped")),
     }
-    return result(intent, "Lab target cleared. Pending Provisioning/Approval were dropped; Mock Lab Registration is kept only if already registered.")
+    return result(intent, "Lab target cleared. Pending Provisioning/Approval and indeterminate queues were dropped; Mock Lab Registration is kept only if already registered.")
   }
 
   private captureLabObservation(intent: Extract<ControlPlaneIntent, { type: "captureLabObservation" }>): MutationResult {
