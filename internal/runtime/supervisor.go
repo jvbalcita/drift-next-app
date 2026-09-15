@@ -30,8 +30,7 @@ type ComponentStatus struct {
 }
 
 type childProcess interface {
-	Signal(os.Signal) error
-	Kill() error
+	Stop() error
 }
 type processStarter func(context.Context, string, []string, []string, io.Writer) (childProcess, error)
 
@@ -45,6 +44,7 @@ type Supervisor struct {
 	processes map[string]childProcess
 	statuses  map[string]ComponentStatus
 	logs      []string
+	eventSink func(string)
 }
 
 func NewSupervisor(config Config, dataDir string) *Supervisor {
@@ -63,7 +63,11 @@ func (s *Supervisor) Status() []ComponentStatus {
 	names := []string{"Control Plane", "Device Service", "Desktop Application"}
 	result := make([]ComponentStatus, 0, len(names))
 	for _, name := range names {
-		result = append(result, s.statuses[name])
+		status := s.statuses[name]
+		if status.Name == "" {
+			status = ComponentStatus{Name: name, State: stateStopped, Detail: "Not started"}
+		}
+		result = append(result, status)
 	}
 	return result
 }
@@ -71,6 +75,14 @@ func (s *Supervisor) Logs() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.logs...)
+}
+
+// SetEventSink receives redacted lifecycle and process-output events for an
+// interactive operator surface.
+func (s *Supervisor) SetEventSink(sink func(string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.eventSink = sink
 }
 
 // RunChecks executes the repository's fixed validation commands without a shell.
@@ -117,15 +129,20 @@ func repoRoot() string {
 
 func (s *Supervisor) appendLog(line string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	line = strings.TrimSpace(line)
 	if line == "" {
+		s.mu.Unlock()
 		return
 	}
 	line = strings.ReplaceAll(line, s.config.ServiceToken, "[REDACTED]")
 	s.logs = append(s.logs, line)
 	if len(s.logs) > 200 {
 		s.logs = s.logs[len(s.logs)-200:]
+	}
+	sink := s.eventSink
+	s.mu.Unlock()
+	if sink != nil {
+		sink(line)
 	}
 }
 
@@ -224,8 +241,7 @@ func (s *Supervisor) StopComponent(name string) error {
 		s.setStatus(name, stateStopped, "Stopped")
 		return nil
 	}
-	if err := process.Signal(os.Interrupt); err != nil {
-		_ = process.Kill()
+	if err := process.Stop(); err != nil {
 		s.setStatus(name, stateStopped, "Stopped")
 		return fmt.Errorf("stop %s: %w", name, err)
 	}
@@ -292,8 +308,7 @@ func (s *Supervisor) StopAll(_ context.Context) error {
 	s.mu.Unlock()
 	var first error
 	for name, process := range processes {
-		if err := process.Signal(os.Interrupt); err != nil {
-			_ = process.Kill()
+		if err := process.Stop(); err != nil {
 			if first == nil {
 				first = fmt.Errorf("stop %s: %w", name, err)
 			}
@@ -309,13 +324,38 @@ func startCommand(ctx context.Context, executable string, args, extraEnv []strin
 		return nil, fmt.Errorf("%s is unavailable: %w", executable, err)
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
+	configureProcessGroup(cmd)
 	cmd.Env = append(os.Environ(), extraEnv...)
 	cmd.Stdout = output
 	cmd.Stderr = output
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	return cmd.Process, nil
+	return managedProcess{process: cmd.Process}, nil
+}
+
+type managedProcess struct{ process *os.Process }
+
+func (p managedProcess) Stop() error {
+	if p.process == nil {
+		return nil
+	}
+	stopErr := stopProcess(p.process)
+	done := make(chan error, 1)
+	go func() { _, err := p.process.Wait(); done <- err }()
+	select {
+	case waitErr := <-done:
+		if stopErr != nil {
+			return stopErr
+		}
+		return waitErr
+	case <-time.After(5 * time.Second):
+		_ = p.process.Kill()
+		if stopErr != nil {
+			return stopErr
+		}
+		return fmt.Errorf("process did not stop within 5s")
+	}
 }
 
 type logWriter struct{ supervisor *Supervisor }
