@@ -10,7 +10,7 @@ import {
 } from "@/gen/drift/v1/account_pb"
 import type { ArtifactRecord } from "@/gen/drift/v1/artifact_pb"
 import { ActionKind } from "@/gen/drift/v1/action_pb"
-import type { AutomationAgent } from "@/gen/drift/v1/automation_agent_pb"
+import type { AutomationAgent, AutomationAgentProfile } from "@/gen/drift/v1/automation_agent_pb"
 import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
 import { DeviceStatus } from "@/gen/drift/v1/device_pb"
@@ -74,6 +74,7 @@ import type {
   ArtifactLifecycleState,
   ArtifactRetentionClass,
   ArtifactView,
+  AutomationAgentProfileView,
   AutomationAgentView,
   ControlEligibility,
   ControlPlaneClient,
@@ -103,6 +104,7 @@ import type {
   PolicyDecisionView,
   PolicyState,
   PolicyView,
+  ProfileState,
   RecordingMediaView,
   RecordingSessionState,
   RunState as RunViewState,
@@ -476,10 +478,11 @@ function mapWorkflow(workflow: Workflow): WorkflowView {
     id: workflow.id,
     name: workflow.displayName || workflow.id,
     state: mapLifecycleState(workflow.state),
-    version: Number(workflow.rowVersion),
+    version: workflow.publishedVersion || Number(workflow.rowVersion),
+    ...(workflow.publishedVersionId ? { publishedVersionId: workflow.publishedVersionId } : {}),
     stepCount: 0,
-    targetSelector: "",
-    safetySummary: "",
+    targetSelector: workflow.publishedVersionId ? "Explicit Devices" : "",
+    safetySummary: workflow.publishedVersionId ? "Published version required" : "No published version",
   }
 }
 
@@ -1182,6 +1185,43 @@ function mapAutomationAgent(agent: AutomationAgent): AutomationAgentView {
   }
 }
 
+function mapAutomationProfileState(state: string): ProfileState {
+  switch (state) {
+    case "validated":
+      return "validated"
+    case "published":
+      return "published"
+    case "deprecated":
+      return "deprecated"
+    case "retired":
+      return "retired"
+    default:
+      return "draft"
+  }
+}
+
+function mapAutomationAgentProfiles(
+  profiles: readonly AutomationAgentProfile[],
+  assignments: readonly { automationAgentId: string; deviceId: string; state: string }[],
+): AutomationAgentProfileView[] {
+  return profiles.map((profile) => {
+    const assigned = assignments.filter((assignment) => assignment.automationAgentId === profile.automationAgentId && assignment.state === "active")
+    return {
+      id: profile.id,
+      automationAgentId: profile.automationAgentId,
+      version: profile.version,
+      state: mapAutomationProfileState(profile.state),
+      personality: "",
+      goals: [],
+      rules: [],
+      capabilities: profile.capabilities,
+      memoryScope: "none",
+      trust: "unreviewed",
+      assignmentSummary: assigned.length === 0 ? "Unassigned" : assigned.map((item) => item.deviceId).join(", "),
+    }
+  })
+}
+
 function mapProfileToProto(profile: NetworkProfileView, workspaceId: string, state: NetworkProfileState): NetworkProfile {
   return create(NetworkProfileSchema, {
     id: profile.id,
@@ -1368,7 +1408,10 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         warningSummary: health.casRootConfigured ? "" : "Object storage is not configured.",
         cleanupFailures: Number(health.cleanupFailedCount),
       })), emptyStorage()),
-      settle(this.services.automationAgent.listAutomationAgents(workspaceId).then((response) => response.agents.map(mapAutomationAgent)), [] as AutomationAgentView[]),
+      settle(this.services.automationAgent.listAutomationAgents(workspaceId).then((response) => ({
+        agents: response.agents.map(mapAutomationAgent),
+        profiles: mapAutomationAgentProfiles(response.profiles, response.assignments),
+      })), { agents: [] as AutomationAgentView[], profiles: [] as AutomationAgentProfileView[] }),
       settle(this.services.recording.listRecordingSessions(workspaceId).then((response) => response.sessions.map(mapRecording)), [] as RecordingMediaView[]),
     ])
 
@@ -1457,7 +1500,8 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       runs: runs.value,
       artifacts: artifacts.value,
       storageHealth: storageHealth.value,
-      automationAgents: automationAgents.value,
+      automationAgents: automationAgents.value.agents,
+      automationAgentProfiles: automationAgents.value.profiles,
       recordingMedia: recordingMedia.value,
       labAdapter: previous.labAdapter.mode === "lab" ? previous.labAdapter : emptyLabAdapter(),
       provisioningReadiness: previous.provisioningReadiness,
@@ -1550,9 +1594,31 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         await this.services.group.moveDeviceToGroup(requestId, workspaceId, intent.deviceId, intent.groupId, intent.position)
         return mutation(intent, "Device moved to group.")
       }
+      case "createDeviceGroup": {
+        if (!intent.name.trim()) return failure(intent, "Group name is required.", { errorCode: "invalid_input" })
+        await this.services.group.createDeviceGroup(requestId, workspaceId, intent.name.trim())
+        return mutation(intent, "Device group created.")
+      }
+      case "createAutomationAgent": {
+        if (!intent.name.trim()) return failure(intent, "Automation agent name is required.", { errorCode: "invalid_input" })
+        await this.services.automationAgent.createAutomationAgent(requestId, workspaceId, intent.name.trim())
+        return mutation(intent, "Automation agent created.")
+      }
+      case "assignAutomationAgentDevice": {
+        if (!intent.agentId || !intent.deviceId) return failure(intent, "Choose an agent and a device before assigning.", { errorCode: "invalid_input" })
+        await this.services.automationAgent.assignAutomationAgentDevice(requestId, workspaceId, intent.agentId, intent.deviceId)
+        return mutation(intent, "Automation agent assigned to the selected device.")
+      }
       case "cancelRun": {
         await this.services.run.cancelWorkflowRun(requestId, workspaceId, intent.runId)
         return mutation(intent, "Run cancellation requested.")
+      }
+      case "startWorkflowRun": {
+        if (!intent.confirmed) return failure(intent, "Starting a run requires confirmation.", { errorCode: "precondition_failed" })
+        if (!intent.workflowId) return failure(intent, "Choose a published workflow.", { errorCode: "invalid_input" })
+        if (intent.deviceIds.length === 0) return failure(intent, "Choose at least one device before starting a run.", { errorCode: "invalid_input" })
+        await this.services.run.startWorkflowRun(requestId, workspaceId, intent.workflowId, intent.deviceIds)
+        return mutation(intent, "Workflow run requested for the selected devices.")
       }
       case "createAccountSource": {
         await this.services.account.createAccountSource(requestId, workspaceId, intent)

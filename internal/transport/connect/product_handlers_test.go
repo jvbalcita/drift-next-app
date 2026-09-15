@@ -7,6 +7,7 @@ import (
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
+	"drift.local/drift-next/internal/action"
 	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/discovery"
 	"drift.local/drift-next/internal/groups"
@@ -14,6 +15,7 @@ import (
 	"drift.local/drift-next/internal/organizations"
 	store "drift.local/drift-next/internal/store/sqlite"
 	transportconnect "drift.local/drift-next/internal/transport/connect"
+	"drift.local/drift-next/internal/workflows"
 )
 
 func openProductDB(t *testing.T) *store.DB {
@@ -290,5 +292,106 @@ func TestCreateStartAndListRecordingSession(t *testing.T) {
 	}))
 	if err != nil || len(listed.Msg.Sessions) != 1 || listed.Msg.Sessions[0].GetId() != created.Msg.Session.GetId() {
 		t.Fatalf("list recordings = %#v err=%v", listed, err)
+	}
+}
+
+func TestCreateDeviceGroupAndAutomationAgentAssignment(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	if err := store.NewDeviceService(db).Create(ctx, devices.Device{
+		ID: "device-1", Workspace: "workspace-a", DisplayName: "One", State: devices.Active,
+	}, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	groupsHandler := transportconnect.NewGroupHandler(db)
+	createdGroup, err := groupsHandler.CreateDeviceGroup(ctx, connectrpc.NewRequest(&driftv1.CreateDeviceGroupRequest{
+		Context:     requestContext("group-create-1"),
+		Workspace:   &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		DisplayName: "Rack A",
+	}))
+	if err != nil || createdGroup.Msg.Group.GetDisplayName() != "Rack A" {
+		t.Fatalf("create group = %#v err=%v", createdGroup, err)
+	}
+	agents := transportconnect.NewAutomationAgentHandler(db)
+	createdAgent, err := agents.CreateAutomationAgent(ctx, connectrpc.NewRequest(&driftv1.CreateAutomationAgentRequest{
+		Context:     requestContext("agent-create-1"),
+		Workspace:   &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		DisplayName: "Observe Agent",
+	}))
+	if err != nil || createdAgent.Msg.Agent.GetId() == "" || createdAgent.Msg.Profile.GetId() == "" {
+		t.Fatalf("create agent = %#v err=%v", createdAgent, err)
+	}
+	assigned, err := agents.AssignAutomationAgentDevice(ctx, connectrpc.NewRequest(&driftv1.AssignAutomationAgentDeviceRequest{
+		Context:           requestContext("agent-assign-1"),
+		Workspace:         &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		AutomationAgentId: createdAgent.Msg.Agent.GetId(),
+		DeviceId:          "device-1",
+	}))
+	if err != nil || assigned.Msg.Assignment.GetDeviceId() != "device-1" {
+		t.Fatalf("assign agent = %#v err=%v", assigned, err)
+	}
+	listed, err := agents.ListAutomationAgents(ctx, connectrpc.NewRequest(&driftv1.ListAutomationAgentsRequest{
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if err != nil || len(listed.Msg.Agents) != 1 || len(listed.Msg.Profiles) != 1 || len(listed.Msg.Assignments) != 1 {
+		t.Fatalf("list agents = %#v err=%v", listed, err)
+	}
+}
+
+func TestStartWorkflowRunRequiresExplicitDevicesAndPublishedVersion(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	if err := store.NewDeviceService(db).Create(ctx, devices.Device{
+		ID: "device-1", Workspace: "workspace-a", DisplayName: "One", State: devices.Active,
+	}, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.NewWorkflowService(db).Create(ctx, workflows.Workflow{
+		ID: "workflow-1", Workspace: "workspace-a", Name: "Observe", State: workflows.StateDraft,
+	}, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	handler := transportconnect.NewRunHandler(db)
+	_, err := handler.StartWorkflowRun(ctx, connectrpc.NewRequest(&driftv1.StartWorkflowRunRequest{
+		Context:    requestContext("run-empty-devices"),
+		Workspace:  &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		WorkflowId: "workflow-1",
+	}))
+	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("empty devices code = %v, want invalid_argument; err=%v", connectrpc.CodeOf(err), err)
+	}
+	version, err := store.NewWorkflowService(db).CreateVersion(ctx, "workspace-a", workflows.Version{
+		WorkflowID: "workflow-1",
+		Version:    1,
+		State:      workflows.StateDraft,
+		Steps: []workflows.Step{{
+			ID: "step-1", Sequence: 0, Action: action.Observe, Risk: action.RiskLow, Retry: action.RetrySafe,
+			Definition: workflows.StepDefinition{TimeoutMillis: 1000, EvidenceRequired: true},
+		}},
+	}, "operator", "op-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.NewWorkflowService(db).TransitionVersion(ctx, "workspace-a", version.ID, workflows.StateValidated, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.NewWorkflowService(db).TransitionVersion(ctx, "workspace-a", version.ID, workflows.StatePublished, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	started, err := handler.StartWorkflowRun(ctx, connectrpc.NewRequest(&driftv1.StartWorkflowRunRequest{
+		Context:    requestContext("run-start-1"),
+		Workspace:  &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		WorkflowId: "workflow-1",
+		DeviceIds:  []string{"device-1"},
+	}))
+	if err != nil || started.Msg.Run.GetId() == "" {
+		t.Fatalf("start run = %#v err=%v", started, err)
+	}
+	targets, err := handler.ListRunTargets(ctx, connectrpc.NewRequest(&driftv1.ListRunTargetsRequest{
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		RunId:     started.Msg.Run.GetId(),
+	}))
+	if err != nil || len(targets.Msg.Targets) != 1 || targets.Msg.Targets[0].GetDeviceId() != "device-1" {
+		t.Fatalf("list run targets = %#v err=%v", targets, err)
 	}
 }

@@ -219,6 +219,7 @@ export interface WorkflowView {
   name: string
   state: WorkflowState
   version: number
+  publishedVersionId?: string
   stepCount: number
   targetSelector: string
   safetySummary: string
@@ -680,7 +681,11 @@ export type ControlPlaneIntent =
   | { type: "decideScanCandidate"; candidateId: string; approve: boolean; reason: string }
   | { type: "registerScanCandidate"; candidateId: string; displayName: string }
   | { type: "moveDeviceToGroup"; deviceId: string; groupId: string; position: number }
+  | { type: "createDeviceGroup"; name: string }
+  | { type: "createAutomationAgent"; name: string }
+  | { type: "assignAutomationAgentDevice"; agentId: string; deviceId: string }
   | { type: "cancelRun"; runId: string }
+  | { type: "startWorkflowRun"; workflowId: string; deviceIds: readonly string[]; confirmed: boolean }
   | { type: "createAccountSource"; provider: string; displayName: string; externalReference: string; metadataJson: string }
   | { type: "updateAccountSource"; sourceId: string; displayName: string; externalReference: string; metadataJson: string; rowVersion: number }
   | { type: "retireAccountSource"; sourceId: string; rowVersion: number }

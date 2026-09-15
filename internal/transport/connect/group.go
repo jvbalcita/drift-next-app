@@ -2,6 +2,7 @@ package transportconnect
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	connectrpc "connectrpc.com/connect"
@@ -83,6 +84,39 @@ func (h *GroupHandler) MoveDeviceToGroup(ctx context.Context, request *connectrp
 		return nil, MapError(moveErr)
 	}
 	return connectrpc.NewResponse(&driftv1.MoveDeviceToGroupResponse{Membership: membershipProto(membership)}), nil
+}
+
+func (h *GroupHandler) CreateDeviceGroup(ctx context.Context, request *connectrpc.Request[driftv1.CreateDeviceGroupRequest]) (*connectrpc.Response[driftv1.CreateDeviceGroupResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("create device group request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	name := strings.TrimSpace(request.Msg.GetDisplayName())
+	if name == "" {
+		return nil, invalidArgument("group name is required")
+	}
+	id, idErr := newID(h.db)
+	if idErr != nil {
+		return nil, idErr
+	}
+	group := groups.Group{
+		ID:        groups.GroupID(id),
+		Workspace: workspace,
+		Name:      name,
+		State:     groups.GroupActive,
+	}
+	if createErr := store.NewGroupService(h.db).Create(ctx, group, actorType, actorID); createErr != nil {
+		return nil, MapError(createErr)
+	}
+	group.RowVersion = 1
+	return connectrpc.NewResponse(&driftv1.CreateDeviceGroupResponse{Group: deviceGroupProto(group)}), nil
 }
 
 func deviceGroupProto(group groups.Group) *driftv1.DeviceGroup {

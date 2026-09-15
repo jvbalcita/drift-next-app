@@ -408,4 +408,34 @@ describe("RealControlPlaneClient", () => {
       sourceRecording: "recording-1",
     })])
   })
+
+  it("creates groups and agents and starts runs only with confirmation and devices", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
+    )
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+
+    const group = await client.dispatch({ type: "createDeviceGroup", name: "Rack D" })
+    const agent = await client.dispatch({ type: "createAutomationAgent", name: "Night steward" })
+    const assigned = await client.dispatch({ type: "assignAutomationAgentDevice", agentId: "agent-1", deviceId: "device-pixel-1" })
+    const unconfirmed = await client.dispatch({ type: "startWorkflowRun", workflowId: "wf-1", deviceIds: ["device-pixel-1"], confirmed: false })
+    const noDevices = await client.dispatch({ type: "startWorkflowRun", workflowId: "wf-1", deviceIds: [], confirmed: true })
+    const started = await client.dispatch({ type: "startWorkflowRun", workflowId: "wf-1", deviceIds: ["device-pixel-1"], confirmed: true })
+    const urls = fetchSpy.mock.calls.map((call) => String(call[0]))
+
+    expect(group.ok).toBe(true)
+    expect(agent.ok).toBe(true)
+    expect(assigned.ok).toBe(true)
+    expect(unconfirmed.ok).toBe(false)
+    expect(noDevices.ok).toBe(false)
+    expect(started.ok).toBe(true)
+    expect(urls).toEqual(expect.arrayContaining([
+      "http://127.0.0.1:8080/drift.v1.GroupService/CreateDeviceGroup",
+      "http://127.0.0.1:8080/drift.v1.AutomationAgentService/CreateAutomationAgent",
+      "http://127.0.0.1:8080/drift.v1.AutomationAgentService/AssignAutomationAgentDevice",
+      "http://127.0.0.1:8080/drift.v1.RunService/StartWorkflowRun",
+    ]))
+    expect(urls.filter((url) => url.includes("StartWorkflowRun"))).toHaveLength(1)
+  })
 })

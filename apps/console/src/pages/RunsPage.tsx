@@ -1,25 +1,64 @@
 import { useState } from "react"
 import { Ban, FileText, ListChecks, ShieldCheck } from "lucide-react"
+import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent, RunState } from "@/lib/domain/control-plane"
 import { reportDispatch } from "@/lib/api/report-dispatch"
-import { DataTablePagination, EmptyState, FailureBadge, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
+import { DataTablePagination, EmptyState, FailureBadge, FieldLabel, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 import { textForDevice } from "./page-utils"
 
 export function RunsPage({ snapshot, dispatch, view = "active", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState("")
+  const publishedWorkflows = snapshot.workflows.filter((workflow) => workflow.state === "published" || Boolean(workflow.publishedVersionId))
+  const [workflowId, setWorkflowId] = useState(publishedWorkflows[0]?.id ?? "")
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>(snapshot.devices[0] ? [snapshot.devices[0].id] : [])
   const selectedRun = snapshot.runs.find((run) => run.id === selectedRunId)
   const activeRuns = snapshot.runs.filter((run) => !isTerminal(run.state))
   const historicalRuns = snapshot.runs.filter((run) => isTerminal(run.state))
   const failedRuns = snapshot.runs.filter((run) => run.state === "failed" || run.state === "paused" || run.failureClass)
   function inspect(id: string) { setSelectedRunId(id) }
   function cancel(id: string) { void reportDispatch(dispatch, { type: "cancelRun", runId: id }, setFeedback) }
+  function toggleDevice(deviceId: string) {
+    setSelectedDeviceIds((current) => current.includes(deviceId) ? current.filter((id) => id !== deviceId) : [...current, deviceId])
+  }
+  function startRun() {
+    void reportDispatch(dispatch, { type: "startWorkflowRun", workflowId, deviceIds: selectedDeviceIds, confirmed: true }, setFeedback)
+  }
   return <>
     <PageIntro eyebrow="EXECUTION / RUNS" title="Runs and Targets" description="Inspect parent runs and independent per-device outcomes without conflating target state with aggregate state." actions={<StatusBadge label="Independent Targets" tone="info" />} />
-    <OperatorNotice>Parent runs and per-device targets are independent. Cancel requests the control plane; blocked, stale, or unauthorized targets stay unexecuted.</OperatorNotice>
+    <OperatorNotice>Parent runs and per-device targets are independent. Starting a run requires a published workflow, explicit device selection, and confirmation. Cancel requests the control plane; blocked, stale, or unauthorized targets stay unexecuted.</OperatorNotice>
+    <form className="mt-6 grid gap-3 border border-border p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]" onSubmit={(event) => event.preventDefault()}>
+      <div>
+        <FieldLabel htmlFor="start-run-workflow">Published Workflow</FieldLabel>
+        <select id="start-run-workflow" value={workflowId} onChange={(event) => setWorkflowId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">
+          {publishedWorkflows.length === 0 ? <option value="">No Published Workflows</option> : null}
+          {publishedWorkflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name} · v{workflow.version}</option>)}
+        </select>
+      </div>
+      <fieldset className="min-w-0">
+        <legend className="text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">Devices</legend>
+        <div className="mt-1 max-h-28 overflow-y-auto border border-border p-2">
+          {snapshot.devices.length === 0 ? <p className="text-xs text-muted-foreground">No Registered Devices</p> : snapshot.devices.map((device) => (
+            <label key={device.id} className="flex items-center gap-2 py-1 text-xs">
+              <input type="checkbox" checked={selectedDeviceIds.includes(device.id)} onChange={() => toggleDevice(device.id)} />
+              {device.displayName}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <AlertDialog>
+        <AlertDialogTrigger render={<Button type="button" size="sm" variant="outline" className="self-end" disabled={!workflowId || selectedDeviceIds.length === 0}>Start Run</Button>} />
+        <AlertDialogContent
+          title="Start Workflow Run?"
+          description="Creates a parent run for the selected devices only. Each device keeps an independent target, lease, fencing token, and outcome. Actions are not replayed after disconnect or timeout."
+          confirmLabel="Confirm Start Run"
+          onConfirm={startRun}
+        />
+      </AlertDialog>
+    </form>
     <Tabs value={view} onValueChange={onViewChange} className="mt-6"><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Run views"><TabsTrigger value="active" className="rounded-none">Active</TabsTrigger><TabsTrigger value="history" className="rounded-none">History</TabsTrigger><TabsTrigger value="failed" className="rounded-none">Failed / indeterminate</TabsTrigger></TabsList>
       <TabsContent value="active" className="mt-6"><Panel title="Active runs" description="Admission and aggregate state are visible here; inspect a row for targets, steps, evidence, and events."><RunTable runs={activeRuns} onInspect={inspect} /></Panel></TabsContent>
       <TabsContent value="history" className="mt-6"><Panel title="Run history" description="Completed, failed, and cancelled parent runs retain their immutable target snapshot."><RunTable runs={historicalRuns} onInspect={inspect} /></Panel></TabsContent>

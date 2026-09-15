@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/group.proto.
  */
 export const file_drift_v1_group: GenFile = /*@__PURE__*/
-  fileDesc("ChRkcmlmdC92MS9ncm91cC5wcm90bxIIZHJpZnQudjEilAEKC0RldmljZUdyb3VwEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIUCgxkaXNwbGF5X25hbWUYAyABKAkSIwoFc3RhdGUYBCABKA4yFC5kcmlmdC52MS5Hcm91cFN0YXRlEhMKC3Jvd192ZXJzaW9uGAUgASgEIokBCg9Hcm91cE1lbWJlcnNoaXASCgoCaWQYASABKAkSEAoIZ3JvdXBfaWQYAiABKAkSEQoJZGV2aWNlX2lkGAMgASgJEhAKCHBvc2l0aW9uGAQgASgNEg0KBXN0YXRlGAUgASgJEhIKCnN0YXJ0ZWRfYXQYBiABKAkSEAoIZW5kZWRfYXQYByABKAkiaQoXTGlzdERldmljZUdyb3Vwc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCKXAQoYTGlzdERldmljZUdyb3Vwc1Jlc3BvbnNlEiUKBmdyb3VwcxgBIAMoCzIVLmRyaWZ0LnYxLkRldmljZUdyb3VwEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2USLgoLbWVtYmVyc2hpcHMYAyADKAsyGS5kcmlmdC52MS5Hcm91cE1lbWJlcnNoaXAipwEKGE1vdmVEZXZpY2VUb0dyb3VwUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIQCghncm91cF9pZBgEIAEoCRIQCghwb3NpdGlvbhgFIAEoDSJKChlNb3ZlRGV2aWNlVG9Hcm91cFJlc3BvbnNlEi0KCm1lbWJlcnNoaXAYASABKAsyGS5kcmlmdC52MS5Hcm91cE1lbWJlcnNoaXAqWgoKR3JvdXBTdGF0ZRIbChdHUk9VUF9TVEFURV9VTlNQRUNJRklFRBAAEhYKEkdST1VQX1NUQVRFX0FDVElWRRABEhcKE0dST1VQX1NUQVRFX1JFVElSRUQQAjLHAQoMR3JvdXBTZXJ2aWNlElkKEExpc3REZXZpY2VHcm91cHMSIS5kcmlmdC52MS5MaXN0RGV2aWNlR3JvdXBzUmVxdWVzdBoiLmRyaWZ0LnYxLkxpc3REZXZpY2VHcm91cHNSZXNwb25zZRJcChFNb3ZlRGV2aWNlVG9Hcm91cBIiLmRyaWZ0LnYxLk1vdmVEZXZpY2VUb0dyb3VwUmVxdWVzdBojLmRyaWZ0LnYxLk1vdmVEZXZpY2VUb0dyb3VwUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChRkcmlmdC92MS9ncm91cC5wcm90bxIIZHJpZnQudjEilAEKC0RldmljZUdyb3VwEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIUCgxkaXNwbGF5X25hbWUYAyABKAkSIwoFc3RhdGUYBCABKA4yFC5kcmlmdC52MS5Hcm91cFN0YXRlEhMKC3Jvd192ZXJzaW9uGAUgASgEIokBCg9Hcm91cE1lbWJlcnNoaXASCgoCaWQYASABKAkSEAoIZ3JvdXBfaWQYAiABKAkSEQoJZGV2aWNlX2lkGAMgASgJEhAKCHBvc2l0aW9uGAQgASgNEg0KBXN0YXRlGAUgASgJEhIKCnN0YXJ0ZWRfYXQYBiABKAkSEAoIZW5kZWRfYXQYByABKAkiaQoXTGlzdERldmljZUdyb3Vwc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCKXAQoYTGlzdERldmljZUdyb3Vwc1Jlc3BvbnNlEiUKBmdyb3VwcxgBIAMoCzIVLmRyaWZ0LnYxLkRldmljZUdyb3VwEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2USLgoLbWVtYmVyc2hpcHMYAyADKAsyGS5kcmlmdC52MS5Hcm91cE1lbWJlcnNoaXAipwEKGE1vdmVEZXZpY2VUb0dyb3VwUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIQCghncm91cF9pZBgEIAEoCRIQCghwb3NpdGlvbhgFIAEoDSJKChlNb3ZlRGV2aWNlVG9Hcm91cFJlc3BvbnNlEi0KCm1lbWJlcnNoaXAYASABKAsyGS5kcmlmdC52MS5Hcm91cE1lbWJlcnNoaXAihgEKGENyZWF0ZURldmljZUdyb3VwUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhQKDGRpc3BsYXlfbmFtZRgDIAEoCSJBChlDcmVhdGVEZXZpY2VHcm91cFJlc3BvbnNlEiQKBWdyb3VwGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlR3JvdXAqWgoKR3JvdXBTdGF0ZRIbChdHUk9VUF9TVEFURV9VTlNQRUNJRklFRBAAEhYKEkdST1VQX1NUQVRFX0FDVElWRRABEhcKE0dST1VQX1NUQVRFX1JFVElSRUQQAjKlAgoMR3JvdXBTZXJ2aWNlElkKEExpc3REZXZpY2VHcm91cHMSIS5kcmlmdC52MS5MaXN0RGV2aWNlR3JvdXBzUmVxdWVzdBoiLmRyaWZ0LnYxLkxpc3REZXZpY2VHcm91cHNSZXNwb25zZRJcChFNb3ZlRGV2aWNlVG9Hcm91cBIiLmRyaWZ0LnYxLk1vdmVEZXZpY2VUb0dyb3VwUmVxdWVzdBojLmRyaWZ0LnYxLk1vdmVEZXZpY2VUb0dyb3VwUmVzcG9uc2USXAoRQ3JlYXRlRGV2aWNlR3JvdXASIi5kcmlmdC52MS5DcmVhdGVEZXZpY2VHcm91cFJlcXVlc3QaIy5kcmlmdC52MS5DcmVhdGVEZXZpY2VHcm91cFJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.DeviceGroup
@@ -202,6 +202,50 @@ export const MoveDeviceToGroupResponseSchema: GenMessage<MoveDeviceToGroupRespon
   messageDesc(file_drift_v1_group, 5);
 
 /**
+ * @generated from message drift.v1.CreateDeviceGroupRequest
+ */
+export type CreateDeviceGroupRequest = Message<"drift.v1.CreateDeviceGroupRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string display_name = 3;
+   */
+  displayName: string;
+};
+
+/**
+ * Describes the message drift.v1.CreateDeviceGroupRequest.
+ * Use `create(CreateDeviceGroupRequestSchema)` to create a new message.
+ */
+export const CreateDeviceGroupRequestSchema: GenMessage<CreateDeviceGroupRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_group, 6);
+
+/**
+ * @generated from message drift.v1.CreateDeviceGroupResponse
+ */
+export type CreateDeviceGroupResponse = Message<"drift.v1.CreateDeviceGroupResponse"> & {
+  /**
+   * @generated from field: drift.v1.DeviceGroup group = 1;
+   */
+  group?: DeviceGroup;
+};
+
+/**
+ * Describes the message drift.v1.CreateDeviceGroupResponse.
+ * Use `create(CreateDeviceGroupResponseSchema)` to create a new message.
+ */
+export const CreateDeviceGroupResponseSchema: GenMessage<CreateDeviceGroupResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_group, 7);
+
+/**
  * @generated from enum drift.v1.GroupState
  */
 export enum GroupState {
@@ -246,6 +290,14 @@ export const GroupService: GenService<{
     methodKind: "unary";
     input: typeof MoveDeviceToGroupRequestSchema;
     output: typeof MoveDeviceToGroupResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.GroupService.CreateDeviceGroup
+   */
+  createDeviceGroup: {
+    methodKind: "unary";
+    input: typeof CreateDeviceGroupRequestSchema;
+    output: typeof CreateDeviceGroupResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_group, 0);

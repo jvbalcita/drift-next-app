@@ -39,12 +39,16 @@ const (
 	// GroupServiceMoveDeviceToGroupProcedure is the fully-qualified name of the GroupService's
 	// MoveDeviceToGroup RPC.
 	GroupServiceMoveDeviceToGroupProcedure = "/drift.v1.GroupService/MoveDeviceToGroup"
+	// GroupServiceCreateDeviceGroupProcedure is the fully-qualified name of the GroupService's
+	// CreateDeviceGroup RPC.
+	GroupServiceCreateDeviceGroupProcedure = "/drift.v1.GroupService/CreateDeviceGroup"
 )
 
 // GroupServiceClient is a client for the drift.v1.GroupService service.
 type GroupServiceClient interface {
 	ListDeviceGroups(context.Context, *connect.Request[v1.ListDeviceGroupsRequest]) (*connect.Response[v1.ListDeviceGroupsResponse], error)
 	MoveDeviceToGroup(context.Context, *connect.Request[v1.MoveDeviceToGroupRequest]) (*connect.Response[v1.MoveDeviceToGroupResponse], error)
+	CreateDeviceGroup(context.Context, *connect.Request[v1.CreateDeviceGroupRequest]) (*connect.Response[v1.CreateDeviceGroupResponse], error)
 }
 
 // NewGroupServiceClient constructs a client for the drift.v1.GroupService service. By default, it
@@ -70,6 +74,12 @@ func NewGroupServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(groupServiceMethods.ByName("MoveDeviceToGroup")),
 			connect.WithClientOptions(opts...),
 		),
+		createDeviceGroup: connect.NewClient[v1.CreateDeviceGroupRequest, v1.CreateDeviceGroupResponse](
+			httpClient,
+			baseURL+GroupServiceCreateDeviceGroupProcedure,
+			connect.WithSchema(groupServiceMethods.ByName("CreateDeviceGroup")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -77,6 +87,7 @@ func NewGroupServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 type groupServiceClient struct {
 	listDeviceGroups  *connect.Client[v1.ListDeviceGroupsRequest, v1.ListDeviceGroupsResponse]
 	moveDeviceToGroup *connect.Client[v1.MoveDeviceToGroupRequest, v1.MoveDeviceToGroupResponse]
+	createDeviceGroup *connect.Client[v1.CreateDeviceGroupRequest, v1.CreateDeviceGroupResponse]
 }
 
 // ListDeviceGroups calls drift.v1.GroupService.ListDeviceGroups.
@@ -89,10 +100,16 @@ func (c *groupServiceClient) MoveDeviceToGroup(ctx context.Context, req *connect
 	return c.moveDeviceToGroup.CallUnary(ctx, req)
 }
 
+// CreateDeviceGroup calls drift.v1.GroupService.CreateDeviceGroup.
+func (c *groupServiceClient) CreateDeviceGroup(ctx context.Context, req *connect.Request[v1.CreateDeviceGroupRequest]) (*connect.Response[v1.CreateDeviceGroupResponse], error) {
+	return c.createDeviceGroup.CallUnary(ctx, req)
+}
+
 // GroupServiceHandler is an implementation of the drift.v1.GroupService service.
 type GroupServiceHandler interface {
 	ListDeviceGroups(context.Context, *connect.Request[v1.ListDeviceGroupsRequest]) (*connect.Response[v1.ListDeviceGroupsResponse], error)
 	MoveDeviceToGroup(context.Context, *connect.Request[v1.MoveDeviceToGroupRequest]) (*connect.Response[v1.MoveDeviceToGroupResponse], error)
+	CreateDeviceGroup(context.Context, *connect.Request[v1.CreateDeviceGroupRequest]) (*connect.Response[v1.CreateDeviceGroupResponse], error)
 }
 
 // NewGroupServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -114,12 +131,20 @@ func NewGroupServiceHandler(svc GroupServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(groupServiceMethods.ByName("MoveDeviceToGroup")),
 		connect.WithHandlerOptions(opts...),
 	)
+	groupServiceCreateDeviceGroupHandler := connect.NewUnaryHandler(
+		GroupServiceCreateDeviceGroupProcedure,
+		svc.CreateDeviceGroup,
+		connect.WithSchema(groupServiceMethods.ByName("CreateDeviceGroup")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.GroupService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GroupServiceListDeviceGroupsProcedure:
 			groupServiceListDeviceGroupsHandler.ServeHTTP(w, r)
 		case GroupServiceMoveDeviceToGroupProcedure:
 			groupServiceMoveDeviceToGroupHandler.ServeHTTP(w, r)
+		case GroupServiceCreateDeviceGroupProcedure:
+			groupServiceCreateDeviceGroupHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -135,4 +160,8 @@ func (UnimplementedGroupServiceHandler) ListDeviceGroups(context.Context, *conne
 
 func (UnimplementedGroupServiceHandler) MoveDeviceToGroup(context.Context, *connect.Request[v1.MoveDeviceToGroupRequest]) (*connect.Response[v1.MoveDeviceToGroupResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.GroupService.MoveDeviceToGroup is not implemented"))
+}
+
+func (UnimplementedGroupServiceHandler) CreateDeviceGroup(context.Context, *connect.Request[v1.CreateDeviceGroupRequest]) (*connect.Response[v1.CreateDeviceGroupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.GroupService.CreateDeviceGroup is not implemented"))
 }

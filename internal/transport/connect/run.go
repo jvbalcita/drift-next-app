@@ -2,11 +2,14 @@ package transportconnect
 
 import (
 	"context"
+	"strings"
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
+	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/runs"
 	store "drift.local/drift-next/internal/store/sqlite"
+	"drift.local/drift-next/internal/workflows"
 )
 
 type RunHandler struct{ db *store.DB }
@@ -85,6 +88,58 @@ func (h *RunHandler) ListRunTargets(ctx context.Context, request *connectrpc.Req
 		out = append(out, runTargetProto(target))
 	}
 	return connectrpc.NewResponse(&driftv1.ListRunTargetsResponse{Targets: out, Page: pageResponse(next)}), nil
+}
+
+func (h *RunHandler) StartWorkflowRun(ctx context.Context, request *connectrpc.Request[driftv1.StartWorkflowRunRequest]) (*connectrpc.Response[driftv1.StartWorkflowRunResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("start workflow run request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	workflowID := strings.TrimSpace(request.Msg.GetWorkflowId())
+	if workflowID == "" {
+		return nil, invalidArgument("workflow ID is required")
+	}
+	if len(request.Msg.GetDeviceIds()) == 0 {
+		return nil, invalidArgument("choose at least one device before starting a run")
+	}
+	deviceIDs := make([]devices.DeviceID, 0, len(request.Msg.GetDeviceIds()))
+	seen := map[string]struct{}{}
+	for _, id := range request.Msg.GetDeviceIds() {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" {
+			return nil, invalidArgument("device IDs cannot be empty")
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		deviceIDs = append(deviceIDs, devices.DeviceID(trimmed))
+	}
+	published, publishErr := store.NewWorkflowRepository(h.db).PublishedVersion(ctx, workspace, workflows.ID(workflowID))
+	if publishErr != nil {
+		return nil, MapError(publishErr)
+	}
+	created, createErr := store.NewRunService(h.db).Create(ctx, store.CreateRunRequest{
+		Workspace:         workspace,
+		WorkflowVersionID: published.ID,
+		Selector: runs.TargetSelector{
+			Type:      runs.SelectorExplicitDevices,
+			DeviceIDs: deviceIDs,
+		},
+		ConcurrencyLimit: int(request.Msg.GetConcurrencyLimit()),
+		Approval:         runs.ApprovalPending,
+	}, actorType, actorID)
+	if createErr != nil {
+		return nil, MapError(createErr)
+	}
+	return connectrpc.NewResponse(&driftv1.StartWorkflowRunResponse{Run: workflowRunProto(created)}), nil
 }
 
 func runTargetProto(target runs.RunTarget) *driftv1.RunTarget {

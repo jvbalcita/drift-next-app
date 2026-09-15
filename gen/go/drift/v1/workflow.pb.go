@@ -80,14 +80,16 @@ func (WorkflowState) EnumDescriptor() ([]byte, []int) {
 }
 
 type Workflow struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	State         WorkflowState          `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.WorkflowState" json:"state,omitempty"`
-	RowVersion    uint64                 `protobuf:"varint,5,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Id                 string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace          *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DisplayName        string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	State              WorkflowState          `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.WorkflowState" json:"state,omitempty"`
+	RowVersion         uint64                 `protobuf:"varint,5,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	PublishedVersionId string                 `protobuf:"bytes,6,opt,name=published_version_id,json=publishedVersionId,proto3" json:"published_version_id,omitempty"`
+	PublishedVersion   uint32                 `protobuf:"varint,7,opt,name=published_version,json=publishedVersion,proto3" json:"published_version,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Workflow) Reset() {
@@ -151,6 +153,20 @@ func (x *Workflow) GetState() WorkflowState {
 func (x *Workflow) GetRowVersion() uint64 {
 	if x != nil {
 		return x.RowVersion
+	}
+	return 0
+}
+
+func (x *Workflow) GetPublishedVersionId() string {
+	if x != nil {
+		return x.PublishedVersionId
+	}
+	return ""
+}
+
+func (x *Workflow) GetPublishedVersion() uint32 {
+	if x != nil {
+		return x.PublishedVersion
 	}
 	return 0
 }
@@ -331,14 +347,16 @@ var File_drift_v1_workflow_proto protoreflect.FileDescriptor
 
 const file_drift_v1_workflow_proto_rawDesc = "" +
 	"\n" +
-	"\x17drift/v1/workflow.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xc3\x01\n" +
+	"\x17drift/v1/workflow.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xa2\x02\n" +
 	"\bWorkflow\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12-\n" +
 	"\x05state\x18\x04 \x01(\x0e2\x17.drift.v1.WorkflowStateR\x05state\x12\x1f\n" +
 	"\vrow_version\x18\x05 \x01(\x04R\n" +
-	"rowVersion\"\x8b\x01\n" +
+	"rowVersion\x120\n" +
+	"\x14published_version_id\x18\x06 \x01(\tR\x12publishedVersionId\x12+\n" +
+	"\x11published_version\x18\a \x01(\rR\x10publishedVersion\"\x8b\x01\n" +
 	"\x0fWorkflowVersion\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vworkflow_id\x18\x02 \x01(\tR\n" +

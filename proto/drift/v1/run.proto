@@ -69,8 +69,19 @@ message ListRunTargetsResponse {
   repeated RunTarget targets = 1;
   PageResponse page = 2;
 }
+message StartWorkflowRunRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string workflow_id = 3;
+  repeated string device_ids = 4;
+  uint32 concurrency_limit = 5;
+}
+message StartWorkflowRunResponse {
+  WorkflowRun run = 1;
+}
 service RunService {
   rpc ListWorkflowRuns(ListWorkflowRunsRequest) returns (ListWorkflowRunsResponse);
   rpc CancelWorkflowRun(CancelWorkflowRunRequest) returns (CancelWorkflowRunResponse);
   rpc ListRunTargets(ListRunTargetsRequest) returns (ListRunTargetsResponse);
+  rpc StartWorkflowRun(StartWorkflowRunRequest) returns (StartWorkflowRunResponse);
 }

@@ -36,11 +36,19 @@ const (
 	// AutomationAgentServiceListAutomationAgentsProcedure is the fully-qualified name of the
 	// AutomationAgentService's ListAutomationAgents RPC.
 	AutomationAgentServiceListAutomationAgentsProcedure = "/drift.v1.AutomationAgentService/ListAutomationAgents"
+	// AutomationAgentServiceCreateAutomationAgentProcedure is the fully-qualified name of the
+	// AutomationAgentService's CreateAutomationAgent RPC.
+	AutomationAgentServiceCreateAutomationAgentProcedure = "/drift.v1.AutomationAgentService/CreateAutomationAgent"
+	// AutomationAgentServiceAssignAutomationAgentDeviceProcedure is the fully-qualified name of the
+	// AutomationAgentService's AssignAutomationAgentDevice RPC.
+	AutomationAgentServiceAssignAutomationAgentDeviceProcedure = "/drift.v1.AutomationAgentService/AssignAutomationAgentDevice"
 )
 
 // AutomationAgentServiceClient is a client for the drift.v1.AutomationAgentService service.
 type AutomationAgentServiceClient interface {
 	ListAutomationAgents(context.Context, *connect.Request[v1.ListAutomationAgentsRequest]) (*connect.Response[v1.ListAutomationAgentsResponse], error)
+	CreateAutomationAgent(context.Context, *connect.Request[v1.CreateAutomationAgentRequest]) (*connect.Response[v1.CreateAutomationAgentResponse], error)
+	AssignAutomationAgentDevice(context.Context, *connect.Request[v1.AssignAutomationAgentDeviceRequest]) (*connect.Response[v1.AssignAutomationAgentDeviceResponse], error)
 }
 
 // NewAutomationAgentServiceClient constructs a client for the drift.v1.AutomationAgentService
@@ -60,12 +68,26 @@ func NewAutomationAgentServiceClient(httpClient connect.HTTPClient, baseURL stri
 			connect.WithSchema(automationAgentServiceMethods.ByName("ListAutomationAgents")),
 			connect.WithClientOptions(opts...),
 		),
+		createAutomationAgent: connect.NewClient[v1.CreateAutomationAgentRequest, v1.CreateAutomationAgentResponse](
+			httpClient,
+			baseURL+AutomationAgentServiceCreateAutomationAgentProcedure,
+			connect.WithSchema(automationAgentServiceMethods.ByName("CreateAutomationAgent")),
+			connect.WithClientOptions(opts...),
+		),
+		assignAutomationAgentDevice: connect.NewClient[v1.AssignAutomationAgentDeviceRequest, v1.AssignAutomationAgentDeviceResponse](
+			httpClient,
+			baseURL+AutomationAgentServiceAssignAutomationAgentDeviceProcedure,
+			connect.WithSchema(automationAgentServiceMethods.ByName("AssignAutomationAgentDevice")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // automationAgentServiceClient implements AutomationAgentServiceClient.
 type automationAgentServiceClient struct {
-	listAutomationAgents *connect.Client[v1.ListAutomationAgentsRequest, v1.ListAutomationAgentsResponse]
+	listAutomationAgents        *connect.Client[v1.ListAutomationAgentsRequest, v1.ListAutomationAgentsResponse]
+	createAutomationAgent       *connect.Client[v1.CreateAutomationAgentRequest, v1.CreateAutomationAgentResponse]
+	assignAutomationAgentDevice *connect.Client[v1.AssignAutomationAgentDeviceRequest, v1.AssignAutomationAgentDeviceResponse]
 }
 
 // ListAutomationAgents calls drift.v1.AutomationAgentService.ListAutomationAgents.
@@ -73,10 +95,22 @@ func (c *automationAgentServiceClient) ListAutomationAgents(ctx context.Context,
 	return c.listAutomationAgents.CallUnary(ctx, req)
 }
 
+// CreateAutomationAgent calls drift.v1.AutomationAgentService.CreateAutomationAgent.
+func (c *automationAgentServiceClient) CreateAutomationAgent(ctx context.Context, req *connect.Request[v1.CreateAutomationAgentRequest]) (*connect.Response[v1.CreateAutomationAgentResponse], error) {
+	return c.createAutomationAgent.CallUnary(ctx, req)
+}
+
+// AssignAutomationAgentDevice calls drift.v1.AutomationAgentService.AssignAutomationAgentDevice.
+func (c *automationAgentServiceClient) AssignAutomationAgentDevice(ctx context.Context, req *connect.Request[v1.AssignAutomationAgentDeviceRequest]) (*connect.Response[v1.AssignAutomationAgentDeviceResponse], error) {
+	return c.assignAutomationAgentDevice.CallUnary(ctx, req)
+}
+
 // AutomationAgentServiceHandler is an implementation of the drift.v1.AutomationAgentService
 // service.
 type AutomationAgentServiceHandler interface {
 	ListAutomationAgents(context.Context, *connect.Request[v1.ListAutomationAgentsRequest]) (*connect.Response[v1.ListAutomationAgentsResponse], error)
+	CreateAutomationAgent(context.Context, *connect.Request[v1.CreateAutomationAgentRequest]) (*connect.Response[v1.CreateAutomationAgentResponse], error)
+	AssignAutomationAgentDevice(context.Context, *connect.Request[v1.AssignAutomationAgentDeviceRequest]) (*connect.Response[v1.AssignAutomationAgentDeviceResponse], error)
 }
 
 // NewAutomationAgentServiceHandler builds an HTTP handler from the service implementation. It
@@ -92,10 +126,26 @@ func NewAutomationAgentServiceHandler(svc AutomationAgentServiceHandler, opts ..
 		connect.WithSchema(automationAgentServiceMethods.ByName("ListAutomationAgents")),
 		connect.WithHandlerOptions(opts...),
 	)
+	automationAgentServiceCreateAutomationAgentHandler := connect.NewUnaryHandler(
+		AutomationAgentServiceCreateAutomationAgentProcedure,
+		svc.CreateAutomationAgent,
+		connect.WithSchema(automationAgentServiceMethods.ByName("CreateAutomationAgent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	automationAgentServiceAssignAutomationAgentDeviceHandler := connect.NewUnaryHandler(
+		AutomationAgentServiceAssignAutomationAgentDeviceProcedure,
+		svc.AssignAutomationAgentDevice,
+		connect.WithSchema(automationAgentServiceMethods.ByName("AssignAutomationAgentDevice")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.AutomationAgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AutomationAgentServiceListAutomationAgentsProcedure:
 			automationAgentServiceListAutomationAgentsHandler.ServeHTTP(w, r)
+		case AutomationAgentServiceCreateAutomationAgentProcedure:
+			automationAgentServiceCreateAutomationAgentHandler.ServeHTTP(w, r)
+		case AutomationAgentServiceAssignAutomationAgentDeviceProcedure:
+			automationAgentServiceAssignAutomationAgentDeviceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -107,4 +157,12 @@ type UnimplementedAutomationAgentServiceHandler struct{}
 
 func (UnimplementedAutomationAgentServiceHandler) ListAutomationAgents(context.Context, *connect.Request[v1.ListAutomationAgentsRequest]) (*connect.Response[v1.ListAutomationAgentsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AutomationAgentService.ListAutomationAgents is not implemented"))
+}
+
+func (UnimplementedAutomationAgentServiceHandler) CreateAutomationAgent(context.Context, *connect.Request[v1.CreateAutomationAgentRequest]) (*connect.Response[v1.CreateAutomationAgentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AutomationAgentService.CreateAutomationAgent is not implemented"))
+}
+
+func (UnimplementedAutomationAgentServiceHandler) AssignAutomationAgentDevice(context.Context, *connect.Request[v1.AssignAutomationAgentDeviceRequest]) (*connect.Response[v1.AssignAutomationAgentDeviceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.AutomationAgentService.AssignAutomationAgentDevice is not implemented"))
 }

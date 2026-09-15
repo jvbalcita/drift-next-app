@@ -48,6 +48,10 @@ import {
   ReadArtifactResponseSchema,
 } from "@/gen/drift/v1/artifact_pb"
 import {
+  AssignAutomationAgentDeviceRequestSchema,
+  AssignAutomationAgentDeviceResponseSchema,
+  CreateAutomationAgentRequestSchema,
+  CreateAutomationAgentResponseSchema,
   ListAutomationAgentsRequestSchema,
   ListAutomationAgentsResponseSchema,
 } from "@/gen/drift/v1/automation_agent_pb"
@@ -87,6 +91,8 @@ import {
   ListOperationalEventsResponseSchema,
 } from "@/gen/drift/v1/event_pb"
 import {
+  CreateDeviceGroupRequestSchema,
+  CreateDeviceGroupResponseSchema,
   ListDeviceGroupsRequestSchema,
   ListDeviceGroupsResponseSchema,
   MoveDeviceToGroupRequestSchema,
@@ -162,6 +168,8 @@ import {
   ListRunTargetsResponseSchema,
   ListWorkflowRunsRequestSchema,
   ListWorkflowRunsResponseSchema,
+  StartWorkflowRunRequestSchema,
+  StartWorkflowRunResponseSchema,
 } from "@/gen/drift/v1/run_pb"
 import {
   CreateSettingRequestSchema,
@@ -298,6 +306,13 @@ export class GroupClient {
       deviceId,
       groupId,
       position,
+    })
+  }
+  createDeviceGroup(requestId: string, workspaceId: string, displayName: string) {
+    return this.rpc.call("CreateDeviceGroup", CreateDeviceGroupRequestSchema, CreateDeviceGroupResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      displayName,
     })
   }
 }
@@ -616,6 +631,15 @@ export class RunClient {
       page: listPage,
     })
   }
+  startWorkflowRun(requestId: string, workspaceId: string, workflowId: string, deviceIds: readonly string[]) {
+    return this.rpc.call("StartWorkflowRun", StartWorkflowRunRequestSchema, StartWorkflowRunResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      workflowId,
+      deviceIds: [...deviceIds],
+      concurrencyLimit: 1,
+    })
+  }
 }
 
 export class ArtifactClient {
@@ -644,6 +668,21 @@ export class AutomationAgentClient {
   }
   listAutomationAgents(workspaceId: string) {
     return this.rpc.call("ListAutomationAgents", ListAutomationAgentsRequestSchema, ListAutomationAgentsResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
+  }
+  createAutomationAgent(requestId: string, workspaceId: string, displayName: string) {
+    return this.rpc.call("CreateAutomationAgent", CreateAutomationAgentRequestSchema, CreateAutomationAgentResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      displayName,
+    })
+  }
+  assignAutomationAgentDevice(requestId: string, workspaceId: string, automationAgentId: string, deviceId: string) {
+    return this.rpc.call("AssignAutomationAgentDevice", AssignAutomationAgentDeviceRequestSchema, AssignAutomationAgentDeviceResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      automationAgentId,
+      deviceId,
+    })
   }
 }
 

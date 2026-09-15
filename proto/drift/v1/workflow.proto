@@ -19,6 +19,8 @@ message Workflow {
   string display_name = 3;
   WorkflowState state = 4;
   uint64 row_version = 5;
+  string published_version_id = 6;
+  uint32 published_version = 7;
 }
 message WorkflowVersion {
   string id = 1;

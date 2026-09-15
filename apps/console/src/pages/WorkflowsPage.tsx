@@ -12,7 +12,7 @@ export function WorkflowsPage({ snapshot, dispatch, view = "definitions", onView
   return (
     <>
       <PageIntro eyebrow="EXECUTION / WORKFLOWS" title="Workflows" description="Definitions, immutable version facts, and promoted skills are separate from run admission and target execution." actions={<StatusBadge label={`${snapshot.workflows.length} definitions`} tone="info" />} />
-      <OperatorNotice>Catalog rows come from the control plane. Starting a run still requires an approved definition, target snapshot, and per-device admission.</OperatorNotice>
+      <OperatorNotice>Catalog rows come from the control plane. Start a published workflow from Runs after choosing explicit devices and confirming. Unpublished definitions cannot run.</OperatorNotice>
       {feedback ? (
         <p role="status" className="mb-4 border border-border bg-muted/30 px-3 py-2 text-xs" aria-live="polite">
           {feedback}

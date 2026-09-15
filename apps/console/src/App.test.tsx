@@ -456,7 +456,7 @@ describe("Drift command center", () => {
       ["Accounts", /^Accounts$/],
       ["Network Profiles", /Network Profiles/],
       ["Groups", /Groups and Membership/],
-      ["Agents", /Agent profiles/],
+      ["Agents", /Agent Profiles/],
       ["Runs", /Runs and Targets/],
       ["Artifacts", /^Artifacts$/],
       ["Events", /Events and Audit/],

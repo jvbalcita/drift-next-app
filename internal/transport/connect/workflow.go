@@ -2,6 +2,7 @@ package transportconnect
 
 import (
 	"context"
+	"strings"
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
@@ -30,20 +31,27 @@ func (h *WorkflowHandler) ListWorkflows(ctx context.Context, request *connectrpc
 		return nil, MapError(listErr)
 	}
 	page, next := applyPage(listed, offset, limit)
+	repo := store.NewWorkflowRepository(h.db)
 	out := make([]*driftv1.Workflow, 0, len(page))
 	for _, workflow := range page {
-		out = append(out, workflowProto(workflow))
+		published, _ := repo.PublishedVersion(ctx, workspace, workflow.ID)
+		out = append(out, workflowProto(workflow, published))
 	}
 	return connectrpc.NewResponse(&driftv1.ListWorkflowsResponse{Workflows: out, Page: pageResponse(next)}), nil
 }
 
-func workflowProto(workflow workflows.Workflow) *driftv1.Workflow {
-	return &driftv1.Workflow{
+func workflowProto(workflow workflows.Workflow, published workflows.Version) *driftv1.Workflow {
+	message := &driftv1.Workflow{
 		Id:          string(workflow.ID),
 		Workspace:   workspaceRef(workflow.Workspace),
 		DisplayName: workflow.Name,
 		State:       workflowStateProto(workflow.State),
 	}
+	if strings.TrimSpace(string(published.ID)) != "" {
+		message.PublishedVersionId = string(published.ID)
+		message.PublishedVersion = uint32(published.Version)
+	}
+	return message
 }
 
 func workflowStateProto(state workflows.State) driftv1.WorkflowState {
