@@ -15,12 +15,18 @@ import type {
   ControlPlaneClient,
   ControlPlaneIntent,
   ControlPlaneSnapshot,
+  LabAdapterView,
   MutationResult,
 } from "@/lib/domain/control-plane"
 
 const operatorId = defaultOperatorId
 
-function isUnobservedAdapter(adapter: ControlPlaneSnapshot["labAdapter"]): boolean {
+function isControlPlaneOutage(snapshot: ControlPlaneSnapshot): boolean {
+  const reason = snapshot.runtimeConnection.disconnectedReason
+  return reason === "Control plane unreachable." || reason === "Control plane authorization failed."
+}
+
+function isUnobservedAdapter(adapter: LabAdapterView): boolean {
   return adapter.discovered.length === 0
     && adapter.confirmedSerial.length === 0
     && adapter.adapterVersion.length === 0
@@ -29,12 +35,26 @@ function isUnobservedAdapter(adapter: ControlPlaneSnapshot["labAdapter"]): boole
 }
 
 export function mergeAdapterProjection(next: ControlPlaneSnapshot, current: ControlPlaneSnapshot): ControlPlaneSnapshot {
-  const keepCurrentAdapter = isUnobservedAdapter(next.labAdapter) && !isUnobservedAdapter(current.labAdapter)
+  const keepCurrentAdapter = !isControlPlaneOutage(next)
+    && isUnobservedAdapter(next.labAdapter)
+    && !isUnobservedAdapter(current.labAdapter)
   return {
     ...next,
     labAdapter: keepCurrentAdapter ? current.labAdapter : next.labAdapter,
     provisioningReadiness: keepCurrentAdapter ? next.provisioningReadiness ?? current.provisioningReadiness : next.provisioningReadiness,
     labRegistration: keepCurrentAdapter ? next.labRegistration ?? current.labRegistration : next.labRegistration,
+  }
+}
+
+export function applyAdapterIntentProjection(
+  current: ControlPlaneSnapshot,
+  labAdapter: LabAdapterView,
+  intentType: ControlPlaneIntent["type"],
+): ControlPlaneSnapshot {
+  return {
+    ...current,
+    labAdapter,
+    ...(intentType === "clearLabTarget" ? { provisioningReadiness: null, labRegistration: null } : {}),
   }
 }
 
@@ -93,7 +113,7 @@ export function useControlPlane(): ControlPlaneViewModel {
     try {
       if (labClient && isLabControlPlaneIntent(intent)) {
         const labAdapter = await applyLabIntent(labClient, intent, context)
-        setSnapshot((current) => ({ ...current, labAdapter }))
+        setSnapshot((current) => applyAdapterIntentProjection(current, labAdapter, intent.type))
         const message = "The device adapter answered. Status below reflects the connected adapter."
         setLabNotice(message)
         return { ok: true, kind: intent.type, message }

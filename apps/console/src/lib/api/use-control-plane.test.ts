@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { createMockControlPlaneClient } from "@/lib/api/mock-control-plane"
-import { mergeAdapterProjection } from "@/lib/api/use-control-plane"
+import { applyAdapterIntentProjection, mergeAdapterProjection } from "@/lib/api/use-control-plane"
 import type { LabAdapterView } from "@/lib/domain/control-plane"
 
 function adapter(overrides: Partial<LabAdapterView> = {}): LabAdapterView {
@@ -172,5 +172,69 @@ describe("mergeAdapterProjection", () => {
 
     expect(merged.provisioningReadiness?.serial).toBe("SERIAL1")
     expect(merged.labRegistration?.deviceId).toBe("device-1")
+  })
+
+  it("does not keep adapter state when the control plane is unreachable", () => {
+    const current = createMockControlPlaneClient().getSnapshot()
+    const populated = {
+      ...current,
+      labAdapter: adapter({ confirmedSerial: "SERIAL1", lastHealthAt: "10:00:00" }),
+    }
+    const next = {
+      ...current,
+      labAdapter: placeholderAdapter(),
+      runtimeConnection: {
+        ...current.runtimeConnection,
+        state: "disconnected" as const,
+        disconnectedReason: "Control plane unreachable.",
+      },
+      provisioningReadiness: null,
+      labRegistration: null,
+    }
+
+    const merged = mergeAdapterProjection(next, populated)
+
+    expect(merged.labAdapter.confirmedSerial).toBe("")
+    expect(merged.runtimeConnection.state).toBe("disconnected")
+  })
+})
+
+describe("applyAdapterIntentProjection", () => {
+  it("clears provisioning and registration when the target is cleared", () => {
+    const current = createMockControlPlaneClient().getSnapshot()
+    const populated = {
+      ...current,
+      labAdapter: adapter({ confirmedSerial: "SERIAL1" }),
+      provisioningReadiness: {
+        serial: "SERIAL1",
+        transportId: "usb:1",
+        endpointHost: "",
+        endpointPort: 0,
+        connectionType: "usb",
+        pairingAuthorized: true,
+        adbServerOwned: true,
+        platformToolsCompatible: true,
+        portPolicyAllowed: true,
+        rollbackReady: true,
+        operatorAuthorized: true,
+        state: "provision_verified" as const,
+        ready: true,
+        notes: [],
+      },
+      labRegistration: {
+        serial: "SERIAL1",
+        displayName: "Pixel",
+        state: "registered" as const,
+        approved: true,
+        mockLabeled: false,
+        deviceId: "device-1",
+      },
+    }
+
+    const next = applyAdapterIntentProjection(populated, placeholderAdapter(), "clearLabTarget")
+
+    expect(next.labAdapter.confirmedSerial).toBe("")
+    expect(next.provisioningReadiness).toBeNull()
+    expect(next.labRegistration).toBeNull()
   })
 })
