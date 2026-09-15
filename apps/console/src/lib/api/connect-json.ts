@@ -21,6 +21,12 @@ export function controlPlaneBaseUrl(): string {
   return defaultControlPlaneUrl
 }
 
+export function adapterServiceBaseUrl(configured = import.meta.env.VITE_DRIFT_LAB_ADAPTER_URL): string {
+  const explicit = configured?.trim()
+  if (explicit) return explicit.replace(/\/+$/, "")
+  return controlPlaneBaseUrl()
+}
+
 export function configuredLabToken(): string {
   return import.meta.env.VITE_DRIFT_LAB_TOKEN?.trim() ?? ""
 }

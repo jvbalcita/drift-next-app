@@ -14,9 +14,8 @@ import {
 } from "@/gen/drift/v1/lab_registration_pb"
 import type { LabProvisionState, LabRegistrationView, ProvisioningReadinessView } from "@/lib/domain/control-plane"
 import { LabAdapterRequestError, type LabAdapterCallOptions } from "@/lib/api/lab-adapter-client"
-import { ConnectJsonClient, ConnectJsonError, configuredLabToken, requestContext, workspaceRef } from "@/lib/api/connect-json"
+import { ConnectJsonClient, ConnectJsonError, adapterServiceBaseUrl, configuredLabToken, requestContext, usesMockControlPlane, workspaceRef } from "@/lib/api/connect-json"
 
-const configuredBaseUrl = import.meta.env.VITE_DRIFT_LAB_ADAPTER_URL
 const configuredToken = configuredLabToken()
 const serviceName = "drift.v1.LabRegistrationService"
 
@@ -97,7 +96,7 @@ export class LabRegistrationClient {
       return await this.json.call(serviceName, method, requestSchema, responseSchema, init)
     } catch (cause: unknown) {
       if (cause instanceof ConnectJsonError) {
-        throw new LabAdapterRequestError(cause.code, cause.message.startsWith("Request ") ? `Lab registration request ${method} failed.` : cause.message)
+        throw new LabAdapterRequestError(cause.code, cause.message.startsWith("Request ") ? `Device registration request ${method} failed.` : cause.message)
       }
       throw cause
     }
@@ -105,10 +104,12 @@ export class LabRegistrationClient {
 }
 
 export function createLabRegistrationClient(
-  baseUrl: string | undefined = configuredBaseUrl,
+  baseUrl?: string,
   token: string | undefined = configuredToken,
 ): LabRegistrationClient | undefined {
-  return baseUrl && baseUrl.length > 0 ? new LabRegistrationClient(baseUrl, token ?? "") : undefined
+  const explicit = baseUrl?.trim() ?? ""
+  const resolved = explicit || (usesMockControlPlane() ? "" : adapterServiceBaseUrl())
+  return resolved.length > 0 ? new LabRegistrationClient(resolved, token ?? "") : undefined
 }
 
 export function toProvisioningReadinessView(ready: LabProvisioningReady): ProvisioningReadinessView {

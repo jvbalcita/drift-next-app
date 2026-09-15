@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { createLabAdapterClient } from "@/lib/api/lab-adapter-client"
+import { createLabAdapterClient, toLabAdapterView, type LabAdapterClient } from "@/lib/api/lab-adapter-client"
 import {
   applyLabIntent,
   applyLabRegistrationIntent,
@@ -7,8 +7,8 @@ import {
   isLabRegistrationControlPlaneIntent,
   labIntentFailure,
 } from "@/lib/api/lab-control-plane"
-import { createLabRegistrationClient } from "@/lib/api/lab-registration-client"
-import { usesMockControlPlane } from "@/lib/api/connect-json"
+import { createLabRegistrationClient, toLabRegistrationView, toProvisioningReadinessView, type LabRegistrationClient } from "@/lib/api/lab-registration-client"
+import { newRequestId, usesMockControlPlane } from "@/lib/api/connect-json"
 import { createMockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import { createRealControlPlaneClient } from "@/lib/api/real-control-plane"
 import type {
@@ -47,9 +47,10 @@ export function useControlPlane(): ControlPlaneViewModel {
     setConnectionError("")
     try {
       const next = await client.refresh()
-      setSnapshot(next)
-      if (next.runtimeConnection.disconnectedReason === "Control plane unreachable." || next.runtimeConnection.disconnectedReason === "Control plane authorization failed.") {
-        setConnectionError(next.runtimeConnection.disconnectedReason)
+      const overlay = await overlayAdapterStatus(next, labClient, registrationClient, operatorId)
+      setSnapshot(overlay)
+      if (overlay.runtimeConnection.disconnectedReason === "Control plane unreachable." || overlay.runtimeConnection.disconnectedReason === "Control plane authorization failed.") {
+        setConnectionError(overlay.runtimeConnection.disconnectedReason)
       }
     } catch (cause: unknown) {
       const message = cause instanceof Error ? cause.message : "Control plane unreachable."
@@ -58,7 +59,7 @@ export function useControlPlane(): ControlPlaneViewModel {
     } finally {
       setLoading(false)
     }
-  }, [client])
+  }, [client, labClient, registrationClient])
 
   useEffect(() => {
     if (usesMockControlPlane()) return
@@ -124,5 +125,34 @@ export function useControlPlane(): ControlPlaneViewModel {
     loading,
     connectionError,
     reload,
+  }
+}
+
+async function overlayAdapterStatus(
+  snapshot: ControlPlaneSnapshot,
+  labClient: LabAdapterClient | undefined,
+  registrationClient: LabRegistrationClient | undefined,
+  operator: string,
+): Promise<ControlPlaneSnapshot> {
+  if (!labClient) return snapshot
+  const options = {
+    workspaceId: snapshot.workspaceId,
+    requestId: newRequestId(),
+    operatorId: operator,
+  }
+  try {
+    const status = await labClient.getLabStatus(options)
+    if (!status) return snapshot
+    const overlay: ControlPlaneSnapshot = { ...snapshot, labAdapter: toLabAdapterView(status) }
+    const serial = overlay.labAdapter.confirmedSerial
+    if (!registrationClient || serial.length === 0) return overlay
+    const record = await registrationClient.getLabRegistrationStatus(options, serial)
+    return {
+      ...overlay,
+      provisioningReadiness: record.readiness ? toProvisioningReadinessView(record.readiness) : overlay.provisioningReadiness,
+      labRegistration: record.registration ? toLabRegistrationView(record.registration) : overlay.labRegistration,
+    }
+  } catch {
+    return snapshot
   }
 }

@@ -21,17 +21,15 @@ import {
   ConnectJsonClient,
   ConnectJsonError,
   LabAdapterRequestError,
+  adapterServiceBaseUrl,
   configuredLabToken,
   requestContext,
+  usesMockControlPlane,
   workspaceRef,
 } from "@/lib/api/connect-json"
 import type { LabAdapterView, LabDiscoveredDeviceView, LabMode as LabModeView, LabReadiness as LabReadinessView } from "@/lib/domain/control-plane"
 
 export { LabAdapterRequestError }
-
-// labAdapterBaseUrl is set only when an operator opts into the local lab
-// Connect endpoint. When it is unset the console stays on the mock path.
-const configuredBaseUrl = import.meta.env.VITE_DRIFT_LAB_ADAPTER_URL
 
 const configuredToken = configuredLabToken()
 
@@ -101,15 +99,17 @@ export class LabAdapterClient {
       return await this.json.call(serviceName, method, requestSchema, responseSchema, init)
     } catch (cause: unknown) {
       if (cause instanceof ConnectJsonError) {
-        throw new LabAdapterRequestError(cause.code, cause.message.startsWith("Request ") ? `Lab adapter request ${method} failed.` : cause.message)
+        throw new LabAdapterRequestError(cause.code, cause.message.startsWith("Request ") ? `Device adapter request ${method} failed.` : cause.message)
       }
       throw cause
     }
   }
 }
 
-export function createLabAdapterClient(baseUrl: string | undefined = configuredBaseUrl, token: string | undefined = configuredToken): LabAdapterClient | undefined {
-  return baseUrl && baseUrl.length > 0 ? new LabAdapterClient(baseUrl, token ?? "") : undefined
+export function createLabAdapterClient(baseUrl?: string, token: string | undefined = configuredToken): LabAdapterClient | undefined {
+  const explicit = baseUrl?.trim() ?? ""
+  const resolved = explicit || (usesMockControlPlane() ? "" : adapterServiceBaseUrl())
+  return resolved.length > 0 ? new LabAdapterClient(resolved, token ?? "") : undefined
 }
 
 const modes: Record<LabMode, LabModeView> = { [LabMode.UNSPECIFIED]: "mock", [LabMode.MOCK]: "mock", [LabMode.LAB]: "lab" }

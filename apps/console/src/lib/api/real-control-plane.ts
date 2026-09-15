@@ -1645,7 +1645,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       automationAgents: automationAgents.value.agents,
       automationAgentProfiles: automationAgents.value.profiles,
       recordingMedia: recordingMedia.value,
-      labAdapter: previous.labAdapter.mode === "lab" ? previous.labAdapter : emptyLabAdapter(),
+      labAdapter: previous.labAdapter,
       provisioningReadiness: previous.provisioningReadiness,
       labRegistration: previous.labRegistration,
       mirrorSessions: mirrorSessions.value,
