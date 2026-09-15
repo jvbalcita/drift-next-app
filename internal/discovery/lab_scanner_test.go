@@ -27,7 +27,7 @@ func (s stubEnumerator) Enumerate(ctx context.Context) ([]discovery.RuntimeDevic
 func TestAuthorizedLabScannerRequiresLabRuntime(t *testing.T) {
 	profile := networkprofiles.NetworkProfile{
 		ID: "profile-1", Workspace: "ws", Name: "Lab", AddressPolicy: "192.0.2.0/28",
-		Ports: []uint16{5555}, State: networkprofiles.Active,
+		Ports: []uint16{5555},
 	}
 	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{
 		Authorized: false,
@@ -43,7 +43,7 @@ func TestAuthorizedLabScannerRequiresLabRuntime(t *testing.T) {
 func TestAuthorizedLabScannerMapsRuntimeDevicesInsidePortAndAddressPolicy(t *testing.T) {
 	profile := networkprofiles.NetworkProfile{
 		ID: "profile-1", Workspace: "ws", Name: "Lab", AddressPolicy: "192.0.2.0/28",
-		Ports: []uint16{5555}, State: networkprofiles.Active,
+		Ports: []uint16{5555},
 	}
 	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{
 		Authorized: true,
@@ -77,7 +77,7 @@ func TestAuthorizedLabScannerMapsRuntimeDevicesInsidePortAndAddressPolicy(t *tes
 func TestAuthorizedLabScannerReportsMissingRuntimeClearly(t *testing.T) {
 	profile := networkprofiles.NetworkProfile{
 		ID: "profile-1", Workspace: "ws", Name: "Lab", AddressPolicy: "192.0.2.0/28",
-		Ports: []uint16{5555}, State: networkprofiles.Active,
+		Ports: []uint16{5555},
 	}
 	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{
 		Authorized: true,

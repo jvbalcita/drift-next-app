@@ -27,8 +27,7 @@ func (d *DB) GetNetworkProfile(ctx context.Context, workspace organizations.Work
 	}
 	var portsJSON string
 	var defaultValue int
-	var version int64
-	err := d.db.QueryRowContext(ctx, `SELECT id, workspace_id, name, address_policy, ports_json, is_default, state, row_version FROM network_profiles WHERE workspace_id = ? AND id = ?`, workspace, id).Scan(&profile.ID, &profile.Workspace, &profile.Name, &profile.AddressPolicy, &portsJSON, &defaultValue, &profile.State, &version)
+	err := d.db.QueryRowContext(ctx, `SELECT id, workspace_id, name, address_policy, ports_json, is_default FROM network_profiles WHERE workspace_id = ? AND id = ?`, workspace, id).Scan(&profile.ID, &profile.Workspace, &profile.Name, &profile.AddressPolicy, &portsJSON, &defaultValue)
 	if err == sql.ErrNoRows {
 		return profile, platformerrors.New(platformerrors.CodeNotFound, "network profile not found")
 	}
@@ -39,7 +38,6 @@ func (d *DB) GetNetworkProfile(ctx context.Context, workspace organizations.Work
 		return profile, platformerrors.Wrap(platformerrors.CodeInternal, "decode network profile ports", err)
 	}
 	profile.IsDefault = defaultValue != 0
-	profile.RowVersion = uint64(version)
 	return profile, nil
 }
 

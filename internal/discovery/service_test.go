@@ -15,7 +15,6 @@ func validTestProfile() networkprofiles.NetworkProfile {
 		Name:          "Lab range",
 		AddressPolicy: "192.0.2.0/28",
 		Ports:         []uint16{5555},
-		State:         networkprofiles.Active,
 	}
 }
 
@@ -32,17 +31,18 @@ func TestNetworkProfileValidationRejectsUnboundedOrUnsafePolicies(t *testing.T) 
 			return p
 		}(),
 		func() networkprofiles.NetworkProfile { p := validTestProfile(); p.Ports = []uint16{0}; return p }(),
-		func() networkprofiles.NetworkProfile {
-			p := validTestProfile()
-			p.IsDefault = true
-			p.State = networkprofiles.Draft
-			return p
-		}(),
 	}
 	for _, profile := range cases {
 		if err := profile.Validate(); err == nil {
 			t.Fatalf("Validate(%#v) = nil, want invalid profile", profile)
 		}
+	}
+}
+
+func TestNewProfileIsImmediatelyScanEligible(t *testing.T) {
+	profile := validTestProfile()
+	if err := profile.Validate(); err != nil {
+		t.Fatalf("new saved profile Validate() error = %v", err)
 	}
 }
 

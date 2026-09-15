@@ -7,23 +7,12 @@ import (
 	"sort"
 	"strings"
 
-	"drift.local/drift-next/internal/domain"
 	"drift.local/drift-next/internal/organizations"
 )
 
 type NetworkProfileID string
 
-type State string
-
-const (
-	Draft    State = "draft"
-	Active   State = "active"
-	Disabled State = "disabled"
-	Retired  State = "retired"
-)
-
-// NetworkProfile is deliberately bounded. CIDR/range and port validation is
-// performed by the owning service before a profile can become active.
+// NetworkProfile is deliberately bounded saved discovery policy.
 type NetworkProfile struct {
 	ID            NetworkProfileID
 	Workspace     organizations.WorkspaceID
@@ -31,8 +20,6 @@ type NetworkProfile struct {
 	AddressPolicy string
 	Ports         []uint16
 	IsDefault     bool
-	State         State
-	RowVersion    uint64
 }
 
 const (
@@ -68,12 +55,6 @@ func (p NetworkProfile) Validate() error {
 			return fmt.Errorf("ports must not contain duplicates")
 		}
 		seen[port] = struct{}{}
-	}
-	if !p.State.Valid() {
-		return fmt.Errorf("network profile state is invalid")
-	}
-	if p.IsDefault && p.State != Active {
-		return fmt.Errorf("only active profiles may be default")
 	}
 	return nil
 }
@@ -142,35 +123,4 @@ func (p NetworkProfile) SortedPorts() []uint16 {
 	ports := append([]uint16(nil), p.Ports...)
 	sort.Slice(ports, func(i, j int) bool { return ports[i] < ports[j] })
 	return ports
-}
-
-func (s State) Valid() bool {
-	switch s {
-	case Draft, Active, Disabled, Retired:
-		return true
-	default:
-		return false
-	}
-}
-
-func CanTransition(from, to State) bool {
-	switch from {
-	case Draft:
-		return to == Active || to == Retired
-	case Active:
-		return to == Disabled || to == Retired
-	case Disabled:
-		return to == Active || to == Retired
-	case Retired:
-		return false
-	default:
-		return false
-	}
-}
-
-func Transition(from, to State) error {
-	if !CanTransition(from, to) {
-		return domain.InvalidTransition("network_profile", string(from), string(to))
-	}
-	return nil
 }

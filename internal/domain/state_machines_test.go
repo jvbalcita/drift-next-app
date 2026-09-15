@@ -17,7 +17,6 @@ import (
 	"drift.local/drift-next/internal/groups"
 	"drift.local/drift-next/internal/leases"
 	"drift.local/drift-next/internal/mirrors"
-	"drift.local/drift-next/internal/networkprofiles"
 	"drift.local/drift-next/internal/observations"
 	"drift.local/drift-next/internal/organizations"
 	"drift.local/drift-next/internal/packages"
@@ -84,11 +83,6 @@ func TestRuntimeAndDeviceTransitions(t *testing.T) {
 }
 
 func TestDiscoveryTransitionsRequireApproval(t *testing.T) {
-	checkTransitions(t, "network_profile", []transitionCase[networkprofiles.State]{
-		{name: "draft to active", from: networkprofiles.Draft, to: networkprofiles.Active, want: true},
-		{name: "active to disabled", from: networkprofiles.Active, to: networkprofiles.Disabled, want: true},
-		{name: "retired is terminal", from: networkprofiles.Retired, to: networkprofiles.Active, want: false},
-	}, networkprofiles.CanTransition, networkprofiles.Transition)
 	checkTransitions(t, "scan_run", []transitionCase[discovery.ScanRunState]{
 		{name: "requested to running", from: discovery.ScanRequested, to: discovery.ScanRunning, want: true},
 		{name: "running to completed", from: discovery.ScanRunning, to: discovery.ScanCompleted, want: true},

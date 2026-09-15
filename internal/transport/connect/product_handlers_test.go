@@ -95,7 +95,6 @@ func TestNetworkProfileCreatePersistsAndPaginates(t *testing.T) {
 			DisplayName:   "Lab net",
 			AddressPolicy: "192.0.2.0/28",
 			AllowedPorts:  []uint32{5555},
-			State:         driftv1.NetworkProfileState_NETWORK_PROFILE_STATE_ACTIVE,
 		},
 	}))
 	if err != nil || created.Msg.Profile.GetId() == "" || created.Msg.Profile.GetDisplayName() != "Lab net" {
@@ -126,7 +125,7 @@ func TestDiscoveryStartDecideRegisterWithFakeScanner(t *testing.T) {
 	ctx := context.Background()
 	profile := networkprofiles.NetworkProfile{
 		ID: "profile-1", Workspace: "workspace-a", Name: "Mock lab",
-		AddressPolicy: "192.0.2.0/28", Ports: []uint16{5555}, State: networkprofiles.Active, IsDefault: true,
+		AddressPolicy: "192.0.2.0/28", Ports: []uint16{5555}, IsDefault: true,
 	}
 	if err := store.NewNetworkProfileService(db).Create(ctx, profile, "operator", "op-1"); err != nil {
 		t.Fatal(err)

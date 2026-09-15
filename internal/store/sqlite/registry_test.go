@@ -18,7 +18,7 @@ func TestFakeScanRequiresApprovalAndRegistrationIsIdempotent(t *testing.T) {
 	if err := store.NewWorkspaceService(db).Create(ctx, organizations.Workspace{ID: "registry-w", Name: "Registry", State: organizations.WorkspaceActive}, "operator", "op-1"); err != nil {
 		t.Fatal(err)
 	}
-	profile := networkprofiles.NetworkProfile{ID: "profile-1", Workspace: "registry-w", Name: "Mock lab", AddressPolicy: "192.0.2.0/28", Ports: []uint16{5555}, State: networkprofiles.Active, IsDefault: true}
+	profile := networkprofiles.NetworkProfile{ID: "profile-1", Workspace: "registry-w", Name: "Mock lab", AddressPolicy: "192.0.2.0/28", Ports: []uint16{5555}, IsDefault: true}
 	if err := store.NewNetworkProfileService(db).Create(ctx, profile, "operator", "op-1"); err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestCandidateRejectionAndExpiryNeverCreateDevices(t *testing.T) {
 	if err := store.NewWorkspaceService(db).Create(ctx, organizations.Workspace{ID: "registry-w", Name: "Registry", State: organizations.WorkspaceActive}, "operator", "op-1"); err != nil {
 		t.Fatal(err)
 	}
-	profile := networkprofiles.NetworkProfile{ID: "profile-1", Workspace: "registry-w", Name: "Mock lab", AddressPolicy: "192.0.2.0/28", Ports: []uint16{5555}, State: networkprofiles.Active}
+	profile := networkprofiles.NetworkProfile{ID: "profile-1", Workspace: "registry-w", Name: "Mock lab", AddressPolicy: "192.0.2.0/28", Ports: []uint16{5555}}
 	if err := store.NewNetworkProfileService(db).Create(ctx, profile, "operator", "op-1"); err != nil {
 		t.Fatal(err)
 	}

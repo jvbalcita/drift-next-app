@@ -46,9 +46,7 @@ func (s *Service) StartScan(ctx context.Context, workspace organizations.Workspa
 	if err := profile.Validate(); err != nil {
 		return zero, err
 	}
-	if profile.State != networkprofiles.Active {
-		return zero, fmt.Errorf("network profile is not active")
-	}
+
 	run, created, err := s.store.BeginScan(ctx, workspace, profileID, key, actorType, actorID)
 	if err != nil || !created {
 		return run, err

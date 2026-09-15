@@ -5,13 +5,6 @@ import "drift/v1/common.proto";
 
 option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
 
-enum NetworkProfileState {
-  NETWORK_PROFILE_STATE_UNSPECIFIED = 0;
-  NETWORK_PROFILE_STATE_DRAFT = 1;
-  NETWORK_PROFILE_STATE_ACTIVE = 2;
-  NETWORK_PROFILE_STATE_DISABLED = 3;
-  NETWORK_PROFILE_STATE_RETIRED = 4;
-}
 message NetworkProfile {
   string id = 1;
   WorkspaceRef workspace = 2;
@@ -19,8 +12,8 @@ message NetworkProfile {
   string address_policy = 4;
   repeated uint32 allowed_ports = 5;
   bool is_default = 6;
-  NetworkProfileState state = 7;
-  uint64 row_version = 8;
+  reserved 7, 8;
+  reserved "state", "row_version";
 }
 message ListNetworkProfilesRequest {
   WorkspaceRef workspace = 1;
@@ -40,7 +33,8 @@ message CreateNetworkProfileResponse {
 message UpdateNetworkProfileRequest {
   RequestContext context = 1;
   NetworkProfile profile = 2;
-  uint64 expected_row_version = 3;
+  reserved 3;
+  reserved "expected_row_version";
 }
 message UpdateNetworkProfileResponse {
   NetworkProfile profile = 1;

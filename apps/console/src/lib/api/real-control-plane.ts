@@ -26,7 +26,7 @@ import { GroupState } from "@/gen/drift/v1/group_pb"
 import type { DeviceLease } from "@/gen/drift/v1/lease_pb"
 import { LeaseState as ProtoLeaseState } from "@/gen/drift/v1/lease_pb"
 import type { NetworkProfile } from "@/gen/drift/v1/network_profile_pb"
-import { NetworkProfileSchema, NetworkProfileState } from "@/gen/drift/v1/network_profile_pb"
+import { NetworkProfileSchema } from "@/gen/drift/v1/network_profile_pb"
 import type { ObservationSnapshot } from "@/gen/drift/v1/observation_pb"
 import { ObservationCaptureState } from "@/gen/drift/v1/observation_pb"
 import type { Workspace } from "@/gen/drift/v1/organization_pb"
@@ -404,25 +404,6 @@ function mapEndpoint(endpoint: DeviceEndpoint): EndpointView {
   }
 }
 
-function mapProfileState(state: NetworkProfileState): NetworkProfileView["state"] {
-  switch (state) {
-    case NetworkProfileState.DRAFT:
-      return "draft"
-    case NetworkProfileState.ACTIVE:
-      return "active"
-    case NetworkProfileState.DISABLED:
-      return "disabled"
-    case NetworkProfileState.RETIRED:
-      return "retired"
-    case NetworkProfileState.UNSPECIFIED:
-      return "draft"
-    default: {
-      const _exhaustive: never = state
-      return _exhaustive
-    }
-  }
-}
-
 function mapNetworkProfile(profile: NetworkProfile): NetworkProfileView {
   return {
     id: profile.id,
@@ -430,8 +411,8 @@ function mapNetworkProfile(profile: NetworkProfile): NetworkProfileView {
     addressPolicy: profile.addressPolicy,
     ports: profile.allowedPorts,
     isDefault: profile.isDefault,
-    state: mapProfileState(profile.state),
-    rowVersion: Number(profile.rowVersion),
+    state: "active",
+    rowVersion: 1,
   }
 }
 
@@ -1357,7 +1338,7 @@ function mapAutomationAgentProfiles(
   })
 }
 
-function mapProfileToProto(profile: NetworkProfileView, workspaceId: string, state: NetworkProfileState): NetworkProfile {
+function mapProfileToProto(profile: NetworkProfileView, workspaceId: string): NetworkProfile {
   return create(NetworkProfileSchema, {
     id: profile.id,
     workspace: workspaceRef(workspaceId),
@@ -1365,8 +1346,7 @@ function mapProfileToProto(profile: NetworkProfileView, workspaceId: string, sta
     addressPolicy: profile.addressPolicy,
     allowedPorts: [...profile.ports],
     isDefault: profile.isDefault,
-    state,
-    rowVersion: BigInt(profile.rowVersion),
+
   })
 }
 
@@ -1692,8 +1672,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
           addressPolicy: intent.addressPolicy,
           allowedPorts: [...intent.ports],
           isDefault: intent.isDefault,
-          state: NetworkProfileState.ACTIVE,
-          rowVersion: 0n,
+
         }))
         return mutation(intent, "Network profile created.")
       }
@@ -1705,15 +1684,13 @@ export class RealControlPlaneClient implements ControlPlaneClient {
           addressPolicy: intent.addressPolicy,
           allowedPorts: [...intent.ports],
           isDefault: intent.isDefault,
-          state: NetworkProfileState.ACTIVE,
-          rowVersion: BigInt(intent.rowVersion),
-        }), BigInt(intent.rowVersion))
+        }))
         return mutation(intent, "Network profile updated.")
       }
       case "retireNetworkProfile": {
         const current = this.snapshot.networkProfiles.find((profile) => profile.id === intent.profileId)
         if (!current) return failure(intent, "Network profile was not found.", { errorCode: "invalid_input" })
-        await this.services.networkProfile.updateNetworkProfile(requestId, mapProfileToProto(current, workspaceId, NetworkProfileState.RETIRED), BigInt(intent.rowVersion))
+        await this.services.networkProfile.updateNetworkProfile(requestId, mapProfileToProto(current, workspaceId))
         return mutation(intent, "Network profile retired.")
       }
       case "startScan": {

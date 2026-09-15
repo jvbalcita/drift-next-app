@@ -62,9 +62,6 @@ func (s *AuthorizedLabScanner) Scan(ctx context.Context, profile networkprofiles
 	if err := profile.Validate(); err != nil {
 		return nil, err
 	}
-	if profile.State != networkprofiles.Active {
-		return nil, platformerrors.New(platformerrors.CodePolicyDenied, "network profile is not active")
-	}
 
 	devices, err := s.enumerator.Enumerate(ctx)
 	if err != nil {

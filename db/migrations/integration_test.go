@@ -81,8 +81,8 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM drift_schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("ledger count error = %v", err)
 	}
-	if count != 18 {
-		t.Fatalf("ledger count = %d, want 18 SQLite migrations", count)
+	if count != 19 {
+		t.Fatalf("ledger count = %d, want 19 SQLite migrations", count)
 	}
 
 	var foreignKeys string
@@ -286,8 +286,15 @@ func TestWorkspaceIsolationAndActiveCardinality(t *testing.T) {
 	execSQL(t, db, `INSERT INTO automation_agent_device_assignments (id, workspace_id, automation_agent_id, profile_id, device_id, state, assigned_at) VALUES ('as2', 'w1', 'aa1', 'p1', 'd2', 'active', ?)`, testTime)
 	expectExecError(t, db, `INSERT INTO automation_agent_device_assignments (id, workspace_id, automation_agent_id, profile_id, device_id, state, assigned_at) VALUES ('as3', 'w1', 'aa1', 'p1', 'd1', 'active', ?)`, testTime)
 
-	execSQL(t, db, `INSERT INTO network_profiles (id, workspace_id, name, address_policy, ports_json, is_default, state, created_at, updated_at) VALUES ('np1', 'w1', 'Default', '127.0.0.1/32', '[5555]', 1, 'active', ?, ?)`, testTime, testTime)
-	expectExecError(t, db, `INSERT INTO network_profiles (id, workspace_id, name, address_policy, ports_json, is_default, state, created_at, updated_at) VALUES ('np2', 'w1', 'Second', '127.0.0.2/32', '[5555]', 1, 'active', ?, ?)`, testTime, testTime)
+	execSQL(t, db, `INSERT INTO network_profiles (id, workspace_id, name, address_policy, ports_json, is_default, created_at, updated_at) VALUES ('np1', 'w1', 'Default', '127.0.0.1/32', '[5555]', 1, ?, ?)`, testTime, testTime)
+	expectExecError(t, db, `INSERT INTO network_profiles (id, workspace_id, name, address_policy, ports_json, is_default, created_at, updated_at) VALUES ('np2', 'w1', 'Second', '127.0.0.2/32', '[5555]', 1, ?, ?)`, testTime, testTime)
+	var lifecycleColumns int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('network_profiles') WHERE name IN ('state', 'row_version')`).Scan(&lifecycleColumns); err != nil {
+		t.Fatalf("network_profiles schema lookup error = %v", err)
+	}
+	if lifecycleColumns != 0 {
+		t.Fatalf("network_profiles retained lifecycle columns: %d", lifecycleColumns)
+	}
 
 	execSQL(t, db, `INSERT INTO control_sessions (id, workspace_id, holder_id, state, created_at, expires_at) VALUES ('cs1', 'w1', 'operator-1', 'active', ?, ?)`, testTime, testTime)
 	execSQL(t, db, `INSERT INTO device_leases (id, workspace_id, device_id, session_id, holder_id, fencing_token, state, acquired_at, expires_at) VALUES ('l1', 'w1', 'd1', 'cs1', 'operator-1', 1, 'active', ?, ?), ('l2', 'w1', 'd2', 'cs1', 'operator-1', 1, 'active', ?, ?)`, testTime, testTime, testTime, testTime)

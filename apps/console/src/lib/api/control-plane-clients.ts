@@ -276,11 +276,11 @@ export class NetworkProfileClient {
       profile,
     })
   }
-  updateNetworkProfile(requestId: string, profile: NetworkProfile, expectedRowVersion: bigint) {
+  updateNetworkProfile(requestId: string, profile: NetworkProfile) {
     return this.rpc.call("UpdateNetworkProfile", UpdateNetworkProfileRequestSchema, UpdateNetworkProfileResponseSchema, {
       context: requestContext({ requestId }),
       profile,
-      expectedRowVersion,
+
     })
   }
 }
