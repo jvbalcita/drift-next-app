@@ -45,7 +45,10 @@ const (
 
 	// EnvLabToken is the shared secret a local caller must present to reach the
 	// lab adapter route. Lab mode requires it; mock mode may omit it.
-	EnvLabToken = "DRIFT_P13_LAB_TOKEN"
+	EnvLabToken     = "DRIFT_P13_LAB_TOKEN"
+	EnvRuntimeMode  = "DRIFT_RUNTIME_DEVICE_MODE"
+	EnvRuntimeADB   = "DRIFT_RUNTIME_ADB_PATH"
+	EnvRuntimeToken = "DRIFT_RUNTIME_SERVICE_TOKEN"
 
 	maxRetainedOutcomes    = 64
 	maxSummaryLength       = 512

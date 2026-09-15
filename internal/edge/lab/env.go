@@ -18,9 +18,18 @@ func LabModeRequested(lookup EnvLookup) bool {
 	if lookup == nil {
 		lookup = os.LookupEnv
 	}
-	optIn, _ := lookup(EnvLabMode)
-	executable, _ := lookup(EnvADBPath)
-	return strings.TrimSpace(optIn) == "1" && strings.TrimSpace(executable) != ""
+	optIn := firstEnv(lookup, EnvRuntimeMode, EnvLabMode)
+	executable := firstEnv(lookup, EnvRuntimeADB, EnvADBPath)
+	return (strings.TrimSpace(optIn) == "connected" || strings.TrimSpace(optIn) == "1") && strings.TrimSpace(executable) != ""
+}
+
+func firstEnv(lookup EnvLookup, keys ...string) string {
+	for _, key := range keys {
+		if value, ok := lookup(key); ok && strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // NewServiceFromEnv is the composition seam that chooses between deterministic
@@ -37,7 +46,7 @@ func NewServiceFromEnv(lookup EnvLookup, opts ...Option) (*Service, error) {
 		return NewService(opts...)
 	}
 
-	executable, _ := lookup(EnvADBPath)
+	executable := firstEnv(lookup, EnvRuntimeADB, EnvADBPath)
 	runner, err := adb.NewProcessRunner()
 	if err != nil {
 		return nil, err

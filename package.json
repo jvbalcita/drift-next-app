@@ -10,6 +10,7 @@
     "lint": "pnpm --filter console lint",
     "test": "pnpm --filter console test",
     "tauri": "pnpm --filter console tauri",
+    "runtime": "go run ./cmd/drift",
     "go:test": "go test ./...",
     "go:migrations": "go test ./internal/platform/migrations ./db/migrations -count=1",
     "go:vet": "go vet ./...",

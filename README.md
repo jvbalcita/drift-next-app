@@ -66,7 +66,16 @@ Start the web console:
 pnpm dev
 ```
 
-Start the Go placeholders (loopback only):
+Start the complete local runtime with one command:
+
+```bash
+pnpm runtime
+```
+
+The runtime menu discovers ADB, creates local storage and credentials, starts
+the control plane, device service, and Tauri desktop shell, and supports clean
+stop/restart operations. It never accepts arbitrary shell input. For direct
+service debugging, the individual commands remain available:
 
 ```bash
 go run ./cmd/control-plane   # 127.0.0.1:8080
