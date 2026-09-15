@@ -21,6 +21,8 @@ func TestDiscoverADBFromPath(t *testing.T) {
 }
 
 func TestDiscoverADBFromStandardLocation(t *testing.T) {
+	t.Setenv("ANDROID_HOME", "")
+	t.Setenv("ANDROID_SDK_ROOT", "")
 	home := t.TempDir()
 	path := filepath.Join(home, "Library", "Android", "sdk", "platform-tools", "adb")
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -36,6 +38,8 @@ func TestDiscoverADBFromStandardLocation(t *testing.T) {
 }
 
 func TestDiscoverADBRejectsMissingExecutable(t *testing.T) {
+	t.Setenv("ANDROID_HOME", "")
+	t.Setenv("ANDROID_SDK_ROOT", "")
 	if _, err := runtime.DiscoverADB("/missing/adb", func(string) (string, error) { return "", errors.New("missing") }, os.Stat, "darwin", t.TempDir()); err == nil {
 		t.Fatal("expected missing adb error")
 	}
