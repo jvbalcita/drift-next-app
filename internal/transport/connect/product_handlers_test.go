@@ -250,3 +250,45 @@ func TestOpenControlSessionAcquireAndListLease(t *testing.T) {
 		t.Fatalf("list sessions = %#v err=%v", sessions, err)
 	}
 }
+
+func TestCreateStartAndListRecordingSession(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	if err := store.NewDeviceService(db).Create(ctx, devices.Device{
+		ID: "device-1", Workspace: "workspace-a", DisplayName: "One", State: devices.Active,
+	}, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	handler := transportconnect.NewRecordingHandler(db)
+	_, err := handler.CreateRecordingSession(ctx, connectrpc.NewRequest(&driftv1.CreateRecordingSessionRequest{
+		Context:   requestContext("recording-create-denied"),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		DeviceId:  "device-1",
+		Source:    "fake",
+	}))
+	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("fake source code = %v, want invalid_argument; err=%v", connectrpc.CodeOf(err), err)
+	}
+	created, err := handler.CreateRecordingSession(ctx, connectrpc.NewRequest(&driftv1.CreateRecordingSessionRequest{
+		Context:   requestContext("recording-create-1"),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		DeviceId:  "device-1",
+		Source:    "device",
+	}))
+	if err != nil || created.Msg.Session.GetId() == "" || created.Msg.Session.GetDeviceId() != "device-1" {
+		t.Fatalf("create recording = %#v err=%v", created, err)
+	}
+	started, err := handler.StartRecordingSession(ctx, connectrpc.NewRequest(&driftv1.StartRecordingSessionRequest{
+		Context: requestContext("recording-start-1"),
+		Session: &driftv1.ResourceRef{Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"}, ResourceId: created.Msg.Session.GetId()},
+	}))
+	if err != nil || started.Msg.Session.GetState() != driftv1.RecordingState_RECORDING_STATE_RECORDING {
+		t.Fatalf("start recording = %#v err=%v", started, err)
+	}
+	listed, err := handler.ListRecordingSessions(ctx, connectrpc.NewRequest(&driftv1.ListRecordingSessionsRequest{
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if err != nil || len(listed.Msg.Sessions) != 1 || listed.Msg.Sessions[0].GetId() != created.Msg.Session.GetId() {
+		t.Fatalf("list recordings = %#v err=%v", listed, err)
+	}
+}

@@ -228,6 +228,7 @@ export interface SkillView {
   id: string
   name: string
   version: number
+  versionId?: string
   state: WorkflowState
   trust: TrustState
   capabilities: readonly string[]
@@ -732,6 +733,12 @@ export type ControlPlaneIntent =
   | { type: "beginDeviceControl"; deviceId: string }
   | { type: "endDeviceControl"; deviceId: string }
   | { type: "submitDeviceAction"; deviceId: string; kind: DeviceActionKind; confirmed: boolean }
+  | { type: "beginRecording"; deviceId: string }
+  | { type: "stopRecording"; sessionId: string }
+  | { type: "discardRecording"; sessionId: string }
+  | { type: "deleteRecording"; sessionId: string; confirmed: boolean }
+  | { type: "reviewSkillVersion"; versionId: string; reason: string }
+  | { type: "publishSkillVersion"; versionId: string; reason: string; confirmed: boolean }
 
 export interface MutationResult {
   ok: boolean

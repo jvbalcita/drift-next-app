@@ -304,8 +304,9 @@ const workflows: WorkflowView[] = [
 ]
 
 const skills: SkillView[] = [
-  { id: "skill-inbox", name: "Inbox triage", version: 4, state: "published", trust: "approved", capabilities: ["observe", "tap", "capture"], sourceRecording: "recording-session-014" },
-  { id: "skill-review", name: "Screen review", version: 1, state: "validated", trust: "reviewed", capabilities: ["observe", "capture"], sourceRecording: "recording-session-018" },
+  { id: "skill-inbox", name: "Inbox triage", version: 4, versionId: "skill-inbox-v4", state: "published", trust: "approved", capabilities: ["observe", "tap", "capture"], sourceRecording: "recording-session-014" },
+  { id: "skill-review", name: "Screen review", version: 1, versionId: "skill-review-v1", state: "validated", trust: "reviewed", capabilities: ["observe", "capture"], sourceRecording: "recording-session-018" },
+  { id: "skill-draft", name: "Draft capture", version: 1, versionId: "skill-draft-v1", state: "draft", trust: "unreviewed", capabilities: ["observe"], sourceRecording: "" },
 ]
 
 const runs: RunView[] = [
@@ -994,6 +995,18 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.endDeviceControl(intent)
       case "submitDeviceAction":
         return this.submitDeviceAction(intent)
+      case "beginRecording":
+        return this.beginRecording(intent)
+      case "stopRecording":
+        return this.stopRecording(intent)
+      case "discardRecording":
+        return this.discardRecording(intent)
+      case "deleteRecording":
+        return this.deleteRecording(intent)
+      case "reviewSkillVersion":
+        return this.reviewSkillVersion(intent)
+      case "publishSkillVersion":
+        return this.publishSkillVersion(intent)
     }
   }
 
@@ -1229,6 +1242,90 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
     if (!lease) return rejection(intent, "Acquire an active lease before submitting a device action.", intent.deviceId, "precondition_failed")
     return result(intent, `Action submitted (${intent.kind}).`, intent.deviceId)
+  }
+
+  private beginRecording(intent: Extract<ControlPlaneIntent, { type: "beginRecording" }>): MutationResult {
+    if (!intent.deviceId) return rejection(intent, "Choose a connected device before starting a recording.", "", "invalid_input")
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) return rejection(intent, "Device was not found.", intent.deviceId, "invalid_input")
+    const active = this.snapshot.recordingMedia.find((session) => session.state === "recording")
+    if (active) return rejection(intent, "Stop or discard the active recording before starting another.", active.sessionId, "precondition_failed")
+    const sessionId = `recording-session-${this.nextSequence}`
+    this.nextSequence += 1
+    const session: RecordingMediaView = {
+      id: sessionId,
+      sessionId,
+      deviceId: intent.deviceId,
+      state: "recording",
+      startedAt: labStamp(this.nextSequence),
+      lowResPreviewLabel: "Preview withheld",
+      fullResAuthorized: false,
+    }
+    this.snapshot = { ...this.snapshot, recordingMedia: [session, ...this.snapshot.recordingMedia] }
+    return result(intent, "Recording session started.", sessionId)
+  }
+
+  private stopRecording(intent: Extract<ControlPlaneIntent, { type: "stopRecording" }>): MutationResult {
+    const session = this.snapshot.recordingMedia.find((candidate) => candidate.sessionId === intent.sessionId)
+    if (!session) return rejection(intent, "Recording session was not found.", intent.sessionId, "invalid_input")
+    if (session.state !== "recording") return rejection(intent, "Only an active recording can be stopped.", intent.sessionId, "precondition_failed")
+    this.snapshot = {
+      ...this.snapshot,
+      recordingMedia: this.snapshot.recordingMedia.map((candidate) =>
+        candidate.sessionId === intent.sessionId ? { ...candidate, state: "completed" as const, endedAt: labStamp(this.nextSequence) } : candidate,
+      ),
+    }
+    return result(intent, "Recording session stopped.", intent.sessionId)
+  }
+
+  private discardRecording(intent: Extract<ControlPlaneIntent, { type: "discardRecording" }>): MutationResult {
+    const session = this.snapshot.recordingMedia.find((candidate) => candidate.sessionId === intent.sessionId)
+    if (!session) return rejection(intent, "Recording session was not found.", intent.sessionId, "invalid_input")
+    this.snapshot = {
+      ...this.snapshot,
+      recordingMedia: this.snapshot.recordingMedia.map((candidate) =>
+        candidate.sessionId === intent.sessionId ? { ...candidate, state: "omitted" as const, endedAt: labStamp(this.nextSequence) } : candidate,
+      ),
+    }
+    return result(intent, "Recording session discarded.", intent.sessionId)
+  }
+
+  private deleteRecording(intent: Extract<ControlPlaneIntent, { type: "deleteRecording" }>): MutationResult {
+    if (!intent.confirmed) return rejection(intent, "Deletion requires confirmation.", intent.sessionId, "precondition_failed")
+    const session = this.snapshot.recordingMedia.find((candidate) => candidate.sessionId === intent.sessionId)
+    if (!session) return rejection(intent, "Recording session was not found.", intent.sessionId, "invalid_input")
+    this.snapshot = {
+      ...this.snapshot,
+      recordingMedia: this.snapshot.recordingMedia.filter((candidate) => candidate.sessionId !== intent.sessionId),
+    }
+    return result(intent, "Recording session deleted.", intent.sessionId)
+  }
+
+  private reviewSkillVersion(intent: Extract<ControlPlaneIntent, { type: "reviewSkillVersion" }>): MutationResult {
+    if (!intent.versionId) return rejection(intent, "Skill version is required.", "", "invalid_input")
+    const skill = this.snapshot.skills.find((candidate) => candidate.versionId === intent.versionId || candidate.id === intent.versionId)
+    if (!skill) return rejection(intent, "Skill version was not found.", intent.versionId, "invalid_input")
+    this.snapshot = {
+      ...this.snapshot,
+      skills: this.snapshot.skills.map((candidate) =>
+        candidate.id === skill.id ? { ...candidate, trust: "reviewed" as const } : candidate,
+      ),
+    }
+    return result(intent, "Skill version reviewed.", intent.versionId)
+  }
+
+  private publishSkillVersion(intent: Extract<ControlPlaneIntent, { type: "publishSkillVersion" }>): MutationResult {
+    if (!intent.confirmed) return rejection(intent, "Publishing a skill requires confirmation.", intent.versionId, "precondition_failed")
+    if (!intent.versionId) return rejection(intent, "Skill version is required.", "", "invalid_input")
+    const skill = this.snapshot.skills.find((candidate) => candidate.versionId === intent.versionId || candidate.id === intent.versionId)
+    if (!skill) return rejection(intent, "Skill version was not found.", intent.versionId, "invalid_input")
+    this.snapshot = {
+      ...this.snapshot,
+      skills: this.snapshot.skills.map((candidate) =>
+        candidate.id === skill.id ? { ...candidate, trust: "approved" as const, state: "published" as const } : candidate,
+      ),
+    }
+    return result(intent, "Skill version published.", intent.versionId)
   }
 
   private discoverLabDevices(intent: Extract<ControlPlaneIntent, { type: "discoverLabDevices" }>): MutationResult {

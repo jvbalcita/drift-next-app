@@ -175,6 +175,15 @@ message ListRecordingSessionsResponse {
   repeated RecordingSession sessions = 1;
   PageResponse page = 2;
 }
+message CreateRecordingSessionRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string source = 4;
+}
+message CreateRecordingSessionResponse {
+  RecordingSession session = 1;
+}
 message StartRecordingSessionRequest {
   RequestContext context = 1;
   ResourceRef session = 2;
@@ -223,6 +232,7 @@ message ReviewRecordingEventResponse {
 }
 service RecordingService {
   rpc ListRecordingSessions(ListRecordingSessionsRequest) returns (ListRecordingSessionsResponse);
+  rpc CreateRecordingSession(CreateRecordingSessionRequest) returns (CreateRecordingSessionResponse);
   rpc StartRecordingSession(StartRecordingSessionRequest) returns (StartRecordingSessionResponse);
   rpc StopRecordingSession(StopRecordingSessionRequest) returns (StopRecordingSessionResponse);
   rpc DiscardRecordingSession(DiscardRecordingSessionRequest) returns (DiscardRecordingSessionResponse);

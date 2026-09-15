@@ -2,9 +2,11 @@ package transportconnect
 
 import (
 	"context"
+	"strings"
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
+	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/organizations"
 	"drift.local/drift-next/internal/recordings"
 	store "drift.local/drift-next/internal/store/sqlite"
@@ -36,6 +38,46 @@ func (h *RecordingHandler) ListRecordingSessions(ctx context.Context, request *c
 		out = append(out, recordingSessionProto(session))
 	}
 	return connectrpc.NewResponse(&driftv1.ListRecordingSessionsResponse{Sessions: out, Page: pageResponse(next)}), nil
+}
+
+func (h *RecordingHandler) CreateRecordingSession(ctx context.Context, request *connectrpc.Request[driftv1.CreateRecordingSessionRequest]) (*connectrpc.Response[driftv1.CreateRecordingSessionResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("create recording session request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	deviceID := strings.TrimSpace(request.Msg.GetDeviceId())
+	if deviceID == "" {
+		return nil, invalidArgument("device id is required")
+	}
+	source := recordings.SourceDevice
+	if trimmed := strings.TrimSpace(request.Msg.GetSource()); trimmed != "" {
+		source = recordings.Source(trimmed)
+	}
+	if source != recordings.SourceDevice && source != recordings.SourceMirror {
+		return nil, invalidArgument("recording source must be device or mirror")
+	}
+	id, err := newID(h.db)
+	if err != nil {
+		return nil, err
+	}
+	session, createErr := store.NewRecordingService(h.db).Create(ctx, recordings.Session{
+		ID:        recordings.RecordingSessionID(id),
+		Workspace: workspace,
+		DeviceID:  devices.DeviceID(deviceID),
+		Source:    source,
+		State:     recordings.SessionRequested,
+	}, actorType, actorID)
+	if createErr != nil {
+		return nil, MapError(createErr)
+	}
+	return connectrpc.NewResponse(&driftv1.CreateRecordingSessionResponse{Session: recordingSessionProto(session)}), nil
 }
 
 func (h *RecordingHandler) StartRecordingSession(ctx context.Context, request *connectrpc.Request[driftv1.StartRecordingSessionRequest]) (*connectrpc.Response[driftv1.StartRecordingSessionResponse], error) {

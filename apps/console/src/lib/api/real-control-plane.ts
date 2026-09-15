@@ -38,8 +38,8 @@ import type { WorkflowRun, RunTarget } from "@/gen/drift/v1/run_pb"
 import { RunState, RunTargetState } from "@/gen/drift/v1/run_pb"
 import type { Setting, SettingHistory } from "@/gen/drift/v1/settings_pb"
 import { SettingRisk, SettingSchema, SettingScope as ProtoSettingScope, SettingValueKind } from "@/gen/drift/v1/settings_pb"
-import type { Skill } from "@/gen/drift/v1/skill_pb"
-import { SkillState } from "@/gen/drift/v1/skill_pb"
+import type { Skill, SkillVersion } from "@/gen/drift/v1/skill_pb"
+import { SkillState, TrustState as ProtoTrustState } from "@/gen/drift/v1/skill_pb"
 import type { Workflow } from "@/gen/drift/v1/workflow_pb"
 import { WorkflowState } from "@/gen/drift/v1/workflow_pb"
 import {
@@ -483,15 +483,34 @@ function mapWorkflow(workflow: Workflow): WorkflowView {
   }
 }
 
-function mapSkill(skill: Skill): SkillView {
+function mapTrustState(state: ProtoTrustState): TrustState {
+  switch (state) {
+    case ProtoTrustState.REVIEWED:
+      return "reviewed"
+    case ProtoTrustState.APPROVED:
+      return "approved"
+    case ProtoTrustState.REVOKED:
+      return "revoked"
+    case ProtoTrustState.UNREVIEWED:
+    case ProtoTrustState.UNSPECIFIED:
+      return "unreviewed"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+function mapSkill(skill: Skill, version?: SkillVersion): SkillView {
   return {
     id: skill.id,
     name: skill.displayName || skill.id,
-    version: 0,
-    state: mapLifecycleState(skill.state),
-    trust: "unreviewed" satisfies TrustState,
-    capabilities: [],
-    sourceRecording: "",
+    version: version?.version ?? 0,
+    ...(version?.id ? { versionId: version.id } : {}),
+    state: mapLifecycleState(version?.state ?? skill.state),
+    trust: version ? mapTrustState(version.trustState) : "unreviewed",
+    capabilities: version?.capabilities ?? [],
+    sourceRecording: version?.sourceRecordingSessionId ?? "",
   }
 }
 
@@ -1330,7 +1349,13 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       settle(this.services.policy.listPolicies(workspaceId).then((response) => response.policies.map(mapPolicy)), [] as PolicyView[]),
       settle(this.services.policy.listPolicyDecisions(workspaceId).then((response) => response.decisions.map(mapPolicyDecisionRecord)), [] as PolicyDecisionView[]),
       settle(this.services.workflow.listWorkflows(workspaceId).then((response) => response.workflows.map(mapWorkflow)), [] as WorkflowView[]),
-      settle(this.services.skill.listSkills(workspaceId).then((response) => response.skills.map(mapSkill)), [] as SkillView[]),
+      settle(this.services.skill.listSkills(workspaceId).then((response) =>
+        Promise.all(response.skills.map((skill) =>
+          this.services.skill.listSkillVersions(workspaceId, skill.id)
+            .then((listed) => mapSkill(skill, listed.versions[0]))
+            .catch(() => mapSkill(skill)),
+        )),
+      ), [] as SkillView[]),
       settle(this.services.run.listWorkflowRuns(workspaceId).then((response) => response.runs.map(mapRun)), [] as RunView[]),
       settle(this.services.artifact.listArtifacts(workspaceId, actorId).then((response) => response.artifacts.map(mapArtifact)), [] as ArtifactView[]),
       settle(this.services.artifact.getStorageHealth(workspaceId, actorId).then((health) => ({
@@ -1648,6 +1673,42 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         })
         const outcome = submitted.result?.outcome
         return mutation(intent, outcome ? `Action submitted (${outcome}).` : "Action submitted.")
+      }
+      case "beginRecording": {
+        if (!intent.deviceId) return failure(intent, "Choose a connected device before starting a recording.", { errorCode: "invalid_input" })
+        const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+        if (!device) return failure(intent, "Device was not found.", { errorCode: "invalid_input" })
+        const active = this.snapshot.recordingMedia.find((session) => session.state === "recording")
+        if (active) return failure(intent, "Stop or discard the active recording before starting another.", { errorCode: "precondition_failed" })
+        const created = await this.services.recording.createRecordingSession(requestId, workspaceId, intent.deviceId)
+        const sessionId = created.session?.id
+        if (!sessionId) return failure(intent, "Recording session was not created.")
+        await this.services.recording.startRecordingSession(requestId, workspaceId, sessionId)
+        return mutation(intent, "Recording session started.", { resourceId: sessionId })
+      }
+      case "stopRecording": {
+        await this.services.recording.stopRecordingSession(requestId, workspaceId, intent.sessionId)
+        return mutation(intent, "Recording session stopped.", { resourceId: intent.sessionId })
+      }
+      case "discardRecording": {
+        await this.services.recording.discardRecordingSession(requestId, workspaceId, intent.sessionId)
+        return mutation(intent, "Recording session discarded.", { resourceId: intent.sessionId })
+      }
+      case "deleteRecording": {
+        if (!intent.confirmed) return failure(intent, "Deletion requires confirmation.", { errorCode: "precondition_failed" })
+        await this.services.recording.deleteRecordingSession(requestId, workspaceId, intent.sessionId, true)
+        return mutation(intent, "Recording session deleted.", { resourceId: intent.sessionId })
+      }
+      case "reviewSkillVersion": {
+        if (!intent.versionId) return failure(intent, "Skill version is required.", { errorCode: "invalid_input" })
+        await this.services.skill.reviewSkillVersion(requestId, workspaceId, intent.versionId, intent.reason)
+        return mutation(intent, "Skill version reviewed.", { resourceId: intent.versionId })
+      }
+      case "publishSkillVersion": {
+        if (!intent.confirmed) return failure(intent, "Publishing a skill requires confirmation.", { errorCode: "precondition_failed" })
+        if (!intent.versionId) return failure(intent, "Skill version is required.", { errorCode: "invalid_input" })
+        await this.services.skill.publishSkillVersion(requestId, workspaceId, intent.versionId, intent.reason)
+        return mutation(intent, "Skill version published.", { resourceId: intent.versionId })
       }
       case "startMirrorPreview":
       case "stopMirrorPreview":

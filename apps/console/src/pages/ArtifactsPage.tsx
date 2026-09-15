@@ -4,6 +4,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from "@/component
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { reportDispatch } from "@/lib/api/report-dispatch"
 import type {
   ArtifactCategory,
   ArtifactLifecycleState,
@@ -363,10 +364,28 @@ export function ArtifactsPage({
           </TabsContent>
 
           <TabsContent value="recordings" className="mt-4">
+            <div className="mb-4 flex flex-wrap items-end gap-3">
+              <FilterSelect id="recording-device" label="Recording Device" value={selectedDeviceId} onChange={setSelectedDeviceId}>
+                {snapshot.devices.length === 0 ? <option value="">No Registered Devices</option> : null}
+                {snapshot.devices.map((device) => (
+                  <option key={device.id} value={device.id}>
+                    {device.displayName}
+                  </option>
+                ))}
+              </FilterSelect>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedDeviceId}
+                onClick={() => void reportDispatch(dispatch, { type: "beginRecording", deviceId: selectedDeviceId }, setFeedback)}
+              >
+                Start Recording
+              </Button>
+            </div>
             {snapshot.recordingMedia.length === 0 ? (
-              <EmptyState label="No Recording Sessions" detail="Recording sessions appear here with bounded lifecycle and cleanup state." />
+              <EmptyState label="No Recording Sessions" detail="Choose a registered device, then start a recording session. Only one active session is allowed in the workspace." />
             ) : (
-              <RecordingTable recordings={snapshot.recordingMedia} onOpenArtifact={openArtifact} />
+              <RecordingTable recordings={snapshot.recordingMedia} dispatch={dispatch} onFeedback={setFeedback} onOpenArtifact={openArtifact} />
             )}
             {snapshot.recordingMedia.length > 0 ? (
               <p className="mt-3 text-xs text-muted-foreground" aria-live="polite">
@@ -609,9 +628,13 @@ function ArtifactTable({ artifacts, onOpen }: { artifacts: readonly ArtifactView
 
 function RecordingTable({
   recordings,
+  dispatch,
+  onFeedback,
   onOpenArtifact,
 }: {
   recordings: readonly RecordingMediaView[]
+  dispatch: DispatchIntent
+  onFeedback: (message: string) => void
   onOpenArtifact: (id: string) => void
 }) {
   const [page, setPage] = useState(0)
@@ -620,7 +643,7 @@ function RecordingTable({
   return (
     <>
       <div className="overflow-x-auto border border-border">
-        <table className="w-full min-w-[820px] text-left text-xs">
+        <table className="w-full min-w-[980px] text-left text-xs">
           <caption className="sr-only">Recording session metadata</caption>
           <thead>
             <tr className="border-b border-border text-[10px] tracking-[.08em] text-muted-foreground">
@@ -630,6 +653,7 @@ function RecordingTable({
               <th className="p-3">Duration</th>
               <th className="p-3">Preview</th>
               <th className="p-3">Full Res</th>
+              <th className="p-3">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -657,6 +681,35 @@ function RecordingTable({
                 <td className="p-3">{recording.lowResPreviewLabel}</td>
                 <td className="p-3">
                   <StatusBadge label={recording.fullResAuthorized ? "Authorized" : "Withheld"} tone={recording.fullResAuthorized ? "healthy" : "neutral"} />
+                </td>
+                <td className="p-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={recording.state !== "recording"}
+                      onClick={() => void reportDispatch(dispatch, { type: "stopRecording", sessionId: recording.sessionId }, onFeedback)}
+                    >
+                      Stop Recording
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={recording.state === "omitted"}
+                      onClick={() => void reportDispatch(dispatch, { type: "discardRecording", sessionId: recording.sessionId }, onFeedback)}
+                    >
+                      Discard Recording
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger render={<Button size="sm" variant="outline">Delete Recording</Button>} />
+                      <AlertDialogContent
+                        title="Delete Recording?"
+                        description="Deletes the recording session after confirmation. Evidence bytes stay in authorized artifact access. This does not replay device actions."
+                        confirmLabel="Confirm Delete"
+                        onConfirm={() => void reportDispatch(dispatch, { type: "deleteRecording", sessionId: recording.sessionId, confirmed: true }, onFeedback)}
+                      />
+                    </AlertDialog>
+                  </div>
                 </td>
               </tr>
             ))}

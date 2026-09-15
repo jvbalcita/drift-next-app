@@ -142,8 +142,18 @@ import {
   RetirePolicyResponseSchema,
 } from "@/gen/drift/v1/policy_pb"
 import {
+  CreateRecordingSessionRequestSchema,
+  CreateRecordingSessionResponseSchema,
+  DeleteRecordingSessionRequestSchema,
+  DeleteRecordingSessionResponseSchema,
+  DiscardRecordingSessionRequestSchema,
+  DiscardRecordingSessionResponseSchema,
   ListRecordingSessionsRequestSchema,
   ListRecordingSessionsResponseSchema,
+  StartRecordingSessionRequestSchema,
+  StartRecordingSessionResponseSchema,
+  StopRecordingSessionRequestSchema,
+  StopRecordingSessionResponseSchema,
 } from "@/gen/drift/v1/recording_pb"
 import {
   CancelWorkflowRunRequestSchema,
@@ -167,7 +177,16 @@ import {
   type Setting,
   type SettingScope,
 } from "@/gen/drift/v1/settings_pb"
-import { ListSkillsRequestSchema, ListSkillsResponseSchema } from "@/gen/drift/v1/skill_pb"
+import {
+  ListSkillsRequestSchema,
+  ListSkillsResponseSchema,
+  ListSkillVersionsRequestSchema,
+  ListSkillVersionsResponseSchema,
+  PublishSkillVersionRequestSchema,
+  PublishSkillVersionResponseSchema,
+  ReviewSkillVersionRequestSchema,
+  ReviewSkillVersionResponseSchema,
+} from "@/gen/drift/v1/skill_pb"
 import { ListWorkflowsRequestSchema, ListWorkflowsResponseSchema } from "@/gen/drift/v1/workflow_pb"
 import { ConnectJsonClient, requestContext, workspaceRef } from "@/lib/api/connect-json"
 
@@ -636,6 +655,39 @@ export class RecordingClient {
   listRecordingSessions(workspaceId: string) {
     return this.rpc.call("ListRecordingSessions", ListRecordingSessionsRequestSchema, ListRecordingSessionsResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
   }
+  createRecordingSession(requestId: string, workspaceId: string, deviceId: string) {
+    return this.rpc.call("CreateRecordingSession", CreateRecordingSessionRequestSchema, CreateRecordingSessionResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      deviceId,
+      source: "device",
+    })
+  }
+  startRecordingSession(requestId: string, workspaceId: string, sessionId: string) {
+    return this.rpc.call("StartRecordingSession", StartRecordingSessionRequestSchema, StartRecordingSessionResponseSchema, {
+      context: requestContext({ requestId }),
+      session: resourceRef(workspaceId, sessionId),
+    })
+  }
+  stopRecordingSession(requestId: string, workspaceId: string, sessionId: string) {
+    return this.rpc.call("StopRecordingSession", StopRecordingSessionRequestSchema, StopRecordingSessionResponseSchema, {
+      context: requestContext({ requestId }),
+      session: resourceRef(workspaceId, sessionId),
+    })
+  }
+  discardRecordingSession(requestId: string, workspaceId: string, sessionId: string) {
+    return this.rpc.call("DiscardRecordingSession", DiscardRecordingSessionRequestSchema, DiscardRecordingSessionResponseSchema, {
+      context: requestContext({ requestId }),
+      session: resourceRef(workspaceId, sessionId),
+    })
+  }
+  deleteRecordingSession(requestId: string, workspaceId: string, sessionId: string, confirmed: boolean) {
+    return this.rpc.call("DeleteRecordingSession", DeleteRecordingSessionRequestSchema, DeleteRecordingSessionResponseSchema, {
+      context: requestContext({ requestId }),
+      session: resourceRef(workspaceId, sessionId),
+      confirmed,
+    })
+  }
 }
 
 export class SkillClient {
@@ -645,6 +697,26 @@ export class SkillClient {
   }
   listSkills(workspaceId: string) {
     return this.rpc.call("ListSkills", ListSkillsRequestSchema, ListSkillsResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
+  }
+  listSkillVersions(workspaceId: string, skillId: string) {
+    return this.rpc.call("ListSkillVersions", ListSkillVersionsRequestSchema, ListSkillVersionsResponseSchema, {
+      skill: resourceRef(workspaceId, skillId),
+      page: listPage,
+    })
+  }
+  reviewSkillVersion(requestId: string, workspaceId: string, versionId: string, reason: string) {
+    return this.rpc.call("ReviewSkillVersion", ReviewSkillVersionRequestSchema, ReviewSkillVersionResponseSchema, {
+      context: requestContext({ requestId }),
+      version: resourceRef(workspaceId, versionId),
+      reason,
+    })
+  }
+  publishSkillVersion(requestId: string, workspaceId: string, versionId: string, reason: string) {
+    return this.rpc.call("PublishSkillVersion", PublishSkillVersionRequestSchema, PublishSkillVersionResponseSchema, {
+      context: requestContext({ requestId }),
+      version: resourceRef(workspaceId, versionId),
+      reason,
+    })
   }
 }
 

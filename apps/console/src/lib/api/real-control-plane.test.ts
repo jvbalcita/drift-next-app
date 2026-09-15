@@ -323,4 +323,89 @@ describe("RealControlPlaneClient", () => {
     expect(unleashed.ok).toBe(false)
     expect(unleashed.message).toMatch(/active lease/i)
   })
+
+  it("creates then starts a recording for an explicit device", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.DeviceService/ListDevices")) {
+        return new Response(JSON.stringify({
+          devices: [{ id: "device-pixel-1", displayName: "Pixel One", status: "DEVICE_STATUS_ONLINE" }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.RecordingService/CreateRecordingSession")) {
+        return new Response(JSON.stringify({
+          session: { id: "recording-1", deviceId: "device-pixel-1", state: "RECORDING_STATE_REQUESTED" },
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.RecordingService/StartRecordingSession")) {
+        return new Response(JSON.stringify({
+          session: { id: "recording-1", deviceId: "device-pixel-1", state: "RECORDING_STATE_RECORDING" },
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+    const result = await client.dispatch({ type: "beginRecording", deviceId: "device-pixel-1" })
+
+    expect(result.ok).toBe(true)
+    expect(result.resourceId).toBe("recording-1")
+    expect(fetchSpy.mock.calls.map((call) => String(call[0]))).toEqual(expect.arrayContaining([
+      "http://127.0.0.1:8080/drift.v1.RecordingService/CreateRecordingSession",
+      "http://127.0.0.1:8080/drift.v1.RecordingService/StartRecordingSession",
+    ]))
+  })
+
+  it("blocks unconfirmed recording deletion and skill publish", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
+    )
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+
+    const deleted = await client.dispatch({ type: "deleteRecording", sessionId: "recording-1", confirmed: false })
+    expect(deleted.ok).toBe(false)
+    expect(deleted.errorCode).toBe("precondition_failed")
+
+    const published = await client.dispatch({ type: "publishSkillVersion", versionId: "skill-v1", reason: "publish", confirmed: false })
+    expect(published.ok).toBe(false)
+    expect(published.errorCode).toBe("precondition_failed")
+  })
+
+  it("projects latest skill version trust onto the snapshot", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.SkillService/ListSkills")) {
+        return new Response(JSON.stringify({
+          skills: [{ id: "skill-1", displayName: "Inbox", state: "SKILL_STATE_VALIDATED" }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.SkillService/ListSkillVersions")) {
+        return new Response(JSON.stringify({
+          versions: [{
+            id: "skill-1-v2",
+            skillId: "skill-1",
+            version: 2,
+            state: "SKILL_STATE_VALIDATED",
+            trustState: "TRUST_STATE_REVIEWED",
+            capabilities: ["observe", "capture"],
+            sourceRecordingSessionId: "recording-1",
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const snapshot = await client.refresh()
+    expect(snapshot.skills).toEqual([expect.objectContaining({
+      id: "skill-1",
+      versionId: "skill-1-v2",
+      version: 2,
+      trust: "reviewed",
+      capabilities: ["observe", "capture"],
+      sourceRecording: "recording-1",
+    })])
+  })
 })
