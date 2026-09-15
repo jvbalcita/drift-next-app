@@ -367,9 +367,9 @@ export function ArtifactsPage({
             ) : (
               <RecordingTable recordings={snapshot.recordingMedia} onOpenArtifact={openArtifact} />
             )}
-            {deviceMedia.length > 0 ? (
+            {snapshot.recordingMedia.length > 0 ? (
               <p className="mt-3 text-xs text-muted-foreground" aria-live="polite">
-                {deviceMedia.length} Session{deviceMedia.length === 1 ? "" : "s"} Linked To {selectedDevice?.displayName ?? "Selected Device"}
+                {snapshot.recordingMedia.length} Recording Session{snapshot.recordingMedia.length === 1 ? "" : "s"} In Workspace
               </p>
             ) : null}
           </TabsContent>

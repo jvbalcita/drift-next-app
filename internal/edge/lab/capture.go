@@ -103,7 +103,7 @@ func (r *captureRun) persistEvidence(ctx context.Context, bundle *ObservationBun
 	if r.service.evidence == nil || bundle == nil {
 		return
 	}
-	workspace := "local"
+	workspace := ""
 	ownerID := bundle.CorrelationID
 	if ownerID == "" {
 		ownerID = bundle.IdempotencyKey

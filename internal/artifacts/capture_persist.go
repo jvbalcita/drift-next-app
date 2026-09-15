@@ -32,9 +32,9 @@ func (p CapturePersister) persistScreenshot(ctx context.Context, workspace, owne
 	if p.Service == nil {
 		return "", platformerrors.New(platformerrors.CodeInvalidInput, "artifact service is required")
 	}
-	ws := p.Workspace
-	if strings.TrimSpace(workspace) != "" {
-		ws = organizations.WorkspaceID(workspace)
+	ws, err := p.resolveWorkspace(workspace)
+	if err != nil {
+		return "", err
 	}
 	if strings.TrimSpace(actorID) == "" {
 		actorID = "capture"
@@ -67,9 +67,9 @@ func (p CapturePersister) PersistUITree(ctx context.Context, workspace, ownerID,
 	if p.Service == nil {
 		return "", platformerrors.New(platformerrors.CodeInvalidInput, "artifact service is required")
 	}
-	ws := p.Workspace
-	if strings.TrimSpace(workspace) != "" {
-		ws = organizations.WorkspaceID(workspace)
+	ws, err := p.resolveWorkspace(workspace)
+	if err != nil {
+		return "", err
 	}
 	if strings.TrimSpace(actorID) == "" {
 		actorID = "capture"
@@ -93,4 +93,17 @@ func (p CapturePersister) PersistUITree(ctx context.Context, workspace, ownerID,
 		return string(result.Artifact.ID), platformerrors.New(platformerrors.CodePolicyDenied, "ui-tree admission omitted bytes")
 	}
 	return string(result.Artifact.ID), nil
+}
+
+// resolveWorkspace prefers the control-plane-bound workspace. Callers such as
+// lab capture may pass a placeholder; when Workspace is configured it always
+// wins so evidence lands under the durable lab workspace FK.
+func (p CapturePersister) resolveWorkspace(caller string) (organizations.WorkspaceID, error) {
+	if strings.TrimSpace(string(p.Workspace)) != "" {
+		return p.Workspace, nil
+	}
+	if strings.TrimSpace(caller) == "" {
+		return "", platformerrors.New(platformerrors.CodeInvalidInput, "artifact workspace is required")
+	}
+	return organizations.WorkspaceID(caller), nil
 }
