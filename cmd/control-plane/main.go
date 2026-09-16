@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 
+	dbmigrations "drift.local/drift-next/db/migrations"
 	"drift.local/drift-next/internal/artifacts"
 	"drift.local/drift-next/internal/artifacts/cas"
 	"drift.local/drift-next/internal/discovery"
@@ -16,6 +17,7 @@ import (
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/organizations"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
+	migrationrunner "drift.local/drift-next/internal/platform/migrations"
 	"drift.local/drift-next/internal/product"
 	"drift.local/drift-next/internal/service"
 	store "drift.local/drift-next/internal/store/sqlite"
@@ -62,6 +64,12 @@ func main() {
 	}
 	if mkdirErr := os.MkdirAll(filepath.Dir(dbPath), 0o700); mkdirErr != nil {
 		log.Fatalf("refusing to start: create control-plane data directory: %v", mkdirErr)
+	}
+	// drift and the control plane share this database and can run at different
+	// revisions, so a stale binary must refuse to serve a schema that a newer
+	// build already migrated. This runs before any service is constructed.
+	if guardErr := migrationrunner.CheckLedgerNotAhead(context.Background(), dbPath, dbmigrations.SQLiteFiles); guardErr != nil {
+		log.Fatalf("refusing to start: %v", guardErr)
 	}
 	db, openErr := store.Open(context.Background(), dbPath, store.Options{})
 	if openErr != nil {
