@@ -39,6 +39,8 @@ React/Vite operator UI
 - Treat group and placement order as persisted operator order. Never derive it from insertion order, a row id, or a list index; write the whole order, not a single occupied slot, and reach an order by renumbering inside one transaction rather than by overwriting a neighbour's position.
 - Ungrouping ends a placement. "Ungrouped" is a computed view over devices with no active membership, never a stored group, and a row that append-only evidence references is retired in place rather than deleted.
 - Use typed identifiers internally. Never make a mutable serial, IP/port, display name, account label, or UI row number the primary identity.
+- Keep every action-catalog entry complete: a typed identity, at least one allow-listed capability, a risk and retry class, the mutating/read-only classification with the reason for it, and an explicit postcondition stating what must be true after a successful dispatch. Refuse an incomplete entry at lookup rather than authorizing it on a zero value.
+- A kind that a documented deferral previously refused carries the recorded reason it is dispatchable now: name the deferral's precondition and the record that lifted it, beside the entry, so a reviewer can tell a newly permitted kind from one that was never deferred.
 
 ## 3. Control, workflow, and concurrency design
 
