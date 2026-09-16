@@ -162,6 +162,41 @@ describe("RealControlPlaneClient", () => {
     })])
   })
 
+  it("deletes a Network Profile through Connect JSON and refreshes the catalog", async () => {
+    const urls: string[] = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      urls.push(url)
+      if (url.includes("/drift.v1.NetworkProfileService/ListNetworkProfiles")) {
+        return new Response(JSON.stringify({ profiles: [] }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "deleteNetworkProfile", profileId: "profile-1", confirmed: true })
+
+    expect(result.ok).toBe(true)
+    expect(result.message).toBe("Network profile deleted.")
+    expect(urls).toContain("http://127.0.0.1:8080/drift.v1.NetworkProfileService/DeleteNetworkProfile")
+    expect(urls.filter((url) => url.endsWith("/ListNetworkProfiles"))).toHaveLength(1)
+    expect(client.getSnapshot().networkProfiles).toEqual([])
+  })
+
+  it("refuses an unconfirmed Network Profile delete without contacting the control plane", async () => {
+    const urls: string[] = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      urls.push(String(input))
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "deleteNetworkProfile", profileId: "profile-1", confirmed: false })
+
+    expect(result.ok).toBe(false)
+    expect(urls).toEqual([])
+  })
+
   it("classifies mutation 401 as unauthorized", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("lab adapter requires a valid local lab token", { status: 401 }),

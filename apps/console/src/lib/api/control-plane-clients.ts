@@ -111,6 +111,8 @@ import {
 import {
   CreateNetworkProfileRequestSchema,
   CreateNetworkProfileResponseSchema,
+  DeleteNetworkProfileRequestSchema,
+  DeleteNetworkProfileResponseSchema,
   ListNetworkProfilesRequestSchema,
   ListNetworkProfilesResponseSchema,
   UpdateNetworkProfileRequestSchema,
@@ -275,6 +277,13 @@ export class NetworkProfileClient {
       context: requestContext({ requestId }),
       profile,
 
+    })
+  }
+  deleteNetworkProfile(requestId: string, workspaceId: string, profileId: string) {
+    return this.rpc.call("DeleteNetworkProfile", DeleteNetworkProfileRequestSchema, DeleteNetworkProfileResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      networkProfileId: profileId,
     })
   }
 }

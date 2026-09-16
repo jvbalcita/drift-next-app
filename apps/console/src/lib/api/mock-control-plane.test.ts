@@ -34,17 +34,20 @@ describe("MockControlPlaneClient", () => {
     expect(client.getSnapshot().settings.find((setting) => setting.id === "setting-workspace-retention")?.valueJson).toBe("45")
   })
 
-  it("does not mark a draft or retired Network Profile as default", () => {
+  it("deletes a confirmed Network Profile and keeps its scan history", () => {
     const client = new MockControlPlaneClient()
 
-    const draftDefault = client.dispatch({ type: "createNetworkProfile", name: "Draft profile", addressPolicy: "192.0.2.0/24", ports: [5555], isDefault: true })
-    const retire = client.dispatch({ type: "retireNetworkProfile", profileId: "profile-lab-a", rowVersion: 3 })
-    const retired = client.getSnapshot().networkProfiles.find((profile) => profile.id === "profile-lab-a")
+    const unconfirmed = client.dispatch({ type: "deleteNetworkProfile", profileId: "profile-lab-a", confirmed: false })
+    const deletion = client.dispatch({ type: "deleteNetworkProfile", profileId: "profile-lab-a", confirmed: true })
+    const snapshot = client.getSnapshot()
 
-    expect(draftDefault.ok).toBe(false)
-    expect(retire.ok).toBe(true)
-    expect(retired?.state).toBe("retired")
-    expect(retired?.isDefault).toBe(false)
+    expect(unconfirmed.ok).toBe(false)
+    expect(deletion.ok).toBe(true)
+    expect(snapshot.networkProfiles.some((profile) => profile.id === "profile-lab-a")).toBe(false)
+    const history = snapshot.scanRuns.find((run) => run.id === "scan-run-001")
+    expect(history).toBeDefined()
+    expect(history?.networkProfileId).toBe("")
+    expect(snapshot.scanRuns).toHaveLength(2)
   })
 
   it("moves membership history without persisting an Ungrouped group", () => {
