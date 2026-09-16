@@ -430,6 +430,25 @@ func WithRenderSizeSourceFactory(factory RenderSizeSourceFactory) DispatcherOpti
 	}
 }
 
+// WithEvidenceRecorder binds the append-only recorder this dispatcher appends
+// one observation/evidence record to for each device action it runs. It exists
+// so the production composition stays one reviewable function and so a test can
+// state the recorder it appends to.
+//
+// A dispatcher built without one appends nothing. Evidence is not a safety gate
+// on the dispatch itself - the kernel, the readiness probe and the render-space
+// cross-check remain the gates - so a caller that binds no recorder loses the
+// record of what happened rather than being refused the action.
+func WithEvidenceRecorder(recorder EvidenceRecorder) DispatcherOption {
+	return func(dispatcher *InputDispatcher) error {
+		if recorder == nil {
+			return errors.New("a device action evidence recorder is required")
+		}
+		dispatcher.evidence = recorder
+		return nil
+	}
+}
+
 // InputDispatcher runs one typed device input through the whole P7 contract. It
 // owns one serialized actor per device, so two inputs for the same device never
 // run concurrently, and it holds a typed payload only for the duration of the
@@ -440,6 +459,10 @@ type InputDispatcher struct {
 	observer  PostconditionObserver
 	transport InputTransport
 	resolver  TextResolver
+
+	// evidence is the append-only record of what happened. It is nil until a
+	// caller binds one with WithEvidenceRecorder.
+	evidence EvidenceRecorder
 
 	// renderSizes is how a coordinate-bearing dispatch learns the size the
 	// device actually presents at. It defaults to the real reader over the same
@@ -496,6 +519,40 @@ func (d *InputDispatcher) Close() error {
 	return first
 }
 
+// dispatchOutcome is what one Run produced: the kernel's result, the failure this
+// boundary reported, the action identity the attempt was built under, and
+// whatever the executing adapter reported back about the attempt. It exists so a
+// Run has exactly one place that records evidence, whichever way the attempt
+// ended.
+type dispatchOutcome struct {
+	result    action.Result
+	err       error
+	kind      action.Kind
+	attemptID string
+	report    attemptReport
+}
+
+// recordable reports whether this outcome describes a device action at all. A
+// request that does not name exactly one typed action kind builds no action
+// identity, and an action identity is what an evidence record is evidence of.
+func (o dispatchOutcome) recordable() bool {
+	return o.kind != "" && o.attemptID != ""
+}
+
+// disposition is the course the action took. A replay is reported as a replay
+// even when the kernel's own duplicate-delivery guard answered it, because the
+// fact that matters to a later recording is that nothing was sent this time.
+func (o dispatchOutcome) disposition() store.EvidenceDisposition {
+	switch {
+	case o.result.IdempotentReplay:
+		return store.EvidenceReplayed
+	case o.report.reached:
+		return store.EvidenceDispatched
+	default:
+		return store.EvidenceRefused
+	}
+}
+
 // Run performs one typed device input. The order is the contract:
 //
 //  1. the typed payload is validated and turned into a kernel intent;
@@ -510,41 +567,90 @@ func (d *InputDispatcher) Close() error {
 //  6. the declared postcondition is observed and evaluated;
 //  7. the kernel records the completion (or the indeterminate outcome), and the
 //     cleanup is recorded separately, so a failed cleanup stays visible.
+//
+// Whatever way the attempt ended, the outcome is then appended to the evidence
+// history as one observation/evidence record. That record is history and not
+// state: it is appended, never rewritten, and a second dispatch of the same
+// action appends a second record rather than mutating the first.
+//
+// A dispatch failure is the failure this call reports. When the dispatch
+// succeeded and its outcome could not be recorded, that is what is reported
+// instead, because an action whose outcome cannot be explained from stored
+// evidence is not an action an operator can trust.
 func (d *InputDispatcher) Run(ctx context.Context, request InputRequest, actorType, actorID string) (action.Result, error) {
 	if d == nil || d.control == nil || ctx == nil {
 		return action.Result{}, platformerrors.New(platformerrors.CodeInvalidInput, "context and device input dispatcher are required")
 	}
+	outcome := d.dispatch(ctx, request, actorType, actorID)
+	recordErr := d.recordEvidence(ctx, request, outcome, actorType, actorID)
+	if outcome.err != nil {
+		return outcome.result, outcome.err
+	}
+	return outcome.result, recordErr
+}
+
+// dispatch runs the attempt and reports everything the evidence record needs,
+// including what the executing adapter did. It appends nothing itself: Run
+// records evidence exactly once per call, so no path can record twice or not at
+// all.
+func (d *InputDispatcher) dispatch(ctx context.Context, request InputRequest, actorType, actorID string) dispatchOutcome {
 	intent, err := d.intentFor(request)
 	if err != nil {
-		return action.Result{}, err
+		return dispatchOutcome{err: err}
 	}
+	outcome := dispatchOutcome{kind: intent.Kind, attemptID: intent.ID}
 	reason, probeErr := d.probe.ProbeControl(ctx, request)
 	if probeErr != nil {
-		return action.Result{}, probeErr
+		outcome.err = probeErr
+		return outcome
 	}
 	if reason != "" {
-		return action.Result{}, refusalFor(reason, nil)
+		outcome.err = refusalFor(reason, nil)
+		return outcome
 	}
 	authorized, err := d.control.Authorize(ctx, intent, actorType, actorID)
 	if err != nil {
-		return action.Result{}, classifyAuthorizeRefusal(err)
+		outcome.err = classifyAuthorizeRefusal(err)
+		return outcome
 	}
 	// A duplicate delivery returns what the first delivery recorded. An attempt
 	// that is still merely authorized was never dispatched, so it continues.
 	if authorized.IdempotentReplay && authorized.Attempt.State != action.AttemptAuthorized {
-		return authorized, nil
+		outcome.result = authorized
+		return outcome
 	}
 	device, err := d.deviceFor(request.DeviceID, request.Serial)
 	if err != nil {
-		return action.Result{}, err
+		outcome.err = err
+		return outcome
 	}
-	device.adapter.bind(intent.ID, request.Payload)
+	report := &attemptReportSink{}
+	device.adapter.bind(intent.ID, request.Payload, report)
 	defer device.adapter.release(intent.ID)
 	result, runErr := runner.New(d.control, device.actor).Run(ctx, intent, actorType, actorID)
+	outcome.result = result
+	outcome.report = report.value()
 	if runErr != nil {
-		return result, classifyDispatchRefusal(runErr)
+		outcome.err = classifyDispatchRefusal(runErr)
 	}
-	return result, nil
+	return outcome
+}
+
+// recordEvidence appends the one record this Run produced. It redacts before it
+// appends, so a value that could carry content or a credential never reaches the
+// store, and it reports rather than swallows a record that could not be written.
+func (d *InputDispatcher) recordEvidence(ctx context.Context, request InputRequest, outcome dispatchOutcome, actorType, actorID string) error {
+	if d == nil || d.evidence == nil || !outcome.recordable() {
+		return nil
+	}
+	record, err := RedactActionEvidence(evidenceFor(request, outcome))
+	if err != nil {
+		return &EvidenceRecordError{Operation: "redact", Reason: "the record is not admissible evidence", cause: err}
+	}
+	if err := d.evidence.Append(ctx, record, actorType, actorID); err != nil {
+		return &EvidenceRecordError{Operation: "append", Reason: "the append-only evidence store refused the record", cause: err}
+	}
+	return nil
 }
 
 func (d *InputDispatcher) deviceFor(deviceID, serial string) (*deviceInput, error) {

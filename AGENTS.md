@@ -35,6 +35,7 @@ React/Vite operator UI
 - Treat a scan as an observation, not as a registration step: a bounded Network Profile scan upserts each observed serial into the canonical `devices`/`endpoints` registry and returns it immediately. There is no candidate queue, no approval transition, and no separate registration or provisioning flow.
 - Keep the action-safety boundary in the lease/fencing/policy/control-session kernel, not in the existence of a device row: a device row carries identity and observation history, and confers no authority to act on the device.
 - Keep current projections separate from append-only audit, event, observation, and evidence history.
+- Reference a dispatched device action's outcome by an append-only evidence record, never by its current projection: an attempt row is updated as the attempt moves, so a reference to it names what was intended rather than what happened. The record carries the action identity, the target device, the outcome and the resulting observation, and it has no field in which typed content or a credential could be carried.
 - Use explicit state machines for workflows, control sessions, devices, package lifecycle, approval, and recovery states.
 - Treat group and placement order as persisted operator order. Never derive it from insertion order, a row id, or a list index; write the whole order, not a single occupied slot, and reach an order by renumbering inside one transaction rather than by overwriting a neighbour's position.
 - Ungrouping ends a placement. "Ungrouped" is a computed view over devices with no active membership, never a stored group, and a row that append-only evidence references is retired in place rather than deleted.
@@ -95,6 +96,7 @@ React/Vite operator UI
 - Enable foreign keys on every connection. Use WAL mode and a bounded busy timeout.
 - Use explicit transaction boundaries. Use a write reservation appropriate to the driver for lease/fencing transitions that require exclusive write intent.
 - Store timestamps consistently in UTC using one documented representation. Store internal IDs as validated text UUID/ULID values.
+- Read an append-only history in append order — the table's own insertion order — not by its recorded timestamp: two appends can share one timestamp, and a history whose order ties cannot be read in order.
 - Keep JSON payloads bounded, schema-versioned, and exceptional; use relational columns for relationships and queryable facts.
 - Use forward-only ordered migrations and a migration ledger with version/checksum tracking. Do not edit a shipped migration; create a repair migration.
 - Processes that share one database can run at different revisions, so a binary must refuse to start when the applied ledger holds a version newer than the migrations embedded in that binary. Fail loudly, name both versions, and never serve requests against a schema that moved on.

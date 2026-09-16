@@ -51,6 +51,50 @@ func (c *countingTransport) attempted() bool {
 	return c.attempts > 0
 }
 
+// attemptReport is what the executing adapter reports back about one attempt: it
+// is the one place that knows whether the transport was actually invoked and
+// what observation was taken, and it is what makes the evidence record able to
+// say "the input reached the device" rather than "the kernel dispatched it".
+type attemptReport struct {
+	// reached reports that a device call was made for this attempt.
+	reached bool
+	// observation is the observation the attempt resulted in.
+	observation PostconditionObservation
+	// observed reports that an observation was taken.
+	observed bool
+}
+
+// attemptReportSink is the per-attempt mailbox between the executing adapter and
+// the dispatcher that records evidence. The adapter writes it inside the actor;
+// the dispatcher reads it after the actor has finished, so there is no shared
+// mutable state beyond this one value.
+type attemptReportSink struct {
+	mu     sync.Mutex
+	report attemptReport
+}
+
+// publish records what the adapter did. A nil sink is not an error: a caller that
+// bound no report is a caller with nothing to report.
+func (s *attemptReportSink) publish(report attemptReport) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.report = report
+}
+
+// value returns the report the adapter published, or the zero report when it
+// published none.
+func (s *attemptReportSink) value() attemptReport {
+	if s == nil {
+		return attemptReport{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.report
+}
+
 // inputAdapter implements adapter.Adapter for the five typed device inputs.
 type inputAdapter struct {
 	transport InputTransport
@@ -66,11 +110,18 @@ type inputAdapter struct {
 	renderSizes RenderSizeSourceFactory
 
 	mu      sync.Mutex
-	pending map[string]InputPayload
+	pending map[string]boundAttempt
+}
+
+// boundAttempt is one attempt's typed payload together with its report sink. The
+// sink is per-attempt and never shared between attempts.
+type boundAttempt struct {
+	payload InputPayload
+	sink    *attemptReportSink
 }
 
 func newInputAdapter(transport InputTransport, resolver TextResolver, observer PostconditionObserver, serial string, renderSizes RenderSizeSourceFactory) *inputAdapter {
-	return &inputAdapter{transport: transport, resolver: resolver, observer: observer, serial: serial, renderSizes: renderSizes, pending: make(map[string]InputPayload)}
+	return &inputAdapter{transport: transport, resolver: resolver, observer: observer, serial: serial, renderSizes: renderSizes, pending: make(map[string]boundAttempt)}
 }
 
 // carriesRenderCoordinate reports whether a kind dispatches a point that is only
@@ -116,14 +167,15 @@ func (a *inputAdapter) Observe(context.Context) (adapter.Observation, error) {
 func (a *inputAdapter) Cleanup(context.Context, action.Intent) error { return nil }
 
 // bind attaches one typed payload to one attempt for the duration of a
-// dispatch. A payload is single-use: Execute consumes it.
-func (a *inputAdapter) bind(attemptID string, payload InputPayload) {
+// dispatch, together with the sink the executing adapter reports what it did
+// into. A payload is single-use: Execute consumes it.
+func (a *inputAdapter) bind(attemptID string, payload InputPayload, sink *attemptReportSink) {
 	if a == nil || attemptID == "" {
 		return
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.pending[attemptID] = payload
+	a.pending[attemptID] = boundAttempt{payload: payload, sink: sink}
 }
 
 func (a *inputAdapter) release(attemptID string) {
@@ -135,15 +187,15 @@ func (a *inputAdapter) release(attemptID string) {
 	delete(a.pending, attemptID)
 }
 
-func (a *inputAdapter) take(attemptID string) (InputPayload, bool) {
+func (a *inputAdapter) take(attemptID string) (boundAttempt, bool) {
 	if a == nil {
-		return InputPayload{}, false
+		return boundAttempt{}, false
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	payload, ok := a.pending[attemptID]
+	bound, ok := a.pending[attemptID]
 	delete(a.pending, attemptID)
-	return payload, ok
+	return bound, ok
 }
 
 // Execute runs one authorized typed input and then evaluates the catalog's
@@ -154,10 +206,11 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 	if a == nil {
 		return adapter.Execution{}, &adapter.ExecutionError{Cause: errors.New("device input adapter is not configured"), FailureClass: domain.FailureCapabilityMismatch}
 	}
-	payload, ok := a.take(intent.ID)
+	bound, ok := a.take(intent.ID)
 	if !ok {
 		return adapter.Execution{}, &adapter.ExecutionError{Cause: errors.New("no typed device input payload is bound to this attempt"), FailureClass: domain.FailureInvalidTransition}
 	}
+	payload := bound.payload
 	kind, err := payload.Kind()
 	if err != nil || kind != intent.Kind {
 		return adapter.Execution{}, &adapter.ExecutionError{Cause: errors.New("the bound payload is not the payload of this action kind"), FailureClass: domain.FailureInvalidTransition}
@@ -166,7 +219,20 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 	if !ok {
 		return adapter.Execution{}, &adapter.ExecutionError{Cause: errors.New("action kind is not a complete catalog entry"), FailureClass: domain.FailureCapabilityMismatch}
 	}
-	counted := &countingTransport{inner: a.transport}
+	// Everything this attempt did is reported back to the dispatcher, whichever
+	// way it ends, so the evidence record states what happened rather than what
+	// was intended. Only the argument array itself reaches the transport: the
+	// payload, its resolver and the transport's own diagnostics are never part
+	// of the report.
+	var counted *countingTransport
+	report := attemptReport{}
+	defer func() {
+		if counted != nil && counted.attempted() {
+			report.reached = true
+		}
+		bound.sink.publish(report)
+	}()
+	counted = &countingTransport{inner: a.transport}
 	options, err := a.inputOptions(intent, kind)
 	if err != nil {
 		// The render-size source could not be established for a kind whose
@@ -207,7 +273,8 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 	observation, observeErr := a.observer.ObservePostcondition(ctx, intent, payload)
 	if observeErr != nil {
 		// The input reached the device and the outcome could not be observed:
-		// that is indeterminate, never success.
+		// that is indeterminate, never success. The evidence record says so,
+		// and carries no observation rather than an invented one.
 		return adapter.Execution{
 			Outcome:       action.OutcomeIndeterminate,
 			Postcondition: action.PostconditionUnknown,
@@ -215,6 +282,8 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 			Dispatched:    true,
 		}, nil
 	}
+	report.observation = observation
+	report.observed = true
 	postcondition, failure, outcome := evaluatePostcondition(spec, intent, payload, observation)
 	return adapter.Execution{
 		Outcome:          outcome,
