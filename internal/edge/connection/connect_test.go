@@ -16,10 +16,16 @@ type recordingRunner struct {
 	calls  [][]string
 	result adb.Result
 	err    error
+	// failOn makes exactly one array fail, so a per-endpoint failure can be exercised
+	// without failing everything around it.
+	failOn string
 }
 
 func (r *recordingRunner) RunHostAllowlisted(_ context.Context, args []string) (adb.Result, error) {
 	r.calls = append(r.calls, append([]string(nil), args...))
+	if r.failOn != "" && strings.Join(args, " ") == r.failOn {
+		return adb.Result{ExitCode: 1}, errors.New("adb reported failure")
+	}
 	return r.result, r.err
 }
 
