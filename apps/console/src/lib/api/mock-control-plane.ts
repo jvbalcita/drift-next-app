@@ -29,6 +29,7 @@ import type {
   MutationResult,
   NetworkProfileView,
   ObservationView,
+  ObservedDeviceView,
   PolicyDecisionView,
   PolicyView,
   PrerequisiteErrorCode,
@@ -238,6 +239,24 @@ const networkProfiles: NetworkProfileView[] = [
 const scanRuns: ScanRunView[] = [
   { id: "scan-run-001", networkProfileId: "profile-lab-a", state: "completed", requestedAt: "09:31:02", finishedAt: "09:31:08" },
   { id: "scan-run-002", networkProfileId: "profile-lab-b", state: "failed", requestedAt: "09:18:44", finishedAt: "09:18:45", failureClass: "infrastructure_error" },
+]
+
+// What a scan observed, in the shape the control plane returns: one row per
+// responder, with the link state it answered in. The seeded run below is
+// narrower than a fresh scan, and profile-lab-b answers with nothing, so the
+// operator-facing empty scan stays exercised.
+function mockScanObservations(scanRunId: string, profileId: string): ObservedDeviceView[] {
+  if (profileId !== "profile-lab-a") return []
+  return [
+    { scanRunId, host: "192.0.2.10", port: 5555, serial: "MOCK-DEVICE-101", model: "Mock Pixel 8", state: "online", known: true, deviceId: "atlas-04", endpointId: "endpoint-atlas-04-current" },
+    { scanRunId, host: "192.0.2.12", port: 5555, serial: "MOCK-DEVICE-104", model: "Mock Pixel 7", state: "offline", known: true, deviceId: "nova-05", endpointId: "endpoint-nova-05-current" },
+    { scanRunId, host: "192.0.2.31", port: 5555, serial: "MOCK-DEVICE-207", model: "Unknown Android", state: "unauthorized", known: false, deviceId: "", endpointId: "" },
+  ]
+}
+
+const scanObservations: ObservedDeviceView[] = [
+  { scanRunId: "scan-run-001", host: "192.0.2.10", port: 5555, serial: "MOCK-DEVICE-101", model: "Mock Pixel 8", state: "online", known: true, deviceId: "atlas-04", endpointId: "endpoint-atlas-04-current" },
+  { scanRunId: "scan-run-001", host: "192.0.2.12", port: 5555, serial: "MOCK-DEVICE-104", model: "Mock Pixel 7", state: "offline", known: true, deviceId: "nova-05", endpointId: "endpoint-nova-05-current" },
 ]
 
 const groups: GroupView[] = [
@@ -730,6 +749,7 @@ export function buildMockSnapshot(): ControlPlaneSnapshot {
     observations,
     networkProfiles,
     scanRuns,
+    scanObservations,
     groups,
     memberships,
     automationAgents,
@@ -1712,9 +1732,16 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const profile = this.snapshot.networkProfiles.find((candidate) => candidate.id === intent.profileId)
     if (!profile) return rejection(intent, "Select a saved Network Profile before starting a scan.")
     const id = `scan-run-${String(this.nextSequence++).padStart(3, "0")}`
-    const scan: ScanRunView = { id, networkProfileId: profile.id, state: "running", requestedAt: "just now" }
-    this.snapshot = { ...this.snapshot, scanRuns: [scan, ...this.snapshot.scanRuns] }
-    return result(intent, "Mock scan started; no network sockets were opened.", id)
+    // A mock scan completes in place, like the control plane: it observes, it
+    // never holds a candidate lifecycle open.
+    const scan: ScanRunView = { id, networkProfileId: profile.id, state: "completed", requestedAt: "just now", finishedAt: "just now" }
+    const observed = mockScanObservations(id, profile.id)
+    this.snapshot = {
+      ...this.snapshot,
+      scanRuns: [scan, ...this.snapshot.scanRuns],
+      scanObservations: [...observed, ...this.snapshot.scanObservations],
+    }
+    return result(intent, `Mock scan completed; observed ${observed.length} device(s). No network sockets were opened.`, id)
   }
 
   private moveDeviceToGroup(intent: Extract<ControlPlaneIntent, { type: "moveDeviceToGroup" }>): MutationResult {

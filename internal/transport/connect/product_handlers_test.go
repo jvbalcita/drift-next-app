@@ -13,6 +13,7 @@ import (
 	"drift.local/drift-next/internal/discovery"
 	"drift.local/drift-next/internal/edge/connection"
 	"drift.local/drift-next/internal/edge/spool"
+	"drift.local/drift-next/internal/endpoints"
 	"drift.local/drift-next/internal/groups"
 	"drift.local/drift-next/internal/networkprofiles"
 	"drift.local/drift-next/internal/organizations"
@@ -255,6 +256,55 @@ func TestDiscoveryStartScanUpsertsObservedDevicesWithoutDuplicatingDevices(t *te
 	endpoints, err := store.NewEndpointRepository(db).ListCurrent(ctx, "workspace-a", devices.DeviceID(observed.GetDeviceId()))
 	if err != nil || len(endpoints) != 1 || endpoints[0].Serial != "mock-serial-1" {
 		t.Fatalf("current endpoints = %#v err=%v", endpoints, err)
+	}
+}
+
+// The console reads registered endpoints for the whole workspace. A read that
+// insists on a single device identity cannot fill that list, and the refusal
+// looks exactly like "no rows" to the operator.
+func TestListDeviceEndpointsCoversTheWorkspaceWhenNoDeviceIsNamed(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	for _, device := range []devices.Device{
+		{ID: "device-1", Workspace: "workspace-a", DisplayName: "One", State: devices.Active},
+		{ID: "device-2", Workspace: "workspace-a", DisplayName: "Two", State: devices.Active},
+	} {
+		if err := store.NewDeviceService(db).Create(ctx, device, "operator", "op-1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := store.NewEndpointService(db)
+	observedAt := time.Date(2026, 9, 16, 1, 0, 0, 0, time.UTC)
+	for _, endpoint := range []endpoints.Endpoint{
+		{ID: "endpoint-1", Workspace: "workspace-a", DeviceID: "device-1", Serial: "mock-serial-1", Host: "192.0.2.5", Port: 5555, State: endpoints.Current, ObservedAt: observedAt},
+		{ID: "endpoint-2", Workspace: "workspace-a", DeviceID: "device-2", Serial: "mock-serial-2", Host: "192.0.2.6", Port: 5555, State: endpoints.Current, ObservedAt: observedAt},
+	} {
+		if err := svc.BindCurrent(ctx, endpoint, "operator", "op-1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := transportconnect.NewEndpointHandler(db)
+	workspace := &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"}
+
+	all, err := handler.ListDeviceEndpoints(ctx, connectrpc.NewRequest(&driftv1.ListDeviceEndpointsRequest{Workspace: workspace}))
+	if err != nil {
+		t.Fatalf("workspace-wide list error = %v", err)
+	}
+	if len(all.Msg.Endpoints) != 2 {
+		t.Fatalf("workspace-wide endpoints = %#v, want both endpoints", all.Msg.Endpoints)
+	}
+	if all.Msg.Endpoints[0].GetDeviceId() == "" || all.Msg.Endpoints[1].GetDeviceId() == "" {
+		t.Fatalf("workspace-wide endpoints lost their device identity: %#v", all.Msg.Endpoints)
+	}
+
+	scoped, err := handler.ListDeviceEndpoints(ctx, connectrpc.NewRequest(&driftv1.ListDeviceEndpointsRequest{Workspace: workspace, DeviceId: "device-1"}))
+	if err != nil || len(scoped.Msg.Endpoints) != 1 || scoped.Msg.Endpoints[0].GetDeviceId() != "device-1" {
+		t.Fatalf("device-scoped endpoints = %#v err=%v", scoped, err)
+	}
+
+	_, err = handler.ListDeviceEndpoints(ctx, connectrpc.NewRequest(&driftv1.ListDeviceEndpointsRequest{DeviceId: "device-1"}))
+	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("missing workspace code = %v, want invalid_argument; err=%v", connectrpc.CodeOf(err), err)
 	}
 }
 

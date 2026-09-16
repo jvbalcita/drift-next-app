@@ -112,6 +112,30 @@ export interface EndpointView {
   observedAt: string
 }
 
+/**
+ * The transport state a scan observed for a device. It is a fact about the
+ * current link, not a lifecycle an operator advances: an offline or
+ * unauthorized device is reported as such and is not actionable.
+ */
+export type DeviceLinkState = "online" | "offline" | "unauthorized"
+
+/**
+ * One device a scan observed. Link state is transport fact; deviceId and
+ * endpointId are populated once the serial is already known in this workspace,
+ * so stable device identity stays separate from mutable endpoint identity.
+ */
+export interface ObservedDeviceView {
+  scanRunId: string
+  host: string
+  port: number
+  serial: string
+  model: string
+  state: DeviceLinkState
+  known: boolean
+  deviceId: string
+  endpointId: string
+}
+
 export interface LeaseView {
   id: string
   deviceId: string
@@ -559,6 +583,7 @@ export interface ControlPlaneSnapshot {
   observations: readonly ObservationView[]
   networkProfiles: readonly NetworkProfileView[]
   scanRuns: readonly ScanRunView[]
+  scanObservations: readonly ObservedDeviceView[]
   groups: readonly GroupView[]
   memberships: readonly MembershipView[]
   automationAgents: readonly AutomationAgentView[]
