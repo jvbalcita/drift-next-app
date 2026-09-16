@@ -50,8 +50,12 @@ type storedResult struct {
 }
 
 type request struct {
-	input  Request
-	hash   string
+	input Request
+	hash  string
+	// ctx is the submitting caller's context. The execution derives from it, so
+	// cancelling the caller stops the in-flight device call instead of only
+	// stopping this actor from waiting on it.
+	ctx    context.Context
 	result chan result
 }
 
@@ -115,7 +119,7 @@ func (a *Actor) Submit(ctx context.Context, input Request) (Response, error) {
 	}
 	a.mu.Unlock()
 	select {
-	case a.queue <- request{input: input, hash: hash, result: resultCh}:
+	case a.queue <- request{input: input, hash: hash, ctx: ctx, result: resultCh}:
 	case <-ctx.Done():
 		return empty, ctx.Err()
 	case <-a.ctx.Done():
@@ -166,7 +170,7 @@ func (a *Actor) loop() {
 				continue
 			}
 			a.mu.Unlock()
-			response, err := a.execute(request.input)
+			response, err := a.execute(request.ctx, request.input)
 			a.mu.Lock()
 			if err == nil || response.AttemptID != "" {
 				a.results[request.input.Intent.IdempotencyKey] = storedResult{hash: request.hash, response: response}
@@ -177,10 +181,18 @@ func (a *Actor) loop() {
 	}
 }
 
-func (a *Actor) execute(input Request) (Response, error) {
+// execute runs one authorized intent. The execution context derives from the
+// submitting caller's context, falling back to the actor's own when a caller
+// supplied none, so cancellation and deadlines propagate to the device call
+// itself rather than only ending this actor's wait. Cleanup stays on the
+// actor's context: cleanup must still run when a caller walked away.
+func (a *Actor) execute(parent context.Context, input Request) (Response, error) {
 	intent := input.Intent
 	response := Response{AttemptID: intent.ID, DeviceID: intent.DeviceID}
-	executionCtx, cancel := context.WithTimeout(a.ctx, intent.Timeout)
+	if parent == nil {
+		parent = a.ctx
+	}
+	executionCtx, cancel := context.WithTimeout(parent, intent.Timeout)
 	defer cancel()
 	execution, err := a.adapter.Execute(executionCtx, intent)
 	if err != nil {

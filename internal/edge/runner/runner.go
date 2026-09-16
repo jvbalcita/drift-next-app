@@ -45,6 +45,12 @@ func (r *Runner) Run(ctx context.Context, intent action.Intent, actorType, actor
 	if err != nil {
 		return dispatched, err
 	}
+	// The attempt was already terminal when this delivery arrived. Re-running
+	// the device action would double-act on a duplicate delivery, so the
+	// recorded outcome is returned instead.
+	if dispatched.IdempotentReplay && dispatched.Attempt.State != action.AttemptDispatched {
+		return dispatched, nil
+	}
 	response, actorErr := r.actor.Submit(ctx, actors.Request{Intent: intent, Authorized: true})
 	completion := action.Completion{Workspace: intent.Workspace, AttemptID: intent.ID, DeviceID: intent.DeviceID, LeaseID: intent.LeaseID, HolderID: intent.HolderID, FencingToken: intent.FencingToken, Postcondition: response.Postcondition, ObservationToken: response.ObservationToken, FailureClass: string(response.FailureClass)}
 	var completed action.Result

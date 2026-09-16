@@ -186,11 +186,15 @@ func TestDevicePathStaysInsideTheAdapterNamespace(t *testing.T) {
 }
 
 // TestAllowlistRejectsBlindReplayAndArbitraryShell documents that the adapter
-// has no generic command pass-through: only builder-shaped arrays execute.
+// has no generic command pass-through: only builder-shaped arrays execute. The
+// five typed device input builders are the one admission (ADR-0010); their
+// near misses and every command-shaped array are refused.
 func TestAllowlistRejectsBlindReplayAndArbitraryShell(t *testing.T) {
 	for _, args := range [][]string{
-		{"shell", "input", "tap", "540", "960"},
-		{"shell", "am", "start", "-n", "com.example/.Main"},
+		{"shell", "input", "tap", "540"},
+		{"shell", "input", "tap", "540", "960", "1"},
+		{"shell", "input", "text", "a;id"},
+		{"shell", "am", "start", "-a", "android.intent.action.VIEW"},
 		{"shell", "pm", "uninstall", "com.example"},
 		{"shell", "rm", "-rf", "/sdcard"},
 		{"exec-out", "sh"},

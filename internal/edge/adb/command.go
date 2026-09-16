@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"drift.local/drift-next/internal/platform/redaction"
@@ -20,6 +21,36 @@ const (
 	// to, and every file it creates there is removed after the operation.
 	devicePathPrefix = "/sdcard/drift-"
 	devicePathSuffix = ".xml"
+)
+
+// Bounds and fixed tokens for the typed device input admission. Every bound is
+// re-derived here rather than imported from the input builder: the allow-list
+// is an independent second gate, so a defect in one gate does not reach a
+// device through the other.
+const (
+	// maxInputCoordinate is the largest render-space coordinate the contract
+	// admits (a coordinate lies strictly inside a render space of at most
+	// 10000x10000).
+	maxInputCoordinate = 9999
+	// maxInputSwipeDurationMillis bounds one swipe.
+	maxInputSwipeDurationMillis = 300000
+	// maxInputKeyCode bounds one key event.
+	maxInputKeyCode = 10000
+	// launcherCategory is the only component category an app launch may name.
+	launcherCategory = "android.intent.category.LAUNCHER"
+	// launcherCountToken is the fixed monkey invocation count an app launch
+	// uses: exactly one launch.
+	launcherCountToken = "1"
+	// maxComponentLength bounds a package or component name.
+	maxComponentLength = 255
+)
+
+var (
+	// packageNamePattern and componentNamePattern are names, never command
+	// text: a package is dotted identifiers, a component is identifiers joined
+	// by dots or underscores.
+	packageNamePattern   = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$`)
+	componentNamePattern = regexp.MustCompile(`^[A-Za-z0-9_.]+$`)
 )
 
 var (
@@ -232,7 +263,19 @@ func RemoveArgv(devicePath string) ([]string, error) {
 // builder could have produced. Arrays that follow an explicit -s SERIAL are
 // only executed when they match. Host-scoped commands (devices, version) are
 // intentionally absent because they take no serial.
+//
+// The five typed device inputs are the one admission beyond the read-only
+// builders (ADR-0010). It is narrow by construction: every admitted array
+// reaches a fixed device binary through adb's own remote-shell transport, and
+// every variable token is either a bounded decimal integer or a name that has
+// matched a strict allow-list pattern. No admitted position accepts whitespace,
+// a quote, a shell metacharacter, a path, a flag, a separator, a redirect, a
+// substitution or a second command, so no admitted array can express command
+// text.
 func matchesAllowlist(args []string) (string, bool) {
+	if name, ok := matchesDeviceInputAllowlist(args); ok {
+		return name, true
+	}
 	switch {
 	case equalArgv(args, getStateArgv()):
 		return "get-state", true
@@ -252,6 +295,115 @@ func matchesAllowlist(args []string) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// matchesDeviceInputAllowlist recognises exactly the six argument arrays the
+// five typed device input builders produce: one tap, one swipe, one key event,
+// one typed text and the two app launch shapes (a package-only launch and a
+// launch that names one activity component).
+func matchesDeviceInputAllowlist(args []string) (string, bool) {
+	switch {
+	case len(args) == 5 && args[0] == "shell" && args[1] == "input" && args[2] == "tap" &&
+		isBoundedDecimal(args[3], maxInputCoordinate) && isBoundedDecimal(args[4], maxInputCoordinate):
+		return "input-tap", true
+	case len(args) == 8 && args[0] == "shell" && args[1] == "input" && args[2] == "swipe" &&
+		isBoundedDecimal(args[3], maxInputCoordinate) && isBoundedDecimal(args[4], maxInputCoordinate) &&
+		isBoundedDecimal(args[5], maxInputCoordinate) && isBoundedDecimal(args[6], maxInputCoordinate) &&
+		isBoundedDecimalBetween(args[7], 1, maxInputSwipeDurationMillis):
+		return "input-swipe", true
+	case len(args) == 4 && args[0] == "shell" && args[1] == "input" && args[2] == "keyevent" &&
+		isBoundedDecimalBetween(args[3], 1, maxInputKeyCode):
+		return "input-keyevent", true
+	case len(args) == 4 && args[0] == "shell" && args[1] == "input" && args[2] == "text" && isInputTextToken(args[3]):
+		return "input-text", true
+	case len(args) == 7 && args[0] == "shell" && args[1] == "monkey" && args[2] == "-p" &&
+		validatePackageName(args[3]) == nil && args[4] == "-c" && args[5] == launcherCategory && args[6] == launcherCountToken:
+		return "launch-app-package", true
+	case len(args) == 5 && args[0] == "shell" && args[1] == "am" && args[2] == "start" && args[3] == "-n" &&
+		validateLaunchComponent(args[4]) == nil:
+		return "launch-app-activity", true
+	default:
+		return "", false
+	}
+}
+
+// isBoundedDecimal reports a canonical unsigned decimal token within [0, max]:
+// digits only, no sign, no whitespace, no leading zero, and inside the bound.
+// Canonical form matters because it is the only form a builder emits.
+func isBoundedDecimal(token string, max uint64) bool {
+	return isBoundedDecimalBetween(token, 0, max)
+}
+
+func isBoundedDecimalBetween(token string, min, max uint64) bool {
+	if token == "" || len(token) > 20 {
+		return false
+	}
+	if len(token) > 1 && token[0] == '0' {
+		return false
+	}
+	for index := 0; index < len(token); index++ {
+		if token[index] < '0' || token[index] > '9' {
+			return false
+		}
+	}
+	value, err := strconv.ParseUint(token, 10, 64)
+	if err != nil {
+		return false
+	}
+	return value >= min && value <= max
+}
+
+// isInputTextToken reports a token the typed-text builder could have emitted:
+// one argument-safe token in which the device input command's own space escape
+// (`%s`) is the only place a percent sign appears. A literal percent would be
+// typed as something other than itself, so it is refused rather than escaped.
+func isInputTextToken(token string) bool {
+	if token == "" || len(token) > maxArgTokenLength {
+		return false
+	}
+	if err := validateArgToken(token); err != nil {
+		return false
+	}
+	for index := 0; index < len(token); index++ {
+		if token[index] != '%' {
+			continue
+		}
+		if index+1 >= len(token) || token[index+1] != 's' {
+			return false
+		}
+		index++
+	}
+	return true
+}
+
+// validatePackageName accepts a dotted package name and nothing else.
+func validatePackageName(name string) error {
+	if name == "" || len(name) > maxComponentLength || !packageNamePattern.MatchString(name) {
+		return fmt.Errorf("%w: package name is not allow-listed", ErrArgvNotAllowlisted)
+	}
+	return nil
+}
+
+// validateLaunchComponent accepts the `<package>/<activity>` component token an
+// app launch composes from two separately allow-listed names. The package and
+// the activity are validated apart, so a token cannot smuggle a path, a
+// traversal, a second command or a flag through either half.
+func validateLaunchComponent(token string) error {
+	if len(token) > 2*maxComponentLength {
+		return fmt.Errorf("%w: launch component is over-long", ErrArgvNotAllowlisted)
+	}
+	name, activity, ok := strings.Cut(token, "/")
+	if !ok || activity == "" {
+		return fmt.Errorf("%w: launch component is not a package/activity pair", ErrArgvNotAllowlisted)
+	}
+	if err := validatePackageName(name); err != nil {
+		return err
+	}
+	if activity == "" || len(activity) > maxComponentLength || !componentNamePattern.MatchString(activity) ||
+		!strings.Contains(activity, ".") || strings.Contains(activity, "..") {
+		return fmt.Errorf("%w: launch activity is not allow-listed", ErrArgvNotAllowlisted)
+	}
+	return nil
 }
 
 func isAllowedProperty(property string) bool {

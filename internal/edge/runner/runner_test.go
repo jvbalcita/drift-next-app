@@ -85,6 +85,67 @@ func TestRunnerUsesIndeterminateControlPathAfterTransportLoss(t *testing.T) {
 	}
 }
 
+// TestRunnerReturnsTheRecordedOutcomeForATerminalReplay proves a duplicate
+// delivery whose attempt already reached a terminal state is not re-executed:
+// the recorded outcome is returned and the device is not touched again.
+func TestRunnerReturnsTheRecordedOutcomeForATerminalReplay(t *testing.T) {
+	fakeAdapter := adapter.NewFakeAdapter(action.CapabilityTap)
+	actor, err := actors.New("device-a", fakeAdapter, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer actor.Close()
+	control := &terminalReplayControl{}
+	result, err := runner.New(control, actor).Run(context.Background(), runnerIntent(), "operator", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != action.OutcomeVerified || !result.IdempotentReplay {
+		t.Fatalf("replay result = %#v, want the recorded verified outcome", result)
+	}
+	if fakeAdapter.ExecuteCalls() != 0 {
+		t.Fatalf("terminal replay executed the device action %d times, want 0", fakeAdapter.ExecuteCalls())
+	}
+	if control.completed || control.cleaned {
+		t.Fatalf("terminal replay ran control calls completed=%t cleaned=%t, want none", control.completed, control.cleaned)
+	}
+}
+
+type terminalReplayControl struct {
+	completed bool
+	cleaned   bool
+}
+
+func (c *terminalReplayControl) Dispatch(context.Context, string, string, string, uint64, string, string) (action.Result, error) {
+	return action.Result{
+		Attempt:          action.Attempt{ID: "attempt-a", State: action.AttemptVerified, Postcondition: action.PostconditionPassed},
+		Outcome:          action.OutcomeVerified,
+		IdempotentReplay: true,
+	}, nil
+}
+
+func (c *terminalReplayControl) Complete(_ context.Context, completion action.Completion, _, _ string) (action.Result, error) {
+	c.completed = true
+	return action.Result{Attempt: action.Attempt{ID: completion.AttemptID}}, nil
+}
+
+func (c *terminalReplayControl) MarkIndeterminate(_ context.Context, completion action.Completion, _, _ string) (action.Result, error) {
+	return action.Result{Attempt: action.Attempt{ID: completion.AttemptID}}, nil
+}
+
+func (c *terminalReplayControl) Timeout(_ context.Context, _, attemptID, _ string, _ uint64, _, _ string) (action.Result, error) {
+	return action.Result{Attempt: action.Attempt{ID: attemptID}}, nil
+}
+
+func (c *terminalReplayControl) Cancel(_ context.Context, _, attemptID, _ string, _ uint64, _, _ string) (action.Result, error) {
+	return action.Result{Attempt: action.Attempt{ID: attemptID}}, nil
+}
+
+func (c *terminalReplayControl) Cleanup(context.Context, string, string, string, string, bool) (action.Result, error) {
+	c.cleaned = true
+	return action.Result{}, nil
+}
+
 func TestRunnerPersistsFakeExecutionThroughSQLiteControlPlane(t *testing.T) {
 	db, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "runner.db"), store.Options{})
 	if err != nil {
