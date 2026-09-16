@@ -6,6 +6,7 @@
 - Composed with: ADR-0011 (the render-space cross-check, which this dispatcher now carries as a second gate)
 - Does not lift: ADR-0004 (the adapter boundary), ADR-0005 (raw ADB shell, arbitrary coordinates, clipboard/global commands, automatic package changes)
 - Amended: 2026-09-16 — the admission grows by one argument array: the render-size declaration read `["shell", "wm", "size"]`, with zero variable positions (card ARC-75). Nothing else in this record changed. See the amendment below.
+- Amended: 2026-09-16 — the separation between the two admissions is made non-collidable and pinned by test, with the read-only recogniser extracted into a function of its own (card ARC-75 refinement). No admission and no gate changed. See the second amendment below.
 
 ## Context
 
@@ -187,3 +188,35 @@ Nothing argued for the refusal. The allow-list simply had no case for the array,
 - `internal/edge/execution/render_size_transport_test.go`: the exact array is no longer refused by the real transport (`ErrArgvNotAllowlisted` is gone for it), and the real `WmSizeReader` over the real allow-list yields a reading — the device's OVERRIDE, carrying an observation time — instead of reporting the device render size as unavailable.
 - `TestTheDispatchGatesComposeOnTheCoordinateFrame`'s production-composition case was re-pointed rather than deleted: it used to assert this refusal, and it now asserts the composed path end to end (the reading is obtained through the real allow-list, the declared frame is cross-checked against it, and the tap is dispatched) with the read and the input as two distinct calls in that order — and with the read's near misses still refused at the real transport. Its five other cases are unchanged.
 - `gofmt -l` on the changed files, `go vet ./...`, `go build ./...`, `go test ./...`, `go test -race ./internal/edge/... ./internal/transport/connect/...`, `bash scripts/secret-scan.sh` and `git diff --check` are the gates for this amendment; `go.mod`/`go.sum` are unchanged and no dependency was added.
+
+## Amendment 2: the classification separation is pinned, not assumed (card ARC-75 refinement)
+
+**This amendment adds no admission and touches no gate. It makes the separation between the two admissions observable, and asserts it, so the read-only admission cannot silently be selected as a device input.**
+
+### What prompted it
+
+The read is admitted by the same `matchesAllowlist` that answers for operator-authored device input, so that one entry point now serves two admissions: the six typed input arrays (above) and the read-only builders including the render-size read. The separation between them was correct but only *argued*: the read-only cases were an inline switch, the input recogniser was asked first, and nothing asserted that no array is admitted by both. A safety separation that no test can observe is a separation that is intended, not one that is enforced.
+
+### What changed
+
+- **`matchesReadOnlyAllowlist` is a function of its own**, holding the read-only cases, and `matchesAllowlist` is now their composition: ask the input recogniser, then the read-only one. The extraction is behaviour-preserving — no array's classification changed — and it exists so both recognisers can be asked independently in a test. A property that cannot be asked about cannot be asserted.
+- **The precedence is recorded and pinned.** The input recogniser is asked first, so if a future admission ever made one array reachable by both, the more specific (input) classification would win. That ordering is not load-bearing today because the two are disjoint; the point of pinning it is that a collision must fail a test rather than quietly rename an existing array.
+- **The two admissions' operation-name spaces are asserted disjoint** (six input names, eight read-only names), and the read's name `wm-size` is asserted absent from the action catalog: `action.Lookup("wm-size")` finds nothing, no catalog `Kind` equals it, and the read array is not classified by `matchesDeviceInputAllowlist`. The catalog assertion carries a live-lookup guard — `action.Lookup(action.Tap)` must be found — so it cannot pass vacuously if the lookup ever stops resolving anything.
+- **The rule is now durable, not local**: `AGENTS.md` §3 carries it, so the next admission to this allow-list is held to it.
+
+### What is asserted, and how the assertions were proven to be tripwires
+
+`internal/edge/adb/allowlist_classification_test.go` asserts, over a corpus of every admitted array, every near miss either admission refuses, and every one-token mutation of an admitted array (plus extended and truncated shapes):
+
+1. no array is admitted by both recognisers;
+2. `matchesAllowlist` is deterministic, reports the input name for an array the input recogniser admits, reports the read-only name for one only the read-only recogniser admits, and refuses everything else;
+3. the two operation-name spaces are disjoint;
+4. the read's operation name is not a catalog kind, is not selectable as an operator action, and is not an input classification.
+
+Two fault injections were run against the real code to prove those assertions are tripwires rather than decoration, each reverted before the commit that carries this amendment: a read-only case that shadowed `shell input tap <x> <y>` made assertion 1 fail and name both classifications, and renaming the read's operation name to `tap` made assertion 4 fail. Both failures are recorded verbatim in that commit's pull request.
+
+The producing side is pinned as well: `TestNoTypedDeviceInputEmitsTheRenderSizeRead` dispatches each of the five typed inputs through the real adapter and asserts that the array each one puts on the wire is not the read, and this record's sibling validation (`TestTheRealAdapterAdmitsTheArgumentArraysThePrimitivesBuild`, ADR-0011) already pins the exact array each kind emits.
+
+### What is unchanged
+
+Nothing was admitted, removed or widened. No gate, kernel path, readiness probe, render-space cross-check or transport composition was touched. `wm-size` is still the same single fixed array with zero variable positions, the near misses still stay refused, and the "exactly six input arrays" record above is still literally true. The distinction this amendment draws is between "correct by construction, argued in a comment" and "correct, and asserted by a test that fails when it stops being true".

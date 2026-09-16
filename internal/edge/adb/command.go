@@ -279,10 +279,28 @@ func RemoveArgv(devicePath string) ([]string, error) {
 // device reading without, so it is listed with the read-only builders rather
 // than with the typed inputs, and it is spelled out here in literal tokens
 // rather than imported from the builder that emits it.
+//
+// The two admissions are recognisers of their own — `matchesDeviceInputAllowlist`
+// and `matchesReadOnlyAllowlist` — and the input recogniser is asked first. That
+// order is not load-bearing: the two are provably disjoint, so no array is
+// admitted by both, and `allowlist_classification_test.go` asserts that over
+// every admitted array, every near miss and a token-mutation cross-product. The
+// order is pinned anyway, so a future admission that made them overlap fails a
+// test instead of silently changing an array's classification.
 func matchesAllowlist(args []string) (string, bool) {
 	if name, ok := matchesDeviceInputAllowlist(args); ok {
 		return name, true
 	}
+	return matchesReadOnlyAllowlist(args)
+}
+
+// matchesReadOnlyAllowlist recognises the read-only builders this adapter issues
+// and the render-size declaration read admitted for the render-space
+// cross-check. It is deliberately a function of its own rather than an inline
+// switch, because the separation between the two admissions is a safety property
+// and a property can only be asserted if both sides of it can be asked
+// independently in a test.
+func matchesReadOnlyAllowlist(args []string) (string, bool) {
 	switch {
 	// The render-size declaration read. It is the narrowest admission this
 	// adapter has: arity three, three fixed literals, and zero variable

@@ -98,3 +98,70 @@ func TestTheRealReaderYieldsAReadingThroughTheRealAllowList(t *testing.T) {
 		t.Fatal("RenderSize() carries no observation time, so the cross-check cannot tell a fresh reading from a stale one")
 	}
 }
+
+// TestNoTypedDeviceInputEmitsTheRenderSizeRead is the producing side of the
+// separation the read-only admission has to keep. The read is reachable through
+// the same allow-list an operator-authored input reaches, so no typed device
+// input may put it on the wire: each of the five inputs is dispatched through the
+// real adapter and the array it emits is compared against the read. The
+// classification side - that the read is not a typed input kind, and that no
+// array is admitted by both recognisers - is asserted in
+// internal/edge/adb/allowlist_classification_test.go.
+func TestNoTypedDeviceInputEmitsTheRenderSizeRead(t *testing.T) {
+	read := []string{"shell", "wm", "size"}
+	runner := adb.NewFakeRunner().RespondDefault(adb.FakeResponse{Result: adb.Result{ExitCode: 0}})
+	adapter, err := adb.NewAdapter("/opt/android/platform-tools/adb", runner, adb.WithOperationTimeout(5*time.Second))
+	if err != nil {
+		t.Fatalf("new adapter: %v", err)
+	}
+	cases := []struct {
+		name  string
+		build func(*execution.Inputs) error
+	}{
+		{"tap", func(inputs *execution.Inputs) error {
+			return inputs.Tap(context.Background(), execution.TapRequest{Point: execution.Point{X: 540, Y: 960}, Space: testRenderSpace()})
+		}},
+		{"swipe", func(inputs *execution.Inputs) error {
+			return inputs.Swipe(context.Background(), execution.SwipeRequest{Start: execution.Point{X: 1, Y: 2}, End: execution.Point{X: 3, Y: 4}, DurationMS: 300, Space: testRenderSpace()})
+		}},
+		{"key event", func(inputs *execution.Inputs) error {
+			return inputs.KeyEvent(context.Background(), execution.KeyEventRequest{KeyCode: 4, Repeat: 1})
+		}},
+		{"typed text by reference", func(inputs *execution.Inputs) error {
+			return inputs.TypeText(context.Background(), execution.TypeTextRequest{Text: execution.TextReference{Handle: "clipboard-1", Length: uint32(len(typedValueFixture))}})
+		}},
+		{"app launch by package", func(inputs *execution.Inputs) error {
+			return inputs.LaunchApp(context.Background(), execution.LaunchAppRequest{PackageName: "com.example.app"})
+		}},
+		{"app launch by component", func(inputs *execution.Inputs) error {
+			return inputs.LaunchApp(context.Background(), execution.LaunchAppRequest{PackageName: "com.example.app", ActivityName: ".MainActivity"})
+		}},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			before := len(runner.Invocations())
+			inputs := newInputs(t, execution.NewADBInputTransport(adapter), &fakeResolver{value: typedValueFixture})
+			if err := test.build(inputs); err != nil {
+				t.Fatalf("primitive: %v", err)
+			}
+			invocations := runner.Invocations()
+			if len(invocations) != before+1 {
+				t.Fatalf("process invocations = %d, want %d: the input is the only call", len(invocations), before+1)
+			}
+			argv := invocations[len(invocations)-1].Args
+			if len(argv) < 3 || argv[0] != "-s" || argv[1] != testSerial {
+				t.Fatalf("argv = %q, want the serial as its own token", argv)
+			}
+			emitted := argv[2:]
+			if len(emitted) != len(read) {
+				return
+			}
+			for index := range read {
+				if emitted[index] != read[index] {
+					return
+				}
+			}
+			t.Fatalf("the %s input emitted the render-size read %q: a device input must not be able to issue the read-only admission", test.name, read)
+		})
+	}
+}
