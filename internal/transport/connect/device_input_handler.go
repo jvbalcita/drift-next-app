@@ -2,6 +2,7 @@ package transportconnect
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"time"
 
@@ -72,12 +73,34 @@ type DeviceInputHandler struct {
 }
 
 // NewDeviceInputHandler binds the surface to a dispatcher. It returns nil for a
-// nil dispatcher, so a caller cannot obtain a handler that has nothing to call.
+// dispatcher that is absent — including a non-nil interface holding a nil
+// pointer, which is the shape a caller creates by passing an uninitialised
+// dispatcher — so a caller cannot obtain a handler that has nothing to call.
 func NewDeviceInputHandler(inputs DeviceInputs) *DeviceInputHandler {
-	if inputs == nil {
+	if isAbsentDeviceInputs(inputs) {
 		return nil
 	}
 	return &DeviceInputHandler{inputs: inputs}
+}
+
+// isAbsentDeviceInputs reports a dispatcher this boundary has nothing to call.
+//
+// The plain nil check is not enough: an interface can hold a typed nil, and
+// `var d *Dispatcher; NewDeviceInputHandler(d)` compiles. Without this, that
+// caller would get a mounted route whose first request fails at the call site
+// instead of a route that is never mounted at all — a dead control, which is the
+// outcome this gate exists to prevent.
+func isAbsentDeviceInputs(inputs DeviceInputs) bool {
+	if inputs == nil {
+		return true
+	}
+	value := reflect.ValueOf(inputs)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 // Tap submits one tap.
