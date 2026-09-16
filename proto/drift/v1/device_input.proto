@@ -1,0 +1,155 @@
+syntax = "proto3";
+
+package drift.v1;
+
+import "drift/v1/action.proto";
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+// A refused device input, as the dispatch boundary reports it.
+//
+// The dispatch boundary's refusal vocabulary is deliberately finer grained than
+// the action-safety kernel's. The kernel reports one lease/fence conflict, while
+// an operator needs to know whether the lease expired, the fencing token was
+// fenced, the control session ended, or the transport is unusable. Several of
+// those reasons share one platform code, so a caller that reads only the Connect
+// code cannot tell them apart, and "the tap was refused" is not an answer an
+// operator surface can act on.
+//
+// The reason is the typed discriminator: it is the one field a client must read.
+// `code` and `failure_class` mirror the boundary's own stable vocabulary and are
+// carried so a client can classify a refusal without maintaining a lookup table
+// of its own. `message` is the boundary's fixed operator-facing sentence for
+// that reason — never a device, transport, database or stack-trace diagnostic.
+//
+// A refusal is reported only for an input that did not reach a device in a way
+// the kernel authorized. It is never a success, and a caller must never treat a
+// missing refusal as evidence that an input was delivered.
+message DeviceInputRefusal {
+  DeviceInputRefusalReason reason = 1;
+  string code = 2;
+  string failure_class = 3;
+  string message = 4;
+}
+
+// DeviceInputRefusalReason is the dispatch boundary's stable refusal vocabulary.
+//
+// Each value is a distinct operator situation with its own remediation, and the
+// set is deliberately not collapsed: a caller that cannot distinguish an expired
+// lease from a fenced token from a dead control session retries blindly. A new
+// reason is added here as a new value and never by reusing or renaming an
+// existing one, because a client's handling of a reason is part of the contract.
+enum DeviceInputRefusalReason {
+  DEVICE_INPUT_REFUSAL_REASON_UNSPECIFIED = 0;
+  // No lease was supplied for the device at all.
+  DEVICE_INPUT_REFUSAL_REASON_LEASE_MISSING = 1;
+  // The lease exists but its expiry has passed.
+  DEVICE_INPUT_REFUSAL_REASON_LEASE_EXPIRED = 2;
+  // The lease is held by another controller.
+  DEVICE_INPUT_REFUSAL_REASON_LEASE_NOT_HELD = 3;
+  // The supplied fencing token is stale or revoked.
+  DEVICE_INPUT_REFUSAL_REASON_FENCE_STALE = 4;
+  // The control session that carried the lease has ended.
+  DEVICE_INPUT_REFUSAL_REASON_NO_CONTROL_SESSION = 5;
+  // A lease or fence conflict that the finer reasons above do not name.
+  DEVICE_INPUT_REFUSAL_REASON_LEASE_CONFLICT = 6;
+  // The emergency stop is engaged: no further input is dispatched.
+  DEVICE_INPUT_REFUSAL_REASON_EMERGENCY_STOP = 7;
+  // Policy denies this input for this actor, device or surface.
+  DEVICE_INPUT_REFUSAL_REASON_POLICY_DENIED = 8;
+  // The device cannot execute the requested capability.
+  DEVICE_INPUT_REFUSAL_REASON_CAPABILITY_MISMATCH = 9;
+  // The device's transport is not attached.
+  DEVICE_INPUT_REFUSAL_REASON_DEVICE_OFFLINE = 10;
+  // The device is attached but the host is not authorized to control it.
+  DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAUTHORIZED = 11;
+  // The transport is reachable but unusable for this input.
+  DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAVAILABLE = 12;
+  // The idempotency key was already used for a different request.
+  DEVICE_INPUT_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY = 13;
+}
+
+// The device input surface.
+//
+// Each RPC submits exactly one typed device input for one device, and each
+// carries the same tuple the action-safety kernel authorizes: the workspace, the
+// device, the lease and its fencing token, an idempotency key, the observation
+// the input was resolved against, and (where policy requires it) an approval.
+// The payload is the published typed payload for that kind — the same `TapInput`,
+// `SwipeInput` and `KeyEventInput` messages ActionIntent carries — so this
+// surface introduces no second representation of a device input.
+//
+// A refused input answers with a Connect error whose code comes from the
+// boundary's stable vocabulary and which carries a DeviceInputRefusal detail. A
+// successful input answers with an ActionResult: the outcome, and the attempt it
+// belongs to. There is no response that reports success for an input the device
+// did not receive.
+//
+// Typed text (ACTION_KIND_TEXT_INPUT) and app launch (ACTION_KIND_LAUNCH_APP) are
+// deliberately **absent**. Both are contract-complete but not dispatchable: typed
+// text has no reference resolver, and the intent carries no package or activity
+// field. A route whose only possible outcome is a refusal is a control an
+// operator surface will render and then find dead, so these two are added when
+// the card that makes them dispatchable lands rather than exposed as refusals
+// now.
+service DeviceInputService {
+  rpc Tap(TapRequest) returns (TapResponse);
+  rpc Swipe(SwipeRequest) returns (SwipeResponse);
+  rpc KeyEvent(KeyEventRequest) returns (KeyEventResponse);
+}
+
+// TapRequest submits one tap: a semantic target, or a point inside
+// the render space it was measured in. A tap that names neither, or both, is
+// refused before the kernel is asked.
+message TapRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string lease_id = 4;
+  uint64 fencing_token = 5;
+  string idempotency_key = 6;
+  string observation_token = 7;
+  TapInput tap = 8;
+  bool approval_granted = 9;
+}
+
+message TapResponse {
+  ActionResult result = 1;
+}
+
+// SwipeRequest submits one swipe. Both endpoints belong to the one
+// render space carried with the request, and that frame is required.
+message SwipeRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string lease_id = 4;
+  uint64 fencing_token = 5;
+  string idempotency_key = 6;
+  string observation_token = 7;
+  SwipeInput swipe = 8;
+  bool approval_granted = 9;
+}
+
+message SwipeResponse {
+  ActionResult result = 1;
+}
+
+// KeyEventRequest submits one key event. It carries a bounded key
+// code from the device's key vocabulary and no command text.
+message KeyEventRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string lease_id = 4;
+  uint64 fencing_token = 5;
+  string idempotency_key = 6;
+  string observation_token = 7;
+  KeyEventInput key_event = 8;
+  bool approval_granted = 9;
+}
+
+message KeyEventResponse {
+  ActionResult result = 1;
+}

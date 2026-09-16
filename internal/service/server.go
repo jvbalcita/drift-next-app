@@ -42,6 +42,27 @@ func ArtifactRoute(service transportconnect.ArtifactAPI, token string) Route {
 	return Route{Path: path, Handler: RequireLabToken(token, handler)}
 }
 
+// DeviceInputRoute mounts the device input surface, and only when a dispatcher
+// was actually constructed.
+//
+// A nil dispatcher yields an empty route, so a deployment that has not wired one
+// exposes no device input surface at all — rather than a surface that can only
+// answer with a refusal, which an operator surface would render as a control and
+// then find dead. The gate is on the handler the constructor actually returned,
+// not on the caller's argument, so a typed-nil dispatcher cannot slip past it.
+//
+// The route carries the same constant-time token check as the other local
+// surfaces: loopback reachability alone is not authority for a hostile local
+// caller.
+func DeviceInputRoute(inputs transportconnect.DeviceInputs, token string) Route {
+	handler := transportconnect.NewDeviceInputHandler(inputs)
+	if handler == nil {
+		return Route{}
+	}
+	path, connectHandler := driftv1connect.NewDeviceInputServiceHandler(handler)
+	return Route{Path: path, Handler: RequireLabToken(token, connectHandler)}
+}
+
 // ProductRoutes mounts the local product Connect surfaces when handlers were
 // constructed against an open SQLite store. Empty handlers are skipped.
 func ProductRoutes(handlers *transportconnect.ProductHandlers, token string) []Route {
