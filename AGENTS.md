@@ -164,6 +164,7 @@ React/Vite operator UI
 ## 10. Testing and verification
 
 - Add or update deterministic tests for behavior changes, regressions, edge cases, failure handling, and safety invariants.
+- Prove an assertion bites by injecting a fault, and inject it against a **clean tree**: commit the implementation first, or copy the file aside. Never undo an injection with `git checkout --` on a file that holds real work — that restores HEAD, not "the file before the fault", and it destroys the implementation along with the injection. Two separate incidents in one day lost uncommitted work this way. After recovering a file that was clobbered, verify the diff is the change you intended before committing it, rather than assuming the re-application was faithful.
 - Prefer fakes for clocks, IDs, transport, filesystem, package runtime, and device adapters. Keep fixtures sanitized and minimal.
 - Test negative paths: stale fencing tokens, lease conflicts, duplicate delivery, cancellation, timeouts, failed postconditions, target incompatibility, ambiguous state, migration interruption, and recovery.
 - Use contract tests for protobuf/Connect changes, integration tests for SQLite/repositories, component tests for UI behavior, and end-to-end tests only for critical operator flows.
