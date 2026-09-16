@@ -23,11 +23,12 @@ import (
 // second, unaudited place where authority is decided.
 //
 // Typed text and app launch have no RPC here on purpose. Both are
-// contract-complete but not dispatchable — typed text has no reference resolver
-// and the intent carries no package or activity field — and a route whose only
-// possible outcome is a refusal is a control an operator surface would render
-// and then find dead. They are added when the card that makes them dispatchable
-// lands.
+// contract-complete but not dispatchable from this surface: typed text has a
+// resolver but no surface that can register a value with it (ARC-107), and a
+// launch names its target in the intent (ARC-73) without being dispatched here.
+// A route whose only possible outcome is a refusal is a control an operator
+// surface would render and then find dead. They are added when the card that
+// makes them dispatchable lands.
 
 // deviceInputTimeout bounds one device input dispatch at this boundary. The
 // application boundary may apply its own, shorter bound; this is the transport's

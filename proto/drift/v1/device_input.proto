@@ -87,12 +87,13 @@ enum DeviceInputRefusalReason {
 // did not receive.
 //
 // Typed text (ACTION_KIND_TEXT_INPUT) and app launch (ACTION_KIND_LAUNCH_APP) are
-// deliberately **absent**. Both are contract-complete but not dispatchable: typed
-// text has no reference resolver, and the intent carries no package or activity
-// field. A route whose only possible outcome is a refusal is a control an
-// operator surface will render and then find dead, so these two are added when
-// the card that makes them dispatchable lands rather than exposed as refusals
-// now.
+// deliberately **absent**. Both are contract-complete but not dispatchable from
+// this surface: typed text has a resolver but no surface that can register a
+// value with it (ARC-107), and a launch carries its target in the intent (ARC-73)
+// without being dispatched here. A route whose only possible outcome is a refusal
+// is a control an operator surface will render and then find dead, so these two
+// are added when the card that makes them dispatchable lands rather than exposed
+// as refusals now.
 service DeviceInputService {
   rpc Tap(TapRequest) returns (TapResponse);
   rpc Swipe(SwipeRequest) returns (SwipeResponse);

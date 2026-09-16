@@ -254,9 +254,12 @@ func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, db 
 		execution.NewStoreControlProbe(db, deviceState),
 		observer,
 		transport,
-		// No text-reference resolver exists yet (ARC-73), so a typed-text payload
-		// fails closed at the boundary instead of being dispatched with a value
-		// nobody released.
+		// The resolver exists, but no surface can register a value with it yet:
+		// where the plaintext enters is a boundary decision of its own, carded
+		// as ARC-107. Wiring a registry nothing can register into would leave
+		// typed text refusing for a different reason than it does now, so a
+		// typed-text payload keeps failing closed at the boundary instead of
+		// being dispatched with a value nobody released.
 		nil,
 		execution.WithEvidenceRecorder(store.NewActionEvidenceService(db)),
 	)
