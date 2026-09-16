@@ -63,14 +63,8 @@ import {
   ListDevicesResponseSchema,
 } from "@/gen/drift/v1/device_pb"
 import {
-  DecideScanCandidateRequestSchema,
-  DecideScanCandidateResponseSchema,
-  ListScanCandidatesRequestSchema,
-  ListScanCandidatesResponseSchema,
   ListScanRunsRequestSchema,
   ListScanRunsResponseSchema,
-  RegisterScanCandidateRequestSchema,
-  RegisterScanCandidateResponseSchema,
   StartScanRequestSchema,
   StartScanResponseSchema,
 } from "@/gen/drift/v1/discovery_pb"
@@ -287,7 +281,7 @@ export class NetworkProfileClient {
 
 export class DiscoveryClient {
   private readonly rpc: TypedConnectClient
-  constructor(json: ConnectJsonClient, private readonly operatorId?: string) {
+  constructor(json: ConnectJsonClient) {
     this.rpc = new TypedConnectClient(json, "drift.v1.DiscoveryService")
   }
   startScan(requestId: string, workspaceId: string, networkProfileId: string) {
@@ -297,26 +291,8 @@ export class DiscoveryClient {
       networkProfileId,
     })
   }
-  decideScanCandidate(requestId: string, workspaceId: string, candidateId: string, approve: boolean, reason: string) {
-    return this.rpc.call("DecideScanCandidate", DecideScanCandidateRequestSchema, DecideScanCandidateResponseSchema, {
-      context: requestContext({ requestId }),
-      candidate: resourceRef(workspaceId, candidateId),
-      approve,
-      reason,
-    })
-  }
-  registerScanCandidate(requestId: string, workspaceId: string, candidateId: string, deviceDisplayName: string) {
-    return this.rpc.call("RegisterScanCandidate", RegisterScanCandidateRequestSchema, RegisterScanCandidateResponseSchema, {
-      context: requestContext({ requestId, actorId: this.operatorId }),
-      candidate: resourceRef(workspaceId, candidateId),
-      deviceDisplayName,
-    })
-  }
   listScanRuns(workspaceId: string) {
     return this.rpc.call("ListScanRuns", ListScanRunsRequestSchema, ListScanRunsResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
-  }
-  listScanCandidates(workspaceId: string) {
-    return this.rpc.call("ListScanCandidates", ListScanCandidatesRequestSchema, ListScanCandidatesResponseSchema, { workspace: workspaceRef(workspaceId), page: listPage })
   }
 }
 
@@ -913,11 +889,11 @@ export interface ControlPlaneServices {
   runtime: RuntimeClient
 }
 
-export function createControlPlaneServices(json: ConnectJsonClient, operatorId?: string): ControlPlaneServices {
+export function createControlPlaneServices(json: ConnectJsonClient): ControlPlaneServices {
   return {
     device: new DeviceClient(json),
     networkProfile: new NetworkProfileClient(json),
-    discovery: new DiscoveryClient(json, operatorId),
+    discovery: new DiscoveryClient(json),
     group: new GroupClient(json),
     endpoint: new EndpointClient(json),
     observation: new ObservationClient(json),

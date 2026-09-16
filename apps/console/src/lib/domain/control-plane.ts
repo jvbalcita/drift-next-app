@@ -7,13 +7,6 @@ export type EndpointState = "observed" | "current" | "superseded" | "retired"
 export type LeaseState = "requested" | "active" | "released" | "expired" | "revoked"
 export type ObservationCaptureStatus = "complete" | "partial" | "failed"
 export type ScanRunState = "requested" | "running" | "completed" | "failed" | "cancelled"
-export type ScanCandidateState =
-  | "discovered"
-  | "pending_approval"
-  | "approved"
-  | "rejected"
-  | "expired"
-  | "registered"
 export type GroupState = "active" | "retired"
 export type MembershipState = "active" | "ended"
 export type AutomationAgentState = "active" | "suspended" | "retired"
@@ -64,8 +57,6 @@ export type LabMode = "mock" | "lab"
 export type LabReadiness = "unavailable" | "ready" | "blocked" | "indeterminate"
 /** Runtime link observation for an edge agent. Never a control-plane lease. */
 export type RuntimeConnectionState = "connected" | "reconnecting" | "disconnected"
-/** Lab provisioning / registration stage. Discovery ≠ Approval ≠ Provisioning ≠ Registration. */
-export type LabProvisionState = "discovered" | "approval_pending" | "provision_verified" | "approved" | "registered"
 export type SpoolItemKind = "cursor" | "outbox" | "observation"
 export type SpoolItemOutcome =
   | "pending"
@@ -162,19 +153,6 @@ export interface ScanRunView {
   requestedAt: string
   finishedAt?: string
   failureClass?: string
-}
-
-export interface ScanCandidateView {
-  id: string
-  scanRunId: string
-  candidateKey: string
-  host: string
-  port: number
-  serial: string
-  fingerprint: string
-  state: ScanCandidateState
-  discoveredAt: string
-  evidenceSummary: string
 }
 
 export interface GroupView {
@@ -453,27 +431,6 @@ export interface LabAdapterView {
   discovered: readonly LabDiscoveredDeviceView[]
 }
 
-/** Provisioning readiness evidence. All checks are explicit; absence is not success. */
-export interface ProvisioningReadinessView {
-  serial: string
-  transportId: string
-  endpointHost: string
-  endpointPort: number
-  connectionType: string
-  pairingAuthorized: boolean
-  adbServerOwned: boolean
-  platformToolsCompatible: boolean
-  portPolicyAllowed: boolean
-  rollbackReady: boolean
-  operatorAuthorized: boolean
-  state: LabProvisionState
-  ready: boolean
-  notes: readonly string[]
-  checkedAt?: string
-  failureClass?: string
-  errorCode?: PrerequisiteErrorCode
-}
-
 /**
  * Runtime connection observation for the edge agent.
  * Helper tokens and transport IDs are never control-plane leases.
@@ -513,23 +470,6 @@ export interface IndeterminateActionView {
   requiresOperatorConfirmation: boolean
   recordedAt: string
   summary: string
-}
-
-/**
- * Lab registration projection. Mock paths must keep mockLabeled true so the UI
- * never presents mock registration as real device registration.
- */
-export interface LabRegistrationView {
-  serial: string
-  displayName: string
-  state: LabProvisionState
-  approved: boolean
-  /** Mock console paths keep this true; Connect paths set false. */
-  mockLabeled: boolean
-  deviceId?: string
-  endpointId?: string
-  approvedAt?: string
-  registeredAt?: string
 }
 
 export type ArtifactCategory = "screenshot" | "ui_tree" | "recording" | "structured_evidence" | "other"
@@ -621,7 +561,6 @@ export interface ControlPlaneSnapshot {
   observations: readonly ObservationView[]
   networkProfiles: readonly NetworkProfileView[]
   scanRuns: readonly ScanRunView[]
-  scanCandidates: readonly ScanCandidateView[]
   groups: readonly GroupView[]
   memberships: readonly MembershipView[]
   automationAgents: readonly AutomationAgentView[]
@@ -645,11 +584,9 @@ export interface ControlPlaneSnapshot {
   policyDecisions: readonly PolicyDecisionView[]
   mirrorSessions: readonly MirrorSessionView[]
   labAdapter: LabAdapterView
-  provisioningReadiness: ProvisioningReadinessView | null
   runtimeConnection: RuntimeConnectionView
   spoolHealth: SpoolHealthView
   indeterminateActions: readonly IndeterminateActionView[]
-  labRegistration: LabRegistrationView | null
   artifacts: readonly ArtifactView[]
   recordingMedia: readonly RecordingMediaView[]
   storageHealth: StorageHealthView
@@ -680,8 +617,6 @@ export type ControlPlaneIntent =
   | { type: "updateNetworkProfile"; profileId: string; name: string; addressPolicy: string; ports: readonly number[]; isDefault: boolean; rowVersion: number }
   | { type: "retireNetworkProfile"; profileId: string; rowVersion: number }
   | { type: "startScan"; profileId: string }
-  | { type: "decideScanCandidate"; candidateId: string; approve: boolean; reason: string }
-  | { type: "registerScanCandidate"; candidateId: string; displayName: string }
   | { type: "moveDeviceToGroup"; deviceId: string; groupId: string; position: number }
   | { type: "createDeviceGroup"; name: string }
   | { type: "createAutomationAgent"; name: string }
@@ -712,24 +647,6 @@ export type ControlPlaneIntent =
   // simulateLabCaptureFailure is a mock-only QA affordance for the indeterminate
   // surface. It never reaches the lab adapter and produces no observation.
   | { type: "simulateLabCaptureFailure" }
-  // Phase 14 lab provisioning: verify evidence, explicit Approval, then Registration.
-  // Mock paths never imply real device registration without mockLabeled labeling.
-  | {
-      type: "verifyLabProvisioning"
-      serial: string
-      transportId: string
-      endpointHost: string
-      endpointPort: number
-      connectionType: string
-      pairingAuthorized: boolean
-      adbServerOwned: boolean
-      platformToolsCompatible: boolean
-      portPolicyAllowed: boolean
-      rollbackReady: boolean
-      operatorAuthorized: boolean
-    }
-  | { type: "approveLabProvisioning"; serial: string; reason: string }
-  | { type: "registerLabDevice"; serial: string; displayName: string; approved: boolean }
   | { type: "simulateRuntimeDisconnect"; reason: string }
   | { type: "beginRuntimeReconnect" }
   | { type: "completeRuntimeReconnect"; transportId: string; protocol: string }

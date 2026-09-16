@@ -30,13 +30,12 @@ describe("resolvedDeviceIds", () => {
 })
 
 describe("captureSerialForDevice", () => {
-  it("returns the confirmed serial only when it matches the registered device", () => {
-    expect(captureSerialForDevice("device-1", { confirmedSerial: "SERIAL-A" }, { deviceId: "device-1", serial: "SERIAL-A" })).toBe("SERIAL-A")
+  it("returns the confirmed serial once a target is confirmed", () => {
+    expect(captureSerialForDevice({ confirmedSerial: "SERIAL-A" })).toBe("SERIAL-A")
   })
 
-  it("refuses capture when the confirmed transport is a different device", () => {
-    expect(captureSerialForDevice("device-1", { confirmedSerial: "SERIAL-B" }, { deviceId: "device-1", serial: "SERIAL-A" })).toBe("")
-    expect(captureSerialForDevice("device-2", { confirmedSerial: "SERIAL-A" }, { deviceId: "device-1", serial: "SERIAL-A" })).toBe("")
-    expect(captureSerialForDevice("device-1", { confirmedSerial: "SERIAL-A" }, null)).toBe("")
+  it("refuses capture when no transport is confirmed", () => {
+    expect(captureSerialForDevice({ confirmedSerial: "" })).toBe("")
+    expect(captureSerialForDevice({ confirmedSerial: "   " })).toBe("")
   })
 })

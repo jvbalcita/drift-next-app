@@ -2,12 +2,9 @@ import { useCallback, useEffect, useState } from "react"
 import { createLabAdapterClient, toLabAdapterView, type LabAdapterClient } from "@/lib/api/lab-adapter-client"
 import {
   applyLabIntent,
-  applyLabRegistrationIntent,
   isLabControlPlaneIntent,
-  isLabRegistrationControlPlaneIntent,
   labIntentFailure,
 } from "@/lib/api/lab-control-plane"
-import { createLabRegistrationClient, toLabRegistrationView, toProvisioningReadinessView, type LabRegistrationClient } from "@/lib/api/lab-registration-client"
 import { defaultOperatorId, newRequestId, usesMockControlPlane } from "@/lib/api/connect-json"
 import { loadRuntimeConfig, type RuntimeConfig } from "@/lib/runtime-config"
 import { createMockControlPlaneClient } from "@/lib/api/mock-control-plane"
@@ -40,20 +37,16 @@ export function mergeAdapterProjection(next: ControlPlaneSnapshot, current: Cont
   return {
     ...next,
     labAdapter: keepCurrentAdapter ? current.labAdapter : next.labAdapter,
-    provisioningReadiness: keepCurrentAdapter ? next.provisioningReadiness ?? current.provisioningReadiness : next.provisioningReadiness,
-    labRegistration: keepCurrentAdapter ? next.labRegistration ?? current.labRegistration : next.labRegistration,
   }
 }
 
 export function applyAdapterIntentProjection(
   current: ControlPlaneSnapshot,
   labAdapter: LabAdapterView,
-  intentType: ControlPlaneIntent["type"],
 ): ControlPlaneSnapshot {
   return {
     ...current,
     labAdapter,
-    ...(intentType === "clearLabTarget" ? { provisioningReadiness: null, labRegistration: null } : {}),
   }
 }
 
@@ -74,7 +67,6 @@ export function useControlPlane(): ControlPlaneViewModel {
     usesMockControlPlane() ? createMockControlPlaneClient() : createRealControlPlaneClient()
   ))
   const [labClient, setLabClient] = useState<LabAdapterClient | undefined>(() => createLabAdapterClient())
-  const [registrationClient, setRegistrationClient] = useState<LabRegistrationClient | undefined>(() => createLabRegistrationClient())
   const operatorId = runtimeConfig?.operatorId ?? defaultOperatorId
   const [snapshot, setSnapshot] = useState<ControlPlaneSnapshot>(() => client.getSnapshot())
   const [labNotice, setLabNotice] = useState("")
@@ -89,7 +81,6 @@ export function useControlPlane(): ControlPlaneViewModel {
       setRuntimeConfig(config)
       setClient(createRealControlPlaneClient({ baseUrl: config.controlPlaneUrl, token: config.serviceToken, operatorId: config.operatorId }))
       setLabClient(createLabAdapterClient(config.controlPlaneUrl, config.serviceToken))
-      setRegistrationClient(createLabRegistrationClient(config.controlPlaneUrl, config.serviceToken))
     })
     return () => { active = false }
   }, [])
@@ -99,7 +90,7 @@ export function useControlPlane(): ControlPlaneViewModel {
     setConnectionError("")
     try {
       const next = await client.refresh()
-      const overlay = await overlayAdapterStatus(next, labClient, registrationClient, operatorId)
+      const overlay = await overlayAdapterStatus(next, labClient, operatorId)
       setSnapshot((current) => mergeAdapterProjection(overlay, current))
       if (overlay.runtimeConnection.disconnectedReason === "Control plane unreachable." || overlay.runtimeConnection.disconnectedReason === "Control plane authorization failed.") {
         setConnectionError(overlay.runtimeConnection.disconnectedReason)
@@ -111,7 +102,7 @@ export function useControlPlane(): ControlPlaneViewModel {
     } finally {
       setLoading(false)
     }
-  }, [client, labClient, operatorId, registrationClient])
+  }, [client, labClient, operatorId])
 
   useEffect(() => {
     if (usesMockControlPlane()) return
@@ -120,12 +111,12 @@ export function useControlPlane(): ControlPlaneViewModel {
 
   const commitProductSnapshot = useCallback(async () => {
     try {
-      const overlay = await overlayAdapterStatus(client.getSnapshot(), labClient, registrationClient, operatorId)
+      const overlay = await overlayAdapterStatus(client.getSnapshot(), labClient, operatorId)
       setSnapshot((current) => mergeAdapterProjection(overlay, current))
     } catch {
       setSnapshot((current) => mergeAdapterProjection(client.getSnapshot(), current))
     }
-  }, [client, labClient, operatorId, registrationClient])
+  }, [client, labClient, operatorId])
 
   const applyRemoteLab = useCallback(async (intent: ControlPlaneIntent): Promise<MutationResult> => {
     const context = {
@@ -136,19 +127,8 @@ export function useControlPlane(): ControlPlaneViewModel {
     try {
       if (labClient && isLabControlPlaneIntent(intent)) {
         const labAdapter = await applyLabIntent(labClient, intent, context)
-        setSnapshot((current) => applyAdapterIntentProjection(current, labAdapter, intent.type))
+        setSnapshot((current) => applyAdapterIntentProjection(current, labAdapter))
         const message = "The device adapter answered. Status below reflects the connected adapter."
-        setLabNotice(message)
-        return { ok: true, kind: intent.type, message }
-      }
-      if (registrationClient && isLabRegistrationControlPlaneIntent(intent)) {
-        const projection = await applyLabRegistrationIntent(registrationClient, intent, context)
-        setSnapshot((current) => ({
-          ...current,
-          provisioningReadiness: projection.provisioningReadiness ?? current.provisioningReadiness,
-          labRegistration: projection.labRegistration ?? current.labRegistration,
-        }))
-        const message = "Provisioning checks were evaluated server-side."
         setLabNotice(message)
         return { ok: true, kind: intent.type, message }
       }
@@ -156,26 +136,23 @@ export function useControlPlane(): ControlPlaneViewModel {
       await commitProductSnapshot()
       return mutation
     } catch (cause: unknown) {
-      if (isLabControlPlaneIntent(intent) || isLabRegistrationControlPlaneIntent(intent)) {
+      if (isLabControlPlaneIntent(intent)) {
         const failure = labIntentFailure(intent, cause)
         setLabNotice(failure.message)
         return failure
       }
       return { ok: false, kind: intent.type, message: "The device adapter could not be reached." }
     }
-  }, [client, commitProductSnapshot, labClient, operatorId, registrationClient])
+  }, [client, commitProductSnapshot, labClient, operatorId])
 
   const dispatch = useCallback(async (intent: ControlPlaneIntent): Promise<MutationResult> => {
-    if (
-      (labClient && isLabControlPlaneIntent(intent)) ||
-      (registrationClient && isLabRegistrationControlPlaneIntent(intent))
-    ) {
+    if (labClient && isLabControlPlaneIntent(intent)) {
       return applyRemoteLab(intent)
     }
     const mutation = await client.dispatch(intent)
     await commitProductSnapshot()
     return mutation
-  }, [applyRemoteLab, client, commitProductSnapshot, labClient, registrationClient])
+  }, [applyRemoteLab, client, commitProductSnapshot, labClient])
 
   return {
     snapshot,
@@ -192,7 +169,6 @@ export function useControlPlane(): ControlPlaneViewModel {
 async function overlayAdapterStatus(
   snapshot: ControlPlaneSnapshot,
   labClient: LabAdapterClient | undefined,
-  registrationClient: LabRegistrationClient | undefined,
   operator: string,
 ): Promise<ControlPlaneSnapshot> {
   if (!labClient) return snapshot
@@ -204,15 +180,7 @@ async function overlayAdapterStatus(
   try {
     const status = await labClient.getLabStatus(options)
     if (!status) return snapshot
-    const overlay: ControlPlaneSnapshot = { ...snapshot, labAdapter: toLabAdapterView(status) }
-    const serial = overlay.labAdapter.confirmedSerial
-    if (!registrationClient || serial.length === 0) return overlay
-    const record = await registrationClient.getLabRegistrationStatus(options, serial)
-    return {
-      ...overlay,
-      provisioningReadiness: record.readiness ? toProvisioningReadinessView(record.readiness) : overlay.provisioningReadiness,
-      labRegistration: record.registration ? toLabRegistrationView(record.registration) : overlay.labRegistration,
-    }
+    return { ...snapshot, labAdapter: toLabAdapterView(status) }
   } catch {
     return snapshot
   }

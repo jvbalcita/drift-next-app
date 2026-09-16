@@ -29,7 +29,7 @@ describe("ControlPage screenshot", () => {
     expect(intents.some((intent) => intent.type === "captureLabObservation")).toBe(false)
   })
 
-  it("authorizes capture only after the confirmed serial matches the registered device", async () => {
+  it("authorizes capture once the lab adapter reports a confirmed serial", async () => {
     const user = userEvent.setup()
     const client = new MockControlPlaneClient()
     const intents: ControlPlaneIntent[] = []
@@ -39,14 +39,6 @@ describe("ControlPage screenshot", () => {
     }
     const snapshot = client.getSnapshot()
     snapshot.labAdapter = { ...snapshot.labAdapter, confirmedSerial: "SERIAL-A", confirmedDisplayName: "Atlas 04" }
-    snapshot.labRegistration = {
-      serial: "SERIAL-A",
-      displayName: "Atlas 04",
-      state: "registered",
-      approved: true,
-      mockLabeled: true,
-      deviceId: "atlas-04",
-    }
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
 
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))

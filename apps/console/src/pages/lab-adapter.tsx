@@ -11,9 +11,7 @@ import type {
   IndeterminateActionView,
   LabAdapterView,
   LabReadiness,
-  LabRegistrationView,
   MutationResult,
-  ProvisioningReadinessView,
   RuntimeConnectionState,
   RuntimeConnectionView,
   SpoolHealthView,
@@ -52,9 +50,7 @@ type LabRuntimeProps = {
   adapter: LabAdapterView
   runtimeConnection: RuntimeConnectionView
   spoolHealth: SpoolHealthView
-  provisioningReadiness: ProvisioningReadinessView | null
   indeterminateActions: readonly IndeterminateActionView[]
-  labRegistration: LabRegistrationView | null
   dispatch: DispatchIntent
   dispatchLab?: DispatchLab
   onFeedback: (message: string) => void
@@ -62,15 +58,13 @@ type LabRuntimeProps = {
 }
 
 // LabStatusStrip is the compact lab adapter surface for the control workspace.
-// It surfaces observation, runtime, spool, and provisioning state only; it
-// dispatches no device input and never presents lab state as a mock frame.
+// It surfaces observation, runtime, and spool state only; it dispatches no
+// device input and never presents lab state as a mock frame.
 export function LabStatusStrip({
   adapter,
   runtimeConnection,
   spoolHealth,
-  provisioningReadiness,
   indeterminateActions,
-  labRegistration,
   dispatch,
   dispatchLab,
   onFeedback,
@@ -104,9 +98,8 @@ export function LabStatusStrip({
         {adapter.mode === "mock" && confirmed ? <Button size="sm" variant="outline" onClick={() => void runLabIntent({ type: "simulateLabCaptureFailure" }, dispatch, dispatchLab, onFeedback)}><TriangleAlert className="size-3.5" aria-hidden="true" />Simulate Indeterminate</Button> : null}
         <LabDiagnosticsSheet adapter={adapter} />
         <RuntimeSpoolSheet runtimeConnection={runtimeConnection} spoolHealth={spoolHealth} indeterminateActions={indeterminateActions} dispatch={dispatch} onFeedback={onFeedback} />
-        <LabProvisioningSheet adapter={adapter} provisioningReadiness={provisioningReadiness} labRegistration={labRegistration} dispatch={dispatch} onFeedback={onFeedback} />
       </div>
-      <p aria-live="polite" className="border-t border-border px-3 py-2 text-[11px] leading-5 text-muted-foreground">{notice || "Adapter actions are read-only. Discovery lists candidates; Approval and Registration stay separate; spool fence tokens are observations, not leases."}</p>
+      <p aria-live="polite" className="border-t border-border px-3 py-2 text-[11px] leading-5 text-muted-foreground">{notice || "Adapter actions are read-only. Discovery lists candidates; observation captures the confirmed target; spool fence tokens are observations, not leases."}</p>
     </section>
   )
 }
@@ -421,108 +414,6 @@ function RuntimeSpoolSheet({
                   </li>
                 ))}
               </ul>}
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
-  )
-}
-
-function LabProvisioningSheet({
-  adapter,
-  provisioningReadiness,
-  labRegistration,
-  dispatch,
-  onFeedback,
-}: {
-  adapter: LabAdapterView
-  provisioningReadiness: ProvisioningReadinessView | null
-  labRegistration: LabRegistrationView | null
-  dispatch: DispatchIntent
-  onFeedback: (message: string) => void
-}) {
-  const serial = adapter.confirmedSerial || provisioningReadiness?.serial || ""
-  const canVerify = serial.length > 0
-  const approved = Boolean(labRegistration?.approved)
-  const registered = labRegistration?.state === "registered"
-  return (
-    <Sheet>
-      <SheetTrigger render={<Button size="sm" variant="outline" />}><ShieldCheck className="size-3.5" aria-hidden="true" />Device Provisioning</SheetTrigger>
-      <SheetContent className="w-full rounded-none sm:max-w-xl">
-        <SheetHeader className="border-b border-border">
-          <SheetTitle>Device Provisioning And Registration</SheetTitle>
-          <SheetDescription>Discovery, Approval, Provisioning, and Registration stay independent. Registration is never implied by Discovery or Approval.</SheetDescription>
-        </SheetHeader>
-        <div className="space-y-4 p-4">
-          <div className="flex flex-wrap gap-2" aria-label="Provisioning stage badges">
-            <StatusBadge label="Discovery" tone={adapter.discovered.length > 0 ? "healthy" : "neutral"} />
-            <StatusBadge label="Approval" tone={approved ? "healthy" : "attention"} />
-            <StatusBadge label="Provisioning" tone={provisioningReadiness?.ready ? "healthy" : "attention"} />
-            <StatusBadge label="Registration" tone={registered ? "info" : "neutral"} />
-            {adapter.mode === "mock" ? <StatusBadge label="Awaiting Approval" tone="attention" /> : <StatusBadge label={registered ? "Registered" : "Awaiting Approval"} tone={registered ? "info" : "attention"} />}
-          </div>
-          {provisioningReadiness ? (
-            <dl className="grid gap-3 text-[11px] sm:grid-cols-2">
-              <LabField label="Serial" detail={provisioningReadiness.serial} />
-              <LabField label="Transport ID" detail={provisioningReadiness.transportId} />
-              <LabField label="Pairing Authorized" detail={provisioningReadiness.pairingAuthorized ? "Yes" : "No"} mono={false} />
-              <LabField label="ADB Ownership" detail={provisioningReadiness.adbServerOwned ? "Yes" : "No"} mono={false} />
-              <LabField label="Platform-Tools" detail={provisioningReadiness.platformToolsCompatible ? "Compatible" : "Missing"} mono={false} />
-              <LabField label="Port Policy" detail={provisioningReadiness.portPolicyAllowed ? "Allowed" : "Blocked"} mono={false} />
-              <LabField label="Rollback Ready" detail={provisioningReadiness.rollbackReady ? "Yes" : "No"} mono={false} />
-              <LabField label="State" detail={provisioningReadiness.state.replaceAll("_", " ")} mono={false} />
-              <LabField label="Notes" detail={provisioningReadiness.notes.join(" · ") || "—"} mono={false} />
-              {provisioningReadiness.errorCode ? <LabField label="Error Code" detail={provisioningReadiness.errorCode.replaceAll("_", " ")} mono={false} /> : null}
-            </dl>
-          ) : (
-            <EmptyState label="No Provisioning Evidence" detail="Confirm a target, then verify Provisioning readiness evidence." />
-          )}
-          {labRegistration ? (
-            <div className="border border-border bg-muted/30 p-3 text-[11px] leading-5">
-              <p className="font-semibold">Registration Record</p>
-              <p className="mt-1 text-muted-foreground">{labRegistration.displayName} · {labRegistration.serial} · {labRegistration.state.replaceAll("_", " ")}</p>
-              <p className="mt-1 text-muted-foreground">{labRegistration.mockLabeled ? "Registration recorded. Fleet registry unchanged." : "Registration recorded."}</p>
-            </div>
-          ) : null}
-          <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-            <Button
-              size="sm"
-              disabled={!canVerify}
-              onClick={() => void reportDispatch(dispatch, {
-                type: "verifyLabProvisioning",
-                serial,
-                transportId: adapter.transportId || "3",
-                endpointHost: "127.0.0.1",
-                endpointPort: adapter.connectionType === "tcp" ? 5555 : 0,
-                connectionType: adapter.connectionType || "usb",
-                pairingAuthorized: true,
-                adbServerOwned: true,
-                platformToolsCompatible: true,
-                portPolicyAllowed: true,
-                rollbackReady: true,
-                operatorAuthorized: true,
-              }, onFeedback)}
-            >
-              Verify Provisioning
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger render={<Button size="sm" variant="outline" disabled={!provisioningReadiness?.ready || registered} />}>Approve Provisioning</AlertDialogTrigger>
-              <AlertDialogContent
-                title="Approve Provisioning?"
-                description="Approval is separate from Registration. This Approval does not register a device."
-                confirmLabel="Grant Approval"
-                onConfirm={() => void reportDispatch(dispatch, { type: "approveLabProvisioning", serial, reason: "Approval after Provisioning verification" }, onFeedback)}
-              />
-            </AlertDialog>
-            <AlertDialog>
-              <AlertDialogTrigger render={<Button size="sm" variant="secondary" disabled={!approved || registered} />}>Register Device</AlertDialogTrigger>
-              <AlertDialogContent
-                title="Register Device?"
-                description="This creates a registration record only. It does not mutate the fleet registry until the control plane accepts it."
-                confirmLabel="Confirm Registration"
-                onConfirm={() => void reportDispatch(dispatch, { type: "registerLabDevice", serial, displayName: adapter.confirmedDisplayName || serial, approved: true }, onFeedback)}
-              />
-            </AlertDialog>
           </div>
         </div>
       </SheetContent>

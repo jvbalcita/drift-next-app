@@ -23,7 +23,6 @@ import type {
   IndeterminateActionView,
   LabAdapterView,
   LabDiscoveredDeviceView,
-  LabRegistrationView,
   LeaseView,
   MembershipView,
   MirrorSessionView,
@@ -33,12 +32,10 @@ import type {
   PolicyDecisionView,
   PolicyView,
   PrerequisiteErrorCode,
-  ProvisioningReadinessView,
   RecordingMediaView,
   RunTargetView,
   RunView,
   RuntimeConnectionView,
-  ScanCandidateView,
   ScanRunView,
   SettingHistoryView,
   SettingView,
@@ -241,11 +238,6 @@ const networkProfiles: NetworkProfileView[] = [
 const scanRuns: ScanRunView[] = [
   { id: "scan-run-001", networkProfileId: "profile-lab-a", state: "completed", requestedAt: "09:31:02", finishedAt: "09:31:08" },
   { id: "scan-run-002", networkProfileId: "profile-lab-b", state: "failed", requestedAt: "09:18:44", finishedAt: "09:18:45", failureClass: "infrastructure_error" },
-]
-
-const scanCandidates: ScanCandidateView[] = [
-  { id: "candidate-001", scanRunId: "scan-run-001", candidateKey: "candidate-lab-a-41", host: "192.0.2.41", port: 5555, serial: "MOCK-CANDIDATE-41", fingerprint: "fp:demo:41", state: "pending_approval", discoveredAt: "09:31:05", evidenceSummary: "Sanitized endpoint observation" },
-  { id: "candidate-002", scanRunId: "scan-run-001", candidateKey: "candidate-lab-a-42", host: "192.0.2.42", port: 5555, serial: "MOCK-CANDIDATE-42", fingerprint: "fp:demo:42", state: "registered", discoveredAt: "09:31:06", evidenceSummary: "Registered in mock fixture" },
 ]
 
 const groups: GroupView[] = [
@@ -741,7 +733,6 @@ export function buildMockSnapshot(): ControlPlaneSnapshot {
     observations,
     networkProfiles,
     scanRuns,
-    scanCandidates,
     groups,
     memberships,
     automationAgents,
@@ -765,11 +756,9 @@ export function buildMockSnapshot(): ControlPlaneSnapshot {
     policyDecisions,
     mirrorSessions: [],
     labAdapter,
-    provisioningReadiness: null,
     runtimeConnection,
     spoolHealth,
     indeterminateActions: [],
-    labRegistration: null,
     artifacts,
     recordingMedia,
     storageHealth,
@@ -917,10 +906,6 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.retireNetworkProfile(intent)
       case "startScan":
         return this.startScan(intent)
-      case "decideScanCandidate":
-        return this.decideScanCandidate(intent)
-      case "registerScanCandidate":
-        return this.registerScanCandidate(intent)
       case "moveDeviceToGroup":
         return this.moveDeviceToGroup(intent)
       case "createDeviceGroup":
@@ -977,12 +962,6 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.captureLabObservation(intent)
       case "simulateLabCaptureFailure":
         return this.simulateLabCaptureFailure(intent)
-      case "verifyLabProvisioning":
-        return this.verifyLabProvisioning(intent)
-      case "approveLabProvisioning":
-        return this.approveLabProvisioning(intent)
-      case "registerLabDevice":
-        return this.registerLabDevice(intent)
       case "simulateRuntimeDisconnect":
         return this.simulateRuntimeDisconnect(intent)
       case "beginRuntimeReconnect":
@@ -1382,14 +1361,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const sequence = this.nextLabSequence()
     const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
     const occurredAt = labStamp(sequence)
-    const keepRegistered =
-      this.snapshot.labRegistration?.state === "registered" ? this.snapshot.labRegistration : null
     this.blockedSequences = []
     this.snapshot = {
       ...this.snapshot,
       labAdapter: { ...adapter, readiness: adapter.discovered.length > 0 ? "blocked" : "unavailable", confirmedSerial: "", confirmedDisplayName: "", stableIdentity: "", transportId: "", connectionState: "detached", connectionType: "", lastObservationAt: undefined, lastScreenshotHash: "", lastScreenshotPreviewDataUrl: undefined, lastHierarchySummary: "", observationLatencyMs: 0, failureClass: undefined, indeterminate: false, correlationId, lastHealthAt: occurredAt },
-      provisioningReadiness: null,
-      labRegistration: keepRegistered,
       indeterminateActions: [],
       runtimeConnection: {
         ...this.snapshot.runtimeConnection,
@@ -1404,9 +1379,9 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         blockedSequences: [],
         connectionState: this.snapshot.runtimeConnection.state,
       },
-      events: addEvent(this.snapshot, labEvent(`event-lab-clear-${sequence}`, "Cleanup", "audit", correlationId, occurredAt, "Confirmed lab target cleared; unverified provisioning, pending Approval, indeterminate, and blocked spool queues were dropped")),
+      events: addEvent(this.snapshot, labEvent(`event-lab-clear-${sequence}`, "Cleanup", "audit", correlationId, occurredAt, "Confirmed lab target cleared; indeterminate and blocked spool queues were dropped")),
     }
-    return result(intent, "Lab target cleared. Pending Provisioning/Approval, indeterminate, and blocked spool queues were dropped; Mock Lab Registration is kept only if already registered.")
+    return result(intent, "Lab target cleared. Indeterminate and blocked spool queues were dropped.")
   }
 
   private captureLabObservation(intent: Extract<ControlPlaneIntent, { type: "captureLabObservation" }>): MutationResult {
@@ -1467,207 +1442,6 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       ],
     }
     return result(intent, "Simulated an indeterminate capture. Confirm or drop the blocked action; never blind-replay.", adapter.confirmedSerial)
-  }
-
-  private verifyLabProvisioning(intent: Extract<ControlPlaneIntent, { type: "verifyLabProvisioning" }>): MutationResult {
-    const serial = intent.serial.trim()
-    const transportId = intent.transportId.trim()
-    if (!serial) return rejection(intent, "Endpoint serial identity is required for Provisioning.", undefined, "invalid_input")
-    if (!transportId) return rejection(intent, "Transport identity is required for Provisioning.", undefined, "invalid_input")
-    if (this.snapshot.labAdapter.confirmedSerial !== serial) {
-      return rejection(intent, "Confirm the lab target before Provisioning verification.", serial, "precondition_failed")
-    }
-    if (!intent.operatorAuthorized) {
-      return rejection(intent, "Operator authorization is required for Provisioning.", serial, "policy_denied")
-    }
-    const notes: string[] = []
-    const fail = (message: string): MutationResult => {
-      const readiness: ProvisioningReadinessView = {
-        serial,
-        transportId,
-        endpointHost: intent.endpointHost.trim(),
-        endpointPort: intent.endpointPort,
-        connectionType: intent.connectionType.trim() || "usb",
-        pairingAuthorized: intent.pairingAuthorized,
-        adbServerOwned: intent.adbServerOwned,
-        platformToolsCompatible: intent.platformToolsCompatible,
-        portPolicyAllowed: intent.portPolicyAllowed,
-        rollbackReady: intent.rollbackReady,
-        operatorAuthorized: intent.operatorAuthorized,
-        state: "discovered",
-        ready: false,
-        notes,
-        checkedAt: labStamp(this.nextLabSequence()),
-        failureClass: "precondition_failed",
-        errorCode: "precondition_failed",
-      }
-      this.snapshot = { ...this.snapshot, provisioningReadiness: readiness }
-      return rejection(intent, message, serial, "precondition_failed")
-    }
-    if (!intent.pairingAuthorized) return fail("Device pairing and authorization are not verified.")
-    notes.push("Pairing Authorized")
-    if (!intent.adbServerOwned) return fail("ADB server ownership is not verified.")
-    notes.push("ADB Server Ownership Verified")
-    if (!intent.platformToolsCompatible) return fail("Platform-tools are missing or incompatible; install or repair is not performed automatically.")
-    notes.push("Platform-Tools Compatible")
-    if (!intent.portPolicyAllowed) return fail("Port policy validation failed.")
-    if (intent.connectionType === "wireless" || intent.endpointPort > 0) {
-      if (intent.endpointPort !== 5555 && intent.endpointPort !== 5037) {
-        return fail("Endpoint port is outside the allowed mock port policy.")
-      }
-      notes.push(`Port ${intent.endpointPort} Allowed`)
-    } else {
-      notes.push("USB Transport; No TCP Port Required")
-    }
-    if (!intent.rollbackReady) return fail("Rollback readiness is not recorded.")
-    notes.push("Rollback Ready")
-    const sequence = this.nextLabSequence()
-    const occurredAt = labStamp(sequence)
-    const readiness: ProvisioningReadinessView = {
-      serial,
-      transportId,
-      endpointHost: intent.endpointHost.trim(),
-      endpointPort: intent.endpointPort,
-      connectionType: intent.connectionType.trim() || "usb",
-      pairingAuthorized: true,
-      adbServerOwned: true,
-      platformToolsCompatible: true,
-      portPolicyAllowed: true,
-      rollbackReady: true,
-      operatorAuthorized: true,
-      state: "provision_verified",
-      ready: true,
-      notes,
-      checkedAt: occurredAt,
-    }
-    const registration: LabRegistrationView = {
-      serial,
-      displayName: this.snapshot.labAdapter.confirmedDisplayName || `Mock Lab ${serial}`,
-      state: "provision_verified",
-      approved: false,
-      mockLabeled: true,
-    }
-    const existingRegistration = this.snapshot.labRegistration
-    if (existingRegistration?.serial === serial && existingRegistration.state === "registered") {
-      this.snapshot = {
-        ...this.snapshot,
-        provisioningReadiness: { ...readiness, state: "registered", notes: [...notes, "Already Registered; Verification Is Idempotent"] },
-      }
-      return result(intent, "Provisioning re-verified for an already-registered mock lab serial. Registration was not reset.", serial)
-    }
-    this.snapshot = {
-      ...this.snapshot,
-      provisioningReadiness: readiness,
-      labRegistration: registration,
-      events: addEvent(
-        this.snapshot,
-        labEvent(
-          `event-lab-provision-${sequence}`,
-          "Provisioning Verified",
-          "audit",
-          `corr-lab-${String(sequence).padStart(3, "0")}`,
-          occurredAt,
-          "Mock Provisioning evidence verified; Approval and Registration remain separate operator steps",
-        ),
-      ),
-    }
-    return result(intent, "Provisioning verified. Next: Approval, then Registration. This is not a real device registration.", serial)
-  }
-
-  private approveLabProvisioning(intent: Extract<ControlPlaneIntent, { type: "approveLabProvisioning" }>): MutationResult {
-    const serial = intent.serial.trim()
-    const reason = intent.reason.trim()
-    if (!serial) return rejection(intent, "Serial is required for Approval.", undefined, "invalid_input")
-    if (!reason) return rejection(intent, "Record why Approval is being granted.", serial, "invalid_input")
-    const readiness = this.snapshot.provisioningReadiness
-    if (!readiness || readiness.serial !== serial || !readiness.ready) {
-      return rejection(intent, "Provisioning verification is required before Approval.", serial, "precondition_failed")
-    }
-    const existing = this.snapshot.labRegistration
-    if (existing?.serial === serial && existing.state === "registered") {
-      return rejection(intent, "This mock lab serial is already registered.", serial, "policy_denied")
-    }
-    const sequence = this.nextLabSequence()
-    const occurredAt = labStamp(sequence)
-    const registration: LabRegistrationView = {
-      serial,
-      displayName: existing?.displayName ?? this.snapshot.labAdapter.confirmedDisplayName ?? `Mock Lab ${serial}`,
-      state: "approval_pending",
-      approved: true,
-      mockLabeled: true,
-      approvedAt: occurredAt,
-    }
-    this.snapshot = {
-      ...this.snapshot,
-      labRegistration: { ...registration, state: "provision_verified" },
-      events: addEvent(
-        this.snapshot,
-        labEvent(
-          `event-lab-approve-${sequence}`,
-          "Approval Granted",
-          "audit",
-          `corr-lab-${String(sequence).padStart(3, "0")}`,
-          occurredAt,
-          `Operator Approval recorded for mock lab serial; Registration still required · ${reason}`,
-        ),
-      ),
-    }
-    return result(intent, "Approval recorded. Registration remains a separate explicit step.", serial)
-  }
-
-  private registerLabDevice(intent: Extract<ControlPlaneIntent, { type: "registerLabDevice" }>): MutationResult {
-    const serial = intent.serial.trim()
-    const displayName = intent.displayName.trim()
-    if (!serial || !displayName) return rejection(intent, "Serial and display name are required for Registration.", undefined, "invalid_input")
-    if (!intent.approved) return rejection(intent, "Operator Approval is required before Registration.", serial, "policy_denied")
-    const readiness = this.snapshot.provisioningReadiness
-    if (!readiness || readiness.serial !== serial || !readiness.ready) {
-      return rejection(intent, "Provisioning verification is required before Registration.", serial, "precondition_failed")
-    }
-    const existing = this.snapshot.labRegistration
-    if (!existing || existing.serial !== serial || !existing.approved) {
-      return rejection(intent, "Approval is required before Registration.", serial, "policy_denied")
-    }
-    if (existing.state === "registered") {
-      return result(intent, `Mock Lab Registration already complete for ${serial}.`, existing.deviceId)
-    }
-    if (this.snapshot.labRegistration?.state === "registered" && this.snapshot.labRegistration.serial !== serial) {
-      return rejection(intent, "One-device lab Registration scope is exhausted.", serial, "policy_denied")
-    }
-    const sequence = this.nextLabSequence()
-    const occurredAt = labStamp(sequence)
-    const deviceId = `device-mock-lab-${sequence}`
-    const endpointId = `endpoint-mock-lab-${sequence}`
-    const registration: LabRegistrationView = {
-      serial,
-      displayName: `Mock Lab · ${displayName}`,
-      state: "registered",
-      approved: true,
-      mockLabeled: true,
-      deviceId,
-      endpointId,
-      approvedAt: existing.approvedAt,
-      registeredAt: occurredAt,
-    }
-    this.snapshot = {
-      ...this.snapshot,
-      labRegistration: registration,
-      provisioningReadiness: this.snapshot.provisioningReadiness
-        ? { ...this.snapshot.provisioningReadiness, state: "registered" }
-        : this.snapshot.provisioningReadiness,
-      events: addEvent(
-        this.snapshot,
-        labEvent(
-          `event-lab-register-${sequence}`,
-          "Mock Lab Registration",
-          "audit",
-          `corr-lab-${String(sequence).padStart(3, "0")}`,
-          occurredAt,
-          "Mock Lab Registration only — not a real device registration; canonical fleet registry unchanged",
-        ),
-      ),
-    }
-    return result(intent, `Registration recorded for ${displayName}. This is not a real device registration.`, deviceId)
   }
 
   private simulateRuntimeDisconnect(intent: Extract<ControlPlaneIntent, { type: "simulateRuntimeDisconnect" }>): MutationResult {
@@ -2009,37 +1783,6 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const scan: ScanRunView = { id, networkProfileId: profile.id, state: "running", requestedAt: "just now" }
     this.snapshot = { ...this.snapshot, scanRuns: [scan, ...this.snapshot.scanRuns] }
     return result(intent, "Mock scan started; no network sockets were opened.", id)
-  }
-
-  private decideScanCandidate(intent: Extract<ControlPlaneIntent, { type: "decideScanCandidate" }>): MutationResult {
-    const candidate = this.snapshot.scanCandidates.find((item) => item.id === intent.candidateId)
-    if (!candidate) return rejection(intent, "Scan candidate was not found.")
-    if (candidate.state !== "pending_approval") return rejection(intent, "Only pending candidates can receive a new decision.", candidate.id)
-    const nextState = intent.approve ? "approved" : "rejected"
-    this.snapshot = {
-      ...this.snapshot,
-      scanCandidates: this.snapshot.scanCandidates.map((item) => item.id === candidate.id ? { ...item, state: nextState } : item),
-      events: addEvent(this.snapshot, {
-        id: `event-candidate-${this.nextSequence++}`,
-        kind: "audit",
-        name: intent.approve ? "discovery.candidate_approved" : "discovery.candidate_rejected",
-        actor: "operator · mock",
-        resourceType: "scan_candidate",
-        resourceId: candidate.id,
-        correlationId: "corr-discovery",
-        occurredAt: "just now",
-        payloadSummary: intent.reason.trim() === "" ? "Decision recorded without sensitive rationale" : "Decision rationale retained as bounded operator metadata",
-      }),
-    }
-    return result(intent, `Candidate ${intent.approve ? "approved" : "rejected"}; registration remains a separate action.`, candidate.id)
-  }
-
-  private registerScanCandidate(intent: Extract<ControlPlaneIntent, { type: "registerScanCandidate" }>): MutationResult {
-    const candidate = this.snapshot.scanCandidates.find((item) => item.id === intent.candidateId)
-    if (!candidate) return rejection(intent, "Scan candidate was not found.")
-    if (candidate.state !== "approved") return rejection(intent, "Candidate approval is required before registration.", candidate.id)
-    this.snapshot = { ...this.snapshot, scanCandidates: this.snapshot.scanCandidates.map((item) => item.id === candidate.id ? { ...item, state: "registered" } : item) }
-    return result(intent, `Mock registration recorded for ${intent.displayName.trim() || candidate.host}; no device endpoint was connected.`, candidate.id)
   }
 
   private moveDeviceToGroup(intent: Extract<ControlPlaneIntent, { type: "moveDeviceToGroup" }>): MutationResult {

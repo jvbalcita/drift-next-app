@@ -22,19 +22,6 @@ describe("MockControlPlaneClient", () => {
     ])
   })
 
-  it("preserves discovery, approval, and registration as separate transitions", () => {
-    const client = new MockControlPlaneClient()
-
-    const beforeApproval = client.dispatch({ type: "registerScanCandidate", candidateId: "candidate-001", displayName: "Candidate" })
-    const approval = client.dispatch({ type: "decideScanCandidate", candidateId: "candidate-001", approve: true, reason: "Fixture review" })
-    const registration = client.dispatch({ type: "registerScanCandidate", candidateId: "candidate-001", displayName: "Mock candidate" })
-
-    expect(beforeApproval.ok).toBe(false)
-    expect(approval.ok).toBe(true)
-    expect(registration.ok).toBe(true)
-    expect(client.getSnapshot().scanCandidates.find((candidate) => candidate.id === "candidate-001")?.state).toBe("registered")
-  })
-
   it("rejects stale optimistic-concurrency writes", () => {
     const client = new MockControlPlaneClient()
 
@@ -197,7 +184,7 @@ describe("MockControlPlaneClient", () => {
     expect(client.getSnapshot().labAdapter).toMatchObject({ indeterminate: false, readiness: "blocked" })
   })
 
-  it("keeps Discovery, Approval, Provisioning, and Registration as separate mock lab stages", () => {
+  it("keeps Discovery and target confirmation as separate mock lab stages", () => {
     const client = new MockControlPlaneClient()
     client.dispatch({ type: "discoverLabDevices" })
     client.dispatch({
@@ -207,138 +194,17 @@ describe("MockControlPlaneClient", () => {
       confirmationText: "MOCKSERIAL0001",
       reason: "Bring-up",
     })
-
-    const unauthorized = client.dispatch({
-      type: "verifyLabProvisioning",
-      serial: "MOCKSERIAL0001",
-      transportId: "3",
-      endpointHost: "127.0.0.1",
-      endpointPort: 0,
-      connectionType: "usb",
-      pairingAuthorized: true,
-      adbServerOwned: true,
-      platformToolsCompatible: true,
-      portPolicyAllowed: true,
-      rollbackReady: true,
-      operatorAuthorized: false,
+    expect(client.getSnapshot().labAdapter).toMatchObject({
+      confirmedSerial: "MOCKSERIAL0001",
+      confirmedDisplayName: "Lab bench",
+      readiness: "ready",
     })
-    expect(unauthorized.ok).toBe(false)
-    expect(unauthorized.errorCode).toBe("policy_denied")
-
-    const missingPairing = client.dispatch({
-      type: "verifyLabProvisioning",
-      serial: "MOCKSERIAL0001",
-      transportId: "3",
-      endpointHost: "127.0.0.1",
-      endpointPort: 0,
-      connectionType: "usb",
-      pairingAuthorized: false,
-      adbServerOwned: true,
-      platformToolsCompatible: true,
-      portPolicyAllowed: true,
-      rollbackReady: true,
-      operatorAuthorized: true,
-    })
-    expect(missingPairing.ok).toBe(false)
-    expect(missingPairing.errorCode).toBe("precondition_failed")
-
-    const beforeApproval = client.dispatch({
-      type: "registerLabDevice",
-      serial: "MOCKSERIAL0001",
-      displayName: "Lab bench",
-      approved: true,
-    })
-    expect(beforeApproval.ok).toBe(false)
-    expect(beforeApproval.errorCode).toBe("precondition_failed")
-
-    const verified = client.dispatch({
-      type: "verifyLabProvisioning",
-      serial: "MOCKSERIAL0001",
-      transportId: "3",
-      endpointHost: "127.0.0.1",
-      endpointPort: 0,
-      connectionType: "usb",
-      pairingAuthorized: true,
-      adbServerOwned: true,
-      platformToolsCompatible: true,
-      portPolicyAllowed: true,
-      rollbackReady: true,
-      operatorAuthorized: true,
-    })
-    expect(verified.ok).toBe(true)
-    expect(client.getSnapshot().provisioningReadiness).toMatchObject({ ready: true, state: "provision_verified" })
-
-    const unapprovedRegister = client.dispatch({
-      type: "registerLabDevice",
-      serial: "MOCKSERIAL0001",
-      displayName: "Lab bench",
-      approved: false,
-    })
-    expect(unapprovedRegister.ok).toBe(false)
-    expect(unapprovedRegister.errorCode).toBe("policy_denied")
-
-    const approval = client.dispatch({
-      type: "approveLabProvisioning",
-      serial: "MOCKSERIAL0001",
-      reason: "Fixture Approval",
-    })
-    expect(approval.ok).toBe(true)
-    expect(client.getSnapshot().labRegistration).toMatchObject({ approved: true, mockLabeled: true, state: "provision_verified" })
-
-    const registration = client.dispatch({
-      type: "registerLabDevice",
-      serial: "MOCKSERIAL0001",
-      displayName: "Lab bench",
-      approved: true,
-    })
-    expect(registration.ok).toBe(true)
-    expect(registration.message).toMatch(/not a real device registration/i)
-    expect(client.getSnapshot().labRegistration).toMatchObject({
-      state: "registered",
-      mockLabeled: true,
-      displayName: expect.stringContaining("Mock Lab"),
-    })
-
-    const deviceId = client.getSnapshot().labRegistration?.deviceId
-    const reverify = client.dispatch({
-      type: "verifyLabProvisioning",
-      serial: "MOCKSERIAL0001",
-      transportId: "3",
-      endpointHost: "127.0.0.1",
-      endpointPort: 0,
-      connectionType: "usb",
-      pairingAuthorized: true,
-      adbServerOwned: true,
-      platformToolsCompatible: true,
-      portPolicyAllowed: true,
-      rollbackReady: true,
-      operatorAuthorized: true,
-    })
-    expect(reverify.ok).toBe(true)
-    expect(client.getSnapshot().labRegistration).toMatchObject({ state: "registered", deviceId })
 
     client.dispatch({ type: "clearLabTarget" })
-    expect(client.getSnapshot().provisioningReadiness).toBeNull()
-    expect(client.getSnapshot().labRegistration).toMatchObject({ state: "registered", deviceId })
+    expect(client.getSnapshot().labAdapter).toMatchObject({ confirmedSerial: "", confirmedDisplayName: "" })
     expect(client.getSnapshot().indeterminateActions).toEqual([])
     expect(client.getSnapshot().runtimeConnection.pendingIndeterminate).toBe(0)
     expect(client.getSnapshot().spoolHealth).toMatchObject({ pending: 0, blocked: 0, blockedSequences: [] })
-    const verifyWithoutConfirm = client.dispatch({
-      type: "verifyLabProvisioning",
-      serial: "MOCKSERIAL0001",
-      transportId: "3",
-      endpointHost: "127.0.0.1",
-      endpointPort: 0,
-      connectionType: "usb",
-      pairingAuthorized: true,
-      adbServerOwned: true,
-      platformToolsCompatible: true,
-      portPolicyAllowed: true,
-      rollbackReady: true,
-      operatorAuthorized: true,
-    })
-    expect(verifyWithoutConfirm.ok).toBe(false)
-    expect(verifyWithoutConfirm.errorCode).toBe("precondition_failed")
   })
 
   it("refuses spool confirmation for unknown sequences even when blocked items exist", () => {

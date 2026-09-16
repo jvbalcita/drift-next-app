@@ -14,8 +14,8 @@ import type { AutomationAgent, AutomationAgentProfile } from "@/gen/drift/v1/aut
 import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
 import { DeviceStatus } from "@/gen/drift/v1/device_pb"
-import type { ScanCandidate, ScanRun } from "@/gen/drift/v1/discovery_pb"
-import { ScanCandidateState, ScanRunState } from "@/gen/drift/v1/discovery_pb"
+import type { ScanRun } from "@/gen/drift/v1/discovery_pb"
+import { ScanRunState } from "@/gen/drift/v1/discovery_pb"
 import type { EdgeAgent } from "@/gen/drift/v1/edge_agent_pb"
 import { EdgeAgentState } from "@/gen/drift/v1/edge_agent_pb"
 import type { DeviceEndpoint } from "@/gen/drift/v1/endpoint_pb"
@@ -122,8 +122,6 @@ import type {
   RunTargetView,
   RunView,
   RuntimeConnectionView,
-  ScanCandidateState as ScanCandidateViewState,
-  ScanCandidateView,
   ScanRunState as ScanRunViewState,
   ScanRunView,
   SettingHistoryView,
@@ -235,7 +233,6 @@ export function emptyControlPlaneSnapshot(options?: {
     observations: [],
     networkProfiles: [],
     scanRuns: [],
-    scanCandidates: [],
     groups: [],
     memberships: [],
     automationAgents: [],
@@ -259,11 +256,9 @@ export function emptyControlPlaneSnapshot(options?: {
     policyDecisions: [],
     mirrorSessions: [],
     labAdapter: { ...emptyLabAdapter(), readiness: connected ? "unavailable" : "unavailable" },
-    provisioningReadiness: null,
     runtimeConnection: emptyRuntime(runtimeState, options?.disconnectedReason ?? ""),
     spoolHealth: emptySpool(runtimeState),
     indeterminateActions: [],
-    labRegistration: null,
     artifacts: [],
     recordingMedia: [],
     storageHealth: emptyStorage(),
@@ -1115,44 +1110,6 @@ function mapScanRun(run: ScanRun): ScanRunView {
   }
 }
 
-function mapScanCandidateState(state: ScanCandidateState): ScanCandidateViewState {
-  switch (state) {
-    case ScanCandidateState.DISCOVERED:
-      return "discovered"
-    case ScanCandidateState.PENDING_APPROVAL:
-      return "pending_approval"
-    case ScanCandidateState.APPROVED:
-      return "approved"
-    case ScanCandidateState.REJECTED:
-      return "rejected"
-    case ScanCandidateState.EXPIRED:
-      return "expired"
-    case ScanCandidateState.REGISTERED:
-      return "registered"
-    case ScanCandidateState.UNSPECIFIED:
-      return "discovered"
-    default: {
-      const _exhaustive: never = state
-      return _exhaustive
-    }
-  }
-}
-
-function mapScanCandidate(candidate: ScanCandidate): ScanCandidateView {
-  return {
-    id: candidate.id,
-    scanRunId: candidate.scanRunId,
-    candidateKey: candidate.candidateKey,
-    host: candidate.host,
-    port: candidate.port,
-    serial: candidate.serial,
-    fingerprint: candidate.fingerprint,
-    state: mapScanCandidateState(candidate.state),
-    discoveredAt: candidate.discoveredAt,
-    evidenceSummary: candidate.evidenceSummary,
-  }
-}
-
 function mapLeaseState(state: ProtoLeaseState): LeaseViewState {
   switch (state) {
     case ProtoLeaseState.REQUESTED:
@@ -1387,7 +1344,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
   ) {
     this.workspaceId = options.workspaceId ?? defaultWorkspaceId
     this.snapshot = emptyControlPlaneSnapshot({ workspaceId: this.workspaceId })
-    this.services = options.services ?? createControlPlaneServices(new ConnectJsonClient(options.baseUrl ?? controlPlaneBaseUrl(), options.token ?? configuredLabToken()), options.operatorId ?? defaultOperatorId)
+    this.services = options.services ?? createControlPlaneServices(new ConnectJsonClient(options.baseUrl ?? controlPlaneBaseUrl(), options.token ?? configuredLabToken()))
   }
 
   getSnapshot(): ControlPlaneSnapshot {
@@ -1409,7 +1366,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         memberships: response.memberships.map(mapMembership),
       })), { groups: [] as GroupView[], memberships: [] as MembershipView[] }),
       settle(this.services.discovery.listScanRuns(workspaceId).then((response) => response.scanRuns.map(mapScanRun)), [] as ScanRunView[]),
-      settle(this.services.discovery.listScanCandidates(workspaceId).then((response) => response.candidates.map(mapScanCandidate)), [] as ScanCandidateView[]),
       settle(this.services.lease.listDeviceLeases(workspaceId).then((response) => response.leases.map(mapLease)), [] as LeaseView[]),
       settle(this.services.observation.listObservationSnapshots(workspaceId).then((response) => response.observations.map(mapObservation)), [] as ObservationView[]),
       settle(this.services.run.listRunTargets(workspaceId).then((response) => response.targets.map(mapRunTarget)), [] as RunTargetView[]),
@@ -1555,7 +1511,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       networkProfiles,
       groups,
       scanRuns,
-      scanCandidates,
       leases,
       observations,
       runTargets,
@@ -1598,7 +1553,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       groups: groups.value.groups,
       memberships: groups.value.memberships,
       scanRuns: scanRuns.value,
-      scanCandidates: scanCandidates.value,
       leases: leases.value,
       observations: observations.value,
       runTargets: runTargets.value,
@@ -1628,8 +1582,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       automationAgentProfiles: automationAgents.value.profiles,
       recordingMedia: recordingMedia.value,
       labAdapter: previous.labAdapter,
-      provisioningReadiness: previous.provisioningReadiness,
-      labRegistration: previous.labRegistration,
       mirrorSessions: mirrorSessions.value,
       runtimeConnection: runtimeStatus.value.connection,
       spoolHealth: runtimeStatus.value.spool,
@@ -1699,18 +1651,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
           this.snapshot = { ...this.snapshot, scanRuns: [mapScanRun(response.scanRun), ...this.snapshot.scanRuns] }
         }
         return mutation(intent, "Discovery scan started.")
-      }
-      case "decideScanCandidate": {
-        const response = await this.services.discovery.decideScanCandidate(requestId, workspaceId, intent.candidateId, intent.approve, intent.reason)
-        if (response.candidate) {
-          const mapped = mapScanCandidate(response.candidate)
-          this.snapshot = { ...this.snapshot, scanCandidates: this.snapshot.scanCandidates.map((candidate) => candidate.id === mapped.id ? mapped : candidate) }
-        }
-        return mutation(intent, intent.approve ? "Candidate approved." : "Candidate rejected.")
-      }
-      case "registerScanCandidate": {
-        await this.services.discovery.registerScanCandidate(requestId, workspaceId, intent.candidateId, intent.displayName)
-        return mutation(intent, "Candidate registered.")
       }
       case "moveDeviceToGroup": {
         await this.services.group.moveDeviceToGroup(requestId, workspaceId, intent.deviceId, intent.groupId, intent.position)
@@ -1967,9 +1907,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       case "clearLabTarget":
       case "captureLabObservation":
       case "simulateLabCaptureFailure":
-      case "verifyLabProvisioning":
-      case "approveLabProvisioning":
-      case "registerLabDevice":
       case "enqueueMockSpoolItem":
         return failure(intent, "This action is unavailable on the connected control plane.")
       default: {

@@ -66,7 +66,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
     }
     if (action === "Screenshot" && source) {
       void (async () => {
-        const serial = captureSerialForDevice(source.id, snapshot.labAdapter, snapshot.labRegistration)
+        const serial = captureSerialForDevice(snapshot.labAdapter)
         if (!serial) {
           setFeedback("Confirm the connected transport for this device before capturing observation.")
           return
@@ -111,9 +111,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
       adapter={snapshot.labAdapter}
       runtimeConnection={snapshot.runtimeConnection}
       spoolHealth={snapshot.spoolHealth}
-      provisioningReadiness={snapshot.provisioningReadiness}
       indeterminateActions={snapshot.indeterminateActions}
-      labRegistration={snapshot.labRegistration}
       dispatch={dispatch}
       dispatchLab={dispatchLab}
       onFeedback={setFeedback}
