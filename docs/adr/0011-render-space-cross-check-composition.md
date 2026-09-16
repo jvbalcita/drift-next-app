@@ -4,6 +4,7 @@
 - Date: 2026-09-16
 - Depends on: ADR-0008 (typed device input), ADR-0009 (domain registration of the typed device inputs), ADR-0010 (device input dispatch and the narrow ADB allow-list admission)
 - Does not lift: ADR-0004 (the adapter boundary), ADR-0005 (raw ADB shell, arbitrary coordinates, clipboard/global commands, automatic package changes)
+- Amended: 2026-09-16 — §5's "`shell wm size` is not admitted yet" is superseded: the read is admitted, so the composition reaches a device (card ARC-75). The decision this record makes is unchanged. See the amendment below.
 
 ## Context
 
@@ -112,3 +113,20 @@ The factory therefore receives the device's own transport, and the counting wrap
 - `TestTheDispatchGatesComposeOnTheCoordinateFrame` is the composition proof: a matching reading is dispatched through both gates with exactly one allow-listed device call; a mismatched reading and a reading that cannot be established are refused with the render-space gate's own failure class and **zero** device calls; a coordinate whose source cannot be built is refused; a key event, which carries no frame, is unaffected; and the default composition (real `WmSizeReader` over the real ADB allow-list) refuses a coordinate with zero process invocations, because the allow-list refuses the read before the host is asked to run anything.
 - `internal/edge/execution/input_dispatch_sqlite_test.go` runs the same composed fixture against a disposable SQLite database: a full dispatch persisted as verified with a succeeded cleanup, and the refusal cases still with a zero device-call count.
 - `gofmt -l` on the changed files, `go vet ./...`, `go build ./...`, `go test ./...`, `go test -race ./internal/edge/... ./internal/transport/connect/...`, `bash scripts/secret-scan.sh` and `git diff --check` are the gates for this change.
+
+## Amendment: the render-size read is admitted (card ARC-75)
+
+**This amendment supersedes §5 and the consequences that followed from it. It does not change the decision this record makes; it removes the blocker that decision was waiting on.**
+
+§5 recorded that `matchesDeviceInputAllowlist` admits the six input shapes and not `shell wm size`, that the real transport therefore answers `adb.ErrArgvNotAllowlisted`, that the reader reports the device render size as unavailable, and that the coordinate is refused. That was the honest fail-closed status of the composition at the time, and a test pinned it. ARC-75 admitted the read (amendment to ADR-0010), so three statements in §5 are now superseded:
+
+- **The allow-list admits the read.** `["shell", "wm", "size"]` resolves to `wm-size`. The gate table's "not one of the six admitted shapes" reads "not one of the eight read-only operation names or the six input arrays": the read-only side of the allow-list grew by one fixed array with no variable position, and the input admission is unchanged.
+- **The real device path can supply a reading.** Tap and swipe are no longer "dispatchable in tests and refused on a device". With the read admitted, the reader obtains the size the device actually presents at — the OVERRIDE when the device declares one — and the cross-check compares the declared frame against it. §5's "until ARC-75 admits the read" clause is discharged.
+- **The composition is no longer proven with fakes alone.** The production composition — the real `WmSizeReader` over the real ADB allow-list — now runs the whole path in a test: the reading is obtained, the frame is cross-checked, and the coordinate is dispatched, with the read and the input as two distinct calls in that order.
+
+Two further statements in this record are superseded in the same way. They are pointed at here rather than rewritten in place, so the record still shows what was believed when the change landed:
+
+- **"The ADB allow-list is unmodified: `shell wm size` is still refused, and admitting it is ARC-75"** (What is deliberately left alone). The allow-list is now modified by exactly one array, and nothing else about it is touched.
+- **The validation bullet describing the default composition as refusing a coordinate with zero process invocations.** That case turned out to be the arc's most useful tripwire: it failed, as designed, the moment the read was admitted. It is now the end-to-end proof described above rather than a refusal pin. `TestTheDispatchGatesComposeOnTheCoordinateFrame` still exists and still passes, with its five other cases unchanged — a matching reading dispatched, a mismatched reading refused by the render-space gate, an unestablishable reading refused, an unbuildable source refused, and a key event unaffected.
+
+**What this amendment does not change.** The fail-closed property this record exists for is intact and still asserted: a frame the device does not present at, a reading that cannot be established, a reading too old to refresh, and a source that cannot be built are each still refused with the render-space gate's own failure class and zero device calls for the input. Nothing is rescaled; `checkRenderSpace`, `WmSizeReader` and `ParseWmSizeOutput` are unmodified; the cross-check still runs inside the executing actor before the argument array is built; and the reader is still composed over the device's own unfiltered transport rather than the counting wrapper (§4), so a refused coordinate is never recorded as an indeterminate in-flight call.
