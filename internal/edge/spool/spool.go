@@ -37,25 +37,25 @@ const (
 type Outcome string
 
 const (
-	OutcomePending        Outcome = "pending"
-	OutcomeDispatched     Outcome = "dispatched"
-	OutcomeIndeterminate  Outcome = "indeterminate"
-	OutcomeConfirmedDrop  Outcome = "confirmed_drop"
+	OutcomePending         Outcome = "pending"
+	OutcomeDispatched      Outcome = "dispatched"
+	OutcomeIndeterminate   Outcome = "indeterminate"
+	OutcomeConfirmedDrop   Outcome = "confirmed_drop"
 	OutcomeConfirmedReplay Outcome = "confirmed_replay"
-	OutcomeExpired        Outcome = "expired"
+	OutcomeExpired         Outcome = "expired"
 )
 
 // Item is one bounded spool entry. IsControlPlaneLease is always false.
 type Item struct {
-	Sequence           uint64
-	Kind               Kind
-	IdempotencyKey     string
-	Risk               action.RiskClass
-	Payload            []byte
-	FenceToken         uint64
-	EnqueuedAt         time.Time
-	DispatchedAt       *time.Time
-	Outcome            Outcome
+	Sequence            uint64
+	Kind                Kind
+	IdempotencyKey      string
+	Risk                action.RiskClass
+	Payload             []byte
+	FenceToken          uint64
+	EnqueuedAt          time.Time
+	DispatchedAt        *time.Time
+	Outcome             Outcome
 	IsControlPlaneLease bool
 }
 
@@ -78,14 +78,14 @@ type Health struct {
 
 // Queue is an in-process bounded spool. It never opens SQLite or shell.
 type Queue struct {
-	mu          sync.Mutex
-	maxSize     int
-	retention   time.Duration
-	state       ConnectionState
-	fenceToken  uint64
-	nextSeq     uint64
-	items       []Item
-	byKey       map[string]uint64
+	mu         sync.Mutex
+	maxSize    int
+	retention  time.Duration
+	state      ConnectionState
+	fenceToken uint64
+	nextSeq    uint64
+	items      []Item
+	byKey      map[string]uint64
 }
 
 // New returns a bounded spool. Defaults: MaxSize=64, Retention=24h, Connected fence 1.

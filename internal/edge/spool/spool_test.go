@@ -14,11 +14,11 @@ func TestSpoolEnqueuesLowRiskInSequenceAndRejectsDuplicates(t *testing.T) {
 	now := time.Date(2026, 9, 15, 2, 0, 0, 0, time.UTC)
 
 	first, err := q.Enqueue(spool.Item{
-		Kind:          spool.KindObservation,
+		Kind:           spool.KindObservation,
 		IdempotencyKey: "obs-1",
-		Risk:          action.RiskLow,
-		Payload:       []byte(`{"n":1}`),
-		FenceToken:    1,
+		Risk:           action.RiskLow,
+		Payload:        []byte(`{"n":1}`),
+		FenceToken:     1,
 	}, now)
 	if err != nil {
 		t.Fatal(err)
@@ -28,22 +28,22 @@ func TestSpoolEnqueuesLowRiskInSequenceAndRejectsDuplicates(t *testing.T) {
 	}
 
 	_, err = q.Enqueue(spool.Item{
-		Kind:          spool.KindObservation,
+		Kind:           spool.KindObservation,
 		IdempotencyKey: "obs-1",
-		Risk:          action.RiskLow,
-		Payload:       []byte(`{"n":1}`),
-		FenceToken:    1,
+		Risk:           action.RiskLow,
+		Payload:        []byte(`{"n":1}`),
+		FenceToken:     1,
 	}, now.Add(time.Second))
 	if platformerrors.CodeOf(err) != platformerrors.CodeConflict {
 		t.Fatalf("duplicate code = %v, want conflict", platformerrors.CodeOf(err))
 	}
 
 	second, err := q.Enqueue(spool.Item{
-		Kind:          spool.KindOutbox,
+		Kind:           spool.KindOutbox,
 		IdempotencyKey: "out-1",
-		Risk:          action.RiskLow,
-		Payload:       []byte(`{"event":"health"}`),
-		FenceToken:    1,
+		Risk:           action.RiskLow,
+		Payload:        []byte(`{"event":"health"}`),
+		FenceToken:     1,
 	}, now.Add(2*time.Second))
 	if err != nil {
 		t.Fatal(err)
@@ -64,11 +64,11 @@ func TestSpoolRejectsHighRiskAndStaleFenceWhileDisconnected(t *testing.T) {
 	q.SetConnectionState(spool.StateDisconnected, 3)
 
 	_, err := q.Enqueue(spool.Item{
-		Kind:          spool.KindOutbox,
+		Kind:           spool.KindOutbox,
 		IdempotencyKey: "tap-1",
-		Risk:          action.RiskHigh,
-		Payload:       []byte(`{"action":"text_input"}`),
-		FenceToken:    3,
+		Risk:           action.RiskHigh,
+		Payload:        []byte(`{"action":"text_input"}`),
+		FenceToken:     3,
 	}, now)
 	if platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
 		t.Fatalf("high-risk disconnected code = %v, want policy_denied", platformerrors.CodeOf(err))
@@ -76,11 +76,11 @@ func TestSpoolRejectsHighRiskAndStaleFenceWhileDisconnected(t *testing.T) {
 
 	q.SetConnectionState(spool.StateReconnecting, 3)
 	_, err = q.Enqueue(spool.Item{
-		Kind:          spool.KindOutbox,
+		Kind:           spool.KindOutbox,
 		IdempotencyKey: "swipe-1",
-		Risk:          action.RiskMedium,
-		Payload:       []byte(`{"action":"swipe"}`),
-		FenceToken:    3,
+		Risk:           action.RiskMedium,
+		Payload:        []byte(`{"action":"swipe"}`),
+		FenceToken:     3,
 	}, now)
 	if platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
 		t.Fatalf("medium-risk reconnecting code = %v, want policy_denied", platformerrors.CodeOf(err))
@@ -88,11 +88,11 @@ func TestSpoolRejectsHighRiskAndStaleFenceWhileDisconnected(t *testing.T) {
 
 	q.SetConnectionState(spool.StateDisconnected, 3)
 	_, err = q.Enqueue(spool.Item{
-		Kind:          spool.KindObservation,
+		Kind:           spool.KindObservation,
 		IdempotencyKey: "obs-stale",
-		Risk:          action.RiskLow,
-		Payload:       []byte(`{}`),
-		FenceToken:    2,
+		Risk:           action.RiskLow,
+		Payload:        []byte(`{}`),
+		FenceToken:     2,
 	}, now)
 	if platformerrors.CodeOf(err) != platformerrors.CodeLeaseConflict {
 		t.Fatalf("stale fence code = %v, want lease_conflict", platformerrors.CodeOf(err))
@@ -136,11 +136,11 @@ func TestSpoolNeverBlindReplaysDispatchedActions(t *testing.T) {
 	q.SetConnectionState(spool.StateConnected, 1)
 
 	item, err := q.Enqueue(spool.Item{
-		Kind:          spool.KindOutbox,
+		Kind:           spool.KindOutbox,
 		IdempotencyKey: "maybe-dispatched",
-		Risk:          action.RiskLow,
-		Payload:       []byte(`{"action":"observe"}`),
-		FenceToken:    1,
+		Risk:           action.RiskLow,
+		Payload:        []byte(`{"action":"observe"}`),
+		FenceToken:     1,
 	}, now)
 	if err != nil {
 		t.Fatal(err)
@@ -182,11 +182,11 @@ func TestSpoolCursorIsNotAControlPlaneLease(t *testing.T) {
 	q.SetConnectionState(spool.StateConnected, 9)
 
 	item, err := q.Enqueue(spool.Item{
-		Kind:          spool.KindCursor,
+		Kind:           spool.KindCursor,
 		IdempotencyKey: "cursor-1",
-		Risk:          action.RiskLow,
-		Payload:       []byte(`{"cursor":"42"}`),
-		FenceToken:    9,
+		Risk:           action.RiskLow,
+		Payload:        []byte(`{"cursor":"42"}`),
+		FenceToken:     9,
 	}, now)
 	if err != nil {
 		t.Fatal(err)
