@@ -25,6 +25,54 @@ const (
 )
 
 const (
+	// continuationMark prefixes the second and later rows of one logical line
+	// that had to wrap inside a bounded region, so a wrapped line is visibly one
+	// line rather than several events.
+	continuationMark = "↳"
+	// ellipsisMark ends a line that had to be cut to fit. Nothing is dropped
+	// without it: an operator reading a shortened line can see that it is short.
+	ellipsisMark = "…"
+)
+
+const (
+	// readOnlyMark and processMark classify a key in the action grid. An operator
+	// has to see which keys change what is running, and colour is not always
+	// available (NO_COLOR, piped output, a captured frame), so the classification
+	// is a glyph — and both glyphs are explained in the frame's key legend, never
+	// used silently.
+	// readOnlyMark marks a key that reads state and changes nothing.
+	readOnlyMark = "◦"
+	// processMark marks a key that starts, stops, builds or otherwise changes
+	// what is running on the machine.
+	processMark = "▸"
+	// markColumn is the gap between the classification glyph and the key. The
+	// keys line up in a column under it, which is also what the frame reader uses
+	// to tell a classification glyph from part of a label.
+	markColumn = "  "
+	// bulletMark prefixes an event line, and is as wide as continuationMark so the
+	// wrapped text of one event stays aligned under itself.
+	bulletMark = "• "
+	// regionPrefix is the left inset every bounded region's rows carry, and
+	// regionIndent is its width. One source of truth, so the wrap budget and the
+	// rendering cannot disagree about how much room the inset takes.
+	regionPrefix = "  "
+	regionIndent = len(regionPrefix)
+)
+
+const (
+	// eventWrapWidth is the reading measure an event line wraps at inside its
+	// bounded region, even when the frame is wider. Bounding the region must not
+	// lose text: an event longer than this continues on a marked continuation
+	// line rather than being cut. A line the full width of a wide terminal is
+	// also harder to read than two short ones.
+	eventWrapWidth = 76
+	// eventOverflowNotice stands in for the rows an event needed but the region
+	// could not show. It names how many are withheld and where the whole text is,
+	// so a bounded region is never mistaken for the whole of what arrived.
+	eventOverflowNotice = "%d more rows of this event - key 9 opens the log view"
+)
+
+const (
 	// fallbackFrameWidth is used when the terminal size cannot be read (piped
 	// output, unknown window size, or a platform without a size query).
 	fallbackFrameWidth = 100
@@ -144,10 +192,16 @@ func skipEscape(text string, index int) int {
 }
 
 // clipLine truncates a line to width printable columns, keeping escape
-// sequences intact and re-closing a style it had to cut.
+// sequences intact and re-closing a style it had to cut. The last column is
+// reserved for the ellipsis whenever anything is dropped: a line that was cut
+// says so, so an operator never reads a shortened line as a complete one.
 func clipLine(text string, width int) string {
 	if width <= 0 || visibleWidth(text) <= width {
 		return text
+	}
+	limit := width - visibleWidth(ellipsisMark)
+	if limit < 0 {
+		limit = 0
 	}
 	var builder strings.Builder
 	columns, truncated, styled := 0, false, false
@@ -159,7 +213,7 @@ func clipLine(text string, width int) string {
 			continue
 		}
 		rune_, size := utf8.DecodeRuneInString(text[index:])
-		if columns == width {
+		if columns >= limit {
 			truncated = true
 			break
 		}
@@ -167,10 +221,13 @@ func clipLine(text string, width int) string {
 		columns++
 		index += size
 	}
-	// Only re-close a style if this line actually carried escape sequences:
-	// plain frames must stay escape-free.
-	if truncated && styled {
-		builder.WriteString(sgrReset)
+	if truncated {
+		builder.WriteString(ellipsisMark)
+		// Only re-close a style if this line actually carried escape sequences:
+		// plain frames must stay escape-free.
+		if styled {
+			builder.WriteString(sgrReset)
+		}
 	}
 	return builder.String()
 }
@@ -185,6 +242,61 @@ func tailWindow(lines []string, limit int) []string {
 		return append([]string(nil), lines...)
 	}
 	return append([]string(nil), lines[len(lines)-limit:]...)
+}
+
+// eventRows renders one event as the rows it occupies inside the bounded event
+// region: the bullet row, then one marked continuation row per wrap. The event
+// text is carried whole — the region is bounded so the frame height stays
+// stable, never so that the rest of a line can be dropped — and the wrap measure
+// keeps a long line readable on a wide terminal instead of running the full
+// width of it.
+func eventRows(event string, width int, p palette) []string {
+	budget := width - regionIndent - utf8.RuneCountInString(bulletMark)
+	switch {
+	case budget < 1:
+		budget = 1
+	case budget > eventWrapWidth:
+		budget = eventWrapWidth
+	}
+	chunks := wrapRunes(event, budget)
+	rows := make([]string, 0, len(chunks))
+	for index, chunk := range chunks {
+		if index == 0 {
+			rows = append(rows, p.style(sgrDim, bulletMark)+chunk)
+			continue
+		}
+		rows = append(rows, p.style(sgrDim, continuationMark+" ")+chunk)
+	}
+	return rows
+}
+
+// wrapRunes splits text into chunks of at most budget columns, preferring the
+// last space at or before the budget so a wrap lands between words where one is
+// available. Every character is kept, including the space a wrap breaks after,
+// so the chunks concatenate back to the original text exactly: wrapping may
+// change where a line ends, never what it says.
+func wrapRunes(text string, budget int) []string {
+	runes := []rune(text)
+	if budget < 1 || len(runes) <= budget {
+		return []string{text}
+	}
+	chunks := make([]string, 0, len(runes)/budget+1)
+	for len(runes) > 0 {
+		if len(runes) <= budget {
+			chunks = append(chunks, string(runes))
+			break
+		}
+		cut := budget
+		for index := budget; index > 0; index-- {
+			if runes[index-1] == ' ' {
+				cut = index
+				break
+			}
+		}
+		chunks = append(chunks, string(runes[:cut]))
+		runes = runes[cut:]
+	}
+	return chunks
 }
 
 // renderFrame renders the whole frame, one element per line, with the input
@@ -209,13 +321,23 @@ func renderFrame(state viewState, width int, color bool) []string {
 		window := tailWindow(state.events, eventRegionRows)
 		bulleted := make([]string, 0, len(window))
 		for _, event := range window {
-			bulleted = append(bulleted, p.style(sgrDim, "• ")+event)
+			bulleted = append(bulleted, eventRows(event, frameWidth, p)...)
+		}
+		// The region is bounded, so an event longer than every row of it cannot
+		// be shown whole. Say which rows were withheld and where the text is,
+		// rather than dropping them without a trace: bounding a region must never
+		// be the same thing as losing content quietly.
+		if len(bulleted) > eventRegionRows {
+			withheld := len(bulleted) - (eventRegionRows - 1)
+			notice := p.style(sgrDim, continuationMark+" ") + fmt.Sprintf(eventOverflowNotice, withheld)
+			bulleted = append(bulleted[:eventRegionRows-1], notice)
 		}
 		lines = append(lines, rule("Recent events", "", frameWidth, p))
 		lines = append(lines, renderWindow(bulleted, "No events recorded yet.", eventRegionRows, p)...)
 	}
 	lines = append(lines, rule("Actions", "", frameWidth, p))
 	lines = append(lines, renderMenu(actionItems(state), frameWidth, p)...)
+	lines = append(lines, keyLegend(p))
 	lines = append(lines, renderPrompt(state, p))
 	for index, line := range lines {
 		lines[index] = clipLine(line, frameWidth)
@@ -327,14 +449,16 @@ func renderStatusPanel(components []runtime.ComponentStatus) []string {
 }
 
 // renderWindow renders a bounded region, padded to a fixed number of rows so
-// arriving events never change the frame height.
+// arriving events never change the frame height. Content is rendered at its
+// own width: a caller that has more text than the region is wide wraps it into
+// more rows, so bounding the region never costs the operator the rest of a line.
 func renderWindow(content []string, empty string, rows int, p palette) []string {
 	lines := make([]string, 0, rows)
 	if len(content) == 0 {
-		lines = append(lines, p.style(sgrDim, "  "+empty))
+		lines = append(lines, p.style(sgrDim, regionPrefix+empty))
 	} else {
 		for _, line := range content {
-			lines = append(lines, "  "+line)
+			lines = append(lines, regionPrefix+line)
 		}
 	}
 	for len(lines) < rows {
@@ -346,20 +470,43 @@ func renderWindow(content []string, empty string, rows int, p palette) []string 
 	return lines
 }
 
+// actionMark is the glyph drawn before a key to say whether the action changes
+// what is running. A view reads state and changes nothing; every other key on
+// offer starts, stops, builds or otherwise acts on the machine. The legend in
+// the frame explains both glyphs, so the classification is never implied.
+func actionMark(item menuItem) string {
+	if item.Kind == kindView {
+		return readOnlyMark
+	}
+	return processMark
+}
+
+// keyLegend names the keys that are conventions rather than numbered actions,
+// and the two marks the grid uses. A key that is offered anywhere in the frame
+// is explained in the frame: an operator should not have to know a convention,
+// or guess a glyph, to read the surface.
+func keyLegend(p palette) string {
+	return p.style(sgrDim, "  Keys  0 overview · r refresh · q exit · "+
+		processMark+" changes processes · "+readOnlyMark+" read-only")
+}
+
 func renderMenu(items []menuItem, width int, p palette) []string {
 	primary := make([]string, 0, len(items))
 	troubleshooting := make([]string, 0, len(items))
 	resolutions := make([]string, 0, len(items))
+	exits := make([]string, 0, len(items))
 	for _, item := range items {
 		if item.Shortcut {
 			continue
 		}
-		cell := " " + p.style(sgrCyan, item.Key) + " " + item.Label
+		cell := " " + actionMark(item) + markColumn + p.style(sgrCyan, item.Key) + " " + item.Label
 		switch item.Group {
 		case groupTroubleshooting:
 			troubleshooting = append(troubleshooting, cell)
 		case groupResolution:
 			resolutions = append(resolutions, cell)
+		case groupExit:
+			exits = append(exits, cell)
 		default:
 			primary = append(primary, cell)
 		}
@@ -372,8 +519,15 @@ func renderMenu(items []menuItem, width int, p palette) []string {
 		lines = append(lines, resolutions...)
 	}
 	if len(troubleshooting) > 0 {
-		lines = append(lines, p.style(sgrDim, "  Troubleshooting"))
+		// A rule of its own, not a dim label: the troubleshooting block is a
+		// section an operator arrives at, not a continuation of the action list.
+		lines = append(lines, rule("Troubleshooting", "", width, p))
 		lines = append(lines, gridRows(troubleshooting, width)...)
+	}
+	if len(exits) > 0 {
+		// Last, after every other group: an operator who reads to the end of the
+		// list must not find more work after the way out.
+		lines = append(lines, gridRows(exits, width)...)
 	}
 	return lines
 }
