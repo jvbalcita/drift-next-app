@@ -32,7 +32,8 @@ React/Vite operator UI
 ### Domain rules
 
 - Separate stable device identity from mutable endpoint/transport identity.
-- Model discovery as a state transition, not as automatic registration: candidate discovery must be distinct from approval and canonical device creation.
+- Treat a scan as an observation, not as a registration step: a bounded Network Profile scan upserts each observed serial into the canonical `devices`/`endpoints` registry and returns it immediately. There is no candidate queue, no approval transition, and no separate registration or provisioning flow.
+- Keep the action-safety boundary in the lease/fencing/policy/control-session kernel, not in the existence of a device row: a device row carries identity and observation history, and confers no authority to act on the device.
 - Keep current projections separate from append-only audit, event, observation, and evidence history.
 - Use explicit state machines for workflows, control sessions, devices, package lifecycle, approval, and recovery states.
 - Use typed identifiers internally. Never make a mutable serial, IP/port, display name, account label, or UI row number the primary identity.

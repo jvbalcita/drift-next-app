@@ -14,7 +14,7 @@ Every lifecycle transition has one owning application service. State transitions
 - Conditional writes use row version, lease/fencing token, idempotency key, or other durable predicate as appropriate.
 - Unknown, ambiguous, unauthorized, stale, duplicate, incompatible, expired, and revoked control state fails closed before device dispatch.
 - A control-plane transaction commits state, audit, and local-outbox intent together. Device, filesystem, and network work happens outside the database transaction and reports a classified outcome.
-- Retirement preserves referenced audit, run, package, approval, and device history. Deletion is not a substitute for lifecycle state.
+- Retirement preserves referenced audit, run, package, lease/fencing, and device history. Deletion is not a substitute for lifecycle state.
 
 ## Lifecycle catalog
 
@@ -23,11 +23,10 @@ Every lifecycle transition has one owning application service. State transitions
 | Workspace | active -> suspended -> retired | create, suspend, reactivate, retire | Every workspace-owned row uses `workspace_id`; cross-workspace relationships are rejected. |
 | Operator/principal | pending -> active -> suspended -> retired | enroll, authorize, suspend, retire | Authorization decisions are recorded; implementation is deferred beyond the local mock context. |
 | Edge runtime | pending -> active -> unhealthy -> offline -> retired | enroll, heartbeat, mark unhealthy/offline, retire | Stable runtime ID; capabilities and heartbeats are append history. |
-| Device | candidate-free -> registered -> active -> unavailable -> retired | register from approved candidate, update projection, mark unavailable, retire | A candidate is not a device. Stable device ID survives endpoint replacement. |
+| Device | registered -> active -> unavailable -> retired | observe/create, update projection, mark unavailable, retire | A scan upserts the device row directly by `(workspace_id, serial)`, with no candidate or approval step; a newly observed device is created in `active`. Stable device ID survives endpoint replacement. |
 | Endpoint | observed -> current -> superseded -> retired | observe, bind, replace, supersede, retire | One active current endpoint and one active edge binding per device; serial/host/port history is preserved. |
 | Network Profile | saved -> deleted | create, update, delete | Delete-only by owner decision: no state and no disable step. Bounded CIDR/range and port policy; at most one workspace default. Deleting a profile clears the reference in scan history without removing the run. |
-| Scan Run | requested -> running -> completed/failed/cancelled | start, report candidate, complete, fail, cancel | Scan evidence is immutable; fake-only until a separate adapter gate. |
-| Scan Candidate | discovered -> pending approval -> approved/rejected/expired -> registered | record, approve, reject, expire, register | Approval and registration are separate; a candidate cannot silently create a device. |
+| Scan Run | requested -> running -> completed/failed/cancelled | start, upsert observed devices, complete, fail, cancel | Scan evidence is immutable history: a completed run keeps a nullable reference to the profile it scanned, so a profile can be deleted without deleting or blocking the run, and re-observing a device reuses its existing row instead of creating a duplicate. |
 | Group membership | active -> ended | place, move, remove | A device has at most one active group placement; prior rows are dated history; Ungrouped is computed. |
 | Automation assignment | active -> ended | assign, replace, end | One automation agent can have many active device assignments; a device has at most one active assignment. |
 | Control session | requested -> active -> closing -> closed/expired/revoked | open, activate, close, expire, revoke | Read-only selection does not create a session. Closing prevents new action authorization. |
@@ -55,13 +54,13 @@ Neither lifecycle permits a browser, Tauri renderer, workflow package, or LLM ou
 
 Retention follows ADR-0003's current, operational-history, execution-evidence, audit/security, and disposable classes. Exact durations, quotas, legal holds, and backup cadence remain unresolved policy decisions; no cleanup job may invent them.
 
-Lifecycle records needed to explain an active or failed run, a policy decision, a lease/fencing conflict, a registration decision, or a referenced artifact are protected from ordinary cleanup. A retention action is itself an audit event. Recovery restores the database and artifact store together, validates migration state and references, and ensures expired/revoked leases or stale fencing tokens cannot resume control.
+Lifecycle records needed to explain an active or failed run, a policy decision, a lease/fencing conflict, or a referenced artifact are protected from ordinary cleanup. A retention action is itself an audit event. Recovery restores the database and artifact store together, validates migration state and references, and ensures expired/revoked leases or stale fencing tokens cannot resume control.
 
 ## Required state-machine tests
 
 Phase 2 tests must cover legal and illegal transitions, including:
 
-- a scan candidate cannot register a device without approval;
+- a scan upserts a canonical device directly, and observing a device creates no lease, fencing token, or control session;
 - serial or endpoint replacement does not replace the stable device identity;
 - a device cannot have two active group placements, assignments, bindings, or leases where the applicable cardinality forbids it;
 - a stale, expired, revoked, duplicate, unauthorized, or stale-fenced action is rejected;
@@ -74,6 +73,6 @@ Phase 2 tests must cover legal and illegal transitions, including:
 ## Unresolved decisions requiring explicit approval
 
 - The exact risk taxonomy and retry policy for the first non-observation action.
-- Candidate, observation, health, artifact, and execution-evidence retention durations.
+- Observation, health, artifact, and execution-evidence retention durations.
 - Whether a future remote mode needs workspace membership roles beyond the first local operator context.
 - The formal threshold and acceptance tests for authorizing a real device-adapter spike.

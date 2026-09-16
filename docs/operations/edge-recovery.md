@@ -1,13 +1,17 @@
-# Edge Recovery — Registration, Reconnect, and Runtime Spool
+# Edge Recovery — Reconnect and Runtime Spool
 
-This document describes operator recovery for Drift Next Phase 14: controlled
-one-device lab registration and the optional edge-runtime spool. It does not
-authorize fleet rollout, unattended execution, production devices, or a second
-mandatory database.
+This document describes operator recovery for the local control plane and an
+optional separate edge runtime: reconnect behavior, the optional bounded spool,
+and indeterminate outcomes. It does not authorize fleet rollout, unattended
+execution, production devices, or a second mandatory database.
+
+Discovery no longer has an approval, provisioning, or registration stage. A scan
+observes attached devices and upserts them directly; there is no candidate queue
+and no registration decision to recover. See ADR-0007.
 
 ## Scope
 
-- One explicitly authorized lab device
+- One explicitly named lab device per capture
 - Attended operator sessions only
 - Canonical state stays in the bundled local service SQLite database
 - Optional bounded spool exists only for a separate edge runtime process
@@ -16,16 +20,17 @@ mandatory database.
 
 Keep these stages separate. Never collapse them into one button.
 
-1. **Discovery** — Network Profile scan through an authorized local runtime in lab mode
-2. **Approval** — Operator decision on a candidate (approve / reject / expire)
-3. **Provisioning** — Verify pairing, ADB ownership, platform-tools, transport and endpoint identity, port policy, and rollback readiness
-4. **Registration** — Explicit operator confirmation creates the canonical device/endpoint
+1. **Discovery** — Network Profile scan through an authorized local runtime in lab mode; the scan observes devices and upserts them as canonical devices
+2. **Connection** — Runtime link and transport state, reported as observations
+3. **Capture** — An explicitly named device is observed read-only; naming a device registers nothing and grants no lease
 
-Silent registration of a discovered or provisioned endpoint is refused.
+Stages are still distinct kinds of work, but observing a device is itself the act that
+makes it a device. There is no intermediate approval or registration step between
+discovering an endpoint and it being visible.
 
-## Pre-Registration Checks
+## Pre-Connection Checks
 
-Before registration, record evidence for:
+Before a scan or capture, Drift records evidence for:
 
 | Check | Failure behavior |
 | --- | --- |
@@ -34,8 +39,7 @@ Before registration, record evidence for:
 | Platform-tools compatibility | Refuse; never implicitly install software |
 | Transport identity | Refuse empty or ambiguous transport IDs |
 | Endpoint identity | Refuse empty serial / host identity |
-| Port policy | Refuse ports outside the Network Profile allow-list |
-| Rollback readiness | Refuse when rollback evidence is missing |
+| Port policy | Refuse or filter out ports outside the Network Profile allow-list |
 
 Drift never enables accessibility, removes packages, broadens permissions, or
 opens firewall exposure as part of recovery.
@@ -91,8 +95,9 @@ Confirm replay and drop are separate, confirmable controls.
 ### Unauthorized or unpaired device
 
 1. Complete pairing on the device under attendance
-2. Re-run provisioning verification
-3. Approve, then register only after verification succeeds
+2. Re-run the scan
+3. Confirm the device reports a usable transport; an unauthorized or offline
+   device is reported as such and is not actionable
 
 ### Network loss / device disappearance / transport ID change
 
@@ -115,17 +120,16 @@ Confirm replay and drop are separate, confirmable controls.
 
 ## Rollback
 
-Registration and provisioning keep rollback readiness as a precondition.
-Rollback does not imply automatic device repair. Prefer:
+Rollback does not imply automatic device repair or a registration decision. Prefer:
 
-1. Clear the lab target / session
-2. Leave canonical registry untouched until a new approved registration
-3. Preserve audit and registration events in SQLite
+1. Release any held lease and close the control session
+2. Leave the canonical registry untouched; a device row changes only when it is observed again
+3. Preserve audit, scan history, and observation events in SQLite
 
 ## Safety Invariants
 
 - Loopback-only control-plane service boundary
-- Existing token / consent protections remain mandatory
-- One-device lab scope for P14
+- The lab route token and its constant-time check remain mandatory in real-device mode
+- One explicitly named lab device per capture; nothing is inferred from list order or a display name
 - No second mandatory database for a normal local install
 - No autonomous offline fleet behavior
