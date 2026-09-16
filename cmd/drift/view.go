@@ -60,16 +60,23 @@ const (
 )
 
 const (
-	// eventWrapWidth is the reading measure an event line wraps at inside its
+	// regionWrapWidth is the reading measure a line of text wraps at inside a
 	// bounded region, even when the frame is wider. Bounding the region must not
-	// lose text: an event longer than this continues on a marked continuation
-	// line rather than being cut. A line the full width of a wide terminal is
-	// also harder to read than two short ones.
-	eventWrapWidth = 76
+	// lose text: a longer line continues on a marked continuation row rather than
+	// being cut. A line the full width of a wide terminal is also harder to read
+	// than two short ones. One constant governs every bounded text region, so the
+	// event region and the log region cannot disagree about how a line breaks.
+	regionWrapWidth = 76
 	// eventOverflowNotice stands in for the rows an event needed but the region
 	// could not show. It names how many are withheld and where the whole text is,
 	// so a bounded region is never mistaken for the whole of what arrived.
 	eventOverflowNotice = "%d more rows of this event - key 9 opens the log view"
+	// logOverflowNotice is the same stand-in for the log region. It cannot point
+	// at a fuller surface - this region is where the runtime log is read - so it
+	// names the count and no more: a bounded region that says how much it
+	// withheld is honest; one that silently drops rows reads exactly like a
+	// quiet log.
+	logOverflowNotice = "%d more rows of this window are not drawn"
 )
 
 const (
@@ -244,30 +251,64 @@ func tailWindow(lines []string, limit int) []string {
 	return append([]string(nil), lines[len(lines)-limit:]...)
 }
 
-// eventRows renders one event as the rows it occupies inside the bounded event
-// region: the bullet row, then one marked continuation row per wrap. The event
-// text is carried whole — the region is bounded so the frame height stays
-// stable, never so that the rest of a line can be dropped — and the wrap measure
-// keeps a long line readable on a wide terminal instead of running the full
-// width of it.
-func eventRows(event string, width int, p palette) []string {
-	budget := width - regionIndent - utf8.RuneCountInString(bulletMark)
+// regionWrapBudget is how many columns of text one row of a bounded region may
+// carry: the frame, less the left inset, less the widest row prefix the region
+// draws, capped so a longer line stays readable on a wide terminal. The budget
+// is the same for the first row and for every continuation row, so a wrapped
+// line stays aligned under itself whatever prefix the region uses.
+func regionWrapBudget(width int) int {
+	budget := width - regionIndent - utf8.RuneCountInString(continuationMark+" ")
 	switch {
 	case budget < 1:
-		budget = 1
-	case budget > eventWrapWidth:
-		budget = eventWrapWidth
+		return 1
+	case budget > regionWrapWidth:
+		return regionWrapWidth
 	}
-	chunks := wrapRunes(event, budget)
+	return budget
+}
+
+// regionRows renders one logical line as the rows it occupies inside a bounded
+// region: the head row carrying the region's own prefix, then one marked
+// continuation row per wrap. The text is carried whole — the region is bounded so
+// the frame height stays stable, never so that the rest of a line can be dropped
+// — and the wrap measure keeps a long line readable rather than running the full
+// width of the terminal.
+func regionRows(text string, width int, prefix string, p palette) []string {
+	chunks := wrapRunes(text, regionWrapBudget(width))
 	rows := make([]string, 0, len(chunks))
 	for index, chunk := range chunks {
 		if index == 0 {
-			rows = append(rows, p.style(sgrDim, bulletMark)+chunk)
+			rows = append(rows, p.style(sgrDim, prefix)+chunk)
 			continue
 		}
 		rows = append(rows, p.style(sgrDim, continuationMark+" ")+chunk)
 	}
 	return rows
+}
+
+// boundRows fits rows into a region of limit rows, keeping what fits whole and
+// replacing the last row it can draw with a notice naming how many rows were
+// withheld. Bounding a region must never be the same thing as losing content
+// quietly: a region that drops rows without a trace reads exactly like a region
+// with nothing in it, and the operator has no way to tell the two apart.
+func boundRows(rows []string, limit int, notice string, p palette) []string {
+	if limit <= 0 || len(rows) <= limit {
+		return rows
+	}
+	withheld := len(rows) - (limit - 1)
+	stand := p.style(sgrDim, continuationMark+" ") + fmt.Sprintf(notice, withheld)
+	return append(rows[:limit-1], stand)
+}
+
+// windowTitle names a bounded region and, when it is showing less than it holds,
+// how much of what it holds is on screen. A window whose title counted nothing
+// would let a region holding the last six of thirty events read like the whole
+// history.
+func windowTitle(name string, shown, total int) string {
+	if total == 0 {
+		return name
+	}
+	return fmt.Sprintf("%s · last %d of %d", name, shown, total)
 }
 
 // wrapRunes splits text into chunks of at most budget columns, preferring the
@@ -315,26 +356,37 @@ func renderFrame(state viewState, width int, color bool) []string {
 		lines = append(lines, renderStatusPanel(state.components)...)
 	case viewLogs:
 		window := tailWindow(state.logs, logRegionRows)
-		lines = append(lines, rule(fmt.Sprintf("Runtime log · last %d of %d", len(window), len(state.logs)), "", frameWidth, p))
-		lines = append(lines, renderWindow(window, "No runtime log lines yet.", logRegionRows, p)...)
+		rows := make([]string, 0, len(window))
+		for _, entry := range window {
+			rows = append(rows, regionRows(entry, frameWidth, "", p)...)
+		}
+		// The log region is where the runtime log is read, so it is also the
+		// surface the event region points at when an event does not fit. It
+		// therefore has to wrap for the same reason: a pointer at a surface that
+		// clips the same line sends the operator nowhere.
+		rows = boundRows(rows, logRegionRows, logOverflowNotice, p)
+		lines = append(lines, rule(windowTitle("Runtime log", len(window), len(state.logs)), "", frameWidth, p))
+		lines = append(lines, renderWindow(rows, "No runtime log lines yet.", logRegionRows, p)...)
 	default:
 		window := tailWindow(state.events, eventRegionRows)
-		bulleted := make([]string, 0, len(window))
+		rows := make([]string, 0, len(window))
 		for _, event := range window {
-			bulleted = append(bulleted, eventRows(event, frameWidth, p)...)
+			rows = append(rows, regionRows(event, frameWidth, bulletMark, p)...)
 		}
 		// The region is bounded, so an event longer than every row of it cannot
 		// be shown whole. Say which rows were withheld and where the text is,
 		// rather than dropping them without a trace: bounding a region must never
 		// be the same thing as losing content quietly.
-		if len(bulleted) > eventRegionRows {
-			withheld := len(bulleted) - (eventRegionRows - 1)
-			notice := p.style(sgrDim, continuationMark+" ") + fmt.Sprintf(eventOverflowNotice, withheld)
-			bulleted = append(bulleted[:eventRegionRows-1], notice)
-		}
-		lines = append(lines, rule("Recent events", "", frameWidth, p))
-		lines = append(lines, renderWindow(bulleted, "No events recorded yet.", eventRegionRows, p)...)
+		rows = boundRows(rows, eventRegionRows, eventOverflowNotice, p)
+		lines = append(lines, rule(windowTitle("Recent events", len(window), len(state.events)), "", frameWidth, p))
+		lines = append(lines, renderWindow(rows, "No events recorded yet.", eventRegionRows, p)...)
 	}
+	// A blank line before the rule, so the section an operator arrives at never
+	// runs into whatever the frame drew above it. Relying on the region above
+	// ending in padding is not the same guarantee: a full event region pads
+	// nothing, and the separation would disappear exactly when the surface is
+	// busiest.
+	lines = append(lines, "")
 	lines = append(lines, rule("Actions", "", frameWidth, p))
 	lines = append(lines, renderMenu(actionItems(state), frameWidth, p)...)
 	lines = append(lines, keyLegend(p))
