@@ -104,6 +104,10 @@ type Supervisor struct {
 	// process, and it is the only place this runtime signals a process it did
 	// not start.
 	terminate func(int) error
+	// adopted records the listener an operator chose to keep, per component
+	// name. It is a record of a decision the operator made, never an inference
+	// this runtime drew on their behalf.
+	adopted map[string]adoptedListener
 }
 
 func newSupervisor(config Config, dataDir string) *Supervisor {
@@ -121,6 +125,7 @@ func newSupervisor(config Config, dataDir string) *Supervisor {
 		processes:   map[string]childProcess{},
 		statuses:    map[string]ComponentStatus{},
 		terminate:   terminateProcess,
+		adopted:     map[string]adoptedListener{},
 	}
 	supervisor.probe = supervisor.probeReady
 	return supervisor
@@ -193,29 +198,38 @@ func (s *Supervisor) observedState(name string) componentState {
 // stopping anything. This keeps a restarted TUI honest about runtime state.
 //
 // A response on a component's port is not health: any process can answer there.
-// A component is only reported ready when this session started its process; a
-// listener this session does not own is reported as external and is never
-// reported ready.
+// A component is only reported ready when this session started its process. A
+// listener this session does not own is reported as external, and one an
+// operator chose to keep is reported as adopted - never as ready, because
+// nothing verified what that process is running.
 func (s *Supervisor) RefreshStatus(ctx context.Context) {
 	for _, component := range managedComponents {
 		address := component.Address(s.config)
 		if address == "" {
 			continue
 		}
-		if s.probe(ctx, address) {
-			if s.owns(component.Name) {
+		if s.owns(component.Name) {
+			if s.probe(ctx, address) {
 				s.setStatus(component.Name, stateReady, "Ready (started by this session)")
 				continue
 			}
-			detail := fmt.Sprintf("%s is served by a process this session did not start; a restart will refuse until it is stopped", address)
+			s.setStatus(component.Name, stateStarting, "Started by this session; not answering /readyz yet")
+			continue
+		}
+		if entry, adopted := s.adoptedListenerFor(component.Name); adopted {
+			detail := adoptedDetail(entry)
+			if s.observedState(component.Name) != stateAdopted {
+				s.appendLog(component.Name + ": " + detail)
+			}
+			s.setStatus(component.Name, stateAdopted, detail)
+			continue
+		}
+		if s.probe(ctx, address) {
+			detail := externalDetail(address, s.describeHolder(address))
 			if s.observedState(component.Name) != stateExternal {
 				s.appendLog(component.Name + ": " + detail)
 			}
 			s.setStatus(component.Name, stateExternal, detail)
-			continue
-		}
-		if s.owns(component.Name) {
-			s.setStatus(component.Name, stateStarting, "Started by this session; not answering /readyz yet")
 			continue
 		}
 		s.setStatus(component.Name, stateStopped, "Not started")
@@ -335,7 +349,7 @@ func (s *Supervisor) StartAll(ctx context.Context, launchDesktop bool) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.waitReady(ctx, "Control Plane", s.config.ControlPlaneAddress); err != nil {
+	if err := s.waitReadyFor(ctx, "Control Plane", s.config.ControlPlaneAddress); err != nil {
 		_ = s.StopAll(ctx)
 		return fmt.Errorf("control plane readiness: %w", err)
 	}
@@ -343,7 +357,7 @@ func (s *Supervisor) StartAll(ctx context.Context, launchDesktop bool) error {
 		_ = s.StopAll(ctx)
 		return err
 	}
-	if err := s.waitReady(ctx, "Device Service", s.config.EdgeAgentAddress); err != nil {
+	if err := s.waitReadyFor(ctx, "Device Service", s.config.EdgeAgentAddress); err != nil {
 		_ = s.StopAll(ctx)
 		return fmt.Errorf("device service readiness: %w", err)
 	}
@@ -372,7 +386,7 @@ func (s *Supervisor) StartComponent(ctx context.Context, name string) error {
 		if err := s.startComponent(ctx, name, s.config.ControlPlaneAddress, "go", []string{"run", "./cmd/control-plane"}, []string{"DRIFT_CONTROL_PLANE_ADDR=" + s.config.ControlPlaneAddress, "DRIFT_CONTROL_PLANE_DB=" + s.config.DatabasePath, "DRIFT_ARTIFACT_CAS_ROOT=" + s.config.ArtifactRoot, "DRIFT_RUNTIME_DEVICE_MODE=connected", "DRIFT_RUNTIME_ADB_PATH=" + s.config.ADBPath, "DRIFT_RUNTIME_SERVICE_TOKEN=" + s.config.ServiceToken}); err != nil {
 			return err
 		}
-		return s.waitReady(ctx, name, s.config.ControlPlaneAddress)
+		return s.waitReadyFor(ctx, name, s.config.ControlPlaneAddress)
 	case "Device Service":
 		if err := s.startComponent(ctx, name, s.config.EdgeAgentAddress, "go", []string{"run", "./cmd/edge-agent"}, []string{"DRIFT_EDGE_AGENT_ADDR=" + s.config.EdgeAgentAddress}); err != nil {
 			return err
@@ -389,6 +403,10 @@ func (s *Supervisor) StartComponent(ctx context.Context, name string) error {
 // the address is actually free. A listener this session does not own is a
 // failure, not a successful stop: reporting success there tells the operator a
 // stale process was replaced when it was not.
+//
+// An adopted listener is the deliberate exception: the operator chose to keep
+// that process, so leaving it running is the outcome they asked for rather than
+// a stop that failed.
 func (s *Supervisor) StopComponent(name string) error {
 	address := s.componentAddress(name)
 	s.mu.Lock()
@@ -400,14 +418,18 @@ func (s *Supervisor) StopComponent(name string) error {
 			s.setStatus(name, stateStopped, "Stopped (nothing was started by this session)")
 			return nil
 		}
-		return s.failOperation(name, fmt.Errorf("%s: nothing was started by this session, but %s is still held by %s; stop that process outside the TUI and retry", name, address, s.describeHolder(address)))
+		if entry, adopted := s.adoptedListenerFor(name); adopted {
+			s.setStatus(name, stateAdopted, adoptedDetail(entry))
+			return nil
+		}
+		return s.failOperation(name, fmt.Errorf("%s: nothing was started by this session, but %s is still held by %s; %s, or %s", name, address, s.describeHolder(address), resolveAdoptOffer, resolveTerminateOffer))
 	}
 	if err := process.Stop(); err != nil {
 		s.setStatus(name, stateFailed, fmt.Sprintf("stop failed: %v", err))
 		return fmt.Errorf("stop %s: %w", name, err)
 	}
 	if !s.waitAddressFree(address) {
-		return s.failOperation(name, fmt.Errorf("%s: stopped the process this session started, but %s is still held by %s; stop that process outside the TUI and retry", name, address, s.describeHolder(address)))
+		return s.failOperation(name, fmt.Errorf("%s: stopped the process this session started, but %s is still held by %s; %s, or %s", name, address, s.describeHolder(address), resolveAdoptOffer, resolveTerminateOffer))
 	}
 	s.setStatus(name, stateStopped, "Stopped")
 	return nil
@@ -419,9 +441,16 @@ func (s *Supervisor) startComponent(ctx context.Context, name, address, executab
 		return nil
 	}
 	// A process this session does not own would keep the address, so the child
-	// could not bind and the stale binary would keep serving. Refuse instead.
+	// could not bind and the stale binary would keep serving. Refuse instead -
+	// unless the operator already decided to keep that process, in which case
+	// there is nothing to start and the component is reported as adopted rather
+	// than as anything this session verified.
 	if !s.addressFree(address) {
-		return s.failOperation(name, fmt.Errorf("%s: %s is already held by %s; this session did not start it, so starting another process would leave the stale one serving - stop that process and retry", name, address, s.describeHolder(address)))
+		if entry, adopted := s.adoptedListenerFor(name); adopted {
+			s.setStatus(name, stateAdopted, adoptedDetail(entry))
+			return nil
+		}
+		return s.failOperation(name, blockedStartError(name, address, s.describeHolder(address)))
 	}
 	s.setStatus(name, stateStarting, "Starting")
 	process, err := s.start(ctx, executable, args, extraEnv, logWriter{supervisor: s})
@@ -526,7 +555,14 @@ func (s *Supervisor) StopAll(_ context.Context) error {
 		if free {
 			continue
 		}
-		detail := fmt.Sprintf("%s is still held by %s; stop that process outside the TUI and retry", address, s.describeHolder(address))
+		// An adopted listener is not this session's to stop. The operator chose
+		// to keep it running, so it is the outcome they asked for rather than a
+		// stop that failed - and a restart must not be blocked by it.
+		if entry, adopted := s.adoptedListenerFor(component.Name); adopted {
+			s.setStatus(component.Name, stateAdopted, adoptedDetail(entry))
+			continue
+		}
+		detail := fmt.Sprintf("%s is still held by %s; %s, or %s", address, s.describeHolder(address), resolveAdoptOffer, resolveTerminateOffer)
 		failures = append(failures, component.Name+": "+detail)
 		s.setStatus(component.Name, stateFailed, detail)
 		s.appendLog(component.Name + ": " + detail)
