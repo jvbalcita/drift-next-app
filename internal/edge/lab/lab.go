@@ -157,10 +157,16 @@ type ObservationBundle struct {
 	MaxDepth                int
 	HierarchyComplete       bool
 	HierarchyFreshnessToken string
-	EvidencePersistFailed   bool
-	LatencyMs               int64
-	FailureClass            domain.FailureClass
-	Indeterminate           bool
-	PostconditionVerified   bool
-	Events                  []Event
+	// ForegroundPackage is the package the device's focused node reported for
+	// this capture, or empty when the capture could not determine one. It is
+	// carried rather than derived so the observation an adapter builds states
+	// exactly what the device said, and a launch postcondition is evaluated
+	// against a fact that was read.
+	ForegroundPackage     string
+	EvidencePersistFailed bool
+	LatencyMs             int64
+	FailureClass          domain.FailureClass
+	Indeterminate         bool
+	PostconditionVerified bool
+	Events                []Event
 }

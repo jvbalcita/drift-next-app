@@ -84,6 +84,7 @@ func (r *captureRun) execute(ctx context.Context) (ObservationBundle, error) {
 	bundle.MaxDepth = tree.MaxDepth
 	bundle.HierarchyComplete = tree.Complete()
 	bundle.HierarchyFreshnessToken = tree.FreshnessToken
+	bundle.ForegroundPackage = tree.ForegroundPackage
 	bundle.HierarchySummary = hierarchySummary(tree)
 	r.emit(EventUITreeCapture, tree.FailureClass, "observed hierarchy: "+bundle.HierarchySummary)
 
