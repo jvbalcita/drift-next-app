@@ -449,12 +449,21 @@ func validateRenderSpace(space RenderSpace) error {
 // validateTextReference checks the handle and the bounded length a reference
 // must carry, without touching the value.
 func validateTextReference(reference TextReference) error {
-	handle := reference.Handle
-	if handle == "" || len(handle) > maxInputTextHandleLength || !textHandlePattern.MatchString(handle) {
-		return platformerrors.New(platformerrors.CodeInvalidInput, "a typed text reference requires an opaque bounded handle")
+	if err := validateTextHandle(reference.Handle); err != nil {
+		return err
 	}
 	if reference.Length == 0 || reference.Length > maxInputTypedTextLength {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "a typed text reference requires a bounded value length")
+	}
+	return nil
+}
+
+// validateTextHandle is the one implementation of the handle rule, so the
+// contract that admits a reference and the registry that holds its value cannot
+// disagree about which handles exist.
+func validateTextHandle(handle string) error {
+	if handle == "" || len(handle) > maxInputTextHandleLength || !textHandlePattern.MatchString(handle) {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "a typed text reference requires an opaque bounded handle")
 	}
 	return nil
 }
