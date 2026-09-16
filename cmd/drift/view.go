@@ -66,6 +66,10 @@ const (
 	// line rather than being cut. A line the full width of a wide terminal is
 	// also harder to read than two short ones.
 	eventWrapWidth = 76
+	// eventOverflowNotice stands in for the rows an event needed but the region
+	// could not show. It names how many are withheld and where the whole text is,
+	// so a bounded region is never mistaken for the whole of what arrived.
+	eventOverflowNotice = "%d more rows of this event - key 9 opens the log view"
 )
 
 const (
@@ -318,6 +322,15 @@ func renderFrame(state viewState, width int, color bool) []string {
 		bulleted := make([]string, 0, len(window))
 		for _, event := range window {
 			bulleted = append(bulleted, eventRows(event, frameWidth, p)...)
+		}
+		// The region is bounded, so an event longer than every row of it cannot
+		// be shown whole. Say which rows were withheld and where the text is,
+		// rather than dropping them without a trace: bounding a region must never
+		// be the same thing as losing content quietly.
+		if len(bulleted) > eventRegionRows {
+			withheld := len(bulleted) - (eventRegionRows - 1)
+			notice := p.style(sgrDim, continuationMark+" ") + fmt.Sprintf(eventOverflowNotice, withheld)
+			bulleted = append(bulleted[:eventRegionRows-1], notice)
 		}
 		lines = append(lines, rule("Recent events", "", frameWidth, p))
 		lines = append(lines, renderWindow(bulleted, "No events recorded yet.", eventRegionRows, p)...)
