@@ -1,6 +1,7 @@
 package transportconnect
 
 import (
+	"errors"
 	"log"
 	"runtime"
 	"strings"
@@ -25,7 +26,15 @@ const (
 // Connect code and safe client message. Wrapped diagnostic causes are never
 // returned to callers.
 //
-// A failure that is not a *platformerrors.Error still answers with the generic
+// The classification is resolved through the error chain rather than by a
+// direct type assertion: a platform failure that a caller wrapped for
+// diagnostics with fmt.Errorf("...: %w", err) still carries a code and a safe
+// client message, and losing them would silently downgrade a classified
+// failure to the generic internal answer. The marker error in the chain is a
+// *platformerrors.Error, whose type is fixed by the platform errors package,
+// so a wrapped error can never forge a classification.
+//
+// A failure with no platform error in its chain still answers with the generic
 // internal message, but it is also recorded server-side with its error class,
 // the calling operation, and a redacted, bounded diagnostic. Without that
 // record an unmapped persistence failure is indistinguishable from an operator
@@ -36,7 +45,8 @@ func MapError(err error) error {
 	}
 	code := connectrpc.CodeInternal
 	message := "request could not be completed"
-	if typed, ok := err.(*platformerrors.Error); ok {
+	var typed *platformerrors.Error
+	if errors.As(err, &typed) {
 		message = typed.ClientMessage()
 		switch typed.Code() {
 		case platformerrors.CodeInvalidInput:

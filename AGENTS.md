@@ -100,6 +100,7 @@ React/Vite operator UI
 - Keep transport handlers thin: authenticate/authorize, validate input, call an application service, and map known errors to stable typed responses.
 - Mount Connect services explicitly as `service.Route` values passed to `service.NewHTTPServer`. Never mount handlers by reflection or package initialization, and never mount a route whose application service was not constructed.
 - Treat transport/API errors as contracts: stable codes and safe user-facing messages; no database, filesystem, device, or stack-trace leakage.
+- Map a classified failure by resolving the whole error chain (`errors.As`), not by a direct type assertion: a platform error wrapped for diagnostics with `%w` keeps its stable code and safe message, and the generic internal fallback still answers failures that carry no classification.
 
 ## 7. React, TypeScript, Vite, and Tailwind
 
