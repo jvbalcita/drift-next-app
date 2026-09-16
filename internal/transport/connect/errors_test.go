@@ -3,6 +3,7 @@ package transportconnect_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log"
 	"strings"
 	"testing"
@@ -28,15 +29,22 @@ func TestMapErrorUsesSafeClientMessageWithoutDiagnosticCause(t *testing.T) {
 	}
 }
 
+// platformErrorCodeMapping pins one platform classification to the Connect
+// code an operator console already branches on.
+type platformErrorCodeMapping struct {
+	code platformerrors.Code
+	want connectrpc.Code
+}
+
 // Every classified platform failure keeps its exact Connect code and safe
 // message. The migration codes have no dedicated Connect mapping today and
 // intentionally stay internal; they are pinned here so a later change to that
 // mapping is deliberate rather than accidental.
-func TestMapErrorPreservesEveryPlatformErrorCodeMapping(t *testing.T) {
-	tests := []struct {
-		code platformerrors.Code
-		want connectrpc.Code
-	}{
+//
+// The table is shared with the wrapped-error case so a mapping cannot be
+// corrected in one place and silently diverged in the other.
+func platformErrorCodeMappings() []platformErrorCodeMapping {
+	return []platformErrorCodeMapping{
 		{code: platformerrors.CodeInvalidInput, want: connectrpc.CodeInvalidArgument},
 		{code: platformerrors.CodeNotFound, want: connectrpc.CodeNotFound},
 		{code: platformerrors.CodeConflict, want: connectrpc.CodeAlreadyExists},
@@ -59,21 +67,119 @@ func TestMapErrorPreservesEveryPlatformErrorCodeMapping(t *testing.T) {
 		{code: platformerrors.CodeMigrationDirty, want: connectrpc.CodeInternal},
 		{code: platformerrors.CodeMigrationChecksumMismatch, want: connectrpc.CodeInternal},
 	}
-	for _, test := range tests {
+}
+
+// Every unwrapped classification still yields its exact current Connect code
+// and client message. This is the regression table for the mapping: the
+// wrapped-error case below must agree with it entry for entry.
+func TestMapErrorPreservesEveryPlatformErrorCodeMapping(t *testing.T) {
+	for _, test := range platformErrorCodeMappings() {
 		t.Run(string(test.code), func(t *testing.T) {
 			message := "safe operator message for " + string(test.code)
 			mapped := transportconnect.MapError(platformerrors.Wrap(test.code, message, errors.New("diagnostic: [REDACTED] private detail")))
 			if got := connectrpc.CodeOf(mapped); got != test.want {
 				t.Fatalf("MapError(%q) code = %v, want %v", test.code, got, test.want)
 			}
-			if !strings.Contains(mapped.Error(), message) {
-				t.Fatalf("MapError(%q) message = %q, want it to contain %q", test.code, mapped.Error(), message)
+			if got, want := mapped.Error(), connectCodeAndMessage(test.want, message); got != want {
+				t.Fatalf("MapError(%q) message = %q, want %q", test.code, got, want)
 			}
 			if strings.Contains(mapped.Error(), "private detail") {
 				t.Fatalf("MapError(%q) leaked its diagnostic cause: %q", test.code, mapped.Error())
 			}
 		})
 	}
+}
+
+// A platform failure that a caller wrapped for diagnostics with
+// fmt.Errorf("...: %w", err) keeps the code and safe message it already carried.
+// A direct type assertion does not see through the wrapper, so the failure
+// silently degrades to the generic internal answer and the operator loses a
+// classification the error actually had.
+func TestMapErrorKeepsTypedCodeAndMessageForWrappedPlatformError(t *testing.T) {
+	for _, test := range platformErrorCodeMappings() {
+		t.Run(string(test.code), func(t *testing.T) {
+			message := "safe operator message for " + string(test.code)
+			classified := platformerrors.Wrap(test.code, message, errors.New("diagnostic: [REDACTED] private detail"))
+			wrapped := fmt.Errorf("list accounts: %w", classified)
+
+			mapped := transportconnect.MapError(wrapped)
+
+			if got := connectrpc.CodeOf(mapped); got != test.want {
+				t.Fatalf("MapError(wrapped %q) code = %v, want %v", test.code, got, test.want)
+			}
+			if got, want := mapped.Error(), connectCodeAndMessage(test.want, message); got != want {
+				t.Fatalf("MapError(wrapped %q) message = %q, want %q", test.code, got, want)
+			}
+			if strings.Contains(mapped.Error(), "private detail") {
+				t.Fatalf("MapError(wrapped %q) leaked its diagnostic cause: %q", test.code, mapped.Error())
+			}
+		})
+	}
+}
+
+// Wrapping more than once must not change the answer either: the mapper
+// resolves the classification wherever it sits in the chain.
+func TestMapErrorResolvesPlatformErrorThroughNestedWrappers(t *testing.T) {
+	classified := platformerrors.New(platformerrors.CodePolicyDenied, "operator is not authorized for this device")
+	nested := fmt.Errorf("dispatch action: %w", fmt.Errorf("actor refused execution: %w", classified))
+
+	mapped := transportconnect.MapError(nested)
+
+	if got := connectrpc.CodeOf(mapped); got != connectrpc.CodePermissionDenied {
+		t.Fatalf("MapError(nested wrapped) code = %v, want %v", got, connectrpc.CodePermissionDenied)
+	}
+	if got, want := mapped.Error(), connectCodeAndMessage(connectrpc.CodePermissionDenied, "operator is not authorized for this device"); got != want {
+		t.Fatalf("MapError(nested wrapped) message = %q, want %q", got, want)
+	}
+}
+
+// A classified failure is not an unclassified one: resolving it through the
+// chain must not also record it as a transport-unmapped failure.
+func TestMapErrorDoesNotReportClassifiedWrappedFailureAsUnmapped(t *testing.T) {
+	var logged bytes.Buffer
+	captureServerLog(t, &logged)
+
+	transportconnect.MapError(fmt.Errorf("list accounts: %w", platformerrors.New(platformerrors.CodeNotFound, "account source was not found")))
+
+	if entry := logged.String(); strings.Contains(entry, "event=transport_unmapped_error") {
+		t.Fatalf("server-side diagnostic = %q, want no unmapped-failure record for a classified failure", entry)
+	}
+}
+
+// An unclassified failure stays unclassified even when it is itself wrapped:
+// it keeps the generic client message and is still recorded server-side with
+// its error class and a redacted, bounded diagnostic.
+func TestMapErrorKeepsGenericFallbackForUnclassifiedWrappedFailure(t *testing.T) {
+	var logged bytes.Buffer
+	captureServerLog(t, &logged)
+
+	mapped := transportconnect.MapError(fmt.Errorf("list accounts: %w", errors.New("SQL logic error: no such column: state (1)")))
+
+	if got := connectrpc.CodeOf(mapped); got != connectrpc.CodeInternal {
+		t.Fatalf("MapError(unclassified wrapped) code = %v, want %v", got, connectrpc.CodeInternal)
+	}
+	if !strings.Contains(mapped.Error(), "request could not be completed") {
+		t.Fatalf("MapError(unclassified wrapped) message = %q, want the generic safe message", mapped.Error())
+	}
+	if strings.Contains(mapped.Error(), "no such column") {
+		t.Fatalf("MapError(unclassified wrapped) leaked the persistence failure to the client: %q", mapped.Error())
+	}
+	entry := logged.String()
+	for _, want := range []string{
+		"event=transport_unmapped_error",
+		"class=*fmt.wrapError",
+		"no such column: state",
+	} {
+		if !strings.Contains(entry, want) {
+			t.Fatalf("server-side diagnostic = %q, want it to contain %q", entry, want)
+		}
+	}
+}
+
+// connectCodeAndMessage is the exact client-visible string of a mapped
+// failure: the Connect error text is "code: message".
+func connectCodeAndMessage(code connectrpc.Code, message string) string {
+	return code.String() + ": " + message
 }
 
 // An unclassified persistence failure — the shape of the incident where a
