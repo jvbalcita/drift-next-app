@@ -203,6 +203,71 @@ func (r *Runner) Apply(ctx context.Context) error {
 	return nil
 }
 
+// CheckLedgerNotAhead opens the SQLite database at dsn and fails when the
+// applied migration ledger has advanced beyond the migrations embedded in the
+// calling binary. Control-plane processes can run at older revisions
+// indefinitely against one shared database, so a stale binary must refuse to
+// serve a schema that a newer build already applied: serving would write rows
+// against columns that migration removed. The check is read-only, it never
+// applies, repairs, or rewrites the ledger, and a fresh database without a
+// ledger table passes.
+func CheckLedgerNotAhead(ctx context.Context, dsn string, source fs.FS) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if source == nil {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "migration filesystem is required")
+	}
+	migrations, err := loadMigrations(ctx, source)
+	if err != nil {
+		return err
+	}
+	if len(migrations) == 0 {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "migration filesystem contains no SQLite migrations to compare with the ledger")
+	}
+	db, err := Open(ctx, dsn, OpenOptions{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	newestApplied, err := newestAppliedVersion(ctx, db)
+	if err != nil {
+		return err
+	}
+	newestEmbedded := migrations[len(migrations)-1].version
+	if newestApplied <= newestEmbedded {
+		return nil
+	}
+	return platformerrors.New(platformerrors.CodeMigrationChecksumMismatch, fmt.Sprintf(
+		"database schema is ahead of this control-plane binary: applied migration %04d is newer than the newest embedded migration %04d; rebuild and restart the control plane from a revision that includes migration %04d",
+		newestApplied, newestEmbedded, newestApplied))
+}
+
+// newestAppliedVersion reports the highest applied migration version in the
+// ledger. A database that has no ledger table yet has no applied migrations.
+func newestAppliedVersion(ctx context.Context, db *sql.DB) (int64, error) {
+	ledgerExists, err := ledgerTableExists(ctx, db)
+	if err != nil {
+		return 0, err
+	}
+	if !ledgerExists {
+		return 0, nil
+	}
+	var newest int64
+	if err := db.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM `+LedgerTableName).Scan(&newest); err != nil {
+		return 0, wrapContextOrError(ctx, platformerrors.CodeInternal, "read highest applied migration version", err)
+	}
+	return newest, nil
+}
+
+func ledgerTableExists(ctx context.Context, db *sql.DB) (bool, error) {
+	var count int64
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, LedgerTableName).Scan(&count); err != nil {
+		return false, wrapContextOrError(ctx, platformerrors.CodeInternal, "inspect the migration ledger table", err)
+	}
+	return count > 0, nil
+}
+
 // Repair explicitly removes one dirty, failed migration from the applied set
 // so the unchanged file can be retried after the operator has corrected the
 // external failure. It never edits migration files or silently repairs clean

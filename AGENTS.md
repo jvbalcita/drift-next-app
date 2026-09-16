@@ -55,7 +55,7 @@ React/Vite operator UI
 
 - Use idiomatic Go: small packages, exported identifiers only when needed, clear names, and concise package documentation for non-obvious domains.
 - Pass `context.Context` through request, workflow, storage, and adapter boundaries. Honor cancellation and deadlines.
-- Use typed domain errors or stable error codes at API boundaries. Wrap underlying errors for diagnostics without exposing internals to clients.
+- Use typed domain errors or stable error codes at API boundaries. Wrap underlying errors for diagnostics without exposing internals to clients. When a failure cannot be classified, keep the generic client message but record it server-side with the operation, the error class, and a redacted, bounded diagnostic instead of leaving only the generic message.
 - Keep side effects behind narrow interfaces so deterministic fakes can exercise application behavior in tests.
 - Do not use `panic` for expected application failures. Return errors and classify them.
 - Do not start unowned goroutines. Every background worker needs an owner, cancellation path, bounded work queue, error handling, and shutdown behavior.
@@ -85,6 +85,7 @@ React/Vite operator UI
 - Store timestamps consistently in UTC using one documented representation. Store internal IDs as validated text UUID/ULID values.
 - Keep JSON payloads bounded, schema-versioned, and exceptional; use relational columns for relationships and queryable facts.
 - Use forward-only ordered migrations and a migration ledger with version/checksum tracking. Do not edit a shipped migration; create a repair migration.
+- Processes that share one database can run at different revisions, so a binary must refuse to start when the applied ledger holds a version newer than the migrations embedded in that binary. Fail loudly, name both versions, and never serve requests against a schema that moved on.
 - Test fresh installs, upgrades, interrupted migrations, dirty-state recovery, foreign-key enforcement, contention, and backup/restore.
 - Store artifact bytes in a private content-addressed filesystem store. Store only metadata, hash, size, retention, and references in SQLite.
 - Write artifacts atomically: write temporary file -> verify/hash -> atomic rename. Never authorize arbitrary paths from stored metadata or UI input.
