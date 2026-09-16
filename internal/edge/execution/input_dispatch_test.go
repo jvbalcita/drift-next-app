@@ -578,6 +578,69 @@ func TestInputDispatcherEvaluatesTheCatalogPostcondition(t *testing.T) {
 	}
 }
 
+// TestALaunchOfAPackageThatIsNotInTheForegroundIsNeverVerified: the card's
+// "target not installed" row, asserted rather than assumed.
+//
+// Absence of a package is not directly observable - the device reports what is in
+// the foreground, not what is missing from the package list - so the truthful
+// signal is the observation, and there are two shapes of it. Either the device
+// brought a different package forward, which is a failed postcondition, or no
+// package could be read at all, which is indeterminate. Both are recorded as what
+// they are and neither is ever reported verified: an attempt whose package nobody
+// observed must not be presented to an operator as a launch that happened.
+//
+// The dispatch itself still reaches the device exactly once, which is the shape
+// this negative path owes: one authorized dispatch, one call, and no second call
+// invented to settle a question the observation could not answer.
+func TestALaunchOfAPackageThatIsNotInTheForegroundIsNeverVerified(t *testing.T) {
+	cases := []struct {
+		name        string
+		observation execution.PostconditionObservation
+		wantOutcome action.Outcome
+		wantPost    action.PostconditionState
+	}{
+		{
+			name:        "the device brought a different package forward",
+			observation: execution.PostconditionObservation{Token: postToken, ForegroundPackage: "com.example.something-else"},
+			wantOutcome: action.OutcomeFailed,
+			wantPost:    action.PostconditionFailed,
+		},
+		{
+			// What the observer produces when the device reports no package at
+			// all: `mapObservationFor` marks the observation partial for a launch
+			// payload with an unread package, and the evaluator turns partial into
+			// indeterminate rather than into a failure (postcondition_observer.go,
+			// evaluatePostcondition). Stated here as the observer states it.
+			name:        "no package could be read from the observation",
+			observation: execution.PostconditionObservation{Token: postToken, Partial: true},
+			wantOutcome: action.OutcomeIndeterminate,
+			wantPost:    action.PostconditionUnknown,
+		},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newDispatchFixture(t)
+			fixture.observer.observation = test.observation
+
+			request := inputRequest("attempt-not-installed", "key-not-installed", launchPayload())
+			result, err := fixture.dispatcher.Run(context.Background(), request, "operator", "operator-1")
+
+			if result.Outcome == action.OutcomeVerified || result.PostconditionPassed {
+				t.Fatalf("a launch the device did not land on the named package was reported verified (result = %#v, err = %v)", result, err)
+			}
+			if result.Outcome != test.wantOutcome {
+				t.Fatalf("outcome = %q, want %q: a launch nobody observed landing must be recorded as what it is (err = %v)", result.Outcome, test.wantOutcome, err)
+			}
+			if result.Attempt.Postcondition != test.wantPost {
+				t.Fatalf("postcondition = %q, want %q", result.Attempt.Postcondition, test.wantPost)
+			}
+			if calls := fixture.transport.invocationCount(); calls != 1 {
+				t.Fatalf("device calls = %d, want exactly 1: the authorized dispatch and nothing beyond it", calls)
+			}
+		})
+	}
+}
+
 // --- duplicate delivery and cancellation -----------------------------------
 
 func TestInputDispatcherReturnsThePriorResultForDuplicateDelivery(t *testing.T) {
