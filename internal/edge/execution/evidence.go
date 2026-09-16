@@ -84,8 +84,7 @@ func (e *EvidenceRecordError) Unwrap() error {
 
 // Bounds on what an evidence record may carry.
 const (
-	maxEvidenceTokenLength   = 256
-	maxEvidencePackageLength = 255
+	maxEvidenceTokenLength = 256
 	// maxEvidenceTextLength is the bound on the addressed field's length. The
 	// value itself is never carried: this is a count.
 	maxEvidenceTextLength = 1 << 20
@@ -98,8 +97,7 @@ const (
 // path separator, a flag, a glob or content punctuation is not a token and is
 // refused.
 var (
-	evidenceTokenPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
-	evidencePackagePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$`)
+	evidenceTokenPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
 )
 
 // RedactActionEvidence admits the record this boundary may persist, or refuses
@@ -173,11 +171,12 @@ func isEvidenceToken(value string, bound int) bool {
 	return evidenceTokenPattern.MatchString(value)
 }
 
+// isEvidencePackage defers to the shared rule. The observation read that
+// captures a device's foreground package and this evidence boundary have to
+// agree on what a package name is, or a value one admits the other would
+// refuse; the rule lives in one place so they cannot drift apart.
 func isEvidencePackage(value string) bool {
-	if value == "" || len(value) > maxEvidencePackageLength {
-		return false
-	}
-	return evidencePackagePattern.MatchString(value)
+	return domain.IsPackageName(value)
 }
 
 // admissibleEvidenceOutcome accepts the shared outcome vocabulary, and the empty

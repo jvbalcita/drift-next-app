@@ -49,8 +49,12 @@ func (a *ObservationAdapter) Observe(ctx context.Context) (adapter.Observation, 
 	return adapter.Observation{
 		Token:          bundle.HierarchyFreshnessToken,
 		ScreenshotHash: bundle.ScreenshotHash,
-		Partial:        !bundle.HierarchyComplete || bundle.PreviewTruncated || bundle.FailureClass != "",
-		FailureClass:   bundle.FailureClass,
+		// The package the device's focused node reported, so a launch
+		// postcondition has a fact to be evaluated against rather than an empty
+		// observation that leaves it indeterminate.
+		PackageName:  bundle.ForegroundPackage,
+		Partial:      !bundle.HierarchyComplete || bundle.PreviewTruncated || bundle.FailureClass != "",
+		FailureClass: bundle.FailureClass,
 	}, nil
 }
 
