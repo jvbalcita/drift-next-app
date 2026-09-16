@@ -62,9 +62,7 @@ func (h *NetworkProfileHandler) CreateNetworkProfile(ctx context.Context, reques
 		}
 		profile.ID = networkprofiles.NetworkProfileID(id)
 	}
-	if profile.State == "" {
-		profile.State = networkprofiles.Draft
-	}
+
 	if createErr := store.NewNetworkProfileService(h.db).Create(ctx, profile, actorType, actorID); createErr != nil {
 		return nil, MapError(createErr)
 	}
@@ -90,7 +88,7 @@ func (h *NetworkProfileHandler) UpdateNetworkProfile(ctx context.Context, reques
 	if _, err := lookupWorkspace(ctx, h.db, workspaceRef(profile.Workspace)); err != nil {
 		return nil, err
 	}
-	if updateErr := store.NewNetworkProfileService(h.db).Update(ctx, profile, request.Msg.GetExpectedRowVersion(), actorType, actorID); updateErr != nil {
+	if updateErr := store.NewNetworkProfileService(h.db).Update(ctx, profile, actorType, actorID); updateErr != nil {
 		return nil, MapError(updateErr)
 	}
 	stored, getErr := store.NewNetworkProfileRepository(h.db).Get(ctx, profile.Workspace, profile.ID)
@@ -122,8 +120,6 @@ func networkProfileFromProto(msg *driftv1.NetworkProfile) (networkprofiles.Netwo
 		AddressPolicy: msg.GetAddressPolicy(),
 		Ports:         ports,
 		IsDefault:     msg.GetIsDefault(),
-		State:         networkProfileStateFromProto(msg.GetState()),
-		RowVersion:    msg.GetRowVersion(),
 	}
 	return profile, nil
 }
@@ -140,37 +136,5 @@ func networkProfileProto(profile networkprofiles.NetworkProfile) *driftv1.Networ
 		AddressPolicy: profile.AddressPolicy,
 		AllowedPorts:  ports,
 		IsDefault:     profile.IsDefault,
-		State:         networkProfileStateProto(profile.State),
-		RowVersion:    profile.RowVersion,
-	}
-}
-
-func networkProfileStateFromProto(state driftv1.NetworkProfileState) networkprofiles.State {
-	switch state {
-	case driftv1.NetworkProfileState_NETWORK_PROFILE_STATE_DRAFT:
-		return networkprofiles.Draft
-	case driftv1.NetworkProfileState_NETWORK_PROFILE_STATE_ACTIVE:
-		return networkprofiles.Active
-	case driftv1.NetworkProfileState_NETWORK_PROFILE_STATE_DISABLED:
-		return networkprofiles.Disabled
-	case driftv1.NetworkProfileState_NETWORK_PROFILE_STATE_RETIRED:
-		return networkprofiles.Retired
-	default:
-		return ""
-	}
-}
-
-func networkProfileStateProto(state networkprofiles.State) driftv1.NetworkProfileState {
-	switch state {
-	case networkprofiles.Draft:
-		return driftv1.NetworkProfileState_NETWORK_PROFILE_STATE_DRAFT
-	case networkprofiles.Active:
-		return driftv1.NetworkProfileState_NETWORK_PROFILE_STATE_ACTIVE
-	case networkprofiles.Disabled:
-		return driftv1.NetworkProfileState_NETWORK_PROFILE_STATE_DISABLED
-	case networkprofiles.Retired:
-		return driftv1.NetworkProfileState_NETWORK_PROFILE_STATE_RETIRED
-	default:
-		return driftv1.NetworkProfileState_NETWORK_PROFILE_STATE_UNSPECIFIED
 	}
 }

@@ -20,6 +20,8 @@ func NewDiscoveryHandler(service *discovery.Service, db *store.DB) *DiscoveryHan
 	return &DiscoveryHandler{service: service, db: db}
 }
 
+// StartScan runs one scan and returns the observed devices directly. There is
+// no candidate to approve: an observed device is already a canonical device row.
 func (h *DiscoveryHandler) StartScan(ctx context.Context, request *connectrpc.Request[driftv1.StartScanRequest]) (*connectrpc.Response[driftv1.StartScanResponse], error) {
 	if request == nil {
 		return nil, invalidArgument("start scan request is required")
@@ -40,53 +42,15 @@ func (h *DiscoveryHandler) StartScan(ctx context.Context, request *connectrpc.Re
 	if key == "" {
 		key = request.Msg.GetContext().GetRequestId()
 	}
-	run, scanErr := h.service.StartScan(ctx, workspace, profileID, key, actorType, actorID)
+	run, devices, scanErr := h.service.StartScan(ctx, workspace, profileID, key, actorType, actorID)
 	if scanErr != nil {
 		return nil, MapError(scanErr)
 	}
-	return connectrpc.NewResponse(&driftv1.StartScanResponse{ScanRun: scanRunProto(run)}), nil
-}
-
-func (h *DiscoveryHandler) DecideScanCandidate(ctx context.Context, request *connectrpc.Request[driftv1.DecideScanCandidateRequest]) (*connectrpc.Response[driftv1.DecideScanCandidateResponse], error) {
-	if request == nil {
-		return nil, invalidArgument("decide scan candidate request is required")
+	out := make([]*driftv1.ObservedDevice, 0, len(devices))
+	for _, device := range devices {
+		out = append(out, observedDeviceProto(device))
 	}
-	actorType, actorID, err := requireActor(request.Msg.GetContext())
-	if err != nil {
-		return nil, err
-	}
-	workspace, candidateID, err := lookupResourceWorkspace(ctx, h.db, request.Msg.GetCandidate())
-	if err != nil {
-		return nil, err
-	}
-	candidate, decideErr := h.service.DecideCandidate(ctx, workspace, discovery.ScanCandidateID(candidateID), request.Msg.GetApprove(), request.Msg.GetReason(), actorType, actorID)
-	if decideErr != nil {
-		return nil, MapError(decideErr)
-	}
-	return connectrpc.NewResponse(&driftv1.DecideScanCandidateResponse{Candidate: scanCandidateProto(candidate)}), nil
-}
-
-func (h *DiscoveryHandler) RegisterScanCandidate(ctx context.Context, request *connectrpc.Request[driftv1.RegisterScanCandidateRequest]) (*connectrpc.Response[driftv1.RegisterScanCandidateResponse], error) {
-	if request == nil {
-		return nil, invalidArgument("register scan candidate request is required")
-	}
-	actorType, actorID, err := requireActor(request.Msg.GetContext())
-	if err != nil {
-		return nil, err
-	}
-	workspace, candidateID, err := lookupResourceWorkspace(ctx, h.db, request.Msg.GetCandidate())
-	if err != nil {
-		return nil, err
-	}
-	event, candidate, registerErr := h.service.RegisterCandidate(ctx, workspace, discovery.ScanCandidateID(candidateID), request.Msg.GetDeviceDisplayName(), actorType, actorID)
-	if registerErr != nil {
-		return nil, MapError(registerErr)
-	}
-	return connectrpc.NewResponse(&driftv1.RegisterScanCandidateResponse{
-		DeviceId:   string(event.DeviceID),
-		EndpointId: event.EndpointID,
-		Candidate:  scanCandidateProto(candidate),
-	}), nil
+	return connectrpc.NewResponse(&driftv1.StartScanResponse{ScanRun: scanRunProto(run), Devices: out}), nil
 }
 
 func (h *DiscoveryHandler) ListScanRuns(ctx context.Context, request *connectrpc.Request[driftv1.ListScanRunsRequest]) (*connectrpc.Response[driftv1.ListScanRunsResponse], error) {
@@ -113,64 +77,29 @@ func (h *DiscoveryHandler) ListScanRuns(ctx context.Context, request *connectrpc
 	return connectrpc.NewResponse(&driftv1.ListScanRunsResponse{ScanRuns: out, Page: pageResponse(next)}), nil
 }
 
-func (h *DiscoveryHandler) ListScanCandidates(ctx context.Context, request *connectrpc.Request[driftv1.ListScanCandidatesRequest]) (*connectrpc.Response[driftv1.ListScanCandidatesResponse], error) {
-	if request == nil {
-		return nil, invalidArgument("list scan candidates request is required")
-	}
-	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
-	if err != nil {
-		return nil, err
-	}
-	offset, limit, err := parsePage(request.Msg.GetPage())
-	if err != nil {
-		return nil, err
-	}
-	listed, listErr := store.NewDiscoveryRepository(h.db).ListCandidates(ctx, workspace, "")
-	if listErr != nil {
-		return nil, MapError(listErr)
-	}
-	page, next := applyPage(listed, offset, limit)
-	out := make([]*driftv1.ScanCandidate, 0, len(page))
-	for _, candidate := range page {
-		out = append(out, scanCandidateProto(candidate))
-	}
-	return connectrpc.NewResponse(&driftv1.ListScanCandidatesResponse{Candidates: out, Page: pageResponse(next)}), nil
-}
-
 func scanRunProto(run discovery.ScanRun) *driftv1.ScanRun {
-	finished := run.CompletedAt
 	return &driftv1.ScanRun{
 		Id:               string(run.ID),
 		Workspace:        workspaceRef(run.Workspace),
 		NetworkProfileId: string(run.NetworkProfileID),
 		State:            scanRunStateProto(run.State),
 		RequestedAt:      formatTime(run.RequestedAt),
-		FinishedAt:       formatTimePtr(finished),
+		FinishedAt:       formatTimePtr(run.CompletedAt),
 		Failure:          failureProto(run.FailureClass),
 	}
 }
 
-func scanCandidateProto(candidate discovery.ScanCandidate) *driftv1.ScanCandidate {
-	return &driftv1.ScanCandidate{
-		Id:           string(candidate.ID),
-		Workspace:    workspaceRef(candidate.Workspace),
-		ScanRunId:    string(candidate.ScanRunID),
-		CandidateKey: candidate.CandidateKey,
-		Host:         candidate.Host,
-		Port:         uint32(candidate.Port),
-		Serial:       candidate.Serial,
-		Fingerprint:     candidate.Fingerprint,
-		State:           scanCandidateStateProto(candidate.State),
-		DiscoveredAt:    formatTime(candidate.DiscoveredAt),
-		EvidenceSummary: candidateEvidenceSummary(candidate.EvidenceJSON),
+func observedDeviceProto(device discovery.ObservedDevice) *driftv1.ObservedDevice {
+	return &driftv1.ObservedDevice{
+		Host:       device.Host,
+		Port:       uint32(device.Port),
+		Serial:     device.Serial,
+		Model:      device.Model,
+		State:      deviceLinkStateProto(device.State),
+		Known:      device.Known,
+		DeviceId:   string(device.DeviceID),
+		EndpointId: device.EndpointID,
 	}
-}
-
-func candidateEvidenceSummary(evidenceJSON string) string {
-	if evidenceJSON == "" {
-		return ""
-	}
-	return "Sanitized candidate evidence"
 }
 
 func scanRunStateProto(state discovery.ScanRunState) driftv1.ScanRunState {
@@ -190,22 +119,16 @@ func scanRunStateProto(state discovery.ScanRunState) driftv1.ScanRunState {
 	}
 }
 
-func scanCandidateStateProto(state discovery.CandidateState) driftv1.ScanCandidateState {
+func deviceLinkStateProto(state discovery.DeviceLinkState) driftv1.DeviceLinkState {
 	switch state {
-	case discovery.CandidateDiscovered:
-		return driftv1.ScanCandidateState_SCAN_CANDIDATE_STATE_DISCOVERED
-	case discovery.CandidatePendingApproval:
-		return driftv1.ScanCandidateState_SCAN_CANDIDATE_STATE_PENDING_APPROVAL
-	case discovery.CandidateApproved:
-		return driftv1.ScanCandidateState_SCAN_CANDIDATE_STATE_APPROVED
-	case discovery.CandidateRejected:
-		return driftv1.ScanCandidateState_SCAN_CANDIDATE_STATE_REJECTED
-	case discovery.CandidateExpired:
-		return driftv1.ScanCandidateState_SCAN_CANDIDATE_STATE_EXPIRED
-	case discovery.CandidateRegistered:
-		return driftv1.ScanCandidateState_SCAN_CANDIDATE_STATE_REGISTERED
+	case discovery.LinkOnline:
+		return driftv1.DeviceLinkState_DEVICE_LINK_STATE_ONLINE
+	case discovery.LinkOffline:
+		return driftv1.DeviceLinkState_DEVICE_LINK_STATE_OFFLINE
+	case discovery.LinkUnauthorized:
+		return driftv1.DeviceLinkState_DEVICE_LINK_STATE_UNAUTHORIZED
 	default:
-		return driftv1.ScanCandidateState_SCAN_CANDIDATE_STATE_UNSPECIFIED
+		return driftv1.DeviceLinkState_DEVICE_LINK_STATE_UNSPECIFIED
 	}
 }
 

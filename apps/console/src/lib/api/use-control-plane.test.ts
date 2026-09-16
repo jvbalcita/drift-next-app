@@ -49,8 +49,6 @@ describe("mergeAdapterProjection", () => {
       ...current,
       devices: [],
       labAdapter: placeholderAdapter(),
-      provisioningReadiness: null,
-      labRegistration: null,
     }
 
     const merged = mergeAdapterProjection(next, populated)
@@ -87,30 +85,6 @@ describe("mergeAdapterProjection", () => {
         confirmedDisplayName: "Pixel",
         lastHealthAt: "10:00:00",
       }),
-      provisioningReadiness: {
-        serial: "SERIAL1",
-        transportId: "usb:1",
-        endpointHost: "",
-        endpointPort: 0,
-        connectionType: "usb",
-        pairingAuthorized: true,
-        adbServerOwned: true,
-        platformToolsCompatible: true,
-        portPolicyAllowed: true,
-        rollbackReady: true,
-        operatorAuthorized: true,
-        state: "provision_verified" as const,
-        ready: true,
-        notes: [],
-      },
-      labRegistration: {
-        serial: "SERIAL1",
-        displayName: "Pixel",
-        state: "registered" as const,
-        approved: true,
-        mockLabeled: false,
-        deviceId: "device-1",
-      },
     }
     const next = {
       ...current,
@@ -120,58 +94,11 @@ describe("mergeAdapterProjection", () => {
         lastHealthAt: "10:01:00",
         correlationId: "corr-cleared",
       }),
-      provisioningReadiness: null,
-      labRegistration: null,
     }
 
     const merged = mergeAdapterProjection(next, populated)
 
     expect(merged.labAdapter.confirmedSerial).toBe("")
-    expect(merged.provisioningReadiness).toBeNull()
-    expect(merged.labRegistration).toBeNull()
-  })
-
-  it("retains current provisioning and registration when the next snapshot is an unobserved placeholder", () => {
-    const current = createMockControlPlaneClient().getSnapshot()
-    const populated = {
-      ...current,
-      labAdapter: adapter({ confirmedSerial: "SERIAL1" }),
-      provisioningReadiness: {
-        serial: "SERIAL1",
-        transportId: "usb:1",
-        endpointHost: "",
-        endpointPort: 0,
-        connectionType: "usb",
-        pairingAuthorized: true,
-        adbServerOwned: true,
-        platformToolsCompatible: true,
-        portPolicyAllowed: true,
-        rollbackReady: true,
-        operatorAuthorized: true,
-        state: "provision_verified" as const,
-        ready: true,
-        notes: [],
-      },
-      labRegistration: {
-        serial: "SERIAL1",
-        displayName: "Pixel",
-        state: "registered" as const,
-        approved: true,
-        mockLabeled: false,
-        deviceId: "device-1",
-      },
-    }
-    const next = {
-      ...current,
-      labAdapter: placeholderAdapter(),
-      provisioningReadiness: null,
-      labRegistration: null,
-    }
-
-    const merged = mergeAdapterProjection(next, populated)
-
-    expect(merged.provisioningReadiness?.serial).toBe("SERIAL1")
-    expect(merged.labRegistration?.deviceId).toBe("device-1")
   })
 
   it("does not keep adapter state when the control plane is unreachable", () => {
@@ -188,8 +115,6 @@ describe("mergeAdapterProjection", () => {
         state: "disconnected" as const,
         disconnectedReason: "Control plane unreachable.",
       },
-      provisioningReadiness: null,
-      labRegistration: null,
     }
 
     const merged = mergeAdapterProjection(next, populated)
@@ -200,41 +125,16 @@ describe("mergeAdapterProjection", () => {
 })
 
 describe("applyAdapterIntentProjection", () => {
-  it("clears provisioning and registration when the target is cleared", () => {
+  it("projects the adapter state returned by the lab client", () => {
     const current = createMockControlPlaneClient().getSnapshot()
     const populated = {
       ...current,
       labAdapter: adapter({ confirmedSerial: "SERIAL1" }),
-      provisioningReadiness: {
-        serial: "SERIAL1",
-        transportId: "usb:1",
-        endpointHost: "",
-        endpointPort: 0,
-        connectionType: "usb",
-        pairingAuthorized: true,
-        adbServerOwned: true,
-        platformToolsCompatible: true,
-        portPolicyAllowed: true,
-        rollbackReady: true,
-        operatorAuthorized: true,
-        state: "provision_verified" as const,
-        ready: true,
-        notes: [],
-      },
-      labRegistration: {
-        serial: "SERIAL1",
-        displayName: "Pixel",
-        state: "registered" as const,
-        approved: true,
-        mockLabeled: false,
-        deviceId: "device-1",
-      },
     }
 
-    const next = applyAdapterIntentProjection(populated, placeholderAdapter(), "clearLabTarget")
+    const next = applyAdapterIntentProjection(populated, placeholderAdapter())
 
     expect(next.labAdapter.confirmedSerial).toBe("")
-    expect(next.provisioningReadiness).toBeNull()
-    expect(next.labRegistration).toBeNull()
+    expect(next.labAdapter.readiness).toBe("unavailable")
   })
 })

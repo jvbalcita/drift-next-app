@@ -2,8 +2,8 @@
 // @generated from file drift/v1/network_profile.proto (package drift.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
-import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
+import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
+import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
 import type { PageRequest, PageResponse, RequestContext, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/network_profile.proto.
  */
 export const file_drift_v1_network_profile: GenFile = /*@__PURE__*/
-  fileDesc("Ch5kcmlmdC92MS9uZXR3b3JrX3Byb2ZpbGUucHJvdG8SCGRyaWZ0LnYxIuMBCg5OZXR3b3JrUHJvZmlsZRIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSFAoMZGlzcGxheV9uYW1lGAMgASgJEhYKDmFkZHJlc3NfcG9saWN5GAQgASgJEhUKDWFsbG93ZWRfcG9ydHMYBSADKA0SEgoKaXNfZGVmYXVsdBgGIAEoCBIsCgVzdGF0ZRgHIAEoDjIdLmRyaWZ0LnYxLk5ldHdvcmtQcm9maWxlU3RhdGUSEwoLcm93X3ZlcnNpb24YCCABKAQibAoaTGlzdE5ldHdvcmtQcm9maWxlc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJvChtMaXN0TmV0d29ya1Byb2ZpbGVzUmVzcG9uc2USKgoIcHJvZmlsZXMYASADKAsyGC5kcmlmdC52MS5OZXR3b3JrUHJvZmlsZRIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlInMKG0NyZWF0ZU5ldHdvcmtQcm9maWxlUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoHcHJvZmlsZRgCIAEoCzIYLmRyaWZ0LnYxLk5ldHdvcmtQcm9maWxlIkkKHENyZWF0ZU5ldHdvcmtQcm9maWxlUmVzcG9uc2USKQoHcHJvZmlsZRgBIAEoCzIYLmRyaWZ0LnYxLk5ldHdvcmtQcm9maWxlIpEBChtVcGRhdGVOZXR3b3JrUHJvZmlsZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKB3Byb2ZpbGUYAiABKAsyGC5kcmlmdC52MS5OZXR3b3JrUHJvZmlsZRIcChRleHBlY3RlZF9yb3dfdmVyc2lvbhgDIAEoBCJJChxVcGRhdGVOZXR3b3JrUHJvZmlsZVJlc3BvbnNlEikKB3Byb2ZpbGUYASABKAsyGC5kcmlmdC52MS5OZXR3b3JrUHJvZmlsZSrGAQoTTmV0d29ya1Byb2ZpbGVTdGF0ZRIlCiFORVRXT1JLX1BST0ZJTEVfU1RBVEVfVU5TUEVDSUZJRUQQABIfChtORVRXT1JLX1BST0ZJTEVfU1RBVEVfRFJBRlQQARIgChxORVRXT1JLX1BST0ZJTEVfU1RBVEVfQUNUSVZFEAISIgoeTkVUV09SS19QUk9GSUxFX1NUQVRFX0RJU0FCTEVEEAMSIQodTkVUV09SS19QUk9GSUxFX1NUQVRFX1JFVElSRUQQBDLJAgoVTmV0d29ya1Byb2ZpbGVTZXJ2aWNlEmIKE0xpc3ROZXR3b3JrUHJvZmlsZXMSJC5kcmlmdC52MS5MaXN0TmV0d29ya1Byb2ZpbGVzUmVxdWVzdBolLmRyaWZ0LnYxLkxpc3ROZXR3b3JrUHJvZmlsZXNSZXNwb25zZRJlChRDcmVhdGVOZXR3b3JrUHJvZmlsZRIlLmRyaWZ0LnYxLkNyZWF0ZU5ldHdvcmtQcm9maWxlUmVxdWVzdBomLmRyaWZ0LnYxLkNyZWF0ZU5ldHdvcmtQcm9maWxlUmVzcG9uc2USZQoUVXBkYXRlTmV0d29ya1Byb2ZpbGUSJS5kcmlmdC52MS5VcGRhdGVOZXR3b3JrUHJvZmlsZVJlcXVlc3QaJi5kcmlmdC52MS5VcGRhdGVOZXR3b3JrUHJvZmlsZVJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("Ch5kcmlmdC92MS9uZXR3b3JrX3Byb2ZpbGUucHJvdG8SCGRyaWZ0LnYxIsABCg5OZXR3b3JrUHJvZmlsZRIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSFAoMZGlzcGxheV9uYW1lGAMgASgJEhYKDmFkZHJlc3NfcG9saWN5GAQgASgJEhUKDWFsbG93ZWRfcG9ydHMYBSADKA0SEgoKaXNfZGVmYXVsdBgGIAEoCEoECAcQCEoECAgQCVIFc3RhdGVSC3Jvd192ZXJzaW9uImwKGkxpc3ROZXR3b3JrUHJvZmlsZXNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QibwobTGlzdE5ldHdvcmtQcm9maWxlc1Jlc3BvbnNlEioKCHByb2ZpbGVzGAEgAygLMhguZHJpZnQudjEuTmV0d29ya1Byb2ZpbGUSJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSJzChtDcmVhdGVOZXR3b3JrUHJvZmlsZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKB3Byb2ZpbGUYAiABKAsyGC5kcmlmdC52MS5OZXR3b3JrUHJvZmlsZSJJChxDcmVhdGVOZXR3b3JrUHJvZmlsZVJlc3BvbnNlEikKB3Byb2ZpbGUYASABKAsyGC5kcmlmdC52MS5OZXR3b3JrUHJvZmlsZSKPAQobVXBkYXRlTmV0d29ya1Byb2ZpbGVSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgdwcm9maWxlGAIgASgLMhguZHJpZnQudjEuTmV0d29ya1Byb2ZpbGVKBAgDEARSFGV4cGVjdGVkX3Jvd192ZXJzaW9uIkkKHFVwZGF0ZU5ldHdvcmtQcm9maWxlUmVzcG9uc2USKQoHcHJvZmlsZRgBIAEoCzIYLmRyaWZ0LnYxLk5ldHdvcmtQcm9maWxlMskCChVOZXR3b3JrUHJvZmlsZVNlcnZpY2USYgoTTGlzdE5ldHdvcmtQcm9maWxlcxIkLmRyaWZ0LnYxLkxpc3ROZXR3b3JrUHJvZmlsZXNSZXF1ZXN0GiUuZHJpZnQudjEuTGlzdE5ldHdvcmtQcm9maWxlc1Jlc3BvbnNlEmUKFENyZWF0ZU5ldHdvcmtQcm9maWxlEiUuZHJpZnQudjEuQ3JlYXRlTmV0d29ya1Byb2ZpbGVSZXF1ZXN0GiYuZHJpZnQudjEuQ3JlYXRlTmV0d29ya1Byb2ZpbGVSZXNwb25zZRJlChRVcGRhdGVOZXR3b3JrUHJvZmlsZRIlLmRyaWZ0LnYxLlVwZGF0ZU5ldHdvcmtQcm9maWxlUmVxdWVzdBomLmRyaWZ0LnYxLlVwZGF0ZU5ldHdvcmtQcm9maWxlUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.NetworkProfile
@@ -47,16 +47,6 @@ export type NetworkProfile = Message<"drift.v1.NetworkProfile"> & {
    * @generated from field: bool is_default = 6;
    */
   isDefault: boolean;
-
-  /**
-   * @generated from field: drift.v1.NetworkProfileState state = 7;
-   */
-  state: NetworkProfileState;
-
-  /**
-   * @generated from field: uint64 row_version = 8;
-   */
-  rowVersion: bigint;
 };
 
 /**
@@ -162,11 +152,6 @@ export type UpdateNetworkProfileRequest = Message<"drift.v1.UpdateNetworkProfile
    * @generated from field: drift.v1.NetworkProfile profile = 2;
    */
   profile?: NetworkProfile;
-
-  /**
-   * @generated from field: uint64 expected_row_version = 3;
-   */
-  expectedRowVersion: bigint;
 };
 
 /**
@@ -192,42 +177,6 @@ export type UpdateNetworkProfileResponse = Message<"drift.v1.UpdateNetworkProfil
  */
 export const UpdateNetworkProfileResponseSchema: GenMessage<UpdateNetworkProfileResponse> = /*@__PURE__*/
   messageDesc(file_drift_v1_network_profile, 6);
-
-/**
- * @generated from enum drift.v1.NetworkProfileState
- */
-export enum NetworkProfileState {
-  /**
-   * @generated from enum value: NETWORK_PROFILE_STATE_UNSPECIFIED = 0;
-   */
-  UNSPECIFIED = 0,
-
-  /**
-   * @generated from enum value: NETWORK_PROFILE_STATE_DRAFT = 1;
-   */
-  DRAFT = 1,
-
-  /**
-   * @generated from enum value: NETWORK_PROFILE_STATE_ACTIVE = 2;
-   */
-  ACTIVE = 2,
-
-  /**
-   * @generated from enum value: NETWORK_PROFILE_STATE_DISABLED = 3;
-   */
-  DISABLED = 3,
-
-  /**
-   * @generated from enum value: NETWORK_PROFILE_STATE_RETIRED = 4;
-   */
-  RETIRED = 4,
-}
-
-/**
- * Describes the enum drift.v1.NetworkProfileState.
- */
-export const NetworkProfileStateSchema: GenEnum<NetworkProfileState> = /*@__PURE__*/
-  enumDesc(file_drift_v1_network_profile, 0);
 
 /**
  * @generated from service drift.v1.NetworkProfileService

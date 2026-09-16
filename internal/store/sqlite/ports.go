@@ -7,7 +7,6 @@ import (
 	"drift.local/drift-next/internal/assignments"
 	"drift.local/drift-next/internal/audit"
 	"drift.local/drift-next/internal/devices"
-	"drift.local/drift-next/internal/discovery"
 	"drift.local/drift-next/internal/edgeagents"
 	"drift.local/drift-next/internal/endpoints"
 	"drift.local/drift-next/internal/events"
@@ -41,9 +40,6 @@ type EndpointReader interface {
 }
 type NetworkProfileReader interface {
 	List(context.Context, organizations.WorkspaceID) ([]networkprofiles.NetworkProfile, error)
-}
-type DiscoveryReader interface {
-	ListCandidates(context.Context, organizations.WorkspaceID, discovery.CandidateState) ([]discovery.ScanCandidate, error)
 }
 type GroupReader interface {
 	List(context.Context, organizations.WorkspaceID) ([]groups.Group, error)

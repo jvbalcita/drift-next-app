@@ -21,61 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type NetworkProfileState int32
-
-const (
-	NetworkProfileState_NETWORK_PROFILE_STATE_UNSPECIFIED NetworkProfileState = 0
-	NetworkProfileState_NETWORK_PROFILE_STATE_DRAFT       NetworkProfileState = 1
-	NetworkProfileState_NETWORK_PROFILE_STATE_ACTIVE      NetworkProfileState = 2
-	NetworkProfileState_NETWORK_PROFILE_STATE_DISABLED    NetworkProfileState = 3
-	NetworkProfileState_NETWORK_PROFILE_STATE_RETIRED     NetworkProfileState = 4
-)
-
-// Enum value maps for NetworkProfileState.
-var (
-	NetworkProfileState_name = map[int32]string{
-		0: "NETWORK_PROFILE_STATE_UNSPECIFIED",
-		1: "NETWORK_PROFILE_STATE_DRAFT",
-		2: "NETWORK_PROFILE_STATE_ACTIVE",
-		3: "NETWORK_PROFILE_STATE_DISABLED",
-		4: "NETWORK_PROFILE_STATE_RETIRED",
-	}
-	NetworkProfileState_value = map[string]int32{
-		"NETWORK_PROFILE_STATE_UNSPECIFIED": 0,
-		"NETWORK_PROFILE_STATE_DRAFT":       1,
-		"NETWORK_PROFILE_STATE_ACTIVE":      2,
-		"NETWORK_PROFILE_STATE_DISABLED":    3,
-		"NETWORK_PROFILE_STATE_RETIRED":     4,
-	}
-)
-
-func (x NetworkProfileState) Enum() *NetworkProfileState {
-	p := new(NetworkProfileState)
-	*p = x
-	return p
-}
-
-func (x NetworkProfileState) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (NetworkProfileState) Descriptor() protoreflect.EnumDescriptor {
-	return file_drift_v1_network_profile_proto_enumTypes[0].Descriptor()
-}
-
-func (NetworkProfileState) Type() protoreflect.EnumType {
-	return &file_drift_v1_network_profile_proto_enumTypes[0]
-}
-
-func (x NetworkProfileState) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use NetworkProfileState.Descriptor instead.
-func (NetworkProfileState) EnumDescriptor() ([]byte, []int) {
-	return file_drift_v1_network_profile_proto_rawDescGZIP(), []int{0}
-}
-
 type NetworkProfile struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -84,8 +29,6 @@ type NetworkProfile struct {
 	AddressPolicy string                 `protobuf:"bytes,4,opt,name=address_policy,json=addressPolicy,proto3" json:"address_policy,omitempty"`
 	AllowedPorts  []uint32               `protobuf:"varint,5,rep,packed,name=allowed_ports,json=allowedPorts,proto3" json:"allowed_ports,omitempty"`
 	IsDefault     bool                   `protobuf:"varint,6,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
-	State         NetworkProfileState    `protobuf:"varint,7,opt,name=state,proto3,enum=drift.v1.NetworkProfileState" json:"state,omitempty"`
-	RowVersion    uint64                 `protobuf:"varint,8,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -160,20 +103,6 @@ func (x *NetworkProfile) GetIsDefault() bool {
 		return x.IsDefault
 	}
 	return false
-}
-
-func (x *NetworkProfile) GetState() NetworkProfileState {
-	if x != nil {
-		return x.State
-	}
-	return NetworkProfileState_NETWORK_PROFILE_STATE_UNSPECIFIED
-}
-
-func (x *NetworkProfile) GetRowVersion() uint64 {
-	if x != nil {
-		return x.RowVersion
-	}
-	return 0
 }
 
 type ListNetworkProfilesRequest struct {
@@ -377,12 +306,11 @@ func (x *CreateNetworkProfileResponse) GetProfile() *NetworkProfile {
 }
 
 type UpdateNetworkProfileRequest struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Context            *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	Profile            *NetworkProfile        `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
-	ExpectedRowVersion uint64                 `protobuf:"varint,3,opt,name=expected_row_version,json=expectedRowVersion,proto3" json:"expected_row_version,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Profile       *NetworkProfile        `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateNetworkProfileRequest) Reset() {
@@ -427,13 +355,6 @@ func (x *UpdateNetworkProfileRequest) GetProfile() *NetworkProfile {
 		return x.Profile
 	}
 	return nil
-}
-
-func (x *UpdateNetworkProfileRequest) GetExpectedRowVersion() uint64 {
-	if x != nil {
-		return x.ExpectedRowVersion
-	}
-	return 0
 }
 
 type UpdateNetworkProfileResponse struct {
@@ -484,7 +405,7 @@ var File_drift_v1_network_profile_proto protoreflect.FileDescriptor
 
 const file_drift_v1_network_profile_proto_rawDesc = "" +
 	"\n" +
-	"\x1edrift/v1/network_profile.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xba\x02\n" +
+	"\x1edrift/v1/network_profile.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x84\x02\n" +
 	"\x0eNetworkProfile\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12!\n" +
@@ -492,10 +413,7 @@ const file_drift_v1_network_profile_proto_rawDesc = "" +
 	"\x0eaddress_policy\x18\x04 \x01(\tR\raddressPolicy\x12#\n" +
 	"\rallowed_ports\x18\x05 \x03(\rR\fallowedPorts\x12\x1d\n" +
 	"\n" +
-	"is_default\x18\x06 \x01(\bR\tisDefault\x123\n" +
-	"\x05state\x18\a \x01(\x0e2\x1d.drift.v1.NetworkProfileStateR\x05state\x12\x1f\n" +
-	"\vrow_version\x18\b \x01(\x04R\n" +
-	"rowVersion\"}\n" +
+	"is_default\x18\x06 \x01(\bR\tisDefaultJ\x04\b\a\x10\bJ\x04\b\b\x10\tR\x05stateR\vrow_version\"}\n" +
 	"\x1aListNetworkProfilesRequest\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
 	"\x04page\x18\x02 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"\x7f\n" +
@@ -506,19 +424,12 @@ const file_drift_v1_network_profile_proto_rawDesc = "" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x122\n" +
 	"\aprofile\x18\x02 \x01(\v2\x18.drift.v1.NetworkProfileR\aprofile\"R\n" +
 	"\x1cCreateNetworkProfileResponse\x122\n" +
-	"\aprofile\x18\x01 \x01(\v2\x18.drift.v1.NetworkProfileR\aprofile\"\xb7\x01\n" +
+	"\aprofile\x18\x01 \x01(\v2\x18.drift.v1.NetworkProfileR\aprofile\"\xa1\x01\n" +
 	"\x1bUpdateNetworkProfileRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x122\n" +
-	"\aprofile\x18\x02 \x01(\v2\x18.drift.v1.NetworkProfileR\aprofile\x120\n" +
-	"\x14expected_row_version\x18\x03 \x01(\x04R\x12expectedRowVersion\"R\n" +
+	"\aprofile\x18\x02 \x01(\v2\x18.drift.v1.NetworkProfileR\aprofileJ\x04\b\x03\x10\x04R\x14expected_row_version\"R\n" +
 	"\x1cUpdateNetworkProfileResponse\x122\n" +
-	"\aprofile\x18\x01 \x01(\v2\x18.drift.v1.NetworkProfileR\aprofile*\xc6\x01\n" +
-	"\x13NetworkProfileState\x12%\n" +
-	"!NETWORK_PROFILE_STATE_UNSPECIFIED\x10\x00\x12\x1f\n" +
-	"\x1bNETWORK_PROFILE_STATE_DRAFT\x10\x01\x12 \n" +
-	"\x1cNETWORK_PROFILE_STATE_ACTIVE\x10\x02\x12\"\n" +
-	"\x1eNETWORK_PROFILE_STATE_DISABLED\x10\x03\x12!\n" +
-	"\x1dNETWORK_PROFILE_STATE_RETIRED\x10\x042\xc9\x02\n" +
+	"\aprofile\x18\x01 \x01(\v2\x18.drift.v1.NetworkProfileR\aprofile2\xc9\x02\n" +
 	"\x15NetworkProfileService\x12b\n" +
 	"\x13ListNetworkProfiles\x12$.drift.v1.ListNetworkProfilesRequest\x1a%.drift.v1.ListNetworkProfilesResponse\x12e\n" +
 	"\x14CreateNetworkProfile\x12%.drift.v1.CreateNetworkProfileRequest\x1a&.drift.v1.CreateNetworkProfileResponse\x12e\n" +
@@ -536,46 +447,43 @@ func file_drift_v1_network_profile_proto_rawDescGZIP() []byte {
 	return file_drift_v1_network_profile_proto_rawDescData
 }
 
-var file_drift_v1_network_profile_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_drift_v1_network_profile_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_drift_v1_network_profile_proto_goTypes = []any{
-	(NetworkProfileState)(0),             // 0: drift.v1.NetworkProfileState
-	(*NetworkProfile)(nil),               // 1: drift.v1.NetworkProfile
-	(*ListNetworkProfilesRequest)(nil),   // 2: drift.v1.ListNetworkProfilesRequest
-	(*ListNetworkProfilesResponse)(nil),  // 3: drift.v1.ListNetworkProfilesResponse
-	(*CreateNetworkProfileRequest)(nil),  // 4: drift.v1.CreateNetworkProfileRequest
-	(*CreateNetworkProfileResponse)(nil), // 5: drift.v1.CreateNetworkProfileResponse
-	(*UpdateNetworkProfileRequest)(nil),  // 6: drift.v1.UpdateNetworkProfileRequest
-	(*UpdateNetworkProfileResponse)(nil), // 7: drift.v1.UpdateNetworkProfileResponse
-	(*WorkspaceRef)(nil),                 // 8: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),                  // 9: drift.v1.PageRequest
-	(*PageResponse)(nil),                 // 10: drift.v1.PageResponse
-	(*RequestContext)(nil),               // 11: drift.v1.RequestContext
+	(*NetworkProfile)(nil),               // 0: drift.v1.NetworkProfile
+	(*ListNetworkProfilesRequest)(nil),   // 1: drift.v1.ListNetworkProfilesRequest
+	(*ListNetworkProfilesResponse)(nil),  // 2: drift.v1.ListNetworkProfilesResponse
+	(*CreateNetworkProfileRequest)(nil),  // 3: drift.v1.CreateNetworkProfileRequest
+	(*CreateNetworkProfileResponse)(nil), // 4: drift.v1.CreateNetworkProfileResponse
+	(*UpdateNetworkProfileRequest)(nil),  // 5: drift.v1.UpdateNetworkProfileRequest
+	(*UpdateNetworkProfileResponse)(nil), // 6: drift.v1.UpdateNetworkProfileResponse
+	(*WorkspaceRef)(nil),                 // 7: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),                  // 8: drift.v1.PageRequest
+	(*PageResponse)(nil),                 // 9: drift.v1.PageResponse
+	(*RequestContext)(nil),               // 10: drift.v1.RequestContext
 }
 var file_drift_v1_network_profile_proto_depIdxs = []int32{
-	8,  // 0: drift.v1.NetworkProfile.workspace:type_name -> drift.v1.WorkspaceRef
-	0,  // 1: drift.v1.NetworkProfile.state:type_name -> drift.v1.NetworkProfileState
-	8,  // 2: drift.v1.ListNetworkProfilesRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	9,  // 3: drift.v1.ListNetworkProfilesRequest.page:type_name -> drift.v1.PageRequest
-	1,  // 4: drift.v1.ListNetworkProfilesResponse.profiles:type_name -> drift.v1.NetworkProfile
-	10, // 5: drift.v1.ListNetworkProfilesResponse.page:type_name -> drift.v1.PageResponse
-	11, // 6: drift.v1.CreateNetworkProfileRequest.context:type_name -> drift.v1.RequestContext
-	1,  // 7: drift.v1.CreateNetworkProfileRequest.profile:type_name -> drift.v1.NetworkProfile
-	1,  // 8: drift.v1.CreateNetworkProfileResponse.profile:type_name -> drift.v1.NetworkProfile
-	11, // 9: drift.v1.UpdateNetworkProfileRequest.context:type_name -> drift.v1.RequestContext
-	1,  // 10: drift.v1.UpdateNetworkProfileRequest.profile:type_name -> drift.v1.NetworkProfile
-	1,  // 11: drift.v1.UpdateNetworkProfileResponse.profile:type_name -> drift.v1.NetworkProfile
-	2,  // 12: drift.v1.NetworkProfileService.ListNetworkProfiles:input_type -> drift.v1.ListNetworkProfilesRequest
-	4,  // 13: drift.v1.NetworkProfileService.CreateNetworkProfile:input_type -> drift.v1.CreateNetworkProfileRequest
-	6,  // 14: drift.v1.NetworkProfileService.UpdateNetworkProfile:input_type -> drift.v1.UpdateNetworkProfileRequest
-	3,  // 15: drift.v1.NetworkProfileService.ListNetworkProfiles:output_type -> drift.v1.ListNetworkProfilesResponse
-	5,  // 16: drift.v1.NetworkProfileService.CreateNetworkProfile:output_type -> drift.v1.CreateNetworkProfileResponse
-	7,  // 17: drift.v1.NetworkProfileService.UpdateNetworkProfile:output_type -> drift.v1.UpdateNetworkProfileResponse
-	15, // [15:18] is the sub-list for method output_type
-	12, // [12:15] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	7,  // 0: drift.v1.NetworkProfile.workspace:type_name -> drift.v1.WorkspaceRef
+	7,  // 1: drift.v1.ListNetworkProfilesRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	8,  // 2: drift.v1.ListNetworkProfilesRequest.page:type_name -> drift.v1.PageRequest
+	0,  // 3: drift.v1.ListNetworkProfilesResponse.profiles:type_name -> drift.v1.NetworkProfile
+	9,  // 4: drift.v1.ListNetworkProfilesResponse.page:type_name -> drift.v1.PageResponse
+	10, // 5: drift.v1.CreateNetworkProfileRequest.context:type_name -> drift.v1.RequestContext
+	0,  // 6: drift.v1.CreateNetworkProfileRequest.profile:type_name -> drift.v1.NetworkProfile
+	0,  // 7: drift.v1.CreateNetworkProfileResponse.profile:type_name -> drift.v1.NetworkProfile
+	10, // 8: drift.v1.UpdateNetworkProfileRequest.context:type_name -> drift.v1.RequestContext
+	0,  // 9: drift.v1.UpdateNetworkProfileRequest.profile:type_name -> drift.v1.NetworkProfile
+	0,  // 10: drift.v1.UpdateNetworkProfileResponse.profile:type_name -> drift.v1.NetworkProfile
+	1,  // 11: drift.v1.NetworkProfileService.ListNetworkProfiles:input_type -> drift.v1.ListNetworkProfilesRequest
+	3,  // 12: drift.v1.NetworkProfileService.CreateNetworkProfile:input_type -> drift.v1.CreateNetworkProfileRequest
+	5,  // 13: drift.v1.NetworkProfileService.UpdateNetworkProfile:input_type -> drift.v1.UpdateNetworkProfileRequest
+	2,  // 14: drift.v1.NetworkProfileService.ListNetworkProfiles:output_type -> drift.v1.ListNetworkProfilesResponse
+	4,  // 15: drift.v1.NetworkProfileService.CreateNetworkProfile:output_type -> drift.v1.CreateNetworkProfileResponse
+	6,  // 16: drift.v1.NetworkProfileService.UpdateNetworkProfile:output_type -> drift.v1.UpdateNetworkProfileResponse
+	14, // [14:17] is the sub-list for method output_type
+	11, // [11:14] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_network_profile_proto_init() }
@@ -589,14 +497,13 @@ func file_drift_v1_network_profile_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_network_profile_proto_rawDesc), len(file_drift_v1_network_profile_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      0,
 			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_drift_v1_network_profile_proto_goTypes,
 		DependencyIndexes: file_drift_v1_network_profile_proto_depIdxs,
-		EnumInfos:         file_drift_v1_network_profile_proto_enumTypes,
 		MessageInfos:      file_drift_v1_network_profile_proto_msgTypes,
 	}.Build()
 	File_drift_v1_network_profile_proto = out.File

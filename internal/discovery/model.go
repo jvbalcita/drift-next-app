@@ -1,4 +1,6 @@
-// Package discovery owns non-authoritative scan runs and candidate approval.
+// Package discovery owns non-authoritative scan history and the devices a scan
+// observed. A scan is an observation that upserts canonical devices; it is not a
+// candidate lifecycle and has no approval step.
 package discovery
 
 import (
@@ -12,8 +14,6 @@ import (
 )
 
 type ScanRunID string
-type ScanCandidateID string
-type ApprovalDecisionID string
 
 type ScanRunState string
 
@@ -25,23 +25,14 @@ const (
 	ScanCancelled ScanRunState = "cancelled"
 )
 
-type CandidateState string
+// DeviceLinkState is the transport state a scan observed for a device. It is
+// transport fact, never stable identity.
+type DeviceLinkState string
 
 const (
-	CandidateDiscovered      CandidateState = "discovered"
-	CandidatePendingApproval CandidateState = "pending_approval"
-	CandidateApproved        CandidateState = "approved"
-	CandidateRejected        CandidateState = "rejected"
-	CandidateExpired         CandidateState = "expired"
-	CandidateRegistered      CandidateState = "registered"
-)
-
-type Decision string
-
-const (
-	DecisionApproved Decision = "approved"
-	DecisionRejected Decision = "rejected"
-	DecisionExpired  Decision = "expired"
+	LinkOnline       DeviceLinkState = "online"
+	LinkOffline      DeviceLinkState = "offline"
+	LinkUnauthorized DeviceLinkState = "unauthorized"
 )
 
 type ScanRun struct {
@@ -56,66 +47,55 @@ type ScanRun struct {
 	FailureClass     domain.FailureClass
 }
 
-type ScanCandidate struct {
-	ID           ScanCandidateID
-	Workspace    organizations.WorkspaceID
-	ScanRunID    ScanRunID
-	CandidateKey string
-	Host         string
-	Port         uint16
-	Serial       string
-	Fingerprint  string
-	State        CandidateState
-	DiscoveredAt time.Time
-	ExpiresAt    *time.Time
-	EvidenceJSON string
+// ObservedDevice is one device a scan saw. Stable device identity (DeviceID)
+// stays distinct from mutable endpoint identity (EndpointID): a re-scan of a
+// known serial reuses the existing device_id and only its endpoint changes.
+type ObservedDevice struct {
+	Host        string
+	Port        uint16
+	Serial      string
+	Model       string
+	Fingerprint string
+	State       DeviceLinkState
+	Evidence    map[string]string
+
+	// Populated once the observation has been persisted.
+	DeviceID   devices.DeviceID
+	EndpointID string
+	Known      bool
+	LastSeenAt time.Time
 }
 
-type ApprovalDecision struct {
-	ID          ApprovalDecisionID
-	Workspace   organizations.WorkspaceID
-	CandidateID ScanCandidateID
-	Decision    Decision
-	DecidedAt   time.Time
-	ActorID     string
-	Reason      string
+// Valid reports whether a scan produced enough to identify a transport. A USB
+// transport carries a serial and no TCP port.
+func (d ObservedDevice) Valid() bool {
+	return d.Serial != "" || d.Host != ""
 }
 
-type RegistrationEvent struct {
-	ID          string
-	Workspace   organizations.WorkspaceID
-	CandidateID ScanCandidateID
-	DeviceID    devices.DeviceID
-	EndpointID  string
-	Outcome     string
-	ActorID     string
-	OccurredAt  time.Time
-	DetailsJSON string
+// Actionable reports whether the observed link permits device-scoped work. An
+// offline or unauthorized device is reported, never silently actionable.
+func (d ObservedDevice) Actionable() bool {
+	return d.State == LinkOnline
 }
 
-type ObservedCandidate struct {
-	CandidateKey string
-	Host         string
-	Port         uint16
-	Serial       string
-	Fingerprint  string
-	Evidence     map[string]string
-	ExpiresAt    *time.Time
-}
-
-func (c ObservedCandidate) Valid() bool {
-	return c.CandidateKey != "" && (c.Host != "" || c.Serial != "") && c.Port > 0
-}
-
-func (c ObservedCandidate) EvidenceJSON() string {
-	if len(c.Evidence) == 0 {
+func (d ObservedDevice) EvidenceJSON() string {
+	if len(d.Evidence) == 0 {
 		return "{}"
 	}
-	data, err := json.Marshal(c.Evidence)
+	data, err := json.Marshal(d.Evidence)
 	if err != nil {
 		return "{}"
 	}
 	return string(data)
+}
+
+func (s DeviceLinkState) Valid() bool {
+	switch s {
+	case LinkOnline, LinkOffline, LinkUnauthorized:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s ScanRunState) Valid() bool {
@@ -145,42 +125,4 @@ func TransitionScanRun(from, to ScanRunState) error {
 		return domain.InvalidTransition("scan_run", string(from), string(to))
 	}
 	return nil
-}
-
-func (s CandidateState) Valid() bool {
-	switch s {
-	case CandidateDiscovered, CandidatePendingApproval, CandidateApproved,
-		CandidateRejected, CandidateExpired, CandidateRegistered:
-		return true
-	default:
-		return false
-	}
-}
-
-func CanTransitionCandidate(from, to CandidateState) bool {
-	switch from {
-	case CandidateDiscovered:
-		return to == CandidatePendingApproval || to == CandidateExpired
-	case CandidatePendingApproval:
-		return to == CandidateApproved || to == CandidateRejected || to == CandidateExpired
-	case CandidateApproved:
-		return to == CandidateRegistered || to == CandidateExpired
-	case CandidateRejected, CandidateExpired, CandidateRegistered:
-		return false
-	default:
-		return false
-	}
-}
-
-func TransitionCandidate(from, to CandidateState) error {
-	if !CanTransitionCandidate(from, to) {
-		return domain.InvalidTransition("scan_candidate", string(from), string(to))
-	}
-	return nil
-}
-
-// CanRegister is intentionally narrower than a generic transition check: an
-// approval decision is required before a candidate can create a device.
-func CanRegister(state CandidateState) bool {
-	return state == CandidateApproved
 }

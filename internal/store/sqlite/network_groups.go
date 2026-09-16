@@ -24,7 +24,7 @@ func (r *NetworkProfileRepository) Get(ctx context.Context, w organizations.Work
 	return r.store.GetNetworkProfile(ctx, w, id)
 }
 func (r *NetworkProfileRepository) List(ctx context.Context, w organizations.WorkspaceID) ([]networkprofiles.NetworkProfile, error) {
-	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,name,address_policy,ports_json,is_default,state,row_version FROM network_profiles WHERE workspace_id=? ORDER BY id`, w)
+	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,name,address_policy,ports_json,is_default FROM network_profiles WHERE workspace_id=? ORDER BY id`, w)
 	if err != nil {
 		return nil, classifyContext(err)
 	}
@@ -34,13 +34,12 @@ func (r *NetworkProfileRepository) List(ctx context.Context, w organizations.Wor
 		var p networkprofiles.NetworkProfile
 		var ports string
 		var d int
-		var v int64
-		if err := rows.Scan(&p.ID, &p.Workspace, &p.Name, &p.AddressPolicy, &ports, &d, &p.State, &v); err != nil {
+		if err := rows.Scan(&p.ID, &p.Workspace, &p.Name, &p.AddressPolicy, &ports, &d); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(ports), &p.Ports)
 		p.IsDefault = d != 0
-		p.RowVersion = uint64(v)
+
 		out = append(out, p)
 	}
 	return out, rows.Err()

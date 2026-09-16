@@ -14,8 +14,8 @@ import type { AutomationAgent, AutomationAgentProfile } from "@/gen/drift/v1/aut
 import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
 import { DeviceStatus } from "@/gen/drift/v1/device_pb"
-import type { ScanCandidate, ScanRun } from "@/gen/drift/v1/discovery_pb"
-import { ScanCandidateState, ScanRunState } from "@/gen/drift/v1/discovery_pb"
+import type { ScanRun } from "@/gen/drift/v1/discovery_pb"
+import { ScanRunState } from "@/gen/drift/v1/discovery_pb"
 import type { EdgeAgent } from "@/gen/drift/v1/edge_agent_pb"
 import { EdgeAgentState } from "@/gen/drift/v1/edge_agent_pb"
 import type { DeviceEndpoint } from "@/gen/drift/v1/endpoint_pb"
@@ -26,7 +26,7 @@ import { GroupState } from "@/gen/drift/v1/group_pb"
 import type { DeviceLease } from "@/gen/drift/v1/lease_pb"
 import { LeaseState as ProtoLeaseState } from "@/gen/drift/v1/lease_pb"
 import type { NetworkProfile } from "@/gen/drift/v1/network_profile_pb"
-import { NetworkProfileSchema, NetworkProfileState } from "@/gen/drift/v1/network_profile_pb"
+import { NetworkProfileSchema } from "@/gen/drift/v1/network_profile_pb"
 import type { ObservationSnapshot } from "@/gen/drift/v1/observation_pb"
 import { ObservationCaptureState } from "@/gen/drift/v1/observation_pb"
 import type { Workspace } from "@/gen/drift/v1/organization_pb"
@@ -122,8 +122,6 @@ import type {
   RunTargetView,
   RunView,
   RuntimeConnectionView,
-  ScanCandidateState as ScanCandidateViewState,
-  ScanCandidateView,
   ScanRunState as ScanRunViewState,
   ScanRunView,
   SettingHistoryView,
@@ -235,7 +233,6 @@ export function emptyControlPlaneSnapshot(options?: {
     observations: [],
     networkProfiles: [],
     scanRuns: [],
-    scanCandidates: [],
     groups: [],
     memberships: [],
     automationAgents: [],
@@ -259,11 +256,9 @@ export function emptyControlPlaneSnapshot(options?: {
     policyDecisions: [],
     mirrorSessions: [],
     labAdapter: { ...emptyLabAdapter(), readiness: connected ? "unavailable" : "unavailable" },
-    provisioningReadiness: null,
     runtimeConnection: emptyRuntime(runtimeState, options?.disconnectedReason ?? ""),
     spoolHealth: emptySpool(runtimeState),
     indeterminateActions: [],
-    labRegistration: null,
     artifacts: [],
     recordingMedia: [],
     storageHealth: emptyStorage(),
@@ -404,25 +399,6 @@ function mapEndpoint(endpoint: DeviceEndpoint): EndpointView {
   }
 }
 
-function mapProfileState(state: NetworkProfileState): NetworkProfileView["state"] {
-  switch (state) {
-    case NetworkProfileState.DRAFT:
-      return "draft"
-    case NetworkProfileState.ACTIVE:
-      return "active"
-    case NetworkProfileState.DISABLED:
-      return "disabled"
-    case NetworkProfileState.RETIRED:
-      return "retired"
-    case NetworkProfileState.UNSPECIFIED:
-      return "draft"
-    default: {
-      const _exhaustive: never = state
-      return _exhaustive
-    }
-  }
-}
-
 function mapNetworkProfile(profile: NetworkProfile): NetworkProfileView {
   return {
     id: profile.id,
@@ -430,8 +406,8 @@ function mapNetworkProfile(profile: NetworkProfile): NetworkProfileView {
     addressPolicy: profile.addressPolicy,
     ports: profile.allowedPorts,
     isDefault: profile.isDefault,
-    state: mapProfileState(profile.state),
-    rowVersion: Number(profile.rowVersion),
+    state: "active",
+    rowVersion: 1,
   }
 }
 
@@ -1134,44 +1110,6 @@ function mapScanRun(run: ScanRun): ScanRunView {
   }
 }
 
-function mapScanCandidateState(state: ScanCandidateState): ScanCandidateViewState {
-  switch (state) {
-    case ScanCandidateState.DISCOVERED:
-      return "discovered"
-    case ScanCandidateState.PENDING_APPROVAL:
-      return "pending_approval"
-    case ScanCandidateState.APPROVED:
-      return "approved"
-    case ScanCandidateState.REJECTED:
-      return "rejected"
-    case ScanCandidateState.EXPIRED:
-      return "expired"
-    case ScanCandidateState.REGISTERED:
-      return "registered"
-    case ScanCandidateState.UNSPECIFIED:
-      return "discovered"
-    default: {
-      const _exhaustive: never = state
-      return _exhaustive
-    }
-  }
-}
-
-function mapScanCandidate(candidate: ScanCandidate): ScanCandidateView {
-  return {
-    id: candidate.id,
-    scanRunId: candidate.scanRunId,
-    candidateKey: candidate.candidateKey,
-    host: candidate.host,
-    port: candidate.port,
-    serial: candidate.serial,
-    fingerprint: candidate.fingerprint,
-    state: mapScanCandidateState(candidate.state),
-    discoveredAt: candidate.discoveredAt,
-    evidenceSummary: candidate.evidenceSummary,
-  }
-}
-
 function mapLeaseState(state: ProtoLeaseState): LeaseViewState {
   switch (state) {
     case ProtoLeaseState.REQUESTED:
@@ -1357,7 +1295,7 @@ function mapAutomationAgentProfiles(
   })
 }
 
-function mapProfileToProto(profile: NetworkProfileView, workspaceId: string, state: NetworkProfileState): NetworkProfile {
+function mapProfileToProto(profile: NetworkProfileView, workspaceId: string): NetworkProfile {
   return create(NetworkProfileSchema, {
     id: profile.id,
     workspace: workspaceRef(workspaceId),
@@ -1365,8 +1303,7 @@ function mapProfileToProto(profile: NetworkProfileView, workspaceId: string, sta
     addressPolicy: profile.addressPolicy,
     allowedPorts: [...profile.ports],
     isDefault: profile.isDefault,
-    state,
-    rowVersion: BigInt(profile.rowVersion),
+
   })
 }
 
@@ -1407,7 +1344,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
   ) {
     this.workspaceId = options.workspaceId ?? defaultWorkspaceId
     this.snapshot = emptyControlPlaneSnapshot({ workspaceId: this.workspaceId })
-    this.services = options.services ?? createControlPlaneServices(new ConnectJsonClient(options.baseUrl ?? controlPlaneBaseUrl(), options.token ?? configuredLabToken()), options.operatorId ?? defaultOperatorId)
+    this.services = options.services ?? createControlPlaneServices(new ConnectJsonClient(options.baseUrl ?? controlPlaneBaseUrl(), options.token ?? configuredLabToken()))
   }
 
   getSnapshot(): ControlPlaneSnapshot {
@@ -1429,7 +1366,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         memberships: response.memberships.map(mapMembership),
       })), { groups: [] as GroupView[], memberships: [] as MembershipView[] }),
       settle(this.services.discovery.listScanRuns(workspaceId).then((response) => response.scanRuns.map(mapScanRun)), [] as ScanRunView[]),
-      settle(this.services.discovery.listScanCandidates(workspaceId).then((response) => response.candidates.map(mapScanCandidate)), [] as ScanCandidateView[]),
       settle(this.services.lease.listDeviceLeases(workspaceId).then((response) => response.leases.map(mapLease)), [] as LeaseView[]),
       settle(this.services.observation.listObservationSnapshots(workspaceId).then((response) => response.observations.map(mapObservation)), [] as ObservationView[]),
       settle(this.services.run.listRunTargets(workspaceId).then((response) => response.targets.map(mapRunTarget)), [] as RunTargetView[]),
@@ -1575,7 +1511,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       networkProfiles,
       groups,
       scanRuns,
-      scanCandidates,
       leases,
       observations,
       runTargets,
@@ -1618,7 +1553,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       groups: groups.value.groups,
       memberships: groups.value.memberships,
       scanRuns: scanRuns.value,
-      scanCandidates: scanCandidates.value,
       leases: leases.value,
       observations: observations.value,
       runTargets: runTargets.value,
@@ -1648,8 +1582,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       automationAgentProfiles: automationAgents.value.profiles,
       recordingMedia: recordingMedia.value,
       labAdapter: previous.labAdapter,
-      provisioningReadiness: previous.provisioningReadiness,
-      labRegistration: previous.labRegistration,
       mirrorSessions: mirrorSessions.value,
       runtimeConnection: runtimeStatus.value.connection,
       spoolHealth: runtimeStatus.value.spool,
@@ -1692,8 +1624,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
           addressPolicy: intent.addressPolicy,
           allowedPorts: [...intent.ports],
           isDefault: intent.isDefault,
-          state: NetworkProfileState.ACTIVE,
-          rowVersion: 0n,
+
         }))
         return mutation(intent, "Network profile created.")
       }
@@ -1705,15 +1636,13 @@ export class RealControlPlaneClient implements ControlPlaneClient {
           addressPolicy: intent.addressPolicy,
           allowedPorts: [...intent.ports],
           isDefault: intent.isDefault,
-          state: NetworkProfileState.ACTIVE,
-          rowVersion: BigInt(intent.rowVersion),
-        }), BigInt(intent.rowVersion))
+        }))
         return mutation(intent, "Network profile updated.")
       }
       case "retireNetworkProfile": {
         const current = this.snapshot.networkProfiles.find((profile) => profile.id === intent.profileId)
         if (!current) return failure(intent, "Network profile was not found.", { errorCode: "invalid_input" })
-        await this.services.networkProfile.updateNetworkProfile(requestId, mapProfileToProto(current, workspaceId, NetworkProfileState.RETIRED), BigInt(intent.rowVersion))
+        await this.services.networkProfile.updateNetworkProfile(requestId, mapProfileToProto(current, workspaceId))
         return mutation(intent, "Network profile retired.")
       }
       case "startScan": {
@@ -1722,18 +1651,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
           this.snapshot = { ...this.snapshot, scanRuns: [mapScanRun(response.scanRun), ...this.snapshot.scanRuns] }
         }
         return mutation(intent, "Discovery scan started.")
-      }
-      case "decideScanCandidate": {
-        const response = await this.services.discovery.decideScanCandidate(requestId, workspaceId, intent.candidateId, intent.approve, intent.reason)
-        if (response.candidate) {
-          const mapped = mapScanCandidate(response.candidate)
-          this.snapshot = { ...this.snapshot, scanCandidates: this.snapshot.scanCandidates.map((candidate) => candidate.id === mapped.id ? mapped : candidate) }
-        }
-        return mutation(intent, intent.approve ? "Candidate approved." : "Candidate rejected.")
-      }
-      case "registerScanCandidate": {
-        await this.services.discovery.registerScanCandidate(requestId, workspaceId, intent.candidateId, intent.displayName)
-        return mutation(intent, "Candidate registered.")
       }
       case "moveDeviceToGroup": {
         await this.services.group.moveDeviceToGroup(requestId, workspaceId, intent.deviceId, intent.groupId, intent.position)
@@ -1990,9 +1907,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       case "clearLabTarget":
       case "captureLabObservation":
       case "simulateLabCaptureFailure":
-      case "verifyLabProvisioning":
-      case "approveLabProvisioning":
-      case "registerLabDevice":
       case "enqueueMockSpoolItem":
         return failure(intent, "This action is unavailable on the connected control plane.")
       default: {

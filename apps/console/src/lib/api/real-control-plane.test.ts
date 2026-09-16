@@ -194,22 +194,6 @@ describe("RealControlPlaneClient", () => {
           }],
         }), { status: 200, headers: { "content-type": "application/json" } })
       }
-      if (url.includes("/drift.v1.DiscoveryService/ListScanCandidates")) {
-        return new Response(JSON.stringify({
-          candidates: [{
-            id: "candidate-1",
-            scanRunId: "scan-1",
-            candidateKey: "192.0.2.10:5555",
-            host: "192.0.2.10",
-            port: 5555,
-            serial: "SERIAL1",
-            fingerprint: "fp-1",
-            state: "SCAN_CANDIDATE_STATE_PENDING_APPROVAL",
-            discoveredAt: "2026-09-15T01:00:30Z",
-            evidenceSummary: "Sanitized candidate evidence",
-          }],
-        }), { status: 200, headers: { "content-type": "application/json" } })
-      }
       if (url.includes("/drift.v1.LeaseService/ListDeviceLeases")) {
         return new Response(JSON.stringify({
           leases: [{
@@ -259,12 +243,6 @@ describe("RealControlPlaneClient", () => {
     const snapshot = await client.refresh()
 
     expect(snapshot.scanRuns).toEqual([expect.objectContaining({ id: "scan-1", state: "completed", networkProfileId: "profile-1" })])
-    expect(snapshot.scanCandidates).toEqual([expect.objectContaining({
-      id: "candidate-1",
-      serial: "SERIAL1",
-      state: "pending_approval",
-      evidenceSummary: "Sanitized candidate evidence",
-    })])
     expect(snapshot.leases).toEqual([expect.objectContaining({
       id: "lease-1",
       holder: "console-local-operator",

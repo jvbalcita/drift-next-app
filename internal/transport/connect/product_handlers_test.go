@@ -95,7 +95,6 @@ func TestNetworkProfileCreatePersistsAndPaginates(t *testing.T) {
 			DisplayName:   "Lab net",
 			AddressPolicy: "192.0.2.0/28",
 			AllowedPorts:  []uint32{5555},
-			State:         driftv1.NetworkProfileState_NETWORK_PROFILE_STATE_ACTIVE,
 		},
 	}))
 	if err != nil || created.Msg.Profile.GetId() == "" || created.Msg.Profile.GetDisplayName() != "Lab net" {
@@ -121,19 +120,19 @@ func TestNetworkProfileCreatePersistsAndPaginates(t *testing.T) {
 	}
 }
 
-func TestDiscoveryStartDecideRegisterWithFakeScanner(t *testing.T) {
+func TestDiscoveryStartScanUpsertsObservedDevicesWithoutDuplicatingDevices(t *testing.T) {
 	db := openProductDB(t)
 	ctx := context.Background()
 	profile := networkprofiles.NetworkProfile{
 		ID: "profile-1", Workspace: "workspace-a", Name: "Mock lab",
-		AddressPolicy: "192.0.2.0/28", Ports: []uint16{5555}, State: networkprofiles.Active, IsDefault: true,
+		AddressPolicy: "192.0.2.0/28", Ports: []uint16{5555}, IsDefault: true,
 	}
 	if err := store.NewNetworkProfileService(db).Create(ctx, profile, "operator", "op-1"); err != nil {
 		t.Fatal(err)
 	}
-	scanner := discovery.NewFakeScanner([]discovery.ObservedCandidate{{
-		CandidateKey: "candidate-1", Host: "192.0.2.5", Port: 5555, Serial: "mock-serial-1",
-		Fingerprint: "sha256:fake", Evidence: map[string]string{"source": "fake"},
+	scanner := discovery.NewFakeScanner([]discovery.ObservedDevice{{
+		Serial: "mock-serial-1", Host: "192.0.2.5", Port: 5555, Model: "Mock Five",
+		Fingerprint: "sha256:fake", Evidence: map[string]string{"source": "fake"}, State: discovery.LinkOnline,
 	}})
 	handler := transportconnect.NewDiscoveryHandler(discovery.NewService(db, scanner), db)
 	workspace := &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"}
@@ -143,30 +142,45 @@ func TestDiscoveryStartDecideRegisterWithFakeScanner(t *testing.T) {
 	if err != nil || run.Msg.ScanRun.GetState() != driftv1.ScanRunState_SCAN_RUN_STATE_COMPLETED {
 		t.Fatalf("start scan = %#v err=%v", run, err)
 	}
+	if len(run.Msg.Devices) != 1 {
+		t.Fatalf("start scan devices = %#v, want one observed device", run.Msg.Devices)
+	}
+	observed := run.Msg.Devices[0]
+	if observed.GetSerial() != "mock-serial-1" || observed.GetHost() != "192.0.2.5" ||
+		observed.GetState() != driftv1.DeviceLinkState_DEVICE_LINK_STATE_ONLINE {
+		t.Fatalf("observed device = %#v", observed)
+	}
+	if observed.GetDeviceId() == "" || observed.GetEndpointId() == "" {
+		t.Fatalf("observed device is missing durable identity: %#v", observed)
+	}
+	if observed.GetKnown() {
+		t.Fatalf("first observation must be new, got known=%t", observed.GetKnown())
+	}
 	listedRuns, err := handler.ListScanRuns(ctx, connectrpc.NewRequest(&driftv1.ListScanRunsRequest{Workspace: workspace}))
 	if err != nil || len(listedRuns.Msg.ScanRuns) != 1 || listedRuns.Msg.ScanRuns[0].GetId() != run.Msg.ScanRun.GetId() {
 		t.Fatalf("list scan runs = %#v err=%v", listedRuns, err)
 	}
-	listedCandidates, err := handler.ListScanCandidates(ctx, connectrpc.NewRequest(&driftv1.ListScanCandidatesRequest{Workspace: workspace}))
-	if err != nil || len(listedCandidates.Msg.Candidates) != 1 || listedCandidates.Msg.Candidates[0].GetHost() != "192.0.2.5" {
-		t.Fatalf("list scan candidates = %#v err=%v", listedCandidates, err)
-	}
-	candidates, err := store.NewDiscoveryRepository(db).ListCandidates(ctx, "workspace-a", discovery.CandidatePendingApproval)
-	if err != nil || len(candidates) != 1 {
-		t.Fatalf("candidates = %#v err=%v", candidates, err)
-	}
-	ref := &driftv1.ResourceRef{Workspace: workspace, ResourceId: string(candidates[0].ID)}
-	decided, err := handler.DecideScanCandidate(ctx, connectrpc.NewRequest(&driftv1.DecideScanCandidateRequest{
-		Context: requestContext("decide-1"), Candidate: ref, Approve: true, Reason: "lab phone",
+	// A re-scan of the same serial under a new idempotency key reuses the
+	// canonical device row: the scan observes, it never duplicates a device.
+	rescan, err := handler.StartScan(ctx, connectrpc.NewRequest(&driftv1.StartScanRequest{
+		Context: requestContext("scan-2"), Workspace: workspace, NetworkProfileId: string(profile.ID),
 	}))
-	if err != nil || decided.Msg.Candidate.GetState() != driftv1.ScanCandidateState_SCAN_CANDIDATE_STATE_APPROVED {
-		t.Fatalf("decide = %#v err=%v", decided, err)
+	if err != nil {
+		t.Fatalf("rescan error = %v", err)
 	}
-	registered, err := handler.RegisterScanCandidate(ctx, connectrpc.NewRequest(&driftv1.RegisterScanCandidateRequest{
-		Context: requestContext("register-1"), Candidate: ref, DeviceDisplayName: "Mock Five",
-	}))
-	if err != nil || registered.Msg.GetDeviceId() == "" || registered.Msg.Candidate.GetState() != driftv1.ScanCandidateState_SCAN_CANDIDATE_STATE_REGISTERED {
-		t.Fatalf("register = %#v err=%v", registered, err)
+	if len(rescan.Msg.Devices) != 1 || rescan.Msg.Devices[0].GetDeviceId() != observed.GetDeviceId() {
+		t.Fatalf("rescan devices = %#v, want the same device id %q", rescan.Msg.Devices, observed.GetDeviceId())
+	}
+	if !rescan.Msg.Devices[0].GetKnown() {
+		t.Fatalf("rescan must report the device as known: %#v", rescan.Msg.Devices[0])
+	}
+	stored, err := store.NewDeviceRepository(db).List(ctx, "workspace-a")
+	if err != nil || len(stored) != 1 {
+		t.Fatalf("device rows after rescan = %#v err=%v", stored, err)
+	}
+	endpoints, err := store.NewEndpointRepository(db).ListCurrent(ctx, "workspace-a", devices.DeviceID(observed.GetDeviceId()))
+	if err != nil || len(endpoints) != 1 || endpoints[0].Serial != "mock-serial-1" {
+		t.Fatalf("current endpoints = %#v err=%v", endpoints, err)
 	}
 }
 

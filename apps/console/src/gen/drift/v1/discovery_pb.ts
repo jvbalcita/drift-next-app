@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { Failure, PageRequest, PageResponse, RequestContext, ResourceRef, WorkspaceRef } from "./common_pb";
+import type { Failure, PageRequest, PageResponse, RequestContext, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/discovery.proto.
  */
 export const file_drift_v1_discovery: GenFile = /*@__PURE__*/
-  fileDesc("ChhkcmlmdC92MS9kaXNjb3ZlcnkucHJvdG8SCGRyaWZ0LnYxItIBCgdTY2FuUnVuEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIaChJuZXR3b3JrX3Byb2ZpbGVfaWQYAyABKAkSJQoFc3RhdGUYBCABKA4yFi5kcmlmdC52MS5TY2FuUnVuU3RhdGUSFAoMcmVxdWVzdGVkX2F0GAUgASgJEhMKC2ZpbmlzaGVkX2F0GAYgASgJEiIKB2ZhaWx1cmUYByABKAsyES5kcmlmdC52MS5GYWlsdXJlIpECCg1TY2FuQ2FuZGlkYXRlEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhITCgtzY2FuX3J1bl9pZBgDIAEoCRIVCg1jYW5kaWRhdGVfa2V5GAQgASgJEgwKBGhvc3QYBSABKAkSDAoEcG9ydBgGIAEoDRIOCgZzZXJpYWwYByABKAkSEwoLZmluZ2VycHJpbnQYCCABKAkSKwoFc3RhdGUYCSABKA4yHC5kcmlmdC52MS5TY2FuQ2FuZGlkYXRlU3RhdGUSFQoNZGlzY292ZXJlZF9hdBgKIAEoCRIYChBldmlkZW5jZV9zdW1tYXJ5GAsgASgJIoQBChBTdGFydFNjYW5SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSGgoSbmV0d29ya19wcm9maWxlX2lkGAMgASgJIjgKEVN0YXJ0U2NhblJlc3BvbnNlEiMKCHNjYW5fcnVuGAEgASgLMhEuZHJpZnQudjEuU2NhblJ1biKSAQoaRGVjaWRlU2NhbkNhbmRpZGF0ZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EigKCWNhbmRpZGF0ZRgCIAEoCzIVLmRyaWZ0LnYxLlJlc291cmNlUmVmEg8KB2FwcHJvdmUYAyABKAgSDgoGcmVhc29uGAQgASgJIkkKG0RlY2lkZVNjYW5DYW5kaWRhdGVSZXNwb25zZRIqCgljYW5kaWRhdGUYASABKAsyFy5kcmlmdC52MS5TY2FuQ2FuZGlkYXRlIpABChxSZWdpc3RlclNjYW5DYW5kaWRhdGVSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIoCgljYW5kaWRhdGUYAiABKAsyFS5kcmlmdC52MS5SZXNvdXJjZVJlZhIbChNkZXZpY2VfZGlzcGxheV9uYW1lGAMgASgJInMKHVJlZ2lzdGVyU2NhbkNhbmRpZGF0ZVJlc3BvbnNlEhEKCWRldmljZV9pZBgBIAEoCRITCgtlbmRwb2ludF9pZBgCIAEoCRIqCgljYW5kaWRhdGUYAyABKAsyFy5kcmlmdC52MS5TY2FuQ2FuZGlkYXRlImUKE0xpc3RTY2FuUnVuc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJiChRMaXN0U2NhblJ1bnNSZXNwb25zZRIkCglzY2FuX3J1bnMYASADKAsyES5kcmlmdC52MS5TY2FuUnVuEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UiawoZTGlzdFNjYW5DYW5kaWRhdGVzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgCIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0Im8KGkxpc3RTY2FuQ2FuZGlkYXRlc1Jlc3BvbnNlEisKCmNhbmRpZGF0ZXMYASADKAsyFy5kcmlmdC52MS5TY2FuQ2FuZGlkYXRlEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UqvwEKDFNjYW5SdW5TdGF0ZRIeChpTQ0FOX1JVTl9TVEFURV9VTlNQRUNJRklFRBAAEhwKGFNDQU5fUlVOX1NUQVRFX1JFUVVFU1RFRBABEhoKFlNDQU5fUlVOX1NUQVRFX1JVTk5JTkcQAhIcChhTQ0FOX1JVTl9TVEFURV9DT01QTEVURUQQAxIZChVTQ0FOX1JVTl9TVEFURV9GQUlMRUQQBBIcChhTQ0FOX1JVTl9TVEFURV9DQU5DRUxMRUQQBSqXAgoSU2NhbkNhbmRpZGF0ZVN0YXRlEiQKIFNDQU5fQ0FORElEQVRFX1NUQVRFX1VOU1BFQ0lGSUVEEAASIwofU0NBTl9DQU5ESURBVEVfU1RBVEVfRElTQ09WRVJFRBABEikKJVNDQU5fQ0FORElEQVRFX1NUQVRFX1BFTkRJTkdfQVBQUk9WQUwQAhIhCh1TQ0FOX0NBTkRJREFURV9TVEFURV9BUFBST1ZFRBADEiEKHVNDQU5fQ0FORElEQVRFX1NUQVRFX1JFSkVDVEVEEAQSIAocU0NBTl9DQU5ESURBVEVfU1RBVEVfRVhQSVJFRBAFEiMKH1NDQU5fQ0FORElEQVRFX1NUQVRFX1JFR0lTVEVSRUQQBjLWAwoQRGlzY292ZXJ5U2VydmljZRJECglTdGFydFNjYW4SGi5kcmlmdC52MS5TdGFydFNjYW5SZXF1ZXN0GhsuZHJpZnQudjEuU3RhcnRTY2FuUmVzcG9uc2USYgoTRGVjaWRlU2NhbkNhbmRpZGF0ZRIkLmRyaWZ0LnYxLkRlY2lkZVNjYW5DYW5kaWRhdGVSZXF1ZXN0GiUuZHJpZnQudjEuRGVjaWRlU2NhbkNhbmRpZGF0ZVJlc3BvbnNlEmgKFVJlZ2lzdGVyU2NhbkNhbmRpZGF0ZRImLmRyaWZ0LnYxLlJlZ2lzdGVyU2NhbkNhbmRpZGF0ZVJlcXVlc3QaJy5kcmlmdC52MS5SZWdpc3RlclNjYW5DYW5kaWRhdGVSZXNwb25zZRJNCgxMaXN0U2NhblJ1bnMSHS5kcmlmdC52MS5MaXN0U2NhblJ1bnNSZXF1ZXN0Gh4uZHJpZnQudjEuTGlzdFNjYW5SdW5zUmVzcG9uc2USXwoSTGlzdFNjYW5DYW5kaWRhdGVzEiMuZHJpZnQudjEuTGlzdFNjYW5DYW5kaWRhdGVzUmVxdWVzdBokLmRyaWZ0LnYxLkxpc3RTY2FuQ2FuZGlkYXRlc1Jlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChhkcmlmdC92MS9kaXNjb3ZlcnkucHJvdG8SCGRyaWZ0LnYxItIBCgdTY2FuUnVuEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIaChJuZXR3b3JrX3Byb2ZpbGVfaWQYAyABKAkSJQoFc3RhdGUYBCABKA4yFi5kcmlmdC52MS5TY2FuUnVuU3RhdGUSFAoMcmVxdWVzdGVkX2F0GAUgASgJEhMKC2ZpbmlzaGVkX2F0GAYgASgJEiIKB2ZhaWx1cmUYByABKAsyES5kcmlmdC52MS5GYWlsdXJlIqwBCg5PYnNlcnZlZERldmljZRIMCgRob3N0GAEgASgJEgwKBHBvcnQYAiABKA0SDgoGc2VyaWFsGAMgASgJEg0KBW1vZGVsGAQgASgJEigKBXN0YXRlGAUgASgOMhkuZHJpZnQudjEuRGV2aWNlTGlua1N0YXRlEg0KBWtub3duGAYgASgIEhEKCWRldmljZV9pZBgHIAEoCRITCgtlbmRwb2ludF9pZBgIIAEoCSKEAQoQU3RhcnRTY2FuUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhoKEm5ldHdvcmtfcHJvZmlsZV9pZBgDIAEoCSJjChFTdGFydFNjYW5SZXNwb25zZRIjCghzY2FuX3J1bhgBIAEoCzIRLmRyaWZ0LnYxLlNjYW5SdW4SKQoHZGV2aWNlcxgCIAMoCzIYLmRyaWZ0LnYxLk9ic2VydmVkRGV2aWNlImUKE0xpc3RTY2FuUnVuc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJiChRMaXN0U2NhblJ1bnNSZXNwb25zZRIkCglzY2FuX3J1bnMYASADKAsyES5kcmlmdC52MS5TY2FuUnVuEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UqvwEKDFNjYW5SdW5TdGF0ZRIeChpTQ0FOX1JVTl9TVEFURV9VTlNQRUNJRklFRBAAEhwKGFNDQU5fUlVOX1NUQVRFX1JFUVVFU1RFRBABEhoKFlNDQU5fUlVOX1NUQVRFX1JVTk5JTkcQAhIcChhTQ0FOX1JVTl9TVEFURV9DT01QTEVURUQQAxIZChVTQ0FOX1JVTl9TVEFURV9GQUlMRUQQBBIcChhTQ0FOX1JVTl9TVEFURV9DQU5DRUxMRUQQBSqVAQoPRGV2aWNlTGlua1N0YXRlEiEKHURFVklDRV9MSU5LX1NUQVRFX1VOU1BFQ0lGSUVEEAASHAoYREVWSUNFX0xJTktfU1RBVEVfT05MSU5FEAESHQoZREVWSUNFX0xJTktfU1RBVEVfT0ZGTElORRACEiIKHkRFVklDRV9MSU5LX1NUQVRFX1VOQVVUSE9SSVpFRBADMqcBChBEaXNjb3ZlcnlTZXJ2aWNlEkQKCVN0YXJ0U2NhbhIaLmRyaWZ0LnYxLlN0YXJ0U2NhblJlcXVlc3QaGy5kcmlmdC52MS5TdGFydFNjYW5SZXNwb25zZRJNCgxMaXN0U2NhblJ1bnMSHS5kcmlmdC52MS5MaXN0U2NhblJ1bnNSZXF1ZXN0Gh4uZHJpZnQudjEuTGlzdFNjYW5SdW5zUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.ScanRun
@@ -62,70 +62,59 @@ export const ScanRunSchema: GenMessage<ScanRun> = /*@__PURE__*/
   messageDesc(file_drift_v1_discovery, 0);
 
 /**
- * @generated from message drift.v1.ScanCandidate
+ * ObservedDevice is one device a scan saw. device_id and endpoint_id are set
+ * once the serial is already known in this workspace, so a known device keeps
+ * its stable device identity while its endpoint stays mutable transport fact.
+ *
+ * @generated from message drift.v1.ObservedDevice
  */
-export type ScanCandidate = Message<"drift.v1.ScanCandidate"> & {
+export type ObservedDevice = Message<"drift.v1.ObservedDevice"> & {
   /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-
-  /**
-   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
-   */
-  workspace?: WorkspaceRef;
-
-  /**
-   * @generated from field: string scan_run_id = 3;
-   */
-  scanRunId: string;
-
-  /**
-   * @generated from field: string candidate_key = 4;
-   */
-  candidateKey: string;
-
-  /**
-   * @generated from field: string host = 5;
+   * @generated from field: string host = 1;
    */
   host: string;
 
   /**
-   * @generated from field: uint32 port = 6;
+   * @generated from field: uint32 port = 2;
    */
   port: number;
 
   /**
-   * @generated from field: string serial = 7;
+   * @generated from field: string serial = 3;
    */
   serial: string;
 
   /**
-   * @generated from field: string fingerprint = 8;
+   * @generated from field: string model = 4;
    */
-  fingerprint: string;
+  model: string;
 
   /**
-   * @generated from field: drift.v1.ScanCandidateState state = 9;
+   * @generated from field: drift.v1.DeviceLinkState state = 5;
    */
-  state: ScanCandidateState;
+  state: DeviceLinkState;
 
   /**
-   * @generated from field: string discovered_at = 10;
+   * @generated from field: bool known = 6;
    */
-  discoveredAt: string;
+  known: boolean;
 
   /**
-   * @generated from field: string evidence_summary = 11;
+   * @generated from field: string device_id = 7;
    */
-  evidenceSummary: string;
+  deviceId: string;
+
+  /**
+   * @generated from field: string endpoint_id = 8;
+   */
+  endpointId: string;
 };
 
 /**
- * Describes the message drift.v1.ScanCandidate.
- * Use `create(ScanCandidateSchema)` to create a new message.
+ * Describes the message drift.v1.ObservedDevice.
+ * Use `create(ObservedDeviceSchema)` to create a new message.
  */
-export const ScanCandidateSchema: GenMessage<ScanCandidate> = /*@__PURE__*/
+export const ObservedDeviceSchema: GenMessage<ObservedDevice> = /*@__PURE__*/
   messageDesc(file_drift_v1_discovery, 1);
 
 /**
@@ -163,6 +152,11 @@ export type StartScanResponse = Message<"drift.v1.StartScanResponse"> & {
    * @generated from field: drift.v1.ScanRun scan_run = 1;
    */
   scanRun?: ScanRun;
+
+  /**
+   * @generated from field: repeated drift.v1.ObservedDevice devices = 2;
+   */
+  devices: ObservedDevice[];
 };
 
 /**
@@ -171,109 +165,6 @@ export type StartScanResponse = Message<"drift.v1.StartScanResponse"> & {
  */
 export const StartScanResponseSchema: GenMessage<StartScanResponse> = /*@__PURE__*/
   messageDesc(file_drift_v1_discovery, 3);
-
-/**
- * @generated from message drift.v1.DecideScanCandidateRequest
- */
-export type DecideScanCandidateRequest = Message<"drift.v1.DecideScanCandidateRequest"> & {
-  /**
-   * @generated from field: drift.v1.RequestContext context = 1;
-   */
-  context?: RequestContext;
-
-  /**
-   * @generated from field: drift.v1.ResourceRef candidate = 2;
-   */
-  candidate?: ResourceRef;
-
-  /**
-   * @generated from field: bool approve = 3;
-   */
-  approve: boolean;
-
-  /**
-   * @generated from field: string reason = 4;
-   */
-  reason: string;
-};
-
-/**
- * Describes the message drift.v1.DecideScanCandidateRequest.
- * Use `create(DecideScanCandidateRequestSchema)` to create a new message.
- */
-export const DecideScanCandidateRequestSchema: GenMessage<DecideScanCandidateRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_discovery, 4);
-
-/**
- * @generated from message drift.v1.DecideScanCandidateResponse
- */
-export type DecideScanCandidateResponse = Message<"drift.v1.DecideScanCandidateResponse"> & {
-  /**
-   * @generated from field: drift.v1.ScanCandidate candidate = 1;
-   */
-  candidate?: ScanCandidate;
-};
-
-/**
- * Describes the message drift.v1.DecideScanCandidateResponse.
- * Use `create(DecideScanCandidateResponseSchema)` to create a new message.
- */
-export const DecideScanCandidateResponseSchema: GenMessage<DecideScanCandidateResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_discovery, 5);
-
-/**
- * @generated from message drift.v1.RegisterScanCandidateRequest
- */
-export type RegisterScanCandidateRequest = Message<"drift.v1.RegisterScanCandidateRequest"> & {
-  /**
-   * @generated from field: drift.v1.RequestContext context = 1;
-   */
-  context?: RequestContext;
-
-  /**
-   * @generated from field: drift.v1.ResourceRef candidate = 2;
-   */
-  candidate?: ResourceRef;
-
-  /**
-   * @generated from field: string device_display_name = 3;
-   */
-  deviceDisplayName: string;
-};
-
-/**
- * Describes the message drift.v1.RegisterScanCandidateRequest.
- * Use `create(RegisterScanCandidateRequestSchema)` to create a new message.
- */
-export const RegisterScanCandidateRequestSchema: GenMessage<RegisterScanCandidateRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_discovery, 6);
-
-/**
- * @generated from message drift.v1.RegisterScanCandidateResponse
- */
-export type RegisterScanCandidateResponse = Message<"drift.v1.RegisterScanCandidateResponse"> & {
-  /**
-   * @generated from field: string device_id = 1;
-   */
-  deviceId: string;
-
-  /**
-   * @generated from field: string endpoint_id = 2;
-   */
-  endpointId: string;
-
-  /**
-   * @generated from field: drift.v1.ScanCandidate candidate = 3;
-   */
-  candidate?: ScanCandidate;
-};
-
-/**
- * Describes the message drift.v1.RegisterScanCandidateResponse.
- * Use `create(RegisterScanCandidateResponseSchema)` to create a new message.
- */
-export const RegisterScanCandidateResponseSchema: GenMessage<RegisterScanCandidateResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_discovery, 7);
 
 /**
  * @generated from message drift.v1.ListScanRunsRequest
@@ -295,7 +186,7 @@ export type ListScanRunsRequest = Message<"drift.v1.ListScanRunsRequest"> & {
  * Use `create(ListScanRunsRequestSchema)` to create a new message.
  */
 export const ListScanRunsRequestSchema: GenMessage<ListScanRunsRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_discovery, 8);
+  messageDesc(file_drift_v1_discovery, 4);
 
 /**
  * @generated from message drift.v1.ListScanRunsResponse
@@ -317,51 +208,7 @@ export type ListScanRunsResponse = Message<"drift.v1.ListScanRunsResponse"> & {
  * Use `create(ListScanRunsResponseSchema)` to create a new message.
  */
 export const ListScanRunsResponseSchema: GenMessage<ListScanRunsResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_discovery, 9);
-
-/**
- * @generated from message drift.v1.ListScanCandidatesRequest
- */
-export type ListScanCandidatesRequest = Message<"drift.v1.ListScanCandidatesRequest"> & {
-  /**
-   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
-   */
-  workspace?: WorkspaceRef;
-
-  /**
-   * @generated from field: drift.v1.PageRequest page = 2;
-   */
-  page?: PageRequest;
-};
-
-/**
- * Describes the message drift.v1.ListScanCandidatesRequest.
- * Use `create(ListScanCandidatesRequestSchema)` to create a new message.
- */
-export const ListScanCandidatesRequestSchema: GenMessage<ListScanCandidatesRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_discovery, 10);
-
-/**
- * @generated from message drift.v1.ListScanCandidatesResponse
- */
-export type ListScanCandidatesResponse = Message<"drift.v1.ListScanCandidatesResponse"> & {
-  /**
-   * @generated from field: repeated drift.v1.ScanCandidate candidates = 1;
-   */
-  candidates: ScanCandidate[];
-
-  /**
-   * @generated from field: drift.v1.PageResponse page = 2;
-   */
-  page?: PageResponse;
-};
-
-/**
- * Describes the message drift.v1.ListScanCandidatesResponse.
- * Use `create(ListScanCandidatesResponseSchema)` to create a new message.
- */
-export const ListScanCandidatesResponseSchema: GenMessage<ListScanCandidatesResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_discovery, 11);
+  messageDesc(file_drift_v1_discovery, 5);
 
 /**
  * @generated from enum drift.v1.ScanRunState
@@ -405,49 +252,38 @@ export const ScanRunStateSchema: GenEnum<ScanRunState> = /*@__PURE__*/
   enumDesc(file_drift_v1_discovery, 0);
 
 /**
- * @generated from enum drift.v1.ScanCandidateState
+ * DeviceLinkState is the observed transport state of a scanned device. It is a
+ * fact about the current link, not a lifecycle an operator must advance: an
+ * offline or unauthorized device is reported as such and is not actionable.
+ *
+ * @generated from enum drift.v1.DeviceLinkState
  */
-export enum ScanCandidateState {
+export enum DeviceLinkState {
   /**
-   * @generated from enum value: SCAN_CANDIDATE_STATE_UNSPECIFIED = 0;
+   * @generated from enum value: DEVICE_LINK_STATE_UNSPECIFIED = 0;
    */
   UNSPECIFIED = 0,
 
   /**
-   * @generated from enum value: SCAN_CANDIDATE_STATE_DISCOVERED = 1;
+   * @generated from enum value: DEVICE_LINK_STATE_ONLINE = 1;
    */
-  DISCOVERED = 1,
+  ONLINE = 1,
 
   /**
-   * @generated from enum value: SCAN_CANDIDATE_STATE_PENDING_APPROVAL = 2;
+   * @generated from enum value: DEVICE_LINK_STATE_OFFLINE = 2;
    */
-  PENDING_APPROVAL = 2,
+  OFFLINE = 2,
 
   /**
-   * @generated from enum value: SCAN_CANDIDATE_STATE_APPROVED = 3;
+   * @generated from enum value: DEVICE_LINK_STATE_UNAUTHORIZED = 3;
    */
-  APPROVED = 3,
-
-  /**
-   * @generated from enum value: SCAN_CANDIDATE_STATE_REJECTED = 4;
-   */
-  REJECTED = 4,
-
-  /**
-   * @generated from enum value: SCAN_CANDIDATE_STATE_EXPIRED = 5;
-   */
-  EXPIRED = 5,
-
-  /**
-   * @generated from enum value: SCAN_CANDIDATE_STATE_REGISTERED = 6;
-   */
-  REGISTERED = 6,
+  UNAUTHORIZED = 3,
 }
 
 /**
- * Describes the enum drift.v1.ScanCandidateState.
+ * Describes the enum drift.v1.DeviceLinkState.
  */
-export const ScanCandidateStateSchema: GenEnum<ScanCandidateState> = /*@__PURE__*/
+export const DeviceLinkStateSchema: GenEnum<DeviceLinkState> = /*@__PURE__*/
   enumDesc(file_drift_v1_discovery, 1);
 
 /**
@@ -463,36 +299,12 @@ export const DiscoveryService: GenService<{
     output: typeof StartScanResponseSchema;
   },
   /**
-   * @generated from rpc drift.v1.DiscoveryService.DecideScanCandidate
-   */
-  decideScanCandidate: {
-    methodKind: "unary";
-    input: typeof DecideScanCandidateRequestSchema;
-    output: typeof DecideScanCandidateResponseSchema;
-  },
-  /**
-   * @generated from rpc drift.v1.DiscoveryService.RegisterScanCandidate
-   */
-  registerScanCandidate: {
-    methodKind: "unary";
-    input: typeof RegisterScanCandidateRequestSchema;
-    output: typeof RegisterScanCandidateResponseSchema;
-  },
-  /**
    * @generated from rpc drift.v1.DiscoveryService.ListScanRuns
    */
   listScanRuns: {
     methodKind: "unary";
     input: typeof ListScanRunsRequestSchema;
     output: typeof ListScanRunsResponseSchema;
-  },
-  /**
-   * @generated from rpc drift.v1.DiscoveryService.ListScanCandidates
-   */
-  listScanCandidates: {
-    methodKind: "unary";
-    input: typeof ListScanCandidatesRequestSchema;
-    output: typeof ListScanCandidatesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_discovery, 0);

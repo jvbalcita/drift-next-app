@@ -15,7 +15,6 @@ func validTestProfile() networkprofiles.NetworkProfile {
 		Name:          "Lab range",
 		AddressPolicy: "192.0.2.0/28",
 		Ports:         []uint16{5555},
-		State:         networkprofiles.Active,
 	}
 }
 
@@ -32,12 +31,6 @@ func TestNetworkProfileValidationRejectsUnboundedOrUnsafePolicies(t *testing.T) 
 			return p
 		}(),
 		func() networkprofiles.NetworkProfile { p := validTestProfile(); p.Ports = []uint16{0}; return p }(),
-		func() networkprofiles.NetworkProfile {
-			p := validTestProfile()
-			p.IsDefault = true
-			p.State = networkprofiles.Draft
-			return p
-		}(),
 	}
 	for _, profile := range cases {
 		if err := profile.Validate(); err == nil {
@@ -46,21 +39,28 @@ func TestNetworkProfileValidationRejectsUnboundedOrUnsafePolicies(t *testing.T) 
 	}
 }
 
+func TestNewProfileIsImmediatelyScanEligible(t *testing.T) {
+	profile := validTestProfile()
+	if err := profile.Validate(); err != nil {
+		t.Fatalf("new saved profile Validate() error = %v", err)
+	}
+}
+
 func TestFakeScannerReturnsObservationsWithoutSideEffects(t *testing.T) {
-	scanner := NewFakeScanner([]ObservedCandidate{{CandidateKey: "mock-1", Host: "192.0.2.4", Port: 5555}})
+	scanner := NewFakeScanner([]ObservedDevice{{Serial: "mock-1", Host: "192.0.2.4", Port: 5555}})
 	got, err := scanner.Scan(context.Background(), validTestProfile())
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	if len(got) != 1 || got[0].CandidateKey != "mock-1" {
-		t.Fatalf("Scan() = %#v, want one deterministic candidate", got)
+	if len(got) != 1 || got[0].Serial != "mock-1" {
+		t.Fatalf("Scan() = %#v, want one deterministic observation", got)
 	}
-	got[0].CandidateKey = "changed-by-caller"
+	got[0].Serial = "changed-by-caller"
 	again, err := scanner.Scan(context.Background(), validTestProfile())
 	if err != nil {
 		t.Fatalf("second Scan() error = %v", err)
 	}
-	if again[0].CandidateKey != "mock-1" {
+	if again[0].Serial != "mock-1" {
 		t.Fatalf("scanner returned mutable internal data: %#v", again)
 	}
 }

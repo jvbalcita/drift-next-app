@@ -116,10 +116,10 @@ describe("Drift command center", () => {
     expect(screen.getByText("Ordering", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
     unmount()
 
-    window.location.hash = "#network-profiles/candidates"
+    window.location.hash = "#network-profiles/scans"
     render(<App />)
-    expect(await screen.findByRole("tab", { name: "Pending Candidates" })).toHaveAttribute("data-active")
-    expect(screen.getByText("Pending Candidates", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
+    expect(await screen.findByRole("tab", { name: "Discovery Scans" })).toHaveAttribute("data-active")
+    expect(screen.getByText("Discovery Scans", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
   })
 
   it("selects the Settings history view from its hash route", async () => {
@@ -134,7 +134,6 @@ describe("Drift command center", () => {
     const routes = [
       ["#accounts/run-history", "Run History"],
       ["#network-profiles/endpoints", "Registered Endpoints"],
-      ["#network-profiles/provisioning", "Device Provisioning"],
       ["#groups/membership", "Membership"],
       ["#workflows/skills", "Skills"],
       ["#agents/capabilities", "Capabilities"],
@@ -285,7 +284,6 @@ describe("Drift command center", () => {
     expect(within(strip).getByText("Spool Clear")).toBeInTheDocument()
     expect(within(strip).getByText("No target confirmed")).toBeInTheDocument()
     expect(within(strip).getByRole("button", { name: /Confirm Target/i })).toBeDisabled()
-    expect(within(strip).getByRole("button", { name: /Device Provisioning/i })).toBeEnabled()
     expect(within(strip).getByRole("button", { name: /Runtime And Spool/i })).toBeEnabled()
     expect(within(strip).queryByRole("button", { name: /Capture Observation/i })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Atlas 04/i })).toBeInTheDocument()
@@ -295,46 +293,6 @@ describe("Drift command center", () => {
     expect(within(strip).getByText("Blocked")).toBeInTheDocument()
     expect(within(strip).getByRole("button", { name: /Confirm Target/i })).toBeEnabled()
     expect(screen.getByText(/2 serials listed/i)).toBeInTheDocument()
-  })
-
-  it("keeps Lab Provisioning empty until evidence exists and disables Registration without Approval", async () => {
-    const user = userEvent.setup()
-    window.location.hash = "#network-profiles/provisioning"
-    render(<App />)
-
-    expect(await screen.findByRole("tab", { name: "Device Provisioning" })).toHaveAttribute("data-active")
-    expect(screen.getByText("No Device Provisioning Evidence")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Verify Provisioning/i })).toBeDisabled()
-    expect(screen.getByRole("button", { name: /Approve Provisioning/i })).toBeDisabled()
-    expect(screen.getByRole("button", { name: /Register Device/i })).toBeDisabled()
-    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Discovery")
-    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Approval")
-    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Provisioning")
-    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Registration")
-    expect(screen.getByLabelText(/Device provisioning stages/i)).toHaveTextContent("Awaiting Approval")
-
-    await user.click(screen.getByRole("button", { name: /^Control/ }))
-    await user.click(screen.getByRole("button", { name: /Discover Devices/i }))
-    await user.click(screen.getByRole("button", { name: /Confirm Target/i }))
-    const dialog = screen.getByRole("dialog")
-    await user.selectOptions(within(dialog).getByLabelText("Serial"), "MOCKSERIAL0001")
-    await user.type(within(dialog).getByLabelText("Display Name"), "Lab bench")
-    await user.type(within(dialog).getByLabelText("Confirmation Text"), "MOCKSERIAL0001")
-    await user.type(within(dialog).getByLabelText("Reason"), "Vertical slice bring-up")
-    await user.click(within(dialog).getByRole("button", { name: /^Confirm Target$/i }))
-
-    await user.click(screen.getByRole("button", { name: /Device Provisioning/i }))
-    const sheet = screen.getByRole("dialog")
-    await user.click(within(sheet).getByRole("button", { name: /Verify Provisioning/i }))
-    expect(screen.getByText(/Provisioning verified/i)).toBeInTheDocument()
-
-    await user.click(within(sheet).getByRole("button", { name: /Approve Provisioning/i }))
-    await user.click(screen.getByRole("button", { name: /Grant Approval/i }))
-    expect(screen.getByText(/Approval recorded/i)).toBeInTheDocument()
-
-    await user.click(within(sheet).getByRole("button", { name: /Register Device/i }))
-    await user.click(screen.getByRole("button", { name: /Confirm Registration/i }))
-    expect(screen.getAllByText(/not a real device registration/i).length).toBeGreaterThan(0)
   })
 
   it("requires confirmation before spool replay after a mock disconnect", async () => {
