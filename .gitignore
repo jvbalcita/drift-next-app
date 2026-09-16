@@ -8,3 +8,9 @@ dist/
 .env.*
 !.env.example
 src-tauri/target/
+
+# Build outputs at the repository root. `go build ./cmd/...` drops binaries
+# beside the module root, so a plain `git add -A` would stage a 24 MB Mach-O.
+/control-plane
+/edge-agent
+/drift
