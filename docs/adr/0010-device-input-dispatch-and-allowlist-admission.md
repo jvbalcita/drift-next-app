@@ -5,6 +5,7 @@
 - Depends on: ADR-0008 (typed device input, and the recorded lift of the device-command deferral), ADR-0009 (domain registration of the typed device inputs)
 - Composed with: ADR-0011 (the render-space cross-check, which this dispatcher now carries as a second gate)
 - Does not lift: ADR-0004 (the adapter boundary), ADR-0005 (raw ADB shell, arbitrary coordinates, clipboard/global commands, automatic package changes)
+- Amended: 2026-09-16 — the admission grows by one argument array: the render-size declaration read `["shell", "wm", "size"]`, with zero variable positions (card ARC-75). Nothing else in this record changed. See the amendment below.
 
 ## Context
 
@@ -136,3 +137,53 @@ A failed postcondition is classified (`postcondition_failed`) and returned as `f
 - `internal/edge/execution/input_dispatch_sqlite_test.go` is the integration proof against a disposable SQLite database: a full dispatch persisted as verified with a succeeded cleanup, the same idempotency key returning the recorded result without a second call, the same key with a different request refused, an expired lease and a stale fencing token each refused by the probe *and* independently refused by `ActionService.Authorize`, an engaged emergency stop refused before dispatch, and offline/unauthorized/unavailable transports refused against a healthy control tuple - every refusal with a zero device-call count.
 - `internal/edge/actors/actor_test.go` pins that cancelling a caller stops the in-flight adapter call; `internal/edge/runner/runner_test.go` pins that a terminal idempotent replay is not re-executed.
 - `gofmt -l` on the changed files, `go vet ./...`, `go build ./...`, `go test ./...`, `go test -race ./internal/store/sqlite/... ./internal/transport/connect/... ./internal/edge/...` and `git diff --check` are the gates for this change; `go.mod`/`go.sum` are unchanged and no dependency was added.
+
+## Amendment: the render-size declaration read (card ARC-75)
+
+**This amendment adds one argument array to the admission recorded above. It changes nothing else about it, and it weakens no gate.**
+
+### What was admitted
+
+`matchesAllowlist` in `internal/edge/adb/command.go` now recognises `["shell", "wm", "size"]` and reports it as `wm-size`:
+
+```go
+case len(args) == 3 && args[0] == "shell" && args[1] == "wm" && args[2] == "size":
+	return "wm-size", true
+```
+
+It is admitted in `matchesAllowlist`'s **read-only** branch, beside `get-state`, `screencap`, `getprop`, the uiautomator dumps, `cat` and `rm` — deliberately *not* in `matchesDeviceInputAllowlist`, which remains exactly the six input arrays recorded above. This array is a precondition read, not a device input, and the two are different admissions carrying different names, so a reader of either function can still tell which surface is being looked at. The read-only side of the allow-list grew from seven operation names to eight; the input side is unchanged.
+
+### It has zero variable positions, which makes it the narrowest array in the allow-list
+
+Every other admitted array has at least one variable position that must be bounded: a coordinate (a canonical decimal ≤ 9999), a swipe duration, a key code, a dotted package, a component, a `%s`-escaped text token, an adapter-owned device path, or one of seven typed build properties. Each of those needs a pattern or a bound, and each bound is re-derived inside this adapter rather than imported from the builder.
+
+This array has **none**. It is three fixed literals with no position a caller can reach: no caller value, no decimal, no name, no flag, no path, no separator, no redirect, no substitution and no second command — and no argument position at all. There is therefore nothing to parameterise and no bound to derive. The array cannot express command text, and no caller can make it express command text, because no caller supplies any part of it.
+
+The structural property that follows is asserted directly: because every position is a fixed token, substituting a value at any position of the admitted array produces a different array and is refused (`TestTheRenderSizeReadHasNoVariablePosition`).
+
+### Why a read-only precondition read is acceptable
+
+`wm size` is a declaration read. The device prints the physical size it was manufactured with and, when an operator has set one, the override. It writes nothing, mutates nothing, and accepts no argument.
+
+It is admitted because it is the only way the render-space cross-check can obtain the frame a coordinate is measured against (ADR-0011), and that frame is a safety precondition rather than a convenience: the legacy failure this product exists to stop is a coordinate that is valid inside the frame a caller declared and wrong on the device. A frame that cannot be read is refused — fail closed, never substituted for another frame — and before this amendment it was *always* refused on a real device, because the read itself was not admitted. The gate was correct; the read was blocked. This amendment removes the blocker rather than fixing a bug.
+
+The read is composed over the device's own transport and not over the `countingTransport` wrapper the input path uses, so it is not counted as the input reaching the device (ADR-0011 §4).
+
+### What refused it before
+
+Nothing argued for the refusal. The allow-list simply had no case for the array, so `RunAllowlisted` returned `ErrArgvNotAllowlisted` (`internal/edge/adb/adapter.go`), the reader turned that into `unavailable` ("the device render size could not be read"), and `checkRenderSpace` refused every coordinate-bearing dispatch with the render-space gate's own failure class instead of a transport class. That fail-closed state was pinned deliberately by ADR-0011 §5 and by a case in `TestTheDispatchGatesComposeOnTheCoordinateFrame`, which asserted both the `observation` class and a zero process-invocation count.
+
+### What is unchanged
+
+- **No gate was weakened, bypassed or reordered.** The kernel, the readiness probe, the render-space cross-check, the postcondition evaluation and the `countingTransport` composition are untouched. This amendment adds one array to a list.
+- **Every near miss stays refused**, each as its own case: `wm size reset`, `wm density`, `wm` with no subcommand, `size` without `shell`, a case variant of either token, either token named by path, the read through a shell (`shell sh -c "wm size"`), the read without the remote shell (`exec-out wm size`), the read with any extra token, and a variable position of any kind.
+- **One array was admitted and nothing else.** `TestTheRenderSizeAdmissionDoesNotWidenTheAllowlistSurface` sweeps the surface: every array admitted before this change still resolves to its own operation name, the set of admitted operation names is exactly the recorded set (eight read-only names including `wm-size`, plus the six input names), and a corpus of arrays refused before the change stays refused.
+- **The admission is re-derived inside the adapter**, not imported from the builder: the three literals are spelled in `internal/edge/adb` rather than taken from `wmSizeArgv()` in `internal/edge/execution`, so the allow-list keeps an independent opinion about what the reader is permitted to run (AGENTS.md §3).
+- **ADR-0004 and ADR-0005 are not lifted.** There is still no generic command, shell, exec, argv or free-form payload path, and this array carries no argument through which one could arrive.
+
+### Validation
+
+- `internal/edge/adb/render_size_allowlist_test.go`: the admission and its operation name; the zero-variable-position property; every near miss as its own case; execution through the real adapter with the serial as its own token and exactly one process invocation; and the surface sweep above.
+- `internal/edge/execution/render_size_transport_test.go`: the exact array is no longer refused by the real transport (`ErrArgvNotAllowlisted` is gone for it), and the real `WmSizeReader` over the real allow-list yields a reading — the device's OVERRIDE, carrying an observation time — instead of reporting the device render size as unavailable.
+- `TestTheDispatchGatesComposeOnTheCoordinateFrame`'s production-composition case was re-pointed rather than deleted: it used to assert this refusal, and it now asserts the composed path end to end (the reading is obtained through the real allow-list, the declared frame is cross-checked against it, and the tap is dispatched) with the read and the input as two distinct calls in that order — and with the read's near misses still refused at the real transport. Its five other cases are unchanged.
+- `gofmt -l` on the changed files, `go vet ./...`, `go build ./...`, `go test ./...`, `go test -race ./internal/edge/... ./internal/transport/connect/...`, `bash scripts/secret-scan.sh` and `git diff --check` are the gates for this amendment; `go.mod`/`go.sum` are unchanged and no dependency was added.

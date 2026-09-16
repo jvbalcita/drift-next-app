@@ -2,6 +2,7 @@ package execution_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -813,14 +814,24 @@ func TestTheDispatchGatesComposeOnTheCoordinateFrame(t *testing.T) {
 		matchArgs(t, fixture.transport.invocation(0).args, "shell", "input", "keyevent", "4")
 	})
 
-	// The production composition, against the real allow-list: the default
-	// render-size source is the real reader over the same narrow transport, so
-	// the read is admitted (or not) by the same allow-list as every other
-	// device call. `shell wm size` is not admitted yet - that is card ARC-75 -
-	// so this path is fail-closed today, and it fails closed *before* the
-	// allow-listed adapter is asked to run anything.
-	t.Run("the real composition refuses a coordinate until the render-size read is admitted", func(t *testing.T) {
-		runner := adb.NewFakeRunner().RespondDefault(adb.FakeResponse{})
+	// The production composition, with the render-size read admitted. The default
+	// render-size source is the real reader over the same narrow transport, so the
+	// read is admitted by the same allow-list as every other device call. ARC-75
+	// admitted `shell wm size`: before it, this exact path failed closed with the
+	// read refused, which is what this subtest used to pin. It now asserts the
+	// composition end to end against the real adapter and its real allow-list -
+	// the reading is obtained, the declared frame is cross-checked against it, and
+	// the coordinate is dispatched - and the read is a read-only precondition
+	// check rather than the input, so it is its own call and is not counted as the
+	// input reaching the device.
+	t.Run("the real composition obtains the reading and dispatches through both gates", func(t *testing.T) {
+		// The device declares an OVERRIDE that differs from its physical panel,
+		// so the frame the cross-check must accept is the override.
+		output := fmt.Sprintf("Physical size: %dx%d\nOverride size: %dx%d\n",
+			testRenderWidth/2, testRenderHeight/2, testRenderWidth, testRenderHeight)
+		runner := adb.NewFakeRunner().
+			Respond([]string{"-s", testSerial, "shell", "wm", "size"}, adb.FakeResponse{Result: adb.Result{Stdout: []byte(output)}}).
+			Respond([]string{"-s", testSerial, "shell", "input", "tap", "540", "960"}, adb.FakeResponse{Result: adb.Result{ExitCode: 0}})
 		adapter, err := adb.NewAdapter("/opt/android/platform-tools/adb", runner, adb.WithOperationTimeout(time.Second))
 		if err != nil {
 			t.Fatalf("new adapter: %v", err)
@@ -836,22 +847,38 @@ func TestTheDispatchGatesComposeOnTheCoordinateFrame(t *testing.T) {
 
 		result, err := dispatcher.Run(context.Background(), inputRequest("attempt-composed-real", "key-composed-real", tapPayload()), "operator", "operator-1")
 		if err != nil {
-			t.Fatalf("dispatch returned %v, want the refusal recorded in the result", err)
+			t.Fatalf("dispatch: %v", err)
 		}
-		if result.Outcome == action.OutcomeVerified {
-			t.Fatalf("result = %#v, want a refusal rather than success", result)
-		}
-		if result.FailureClass == string(domain.FailureTransport) {
-			t.Fatalf("refusal class = %q, want the render-space refusal", result.FailureClass)
-		}
-		if result.FailureClass != string(domain.FailureObservation) {
-			t.Fatalf("refusal class = %q, want %q: the device render size could not be read", result.FailureClass, domain.FailureObservation)
+		if result.Outcome != action.OutcomeVerified || !result.PostconditionPassed {
+			t.Fatalf("result = %#v, want a verified dispatch: the reading is obtained through the real allow-list and the declared frame matches it", result)
 		}
 		if control.called("indeterminate") {
-			t.Fatal("the render-size read was counted as the input reaching the device, so an unauthorized read was recorded as an unusable in-flight call")
+			t.Fatal("the dispatch was recorded as an unusable in-flight call, so a gate refused after the input was attempted")
 		}
-		if invocations := runner.Invocations(); len(invocations) != 0 {
-			t.Fatalf("process invocations = %d, want 0: the allow-list refused the read after asking the host to run something", len(invocations))
+
+		invocations := runner.Invocations()
+		attempted := make([][]string, 0, len(invocations))
+		for _, invocation := range invocations {
+			attempted = append(attempted, invocation.Args)
+		}
+		if len(invocations) != 2 {
+			t.Fatalf("process invocations = %d, want 2 (%v): the admitted render-size read and then the tap, in that order", len(invocations), attempted)
+		}
+		matchArgs(t, invocations[0].Args, "-s", testSerial, "shell", "wm", "size")
+		matchArgs(t, invocations[1].Args, "-s", testSerial, "shell", "input", "tap", "540", "960")
+
+		// The admission is exactly one array. The near misses of the read stay
+		// refused at the real transport, so it did not become a way to run `wm`
+		// with an argument of the caller's choosing.
+		for _, args := range [][]string{
+			{"shell", "wm", "size", "reset"},
+			{"shell", "wm", "density"},
+			{"shell", "wm"},
+			{"wm", "size"},
+		} {
+			if _, err := execution.NewADBInputTransport(adapter).RunDeviceCommand(context.Background(), testSerial, args); !errors.Is(err, adb.ErrArgvNotAllowlisted) {
+				t.Fatalf("RunDeviceCommand(%q) = %v, want ErrArgvNotAllowlisted: the render-size admission admitted more than its own fixed array", args, err)
+			}
 		}
 	})
 }

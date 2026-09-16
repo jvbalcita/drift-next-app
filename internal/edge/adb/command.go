@@ -272,11 +272,27 @@ func RemoveArgv(devicePath string) ([]string, error) {
 // a quote, a shell metacharacter, a path, a flag, a separator, a redirect, a
 // substitution or a second command, so no admitted array can express command
 // text.
+//
+// The render-size declaration read (`shell wm size`) is the one admission
+// beside those input arrays (ARC-75, recorded as an amendment to ADR-0010). It
+// is a read-only precondition read the render-space cross-check cannot obtain a
+// device reading without, so it is listed with the read-only builders rather
+// than with the typed inputs, and it is spelled out here in literal tokens
+// rather than imported from the builder that emits it.
 func matchesAllowlist(args []string) (string, bool) {
 	if name, ok := matchesDeviceInputAllowlist(args); ok {
 		return name, true
 	}
 	switch {
+	// The render-size declaration read. It is the narrowest admission this
+	// adapter has: arity three, three fixed literals, and zero variable
+	// positions — no caller value, no decimal, no name, no flag, no path and no
+	// second command, so there is nothing to parameterise and no bound to
+	// derive. Every near miss (a second token, another subcommand, a shell, a
+	// case variant, either token named by path) is a different array and stays
+	// refused.
+	case len(args) == 3 && args[0] == "shell" && args[1] == "wm" && args[2] == "size":
+		return "wm-size", true
 	case equalArgv(args, getStateArgv()):
 		return "get-state", true
 	case equalArgv(args, screencapArgv()):
