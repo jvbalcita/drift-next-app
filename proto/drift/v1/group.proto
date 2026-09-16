@@ -16,6 +16,9 @@ message DeviceGroup {
   string display_name = 3;
   GroupState state = 4;
   uint64 row_version = 5;
+  // position is the persisted operator order of the group itself, the same
+  // ordering POST /groups/reorder used to write.
+  uint32 position = 6;
 }
 message GroupMembership {
   string id = 1;
@@ -53,8 +56,56 @@ message CreateDeviceGroupRequest {
 message CreateDeviceGroupResponse {
   DeviceGroup group = 1;
 }
+// RenameDeviceGroup replaces PATCH /groups/:id from the legacy registry API.
+message RenameDeviceGroupRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string group_id = 3;
+  string display_name = 4;
+  // row_version is the optimistic-concurrency guard the caller last observed.
+  uint64 row_version = 5;
+}
+message RenameDeviceGroupResponse {
+  DeviceGroup group = 1;
+}
+// DeleteDeviceGroup replaces DELETE /groups/:id. A group that carries history is
+// retired in place, never erased: memberships are append-only evidence.
+message DeleteDeviceGroupRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string group_id = 3;
+  uint64 row_version = 4;
+  bool confirmed = 5;
+}
+message DeleteDeviceGroupResponse {
+  DeviceGroup group = 1;
+}
+// ReorderDeviceGroups replaces POST /groups/reorder: the groups themselves.
+message ReorderDeviceGroupsRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  // group_ids is the complete desired order of the workspace's groups.
+  repeated string group_ids = 3;
+}
+message ReorderDeviceGroupsResponse {
+  repeated DeviceGroup groups = 1;
+}
+// RemoveDeviceFromGroup replaces PATCH /devices/:id/group with a null group. It
+// ends the active placement; ungrouped stays a computed view, never a row.
+message RemoveDeviceFromGroupRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+}
+message RemoveDeviceFromGroupResponse {
+  GroupMembership membership = 1;
+}
 service GroupService {
   rpc ListDeviceGroups(ListDeviceGroupsRequest) returns (ListDeviceGroupsResponse);
   rpc MoveDeviceToGroup(MoveDeviceToGroupRequest) returns (MoveDeviceToGroupResponse);
   rpc CreateDeviceGroup(CreateDeviceGroupRequest) returns (CreateDeviceGroupResponse);
+  rpc RenameDeviceGroup(RenameDeviceGroupRequest) returns (RenameDeviceGroupResponse);
+  rpc DeleteDeviceGroup(DeleteDeviceGroupRequest) returns (DeleteDeviceGroupResponse);
+  rpc ReorderDeviceGroups(ReorderDeviceGroupsRequest) returns (ReorderDeviceGroupsResponse);
+  rpc RemoveDeviceFromGroup(RemoveDeviceFromGroupRequest) returns (RemoveDeviceFromGroupResponse);
 }

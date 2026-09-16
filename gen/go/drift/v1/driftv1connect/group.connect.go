@@ -42,6 +42,18 @@ const (
 	// GroupServiceCreateDeviceGroupProcedure is the fully-qualified name of the GroupService's
 	// CreateDeviceGroup RPC.
 	GroupServiceCreateDeviceGroupProcedure = "/drift.v1.GroupService/CreateDeviceGroup"
+	// GroupServiceRenameDeviceGroupProcedure is the fully-qualified name of the GroupService's
+	// RenameDeviceGroup RPC.
+	GroupServiceRenameDeviceGroupProcedure = "/drift.v1.GroupService/RenameDeviceGroup"
+	// GroupServiceDeleteDeviceGroupProcedure is the fully-qualified name of the GroupService's
+	// DeleteDeviceGroup RPC.
+	GroupServiceDeleteDeviceGroupProcedure = "/drift.v1.GroupService/DeleteDeviceGroup"
+	// GroupServiceReorderDeviceGroupsProcedure is the fully-qualified name of the GroupService's
+	// ReorderDeviceGroups RPC.
+	GroupServiceReorderDeviceGroupsProcedure = "/drift.v1.GroupService/ReorderDeviceGroups"
+	// GroupServiceRemoveDeviceFromGroupProcedure is the fully-qualified name of the GroupService's
+	// RemoveDeviceFromGroup RPC.
+	GroupServiceRemoveDeviceFromGroupProcedure = "/drift.v1.GroupService/RemoveDeviceFromGroup"
 )
 
 // GroupServiceClient is a client for the drift.v1.GroupService service.
@@ -49,6 +61,10 @@ type GroupServiceClient interface {
 	ListDeviceGroups(context.Context, *connect.Request[v1.ListDeviceGroupsRequest]) (*connect.Response[v1.ListDeviceGroupsResponse], error)
 	MoveDeviceToGroup(context.Context, *connect.Request[v1.MoveDeviceToGroupRequest]) (*connect.Response[v1.MoveDeviceToGroupResponse], error)
 	CreateDeviceGroup(context.Context, *connect.Request[v1.CreateDeviceGroupRequest]) (*connect.Response[v1.CreateDeviceGroupResponse], error)
+	RenameDeviceGroup(context.Context, *connect.Request[v1.RenameDeviceGroupRequest]) (*connect.Response[v1.RenameDeviceGroupResponse], error)
+	DeleteDeviceGroup(context.Context, *connect.Request[v1.DeleteDeviceGroupRequest]) (*connect.Response[v1.DeleteDeviceGroupResponse], error)
+	ReorderDeviceGroups(context.Context, *connect.Request[v1.ReorderDeviceGroupsRequest]) (*connect.Response[v1.ReorderDeviceGroupsResponse], error)
+	RemoveDeviceFromGroup(context.Context, *connect.Request[v1.RemoveDeviceFromGroupRequest]) (*connect.Response[v1.RemoveDeviceFromGroupResponse], error)
 }
 
 // NewGroupServiceClient constructs a client for the drift.v1.GroupService service. By default, it
@@ -80,14 +96,42 @@ func NewGroupServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(groupServiceMethods.ByName("CreateDeviceGroup")),
 			connect.WithClientOptions(opts...),
 		),
+		renameDeviceGroup: connect.NewClient[v1.RenameDeviceGroupRequest, v1.RenameDeviceGroupResponse](
+			httpClient,
+			baseURL+GroupServiceRenameDeviceGroupProcedure,
+			connect.WithSchema(groupServiceMethods.ByName("RenameDeviceGroup")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteDeviceGroup: connect.NewClient[v1.DeleteDeviceGroupRequest, v1.DeleteDeviceGroupResponse](
+			httpClient,
+			baseURL+GroupServiceDeleteDeviceGroupProcedure,
+			connect.WithSchema(groupServiceMethods.ByName("DeleteDeviceGroup")),
+			connect.WithClientOptions(opts...),
+		),
+		reorderDeviceGroups: connect.NewClient[v1.ReorderDeviceGroupsRequest, v1.ReorderDeviceGroupsResponse](
+			httpClient,
+			baseURL+GroupServiceReorderDeviceGroupsProcedure,
+			connect.WithSchema(groupServiceMethods.ByName("ReorderDeviceGroups")),
+			connect.WithClientOptions(opts...),
+		),
+		removeDeviceFromGroup: connect.NewClient[v1.RemoveDeviceFromGroupRequest, v1.RemoveDeviceFromGroupResponse](
+			httpClient,
+			baseURL+GroupServiceRemoveDeviceFromGroupProcedure,
+			connect.WithSchema(groupServiceMethods.ByName("RemoveDeviceFromGroup")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // groupServiceClient implements GroupServiceClient.
 type groupServiceClient struct {
-	listDeviceGroups  *connect.Client[v1.ListDeviceGroupsRequest, v1.ListDeviceGroupsResponse]
-	moveDeviceToGroup *connect.Client[v1.MoveDeviceToGroupRequest, v1.MoveDeviceToGroupResponse]
-	createDeviceGroup *connect.Client[v1.CreateDeviceGroupRequest, v1.CreateDeviceGroupResponse]
+	listDeviceGroups      *connect.Client[v1.ListDeviceGroupsRequest, v1.ListDeviceGroupsResponse]
+	moveDeviceToGroup     *connect.Client[v1.MoveDeviceToGroupRequest, v1.MoveDeviceToGroupResponse]
+	createDeviceGroup     *connect.Client[v1.CreateDeviceGroupRequest, v1.CreateDeviceGroupResponse]
+	renameDeviceGroup     *connect.Client[v1.RenameDeviceGroupRequest, v1.RenameDeviceGroupResponse]
+	deleteDeviceGroup     *connect.Client[v1.DeleteDeviceGroupRequest, v1.DeleteDeviceGroupResponse]
+	reorderDeviceGroups   *connect.Client[v1.ReorderDeviceGroupsRequest, v1.ReorderDeviceGroupsResponse]
+	removeDeviceFromGroup *connect.Client[v1.RemoveDeviceFromGroupRequest, v1.RemoveDeviceFromGroupResponse]
 }
 
 // ListDeviceGroups calls drift.v1.GroupService.ListDeviceGroups.
@@ -105,11 +149,35 @@ func (c *groupServiceClient) CreateDeviceGroup(ctx context.Context, req *connect
 	return c.createDeviceGroup.CallUnary(ctx, req)
 }
 
+// RenameDeviceGroup calls drift.v1.GroupService.RenameDeviceGroup.
+func (c *groupServiceClient) RenameDeviceGroup(ctx context.Context, req *connect.Request[v1.RenameDeviceGroupRequest]) (*connect.Response[v1.RenameDeviceGroupResponse], error) {
+	return c.renameDeviceGroup.CallUnary(ctx, req)
+}
+
+// DeleteDeviceGroup calls drift.v1.GroupService.DeleteDeviceGroup.
+func (c *groupServiceClient) DeleteDeviceGroup(ctx context.Context, req *connect.Request[v1.DeleteDeviceGroupRequest]) (*connect.Response[v1.DeleteDeviceGroupResponse], error) {
+	return c.deleteDeviceGroup.CallUnary(ctx, req)
+}
+
+// ReorderDeviceGroups calls drift.v1.GroupService.ReorderDeviceGroups.
+func (c *groupServiceClient) ReorderDeviceGroups(ctx context.Context, req *connect.Request[v1.ReorderDeviceGroupsRequest]) (*connect.Response[v1.ReorderDeviceGroupsResponse], error) {
+	return c.reorderDeviceGroups.CallUnary(ctx, req)
+}
+
+// RemoveDeviceFromGroup calls drift.v1.GroupService.RemoveDeviceFromGroup.
+func (c *groupServiceClient) RemoveDeviceFromGroup(ctx context.Context, req *connect.Request[v1.RemoveDeviceFromGroupRequest]) (*connect.Response[v1.RemoveDeviceFromGroupResponse], error) {
+	return c.removeDeviceFromGroup.CallUnary(ctx, req)
+}
+
 // GroupServiceHandler is an implementation of the drift.v1.GroupService service.
 type GroupServiceHandler interface {
 	ListDeviceGroups(context.Context, *connect.Request[v1.ListDeviceGroupsRequest]) (*connect.Response[v1.ListDeviceGroupsResponse], error)
 	MoveDeviceToGroup(context.Context, *connect.Request[v1.MoveDeviceToGroupRequest]) (*connect.Response[v1.MoveDeviceToGroupResponse], error)
 	CreateDeviceGroup(context.Context, *connect.Request[v1.CreateDeviceGroupRequest]) (*connect.Response[v1.CreateDeviceGroupResponse], error)
+	RenameDeviceGroup(context.Context, *connect.Request[v1.RenameDeviceGroupRequest]) (*connect.Response[v1.RenameDeviceGroupResponse], error)
+	DeleteDeviceGroup(context.Context, *connect.Request[v1.DeleteDeviceGroupRequest]) (*connect.Response[v1.DeleteDeviceGroupResponse], error)
+	ReorderDeviceGroups(context.Context, *connect.Request[v1.ReorderDeviceGroupsRequest]) (*connect.Response[v1.ReorderDeviceGroupsResponse], error)
+	RemoveDeviceFromGroup(context.Context, *connect.Request[v1.RemoveDeviceFromGroupRequest]) (*connect.Response[v1.RemoveDeviceFromGroupResponse], error)
 }
 
 // NewGroupServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -137,6 +205,30 @@ func NewGroupServiceHandler(svc GroupServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(groupServiceMethods.ByName("CreateDeviceGroup")),
 		connect.WithHandlerOptions(opts...),
 	)
+	groupServiceRenameDeviceGroupHandler := connect.NewUnaryHandler(
+		GroupServiceRenameDeviceGroupProcedure,
+		svc.RenameDeviceGroup,
+		connect.WithSchema(groupServiceMethods.ByName("RenameDeviceGroup")),
+		connect.WithHandlerOptions(opts...),
+	)
+	groupServiceDeleteDeviceGroupHandler := connect.NewUnaryHandler(
+		GroupServiceDeleteDeviceGroupProcedure,
+		svc.DeleteDeviceGroup,
+		connect.WithSchema(groupServiceMethods.ByName("DeleteDeviceGroup")),
+		connect.WithHandlerOptions(opts...),
+	)
+	groupServiceReorderDeviceGroupsHandler := connect.NewUnaryHandler(
+		GroupServiceReorderDeviceGroupsProcedure,
+		svc.ReorderDeviceGroups,
+		connect.WithSchema(groupServiceMethods.ByName("ReorderDeviceGroups")),
+		connect.WithHandlerOptions(opts...),
+	)
+	groupServiceRemoveDeviceFromGroupHandler := connect.NewUnaryHandler(
+		GroupServiceRemoveDeviceFromGroupProcedure,
+		svc.RemoveDeviceFromGroup,
+		connect.WithSchema(groupServiceMethods.ByName("RemoveDeviceFromGroup")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.GroupService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GroupServiceListDeviceGroupsProcedure:
@@ -145,6 +237,14 @@ func NewGroupServiceHandler(svc GroupServiceHandler, opts ...connect.HandlerOpti
 			groupServiceMoveDeviceToGroupHandler.ServeHTTP(w, r)
 		case GroupServiceCreateDeviceGroupProcedure:
 			groupServiceCreateDeviceGroupHandler.ServeHTTP(w, r)
+		case GroupServiceRenameDeviceGroupProcedure:
+			groupServiceRenameDeviceGroupHandler.ServeHTTP(w, r)
+		case GroupServiceDeleteDeviceGroupProcedure:
+			groupServiceDeleteDeviceGroupHandler.ServeHTTP(w, r)
+		case GroupServiceReorderDeviceGroupsProcedure:
+			groupServiceReorderDeviceGroupsHandler.ServeHTTP(w, r)
+		case GroupServiceRemoveDeviceFromGroupProcedure:
+			groupServiceRemoveDeviceFromGroupHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -164,4 +264,20 @@ func (UnimplementedGroupServiceHandler) MoveDeviceToGroup(context.Context, *conn
 
 func (UnimplementedGroupServiceHandler) CreateDeviceGroup(context.Context, *connect.Request[v1.CreateDeviceGroupRequest]) (*connect.Response[v1.CreateDeviceGroupResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.GroupService.CreateDeviceGroup is not implemented"))
+}
+
+func (UnimplementedGroupServiceHandler) RenameDeviceGroup(context.Context, *connect.Request[v1.RenameDeviceGroupRequest]) (*connect.Response[v1.RenameDeviceGroupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.GroupService.RenameDeviceGroup is not implemented"))
+}
+
+func (UnimplementedGroupServiceHandler) DeleteDeviceGroup(context.Context, *connect.Request[v1.DeleteDeviceGroupRequest]) (*connect.Response[v1.DeleteDeviceGroupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.GroupService.DeleteDeviceGroup is not implemented"))
+}
+
+func (UnimplementedGroupServiceHandler) ReorderDeviceGroups(context.Context, *connect.Request[v1.ReorderDeviceGroupsRequest]) (*connect.Response[v1.ReorderDeviceGroupsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.GroupService.ReorderDeviceGroups is not implemented"))
+}
+
+func (UnimplementedGroupServiceHandler) RemoveDeviceFromGroup(context.Context, *connect.Request[v1.RemoveDeviceFromGroupRequest]) (*connect.Response[v1.RemoveDeviceFromGroupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.GroupService.RemoveDeviceFromGroup is not implemented"))
 }

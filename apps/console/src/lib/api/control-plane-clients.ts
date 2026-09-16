@@ -87,10 +87,18 @@ import {
 import {
   CreateDeviceGroupRequestSchema,
   CreateDeviceGroupResponseSchema,
+  DeleteDeviceGroupRequestSchema,
+  DeleteDeviceGroupResponseSchema,
   ListDeviceGroupsRequestSchema,
   ListDeviceGroupsResponseSchema,
   MoveDeviceToGroupRequestSchema,
   MoveDeviceToGroupResponseSchema,
+  RemoveDeviceFromGroupRequestSchema,
+  RemoveDeviceFromGroupResponseSchema,
+  RenameDeviceGroupRequestSchema,
+  RenameDeviceGroupResponseSchema,
+  ReorderDeviceGroupsRequestSchema,
+  ReorderDeviceGroupsResponseSchema,
 } from "@/gen/drift/v1/group_pb"
 import {
   AcquireDeviceLeaseRequestSchema,
@@ -327,6 +335,38 @@ export class GroupClient {
       context: requestContext({ requestId }),
       workspace: workspaceRef(workspaceId),
       displayName,
+    })
+  }
+  renameDeviceGroup(requestId: string, workspaceId: string, groupId: string, displayName: string, rowVersion: number) {
+    return this.rpc.call("RenameDeviceGroup", RenameDeviceGroupRequestSchema, RenameDeviceGroupResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      groupId,
+      displayName,
+      rowVersion: BigInt(rowVersion),
+    })
+  }
+  deleteDeviceGroup(requestId: string, workspaceId: string, groupId: string, rowVersion: number, confirmed: boolean) {
+    return this.rpc.call("DeleteDeviceGroup", DeleteDeviceGroupRequestSchema, DeleteDeviceGroupResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      groupId,
+      rowVersion: BigInt(rowVersion),
+      confirmed,
+    })
+  }
+  reorderDeviceGroups(requestId: string, workspaceId: string, groupIds: readonly string[]) {
+    return this.rpc.call("ReorderDeviceGroups", ReorderDeviceGroupsRequestSchema, ReorderDeviceGroupsResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      groupIds: [...groupIds],
+    })
+  }
+  removeDeviceFromGroup(requestId: string, workspaceId: string, deviceId: string) {
+    return this.rpc.call("RemoveDeviceFromGroup", RemoveDeviceFromGroupRequestSchema, RemoveDeviceFromGroupResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      deviceId,
     })
   }
 }

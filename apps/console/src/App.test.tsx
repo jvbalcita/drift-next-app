@@ -109,11 +109,14 @@ describe("Drift command center", () => {
   })
 
   it("selects non-device workspace views from a deep link", async () => {
-    window.location.hash = "#groups/ordering"
+    window.location.hash = "#groups/membership"
     const { unmount } = render(<App />)
 
-    expect(await screen.findByRole("tab", { name: "Ordering" })).toHaveAttribute("data-active")
-    expect(screen.getByText("Ordering", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
+    // Groups is a single tabless surface now: a deep link to a retired sibling
+    // view resolves to it and there is no tab control left to select.
+    expect(await screen.findByRole("heading", { name: "Groups and Membership" })).toBeInTheDocument()
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument()
+    expect(screen.getAllByText("Groups", { selector: '[data-slot="breadcrumb-page"]' }).length).toBeGreaterThan(0)
     unmount()
 
     window.location.hash = "#network-profiles/scans"
@@ -143,7 +146,6 @@ describe("Drift command center", () => {
     const routes = [
       ["#accounts/run-history", "Run History"],
       ["#network-profiles/endpoints", "Registered Endpoints"],
-      ["#groups/membership", "Membership"],
       ["#workflows/skills", "Skills"],
       ["#agents/capabilities", "Capabilities"],
       ["#runs/failed", "Failed / Indeterminate"],

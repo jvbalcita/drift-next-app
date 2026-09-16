@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/group.proto.
  */
 export const file_drift_v1_group: GenFile = /*@__PURE__*/
-  fileDesc("ChRkcmlmdC92MS9ncm91cC5wcm90bxIIZHJpZnQudjEilAEKC0RldmljZUdyb3VwEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIUCgxkaXNwbGF5X25hbWUYAyABKAkSIwoFc3RhdGUYBCABKA4yFC5kcmlmdC52MS5Hcm91cFN0YXRlEhMKC3Jvd192ZXJzaW9uGAUgASgEIokBCg9Hcm91cE1lbWJlcnNoaXASCgoCaWQYASABKAkSEAoIZ3JvdXBfaWQYAiABKAkSEQoJZGV2aWNlX2lkGAMgASgJEhAKCHBvc2l0aW9uGAQgASgNEg0KBXN0YXRlGAUgASgJEhIKCnN0YXJ0ZWRfYXQYBiABKAkSEAoIZW5kZWRfYXQYByABKAkiaQoXTGlzdERldmljZUdyb3Vwc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCKXAQoYTGlzdERldmljZUdyb3Vwc1Jlc3BvbnNlEiUKBmdyb3VwcxgBIAMoCzIVLmRyaWZ0LnYxLkRldmljZUdyb3VwEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2USLgoLbWVtYmVyc2hpcHMYAyADKAsyGS5kcmlmdC52MS5Hcm91cE1lbWJlcnNoaXAipwEKGE1vdmVEZXZpY2VUb0dyb3VwUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIQCghncm91cF9pZBgEIAEoCRIQCghwb3NpdGlvbhgFIAEoDSJKChlNb3ZlRGV2aWNlVG9Hcm91cFJlc3BvbnNlEi0KCm1lbWJlcnNoaXAYASABKAsyGS5kcmlmdC52MS5Hcm91cE1lbWJlcnNoaXAihgEKGENyZWF0ZURldmljZUdyb3VwUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhQKDGRpc3BsYXlfbmFtZRgDIAEoCSJBChlDcmVhdGVEZXZpY2VHcm91cFJlc3BvbnNlEiQKBWdyb3VwGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlR3JvdXAqWgoKR3JvdXBTdGF0ZRIbChdHUk9VUF9TVEFURV9VTlNQRUNJRklFRBAAEhYKEkdST1VQX1NUQVRFX0FDVElWRRABEhcKE0dST1VQX1NUQVRFX1JFVElSRUQQAjKlAgoMR3JvdXBTZXJ2aWNlElkKEExpc3REZXZpY2VHcm91cHMSIS5kcmlmdC52MS5MaXN0RGV2aWNlR3JvdXBzUmVxdWVzdBoiLmRyaWZ0LnYxLkxpc3REZXZpY2VHcm91cHNSZXNwb25zZRJcChFNb3ZlRGV2aWNlVG9Hcm91cBIiLmRyaWZ0LnYxLk1vdmVEZXZpY2VUb0dyb3VwUmVxdWVzdBojLmRyaWZ0LnYxLk1vdmVEZXZpY2VUb0dyb3VwUmVzcG9uc2USXAoRQ3JlYXRlRGV2aWNlR3JvdXASIi5kcmlmdC52MS5DcmVhdGVEZXZpY2VHcm91cFJlcXVlc3QaIy5kcmlmdC52MS5DcmVhdGVEZXZpY2VHcm91cFJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChRkcmlmdC92MS9ncm91cC5wcm90bxIIZHJpZnQudjEipgEKC0RldmljZUdyb3VwEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIUCgxkaXNwbGF5X25hbWUYAyABKAkSIwoFc3RhdGUYBCABKA4yFC5kcmlmdC52MS5Hcm91cFN0YXRlEhMKC3Jvd192ZXJzaW9uGAUgASgEEhAKCHBvc2l0aW9uGAYgASgNIokBCg9Hcm91cE1lbWJlcnNoaXASCgoCaWQYASABKAkSEAoIZ3JvdXBfaWQYAiABKAkSEQoJZGV2aWNlX2lkGAMgASgJEhAKCHBvc2l0aW9uGAQgASgNEg0KBXN0YXRlGAUgASgJEhIKCnN0YXJ0ZWRfYXQYBiABKAkSEAoIZW5kZWRfYXQYByABKAkiaQoXTGlzdERldmljZUdyb3Vwc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCKXAQoYTGlzdERldmljZUdyb3Vwc1Jlc3BvbnNlEiUKBmdyb3VwcxgBIAMoCzIVLmRyaWZ0LnYxLkRldmljZUdyb3VwEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2USLgoLbWVtYmVyc2hpcHMYAyADKAsyGS5kcmlmdC52MS5Hcm91cE1lbWJlcnNoaXAipwEKGE1vdmVEZXZpY2VUb0dyb3VwUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIQCghncm91cF9pZBgEIAEoCRIQCghwb3NpdGlvbhgFIAEoDSJKChlNb3ZlRGV2aWNlVG9Hcm91cFJlc3BvbnNlEi0KCm1lbWJlcnNoaXAYASABKAsyGS5kcmlmdC52MS5Hcm91cE1lbWJlcnNoaXAihgEKGENyZWF0ZURldmljZUdyb3VwUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhQKDGRpc3BsYXlfbmFtZRgDIAEoCSJBChlDcmVhdGVEZXZpY2VHcm91cFJlc3BvbnNlEiQKBWdyb3VwGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlR3JvdXAirQEKGFJlbmFtZURldmljZUdyb3VwUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhAKCGdyb3VwX2lkGAMgASgJEhQKDGRpc3BsYXlfbmFtZRgEIAEoCRITCgtyb3dfdmVyc2lvbhgFIAEoBCJBChlSZW5hbWVEZXZpY2VHcm91cFJlc3BvbnNlEiQKBWdyb3VwGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlR3JvdXAiqgEKGERlbGV0ZURldmljZUdyb3VwUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhAKCGdyb3VwX2lkGAMgASgJEhMKC3Jvd192ZXJzaW9uGAQgASgEEhEKCWNvbmZpcm1lZBgFIAEoCCJBChlEZWxldGVEZXZpY2VHcm91cFJlc3BvbnNlEiQKBWdyb3VwGAEgASgLMhUuZHJpZnQudjEuRGV2aWNlR3JvdXAihQEKGlJlb3JkZXJEZXZpY2VHcm91cHNSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZ3JvdXBfaWRzGAMgAygJIkQKG1Jlb3JkZXJEZXZpY2VHcm91cHNSZXNwb25zZRIlCgZncm91cHMYASADKAsyFS5kcmlmdC52MS5EZXZpY2VHcm91cCKHAQocUmVtb3ZlRGV2aWNlRnJvbUdyb3VwUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCSJOCh1SZW1vdmVEZXZpY2VGcm9tR3JvdXBSZXNwb25zZRItCgptZW1iZXJzaGlwGAEgASgLMhkuZHJpZnQudjEuR3JvdXBNZW1iZXJzaGlwKloKCkdyb3VwU3RhdGUSGwoXR1JPVVBfU1RBVEVfVU5TUEVDSUZJRUQQABIWChJHUk9VUF9TVEFURV9BQ1RJVkUQARIXChNHUk9VUF9TVEFURV9SRVRJUkVEEAIyrwUKDEdyb3VwU2VydmljZRJZChBMaXN0RGV2aWNlR3JvdXBzEiEuZHJpZnQudjEuTGlzdERldmljZUdyb3Vwc1JlcXVlc3QaIi5kcmlmdC52MS5MaXN0RGV2aWNlR3JvdXBzUmVzcG9uc2USXAoRTW92ZURldmljZVRvR3JvdXASIi5kcmlmdC52MS5Nb3ZlRGV2aWNlVG9Hcm91cFJlcXVlc3QaIy5kcmlmdC52MS5Nb3ZlRGV2aWNlVG9Hcm91cFJlc3BvbnNlElwKEUNyZWF0ZURldmljZUdyb3VwEiIuZHJpZnQudjEuQ3JlYXRlRGV2aWNlR3JvdXBSZXF1ZXN0GiMuZHJpZnQudjEuQ3JlYXRlRGV2aWNlR3JvdXBSZXNwb25zZRJcChFSZW5hbWVEZXZpY2VHcm91cBIiLmRyaWZ0LnYxLlJlbmFtZURldmljZUdyb3VwUmVxdWVzdBojLmRyaWZ0LnYxLlJlbmFtZURldmljZUdyb3VwUmVzcG9uc2USXAoRRGVsZXRlRGV2aWNlR3JvdXASIi5kcmlmdC52MS5EZWxldGVEZXZpY2VHcm91cFJlcXVlc3QaIy5kcmlmdC52MS5EZWxldGVEZXZpY2VHcm91cFJlc3BvbnNlEmIKE1Jlb3JkZXJEZXZpY2VHcm91cHMSJC5kcmlmdC52MS5SZW9yZGVyRGV2aWNlR3JvdXBzUmVxdWVzdBolLmRyaWZ0LnYxLlJlb3JkZXJEZXZpY2VHcm91cHNSZXNwb25zZRJoChVSZW1vdmVEZXZpY2VGcm9tR3JvdXASJi5kcmlmdC52MS5SZW1vdmVEZXZpY2VGcm9tR3JvdXBSZXF1ZXN0GicuZHJpZnQudjEuUmVtb3ZlRGV2aWNlRnJvbUdyb3VwUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.DeviceGroup
@@ -42,6 +42,14 @@ export type DeviceGroup = Message<"drift.v1.DeviceGroup"> & {
    * @generated from field: uint64 row_version = 5;
    */
   rowVersion: bigint;
+
+  /**
+   * position is the persisted operator order of the group itself, the same
+   * ordering POST /groups/reorder used to write.
+   *
+   * @generated from field: uint32 position = 6;
+   */
+  position: number;
 };
 
 /**
@@ -246,6 +254,216 @@ export const CreateDeviceGroupResponseSchema: GenMessage<CreateDeviceGroupRespon
   messageDesc(file_drift_v1_group, 7);
 
 /**
+ * RenameDeviceGroup replaces PATCH /groups/:id from the legacy registry API.
+ *
+ * @generated from message drift.v1.RenameDeviceGroupRequest
+ */
+export type RenameDeviceGroupRequest = Message<"drift.v1.RenameDeviceGroupRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string group_id = 3;
+   */
+  groupId: string;
+
+  /**
+   * @generated from field: string display_name = 4;
+   */
+  displayName: string;
+
+  /**
+   * row_version is the optimistic-concurrency guard the caller last observed.
+   *
+   * @generated from field: uint64 row_version = 5;
+   */
+  rowVersion: bigint;
+};
+
+/**
+ * Describes the message drift.v1.RenameDeviceGroupRequest.
+ * Use `create(RenameDeviceGroupRequestSchema)` to create a new message.
+ */
+export const RenameDeviceGroupRequestSchema: GenMessage<RenameDeviceGroupRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_group, 8);
+
+/**
+ * @generated from message drift.v1.RenameDeviceGroupResponse
+ */
+export type RenameDeviceGroupResponse = Message<"drift.v1.RenameDeviceGroupResponse"> & {
+  /**
+   * @generated from field: drift.v1.DeviceGroup group = 1;
+   */
+  group?: DeviceGroup;
+};
+
+/**
+ * Describes the message drift.v1.RenameDeviceGroupResponse.
+ * Use `create(RenameDeviceGroupResponseSchema)` to create a new message.
+ */
+export const RenameDeviceGroupResponseSchema: GenMessage<RenameDeviceGroupResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_group, 9);
+
+/**
+ * DeleteDeviceGroup replaces DELETE /groups/:id. A group that carries history is
+ * retired in place, never erased: memberships are append-only evidence.
+ *
+ * @generated from message drift.v1.DeleteDeviceGroupRequest
+ */
+export type DeleteDeviceGroupRequest = Message<"drift.v1.DeleteDeviceGroupRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string group_id = 3;
+   */
+  groupId: string;
+
+  /**
+   * @generated from field: uint64 row_version = 4;
+   */
+  rowVersion: bigint;
+
+  /**
+   * @generated from field: bool confirmed = 5;
+   */
+  confirmed: boolean;
+};
+
+/**
+ * Describes the message drift.v1.DeleteDeviceGroupRequest.
+ * Use `create(DeleteDeviceGroupRequestSchema)` to create a new message.
+ */
+export const DeleteDeviceGroupRequestSchema: GenMessage<DeleteDeviceGroupRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_group, 10);
+
+/**
+ * @generated from message drift.v1.DeleteDeviceGroupResponse
+ */
+export type DeleteDeviceGroupResponse = Message<"drift.v1.DeleteDeviceGroupResponse"> & {
+  /**
+   * @generated from field: drift.v1.DeviceGroup group = 1;
+   */
+  group?: DeviceGroup;
+};
+
+/**
+ * Describes the message drift.v1.DeleteDeviceGroupResponse.
+ * Use `create(DeleteDeviceGroupResponseSchema)` to create a new message.
+ */
+export const DeleteDeviceGroupResponseSchema: GenMessage<DeleteDeviceGroupResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_group, 11);
+
+/**
+ * ReorderDeviceGroups replaces POST /groups/reorder: the groups themselves.
+ *
+ * @generated from message drift.v1.ReorderDeviceGroupsRequest
+ */
+export type ReorderDeviceGroupsRequest = Message<"drift.v1.ReorderDeviceGroupsRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * group_ids is the complete desired order of the workspace's groups.
+   *
+   * @generated from field: repeated string group_ids = 3;
+   */
+  groupIds: string[];
+};
+
+/**
+ * Describes the message drift.v1.ReorderDeviceGroupsRequest.
+ * Use `create(ReorderDeviceGroupsRequestSchema)` to create a new message.
+ */
+export const ReorderDeviceGroupsRequestSchema: GenMessage<ReorderDeviceGroupsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_group, 12);
+
+/**
+ * @generated from message drift.v1.ReorderDeviceGroupsResponse
+ */
+export type ReorderDeviceGroupsResponse = Message<"drift.v1.ReorderDeviceGroupsResponse"> & {
+  /**
+   * @generated from field: repeated drift.v1.DeviceGroup groups = 1;
+   */
+  groups: DeviceGroup[];
+};
+
+/**
+ * Describes the message drift.v1.ReorderDeviceGroupsResponse.
+ * Use `create(ReorderDeviceGroupsResponseSchema)` to create a new message.
+ */
+export const ReorderDeviceGroupsResponseSchema: GenMessage<ReorderDeviceGroupsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_group, 13);
+
+/**
+ * RemoveDeviceFromGroup replaces PATCH /devices/:id/group with a null group. It
+ * ends the active placement; ungrouped stays a computed view, never a row.
+ *
+ * @generated from message drift.v1.RemoveDeviceFromGroupRequest
+ */
+export type RemoveDeviceFromGroupRequest = Message<"drift.v1.RemoveDeviceFromGroupRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string device_id = 3;
+   */
+  deviceId: string;
+};
+
+/**
+ * Describes the message drift.v1.RemoveDeviceFromGroupRequest.
+ * Use `create(RemoveDeviceFromGroupRequestSchema)` to create a new message.
+ */
+export const RemoveDeviceFromGroupRequestSchema: GenMessage<RemoveDeviceFromGroupRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_group, 14);
+
+/**
+ * @generated from message drift.v1.RemoveDeviceFromGroupResponse
+ */
+export type RemoveDeviceFromGroupResponse = Message<"drift.v1.RemoveDeviceFromGroupResponse"> & {
+  /**
+   * @generated from field: drift.v1.GroupMembership membership = 1;
+   */
+  membership?: GroupMembership;
+};
+
+/**
+ * Describes the message drift.v1.RemoveDeviceFromGroupResponse.
+ * Use `create(RemoveDeviceFromGroupResponseSchema)` to create a new message.
+ */
+export const RemoveDeviceFromGroupResponseSchema: GenMessage<RemoveDeviceFromGroupResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_group, 15);
+
+/**
  * @generated from enum drift.v1.GroupState
  */
 export enum GroupState {
@@ -298,6 +516,38 @@ export const GroupService: GenService<{
     methodKind: "unary";
     input: typeof CreateDeviceGroupRequestSchema;
     output: typeof CreateDeviceGroupResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.GroupService.RenameDeviceGroup
+   */
+  renameDeviceGroup: {
+    methodKind: "unary";
+    input: typeof RenameDeviceGroupRequestSchema;
+    output: typeof RenameDeviceGroupResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.GroupService.DeleteDeviceGroup
+   */
+  deleteDeviceGroup: {
+    methodKind: "unary";
+    input: typeof DeleteDeviceGroupRequestSchema;
+    output: typeof DeleteDeviceGroupResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.GroupService.ReorderDeviceGroups
+   */
+  reorderDeviceGroups: {
+    methodKind: "unary";
+    input: typeof ReorderDeviceGroupsRequestSchema;
+    output: typeof ReorderDeviceGroupsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.GroupService.RemoveDeviceFromGroup
+   */
+  removeDeviceFromGroup: {
+    methodKind: "unary";
+    input: typeof RemoveDeviceFromGroupRequestSchema;
+    output: typeof RemoveDeviceFromGroupResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_group, 0);

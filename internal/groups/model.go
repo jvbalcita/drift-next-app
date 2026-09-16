@@ -31,6 +31,7 @@ type Group struct {
 	Workspace  organizations.WorkspaceID
 	Name       string
 	State      GroupState
+	Position   uint32
 	RowVersion uint64
 }
 

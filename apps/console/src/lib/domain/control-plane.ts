@@ -181,6 +181,7 @@ export interface GroupView {
   id: string
   name: string
   state: GroupState
+  position: number
   rowVersion: number
 }
 
@@ -641,7 +642,11 @@ export type ControlPlaneIntent =
   | { type: "deleteNetworkProfile"; profileId: string; confirmed: boolean }
   | { type: "startScan"; profileId: string }
   | { type: "moveDeviceToGroup"; deviceId: string; groupId: string; position: number }
+  | { type: "removeDeviceFromGroup"; deviceId: string }
   | { type: "createDeviceGroup"; name: string }
+  | { type: "renameDeviceGroup"; groupId: string; name: string; rowVersion: number }
+  | { type: "deleteDeviceGroup"; groupId: string; rowVersion: number; confirmed: boolean }
+  | { type: "reorderDeviceGroups"; groupIds: readonly string[] }
   | { type: "createAutomationAgent"; name: string }
   | { type: "assignAutomationAgentDevice"; agentId: string; deviceId: string }
   | { type: "cancelRun"; runId: string }

@@ -8,6 +8,7 @@ import (
 	"drift.local/drift-next/internal/organizations"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -48,8 +49,34 @@ func (r *NetworkProfileRepository) List(ctx context.Context, w organizations.Wor
 type GroupRepository struct{ store *DB }
 
 func NewGroupRepository(store *DB) *GroupRepository { return &GroupRepository{store: store} }
+
+func (r *GroupRepository) Get(ctx context.Context, w organizations.WorkspaceID, id groups.GroupID) (groups.Group, error) {
+	if r == nil || r.store == nil {
+		return groups.Group{}, platformerrors.New(platformerrors.CodeInvalidInput, "SQLite store is required")
+	}
+	if err := validateWorkspace(string(w)); err != nil {
+		return groups.Group{}, err
+	}
+	var g groups.Group
+	var version int64
+	var position int64
+	err := r.store.db.QueryRowContext(ctx, `SELECT id,workspace_id,name,state,position,row_version FROM device_groups WHERE workspace_id=? AND id=?`, w, id).Scan(&g.ID, &g.Workspace, &g.Name, &g.State, &position, &version)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return groups.Group{}, platformerrors.New(platformerrors.CodeNotFound, "device group was not found")
+		}
+		return groups.Group{}, classifyContext(err)
+	}
+	if position < 0 {
+		return groups.Group{}, platformerrors.New(platformerrors.CodeInternal, "device group order is invalid")
+	}
+	g.Position = uint32(position)
+	g.RowVersion = uint64(version)
+	return g, nil
+}
+
 func (r *GroupRepository) List(ctx context.Context, w organizations.WorkspaceID) ([]groups.Group, error) {
-	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,name,state,row_version FROM device_groups WHERE workspace_id=? ORDER BY id`, w)
+	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,name,state,position,row_version FROM device_groups WHERE workspace_id=? ORDER BY position,id`, w)
 	if err != nil {
 		return nil, classifyContext(err)
 	}
@@ -58,9 +85,14 @@ func (r *GroupRepository) List(ctx context.Context, w organizations.WorkspaceID)
 	for rows.Next() {
 		var g groups.Group
 		var v int64
-		if err := rows.Scan(&g.ID, &g.Workspace, &g.Name, &g.State, &v); err != nil {
+		var position int64
+		if err := rows.Scan(&g.ID, &g.Workspace, &g.Name, &g.State, &position, &v); err != nil {
 			return nil, err
 		}
+		if position < 0 {
+			return nil, platformerrors.New(platformerrors.CodeInternal, "device group order is invalid")
+		}
+		g.Position = uint32(position)
 		g.RowVersion = uint64(v)
 		out = append(out, g)
 	}

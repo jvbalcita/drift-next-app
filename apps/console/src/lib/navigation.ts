@@ -4,7 +4,7 @@ export const navigation = [
   { section: "Devices", hash: "devices", views: [{ id: "all", label: "All" }, { id: "online", label: "Online" }, { id: "attention", label: "Needs Attention" }, { id: "replaced", label: "Replaced" }, { id: "retired", label: "Retired" }] },
   { section: "Accounts", hash: "accounts", views: [{ id: "sources", label: "Sources" }, { id: "accounts", label: "Accounts" }, { id: "assignments", label: "Device Assignments" }, { id: "service-history", label: "Service History" }, { id: "run-history", label: "Run History" }] },
   { section: "Network Profiles", hash: "network-profiles", views: [{ id: "profiles", label: "Profiles" }, { id: "scans", label: "Discovery Scans" }, { id: "endpoints", label: "Registered Endpoints" }] },
-  { section: "Groups", hash: "groups", views: [{ id: "groups", label: "Groups" }, { id: "membership", label: "Membership" }, { id: "ordering", label: "Ordering" }] },
+  { section: "Groups", hash: "groups", views: [{ id: "groups", label: "Groups" }] },
   { section: "Workflows", hash: "workflows", views: [{ id: "definitions", label: "Definitions" }, { id: "versions", label: "Versions" }, { id: "skills", label: "Skills" }] },
   { section: "Agents", hash: "agents", views: [{ id: "runtimes", label: "Edge Runtimes" }, { id: "profiles", label: "Logical Profiles" }, { id: "assignments", label: "Assignments" }, { id: "capabilities", label: "Capabilities" }] },
   { section: "Runs", hash: "runs", views: [{ id: "active", label: "Active" }, { id: "history", label: "History" }, { id: "failed", label: "Failed / Indeterminate" }] },

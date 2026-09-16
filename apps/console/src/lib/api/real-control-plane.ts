@@ -428,6 +428,7 @@ function mapGroup(group: DeviceGroup): GroupView {
     id: group.id,
     name: group.displayName || group.id,
     state: mapGroupState(group.state),
+    position: group.position,
     rowVersion: Number(group.rowVersion),
   }
 }
@@ -1691,6 +1692,25 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         if (!intent.name.trim()) return failure(intent, "Group name is required.", { errorCode: "invalid_input" })
         await this.services.group.createDeviceGroup(requestId, workspaceId, intent.name.trim())
         return mutation(intent, "Device group created.")
+      }
+      case "renameDeviceGroup": {
+        if (!intent.name.trim()) return failure(intent, "Group name is required.", { errorCode: "invalid_input" })
+        await this.services.group.renameDeviceGroup(requestId, workspaceId, intent.groupId, intent.name.trim(), intent.rowVersion)
+        return mutation(intent, "Device group renamed.")
+      }
+      case "deleteDeviceGroup": {
+        if (!intent.confirmed) return failure(intent, "Deleting a group requires confirmation.", { errorCode: "precondition_failed" })
+        await this.services.group.deleteDeviceGroup(requestId, workspaceId, intent.groupId, intent.rowVersion, true)
+        return mutation(intent, "Device group retired.")
+      }
+      case "reorderDeviceGroups": {
+        if (intent.groupIds.length === 0) return failure(intent, "A group order is required.", { errorCode: "invalid_input" })
+        await this.services.group.reorderDeviceGroups(requestId, workspaceId, intent.groupIds)
+        return mutation(intent, "Group order saved.")
+      }
+      case "removeDeviceFromGroup": {
+        await this.services.group.removeDeviceFromGroup(requestId, workspaceId, intent.deviceId)
+        return mutation(intent, "Device removed from its group.")
       }
       case "createAutomationAgent": {
         if (!intent.name.trim()) return failure(intent, "Automation agent name is required.", { errorCode: "invalid_input" })
