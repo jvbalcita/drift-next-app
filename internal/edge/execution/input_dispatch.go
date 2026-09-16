@@ -719,6 +719,12 @@ func (d *InputDispatcher) intentFor(request InputRequest) (action.Intent, error)
 		intent.ValueLength = int(request.Payload.Text.Length)
 	case action.KeyEvent:
 		intent.KeyCode = int(request.Payload.KeyEvent.KeyCode)
+	case action.LaunchApp:
+		// The target the launch names travels into the kernel's intent, so the
+		// request hash covers it and the postcondition has a package to check.
+		// Without it the intent names a launch and nothing it launches, and two
+		// different launches hash alike.
+		intent.Launch = &action.LaunchTarget{PackageName: request.Payload.Launch.PackageName, ActivityName: request.Payload.Launch.ActivityName}
 	}
 	if err := intent.Validate(); err != nil {
 		return action.Intent{}, platformerrors.Wrap(platformerrors.CodeInvalidInput, "device input intent is invalid", err)

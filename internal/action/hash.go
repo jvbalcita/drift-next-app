@@ -26,6 +26,7 @@ func RequestHash(intent Intent) (string, error) {
 		ApprovalGranted    bool
 		TimeoutNanos       int64
 		CoordinateFallback *CoordinateFallback
+		Launch             *LaunchTarget
 	}
 	capabilities := append([]Capability(nil), intent.Capabilities...)
 	sort.Slice(capabilities, func(left, right int) bool { return capabilities[left] < capabilities[right] })
@@ -44,6 +45,7 @@ func RequestHash(intent Intent) (string, error) {
 		ApprovalGranted:    intent.ApprovalGranted,
 		TimeoutNanos:       intent.Timeout.Nanoseconds(),
 		CoordinateFallback: intent.CoordinateFallback,
+		Launch:             intent.Launch,
 	})
 	if err != nil {
 		return "", err

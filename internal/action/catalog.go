@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"drift.local/drift-next/internal/domain"
 )
 
 type Kind string
@@ -175,6 +177,36 @@ type Intent struct {
 	Timeout            time.Duration
 	RequestHash        string
 	CoordinateFallback *CoordinateFallback
+	// Launch is what an app launch names: the package, and optionally the one
+	// activity of it, that the launch brings to the foreground. It is nil for
+	// every other kind, and it is covered by the request hash, so two launches
+	// naming different targets stay two different requests.
+	Launch *LaunchTarget
+}
+
+// LaunchTarget is the target of an app launch. Both names are bounded
+// component names rather than command text, which is what lets the target reach
+// the device as an allow-listed argument array and nowhere else.
+type LaunchTarget struct {
+	PackageName  string
+	ActivityName string
+}
+
+// Validate refuses a launch target that is not a bounded package name and, when
+// an activity is named, not a bounded component name. The rule is the domain's
+// rule, so the kernel cannot admit a target that the boundary building the
+// argument array would refuse.
+func (l LaunchTarget) Validate() error {
+	if !domain.IsPackageName(l.PackageName) {
+		return fmt.Errorf("an app launch requires a package name")
+	}
+	if strings.TrimSpace(l.ActivityName) == "" {
+		return nil
+	}
+	if !domain.IsActivityComponent(l.ActivityName) {
+		return fmt.Errorf("an app launch activity must be a bounded component name")
+	}
+	return nil
 }
 
 // Postcondition is the explicit statement of what must be true after a
@@ -614,6 +646,19 @@ func (i Intent) Validate() error {
 	}
 	if len(i.TextValue) > 1<<20 || i.ValueLength < 0 || i.ValueLength > 1<<20 || i.KeyCode < 0 || i.KeyCode > 10000 {
 		return fmt.Errorf("typed action payload is invalid or unbounded")
+	}
+	// The kind that names a launch target must carry one, and no other kind may:
+	// a launch with no package would have to be interpreted by the transport, and
+	// a payload the contract does not describe must not reach a device.
+	if i.Kind == LaunchApp {
+		if i.Launch == nil {
+			return fmt.Errorf("action %q requires the target it launches", i.Kind)
+		}
+		if err := i.Launch.Validate(); err != nil {
+			return err
+		}
+	} else if i.Launch != nil {
+		return fmt.Errorf("action %q carries a launch target", i.Kind)
 	}
 	if i.Gesture != nil {
 		if err := i.Gesture.Validate(); err != nil {

@@ -93,6 +93,7 @@ func actionIntentFromProto(msg *driftv1.ActionIntent, requestContext *driftv1.Re
 		Kind:              kind,
 		ValueLength:       typedValueLength(msg),
 		KeyCode:           typedKeyCode(msg),
+		Launch:            typedLaunch(msg),
 		IdempotencyKey:    key,
 		ObservationToken:  msg.GetObservationToken(),
 		InvocationSurface: action.SurfaceManual,
@@ -141,6 +142,18 @@ func typedKeyCode(msg *driftv1.ActionIntent) int {
 		return int(keyEvent.GetKeyCode())
 	}
 	return 0
+}
+
+// typedLaunch reads the typed launch payload. The target is carried into the
+// intent so the request hash covers what the launch actually names: without it
+// two launches of different packages hash alike, and the second is answered as
+// a duplicate of the first.
+func typedLaunch(msg *driftv1.ActionIntent) *action.LaunchTarget {
+	launch := msg.GetLaunchApp()
+	if launch == nil {
+		return nil
+	}
+	return &action.LaunchTarget{PackageName: launch.GetPackageName(), ActivityName: launch.GetActivityName()}
 }
 
 // renderCoordinate places a point in the render space that travelled with it.
