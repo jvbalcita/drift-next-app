@@ -30,6 +30,9 @@ const (
 	// per line, because it must show the holder before the choice is made and must
 	// not read as an ordinary action.
 	groupResolution
+	// groupExit is rendered last, after every other group, so the way out sits at
+	// the end of the list an operator reads rather than in the middle of it.
+	groupExit
 )
 
 // menuItem is one operator key. The menu grid, the prompt key range, and
@@ -46,6 +49,18 @@ type menuItem struct {
 }
 
 // menu returns the operator surface in display order.
+//
+// Two properties of that order are load-bearing and asserted in
+// readability_test.go rather than left to the reader:
+//
+//   - Keys 1..16 ascend in the order the frame reads, and Exit is last, so
+//     counting down the list matches the numbering printed beside it. The
+//     troubleshooting keys follow the primary actions and the way out follows
+//     the work, which is why Exit carries the highest key rather than sitting in
+//     the middle of the list as it did at key 10.
+//   - Conventions carry no number. Overview, refresh and exit are offered as
+//     keys (0, r, q) and explained in the frame's key legend, so the numbered
+//     sequence stays a sequence an operator can trust.
 func menu() []menuItem {
 	startComponent := func(name string) func(context.Context, ops) error {
 		return func(ctx context.Context, o ops) error { return o.startComponent(ctx, name) }
@@ -66,14 +81,14 @@ func menu() []menuItem {
 		{Key: "7", Label: "Run Real-Device Tests", Run: func(ctx context.Context, o ops) error { return o.realDeviceTests(ctx) }},
 		{Key: "8", Label: "Status View", Kind: kindView, View: viewStatus},
 		{Key: "9", Label: "Log View", Kind: kindView, View: viewLogs},
-		{Key: "10", Label: "Exit", Kind: kindExit},
-		{Key: "11", Label: "Start Control Plane", Group: groupTroubleshooting, Run: startComponent("Control Plane")},
-		{Key: "12", Label: "Start Device Service", Group: groupTroubleshooting, Run: startComponent("Device Service")},
-		{Key: "13", Label: "Start Desktop Application", Group: groupTroubleshooting, Run: startComponent("Desktop Application")},
-		{Key: "14", Label: "Stop Control Plane", Group: groupTroubleshooting, Run: stopComponent("Control Plane")},
-		{Key: "15", Label: "Stop Device Service", Group: groupTroubleshooting, Run: stopComponent("Device Service")},
-		{Key: "16", Label: "Stop Desktop Application", Group: groupTroubleshooting, Run: stopComponent("Desktop Application")},
-		{Key: "0", Label: "Overview", Kind: kindView, View: viewDashboard, Group: groupActions},
+		{Key: "10", Label: "Start Control Plane", Group: groupTroubleshooting, Run: startComponent("Control Plane")},
+		{Key: "11", Label: "Start Device Service", Group: groupTroubleshooting, Run: startComponent("Device Service")},
+		{Key: "12", Label: "Start Desktop Application", Group: groupTroubleshooting, Run: startComponent("Desktop Application")},
+		{Key: "13", Label: "Stop Control Plane", Group: groupTroubleshooting, Run: stopComponent("Control Plane")},
+		{Key: "14", Label: "Stop Device Service", Group: groupTroubleshooting, Run: stopComponent("Device Service")},
+		{Key: "15", Label: "Stop Desktop Application", Group: groupTroubleshooting, Run: stopComponent("Desktop Application")},
+		{Key: "16", Label: "Exit", Kind: kindExit, Group: groupExit},
+		{Key: "0", Label: "Overview", Kind: kindView, View: viewDashboard, Group: groupShortcut, Shortcut: true},
 		{Key: "r", Label: "Refresh now", Kind: kindRefresh, Group: groupShortcut, Shortcut: true},
 		{Key: "q", Label: "Exit", Kind: kindExit, Group: groupShortcut, Shortcut: true},
 	}

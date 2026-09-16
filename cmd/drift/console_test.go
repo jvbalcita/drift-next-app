@@ -267,25 +267,40 @@ func TestConsoleRestoresTheTerminalWhenRenderingFails(t *testing.T) {
 }
 
 func TestConsoleRunsTheActionBehindEveryMenuKey(t *testing.T) {
-	cases := []struct{ key, want string }{
+	// Keys 1..15 run an action; 16 is Exit, which ends the console instead of
+	// running one. Exit carries the highest key because the frame draws the way
+	// out last, so this table follows the menu's numbering rather than assuming
+	// the numbering it had before the readability change.
+	cases := []struct {
+		key      string
+		want     string
+		wantQuit bool
+	}{
 		{key: "1", want: "setup"},
 		{key: "2", want: "startAll"},
 		{key: "5", want: "runChecks"},
 		{key: "6", want: "buildAll"},
 		{key: "7", want: "realDeviceTests"},
-		{key: "11", want: "startComponent:Control Plane"},
-		{key: "12", want: "startComponent:Device Service"},
-		{key: "13", want: "startComponent:Desktop Application"},
-		{key: "14", want: "stopComponent:Control Plane"},
-		{key: "15", want: "stopComponent:Device Service"},
-		{key: "16", want: "stopComponent:Desktop Application"},
+		{key: "10", want: "startComponent:Control Plane"},
+		{key: "11", want: "startComponent:Device Service"},
+		{key: "12", want: "startComponent:Desktop Application"},
+		{key: "13", want: "stopComponent:Control Plane"},
+		{key: "14", want: "stopComponent:Device Service"},
+		{key: "15", want: "stopComponent:Desktop Application"},
+		{key: "16", wantQuit: true},
 	}
 	for _, testCase := range cases {
 		fake := newFakeOps()
 		console := newTestConsole(t, fake, &recordingWriter{}, &fakeTerminal{isTTY: false, width: 80}, "", false)
 		console.state.input = testCase.key
-		if quit := console.submit(); quit {
-			t.Fatalf("key %q quit the console", testCase.key)
+		if quit := console.submit(); quit != testCase.wantQuit {
+			t.Fatalf("key %q quit=%v, want %v", testCase.key, quit, testCase.wantQuit)
+		}
+		if testCase.wantQuit {
+			if calls := fake.callList(); len(calls) != 0 {
+				t.Fatalf("key %q quit the console and also called %v", testCase.key, calls)
+			}
+			continue
 		}
 		select {
 		case result := <-console.actionDone:
