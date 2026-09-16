@@ -6,8 +6,8 @@ import (
 )
 
 func TestCatalogDeclaresEveryFoundationActionWithSafetyMetadata(t *testing.T) {
-	if len(Catalog()) != 18 {
-		t.Fatalf("catalog size = %d, want 18 typed actions", len(Catalog()))
+	if len(Catalog()) != 19 {
+		t.Fatalf("catalog size = %d, want 19 typed actions", len(Catalog()))
 	}
 	for _, spec := range Catalog() {
 		if spec.Kind == "" || spec.Risk == "" || spec.Retry == "" || len(spec.AllowedSurfaces) == 0 {

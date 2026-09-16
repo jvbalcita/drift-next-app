@@ -43,6 +43,7 @@ const (
 	ActionKind_ACTION_KIND_KEY_EVENT    ActionKind = 16
 	ActionKind_ACTION_KIND_UI_CHANGE    ActionKind = 17
 	ActionKind_ACTION_KIND_STATE_CHANGE ActionKind = 18
+	ActionKind_ACTION_KIND_LAUNCH_APP   ActionKind = 19
 )
 
 // Enum value maps for ActionKind.
@@ -67,6 +68,7 @@ var (
 		16: "ACTION_KIND_KEY_EVENT",
 		17: "ACTION_KIND_UI_CHANGE",
 		18: "ACTION_KIND_STATE_CHANGE",
+		19: "ACTION_KIND_LAUNCH_APP",
 	}
 	ActionKind_value = map[string]int32{
 		"ACTION_KIND_UNSPECIFIED":  0,
@@ -88,6 +90,7 @@ var (
 		"ACTION_KIND_KEY_EVENT":    16,
 		"ACTION_KIND_UI_CHANGE":    17,
 		"ACTION_KIND_STATE_CHANGE": 18,
+		"ACTION_KIND_LAUNCH_APP":   19,
 	}
 )
 
@@ -533,6 +536,480 @@ func (x *ActionGesturePath) GetDurationMs() uint64 {
 	return 0
 }
 
+// DeviceRenderSpace is the frame a coordinate-bearing input is expressed in.
+//
+// It is the render size the device currently presents at: the `wm size` OVERRIDE
+// when the device has one, never the physical panel size, and never the size of a
+// downscaled screenshot or vision frame. The legacy product was repeatedly bitten
+// by vision coordinates resolved against one frame being fed to a device in
+// another; a coordinate that arrives without a frame, outside its declared frame,
+// or against a frame other than the observation it was resolved from is refused
+// rather than scaled.
+type DeviceRenderSpace struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Render width in device pixels.
+	RenderWidth uint32 `protobuf:"varint,1,opt,name=render_width,json=renderWidth,proto3" json:"render_width,omitempty"`
+	// Render height in device pixels.
+	RenderHeight uint32 `protobuf:"varint,2,opt,name=render_height,json=renderHeight,proto3" json:"render_height,omitempty"`
+	// Freshness token of the observation these coordinates were measured from. It
+	// must be the observation the action itself was resolved against
+	// (ActionIntent.observation_token); the repetition is deliberate, so a copied
+	// coordinate cannot arrive attached to a different observation.
+	ObservationToken string `protobuf:"bytes,3,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *DeviceRenderSpace) Reset() {
+	*x = DeviceRenderSpace{}
+	mi := &file_drift_v1_action_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeviceRenderSpace) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeviceRenderSpace) ProtoMessage() {}
+
+func (x *DeviceRenderSpace) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeviceRenderSpace.ProtoReflect.Descriptor instead.
+func (*DeviceRenderSpace) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DeviceRenderSpace) GetRenderWidth() uint32 {
+	if x != nil {
+		return x.RenderWidth
+	}
+	return 0
+}
+
+func (x *DeviceRenderSpace) GetRenderHeight() uint32 {
+	if x != nil {
+		return x.RenderHeight
+	}
+	return 0
+}
+
+func (x *DeviceRenderSpace) GetObservationToken() string {
+	if x != nil {
+		return x.ObservationToken
+	}
+	return ""
+}
+
+// DevicePoint is a point inside a DeviceRenderSpace. It carries no frame of its
+// own: the frame travels with the action as a sibling DeviceRenderSpace, so a
+// point cannot arrive without one.
+type DevicePoint struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	X             uint32                 `protobuf:"varint,1,opt,name=x,proto3" json:"x,omitempty"`
+	Y             uint32                 `protobuf:"varint,2,opt,name=y,proto3" json:"y,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DevicePoint) Reset() {
+	*x = DevicePoint{}
+	mi := &file_drift_v1_action_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DevicePoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DevicePoint) ProtoMessage() {}
+
+func (x *DevicePoint) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DevicePoint.ProtoReflect.Descriptor instead.
+func (*DevicePoint) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *DevicePoint) GetX() uint32 {
+	if x != nil {
+		return x.X
+	}
+	return 0
+}
+
+func (x *DevicePoint) GetY() uint32 {
+	if x != nil {
+		return x.Y
+	}
+	return 0
+}
+
+// SensitiveTextReference names a text value held outside this contract.
+//
+// Text content has no representation here: a generated message renders every
+// populated field in its string, text, JSON and debug forms, so a plaintext field
+// would be logged, rendered in an error, and persisted the first time anyone
+// formatted the intent. The value is named by an opaque reference and released
+// only at dispatch, through the redaction boundary that owns it. The handle is
+// not free text — it must match an opaque reference pattern, so a caller cannot
+// smuggle content through it.
+type SensitiveTextReference struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Opaque, bounded, caller-scoped handle for the value. Never the value itself.
+	Handle string `protobuf:"bytes,1,opt,name=handle,proto3" json:"handle,omitempty"`
+	// Length of the referenced value, so a caller can bound the input without
+	// reading it.
+	ValueLength   uint32 `protobuf:"varint,2,opt,name=value_length,json=valueLength,proto3" json:"value_length,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SensitiveTextReference) Reset() {
+	*x = SensitiveTextReference{}
+	mi := &file_drift_v1_action_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SensitiveTextReference) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SensitiveTextReference) ProtoMessage() {}
+
+func (x *SensitiveTextReference) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SensitiveTextReference.ProtoReflect.Descriptor instead.
+func (*SensitiveTextReference) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SensitiveTextReference) GetHandle() string {
+	if x != nil {
+		return x.Handle
+	}
+	return ""
+}
+
+func (x *SensitiveTextReference) GetValueLength() uint32 {
+	if x != nil {
+		return x.ValueLength
+	}
+	return 0
+}
+
+// TapInput is the payload for ACTION_KIND_TAP. A tap names exactly one target:
+// a semantic target (preferred), or a point inside an explicit device render
+// space, which the kernel admits only as an approved coordinate fallback. A tap
+// that names neither, or both, is refused.
+type TapInput struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Target        *SemanticTarget        `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
+	Point         *DevicePoint           `protobuf:"bytes,2,opt,name=point,proto3" json:"point,omitempty"`
+	RenderSpace   *DeviceRenderSpace     `protobuf:"bytes,3,opt,name=render_space,json=renderSpace,proto3" json:"render_space,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TapInput) Reset() {
+	*x = TapInput{}
+	mi := &file_drift_v1_action_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TapInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TapInput) ProtoMessage() {}
+
+func (x *TapInput) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TapInput.ProtoReflect.Descriptor instead.
+func (*TapInput) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *TapInput) GetTarget() *SemanticTarget {
+	if x != nil {
+		return x.Target
+	}
+	return nil
+}
+
+func (x *TapInput) GetPoint() *DevicePoint {
+	if x != nil {
+		return x.Point
+	}
+	return nil
+}
+
+func (x *TapInput) GetRenderSpace() *DeviceRenderSpace {
+	if x != nil {
+		return x.RenderSpace
+	}
+	return nil
+}
+
+// SwipeInput is the payload for ACTION_KIND_SWIPE. Both endpoints belong to the
+// same device render space, and that frame is required.
+type SwipeInput struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Start         *DevicePoint           `protobuf:"bytes,1,opt,name=start,proto3" json:"start,omitempty"`
+	End           *DevicePoint           `protobuf:"bytes,2,opt,name=end,proto3" json:"end,omitempty"`
+	DurationMs    uint32                 `protobuf:"varint,3,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	RenderSpace   *DeviceRenderSpace     `protobuf:"bytes,4,opt,name=render_space,json=renderSpace,proto3" json:"render_space,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SwipeInput) Reset() {
+	*x = SwipeInput{}
+	mi := &file_drift_v1_action_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SwipeInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SwipeInput) ProtoMessage() {}
+
+func (x *SwipeInput) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SwipeInput.ProtoReflect.Descriptor instead.
+func (*SwipeInput) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *SwipeInput) GetStart() *DevicePoint {
+	if x != nil {
+		return x.Start
+	}
+	return nil
+}
+
+func (x *SwipeInput) GetEnd() *DevicePoint {
+	if x != nil {
+		return x.End
+	}
+	return nil
+}
+
+func (x *SwipeInput) GetDurationMs() uint32 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
+func (x *SwipeInput) GetRenderSpace() *DeviceRenderSpace {
+	if x != nil {
+		return x.RenderSpace
+	}
+	return nil
+}
+
+// TypeTextInput is the payload for ACTION_KIND_TEXT_INPUT.
+type TypeTextInput struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Text          *SensitiveTextReference `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TypeTextInput) Reset() {
+	*x = TypeTextInput{}
+	mi := &file_drift_v1_action_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TypeTextInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TypeTextInput) ProtoMessage() {}
+
+func (x *TypeTextInput) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TypeTextInput.ProtoReflect.Descriptor instead.
+func (*TypeTextInput) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *TypeTextInput) GetText() *SensitiveTextReference {
+	if x != nil {
+		return x.Text
+	}
+	return nil
+}
+
+// KeyEventInput is the payload for ACTION_KIND_KEY_EVENT. A key event names one
+// code from the device's key vocabulary; it carries no command text.
+type KeyEventInput struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	KeyCode       uint32                 `protobuf:"varint,1,opt,name=key_code,json=keyCode,proto3" json:"key_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KeyEventInput) Reset() {
+	*x = KeyEventInput{}
+	mi := &file_drift_v1_action_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KeyEventInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KeyEventInput) ProtoMessage() {}
+
+func (x *KeyEventInput) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KeyEventInput.ProtoReflect.Descriptor instead.
+func (*KeyEventInput) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *KeyEventInput) GetKeyCode() uint32 {
+	if x != nil {
+		return x.KeyCode
+	}
+	return 0
+}
+
+// LaunchAppInput is the payload for ACTION_KIND_LAUNCH_APP. An empty activity
+// launches the package's default activity. The payload names a package and an
+// activity; it is not a command line and cannot become one.
+type LaunchAppInput struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PackageName   string                 `protobuf:"bytes,1,opt,name=package_name,json=packageName,proto3" json:"package_name,omitempty"`
+	ActivityName  string                 `protobuf:"bytes,2,opt,name=activity_name,json=activityName,proto3" json:"activity_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LaunchAppInput) Reset() {
+	*x = LaunchAppInput{}
+	mi := &file_drift_v1_action_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LaunchAppInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LaunchAppInput) ProtoMessage() {}
+
+func (x *LaunchAppInput) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LaunchAppInput.ProtoReflect.Descriptor instead.
+func (*LaunchAppInput) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *LaunchAppInput) GetPackageName() string {
+	if x != nil {
+		return x.PackageName
+	}
+	return ""
+}
+
+func (x *LaunchAppInput) GetActivityName() string {
+	if x != nil {
+		return x.ActivityName
+	}
+	return ""
+}
+
 type ActionIntent struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -541,23 +1018,41 @@ type ActionIntent struct {
 	Kind           ActionKind             `protobuf:"varint,4,opt,name=kind,proto3,enum=drift.v1.ActionKind" json:"kind,omitempty"`
 	Target         *SemanticTarget        `protobuf:"bytes,5,opt,name=target,proto3" json:"target,omitempty"`
 	IdempotencyKey string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	TextValue      string                 `protobuf:"bytes,7,opt,name=text_value,json=textValue,proto3" json:"text_value,omitempty"`
-	Gesture        *ActionGesturePath     `protobuf:"bytes,8,opt,name=gesture,proto3" json:"gesture,omitempty"`
-	KeyCode        uint32                 `protobuf:"varint,9,opt,name=key_code,json=keyCode,proto3" json:"key_code,omitempty"`
-	ValueLength    uint32                 `protobuf:"varint,10,opt,name=value_length,json=valueLength,proto3" json:"value_length,omitempty"`
+	// Published for wire compatibility only. Typed text entry carries a
+	// SensitiveTextReference (:17) instead, and no new code may populate this
+	// plaintext field: text content is never persisted in plaintext.
+	//
+	// Deprecated: Marked as deprecated in drift/v1/action.proto.
+	TextValue   string             `protobuf:"bytes,7,opt,name=text_value,json=textValue,proto3" json:"text_value,omitempty"`
+	Gesture     *ActionGesturePath `protobuf:"bytes,8,opt,name=gesture,proto3" json:"gesture,omitempty"`
+	KeyCode     uint32             `protobuf:"varint,9,opt,name=key_code,json=keyCode,proto3" json:"key_code,omitempty"`
+	ValueLength uint32             `protobuf:"varint,10,opt,name=value_length,json=valueLength,proto3" json:"value_length,omitempty"`
 	// lease_id and fencing_token must match the caller's active device lease.
 	// Holder identity is taken from RequestContext.actor_id, never from this message.
 	LeaseId          string `protobuf:"bytes,11,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
 	FencingToken     uint64 `protobuf:"varint,12,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
 	ObservationToken string `protobuf:"bytes,13,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
 	ApprovalGranted  bool   `protobuf:"varint,14,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Exactly one member must be set, and it must be the member that belongs to
+	// `kind` (see the typed device input comment above). A mutating input whose
+	// payload is absent, incomplete, or of a different kind is refused before the
+	// kernel is asked to authorize it.
+	//
+	// Types that are valid to be assigned to DeviceInput:
+	//
+	//	*ActionIntent_Tap
+	//	*ActionIntent_Swipe
+	//	*ActionIntent_TypeText
+	//	*ActionIntent_KeyEvent
+	//	*ActionIntent_LaunchApp
+	DeviceInput   isActionIntent_DeviceInput `protobuf_oneof:"device_input"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ActionIntent) Reset() {
 	*x = ActionIntent{}
-	mi := &file_drift_v1_action_proto_msgTypes[3]
+	mi := &file_drift_v1_action_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -569,7 +1064,7 @@ func (x *ActionIntent) String() string {
 func (*ActionIntent) ProtoMessage() {}
 
 func (x *ActionIntent) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_action_proto_msgTypes[3]
+	mi := &file_drift_v1_action_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -582,7 +1077,7 @@ func (x *ActionIntent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionIntent.ProtoReflect.Descriptor instead.
 func (*ActionIntent) Descriptor() ([]byte, []int) {
-	return file_drift_v1_action_proto_rawDescGZIP(), []int{3}
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ActionIntent) GetId() string {
@@ -627,6 +1122,7 @@ func (x *ActionIntent) GetIdempotencyKey() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in drift/v1/action.proto.
 func (x *ActionIntent) GetTextValue() string {
 	if x != nil {
 		return x.TextValue
@@ -683,6 +1179,92 @@ func (x *ActionIntent) GetApprovalGranted() bool {
 	return false
 }
 
+func (x *ActionIntent) GetDeviceInput() isActionIntent_DeviceInput {
+	if x != nil {
+		return x.DeviceInput
+	}
+	return nil
+}
+
+func (x *ActionIntent) GetTap() *TapInput {
+	if x != nil {
+		if x, ok := x.DeviceInput.(*ActionIntent_Tap); ok {
+			return x.Tap
+		}
+	}
+	return nil
+}
+
+func (x *ActionIntent) GetSwipe() *SwipeInput {
+	if x != nil {
+		if x, ok := x.DeviceInput.(*ActionIntent_Swipe); ok {
+			return x.Swipe
+		}
+	}
+	return nil
+}
+
+func (x *ActionIntent) GetTypeText() *TypeTextInput {
+	if x != nil {
+		if x, ok := x.DeviceInput.(*ActionIntent_TypeText); ok {
+			return x.TypeText
+		}
+	}
+	return nil
+}
+
+func (x *ActionIntent) GetKeyEvent() *KeyEventInput {
+	if x != nil {
+		if x, ok := x.DeviceInput.(*ActionIntent_KeyEvent); ok {
+			return x.KeyEvent
+		}
+	}
+	return nil
+}
+
+func (x *ActionIntent) GetLaunchApp() *LaunchAppInput {
+	if x != nil {
+		if x, ok := x.DeviceInput.(*ActionIntent_LaunchApp); ok {
+			return x.LaunchApp
+		}
+	}
+	return nil
+}
+
+type isActionIntent_DeviceInput interface {
+	isActionIntent_DeviceInput()
+}
+
+type ActionIntent_Tap struct {
+	Tap *TapInput `protobuf:"bytes,15,opt,name=tap,proto3,oneof"`
+}
+
+type ActionIntent_Swipe struct {
+	Swipe *SwipeInput `protobuf:"bytes,16,opt,name=swipe,proto3,oneof"`
+}
+
+type ActionIntent_TypeText struct {
+	TypeText *TypeTextInput `protobuf:"bytes,17,opt,name=type_text,json=typeText,proto3,oneof"`
+}
+
+type ActionIntent_KeyEvent struct {
+	KeyEvent *KeyEventInput `protobuf:"bytes,18,opt,name=key_event,json=keyEvent,proto3,oneof"`
+}
+
+type ActionIntent_LaunchApp struct {
+	LaunchApp *LaunchAppInput `protobuf:"bytes,19,opt,name=launch_app,json=launchApp,proto3,oneof"`
+}
+
+func (*ActionIntent_Tap) isActionIntent_DeviceInput() {}
+
+func (*ActionIntent_Swipe) isActionIntent_DeviceInput() {}
+
+func (*ActionIntent_TypeText) isActionIntent_DeviceInput() {}
+
+func (*ActionIntent_KeyEvent) isActionIntent_DeviceInput() {}
+
+func (*ActionIntent_LaunchApp) isActionIntent_DeviceInput() {}
+
 type ActionResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ActionId      string                 `protobuf:"bytes,1,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
@@ -695,7 +1277,7 @@ type ActionResult struct {
 
 func (x *ActionResult) Reset() {
 	*x = ActionResult{}
-	mi := &file_drift_v1_action_proto_msgTypes[4]
+	mi := &file_drift_v1_action_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -707,7 +1289,7 @@ func (x *ActionResult) String() string {
 func (*ActionResult) ProtoMessage() {}
 
 func (x *ActionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_action_proto_msgTypes[4]
+	mi := &file_drift_v1_action_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -720,7 +1302,7 @@ func (x *ActionResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionResult.ProtoReflect.Descriptor instead.
 func (*ActionResult) Descriptor() ([]byte, []int) {
-	return file_drift_v1_action_proto_rawDescGZIP(), []int{4}
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ActionResult) GetActionId() string {
@@ -761,7 +1343,7 @@ type SubmitActionRequest struct {
 
 func (x *SubmitActionRequest) Reset() {
 	*x = SubmitActionRequest{}
-	mi := &file_drift_v1_action_proto_msgTypes[5]
+	mi := &file_drift_v1_action_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -773,7 +1355,7 @@ func (x *SubmitActionRequest) String() string {
 func (*SubmitActionRequest) ProtoMessage() {}
 
 func (x *SubmitActionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_action_proto_msgTypes[5]
+	mi := &file_drift_v1_action_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -786,7 +1368,7 @@ func (x *SubmitActionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitActionRequest.ProtoReflect.Descriptor instead.
 func (*SubmitActionRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_action_proto_rawDescGZIP(), []int{5}
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SubmitActionRequest) GetContext() *RequestContext {
@@ -812,7 +1394,7 @@ type SubmitActionResponse struct {
 
 func (x *SubmitActionResponse) Reset() {
 	*x = SubmitActionResponse{}
-	mi := &file_drift_v1_action_proto_msgTypes[6]
+	mi := &file_drift_v1_action_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -824,7 +1406,7 @@ func (x *SubmitActionResponse) String() string {
 func (*SubmitActionResponse) ProtoMessage() {}
 
 func (x *SubmitActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_action_proto_msgTypes[6]
+	mi := &file_drift_v1_action_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -837,7 +1419,7 @@ func (x *SubmitActionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitActionResponse.ProtoReflect.Descriptor instead.
 func (*SubmitActionResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_action_proto_rawDescGZIP(), []int{6}
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SubmitActionResponse) GetResult() *ActionResult {
@@ -866,16 +1448,44 @@ const file_drift_v1_action_proto_rawDesc = "" +
 	"\x11ActionGesturePath\x122\n" +
 	"\x06points\x18\x01 \x03(\v2\x1a.drift.v1.ActionCoordinateR\x06points\x12\x1f\n" +
 	"\vduration_ms\x18\x02 \x01(\x04R\n" +
-	"durationMs\"\xa2\x04\n" +
+	"durationMs\"\x88\x01\n" +
+	"\x11DeviceRenderSpace\x12!\n" +
+	"\frender_width\x18\x01 \x01(\rR\vrenderWidth\x12#\n" +
+	"\rrender_height\x18\x02 \x01(\rR\frenderHeight\x12+\n" +
+	"\x11observation_token\x18\x03 \x01(\tR\x10observationToken\")\n" +
+	"\vDevicePoint\x12\f\n" +
+	"\x01x\x18\x01 \x01(\rR\x01x\x12\f\n" +
+	"\x01y\x18\x02 \x01(\rR\x01y\"S\n" +
+	"\x16SensitiveTextReference\x12\x16\n" +
+	"\x06handle\x18\x01 \x01(\tR\x06handle\x12!\n" +
+	"\fvalue_length\x18\x02 \x01(\rR\vvalueLength\"\xa9\x01\n" +
+	"\bTapInput\x120\n" +
+	"\x06target\x18\x01 \x01(\v2\x18.drift.v1.SemanticTargetR\x06target\x12+\n" +
+	"\x05point\x18\x02 \x01(\v2\x15.drift.v1.DevicePointR\x05point\x12>\n" +
+	"\frender_space\x18\x03 \x01(\v2\x1b.drift.v1.DeviceRenderSpaceR\vrenderSpace\"\xc3\x01\n" +
+	"\n" +
+	"SwipeInput\x12+\n" +
+	"\x05start\x18\x01 \x01(\v2\x15.drift.v1.DevicePointR\x05start\x12'\n" +
+	"\x03end\x18\x02 \x01(\v2\x15.drift.v1.DevicePointR\x03end\x12\x1f\n" +
+	"\vduration_ms\x18\x03 \x01(\rR\n" +
+	"durationMs\x12>\n" +
+	"\frender_space\x18\x04 \x01(\v2\x1b.drift.v1.DeviceRenderSpaceR\vrenderSpace\"E\n" +
+	"\rTypeTextInput\x124\n" +
+	"\x04text\x18\x01 \x01(\v2 .drift.v1.SensitiveTextReferenceR\x04text\"*\n" +
+	"\rKeyEventInput\x12\x19\n" +
+	"\bkey_code\x18\x01 \x01(\rR\akeyCode\"X\n" +
+	"\x0eLaunchAppInput\x12!\n" +
+	"\fpackage_name\x18\x01 \x01(\tR\vpackageName\x12#\n" +
+	"\ractivity_name\x18\x02 \x01(\tR\factivityName\"\xb7\x06\n" +
 	"\fActionIntent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
 	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12(\n" +
 	"\x04kind\x18\x04 \x01(\x0e2\x14.drift.v1.ActionKindR\x04kind\x120\n" +
 	"\x06target\x18\x05 \x01(\v2\x18.drift.v1.SemanticTargetR\x06target\x12'\n" +
-	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x12\x1d\n" +
+	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x12!\n" +
 	"\n" +
-	"text_value\x18\a \x01(\tR\ttextValue\x125\n" +
+	"text_value\x18\a \x01(\tB\x02\x18\x01R\ttextValue\x125\n" +
 	"\agesture\x18\b \x01(\v2\x1b.drift.v1.ActionGesturePathR\agesture\x12\x19\n" +
 	"\bkey_code\x18\t \x01(\rR\akeyCode\x12!\n" +
 	"\fvalue_length\x18\n" +
@@ -883,7 +1493,14 @@ const file_drift_v1_action_proto_rawDesc = "" +
 	"\blease_id\x18\v \x01(\tR\aleaseId\x12#\n" +
 	"\rfencing_token\x18\f \x01(\x04R\ffencingToken\x12+\n" +
 	"\x11observation_token\x18\r \x01(\tR\x10observationToken\x12)\n" +
-	"\x10approval_granted\x18\x0e \x01(\bR\x0fapprovalGranted\"\xc4\x01\n" +
+	"\x10approval_granted\x18\x0e \x01(\bR\x0fapprovalGranted\x12&\n" +
+	"\x03tap\x18\x0f \x01(\v2\x12.drift.v1.TapInputH\x00R\x03tap\x12,\n" +
+	"\x05swipe\x18\x10 \x01(\v2\x14.drift.v1.SwipeInputH\x00R\x05swipe\x126\n" +
+	"\ttype_text\x18\x11 \x01(\v2\x17.drift.v1.TypeTextInputH\x00R\btypeText\x126\n" +
+	"\tkey_event\x18\x12 \x01(\v2\x17.drift.v1.KeyEventInputH\x00R\bkeyEvent\x129\n" +
+	"\n" +
+	"launch_app\x18\x13 \x01(\v2\x18.drift.v1.LaunchAppInputH\x00R\tlaunchAppB\x0e\n" +
+	"\fdevice_input\"\xc4\x01\n" +
 	"\fActionResult\x12\x1b\n" +
 	"\taction_id\x18\x01 \x01(\tR\bactionId\x121\n" +
 	"\aoutcome\x18\x02 \x01(\x0e2\x17.drift.v1.ActionOutcomeR\aoutcome\x12+\n" +
@@ -893,7 +1510,7 @@ const file_drift_v1_action_proto_rawDesc = "" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12.\n" +
 	"\x06intent\x18\x02 \x01(\v2\x16.drift.v1.ActionIntentR\x06intent\"F\n" +
 	"\x14SubmitActionResponse\x12.\n" +
-	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result*\xf2\x03\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result*\x8e\x04\n" +
 	"\n" +
 	"ActionKind\x12\x1b\n" +
 	"\x17ACTION_KIND_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -915,7 +1532,8 @@ const file_drift_v1_action_proto_rawDesc = "" +
 	"\x11ACTION_KIND_ENTER\x10\x0f\x12\x19\n" +
 	"\x15ACTION_KIND_KEY_EVENT\x10\x10\x12\x19\n" +
 	"\x15ACTION_KIND_UI_CHANGE\x10\x11\x12\x1c\n" +
-	"\x18ACTION_KIND_STATE_CHANGE\x10\x12*\xad\x01\n" +
+	"\x18ACTION_KIND_STATE_CHANGE\x10\x12\x12\x1a\n" +
+	"\x16ACTION_KIND_LAUNCH_APP\x10\x13*\xad\x01\n" +
 	"\x0fActionRiskClass\x12!\n" +
 	"\x1dACTION_RISK_CLASS_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15ACTION_RISK_CLASS_LOW\x10\x01\x12\x1c\n" +
@@ -961,44 +1579,64 @@ func file_drift_v1_action_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_action_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_drift_v1_action_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_drift_v1_action_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_drift_v1_action_proto_goTypes = []any{
-	(ActionKind)(0),              // 0: drift.v1.ActionKind
-	(ActionRiskClass)(0),         // 1: drift.v1.ActionRiskClass
-	(ActionRetryClass)(0),        // 2: drift.v1.ActionRetryClass
-	(ActionCapability)(0),        // 3: drift.v1.ActionCapability
-	(ActionOutcome)(0),           // 4: drift.v1.ActionOutcome
-	(*SemanticTarget)(nil),       // 5: drift.v1.SemanticTarget
-	(*ActionCoordinate)(nil),     // 6: drift.v1.ActionCoordinate
-	(*ActionGesturePath)(nil),    // 7: drift.v1.ActionGesturePath
-	(*ActionIntent)(nil),         // 8: drift.v1.ActionIntent
-	(*ActionResult)(nil),         // 9: drift.v1.ActionResult
-	(*SubmitActionRequest)(nil),  // 10: drift.v1.SubmitActionRequest
-	(*SubmitActionResponse)(nil), // 11: drift.v1.SubmitActionResponse
-	(*WorkspaceRef)(nil),         // 12: drift.v1.WorkspaceRef
-	(*Failure)(nil),              // 13: drift.v1.Failure
-	(*ArtifactReference)(nil),    // 14: drift.v1.ArtifactReference
-	(*RequestContext)(nil),       // 15: drift.v1.RequestContext
+	(ActionKind)(0),                // 0: drift.v1.ActionKind
+	(ActionRiskClass)(0),           // 1: drift.v1.ActionRiskClass
+	(ActionRetryClass)(0),          // 2: drift.v1.ActionRetryClass
+	(ActionCapability)(0),          // 3: drift.v1.ActionCapability
+	(ActionOutcome)(0),             // 4: drift.v1.ActionOutcome
+	(*SemanticTarget)(nil),         // 5: drift.v1.SemanticTarget
+	(*ActionCoordinate)(nil),       // 6: drift.v1.ActionCoordinate
+	(*ActionGesturePath)(nil),      // 7: drift.v1.ActionGesturePath
+	(*DeviceRenderSpace)(nil),      // 8: drift.v1.DeviceRenderSpace
+	(*DevicePoint)(nil),            // 9: drift.v1.DevicePoint
+	(*SensitiveTextReference)(nil), // 10: drift.v1.SensitiveTextReference
+	(*TapInput)(nil),               // 11: drift.v1.TapInput
+	(*SwipeInput)(nil),             // 12: drift.v1.SwipeInput
+	(*TypeTextInput)(nil),          // 13: drift.v1.TypeTextInput
+	(*KeyEventInput)(nil),          // 14: drift.v1.KeyEventInput
+	(*LaunchAppInput)(nil),         // 15: drift.v1.LaunchAppInput
+	(*ActionIntent)(nil),           // 16: drift.v1.ActionIntent
+	(*ActionResult)(nil),           // 17: drift.v1.ActionResult
+	(*SubmitActionRequest)(nil),    // 18: drift.v1.SubmitActionRequest
+	(*SubmitActionResponse)(nil),   // 19: drift.v1.SubmitActionResponse
+	(*WorkspaceRef)(nil),           // 20: drift.v1.WorkspaceRef
+	(*Failure)(nil),                // 21: drift.v1.Failure
+	(*ArtifactReference)(nil),      // 22: drift.v1.ArtifactReference
+	(*RequestContext)(nil),         // 23: drift.v1.RequestContext
 }
 var file_drift_v1_action_proto_depIdxs = []int32{
 	6,  // 0: drift.v1.ActionGesturePath.points:type_name -> drift.v1.ActionCoordinate
-	12, // 1: drift.v1.ActionIntent.workspace:type_name -> drift.v1.WorkspaceRef
-	0,  // 2: drift.v1.ActionIntent.kind:type_name -> drift.v1.ActionKind
-	5,  // 3: drift.v1.ActionIntent.target:type_name -> drift.v1.SemanticTarget
-	7,  // 4: drift.v1.ActionIntent.gesture:type_name -> drift.v1.ActionGesturePath
-	4,  // 5: drift.v1.ActionResult.outcome:type_name -> drift.v1.ActionOutcome
-	13, // 6: drift.v1.ActionResult.failure:type_name -> drift.v1.Failure
-	14, // 7: drift.v1.ActionResult.evidence:type_name -> drift.v1.ArtifactReference
-	15, // 8: drift.v1.SubmitActionRequest.context:type_name -> drift.v1.RequestContext
-	8,  // 9: drift.v1.SubmitActionRequest.intent:type_name -> drift.v1.ActionIntent
-	9,  // 10: drift.v1.SubmitActionResponse.result:type_name -> drift.v1.ActionResult
-	10, // 11: drift.v1.ActionService.SubmitAction:input_type -> drift.v1.SubmitActionRequest
-	11, // 12: drift.v1.ActionService.SubmitAction:output_type -> drift.v1.SubmitActionResponse
-	12, // [12:13] is the sub-list for method output_type
-	11, // [11:12] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	5,  // 1: drift.v1.TapInput.target:type_name -> drift.v1.SemanticTarget
+	9,  // 2: drift.v1.TapInput.point:type_name -> drift.v1.DevicePoint
+	8,  // 3: drift.v1.TapInput.render_space:type_name -> drift.v1.DeviceRenderSpace
+	9,  // 4: drift.v1.SwipeInput.start:type_name -> drift.v1.DevicePoint
+	9,  // 5: drift.v1.SwipeInput.end:type_name -> drift.v1.DevicePoint
+	8,  // 6: drift.v1.SwipeInput.render_space:type_name -> drift.v1.DeviceRenderSpace
+	10, // 7: drift.v1.TypeTextInput.text:type_name -> drift.v1.SensitiveTextReference
+	20, // 8: drift.v1.ActionIntent.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 9: drift.v1.ActionIntent.kind:type_name -> drift.v1.ActionKind
+	5,  // 10: drift.v1.ActionIntent.target:type_name -> drift.v1.SemanticTarget
+	7,  // 11: drift.v1.ActionIntent.gesture:type_name -> drift.v1.ActionGesturePath
+	11, // 12: drift.v1.ActionIntent.tap:type_name -> drift.v1.TapInput
+	12, // 13: drift.v1.ActionIntent.swipe:type_name -> drift.v1.SwipeInput
+	13, // 14: drift.v1.ActionIntent.type_text:type_name -> drift.v1.TypeTextInput
+	14, // 15: drift.v1.ActionIntent.key_event:type_name -> drift.v1.KeyEventInput
+	15, // 16: drift.v1.ActionIntent.launch_app:type_name -> drift.v1.LaunchAppInput
+	4,  // 17: drift.v1.ActionResult.outcome:type_name -> drift.v1.ActionOutcome
+	21, // 18: drift.v1.ActionResult.failure:type_name -> drift.v1.Failure
+	22, // 19: drift.v1.ActionResult.evidence:type_name -> drift.v1.ArtifactReference
+	23, // 20: drift.v1.SubmitActionRequest.context:type_name -> drift.v1.RequestContext
+	16, // 21: drift.v1.SubmitActionRequest.intent:type_name -> drift.v1.ActionIntent
+	17, // 22: drift.v1.SubmitActionResponse.result:type_name -> drift.v1.ActionResult
+	18, // 23: drift.v1.ActionService.SubmitAction:input_type -> drift.v1.SubmitActionRequest
+	19, // 24: drift.v1.ActionService.SubmitAction:output_type -> drift.v1.SubmitActionResponse
+	24, // [24:25] is the sub-list for method output_type
+	23, // [23:24] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_action_proto_init() }
@@ -1007,13 +1645,20 @@ func file_drift_v1_action_proto_init() {
 		return
 	}
 	file_drift_v1_common_proto_init()
+	file_drift_v1_action_proto_msgTypes[11].OneofWrappers = []any{
+		(*ActionIntent_Tap)(nil),
+		(*ActionIntent_Swipe)(nil),
+		(*ActionIntent_TypeText)(nil),
+		(*ActionIntent_KeyEvent)(nil),
+		(*ActionIntent_LaunchApp)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_action_proto_rawDesc), len(file_drift_v1_action_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   7,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

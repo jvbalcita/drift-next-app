@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/action.proto.
  */
 export const file_drift_v1_action: GenFile = /*@__PURE__*/
-  fileDesc("ChVkcmlmdC92MS9hY3Rpb24ucHJvdG8SCGRyaWZ0LnYxInQKDlNlbWFudGljVGFyZ2V0EhMKC3Jlc291cmNlX2lkGAEgASgJEhsKE2FjY2Vzc2liaWxpdHlfbGFiZWwYAiABKAkSEwoLc3RhYmxlX3RleHQYAyABKAkSGwoTY29udGV4dF9maW5nZXJwcmludBgEIAEoCSI3ChBBY3Rpb25Db29yZGluYXRlEg0KBXNwYWNlGAEgASgJEgkKAXgYAiABKA0SCQoBeRgDIAEoDSJUChFBY3Rpb25HZXN0dXJlUGF0aBIqCgZwb2ludHMYASADKAsyGi5kcmlmdC52MS5BY3Rpb25Db29yZGluYXRlEhMKC2R1cmF0aW9uX21zGAIgASgEIocDCgxBY3Rpb25JbnRlbnQSCgoCaWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIiCgRraW5kGAQgASgOMhQuZHJpZnQudjEuQWN0aW9uS2luZBIoCgZ0YXJnZXQYBSABKAsyGC5kcmlmdC52MS5TZW1hbnRpY1RhcmdldBIXCg9pZGVtcG90ZW5jeV9rZXkYBiABKAkSEgoKdGV4dF92YWx1ZRgHIAEoCRIsCgdnZXN0dXJlGAggASgLMhsuZHJpZnQudjEuQWN0aW9uR2VzdHVyZVBhdGgSEAoIa2V5X2NvZGUYCSABKA0SFAoMdmFsdWVfbGVuZ3RoGAogASgNEhAKCGxlYXNlX2lkGAsgASgJEhUKDWZlbmNpbmdfdG9rZW4YDCABKAQSGQoRb2JzZXJ2YXRpb25fdG9rZW4YDSABKAkSGAoQYXBwcm92YWxfZ3JhbnRlZBgOIAEoCCKeAQoMQWN0aW9uUmVzdWx0EhEKCWFjdGlvbl9pZBgBIAEoCRIoCgdvdXRjb21lGAIgASgOMhcuZHJpZnQudjEuQWN0aW9uT3V0Y29tZRIiCgdmYWlsdXJlGAMgASgLMhEuZHJpZnQudjEuRmFpbHVyZRItCghldmlkZW5jZRgEIAEoCzIbLmRyaWZ0LnYxLkFydGlmYWN0UmVmZXJlbmNlImgKE1N1Ym1pdEFjdGlvblJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EiYKBmludGVudBgCIAEoCzIWLmRyaWZ0LnYxLkFjdGlvbkludGVudCI+ChRTdWJtaXRBY3Rpb25SZXNwb25zZRImCgZyZXN1bHQYASABKAsyFi5kcmlmdC52MS5BY3Rpb25SZXN1bHQq8gMKCkFjdGlvbktpbmQSGwoXQUNUSU9OX0tJTkRfVU5TUEVDSUZJRUQQABIXChNBQ1RJT05fS0lORF9PQlNFUlZFEAESHAoYQUNUSU9OX0tJTkRfSEVBTFRIX0NIRUNLEAISFwoTQUNUSU9OX0tJTkRfQ0FQVFVSRRADEhMKD0FDVElPTl9LSU5EX1RBUBAEEhoKFkFDVElPTl9LSU5EX1RFWFRfSU5QVVQQBRIUChBBQ1RJT05fS0lORF9CQUNLEAYSGgoWQUNUSU9OX0tJTkRfRE9VQkxFX1RBUBAHEhoKFkFDVElPTl9LSU5EX0xPTkdfUFJFU1MQCBIbChdBQ1RJT05fS0lORF9URVhUX0RFTEVURRAJEhUKEUFDVElPTl9LSU5EX0NMRUFSEAoSFQoRQUNUSU9OX0tJTkRfU1dJUEUQCxIWChJBQ1RJT05fS0lORF9TQ1JPTEwQDBIUChBBQ1RJT05fS0lORF9EUkFHEA0SFAoQQUNUSU9OX0tJTkRfSE9NRRAOEhUKEUFDVElPTl9LSU5EX0VOVEVSEA8SGQoVQUNUSU9OX0tJTkRfS0VZX0VWRU5UEBASGQoVQUNUSU9OX0tJTkRfVUlfQ0hBTkdFEBESHAoYQUNUSU9OX0tJTkRfU1RBVEVfQ0hBTkdFEBIqrQEKD0FjdGlvblJpc2tDbGFzcxIhCh1BQ1RJT05fUklTS19DTEFTU19VTlNQRUNJRklFRBAAEhkKFUFDVElPTl9SSVNLX0NMQVNTX0xPVxABEhwKGEFDVElPTl9SSVNLX0NMQVNTX01FRElVTRACEhoKFkFDVElPTl9SSVNLX0NMQVNTX0hJR0gQAxIiCh5BQ1RJT05fUklTS19DTEFTU19JUlJFVkVSU0lCTEUQBCqhAQoQQWN0aW9uUmV0cnlDbGFzcxIiCh5BQ1RJT05fUkVUUllfQ0xBU1NfVU5TUEVDSUZJRUQQABIbChdBQ1RJT05fUkVUUllfQ0xBU1NfU0FGRRABEigKJEFDVElPTl9SRVRSWV9DTEFTU19BRlRFUl9PQlNFUlZBVElPThACEiIKHkFDVElPTl9SRVRSWV9DTEFTU19ORVZFUl9CTElORBADKs4CChBBY3Rpb25DYXBhYmlsaXR5EiEKHUFDVElPTl9DQVBBQklMSVRZX1VOU1BFQ0lGSUVEEAASJAogQUNUSU9OX0NBUEFCSUxJVFlfREVWSUNFX09CU0VSVkUQARIjCh9BQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfSEVBTFRIEAISJAogQUNUSU9OX0NBUEFCSUxJVFlfREVWSUNFX0NBUFRVUkUQAxImCiJBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfSU5QVVRfVEFQEAQSKgomQUNUSU9OX0NBUEFCSUxJVFlfREVWSUNFX0lOUFVUX0dFU1RVUkUQBRInCiNBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfSU5QVVRfVEVYVBAGEikKJUFDVElPTl9DQVBBQklMSVRZX0RFVklDRV9JTlBVVF9TWVNURU0QByr9AQoNQWN0aW9uT3V0Y29tZRIeChpBQ1RJT05fT1VUQ09NRV9VTlNQRUNJRklFRBAAEhoKFkFDVElPTl9PVVRDT01FX1BFTkRJTkcQARIbChdBQ1RJT05fT1VUQ09NRV9WRVJJRklFRBACEhkKFUFDVElPTl9PVVRDT01FX0ZBSUxFRBADEhwKGEFDVElPTl9PVVRDT01FX0NBTkNFTExFRBAEEhwKGEFDVElPTl9PVVRDT01FX1RJTUVEX09VVBAFEhoKFkFDVElPTl9PVVRDT01FX1VOS05PV04QBhIgChxBQ1RJT05fT1VUQ09NRV9JTkRFVEVSTUlOQVRFEAcyXgoNQWN0aW9uU2VydmljZRJNCgxTdWJtaXRBY3Rpb24SHS5kcmlmdC52MS5TdWJtaXRBY3Rpb25SZXF1ZXN0Gh4uZHJpZnQudjEuU3VibWl0QWN0aW9uUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChVkcmlmdC92MS9hY3Rpb24ucHJvdG8SCGRyaWZ0LnYxInQKDlNlbWFudGljVGFyZ2V0EhMKC3Jlc291cmNlX2lkGAEgASgJEhsKE2FjY2Vzc2liaWxpdHlfbGFiZWwYAiABKAkSEwoLc3RhYmxlX3RleHQYAyABKAkSGwoTY29udGV4dF9maW5nZXJwcmludBgEIAEoCSI3ChBBY3Rpb25Db29yZGluYXRlEg0KBXNwYWNlGAEgASgJEgkKAXgYAiABKA0SCQoBeRgDIAEoDSJUChFBY3Rpb25HZXN0dXJlUGF0aBIqCgZwb2ludHMYASADKAsyGi5kcmlmdC52MS5BY3Rpb25Db29yZGluYXRlEhMKC2R1cmF0aW9uX21zGAIgASgEIlsKEURldmljZVJlbmRlclNwYWNlEhQKDHJlbmRlcl93aWR0aBgBIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAIgASgNEhkKEW9ic2VydmF0aW9uX3Rva2VuGAMgASgJIiMKC0RldmljZVBvaW50EgkKAXgYASABKA0SCQoBeRgCIAEoDSI+ChZTZW5zaXRpdmVUZXh0UmVmZXJlbmNlEg4KBmhhbmRsZRgBIAEoCRIUCgx2YWx1ZV9sZW5ndGgYAiABKA0ijQEKCFRhcElucHV0EigKBnRhcmdldBgBIAEoCzIYLmRyaWZ0LnYxLlNlbWFudGljVGFyZ2V0EiQKBXBvaW50GAIgASgLMhUuZHJpZnQudjEuRGV2aWNlUG9pbnQSMQoMcmVuZGVyX3NwYWNlGAMgASgLMhsuZHJpZnQudjEuRGV2aWNlUmVuZGVyU3BhY2UingEKClN3aXBlSW5wdXQSJAoFc3RhcnQYASABKAsyFS5kcmlmdC52MS5EZXZpY2VQb2ludBIiCgNlbmQYAiABKAsyFS5kcmlmdC52MS5EZXZpY2VQb2ludBITCgtkdXJhdGlvbl9tcxgDIAEoDRIxCgxyZW5kZXJfc3BhY2UYBCABKAsyGy5kcmlmdC52MS5EZXZpY2VSZW5kZXJTcGFjZSI/Cg1UeXBlVGV4dElucHV0Ei4KBHRleHQYASABKAsyIC5kcmlmdC52MS5TZW5zaXRpdmVUZXh0UmVmZXJlbmNlIiEKDUtleUV2ZW50SW5wdXQSEAoIa2V5X2NvZGUYASABKA0iPQoOTGF1bmNoQXBwSW5wdXQSFAoMcGFja2FnZV9uYW1lGAEgASgJEhUKDWFjdGl2aXR5X25hbWUYAiABKAki8QQKDEFjdGlvbkludGVudBIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEiIKBGtpbmQYBCABKA4yFC5kcmlmdC52MS5BY3Rpb25LaW5kEigKBnRhcmdldBgFIAEoCzIYLmRyaWZ0LnYxLlNlbWFudGljVGFyZ2V0EhcKD2lkZW1wb3RlbmN5X2tleRgGIAEoCRIWCgp0ZXh0X3ZhbHVlGAcgASgJQgIYARIsCgdnZXN0dXJlGAggASgLMhsuZHJpZnQudjEuQWN0aW9uR2VzdHVyZVBhdGgSEAoIa2V5X2NvZGUYCSABKA0SFAoMdmFsdWVfbGVuZ3RoGAogASgNEhAKCGxlYXNlX2lkGAsgASgJEhUKDWZlbmNpbmdfdG9rZW4YDCABKAQSGQoRb2JzZXJ2YXRpb25fdG9rZW4YDSABKAkSGAoQYXBwcm92YWxfZ3JhbnRlZBgOIAEoCBIhCgN0YXAYDyABKAsyEi5kcmlmdC52MS5UYXBJbnB1dEgAEiUKBXN3aXBlGBAgASgLMhQuZHJpZnQudjEuU3dpcGVJbnB1dEgAEiwKCXR5cGVfdGV4dBgRIAEoCzIXLmRyaWZ0LnYxLlR5cGVUZXh0SW5wdXRIABIsCglrZXlfZXZlbnQYEiABKAsyFy5kcmlmdC52MS5LZXlFdmVudElucHV0SAASLgoKbGF1bmNoX2FwcBgTIAEoCzIYLmRyaWZ0LnYxLkxhdW5jaEFwcElucHV0SABCDgoMZGV2aWNlX2lucHV0Ip4BCgxBY3Rpb25SZXN1bHQSEQoJYWN0aW9uX2lkGAEgASgJEigKB291dGNvbWUYAiABKA4yFy5kcmlmdC52MS5BY3Rpb25PdXRjb21lEiIKB2ZhaWx1cmUYAyABKAsyES5kcmlmdC52MS5GYWlsdXJlEi0KCGV2aWRlbmNlGAQgASgLMhsuZHJpZnQudjEuQXJ0aWZhY3RSZWZlcmVuY2UiaAoTU3VibWl0QWN0aW9uUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSJgoGaW50ZW50GAIgASgLMhYuZHJpZnQudjEuQWN0aW9uSW50ZW50Ij4KFFN1Ym1pdEFjdGlvblJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCqOBAoKQWN0aW9uS2luZBIbChdBQ1RJT05fS0lORF9VTlNQRUNJRklFRBAAEhcKE0FDVElPTl9LSU5EX09CU0VSVkUQARIcChhBQ1RJT05fS0lORF9IRUFMVEhfQ0hFQ0sQAhIXChNBQ1RJT05fS0lORF9DQVBUVVJFEAMSEwoPQUNUSU9OX0tJTkRfVEFQEAQSGgoWQUNUSU9OX0tJTkRfVEVYVF9JTlBVVBAFEhQKEEFDVElPTl9LSU5EX0JBQ0sQBhIaChZBQ1RJT05fS0lORF9ET1VCTEVfVEFQEAcSGgoWQUNUSU9OX0tJTkRfTE9OR19QUkVTUxAIEhsKF0FDVElPTl9LSU5EX1RFWFRfREVMRVRFEAkSFQoRQUNUSU9OX0tJTkRfQ0xFQVIQChIVChFBQ1RJT05fS0lORF9TV0lQRRALEhYKEkFDVElPTl9LSU5EX1NDUk9MTBAMEhQKEEFDVElPTl9LSU5EX0RSQUcQDRIUChBBQ1RJT05fS0lORF9IT01FEA4SFQoRQUNUSU9OX0tJTkRfRU5URVIQDxIZChVBQ1RJT05fS0lORF9LRVlfRVZFTlQQEBIZChVBQ1RJT05fS0lORF9VSV9DSEFOR0UQERIcChhBQ1RJT05fS0lORF9TVEFURV9DSEFOR0UQEhIaChZBQ1RJT05fS0lORF9MQVVOQ0hfQVBQEBMqrQEKD0FjdGlvblJpc2tDbGFzcxIhCh1BQ1RJT05fUklTS19DTEFTU19VTlNQRUNJRklFRBAAEhkKFUFDVElPTl9SSVNLX0NMQVNTX0xPVxABEhwKGEFDVElPTl9SSVNLX0NMQVNTX01FRElVTRACEhoKFkFDVElPTl9SSVNLX0NMQVNTX0hJR0gQAxIiCh5BQ1RJT05fUklTS19DTEFTU19JUlJFVkVSU0lCTEUQBCqhAQoQQWN0aW9uUmV0cnlDbGFzcxIiCh5BQ1RJT05fUkVUUllfQ0xBU1NfVU5TUEVDSUZJRUQQABIbChdBQ1RJT05fUkVUUllfQ0xBU1NfU0FGRRABEigKJEFDVElPTl9SRVRSWV9DTEFTU19BRlRFUl9PQlNFUlZBVElPThACEiIKHkFDVElPTl9SRVRSWV9DTEFTU19ORVZFUl9CTElORBADKs4CChBBY3Rpb25DYXBhYmlsaXR5EiEKHUFDVElPTl9DQVBBQklMSVRZX1VOU1BFQ0lGSUVEEAASJAogQUNUSU9OX0NBUEFCSUxJVFlfREVWSUNFX09CU0VSVkUQARIjCh9BQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfSEVBTFRIEAISJAogQUNUSU9OX0NBUEFCSUxJVFlfREVWSUNFX0NBUFRVUkUQAxImCiJBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfSU5QVVRfVEFQEAQSKgomQUNUSU9OX0NBUEFCSUxJVFlfREVWSUNFX0lOUFVUX0dFU1RVUkUQBRInCiNBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfSU5QVVRfVEVYVBAGEikKJUFDVElPTl9DQVBBQklMSVRZX0RFVklDRV9JTlBVVF9TWVNURU0QByr9AQoNQWN0aW9uT3V0Y29tZRIeChpBQ1RJT05fT1VUQ09NRV9VTlNQRUNJRklFRBAAEhoKFkFDVElPTl9PVVRDT01FX1BFTkRJTkcQARIbChdBQ1RJT05fT1VUQ09NRV9WRVJJRklFRBACEhkKFUFDVElPTl9PVVRDT01FX0ZBSUxFRBADEhwKGEFDVElPTl9PVVRDT01FX0NBTkNFTExFRBAEEhwKGEFDVElPTl9PVVRDT01FX1RJTUVEX09VVBAFEhoKFkFDVElPTl9PVVRDT01FX1VOS05PV04QBhIgChxBQ1RJT05fT1VUQ09NRV9JTkRFVEVSTUlOQVRFEAcyXgoNQWN0aW9uU2VydmljZRJNCgxTdWJtaXRBY3Rpb24SHS5kcmlmdC52MS5TdWJtaXRBY3Rpb25SZXF1ZXN0Gh4uZHJpZnQudjEuU3VibWl0QWN0aW9uUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.SemanticTarget
@@ -96,6 +96,247 @@ export const ActionGesturePathSchema: GenMessage<ActionGesturePath> = /*@__PURE_
   messageDesc(file_drift_v1_action, 2);
 
 /**
+ * DeviceRenderSpace is the frame a coordinate-bearing input is expressed in.
+ *
+ * It is the render size the device currently presents at: the `wm size` OVERRIDE
+ * when the device has one, never the physical panel size, and never the size of a
+ * downscaled screenshot or vision frame. The legacy product was repeatedly bitten
+ * by vision coordinates resolved against one frame being fed to a device in
+ * another; a coordinate that arrives without a frame, outside its declared frame,
+ * or against a frame other than the observation it was resolved from is refused
+ * rather than scaled.
+ *
+ * @generated from message drift.v1.DeviceRenderSpace
+ */
+export type DeviceRenderSpace = Message<"drift.v1.DeviceRenderSpace"> & {
+  /**
+   * Render width in device pixels.
+   *
+   * @generated from field: uint32 render_width = 1;
+   */
+  renderWidth: number;
+
+  /**
+   * Render height in device pixels.
+   *
+   * @generated from field: uint32 render_height = 2;
+   */
+  renderHeight: number;
+
+  /**
+   * Freshness token of the observation these coordinates were measured from. It
+   * must be the observation the action itself was resolved against
+   * (ActionIntent.observation_token); the repetition is deliberate, so a copied
+   * coordinate cannot arrive attached to a different observation.
+   *
+   * @generated from field: string observation_token = 3;
+   */
+  observationToken: string;
+};
+
+/**
+ * Describes the message drift.v1.DeviceRenderSpace.
+ * Use `create(DeviceRenderSpaceSchema)` to create a new message.
+ */
+export const DeviceRenderSpaceSchema: GenMessage<DeviceRenderSpace> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 3);
+
+/**
+ * DevicePoint is a point inside a DeviceRenderSpace. It carries no frame of its
+ * own: the frame travels with the action as a sibling DeviceRenderSpace, so a
+ * point cannot arrive without one.
+ *
+ * @generated from message drift.v1.DevicePoint
+ */
+export type DevicePoint = Message<"drift.v1.DevicePoint"> & {
+  /**
+   * @generated from field: uint32 x = 1;
+   */
+  x: number;
+
+  /**
+   * @generated from field: uint32 y = 2;
+   */
+  y: number;
+};
+
+/**
+ * Describes the message drift.v1.DevicePoint.
+ * Use `create(DevicePointSchema)` to create a new message.
+ */
+export const DevicePointSchema: GenMessage<DevicePoint> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 4);
+
+/**
+ * SensitiveTextReference names a text value held outside this contract.
+ *
+ * Text content has no representation here: a generated message renders every
+ * populated field in its string, text, JSON and debug forms, so a plaintext field
+ * would be logged, rendered in an error, and persisted the first time anyone
+ * formatted the intent. The value is named by an opaque reference and released
+ * only at dispatch, through the redaction boundary that owns it. The handle is
+ * not free text — it must match an opaque reference pattern, so a caller cannot
+ * smuggle content through it.
+ *
+ * @generated from message drift.v1.SensitiveTextReference
+ */
+export type SensitiveTextReference = Message<"drift.v1.SensitiveTextReference"> & {
+  /**
+   * Opaque, bounded, caller-scoped handle for the value. Never the value itself.
+   *
+   * @generated from field: string handle = 1;
+   */
+  handle: string;
+
+  /**
+   * Length of the referenced value, so a caller can bound the input without
+   * reading it.
+   *
+   * @generated from field: uint32 value_length = 2;
+   */
+  valueLength: number;
+};
+
+/**
+ * Describes the message drift.v1.SensitiveTextReference.
+ * Use `create(SensitiveTextReferenceSchema)` to create a new message.
+ */
+export const SensitiveTextReferenceSchema: GenMessage<SensitiveTextReference> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 5);
+
+/**
+ * TapInput is the payload for ACTION_KIND_TAP. A tap names exactly one target:
+ * a semantic target (preferred), or a point inside an explicit device render
+ * space, which the kernel admits only as an approved coordinate fallback. A tap
+ * that names neither, or both, is refused.
+ *
+ * @generated from message drift.v1.TapInput
+ */
+export type TapInput = Message<"drift.v1.TapInput"> & {
+  /**
+   * @generated from field: drift.v1.SemanticTarget target = 1;
+   */
+  target?: SemanticTarget;
+
+  /**
+   * @generated from field: drift.v1.DevicePoint point = 2;
+   */
+  point?: DevicePoint;
+
+  /**
+   * @generated from field: drift.v1.DeviceRenderSpace render_space = 3;
+   */
+  renderSpace?: DeviceRenderSpace;
+};
+
+/**
+ * Describes the message drift.v1.TapInput.
+ * Use `create(TapInputSchema)` to create a new message.
+ */
+export const TapInputSchema: GenMessage<TapInput> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 6);
+
+/**
+ * SwipeInput is the payload for ACTION_KIND_SWIPE. Both endpoints belong to the
+ * same device render space, and that frame is required.
+ *
+ * @generated from message drift.v1.SwipeInput
+ */
+export type SwipeInput = Message<"drift.v1.SwipeInput"> & {
+  /**
+   * @generated from field: drift.v1.DevicePoint start = 1;
+   */
+  start?: DevicePoint;
+
+  /**
+   * @generated from field: drift.v1.DevicePoint end = 2;
+   */
+  end?: DevicePoint;
+
+  /**
+   * @generated from field: uint32 duration_ms = 3;
+   */
+  durationMs: number;
+
+  /**
+   * @generated from field: drift.v1.DeviceRenderSpace render_space = 4;
+   */
+  renderSpace?: DeviceRenderSpace;
+};
+
+/**
+ * Describes the message drift.v1.SwipeInput.
+ * Use `create(SwipeInputSchema)` to create a new message.
+ */
+export const SwipeInputSchema: GenMessage<SwipeInput> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 7);
+
+/**
+ * TypeTextInput is the payload for ACTION_KIND_TEXT_INPUT.
+ *
+ * @generated from message drift.v1.TypeTextInput
+ */
+export type TypeTextInput = Message<"drift.v1.TypeTextInput"> & {
+  /**
+   * @generated from field: drift.v1.SensitiveTextReference text = 1;
+   */
+  text?: SensitiveTextReference;
+};
+
+/**
+ * Describes the message drift.v1.TypeTextInput.
+ * Use `create(TypeTextInputSchema)` to create a new message.
+ */
+export const TypeTextInputSchema: GenMessage<TypeTextInput> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 8);
+
+/**
+ * KeyEventInput is the payload for ACTION_KIND_KEY_EVENT. A key event names one
+ * code from the device's key vocabulary; it carries no command text.
+ *
+ * @generated from message drift.v1.KeyEventInput
+ */
+export type KeyEventInput = Message<"drift.v1.KeyEventInput"> & {
+  /**
+   * @generated from field: uint32 key_code = 1;
+   */
+  keyCode: number;
+};
+
+/**
+ * Describes the message drift.v1.KeyEventInput.
+ * Use `create(KeyEventInputSchema)` to create a new message.
+ */
+export const KeyEventInputSchema: GenMessage<KeyEventInput> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 9);
+
+/**
+ * LaunchAppInput is the payload for ACTION_KIND_LAUNCH_APP. An empty activity
+ * launches the package's default activity. The payload names a package and an
+ * activity; it is not a command line and cannot become one.
+ *
+ * @generated from message drift.v1.LaunchAppInput
+ */
+export type LaunchAppInput = Message<"drift.v1.LaunchAppInput"> & {
+  /**
+   * @generated from field: string package_name = 1;
+   */
+  packageName: string;
+
+  /**
+   * @generated from field: string activity_name = 2;
+   */
+  activityName: string;
+};
+
+/**
+ * Describes the message drift.v1.LaunchAppInput.
+ * Use `create(LaunchAppInputSchema)` to create a new message.
+ */
+export const LaunchAppInputSchema: GenMessage<LaunchAppInput> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 10);
+
+/**
  * @generated from message drift.v1.ActionIntent
  */
 export type ActionIntent = Message<"drift.v1.ActionIntent"> & {
@@ -130,7 +371,12 @@ export type ActionIntent = Message<"drift.v1.ActionIntent"> & {
   idempotencyKey: string;
 
   /**
-   * @generated from field: string text_value = 7;
+   * Published for wire compatibility only. Typed text entry carries a
+   * SensitiveTextReference (:17) instead, and no new code may populate this
+   * plaintext field: text content is never persisted in plaintext.
+   *
+   * @generated from field: string text_value = 7 [deprecated = true];
+   * @deprecated
    */
   textValue: string;
 
@@ -171,6 +417,46 @@ export type ActionIntent = Message<"drift.v1.ActionIntent"> & {
    * @generated from field: bool approval_granted = 14;
    */
   approvalGranted: boolean;
+
+  /**
+   * Exactly one member must be set, and it must be the member that belongs to
+   * `kind` (see the typed device input comment above). A mutating input whose
+   * payload is absent, incomplete, or of a different kind is refused before the
+   * kernel is asked to authorize it.
+   *
+   * @generated from oneof drift.v1.ActionIntent.device_input
+   */
+  deviceInput: {
+    /**
+     * @generated from field: drift.v1.TapInput tap = 15;
+     */
+    value: TapInput;
+    case: "tap";
+  } | {
+    /**
+     * @generated from field: drift.v1.SwipeInput swipe = 16;
+     */
+    value: SwipeInput;
+    case: "swipe";
+  } | {
+    /**
+     * @generated from field: drift.v1.TypeTextInput type_text = 17;
+     */
+    value: TypeTextInput;
+    case: "typeText";
+  } | {
+    /**
+     * @generated from field: drift.v1.KeyEventInput key_event = 18;
+     */
+    value: KeyEventInput;
+    case: "keyEvent";
+  } | {
+    /**
+     * @generated from field: drift.v1.LaunchAppInput launch_app = 19;
+     */
+    value: LaunchAppInput;
+    case: "launchApp";
+  } | { case: undefined; value?: undefined };
 };
 
 /**
@@ -178,7 +464,7 @@ export type ActionIntent = Message<"drift.v1.ActionIntent"> & {
  * Use `create(ActionIntentSchema)` to create a new message.
  */
 export const ActionIntentSchema: GenMessage<ActionIntent> = /*@__PURE__*/
-  messageDesc(file_drift_v1_action, 3);
+  messageDesc(file_drift_v1_action, 11);
 
 /**
  * @generated from message drift.v1.ActionResult
@@ -210,7 +496,7 @@ export type ActionResult = Message<"drift.v1.ActionResult"> & {
  * Use `create(ActionResultSchema)` to create a new message.
  */
 export const ActionResultSchema: GenMessage<ActionResult> = /*@__PURE__*/
-  messageDesc(file_drift_v1_action, 4);
+  messageDesc(file_drift_v1_action, 12);
 
 /**
  * @generated from message drift.v1.SubmitActionRequest
@@ -232,7 +518,7 @@ export type SubmitActionRequest = Message<"drift.v1.SubmitActionRequest"> & {
  * Use `create(SubmitActionRequestSchema)` to create a new message.
  */
 export const SubmitActionRequestSchema: GenMessage<SubmitActionRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_action, 5);
+  messageDesc(file_drift_v1_action, 13);
 
 /**
  * @generated from message drift.v1.SubmitActionResponse
@@ -249,7 +535,7 @@ export type SubmitActionResponse = Message<"drift.v1.SubmitActionResponse"> & {
  * Use `create(SubmitActionResponseSchema)` to create a new message.
  */
 export const SubmitActionResponseSchema: GenMessage<SubmitActionResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_action, 6);
+  messageDesc(file_drift_v1_action, 14);
 
 /**
  * @generated from enum drift.v1.ActionKind
@@ -349,6 +635,11 @@ export enum ActionKind {
    * @generated from enum value: ACTION_KIND_STATE_CHANGE = 18;
    */
   STATE_CHANGE = 18,
+
+  /**
+   * @generated from enum value: ACTION_KIND_LAUNCH_APP = 19;
+   */
+  LAUNCH_APP = 19,
 }
 
 /**

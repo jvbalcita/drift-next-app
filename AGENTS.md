@@ -49,6 +49,9 @@ React/Vite operator UI
 - Reject expired, revoked, stale-fenced, duplicate, ambiguous, unauthorized, or incompatible actions before dispatch.
 - Model manual source-and-follower mirroring as typed action fan-out. Each follower has its own lease, actor, policy/capability check, current observation, action attempt, evidence, and result.
 - Never blindly mirror raw coordinates, stale UI nodes, raw protocol commands, credentials, or secrets.
+- Permit device input only as typed, first-class actions (tap, swipe, typed text, key event, app launch), and only through the lease, fencing, policy, control-session and emergency-stop kernel. Never add a generic command, shell, exec, argv or free-form payload action: it would reduce that kernel to the only barrier between an operator intent and arbitrary execution on a device.
+- Carry the coordinate frame with the coordinate. A device input that uses coordinates states the render size the device presents at — the `wm size` override, never the physical panel size and never a downscaled screenshot or vision frame — and the observation the coordinates were measured from; a coordinate without a frame, outside it, or bound to another observation is refused, never scaled.
+- Give a device input no generic or incomplete payload path: a mutating input whose typed payload is absent, incomplete, or the member of a different kind is refused at the boundary before authorization.
 - Model multi-device automation as one parent run and independent per-device target executions. Resolve a target snapshot at run creation, use bounded concurrency, and retain independent target state, retries, cleanup, and failure results.
 - Failures must be classified and visible per target. Do not infer group success from source success or conceal a failed target behind aggregate state.
 
@@ -98,6 +101,7 @@ React/Vite operator UI
 - Define public messages and services under `proto/drift/v1/` using additive evolution by default.
 - Never reuse field numbers. Do not rename/remove published fields, enum values, or RPCs without a compatibility and migration strategy.
 - Keep request/response messages explicit; avoid generic map payloads for stable domain APIs.
+- Carry a typed action's payload in a `oneof` whose members are named for their kind, one member per kind, and refuse a payload that is absent, incomplete, or belongs to another kind at the transport boundary — before the kernel is asked to authorize it. Grow the oneof additively; never reuse a field number, and never add a member that accepts caller-supplied command text.
 - Validate contracts with `buf lint` and `buf build`.
 - Regenerate code with `buf generate` when contracts or generator configuration change. Never hand-edit generated files under `gen/` or `apps/console/src/gen/`.
 - Keep transport handlers thin: authenticate/authorize, validate input, call an application service, and map known errors to stable typed responses.
@@ -139,6 +143,7 @@ React/Vite operator UI
 ## 9. Security, privacy, and package trust
 
 - Do not commit, log, render, or place secrets in tests, fixtures, screenshots, artifacts, workflow definitions, or documentation. Use `[REDACTED]` where a placeholder is necessary.
+- Never put text content in a message field. A generated message renders every populated field in its string, text, JSON and debug forms, so a plaintext field is logged, rendered in an error, and persisted the first time anyone formats it. Reference the value with an opaque, pattern-checked handle and release it at dispatch through the boundary that owns it.
 - Bind local service listeners to loopback or use narrow local IPC. Do not broaden network exposure without authorization, authentication, and a threat model.
 - Validate all untrusted input at the service boundary. Prefer typed schemas, allow-lists, and parameterized queries/argument arrays over string commands or shell interpolation.
 - Redact sensitive values before persistence, telemetry, errors, audit records, and artifacts.

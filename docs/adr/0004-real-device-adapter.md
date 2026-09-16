@@ -3,6 +3,7 @@
 - Status: Accepted — owner authorized controlled P13 one-lab-device work 2026-09-15
 - Date: 2026-09-15
 - Amended: 2026-09-16 — the confirm-then-capture lifecycle is retired in favour of device-scoped capture (Discovery Phase E). See the amendment below.
+- Amended: 2026-09-16 — the "No device input" non-goal below is lifted by ADR-0008 for typed device input only (tap, swipe, typed text, key event, app launch), which is permitted through the unchanged lease/fencing/policy/control-session kernel and never as a raw passthrough. The adapter ownership, argument-array and read-only-capture rules recorded here are unchanged and remain in force.
 
 ## Amendment: device-scoped capture (Discovery Phase E)
 

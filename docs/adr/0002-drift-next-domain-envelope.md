@@ -3,6 +3,7 @@
 - Status: Accepted — owner-approved 2026-09-14
 - Date: 2026-09-13; approved 2026-09-14
 - Amended: 2026-09-16 — the discovery candidate/approval/registration model in the Decision below is reversed by ADR-0007; a scan now observes and upserts devices directly.
+- Amended: 2026-09-16 — the "Android/ADB/scrcpy or device operation" exclusion in the Decision below is narrowed by ADR-0008: typed device input (tap, swipe, typed text, key event, app launch) is permitted through the unchanged lease/fencing/policy/control-session kernel, as first-class typed actions and never as raw device or shell commands, which remain excluded.
 
 ## Context
 

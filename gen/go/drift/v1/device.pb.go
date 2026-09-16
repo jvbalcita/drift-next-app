@@ -74,7 +74,16 @@ func (DeviceStatus) EnumDescriptor() ([]byte, []int) {
 }
 
 // Device is the operator-facing projection of an edge-managed Android device.
-// Commands are intentionally absent until leases and policy checks are wired.
+//
+// The device command surface is not a raw passthrough and not a generic shell:
+// a device input is permitted only as one of the typed, first-class actions in
+// action.proto, and only through the lease, fencing-token, idempotency, policy,
+// capability, control-session and emergency-stop kernel that authorizes and
+// dispatches it (see `ActionService.Authorize`/`Dispatch` and `HaltService`).
+// The earlier deferral — commands absent until leases and policy checks were
+// wired — is lifted, and recorded in docs/adr/0008-typed-device-input.md; the
+// action-safety kernel itself is unchanged by that lift. No member of this
+// service executes caller-supplied command text, and none may be added.
 type Device struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`

@@ -2,6 +2,7 @@ package transportconnect
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	connectrpc "connectrpc.com/connect"
@@ -67,8 +68,8 @@ func (h *ActionHandler) SubmitAction(ctx context.Context, request *connectrpc.Re
 
 func actionIntentFromProto(msg *driftv1.ActionIntent, requestContext *driftv1.RequestContext, actorID string) (action.Intent, error) {
 	var intent action.Intent
-	if msg == nil {
-		return intent, invalidArgument("action intent is required")
+	if err := ValidateDeviceInputIntent(msg); err != nil {
+		return intent, err
 	}
 	if msg.GetWorkspace() == nil || msg.GetWorkspace().GetWorkspaceId() == "" {
 		return intent, invalidArgument("workspace ID is required")
@@ -90,9 +91,8 @@ func actionIntentFromProto(msg *driftv1.ActionIntent, requestContext *driftv1.Re
 		HolderID:          actorID,
 		FencingToken:      msg.GetFencingToken(),
 		Kind:              kind,
-		TextValue:         msg.GetTextValue(),
-		ValueLength:       int(msg.GetValueLength()),
-		KeyCode:           int(msg.GetKeyCode()),
+		ValueLength:       typedValueLength(msg),
+		KeyCode:           typedKeyCode(msg),
 		IdempotencyKey:    key,
 		ObservationToken:  msg.GetObservationToken(),
 		InvocationSurface: action.SurfaceManual,
@@ -100,6 +100,9 @@ func actionIntentFromProto(msg *driftv1.ActionIntent, requestContext *driftv1.Re
 		ApprovalGranted:   msg.GetApprovalGranted(),
 		Timeout:           30 * time.Second,
 	}
+	// TextValue is deliberately never mapped: the published plaintext field is
+	// deprecated, and typed text travels as an opaque SensitiveTextReference that
+	// is resolved at dispatch through the boundary that owns the value.
 	if target := msg.GetTarget(); target != nil {
 		intent.Target = action.SemanticTarget{
 			ResourceID:         target.GetResourceId(),
@@ -108,7 +111,50 @@ func actionIntentFromProto(msg *driftv1.ActionIntent, requestContext *driftv1.Re
 			ContextFingerprint: target.GetContextFingerprint(),
 		}
 	}
+	if swipe := msg.GetSwipe(); swipe != nil {
+		intent.Gesture = &action.GesturePath{
+			Points:     []action.Coordinate{renderCoordinate(swipe.GetStart(), swipe.GetRenderSpace()), renderCoordinate(swipe.GetEnd(), swipe.GetRenderSpace())},
+			DurationMs: int64(swipe.GetDurationMs()),
+		}
+	}
+	if tap := msg.GetTap(); tap != nil && tap.GetPoint() != nil {
+		intent.CoordinateFallback = &action.CoordinateFallback{
+			Start:     renderCoordinate(tap.GetPoint(), tap.GetRenderSpace()),
+			Confirmed: true,
+		}
+	}
 	return intent, nil
+}
+
+// typedValueLength and typedKeyCode read the typed payloads. The published flat
+// value_length and key_code fields are not accepted for the typed input kinds:
+// the contract requires the payload that belongs to the kind.
+func typedValueLength(msg *driftv1.ActionIntent) int {
+	if typed := msg.GetTypeText(); typed != nil {
+		return int(typed.GetText().GetValueLength())
+	}
+	return 0
+}
+
+func typedKeyCode(msg *driftv1.ActionIntent) int {
+	if keyEvent := msg.GetKeyEvent(); keyEvent != nil {
+		return int(keyEvent.GetKeyCode())
+	}
+	return 0
+}
+
+// renderCoordinate places a point in the render space that travelled with it.
+// The label follows the existing observation convention (`display:1080x1920`)
+// and names the render frame, never a physical or downscaled frame.
+func renderCoordinate(point *driftv1.DevicePoint, space *driftv1.DeviceRenderSpace) action.Coordinate {
+	if point == nil || space == nil {
+		return action.Coordinate{}
+	}
+	return action.Coordinate{
+		Space: fmt.Sprintf("display:%dx%d", space.GetRenderWidth(), space.GetRenderHeight()),
+		X:     int(point.GetX()),
+		Y:     int(point.GetY()),
+	}
 }
 
 func actionKindFromProto(kind driftv1.ActionKind) action.Kind {
@@ -145,6 +191,8 @@ func actionKindFromProto(kind driftv1.ActionKind) action.Kind {
 		return action.Enter
 	case driftv1.ActionKind_ACTION_KIND_KEY_EVENT:
 		return action.KeyEvent
+	case driftv1.ActionKind_ACTION_KIND_LAUNCH_APP:
+		return action.LaunchApp
 	case driftv1.ActionKind_ACTION_KIND_UI_CHANGE:
 		return action.UIChange
 	case driftv1.ActionKind_ACTION_KIND_STATE_CHANGE:

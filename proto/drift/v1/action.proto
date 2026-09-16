@@ -25,6 +25,7 @@ enum ActionKind {
   ACTION_KIND_KEY_EVENT = 16;
   ACTION_KIND_UI_CHANGE = 17;
   ACTION_KIND_STATE_CHANGE = 18;
+  ACTION_KIND_LAUNCH_APP = 19;
 }
 enum ActionRiskClass {
   ACTION_RISK_CLASS_UNSPECIFIED = 0;
@@ -74,6 +75,114 @@ message ActionGesturePath {
   repeated ActionCoordinate points = 1;
   uint64 duration_ms = 2;
 }
+
+// Typed device input.
+//
+// Every permitted device input is a first-class typed action: it names exactly
+// one ActionKind and carries exactly that kind's payload. There is deliberately
+// no generic command, shell, exec, argv or free-form payload member anywhere in
+// this contract, and no caller-supplied command text: such a member would leave
+// the lease, fencing token, idempotency, policy, capability, control-session and
+// emergency-stop checks in the action-safety kernel as the only barrier between
+// a caller and arbitrary execution on a device (ADR-0002, ADR-0005, ADR-0008).
+//
+// The five inputs are ACTION_KIND_TAP, ACTION_KIND_SWIPE, ACTION_KIND_TEXT_INPUT
+// (typed text entry), ACTION_KIND_KEY_EVENT and ACTION_KIND_LAUNCH_APP. A kind
+// whose payload is absent, incomplete, or the member of a different kind is
+// refused at the contract boundary before the kernel is asked to authorize it.
+// ACTION_KIND_TEXT_INPUT is the published identity for typed text entry; do not
+// add a second kind for the same input.
+//
+// Each of these mutates device state, so it is permitted only through the
+// kernel: an explicit control session, a valid per-device lease with its fencing
+// token, an idempotency key, a policy and capability decision, and — where the
+// catalog requires one — a fresh observation token. This contract says what the
+// input is; the kernel decides whether it may run.
+
+// DeviceRenderSpace is the frame a coordinate-bearing input is expressed in.
+//
+// It is the render size the device currently presents at: the `wm size` OVERRIDE
+// when the device has one, never the physical panel size, and never the size of a
+// downscaled screenshot or vision frame. The legacy product was repeatedly bitten
+// by vision coordinates resolved against one frame being fed to a device in
+// another; a coordinate that arrives without a frame, outside its declared frame,
+// or against a frame other than the observation it was resolved from is refused
+// rather than scaled.
+message DeviceRenderSpace {
+  // Render width in device pixels.
+  uint32 render_width = 1;
+  // Render height in device pixels.
+  uint32 render_height = 2;
+  // Freshness token of the observation these coordinates were measured from. It
+  // must be the observation the action itself was resolved against
+  // (ActionIntent.observation_token); the repetition is deliberate, so a copied
+  // coordinate cannot arrive attached to a different observation.
+  string observation_token = 3;
+}
+
+// DevicePoint is a point inside a DeviceRenderSpace. It carries no frame of its
+// own: the frame travels with the action as a sibling DeviceRenderSpace, so a
+// point cannot arrive without one.
+message DevicePoint {
+  uint32 x = 1;
+  uint32 y = 2;
+}
+
+// SensitiveTextReference names a text value held outside this contract.
+//
+// Text content has no representation here: a generated message renders every
+// populated field in its string, text, JSON and debug forms, so a plaintext field
+// would be logged, rendered in an error, and persisted the first time anyone
+// formatted the intent. The value is named by an opaque reference and released
+// only at dispatch, through the redaction boundary that owns it. The handle is
+// not free text — it must match an opaque reference pattern, so a caller cannot
+// smuggle content through it.
+message SensitiveTextReference {
+  // Opaque, bounded, caller-scoped handle for the value. Never the value itself.
+  string handle = 1;
+  // Length of the referenced value, so a caller can bound the input without
+  // reading it.
+  uint32 value_length = 2;
+}
+
+// TapInput is the payload for ACTION_KIND_TAP. A tap names exactly one target:
+// a semantic target (preferred), or a point inside an explicit device render
+// space, which the kernel admits only as an approved coordinate fallback. A tap
+// that names neither, or both, is refused.
+message TapInput {
+  SemanticTarget target = 1;
+  DevicePoint point = 2;
+  DeviceRenderSpace render_space = 3;
+}
+
+// SwipeInput is the payload for ACTION_KIND_SWIPE. Both endpoints belong to the
+// same device render space, and that frame is required.
+message SwipeInput {
+  DevicePoint start = 1;
+  DevicePoint end = 2;
+  uint32 duration_ms = 3;
+  DeviceRenderSpace render_space = 4;
+}
+
+// TypeTextInput is the payload for ACTION_KIND_TEXT_INPUT.
+message TypeTextInput {
+  SensitiveTextReference text = 1;
+}
+
+// KeyEventInput is the payload for ACTION_KIND_KEY_EVENT. A key event names one
+// code from the device's key vocabulary; it carries no command text.
+message KeyEventInput {
+  uint32 key_code = 1;
+}
+
+// LaunchAppInput is the payload for ACTION_KIND_LAUNCH_APP. An empty activity
+// launches the package's default activity. The payload names a package and an
+// activity; it is not a command line and cannot become one.
+message LaunchAppInput {
+  string package_name = 1;
+  string activity_name = 2;
+}
+
 message ActionIntent {
   string id = 1;
   WorkspaceRef workspace = 2;
@@ -81,7 +190,10 @@ message ActionIntent {
   ActionKind kind = 4;
   SemanticTarget target = 5;
   string idempotency_key = 6;
-  string text_value = 7;
+  // Published for wire compatibility only. Typed text entry carries a
+  // SensitiveTextReference (:17) instead, and no new code may populate this
+  // plaintext field: text content is never persisted in plaintext.
+  string text_value = 7 [deprecated = true];
   ActionGesturePath gesture = 8;
   uint32 key_code = 9;
   uint32 value_length = 10;
@@ -91,6 +203,17 @@ message ActionIntent {
   uint64 fencing_token = 12;
   string observation_token = 13;
   bool approval_granted = 14;
+  // Exactly one member must be set, and it must be the member that belongs to
+  // `kind` (see the typed device input comment above). A mutating input whose
+  // payload is absent, incomplete, or of a different kind is refused before the
+  // kernel is asked to authorize it.
+  oneof device_input {
+    TapInput tap = 15;
+    SwipeInput swipe = 16;
+    TypeTextInput type_text = 17;
+    KeyEventInput key_event = 18;
+    LaunchAppInput launch_app = 19;
+  }
 }
 message ActionResult {
   string action_id = 1;
