@@ -3,6 +3,7 @@
 - Status: Accepted — Wave 1a (ARC-58), dispatch subtask ARC-62
 - Date: 2026-09-16
 - Depends on: ADR-0008 (typed device input, and the recorded lift of the device-command deferral), ADR-0009 (domain registration of the typed device inputs)
+- Composed with: ADR-0011 (the render-space cross-check, which this dispatcher now carries as a second gate)
 - Does not lift: ADR-0004 (the adapter boundary), ADR-0005 (raw ADB shell, arbitrary coordinates, clipboard/global commands, automatic package changes)
 
 ## Context
@@ -109,7 +110,7 @@ A failed postcondition is classified (`postcondition_failed`) and returned as `f
 - **`no_control_session` is exercised at the unit level, not end to end.** The public session API always ends a session's leases with it, and `Acquire` clamps a lease expiry to its session's, so a persisted row with a live lease and a dead session is not reachable through the service API. The integration test therefore covers expired lease, stale fence, unusable transport and emergency stop; the session case is covered against the probe directly.
 - **Refusals are not audited.** The kernel writes no audit record for a refusal it makes before dispatch, and this slice adds none: adding one means writing a new kernel/audit path, and a refusal that is visible only in a returned typed error is the current, recorded behaviour rather than a new one.
 - **A typed-text handle is not part of the request hash.** `action.Intent` carries the referenced length but no handle, and `Intent` lives in `internal/action/catalog.go`, which this slice does not touch. Two text intents that differ only in their handle and share a length therefore hash identically; the idempotency key remains the primary guard, and a handle change under one key is a caller error. Closing this needs a handle representation on the intent, which is a catalog change.
-- **The discovery simplification, `network_profiles`, the console group and policy surfaces, and the `wm size` coordinate cross-check (ARC-63) are untouched.** No dependency was added; `go.mod`/`go.sum` are unchanged.
+- **The `wm size` coordinate cross-check (ARC-63) was built in parallel and is composed in ADR-0011.** That record adds the render-size seam to this dispatcher, places the cross-check inside the executing actor before the argument array is built, and gives a render-space refusal its own failure class so it is never reported as a transport failure of an input that was never sent. The discovery simplification, `network_profiles`, the console group and policy surfaces remain untouched. No dependency was added; `go.mod`/`go.sum` are unchanged.
 
 ## Alternatives considered
 

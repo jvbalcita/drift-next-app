@@ -35,6 +35,20 @@ const (
 	testRenderHeight = 2280
 )
 
+// testObservedAt is when the fake device's render size was resolved.
+var testObservedAt = time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC)
+
+// testDeviceRenderSize is the size the fake device presents at: the OVERRIDE it
+// declares, not a physical panel size.
+func testDeviceRenderSize() execution.DeviceRenderSize {
+	return execution.DeviceRenderSize{
+		Width:      testRenderWidth,
+		Height:     testRenderHeight,
+		Provenance: execution.RenderSizeFromOverride,
+		ObservedAt: testObservedAt,
+	}
+}
+
 func testRenderSpace() execution.RenderSpace {
 	return execution.RenderSpace{
 		Width:            testRenderWidth,
@@ -147,11 +161,42 @@ func (r *fakeResolver) resolvedCount() int {
 
 func newInputs(t *testing.T, transport execution.InputTransport, resolver execution.TextResolver) *execution.Inputs {
 	t.Helper()
-	inputs, err := execution.NewInputs(transport, resolver, testSerial)
+	inputs, err := execution.NewInputs(transport, resolver, testSerial,
+		execution.WithRenderSizeSource(&fakeRenderSizes{size: testDeviceRenderSize()}))
 	if err != nil {
 		t.Fatalf("new device inputs: %v", err)
 	}
 	return inputs
+}
+
+// fakeRenderSizes is a deterministic stand-in for the device's render size. It
+// records how often it was asked, so a case can prove a reading was reused
+// rather than re-taken.
+type fakeRenderSizes struct {
+	mu    sync.Mutex
+	size  execution.DeviceRenderSize
+	err   error
+	reads int
+}
+
+func (f *fakeRenderSizes) RenderSize(ctx context.Context) (execution.DeviceRenderSize, error) {
+	f.mu.Lock()
+	f.reads++
+	size, err := f.size, f.err
+	f.mu.Unlock()
+	if err != nil {
+		return execution.DeviceRenderSize{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return execution.DeviceRenderSize{}, err
+	}
+	return size, nil
+}
+
+func (f *fakeRenderSizes) readCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.reads
 }
 
 func matchArgs(t *testing.T, got []string, want ...string) {
@@ -400,35 +445,36 @@ func TestCoordinateWithoutARenderSpaceIsRefused(t *testing.T) {
 	}
 }
 
-// A coordinate is never scaled from one frame into another: a frame that is
-// half the declared render size is a different frame, and a point measured in it
-// is refused rather than adjusted.
+// A coordinate is never scaled from one frame into another. A frame that is
+// half the device's render size is a different frame — the downscaled vision
+// frame that bit the legacy product — so a coordinate measured in it is refused
+// outright rather than doubled into the device's size.
 func TestCoordinateIsNeverScaledFromAnotherFrame(t *testing.T) {
 	transport := newFakeDeviceTransport()
 	inputs := newInputs(t, transport, &fakeResolver{value: typedValueFixture})
 
-	// A downscaled vision frame: 540x1140, with a point measured inside it.
+	// The device presents at testRenderSpace(); a downscaled 540x1140 frame is
+	// not that frame, and a point measured in it is refused.
 	downscaled := execution.RenderSpace{Width: 540, Height: 1140, ObservationToken: "observation-1"}
-	if err := inputs.Tap(context.Background(), execution.TapRequest{
+	err := inputs.Tap(context.Background(), execution.TapRequest{
 		Point: execution.Point{X: 539, Y: 1139}, Space: downscaled,
-	}); err != nil {
-		t.Fatalf("a point inside its own declared frame was refused: %v", err)
+	})
+	if platformerrors.CodeOf(err) != platformerrors.CodePreconditionFailed {
+		t.Fatalf("code = %v err = %v, want precondition_failed", platformerrors.CodeOf(err), err)
 	}
-	if got := transport.invocationCount(); got != 1 {
-		t.Fatalf("transport invocations = %d, want 1", got)
+	if got := transport.invocationCount(); got != 0 {
+		t.Fatalf("transport invocations = %d, want 0: a coordinate was rescaled into the device's frame", got)
 	}
-	// The frame is carried verbatim: the primitive never rescales it to the
-	// physical size, and it never invents one.
-	matchArgs(t, transport.invocation(0).args, "shell", "input", "tap", "539", "1139")
 
-	// A point outside the declared frame is refused outright.
+	// A point outside the declared frame is refused without a device call to
+	// make it look plausible.
 	if err := inputs.Tap(context.Background(), execution.TapRequest{
-		Point: execution.Point{X: 540, Y: 10}, Space: downscaled,
+		Point: execution.Point{X: 1080, Y: 10}, Space: testRenderSpace(),
 	}); platformerrors.CodeOf(err) != platformerrors.CodeInvalidInput {
 		t.Fatalf("code = %v err = %v, want invalid_input", platformerrors.CodeOf(err), err)
 	}
-	if got := transport.invocationCount(); got != 1 {
-		t.Fatalf("transport invocations = %d, want 1: an out-of-frame point was dispatched", got)
+	if got := transport.invocationCount(); got != 0 {
+		t.Fatalf("transport invocations = %d, want 0: an out-of-frame point was dispatched", got)
 	}
 }
 
@@ -698,6 +744,7 @@ func TestAHungInputCallDoesNotHangTheCaller(t *testing.T) {
 	transport.blockOn = blocked
 
 	inputs, err := execution.NewInputs(transport, &fakeResolver{value: typedValueFixture}, testSerial,
+		execution.WithRenderSizeSource(&fakeRenderSizes{size: testDeviceRenderSize()}),
 		execution.WithInputTimeout(50*time.Millisecond))
 	if err != nil {
 		t.Fatalf("new device inputs: %v", err)

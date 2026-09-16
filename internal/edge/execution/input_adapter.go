@@ -58,12 +58,48 @@ type inputAdapter struct {
 	observer  PostconditionObserver
 	serial    string
 
+	// renderSizes builds the source of the size this device actually presents
+	// at. It is consulted for the coordinate-bearing kinds only, and it is given
+	// the device's own transport rather than the counting wrapper above it: a
+	// render-size read is a read-only precondition check, not the input, and
+	// must not be counted as the input having reached the device.
+	renderSizes RenderSizeSourceFactory
+
 	mu      sync.Mutex
 	pending map[string]InputPayload
 }
 
-func newInputAdapter(transport InputTransport, resolver TextResolver, observer PostconditionObserver, serial string) *inputAdapter {
-	return &inputAdapter{transport: transport, resolver: resolver, observer: observer, serial: serial, pending: make(map[string]InputPayload)}
+func newInputAdapter(transport InputTransport, resolver TextResolver, observer PostconditionObserver, serial string, renderSizes RenderSizeSourceFactory) *inputAdapter {
+	return &inputAdapter{transport: transport, resolver: resolver, observer: observer, serial: serial, renderSizes: renderSizes, pending: make(map[string]InputPayload)}
+}
+
+// carriesRenderCoordinate reports whether a kind dispatches a point that is only
+// meaningful inside a render frame, so the cross-check applies to it and to
+// nothing else.
+func carriesRenderCoordinate(kind action.Kind) bool {
+	return kind == action.Tap || kind == action.Swipe
+}
+
+// inputOptions binds the boundary for one dispatch. A coordinate-bearing kind
+// must be able to establish the size the device presents at: when the
+// render-size source cannot be built, the input is refused here rather than
+// being dispatched with no way to check its frame.
+func (a *inputAdapter) inputOptions(intent action.Intent, kind action.Kind) ([]InputOption, error) {
+	options := []InputOption{WithInputTimeout(intent.Timeout)}
+	if !carriesRenderCoordinate(kind) {
+		return options, nil
+	}
+	if a.renderSizes == nil {
+		return nil, platformerrors.New(platformerrors.CodeUnavailable, "the boundary has no source of the device render size, so a coordinate cannot be dispatched")
+	}
+	source, err := a.renderSizes(a.transport, a.serial)
+	if err != nil {
+		return nil, err
+	}
+	if source == nil {
+		return nil, platformerrors.New(platformerrors.CodeUnavailable, "the device render size could not be established, so a coordinate cannot be dispatched")
+	}
+	return append(options, WithRenderSizeSource(source)), nil
 }
 
 func (a *inputAdapter) Capabilities() []action.Capability { return inputCapabilities() }
@@ -131,9 +167,33 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 		return adapter.Execution{}, &adapter.ExecutionError{Cause: errors.New("action kind is not a complete catalog entry"), FailureClass: domain.FailureCapabilityMismatch}
 	}
 	counted := &countingTransport{inner: a.transport}
-	inputs, err := NewInputs(counted, a.resolver, a.serial, WithInputTimeout(intent.Timeout))
+	options, err := a.inputOptions(intent, kind)
+	if err != nil {
+		// The render-size source could not be established for a kind whose
+		// frame has to be checked. No device call was made, so this is a
+		// refusal before the input, not a failure of the input.
+		return adapter.Execution{}, &adapter.ExecutionError{Cause: err, FailureClass: domain.FailureInfrastructure}
+	}
+	inputs, err := NewInputs(counted, a.resolver, a.serial, options...)
 	if err != nil {
 		return adapter.Execution{}, &adapter.ExecutionError{Cause: err, FailureClass: domain.FailureInfrastructure}
+	}
+	// The render-space cross-check runs here, explicitly, before the input is
+	// sent: a coordinate whose frame the device does not present at is refused
+	// as this boundary's own decision, so the refusal keeps the render-space
+	// gate's classification instead of being flattened into whatever class a
+	// device command happens to fail with. The primitives cross-check again below
+	// - through the same reader, which caches its reading, so this costs no
+	// second device read - and that inner check is what keeps a direct `Inputs`
+	// caller from dispatching an unverified frame.
+	if space, ok := payload.renderSpace(); ok {
+		if err := inputs.checkRenderSpace(ctx, space); err != nil {
+			// The class is derived here rather than from the error alone: this
+			// call site is the render-space gate, so its refusal is named as
+			// such even when the reader's own code (an unreadable device) is one
+			// the generic mapping would otherwise report as a transport failure.
+			return adapter.Execution{}, &adapter.ExecutionError{Cause: err, FailureClass: renderSpaceFailureClass(err)}
+		}
 	}
 	if err := runInput(ctx, inputs, payload, kind); err != nil {
 		// The typed payload and the transport's own diagnostics are never
@@ -186,6 +246,9 @@ func runInput(ctx context.Context, inputs *Inputs, payload InputPayload, kind ac
 // failureClassFor classifies a failed device input. It reads the classified
 // error code rather than the message, so a refusal keeps its stable class.
 func failureClassFor(err error) domain.FailureClass {
+	if isRenderSpaceRefusal(err) {
+		return renderSpaceFailureClass(err)
+	}
 	switch platformerrors.CodeOf(err) {
 	case platformerrors.CodeCanceled:
 		return domain.FailureOperatorCancelled
@@ -195,6 +258,47 @@ func failureClassFor(err error) domain.FailureClass {
 		return domain.FailureInvalidTransition
 	case platformerrors.CodeUnavailable:
 		return domain.FailureTransport
+	default:
+		return domain.FailureInfrastructure
+	}
+}
+
+// isRenderSpaceRefusal reports whether a refusal came from the render-space
+// cross-check rather than from the device command itself. ARC-63's gate produces
+// its own typed errors and its own codes, and the generic mapping below would
+// otherwise flatten "the frame could not be checked" into "the input's device
+// command failed at the transport" - two very different operational facts.
+func isRenderSpaceRefusal(err error) bool {
+	var mismatch *RenderSpaceMismatchError
+	var stale *StaleRenderSizeError
+	if errors.As(err, &mismatch) || errors.As(err, &stale) {
+		return true
+	}
+	switch platformerrors.CodeOf(err) {
+	case platformerrors.CodePreconditionFailed, platformerrors.CodeStaleObservation:
+		return true
+	default:
+		return false
+	}
+}
+
+// renderSpaceFailureClass names why a coordinate was refused before it reached a
+// device. The declared frame is not the size the device presents at:
+//
+//   - a mismatch, or a reading too old to refresh, means the frame the
+//     coordinate was measured in is stale against the device;
+//   - a reading that cannot be established means the device's render size could
+//     not be observed at all.
+//
+// Neither is a transport failure of the input, because the input was never sent:
+// an operator reading the classification must not be told that a tap failed when
+// in fact no tap was ever dispatched.
+func renderSpaceFailureClass(err error) domain.FailureClass {
+	switch platformerrors.CodeOf(err) {
+	case platformerrors.CodePreconditionFailed, platformerrors.CodeStaleObservation:
+		return domain.FailureStaleObservation
+	case platformerrors.CodeUnavailable:
+		return domain.FailureObservation
 	default:
 		return domain.FailureInfrastructure
 	}

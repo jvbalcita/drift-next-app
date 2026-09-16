@@ -74,7 +74,7 @@ func newSQLiteInputFixture(t *testing.T, leaseTTL time.Duration, transportState 
 		t.Fatal("store-backed readiness probe was not constructed")
 	}
 	control := store.NewActionService(db)
-	dispatcher, err := execution.NewInputDispatcher(control, probe, observer, transport, &fakeResolver{value: typedValueFixture})
+	dispatcher, err := execution.NewInputDispatcher(control, probe, observer, transport, &fakeResolver{value: typedValueFixture}, execution.WithRenderSizeSourceFactory(testRenderSizeSource))
 	if err != nil {
 		t.Fatalf("new input dispatcher: %v", err)
 	}
