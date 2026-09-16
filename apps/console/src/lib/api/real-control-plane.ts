@@ -14,8 +14,8 @@ import type { AutomationAgent, AutomationAgentProfile } from "@/gen/drift/v1/aut
 import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
 import { DeviceStatus } from "@/gen/drift/v1/device_pb"
-import type { ScanRun } from "@/gen/drift/v1/discovery_pb"
-import { ScanRunState } from "@/gen/drift/v1/discovery_pb"
+import type { ObservedDevice, ScanRun } from "@/gen/drift/v1/discovery_pb"
+import { DeviceLinkState as ProtoDeviceLinkState, ScanRunState } from "@/gen/drift/v1/discovery_pb"
 import type { EdgeAgent } from "@/gen/drift/v1/edge_agent_pb"
 import { EdgeAgentState } from "@/gen/drift/v1/edge_agent_pb"
 import type { DeviceEndpoint } from "@/gen/drift/v1/endpoint_pb"
@@ -107,6 +107,7 @@ import type {
   MirrorTargetResultView,
   ObservationCaptureStatus,
   ObservationView,
+  ObservedDeviceView,
   LabAdapterView,
   MutationResult,
   NetworkProfileView,
@@ -230,6 +231,7 @@ export function emptyControlPlaneSnapshot(options?: {
     observations: [],
     networkProfiles: [],
     scanRuns: [],
+    scanObservations: [],
     groups: [],
     memberships: [],
     automationAgents: [],
@@ -1105,6 +1107,43 @@ function mapScanRun(run: ScanRun): ScanRunView {
   }
 }
 
+function mapLinkState(state: ProtoDeviceLinkState): ObservedDeviceView["state"] {
+  switch (state) {
+    case ProtoDeviceLinkState.ONLINE:
+      return "online"
+    case ProtoDeviceLinkState.OFFLINE:
+      return "offline"
+    case ProtoDeviceLinkState.UNAUTHORIZED:
+      return "unauthorized"
+    case ProtoDeviceLinkState.UNSPECIFIED:
+      // An unspecified link is not an assertion of health.
+      return "unauthorized"
+    default: {
+      const _exhaustive: never = state
+      return _exhaustive
+    }
+  }
+}
+
+/**
+ * A scan response carries what the scan saw. StartScan persists the canonical
+ * devices and endpoints, but the read lists cannot say which link state was
+ * observed for which run, so the response is projected onto the run here.
+ */
+function mapObservedDevice(scanRunId: string, device: ObservedDevice): ObservedDeviceView {
+  return {
+    scanRunId,
+    host: device.host,
+    port: device.port,
+    serial: device.serial,
+    model: device.model,
+    state: mapLinkState(device.state),
+    known: device.known,
+    deviceId: device.deviceId,
+    endpointId: device.endpointId,
+  }
+}
+
 function mapLeaseState(state: ProtoLeaseState): LeaseViewState {
   switch (state) {
     case ProtoLeaseState.REQUESTED:
@@ -1536,6 +1575,9 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       groups: groups.value.groups,
       memberships: groups.value.memberships,
       scanRuns: scanRuns.value,
+      // What a scan saw is carried in the scan response, not in a read list, so
+      // the observation is retained for the session while its run is displayed.
+      scanObservations: previous.scanObservations,
       leases: leases.value,
       observations: observations.value,
       runTargets: runTargets.value,
@@ -1630,9 +1672,16 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       case "startScan": {
         const response = await this.services.discovery.startScan(requestId, workspaceId, intent.profileId)
         if (response.scanRun) {
-          this.snapshot = { ...this.snapshot, scanRuns: [mapScanRun(response.scanRun), ...this.snapshot.scanRuns] }
+          const run = mapScanRun(response.scanRun)
+          this.snapshot = {
+            ...this.snapshot,
+            scanRuns: [run, ...this.snapshot.scanRuns],
+            scanObservations: [...response.devices.map((device) => mapObservedDevice(run.id, device)), ...this.snapshot.scanObservations],
+          }
         }
-        return mutation(intent, "Discovery scan started.")
+        return mutation(intent, response.devices.length === 0
+          ? "Discovery scan completed; no device responded."
+          : `Discovery scan completed; ${response.devices.length} device(s) observed.`, { resourceId: response.scanRun?.id })
       }
       case "moveDeviceToGroup": {
         await this.services.group.moveDeviceToGroup(requestId, workspaceId, intent.deviceId, intent.groupId, intent.position)

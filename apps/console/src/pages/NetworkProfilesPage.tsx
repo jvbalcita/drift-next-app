@@ -5,17 +5,35 @@ import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from "@/component
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { ControlPlaneSnapshot, DispatchIntent, NetworkProfileView } from "@/lib/domain/control-plane"
+import type { ControlPlaneSnapshot, DispatchIntent, NetworkProfileView, ObservedDeviceView, ScanRunView } from "@/lib/domain/control-plane"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, EmptyState, FieldLabel, FailureBadge, OperatorNotice, PageIntro, Panel, StatusBadge } from "./shared"
 
+const newProfileId = "new"
+
+type ProfileForm = { name: string; start: IPv4Octets; end: IPv4Octets; ports: string; isDefault: boolean }
+
 export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
-  const [selectedProfileId, setSelectedProfileId] = useState(snapshot.networkProfiles[0]?.id ?? "new")
-  const [name, setName] = useState(snapshot.networkProfiles[0]?.name ?? "")
-  const [addressStart, setAddressStart] = useState(parseAddressPolicy(snapshot.networkProfiles[0]?.addressPolicy ?? "").start)
-  const [addressEnd, setAddressEnd] = useState(parseAddressPolicy(snapshot.networkProfiles[0]?.addressPolicy ?? "").end)
-  const [ports, setPorts] = useState(snapshot.networkProfiles[0]?.ports.join(", ") ?? "5555")
-  const [isDefault, setIsDefault] = useState(snapshot.networkProfiles[0]?.isDefault ?? false)
+  const profiles = snapshot.networkProfiles
+  // The catalog owns the selection: an explicit choice holds while that profile
+  // still exists, then the default profile, then the first one. Nothing is
+  // frozen at mount, so a profile added or deleted in this session stays
+  // scannable without a refresh, and a stale selection cannot disable a scan.
+  const [chosenProfileId, setChosenProfileId] = useState<string | null>(null)
+  const [creatingNew, setCreatingNew] = useState(false)
+  const selectedProfile = profiles.find((profile) => profile.id === chosenProfileId) ?? profiles.find((profile) => profile.isDefault) ?? profiles[0]
+
+  // The form follows the profile the dialog is editing, including when the
+  // catalog changes underneath it. Adjusting state during render is deliberate:
+  // an effect would paint a frame of the previous profile's values.
+  const formTargetId = creatingNew ? newProfileId : selectedProfile?.id ?? newProfileId
+  const [form, setForm] = useState<ProfileForm>(() => profileForm(creatingNew ? undefined : selectedProfile))
+  const [loadedFormId, setLoadedFormId] = useState(formTargetId)
+  if (loadedFormId !== formTargetId) {
+    setLoadedFormId(formTargetId)
+    setForm(profileForm(creatingNew ? undefined : selectedProfile))
+  }
+
   const [feedback, setFeedback] = useState("")
   const [saveError, setSaveError] = useState("")
   const [profileErrors, setProfileErrors] = useState<{ name?: string; addressPolicy?: string; ports?: string }>({})
@@ -23,21 +41,28 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
   const saveErrorRef = useRef<HTMLDivElement>(null)
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
   const [scanDialogOpen, setScanDialogOpen] = useState(false)
-  const selectedProfile = snapshot.networkProfiles.find((profile) => profile.id === selectedProfileId)
+  const [focusedRunId, setFocusedRunId] = useState<string | null>(null)
 
-  function selectProfile(profile: NetworkProfileView) { const range = parseAddressPolicy(profile.addressPolicy); setSelectedProfileId(profile.id); setName(profile.name); setAddressStart(range.start); setAddressEnd(range.end); setPorts(profile.ports.join(", ")); setIsDefault(profile.isDefault); setProfileErrors({}); setFeedback(""); setSaveError("") }
-  function beginNewProfile() { setSelectedProfileId("new"); setName(""); setAddressStart(["192", "168", "1", "1"]); setAddressEnd(["192", "168", "1", "254"]); setPorts("5555"); setIsDefault(false); setProfileErrors({}); setFeedback(""); setSaveError(""); setProfileDialogOpen(true) }
-  function parsedPorts() { return ports.split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value > 0 && value <= 65535) }
+  const observationsByRun = new Map<string, ObservedDeviceView[]>()
+  for (const observation of snapshot.scanObservations) {
+    observationsByRun.set(observation.scanRunId, [...(observationsByRun.get(observation.scanRunId) ?? []), observation])
+  }
+  const observedRuns = snapshot.scanRuns.filter((run) => observationsByRun.has(run.id))
+  const focusedRun = snapshot.scanRuns.find((run) => run.id === focusedRunId) ?? mostRecentRun(observedRuns) ?? mostRecentRun(snapshot.scanRuns)
+  const observedDevices = focusedRun ? observationsByRun.get(focusedRun.id) ?? [] : []
+
+  function selectProfile(profile: NetworkProfileView) { setCreatingNew(false); setChosenProfileId(profile.id); setProfileErrors({}); setFeedback(""); setSaveError("") }
+  function chooseProfile(profileId: string) { setCreatingNew(false); setChosenProfileId(profileId); setProfileErrors({}); setSaveError("") }
+  function beginNewProfile() { setCreatingNew(true); setProfileErrors({}); setFeedback(""); setSaveError(""); setProfileDialogOpen(true) }
+  function parsedPorts() { return form.ports.split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value > 0 && value <= 65535) }
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSaveError("")
     const parsed = parsedPorts()
-    const start = addressStart.join(".")
-    const end = addressEnd.join(".")
-    const range = `${start}-${end}`
+    const range = `${form.start.join(".")}-${form.end.join(".")}`
     const errors = {
-      name: name.trim() ? undefined : "Enter a profile name.",
-      addressPolicy: validIPv4Range(addressStart, addressEnd) ? undefined : "Enter a valid IPv4 range. Each octet must be 0 through 255, and the start must not exceed the end.",
+      name: form.name.trim() ? undefined : "Enter a profile name.",
+      addressPolicy: validIPv4Range(form.start, form.end) ? undefined : "Enter a valid IPv4 range. Each octet must be 0 through 255, and the start must not exceed the end.",
       ports: parsed.length > 0 ? undefined : "Enter one or more ports from 1 through 65535.",
     }
     setProfileErrors(errors)
@@ -45,12 +70,15 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
       requestAnimationFrame(() => profileErrorSummaryRef.current?.focus())
       return
     }
-    const mutation = selectedProfileId === "new"
-      ? await dispatch({ type: "createNetworkProfile", name, addressPolicy: range, ports: parsed, isDefault })
-      : await dispatch({ type: "updateNetworkProfile", profileId: selectedProfileId, name, addressPolicy: range, ports: parsed, isDefault })
+    const updating = creatingNew ? undefined : selectedProfile
+    const mutation = updating
+      ? await dispatch({ type: "updateNetworkProfile", profileId: updating.id, name: form.name, addressPolicy: range, ports: parsed, isDefault: form.isDefault })
+      : await dispatch({ type: "createNetworkProfile", name: form.name, addressPolicy: range, ports: parsed, isDefault: form.isDefault })
     if (mutation.ok) {
       setFeedback(mutation.message)
       setProfileDialogOpen(false)
+      setCreatingNew(false)
+      setChosenProfileId(mutation.resourceId ?? selectedProfile?.id ?? null)
       return
     }
     setFeedback("")
@@ -61,23 +89,37 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
     void reportDispatch(dispatch, { type: "deleteNetworkProfile", profileId: profile.id, confirmed: true }, setFeedback)
   }
   async function startScan() {
-    const result = await reportDispatch(dispatch, { type: "startScan", profileId: selectedProfileId }, setFeedback)
-    if (result.ok) setScanDialogOpen(false)
+    if (!selectedProfile) return
+    const result = await reportDispatch(dispatch, { type: "startScan", profileId: selectedProfile.id }, setFeedback)
+    if (!result.ok) return
+    setScanDialogOpen(false)
+    // Focus the run this scan created; the catalog reorders as it completes.
+    setFocusedRunId(result.resourceId ?? null)
   }
 
   return <>
-    <PageIntro eyebrow="DISCOVERY / NETWORK PROFILES" title="Network Profiles" description="Define bounded, non-authoritative discovery policy separately from scan execution." actions={<div className="flex gap-2"><Button variant="outline" size="sm" onClick={beginNewProfile}><Plus className="size-3.5" aria-hidden="true" />New Profile</Button><Button size="sm" onClick={() => setScanDialogOpen(true)} disabled={!selectedProfile}><Radar className="size-3.5" aria-hidden="true" />Configure Scan</Button></div>} />
+    <PageIntro eyebrow="DISCOVERY / NETWORK PROFILES" title="Network Profiles" description="Define bounded, non-authoritative discovery policy separately from scan execution." actions={<div className="flex flex-wrap items-center gap-2"><div className="flex items-center gap-2"><FieldLabel htmlFor="discovery-profile">Discovery profile</FieldLabel><select id="discovery-profile" aria-label="Discovery profile" value={selectedProfile?.id ?? ""} disabled={profiles.length === 0} onChange={(event) => chooseProfile(event.target.value)} className="h-7 max-w-[16rem] rounded-none border border-input bg-background px-2 text-xs">{profiles.length === 0 ? <option value="">No saved profile</option> : null}{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.isDefault ? `${profile.name} (default)` : profile.name}</option>)}</select></div><Button variant="outline" size="sm" onClick={beginNewProfile}><Plus className="size-3.5" aria-hidden="true" />New Profile</Button><Button size="sm" onClick={() => setScanDialogOpen(true)} disabled={!selectedProfile}><Radar className="size-3.5" aria-hidden="true" />Configure Scan</Button></div>} />
     <OperatorNotice>Enter the IPv4 range used by your devices. Saving or scanning does not add a device; a scan records what it observed against the devices already known to this workspace.</OperatorNotice>
-    <Tabs value={view} onValueChange={onViewChange} className="mt-6"><TabsList className="h-auto flex-wrap rounded-none border border-border bg-background p-0" aria-label="Network profile views"><TabsTrigger value="profiles" className="rounded-none">Profiles</TabsTrigger><TabsTrigger value="scans" className="rounded-none">Discovery Scans</TabsTrigger><TabsTrigger value="endpoints" className="rounded-none">Registered Endpoints</TabsTrigger><TabsTrigger value="history" className="rounded-none">History</TabsTrigger></TabsList>
-      <TabsContent value="profiles" className="mt-6"><Panel title="Profile Catalog" description="Profile definitions constrain discovery; they do not establish an endpoint."><ProfileTable profiles={snapshot.networkProfiles} onEdit={(profile) => { selectProfile(profile); setProfileDialogOpen(true) }} onDelete={deleteProfile} /></Panel></TabsContent>
-      <TabsContent value="scans" className="mt-6"><Panel title="Discovery Scans" description="A scan is an explicit intent against a saved profile; it records the devices it observed." action={<Button size="sm" onClick={() => setScanDialogOpen(true)} disabled={!selectedProfile}><Radar className="size-3.5" aria-hidden="true" />Configure Scan</Button>}><ScanTable runs={snapshot.scanRuns} /></Panel></TabsContent>
-      <TabsContent value="endpoints" className="mt-6"><Panel title="Registered Endpoints" description="Endpoint records are the mutable transport identity of the devices a scan observed."><EndpointTable endpoints={snapshot.endpoints} /></Panel></TabsContent>
-      <TabsContent value="history" className="mt-6"><Panel title="Scan History" description="Every attempted scan keeps its terminal outcome. Deleting a profile clears the profile reference without removing the run."><ScanTable runs={snapshot.scanRuns} /></Panel></TabsContent>
+    <Tabs value={view} onValueChange={onViewChange} className="mt-6"><TabsList className="h-auto flex-wrap rounded-none border border-border bg-background p-0" aria-label="Network profile views"><TabsTrigger value="profiles" className="rounded-none">Profiles</TabsTrigger><TabsTrigger value="scans" className="rounded-none">Discovery Scans</TabsTrigger><TabsTrigger value="endpoints" className="rounded-none">Registered Endpoints</TabsTrigger></TabsList>
+      <TabsContent value="profiles" className="mt-6"><Panel title="Profile Catalog" description="Profile definitions constrain discovery; they do not establish an endpoint."><ProfileTable profiles={profiles} onEdit={(profile) => { selectProfile(profile); setProfileDialogOpen(true) }} onDelete={deleteProfile} /></Panel></TabsContent>
+      <TabsContent value="scans" className="mt-6"><Panel title="Discovery Scans" description="A scan is an explicit intent against a saved profile; it records the devices it observed. Every attempted scan keeps its terminal outcome. Deleting a profile clears the profile reference without removing the run." action={<Button size="sm" onClick={() => setScanDialogOpen(true)} disabled={!selectedProfile}><Radar className="size-3.5" aria-hidden="true" />Configure Scan</Button>}><ScanTable runs={snapshot.scanRuns} />{focusedRun ? <ObservedDevicePanel run={focusedRun} observations={observedDevices} devices={snapshot.devices} /> : null}</Panel></TabsContent>
+      <TabsContent value="endpoints" className="mt-6"><Panel title="Registered Endpoints" description="Endpoint records are the mutable transport identity of the devices a scan observed."><EndpointTable endpoints={snapshot.endpoints} devices={snapshot.devices} /></Panel></TabsContent>
     </Tabs>
     <p role="status" aria-live="polite" className="mt-6 border-l-2 border-primary bg-secondary/60 p-3 text-xs text-muted-foreground">{feedback || "Discovery status feedback appears here. No external discovery is active."}</p>
-    <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}><DialogContent className="rounded-none sm:max-w-2xl"><DialogHeader><DialogTitle>{selectedProfileId === "new" ? "Create Network Profile" : "Edit Network Profile"}</DialogTitle><DialogDescription>Define the IPv4 range and ports used when discovering device endpoints.</DialogDescription></DialogHeader><form className="grid gap-4 sm:grid-cols-2" noValidate onSubmit={saveProfile}>{saveError ? <SaveFailureNotice noticeRef={saveErrorRef} message={saveError} /> : null}{Object.values(profileErrors).some(Boolean) ? <div ref={profileErrorSummaryRef} tabIndex={-1} role="alert" className="border border-destructive p-3 text-xs text-destructive sm:col-span-2"><p className="font-medium">Correct the highlighted fields before saving.</p><ul className="mt-1 list-disc pl-4">{Object.values(profileErrors).filter(Boolean).map((error) => <li key={error}>{error}</li>)}</ul></div> : null}<div className="sm:col-span-2"><FieldLabel htmlFor="profile-name">Profile Name</FieldLabel><Input id="profile-name" value={name} onChange={(event) => { setName(event.target.value); setProfileErrors((current) => ({ ...current, name: undefined })) }} aria-invalid={Boolean(profileErrors.name)} aria-describedby={profileErrors.name ? "profile-name-error" : undefined} />{profileErrors.name ? <p id="profile-name-error" className="mt-1 text-xs text-destructive">{profileErrors.name}</p> : null}</div><IPv4RangeFields start={addressStart} end={addressEnd} error={profileErrors.addressPolicy} onStartChange={(next) => { setAddressStart(next); setProfileErrors((current) => ({ ...current, addressPolicy: undefined })) }} onEndChange={(next) => { setAddressEnd(next); setProfileErrors((current) => ({ ...current, addressPolicy: undefined })) }} /><div><FieldLabel htmlFor="profile-ports">Ports</FieldLabel><Input id="profile-ports" value={ports} onChange={(event) => { setPorts(event.target.value); setProfileErrors((current) => ({ ...current, ports: undefined })) }} aria-invalid={Boolean(profileErrors.ports)} aria-describedby={profileErrors.ports ? "profile-ports-error" : undefined} className="font-mono" />{profileErrors.ports ? <p id="profile-ports-error" className="mt-1 text-xs text-destructive">{profileErrors.ports}</p> : null}</div><label className="flex items-center gap-2 text-xs sm:col-span-2"><input type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} className="size-4 accent-[var(--primary)]" />Use as Default Discovery Policy</label><DialogFooter className="sm:col-span-2"><Button type="submit"><Save className="size-3.5" aria-hidden="true" />Save Profile</Button></DialogFooter></form></DialogContent></Dialog>
+    <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}><DialogContent className="rounded-none sm:max-w-2xl"><DialogHeader><DialogTitle>{formTargetId === newProfileId ? "Create Network Profile" : "Edit Network Profile"}</DialogTitle><DialogDescription>Define the IPv4 range and ports used when discovering device endpoints.</DialogDescription></DialogHeader><form className="grid gap-4 sm:grid-cols-2" noValidate onSubmit={saveProfile}>{saveError ? <SaveFailureNotice noticeRef={saveErrorRef} message={saveError} /> : null}{Object.values(profileErrors).some(Boolean) ? <div ref={profileErrorSummaryRef} tabIndex={-1} role="alert" className="border border-destructive p-3 text-xs text-destructive sm:col-span-2"><p className="font-medium">Correct the highlighted fields before saving.</p><ul className="mt-1 list-disc pl-4">{Object.values(profileErrors).filter(Boolean).map((error) => <li key={error}>{error}</li>)}</ul></div> : null}<div className="sm:col-span-2"><FieldLabel htmlFor="profile-name">Profile Name</FieldLabel><Input id="profile-name" value={form.name} onChange={(event) => { setForm((current) => ({ ...current, name: event.target.value })); setProfileErrors((current) => ({ ...current, name: undefined })) }} aria-invalid={Boolean(profileErrors.name)} aria-describedby={profileErrors.name ? "profile-name-error" : undefined} />{profileErrors.name ? <p id="profile-name-error" className="mt-1 text-xs text-destructive">{profileErrors.name}</p> : null}</div><IPv4RangeFields start={form.start} end={form.end} error={profileErrors.addressPolicy} onStartChange={(next) => { setForm((current) => ({ ...current, start: next })); setProfileErrors((current) => ({ ...current, addressPolicy: undefined })) }} onEndChange={(next) => { setForm((current) => ({ ...current, end: next })); setProfileErrors((current) => ({ ...current, addressPolicy: undefined })) }} /><div><FieldLabel htmlFor="profile-ports">Ports</FieldLabel><Input id="profile-ports" value={form.ports} onChange={(event) => { setForm((current) => ({ ...current, ports: event.target.value })); setProfileErrors((current) => ({ ...current, ports: undefined })) }} aria-invalid={Boolean(profileErrors.ports)} aria-describedby={profileErrors.ports ? "profile-ports-error" : undefined} className="font-mono" />{profileErrors.ports ? <p id="profile-ports-error" className="mt-1 text-xs text-destructive">{profileErrors.ports}</p> : null}</div><label className="flex items-center gap-2 text-xs sm:col-span-2"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm((current) => ({ ...current, isDefault: event.target.checked }))} className="size-4 accent-[var(--primary)]" />Use as Default Discovery Policy</label><DialogFooter className="sm:col-span-2"><Button type="submit"><Save className="size-3.5" aria-hidden="true" />Save Profile</Button></DialogFooter></form></DialogContent></Dialog>
     <Dialog open={scanDialogOpen} onOpenChange={setScanDialogOpen}><DialogContent className="rounded-none"><DialogHeader><DialogTitle>Configure discovery scan</DialogTitle><DialogDescription>Runs only against the selected bounded profile. No external discovery or endpoint registration occurs.</DialogDescription></DialogHeader><dl className="border-y border-border py-3 text-xs"><div className="flex justify-between gap-4"><dt className="text-muted-foreground">Profile</dt><dd>{selectedProfile?.name ?? "None selected"}</dd></div><div className="mt-2 flex justify-between gap-4"><dt className="text-muted-foreground">Address policy</dt><dd className="font-mono">{selectedProfile?.addressPolicy ?? "—"}</dd></div></dl><DialogFooter><Button onClick={startScan} disabled={!selectedProfile}><Radar className="size-3.5" aria-hidden="true" />Start scan</Button></DialogFooter></DialogContent></Dialog>
   </>
+}
+
+function profileForm(profile: NetworkProfileView | undefined): ProfileForm {
+  if (!profile) return { name: "", start: defaultIPv4Range.start, end: defaultIPv4Range.end, ports: "5555", isDefault: false }
+  const range = parseAddressPolicy(profile.addressPolicy)
+  return { name: profile.name, start: range.start, end: range.end, ports: profile.ports.join(", "), isDefault: profile.isDefault }
+}
+
+/** The run an operator means by "the latest scan" without relying on list order. */
+function mostRecentRun(runs: readonly ScanRunView[]): ScanRunView | undefined {
+  return [...runs].sort((left, right) => right.requestedAt.localeCompare(left.requestedAt))[0]
 }
 
 function SaveFailureNotice({ noticeRef, message }: { noticeRef: RefObject<HTMLDivElement | null>; message: string }) {
@@ -85,8 +127,27 @@ function SaveFailureNotice({ noticeRef, message }: { noticeRef: RefObject<HTMLDi
 }
 
 function ProfileTable({ profiles, onEdit, onDelete }: { profiles: ControlPlaneSnapshot["networkProfiles"]; onEdit: (profile: NetworkProfileView) => void; onDelete: (profile: NetworkProfileView) => void }) { const [page, setPage] = useState(0); const [pageSize, setPageSize] = useState(10); const visible = profiles.slice(page * pageSize, (page + 1) * pageSize); return <>{profiles.length === 0 ? <EmptyState label="No Network Profiles" detail="Create a bounded profile to continue." /> : <div className="overflow-x-auto border border-border"><table className="w-full min-w-[720px] text-left text-xs"><caption className="sr-only">Network profile catalog</caption><thead><tr className="border-b border-border text-[10px] tracking-[0.08em] text-muted-foreground"><th className="p-3">Name</th><th className="p-3">Address Policy</th><th className="p-3">Ports</th><th className="p-3">Default</th><th className="p-3"><span className="sr-only">Actions</span></th></tr></thead><tbody>{visible.map((profile) => <tr key={profile.id} className="border-b border-border/70 last:border-0 hover:bg-muted/50"><td className="p-3"><p className="font-medium">{profile.name}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{profile.id}</p></td><td className="p-3 font-mono text-[11px]">{profile.addressPolicy}</td><td className="p-3">{profile.ports.join(", ")}</td><td className="p-3">{profile.isDefault ? <Check className="size-4 text-primary" aria-label="Default profile" /> : "—"}</td><td className="p-3"><div className="flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => onEdit(profile)}>Edit Profile</Button><AlertDialog><AlertDialogTrigger render={<Button variant="outline" size="sm"><Trash2 className="size-3.5" aria-hidden="true" />Delete Profile</Button>} /><AlertDialogContent title="Delete Network Profile?" description={`Deletes ${profile.name}. Scans that used it stay in history with no profile reference. Network profiles cannot be restored; a scan needs a saved profile.`} confirmLabel="Confirm Delete" onConfirm={() => onDelete(profile)} /></AlertDialog></div></td></tr>)}</tbody></table></div>}<DataTablePagination page={page} pageSize={pageSize} total={profiles.length} onPageChange={setPage} onPageSizeChange={(next) => { setPageSize(next); setPage(0) }} /></> }
-function EndpointTable({ endpoints }: { endpoints: ControlPlaneSnapshot["endpoints"] }) { const [page, setPage] = useState(0); const [pageSize, setPageSize] = useState(10); const visible = endpoints.slice(page * pageSize, (page + 1) * pageSize); return <>{endpoints.length === 0 ? <EmptyState label="No Registered Endpoints" detail="Endpoints appear here once a scan has observed a device." /> : <div className="overflow-x-auto border border-border"><table className="w-full min-w-[720px] text-left text-xs"><caption className="sr-only">Registered network endpoints</caption><thead><tr className="border-b border-border text-[10px] tracking-[0.08em] text-muted-foreground"><th className="p-3">Endpoint</th><th className="p-3">Device</th><th className="p-3">Address</th><th className="p-3">Observed</th><th className="p-3">State</th></tr></thead><tbody>{visible.map((endpoint) => <tr key={endpoint.id} className="border-b border-border/70 last:border-0 hover:bg-muted/50"><td className="p-3"><p className="font-medium">{endpoint.endpointType}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{endpoint.id} · {endpoint.serial}</p></td><td className="drift-data p-3 text-[10px]">{endpoint.deviceId}</td><td className="p-3 font-mono text-[11px]">{endpoint.host}:{endpoint.port}</td><td className="p-3">{endpoint.observedAt}</td><td className="p-3"><StatusBadge label={endpoint.state} tone={endpoint.state === "current" ? "healthy" : endpoint.state === "retired" ? "neutral" : "attention"} /></td></tr>)}</tbody></table></div>}<DataTablePagination page={page} pageSize={pageSize} total={endpoints.length} onPageChange={setPage} onPageSizeChange={(next) => { setPageSize(next); setPage(0) }} /></> }
+
+function EndpointTable({ endpoints, devices }: { endpoints: ControlPlaneSnapshot["endpoints"]; devices: ControlPlaneSnapshot["devices"] }) { const [page, setPage] = useState(0); const [pageSize, setPageSize] = useState(10); const visible = endpoints.slice(page * pageSize, (page + 1) * pageSize); return <>{endpoints.length === 0 ? <EmptyState label="No Registered Endpoints" detail="An endpoint is recorded against the canonical device a scan observed. Run a scan against a saved profile; if this list stays empty, confirm the profile range, Wi-Fi LAN, and client isolation settings." /> : <div className="overflow-x-auto border border-border"><table className="w-full min-w-[720px] text-left text-xs"><caption className="sr-only">Registered network endpoints</caption><thead><tr className="border-b border-border text-[10px] tracking-[0.08em] text-muted-foreground"><th className="p-3">Endpoint</th><th className="p-3">Device</th><th className="p-3">Address</th><th className="p-3">Observed</th><th className="p-3">State</th></tr></thead><tbody>{visible.map((endpoint) => <tr key={endpoint.id} className="border-b border-border/70 last:border-0 hover:bg-muted/50"><td className="p-3"><p className="font-medium">{endpoint.endpointType}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{endpoint.id} · {endpoint.serial}</p></td><td className="p-3"><p>{devices.find((device) => device.id === endpoint.deviceId)?.displayName ?? "Unknown device"}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{endpoint.deviceId}</p></td><td className="p-3 font-mono text-[11px]">{endpoint.host}:{endpoint.port}</td><td className="p-3">{endpoint.observedAt}</td><td className="p-3"><StatusBadge label={endpoint.state} tone={endpoint.state === "current" ? "healthy" : endpoint.state === "retired" ? "neutral" : "attention"} /></td></tr>)}</tbody></table></div>}<DataTablePagination page={page} pageSize={pageSize} total={endpoints.length} onPageChange={setPage} onPageSizeChange={(next) => { setPageSize(next); setPage(0) }} /></> }
+
 function ScanTable({ runs }: { runs: ControlPlaneSnapshot["scanRuns"] }) { const [page, setPage] = useState(0); const [pageSize, setPageSize] = useState(10); const visible = runs.slice(page * pageSize, (page + 1) * pageSize); return <>{runs.length === 0 ? <EmptyState label="No Discovery Scans" detail="Run a scan to populate discovery history." /> : <div className="overflow-x-auto border border-border"><table className="w-full min-w-[650px] text-left text-xs"><caption className="sr-only">Discovery scan history</caption><thead><tr className="border-b border-border text-[10px] tracking-[0.08em] text-muted-foreground"><th className="p-3">Run</th><th className="p-3">Profile</th><th className="p-3">Requested</th><th className="p-3">Completed</th><th className="p-3">State</th></tr></thead><tbody>{visible.map((run) => <tr key={run.id} className="border-b border-border/70 last:border-0 hover:bg-muted/50"><td className="drift-data p-3 text-[10px]">{run.id}</td><td className="drift-data p-3 text-[10px]">{run.networkProfileId || "Profile deleted"}</td><td className="p-3">{run.requestedAt}</td><td className="p-3"><span>{run.finishedAt ?? "—"}</span>{run.failureClass ? <FailureBadge failureClass={run.failureClass} /> : null}</td><td className="p-3"><StatusBadge label={run.state} tone={run.state === "completed" ? "healthy" : run.state === "failed" ? "danger" : "info"} /></td></tr>)}</tbody></table></div>}<DataTablePagination page={page} pageSize={pageSize} total={runs.length} onPageChange={setPage} onPageSizeChange={(next) => { setPageSize(next); setPage(0) }} /></> }
+
+function ObservedDevicePanel({ run, observations, devices }: { run: ScanRunView; observations: readonly ObservedDeviceView[]; devices: ControlPlaneSnapshot["devices"] }) {
+  const online = observations.filter((observation) => observation.state === "online").length
+  const offline = observations.filter((observation) => observation.state === "offline").length
+  const unauthorized = observations.filter((observation) => observation.state === "unauthorized").length
+  return <section aria-labelledby="scan-observations-title" className="mt-4 border-t border-border pt-4">
+    <h3 id="scan-observations-title" className="text-xs font-semibold">Devices observed by {run.id}</h3>
+    {run.state === "failed" ? <p className="mt-2 text-xs text-muted-foreground">This scan failed before it could observe a device. Its terminal outcome is recorded above.</p> : null}
+    {run.state !== "failed" && observations.length === 0 ? <div className="mt-2"><EmptyState label="No devices observed by this scan" detail="No ADB endpoints responded. Confirm the profile range, Wi-Fi LAN, and client isolation settings." /></div> : null}
+    {observations.length > 0 ? <>
+      <p className="mt-1 text-xs text-muted-foreground">{observations.length} devices observed: {online} online, {offline} offline, {unauthorized} unauthorized.</p>
+      <div className="mt-3 overflow-x-auto border border-border"><table className="w-full min-w-[720px] text-left text-xs"><caption className="sr-only">Devices observed by this scan</caption><thead><tr className="border-b border-border text-[10px] tracking-[0.08em] text-muted-foreground"><th className="p-3">Address</th><th className="p-3">Serial</th><th className="p-3">Model</th><th className="p-3">Device</th><th className="p-3">Link State</th></tr></thead><tbody>{observations.map((observation) => <tr key={`${observation.scanRunId}-${observation.host}-${observation.port}-${observation.serial}`} className="border-b border-border/70 last:border-0 hover:bg-muted/50"><td className="p-3 font-mono text-[11px]">{observation.host}:{observation.port}</td><td className="drift-data p-3 text-[10px]">{observation.serial}</td><td className="p-3">{observation.model || "—"}</td><td className="p-3">{observation.known ? <><p>{devices.find((device) => device.id === observation.deviceId)?.displayName ?? "Known device"}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{observation.deviceId}</p></> : <p>New device</p>}</td><td className="p-3"><StatusBadge label={observation.state} tone={observation.state === "online" ? "healthy" : observation.state === "unauthorized" ? "attention" : "neutral"} /></td></tr>)}</tbody></table></div>
+    </> : null}
+    {unauthorized > 0 ? <p className="mt-2 text-xs text-muted-foreground">A device answered but is not authorized for debugging. Accept the debugging prompt on the device and scan again; until then its endpoint stays unknown.</p> : null}
+  </section>
+}
+
 type IPv4Octets = [string, string, string, string]
 
 const defaultIPv4Range = { start: ["192", "168", "1", "1"] as IPv4Octets, end: ["192", "168", "1", "254"] as IPv4Octets }

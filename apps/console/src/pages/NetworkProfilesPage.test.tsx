@@ -5,12 +5,14 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
-import type { ControlPlaneIntent, MutationResult } from "@/lib/domain/control-plane"
+import type { ControlPlaneIntent, ControlPlaneSnapshot, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import { NetworkProfilesPage } from "./NetworkProfilesPage"
 
 const genericFailureMessage = "The request could not be completed."
 
-function renderNetworkProfilesPage(control: { failIntent?: ControlPlaneIntent["type"]; message?: string } = {}) {
+const noopDispatch: DispatchIntent = async (intent) => ({ ok: true, kind: intent.type, message: "" })
+
+function renderNetworkProfilesPage(control: { failIntent?: ControlPlaneIntent["type"]; message?: string; view?: string } = {}) {
   const client = new MockControlPlaneClient()
   const intents: ControlPlaneIntent[] = []
   const dispatch = async (intent: ControlPlaneIntent): Promise<MutationResult> => {
@@ -21,10 +23,18 @@ function renderNetworkProfilesPage(control: { failIntent?: ControlPlaneIntent["t
     return await client.dispatch(intent)
   }
   const view = () => (
-    <NetworkProfilesPage snapshot={client.getSnapshot()} dispatch={dispatch} view="profiles" onViewChange={() => undefined} />
+    <NetworkProfilesPage snapshot={client.getSnapshot()} dispatch={dispatch} view={control.view ?? "profiles"} onViewChange={() => undefined} />
   )
   const rendered = render(view())
   return { client, control, intents, refreshView: () => rendered.rerender(view()), ...rendered }
+}
+
+/** Selects a catalog profile in the page selector and runs one scan against it. */
+async function runScanForProfile(user: ReturnType<typeof userEvent.setup>, profileId: string) {
+  await user.selectOptions(screen.getByLabelText("Discovery profile"), profileId)
+  await user.click(screen.getAllByRole("button", { name: "Configure Scan" })[0])
+  const dialog = screen.getByRole("dialog")
+  await user.click(within(dialog).getByRole("button", { name: "Start scan" }))
 }
 
 function pageBanner() {
@@ -162,5 +172,133 @@ describe("NetworkProfilesPage saved profile catalog", () => {
     renderNetworkProfilesPage()
 
     expect(screen.queryByText(/active profile/i)).not.toBeInTheDocument()
+  })
+})
+
+describe("NetworkProfilesPage discovery profile selection", () => {
+  it("starts the selector on the default profile rather than the first catalog row", async () => {
+    const user = userEvent.setup()
+    const client = new MockControlPlaneClient()
+    const seeded = client.getSnapshot()
+    const [first, second] = seeded.networkProfiles
+    const reordered: ControlPlaneSnapshot = {
+      ...seeded,
+      networkProfiles: [{ ...first, isDefault: false }, { ...second, isDefault: true }],
+    }
+    render(<NetworkProfilesPage snapshot={reordered} dispatch={noopDispatch} view="scans" onViewChange={() => undefined} />)
+
+    expect(screen.getByLabelText("Discovery profile")).toHaveValue("profile-lab-b")
+    await user.click(screen.getAllByRole("button", { name: "Configure Scan" })[0])
+    expect(within(screen.getByRole("dialog")).getByText("Lab B review")).toBeInTheDocument()
+  })
+
+  it("scans a non-newest profile the operator selects, without editing it first", async () => {
+    const user = userEvent.setup()
+    const page = renderNetworkProfilesPage({ view: "scans" })
+
+    await user.selectOptions(screen.getByLabelText("Discovery profile"), "profile-lab-b")
+    await user.click(screen.getAllByRole("button", { name: "Configure Scan" })[0])
+    const dialog = screen.getByRole("dialog")
+
+    expect(within(dialog).getByText("Lab B review")).toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "Start scan" }))
+    expect(page.intents).toEqual([{ type: "startScan", profileId: "profile-lab-b" }])
+  })
+
+  it("reconciles the selection when the catalog grows without a remount", () => {
+    const client = new MockControlPlaneClient()
+    const dispatch: DispatchIntent = async (intent) => await client.dispatch(intent)
+    const empty: ControlPlaneSnapshot = { ...client.getSnapshot(), networkProfiles: [] }
+    const { rerender } = render(<NetworkProfilesPage snapshot={empty} dispatch={dispatch} view="scans" onViewChange={() => undefined} />)
+    for (const button of screen.getAllByRole("button", { name: "Configure Scan" })) {
+      expect(button).toBeDisabled()
+    }
+
+    // A profile now exists while the page stays mounted. The same instance must
+    // be able to scan it: the selection is part of the catalog, not of mount.
+    rerender(<NetworkProfilesPage snapshot={client.getSnapshot()} dispatch={dispatch} view="scans" onViewChange={() => undefined} />)
+    expect(screen.getByLabelText("Discovery profile")).toHaveValue("profile-lab-a")
+    for (const button of screen.getAllByRole("button", { name: "Configure Scan" })) {
+      expect(button).toBeEnabled()
+    }
+  })
+
+  it("falls back to a surviving profile when the selected profile is deleted", async () => {
+    const user = userEvent.setup()
+    const page = renderNetworkProfilesPage()
+
+    await user.selectOptions(screen.getByLabelText("Discovery profile"), "profile-lab-b")
+    await user.click(screen.getAllByRole("button", { name: "Delete Profile" })[1])
+    await user.click(within(document.body).getByRole("button", { name: "Confirm Delete" }))
+    page.refreshView()
+
+    expect(screen.getByLabelText("Discovery profile")).toHaveValue("profile-lab-a")
+    for (const button of screen.getAllByRole("button", { name: "Configure Scan" })) {
+      expect(button).toBeEnabled()
+    }
+  })
+})
+
+describe("NetworkProfilesPage observed scan devices", () => {
+  it("renders the devices a completed scan observed with their link state and identity", async () => {
+    const user = userEvent.setup()
+    const page = renderNetworkProfilesPage({ view: "scans" })
+
+    await runScanForProfile(user, "profile-lab-a")
+    // A successful mutation re-reads the projection, as the console does.
+    page.refreshView()
+
+    const observed = screen.getByRole("table", { name: "Devices observed by this scan" })
+    expect(within(observed).getByText("192.0.2.10:5555")).toBeInTheDocument()
+    expect(within(observed).getByText("MOCK-DEVICE-101")).toBeInTheDocument()
+    expect(within(observed).getByText("Online")).toBeInTheDocument()
+    expect(within(observed).getByText("Offline")).toBeInTheDocument()
+    expect(within(observed).getByText("Unauthorized")).toBeInTheDocument()
+    expect(within(observed).getByText("Atlas 04")).toBeInTheDocument()
+    expect(within(observed).getAllByText("New device")).toHaveLength(1)
+    expect(screen.getByText(/3 devices observed: 1 online, 1 offline, 1 unauthorized/)).toBeInTheDocument()
+    expect(screen.getByText(/not authorized for debugging/i)).toBeInTheDocument()
+  })
+
+  it("explains an empty scan result in operator terms", async () => {
+    const user = userEvent.setup()
+    const page = renderNetworkProfilesPage({ view: "scans" })
+
+    // The mock models a profile whose range answers with nothing, so the
+    // operator-facing empty state stays exercised.
+    await runScanForProfile(user, "profile-lab-b")
+    page.refreshView()
+
+    expect(screen.getByText("No devices observed by this scan")).toBeInTheDocument()
+    expect(screen.getByText(/No ADB endpoints responded. Confirm the profile range, Wi-Fi LAN, and client isolation settings./)).toBeInTheDocument()
+  })
+
+  it("keeps one scan surface and the note that deleting a profile keeps its runs", () => {
+    renderNetworkProfilesPage({ view: "scans" })
+
+    expect(screen.queryByRole("tab", { name: "History" })).not.toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Discovery Scans" })).toHaveAttribute("data-active")
+    expect(screen.getAllByRole("table", { name: "Discovery scan history" })).toHaveLength(1)
+    expect(screen.getByText(/Deleting a profile clears the profile reference without removing the run/)).toBeInTheDocument()
+  })
+})
+
+describe("NetworkProfilesPage registered endpoints", () => {
+  it("renders every registered endpoint with its canonical device name", () => {
+    renderNetworkProfilesPage({ view: "endpoints" })
+
+    const endpoints = screen.getByRole("table", { name: "Registered network endpoints" })
+    // Two records for the same canonical device: current and superseded.
+    expect(within(endpoints).getAllByText("Atlas 04")).toHaveLength(2)
+    expect(within(endpoints).getByText("endpoint-atlas-04-current · MOCK-DEVICE-101")).toBeInTheDocument()
+  })
+
+  it("says why an empty endpoint list is empty", () => {
+    const client = new MockControlPlaneClient()
+    const empty: ControlPlaneSnapshot = { ...client.getSnapshot(), endpoints: [] }
+    render(<NetworkProfilesPage snapshot={empty} dispatch={noopDispatch} view="endpoints" onViewChange={() => undefined} />)
+
+    expect(screen.getByText("No Registered Endpoints")).toBeInTheDocument()
+    expect(screen.getByText(/Run a scan against a saved profile/i)).toBeInTheDocument()
   })
 })

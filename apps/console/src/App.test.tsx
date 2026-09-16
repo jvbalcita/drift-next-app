@@ -130,6 +130,15 @@ describe("Drift command center", () => {
     expect(screen.getByText("History", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
   })
 
+  it("lands on the first Network Profiles view when its removed History view is deep-linked", async () => {
+    window.location.hash = "#network-profiles/history"
+    render(<App />)
+
+    // The removed view falls back instead of rendering an empty surface.
+    expect(await screen.findByRole("tab", { name: "Profiles" })).toHaveAttribute("data-active")
+    expect(screen.getByText("Profiles", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
+  })
+
   it("restores every routed sibling workspace view from its hash", async () => {
     const routes = [
       ["#accounts/run-history", "Run History"],

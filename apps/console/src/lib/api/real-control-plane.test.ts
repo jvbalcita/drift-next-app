@@ -682,4 +682,49 @@ describe("RealControlPlaneClient", () => {
       "http://127.0.0.1:8080/drift.v1.RuntimeService/CompleteRuntimeReconnect",
     ]))
   })
+
+  it("projects the devices a scan observed with their link state and identity", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.DiscoveryService/StartScan")) {
+        return new Response(JSON.stringify({
+          scanRun: {
+            id: "scan-9",
+            networkProfileId: "profile-1",
+            state: "SCAN_RUN_STATE_COMPLETED",
+            requestedAt: "2026-09-16T01:00:00Z",
+            finishedAt: "2026-09-16T01:00:05Z",
+          },
+          devices: [
+            {
+              host: "192.0.2.5", port: 5555, serial: "mock-serial-1", model: "Mock Five",
+              state: "DEVICE_LINK_STATE_ONLINE", known: true, deviceId: "device-1", endpointId: "endpoint-1",
+            },
+            {
+              host: "192.0.2.6", port: 5555, serial: "mock-serial-2", model: "Mock Six",
+              state: "DEVICE_LINK_STATE_UNAUTHORIZED", known: false,
+            },
+          ],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "startScan", profileId: "profile-1" })
+
+    expect(result.ok).toBe(true)
+    // The response carries the observation; the run alone would leave the
+    // console unable to render what the scan saw.
+    expect(client.getSnapshot().scanObservations).toEqual([
+      expect.objectContaining({
+        scanRunId: "scan-9", host: "192.0.2.5", port: 5555, serial: "mock-serial-1",
+        state: "online", known: true, deviceId: "device-1", endpointId: "endpoint-1",
+      }),
+      expect.objectContaining({
+        scanRunId: "scan-9", host: "192.0.2.6", serial: "mock-serial-2",
+        state: "unauthorized", known: false, deviceId: "", endpointId: "",
+      }),
+    ])
+  })
 })

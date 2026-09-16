@@ -14,6 +14,10 @@ type EndpointHandler struct{ db *store.DB }
 
 func NewEndpointHandler(db *store.DB) *EndpointHandler { return &EndpointHandler{db: db} }
 
+// ListDeviceEndpoints reads endpoint records. A named device narrows the read to
+// that device; no device names the whole workspace, because the console lists the
+// workspace's endpoints and a read that demands one identity silently reads as
+// "no rows" in that surface.
 func (h *EndpointHandler) ListDeviceEndpoints(ctx context.Context, request *connectrpc.Request[driftv1.ListDeviceEndpointsRequest]) (*connectrpc.Response[driftv1.ListDeviceEndpointsResponse], error) {
 	if request == nil {
 		return nil, invalidArgument("list device endpoints request is required")
@@ -21,9 +25,6 @@ func (h *EndpointHandler) ListDeviceEndpoints(ctx context.Context, request *conn
 	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
 	if err != nil {
 		return nil, err
-	}
-	if request.Msg.GetDeviceId() == "" {
-		return nil, invalidArgument("device ID is required")
 	}
 	offset, limit, err := parsePage(request.Msg.GetPage())
 	if err != nil {

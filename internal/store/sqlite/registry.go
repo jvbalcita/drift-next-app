@@ -366,13 +366,19 @@ func (d *DB) ListScanRuns(ctx context.Context, workspace organizations.Workspace
 }
 
 // ListEndpoints exposes endpoint history separately from the stable device
-// projection. currentOnly is a read filter, not a lifecycle mutation.
+// projection. currentOnly is a read filter, not a lifecycle mutation; an empty
+// deviceID lists every endpoint in the workspace, a non-empty one narrows the
+// read to that device.
 func (d *DB) ListEndpoints(ctx context.Context, workspace organizations.WorkspaceID, deviceID devices.DeviceID, currentOnly bool) ([]endpoints.Endpoint, error) {
 	if err := validateWorkspace(string(workspace)); err != nil {
 		return nil, err
 	}
-	query := `SELECT id, workspace_id, device_id, serial, host, port, state, observed_at FROM device_endpoints WHERE workspace_id=? AND device_id=?`
-	args := []any{workspace, deviceID}
+	query := `SELECT id, workspace_id, device_id, serial, host, port, state, observed_at FROM device_endpoints WHERE workspace_id=?`
+	args := []any{workspace}
+	if deviceID != "" {
+		query += ` AND device_id=?`
+		args = append(args, deviceID)
+	}
 	if currentOnly {
 		query += ` AND state='current'`
 	}
