@@ -388,9 +388,9 @@ const policyDecisions: PolicyDecisionView[] = [
   { id: "decision-003", policyId: "policy-lab-review", resourceType: "mirror_target", resourceId: "orion-01", action: "mirror", decision: "inconclusive", reasonCode: "capability_unavailable", correlationId: "corr-preview", actorId: "policy-service-1", decidedAt: "09:28:09" },
 ]
 
-// labDiscoveryFixture is the deterministic result of a mock discovery pass. The
-// second entry stays unusable so operator confirmation has a rejection path.
-const labDiscoveryFixture: LabDiscoveredDeviceView[] = [
+// labAttachedFixture is the deterministic set of attached mock transports. The
+// second entry stays unusable so a capture that names it has to be refused.
+const labAttachedFixture: LabDiscoveredDeviceView[] = [
   { serial: "MOCKSERIAL0001", state: "device", model: "Mock Pixel 7a", transportId: "3", connectionType: "usb" },
   { serial: "MOCKSERIAL0002", state: "unauthorized", model: "Mock Pixel 6", transportId: "4", connectionType: "tcp" },
 ]
@@ -404,10 +404,6 @@ const labAdapter: LabAdapterView = {
   readiness: "unavailable",
   adapterVersion: "lab-adapter 0.13.0-mock",
   platformToolsVersion: "not detected in mock mode",
-  confirmedSerial: "",
-  confirmedDisplayName: "",
-  stableIdentity: "",
-  transportId: "",
   connectionState: "detached",
   connectionType: "",
   lastHealthAt: "09:37:40",
@@ -417,6 +413,7 @@ const labAdapter: LabAdapterView = {
   indeterminate: false,
   correlationId: "corr-lab-000",
   discovered: [],
+  lastObservedSerial: "",
 }
 
 const runtimeConnection: RuntimeConnectionView = {
@@ -952,12 +949,6 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.updatePolicy(intent)
       case "updateAccountState":
         return this.updateAccountState(intent)
-      case "discoverLabDevices":
-        return this.discoverLabDevices(intent)
-      case "confirmLabTarget":
-        return this.confirmLabTarget(intent)
-      case "clearLabTarget":
-        return this.clearLabTarget(intent)
       case "captureLabObservation":
         return this.captureLabObservation(intent)
       case "simulateLabCaptureFailure":
@@ -1319,93 +1310,33 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     return result(intent, "Skill version published.", intent.versionId)
   }
 
-  private discoverLabDevices(intent: Extract<ControlPlaneIntent, { type: "discoverLabDevices" }>): MutationResult {
-    const sequence = this.nextLabSequence()
-    const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
-    const occurredAt = labStamp(sequence)
-    const discovered = structuredClone(labDiscoveryFixture)
-    this.snapshot = {
-      ...this.snapshot,
-      labAdapter: { ...this.snapshot.labAdapter, discovered, readiness: "blocked", failureClass: undefined, indeterminate: false, correlationId, lastHealthAt: occurredAt, connectionState: "detached" },
-      events: addEvent(this.snapshot, labEvent(`event-lab-discover-${sequence}`, "Adapter Readiness", "operational", correlationId, occurredAt, `${discovered.length} mock serials listed; no ADB transport was opened and no device was registered`)),
-    }
-    return result(intent, `${discovered.length} serials listed. Confirm a target before any observation is possible.`)
-  }
-
-  private confirmLabTarget(intent: Extract<ControlPlaneIntent, { type: "confirmLabTarget" }>): MutationResult {
-    const serial = intent.serial.trim()
-    const displayName = intent.displayName.trim()
-    const reason = intent.reason.trim()
-    const adapter = this.snapshot.labAdapter
-    if (!serial) return rejection(intent, "Enter the serial of the lab target to confirm.")
-    if (!displayName) return rejection(intent, "Enter an operator-facing display name for the lab target.")
-    if (!reason) return rejection(intent, "Record why this lab target is being confirmed.")
-    const candidate = adapter.discovered.find((device) => device.serial === serial)
-    if (!candidate) return rejection(intent, "That serial is not in the current discovery result. Run discovery again before confirming.")
-    if (candidate.state !== "device") return rejection(intent, `Serial ${serial} reports ${candidate.state}; only an authorized serial can be confirmed.`)
-    if (adapter.discovered.length > 1 && intent.confirmationText.trim() !== serial) return rejection(intent, "Confirmation text must match the serial exactly when more than one serial is listed.")
-    const sequence = this.nextLabSequence()
-    const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
-    const occurredAt = labStamp(sequence)
-    this.snapshot = {
-      ...this.snapshot,
-      labAdapter: { ...adapter, readiness: "ready", confirmedSerial: serial, confirmedDisplayName: displayName, stableIdentity: `lab-${labDigest(serial).slice(-8)}`, transportId: candidate.transportId, connectionState: candidate.state, connectionType: candidate.connectionType, correlationId, lastHealthAt: occurredAt, failureClass: undefined, indeterminate: false },
-      events: addEvent(this.snapshot, labEvent(`event-lab-confirm-${sequence}`, "Target Confirmation", "audit", correlationId, occurredAt, "Operator confirmed a read-only observation target; no lease, approval, or device registration was created")),
-    }
-    return result(intent, `${displayName} confirmed as the read-only target. No lease was acquired and no device was registered.`, serial)
-  }
-
-  private clearLabTarget(intent: Extract<ControlPlaneIntent, { type: "clearLabTarget" }>): MutationResult {
-    const adapter = this.snapshot.labAdapter
-    if (!adapter.confirmedSerial) return rejection(intent, "No lab target is confirmed.")
-    const sequence = this.nextLabSequence()
-    const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
-    const occurredAt = labStamp(sequence)
-    this.blockedSequences = []
-    this.snapshot = {
-      ...this.snapshot,
-      labAdapter: { ...adapter, readiness: adapter.discovered.length > 0 ? "blocked" : "unavailable", confirmedSerial: "", confirmedDisplayName: "", stableIdentity: "", transportId: "", connectionState: "detached", connectionType: "", lastObservationAt: undefined, lastScreenshotHash: "", lastScreenshotPreviewDataUrl: undefined, lastHierarchySummary: "", observationLatencyMs: 0, failureClass: undefined, indeterminate: false, correlationId, lastHealthAt: occurredAt },
-      indeterminateActions: [],
-      runtimeConnection: {
-        ...this.snapshot.runtimeConnection,
-        pendingIndeterminate: 0,
-        updatedAt: occurredAt,
-      },
-      spoolHealth: {
-        ...this.snapshot.spoolHealth,
-        pending: 0,
-        blocked: 0,
-        exhausted: false,
-        blockedSequences: [],
-        connectionState: this.snapshot.runtimeConnection.state,
-      },
-      events: addEvent(this.snapshot, labEvent(`event-lab-clear-${sequence}`, "Cleanup", "audit", correlationId, occurredAt, "Confirmed lab target cleared; indeterminate and blocked spool queues were dropped")),
-    }
-    return result(intent, "Lab target cleared. Indeterminate and blocked spool queues were dropped.")
-  }
-
+  // captureLabObservation names its target explicitly. The mock resolves that
+  // exact serial against its attached fixtures and never infers a device from
+  // list order, a default, or a previously confirmed target.
   private captureLabObservation(intent: Extract<ControlPlaneIntent, { type: "captureLabObservation" }>): MutationResult {
     const adapter = this.snapshot.labAdapter
-    if (!adapter.confirmedSerial) return rejection(intent, "Confirm a lab target before capturing an observation.")
-    if (intent.serial.trim() !== adapter.confirmedSerial) return rejection(intent, "Capture serial must match the confirmed lab target exactly.")
-    if (adapter.readiness !== "ready") return rejection(intent, "The lab adapter is not ready to observe the confirmed target.")
+    const serial = intent.serial.trim()
+    if (!serial) return rejection(intent, "Name the serial of the device to observe.")
+    const target = labAttachedFixture.find((device) => device.serial === serial)
+    if (!target) return rejection(intent, `Serial ${serial} is not among the attached mock transports. Name one explicitly; a target is never inferred.`)
+    if (target.state !== "device") return rejection(intent, `Serial ${serial} reports ${target.state}; only an authorized transport can be observed.`)
     const sequence = this.nextLabSequence()
     const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
     const occurredAt = labStamp(sequence)
-    const hash = labDigest(`${adapter.confirmedSerial}:${sequence}`)
+    const hash = labDigest(`${serial}:${sequence}`)
     this.snapshot = {
       ...this.snapshot,
       // Latency stays 0 and the hierarchy summary says so: nothing here was
       // measured against a device, and a fabricated number would read as
       // evidence in the UI.
-      labAdapter: { ...adapter, correlationId, lastObservationAt: occurredAt, lastHealthAt: occurredAt, lastScreenshotHash: hash, lastScreenshotPreviewDataUrl: labPreviewPixel, lastHierarchySummary: "mock hierarchy summary (not measured)", observationLatencyMs: 0, failureClass: undefined, indeterminate: false },
+      labAdapter: { ...adapter, readiness: "ready", connectionState: target.state, connectionType: target.connectionType, discovered: structuredClone(labAttachedFixture), lastObservedSerial: serial, correlationId, lastObservationAt: occurredAt, lastHealthAt: occurredAt, lastScreenshotHash: hash, lastScreenshotPreviewDataUrl: labPreviewPixel, lastHierarchySummary: "mock hierarchy summary (not measured)", observationLatencyMs: 0, failureClass: undefined, indeterminate: false },
       events: [
         labEvent(`event-lab-tree-${sequence}`, "UI-Tree Capture", "operational", correlationId, occurredAt, "Bounded node summary retained; node text and raw hierarchy omitted"),
         labEvent(`event-lab-observation-${sequence}`, "Observation Capture", "operational", correlationId, occurredAt, `Sanitized preview and hash retained; artifact bytes omitted · ${hash}`),
         ...this.snapshot.events,
       ],
     }
-    return result(intent, `Observation captured for ${adapter.confirmedDisplayName}. Preview is sanitized metadata only.`, adapter.confirmedSerial)
+    return result(intent, `Observation captured for ${serial}. Preview is sanitized metadata only; no device was registered.`, serial)
   }
 
   // simulateLabCaptureFailure exists so operators can exercise the indeterminate
@@ -1414,7 +1345,6 @@ export class MockControlPlaneClient implements ControlPlaneClient {
   private simulateLabCaptureFailure(intent: Extract<ControlPlaneIntent, { type: "simulateLabCaptureFailure" }>): MutationResult {
     const adapter = this.snapshot.labAdapter
     if (adapter.mode !== "mock") return rejection(intent, "Indeterminate simulation is available in mock mode only.")
-    if (!adapter.confirmedSerial) return rejection(intent, "Confirm a lab target before simulating an indeterminate capture.")
     const sequence = this.nextLabSequence()
     const correlationId = `corr-lab-${String(sequence).padStart(3, "0")}`
     const occurredAt = labStamp(sequence)
@@ -1441,7 +1371,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         ...this.snapshot.events,
       ],
     }
-    return result(intent, "Simulated an indeterminate capture. Confirm or drop the blocked action; never blind-replay.", adapter.confirmedSerial)
+    return result(intent, "Simulated an indeterminate capture. Confirm or drop the blocked action; never blind-replay.", adapter.lastObservedSerial)
   }
 
   private simulateRuntimeDisconnect(intent: Extract<ControlPlaneIntent, { type: "simulateRuntimeDisconnect" }>): MutationResult {
@@ -1585,7 +1515,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         updatedAt: occurredAt,
       },
       labAdapter: this.snapshot.labAdapter.indeterminate && remaining.length === 0
-        ? { ...this.snapshot.labAdapter, indeterminate: false, readiness: this.snapshot.labAdapter.confirmedSerial ? "ready" : this.snapshot.labAdapter.readiness, failureClass: undefined }
+        ? { ...this.snapshot.labAdapter, indeterminate: false, readiness: this.snapshot.labAdapter.lastObservedSerial ? "ready" : this.snapshot.labAdapter.readiness, failureClass: undefined }
         : this.snapshot.labAdapter,
       events: addEvent(
         this.snapshot,

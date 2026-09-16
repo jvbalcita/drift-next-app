@@ -1,4 +1,4 @@
-import type { DeviceView, LabAdapterView } from "@/lib/domain/control-plane"
+import type { DeviceView, EndpointView } from "@/lib/domain/control-plane"
 
 export function textForDevice(devices: readonly DeviceView[], deviceId: string): string {
   return devices.find((device) => device.id === deviceId)?.displayName ?? deviceId
@@ -16,10 +16,17 @@ export function resolvedDeviceIds(deviceIds: readonly string[], selected: readon
   return deviceIds.length === 1 && deviceIds[0] ? [deviceIds[0]] : []
 }
 
+// captureSerialForDevice names the transport to observe for the selected device.
+// It resolves the device's single current endpoint serial and never falls back
+// to an ambient or previously confirmed lab target: with no current endpoint or
+// more than one, it refuses rather than choosing.
 export function captureSerialForDevice(
-  adapter: Pick<LabAdapterView, "confirmedSerial">,
+  endpoints: readonly Pick<EndpointView, "deviceId" | "serial" | "state">[],
+  deviceId: string,
 ): string {
-  return adapter.confirmedSerial.trim()
+  const current = endpoints.filter((endpoint) => endpoint.deviceId === deviceId && endpoint.state === "current")
+  if (current.length !== 1) return ""
+  return current[0]?.serial.trim() ?? ""
 }
 
 export function activeMemberships<T extends { state: string }>(items: readonly T[]): T[] {

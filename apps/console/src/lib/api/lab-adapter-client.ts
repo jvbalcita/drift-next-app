@@ -2,12 +2,6 @@ import type { DescMessage, MessageInitShape, MessageShape } from "@bufbuild/prot
 import {
   CaptureLabObservationRequestSchema,
   CaptureLabObservationResponseSchema,
-  ClearLabTargetRequestSchema,
-  ClearLabTargetResponseSchema,
-  ConfirmLabTargetRequestSchema,
-  ConfirmLabTargetResponseSchema,
-  DiscoverLabDevicesRequestSchema,
-  DiscoverLabDevicesResponseSchema,
   GetLabStatusRequestSchema,
   GetLabStatusResponseSchema,
   LabMode,
@@ -61,21 +55,8 @@ export class LabAdapterClient {
     return response.status
   }
 
-  async discoverLabDevices(options: LabAdapterCallOptions): Promise<LabStatus | undefined> {
-    const response = await this.call("DiscoverLabDevices", DiscoverLabDevicesRequestSchema, DiscoverLabDevicesResponseSchema, { workspace: this.workspace(options), context: this.context(options), operatorId: options.operatorId })
-    return response.status
-  }
-
-  async confirmLabTarget(options: LabAdapterCallOptions, input: { serial: string; displayName: string; confirmationText: string; reason: string }): Promise<LabStatus | undefined> {
-    const response = await this.call("ConfirmLabTarget", ConfirmLabTargetRequestSchema, ConfirmLabTargetResponseSchema, { workspace: this.workspace(options), context: this.context(options), operatorId: options.operatorId, ...input })
-    return response.status
-  }
-
-  async clearLabTarget(options: LabAdapterCallOptions, reason: string): Promise<LabStatus | undefined> {
-    const response = await this.call("ClearLabTarget", ClearLabTargetRequestSchema, ClearLabTargetResponseSchema, { workspace: this.workspace(options), context: this.context(options), operatorId: options.operatorId, reason })
-    return response.status
-  }
-
+  // captureLabObservation names its target explicitly: the serial is part of
+  // the same call that observes the device, so the adapter never infers one.
   async captureLabObservation(options: LabAdapterCallOptions, serial: string, timeoutMs = 15000): Promise<{ status?: LabStatus; observation?: LabObservationBundle }> {
     const response = await this.call("CaptureLabObservation", CaptureLabObservationRequestSchema, CaptureLabObservationResponseSchema, { workspace: this.workspace(options), context: this.context(options), operatorId: options.operatorId, serial, timeoutMs })
     return { status: response.status, observation: response.observation }
@@ -123,34 +104,31 @@ const readinessStates: Record<LabReadiness, LabReadinessView> = {
 
 // toLabAdapterView projects a transport message onto the console view. The
 // sanitized preview is carried only when the adapter returned a complete,
-// bounded PNG for the confirmed serial.
+// bounded PNG for the observation that produced it.
 export function toLabAdapterView(status: LabStatus, observation?: LabObservationBundle): LabAdapterView {
   return {
     mode: modes[status.mode],
     readiness: readinessStates[status.readiness],
     adapterVersion: status.adapterVersion,
     platformToolsVersion: status.platformToolsVersion,
-    confirmedSerial: status.confirmedSerial,
-    confirmedDisplayName: status.confirmedDisplayName,
-    stableIdentity: status.stableIdentity,
-    transportId: status.transportId,
     connectionState: status.connectionState,
     connectionType: status.connectionType,
     ...(status.lastHealthAt ? { lastHealthAt: status.lastHealthAt } : {}),
     ...(status.lastObservationAt ? { lastObservationAt: status.lastObservationAt } : {}),
     lastScreenshotHash: status.lastScreenshotHash,
-    ...previewFields(status, observation),
+    ...previewFields(observation),
     lastHierarchySummary: status.lastHierarchySummary,
     observationLatencyMs: Number(status.observationLatencyMs),
     ...(status.failureClass ? { failureClass: status.failureClass } : {}),
     indeterminate: status.indeterminate,
     correlationId: status.correlationId,
     discovered: status.discovered.map(toDiscoveredView),
+    lastObservedSerial: observation?.serial ?? "",
   }
 }
 
-function previewFields(status: LabStatus, observation?: LabObservationBundle): Pick<LabAdapterView, "lastScreenshotPreviewDataUrl"> {
-  if (!observation || observation.previewTruncated || observation.serial !== status.confirmedSerial) return {}
+function previewFields(observation?: LabObservationBundle): Pick<LabAdapterView, "lastScreenshotPreviewDataUrl"> {
+  if (!observation || observation.previewTruncated) return {}
   const preview = observation.previewBase64
   if (!preview || preview.length > previewByteCap) return {}
   return { lastScreenshotPreviewDataUrl: `data:image/png;base64,${preview}` }

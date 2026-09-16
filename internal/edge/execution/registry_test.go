@@ -16,7 +16,10 @@ import (
 	store "drift.local/drift-next/internal/store/sqlite"
 )
 
-func TestRegistryRefusesAMismatchedConfirmedSerial(t *testing.T) {
+// A future wildcard/registry-level mismatch can no longer be masked by session
+// state: the endpoint serial is named per capture and refused when it is not an
+// attached transport.
+func TestRegistryRefusesAnEndpointSerialThatIsNotAttached(t *testing.T) {
 	db := openDB(t)
 	workspace := organizations.Workspace{ID: "workspace-a", Name: "A", State: organizations.WorkspaceActive}
 	if err := store.NewWorkspaceService(db).Create(context.Background(), workspace, "operator", "op-1"); err != nil {
@@ -28,8 +31,16 @@ func TestRegistryRefusesAMismatchedConfirmedSerial(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := store.NewEndpointService(db).BindCurrent(context.Background(), endpoints.Endpoint{
-		ID: "endpoint-1", Workspace: workspace.ID, DeviceID: "device-1", Serial: "mock-device-beta", State: endpoints.Current, ObservedAt: time.Now().UTC(),
+		ID: "endpoint-1", Workspace: workspace.ID, DeviceID: "device-1", Serial: "mock-device-gamma", State: endpoints.Current, ObservedAt: time.Now().UTC(),
 	}, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	session, err := store.NewSessionService(db, time.Hour).Open(context.Background(), workspace.ID, "op-1", "operator", "op-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease, err := store.NewLeaseService(db, time.Hour).Acquire(context.Background(), workspace.ID, "device-1", session.ID, "op-1", "operator", "op-1")
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -37,27 +48,32 @@ func TestRegistryRefusesAMismatchedConfirmedSerial(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Discover(context.Background(), "op-1"); err != nil {
-		t.Fatal(err)
+
+	intent := action.Intent{
+		ID: "attempt-1", Workspace: string(workspace.ID), DeviceID: "device-1", LeaseID: string(lease.ID),
+		HolderID: "op-1", FencingToken: lease.FencingToken, Kind: action.Capture, IdempotencyKey: "capture-1",
+		ObservationToken: "obs-before", InvocationSurface: action.SurfaceManual, Capabilities: []action.Capability{action.CapabilityCapture}, Timeout: time.Second,
 	}
-	if _, err := service.ConfirmTarget(context.Background(), lab.ConfirmRequest{
-		Serial: "mock-device-alpha", DisplayName: "Alpha", ConfirmationText: "mock-device-alpha", OperatorID: "op-1", Reason: "registry mismatch",
-	}); err != nil {
+	if _, err := store.NewActionService(db).Authorize(context.Background(), intent, "operator", "op-1"); err != nil {
 		t.Fatal(err)
 	}
 
 	registry := execution.NewRegistry(service, db)
 	t.Cleanup(func() { _ = registry.Close() })
-	_, runErr := registry.Run(context.Background(), action.Intent{
-		ID: "attempt-1", Workspace: string(workspace.ID), DeviceID: "device-1", Kind: action.Capture,
-		IdempotencyKey: "capture-1", Timeout: time.Second, Capabilities: []action.Capability{action.CapabilityCapture},
-	}, "operator", "op-1")
-	if platformerrors.CodeOf(runErr) != platformerrors.CodePreconditionFailed {
-		t.Fatalf("mismatched serial code = %v, want precondition_failed; err=%v", platformerrors.CodeOf(runErr), runErr)
+	_, runErr := registry.Run(context.Background(), intent, "operator", "op-1")
+	if runErr == nil {
+		t.Fatal("registry completed a capture for an endpoint serial that is not attached")
+	}
+	// The capture refuses the name, so no fresh observation ever satisfies the
+	// action and completion is refused. Either classification is fail-closed.
+	switch platformerrors.CodeOf(runErr) {
+	case platformerrors.CodePreconditionFailed, platformerrors.CodeStaleObservation:
+	default:
+		t.Fatalf("unattached endpoint serial code = %v, want a fail-closed classification; err=%v", platformerrors.CodeOf(runErr), runErr)
 	}
 }
 
-func TestRegistryCapturesThroughTheConfirmedRegisteredSerial(t *testing.T) {
+func TestRegistryCapturesThroughTheRegisteredEndpointSerial(t *testing.T) {
 	db := openDB(t)
 	workspace := organizations.Workspace{ID: "workspace-a", Name: "A", State: organizations.WorkspaceActive}
 	if err := store.NewWorkspaceService(db).Create(context.Background(), workspace, "operator", "op-1"); err != nil {
@@ -84,14 +100,6 @@ func TestRegistryCapturesThroughTheConfirmedRegisteredSerial(t *testing.T) {
 
 	service, err := lab.NewService()
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.Discover(context.Background(), "op-1"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.ConfirmTarget(context.Background(), lab.ConfirmRequest{
-		Serial: "mock-device-alpha", DisplayName: "Alpha", ConfirmationText: "mock-device-alpha", OperatorID: "op-1", Reason: "registry capture",
-	}); err != nil {
 		t.Fatal(err)
 	}
 

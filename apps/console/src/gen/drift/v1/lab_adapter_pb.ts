@@ -12,13 +12,14 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/lab_adapter.proto.
  */
 export const file_drift_v1_lab_adapter: GenFile = /*@__PURE__*/
-  fileDesc("ChpkcmlmdC92MS9sYWJfYWRhcHRlci5wcm90bxIIZHJpZnQudjEingEKE0xhYkRpc2NvdmVyZWREZXZpY2USDgoGc2VyaWFsGAEgASgJEhgKEGNvbm5lY3Rpb25fc3RhdGUYAiABKAkSFwoPY29ubmVjdGlvbl90eXBlGAMgASgJEhQKDHRyYW5zcG9ydF9pZBgEIAEoCRINCgVtb2RlbBgFIAEoCRIPCgdwcm9kdWN0GAYgASgJEg4KBnVzYWJsZRgHIAEoCCK4BAoJTGFiU3RhdHVzEh8KBG1vZGUYASABKA4yES5kcmlmdC52MS5MYWJNb2RlEikKCXJlYWRpbmVzcxgCIAEoDjIWLmRyaWZ0LnYxLkxhYlJlYWRpbmVzcxIXCg9hZGFwdGVyX3ZlcnNpb24YAyABKAkSHgoWcGxhdGZvcm1fdG9vbHNfdmVyc2lvbhgEIAEoCRIYChBjb25maXJtZWRfc2VyaWFsGAUgASgJEh4KFmNvbmZpcm1lZF9kaXNwbGF5X25hbWUYBiABKAkSFwoPc3RhYmxlX2lkZW50aXR5GAcgASgJEhQKDHRyYW5zcG9ydF9pZBgIIAEoCRIYChBjb25uZWN0aW9uX3N0YXRlGAkgASgJEhcKD2Nvbm5lY3Rpb25fdHlwZRgKIAEoCRIWCg5sYXN0X2hlYWx0aF9hdBgLIAEoCRIbChNsYXN0X29ic2VydmF0aW9uX2F0GAwgASgJEhwKFGxhc3Rfc2NyZWVuc2hvdF9oYXNoGA0gASgJEh4KFmxhc3RfaGllcmFyY2h5X3N1bW1hcnkYDiABKAkSHgoWb2JzZXJ2YXRpb25fbGF0ZW5jeV9tcxgPIAEoAxIVCg1mYWlsdXJlX2NsYXNzGBAgASgJEhUKDWluZGV0ZXJtaW5hdGUYESABKAgSFgoOY29ycmVsYXRpb25faWQYEiABKAkSMQoKZGlzY292ZXJlZBgTIAMoCzIdLmRyaWZ0LnYxLkxhYkRpc2NvdmVyZWREZXZpY2UilQEKCExhYkV2ZW50EiQKBG5hbWUYASABKA4yFi5kcmlmdC52MS5MYWJFdmVudE5hbWUSFgoOY29ycmVsYXRpb25faWQYAiABKAkSDgoGc2VyaWFsGAMgASgJEhMKC29jY3VycmVkX2F0GAQgASgJEhUKDWZhaWx1cmVfY2xhc3MYBSABKAkSDwoHc3VtbWFyeRgGIAEoCSLZBAoUTGFiT2JzZXJ2YXRpb25CdW5kbGUSDgoGc2VyaWFsGAEgASgJEhcKD3N0YWJsZV9pZGVudGl0eRgCIAEoCRIWCg5jb3JyZWxhdGlvbl9pZBgDIAEoCRIXCg9pZGVtcG90ZW5jeV9rZXkYBCABKAkSEwoLY2FwdHVyZWRfYXQYBSABKAkSFwoPYWRhcHRlcl92ZXJzaW9uGAYgASgJEh4KFnBsYXRmb3JtX3Rvb2xzX3ZlcnNpb24YByABKAkSFAoMaGVhbHRoX3N0YXRlGAggASgJEi8KCnNjcmVlbnNob3QYCSABKAsyGy5kcmlmdC52MS5BcnRpZmFjdFJlZmVyZW5jZRIYChBzY3JlZW5zaG90X2J5dGVzGAogASgNEhYKDnByZXZpZXdfYmFzZTY0GAsgASgJEhkKEXByZXZpZXdfdHJ1bmNhdGVkGAwgASgIEhkKEWhpZXJhcmNoeV9zdW1tYXJ5GA0gASgJEhIKCm5vZGVfY291bnQYDiABKA0SEQoJbWF4X2RlcHRoGA8gASgNEhoKEmhpZXJhcmNoeV9jb21wbGV0ZRgQIAEoCBIhChloaWVyYXJjaHlfZnJlc2huZXNzX3Rva2VuGBEgASgJEhIKCmxhdGVuY3lfbXMYEiABKAMSFQoNZmFpbHVyZV9jbGFzcxgTIAEoCRIVCg1pbmRldGVybWluYXRlGBQgASgIEh4KFnBvc3Rjb25kaXRpb25fdmVyaWZpZWQYFSABKAgSIgoGZXZlbnRzGBYgAygLMhIuZHJpZnQudjEuTGFiRXZlbnQiawoTR2V0TGFiU3RhdHVzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSKQoHY29udGV4dBgCIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0Il8KFEdldExhYlN0YXR1c1Jlc3BvbnNlEiMKBnN0YXR1cxgBIAEoCzITLmRyaWZ0LnYxLkxhYlN0YXR1cxIiCgdmYWlsdXJlGAIgASgLMhEuZHJpZnQudjEuRmFpbHVyZSKGAQoZRGlzY292ZXJMYWJEZXZpY2VzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSKQoHY29udGV4dBgCIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EhMKC29wZXJhdG9yX2lkGAMgASgJImUKGkRpc2NvdmVyTGFiRGV2aWNlc1Jlc3BvbnNlEiMKBnN0YXR1cxgBIAEoCzITLmRyaWZ0LnYxLkxhYlN0YXR1cxIiCgdmYWlsdXJlGAIgASgLMhEuZHJpZnQudjEuRmFpbHVyZSLVAQoXQ29uZmlybUxhYlRhcmdldFJlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEikKB2NvbnRleHQYAiABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIOCgZzZXJpYWwYAyABKAkSFAoMZGlzcGxheV9uYW1lGAQgASgJEhkKEWNvbmZpcm1hdGlvbl90ZXh0GAUgASgJEhMKC29wZXJhdG9yX2lkGAYgASgJEg4KBnJlYXNvbhgHIAEoCSJjChhDb25maXJtTGFiVGFyZ2V0UmVzcG9uc2USIwoGc3RhdHVzGAEgASgLMhMuZHJpZnQudjEuTGFiU3RhdHVzEiIKB2ZhaWx1cmUYAiABKAsyES5kcmlmdC52MS5GYWlsdXJlIpIBChVDbGVhckxhYlRhcmdldFJlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEikKB2NvbnRleHQYAiABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBITCgtvcGVyYXRvcl9pZBgDIAEoCRIOCgZyZWFzb24YBCABKAkiYQoWQ2xlYXJMYWJUYXJnZXRSZXNwb25zZRIjCgZzdGF0dXMYASABKAsyEy5kcmlmdC52MS5MYWJTdGF0dXMSIgoHZmFpbHVyZRgCIAEoCzIRLmRyaWZ0LnYxLkZhaWx1cmUirQEKHENhcHR1cmVMYWJPYnNlcnZhdGlvblJlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEikKB2NvbnRleHQYAiABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIOCgZzZXJpYWwYAyABKAkSEwoLb3BlcmF0b3JfaWQYBCABKAkSEgoKdGltZW91dF9tcxgFIAEoDSKdAQodQ2FwdHVyZUxhYk9ic2VydmF0aW9uUmVzcG9uc2USMwoLb2JzZXJ2YXRpb24YASABKAsyHi5kcmlmdC52MS5MYWJPYnNlcnZhdGlvbkJ1bmRsZRIjCgZzdGF0dXMYAiABKAsyEy5kcmlmdC52MS5MYWJTdGF0dXMSIgoHZmFpbHVyZRgDIAEoCzIRLmRyaWZ0LnYxLkZhaWx1cmUiewoUTGlzdExhYkV2ZW50c1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEikKB2NvbnRleHQYAiABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBINCgVsaW1pdBgDIAEoDSJfChVMaXN0TGFiRXZlbnRzUmVzcG9uc2USIgoGZXZlbnRzGAEgAygLMhIuZHJpZnQudjEuTGFiRXZlbnQSIgoHZmFpbHVyZRgCIAEoCzIRLmRyaWZ0LnYxLkZhaWx1cmUqSAoHTGFiTW9kZRIYChRMQUJfTU9ERV9VTlNQRUNJRklFRBAAEhEKDUxBQl9NT0RFX01PQ0sQARIQCgxMQUJfTU9ERV9MQUIQAiqhAQoMTGFiUmVhZGluZXNzEh0KGUxBQl9SRUFESU5FU1NfVU5TUEVDSUZJRUQQABIdChlMQUJfUkVBRElORVNTX1VOQVZBSUxBQkxFEAESFwoTTEFCX1JFQURJTkVTU19SRUFEWRACEhkKFUxBQl9SRUFESU5FU1NfQkxPQ0tFRBADEh8KG0xBQl9SRUFESU5FU1NfSU5ERVRFUk1JTkFURRAEKsADCgxMYWJFdmVudE5hbWUSHgoaTEFCX0VWRU5UX05BTUVfVU5TUEVDSUZJRUQQABImCiJMQUJfRVZFTlRfTkFNRV9UQVJHRVRfQ09ORklSTUFUSU9OEAESJAogTEFCX0VWRU5UX05BTUVfQURBUFRFUl9SRUFESU5FU1MQAhImCiJMQUJfRVZFTlRfTkFNRV9PQlNFUlZBVElPTl9DQVBUVVJFEAMSIgoeTEFCX0VWRU5UX05BTUVfVUlfVFJFRV9DQVBUVVJFEAQSIwofTEFCX0VWRU5UX05BTUVfVFJBTlNQT1JUX0NIQU5HRRAFEiQKIExBQl9FVkVOVF9OQU1FX1JFQURPTkxZX1JFQVRUQUNIEAYSGgoWTEFCX0VWRU5UX05BTUVfVElNRU9VVBAHEh8KG0xBQl9FVkVOVF9OQU1FX0NBTkNFTExBVElPThAIEhoKFkxBQl9FVkVOVF9OQU1FX0NMRUFOVVAQCRIoCiRMQUJfRVZFTlRfTkFNRV9JTkRFVEVSTUlOQVRFX09VVENPTUUQChIoCiRMQUJfRVZFTlRfTkFNRV9PUEVSQVRPUl9DT05GSVJNQVRJT04QCzKvBAoRTGFiQWRhcHRlclNlcnZpY2USTQoMR2V0TGFiU3RhdHVzEh0uZHJpZnQudjEuR2V0TGFiU3RhdHVzUmVxdWVzdBoeLmRyaWZ0LnYxLkdldExhYlN0YXR1c1Jlc3BvbnNlEl8KEkRpc2NvdmVyTGFiRGV2aWNlcxIjLmRyaWZ0LnYxLkRpc2NvdmVyTGFiRGV2aWNlc1JlcXVlc3QaJC5kcmlmdC52MS5EaXNjb3ZlckxhYkRldmljZXNSZXNwb25zZRJZChBDb25maXJtTGFiVGFyZ2V0EiEuZHJpZnQudjEuQ29uZmlybUxhYlRhcmdldFJlcXVlc3QaIi5kcmlmdC52MS5Db25maXJtTGFiVGFyZ2V0UmVzcG9uc2USUwoOQ2xlYXJMYWJUYXJnZXQSHy5kcmlmdC52MS5DbGVhckxhYlRhcmdldFJlcXVlc3QaIC5kcmlmdC52MS5DbGVhckxhYlRhcmdldFJlc3BvbnNlEmgKFUNhcHR1cmVMYWJPYnNlcnZhdGlvbhImLmRyaWZ0LnYxLkNhcHR1cmVMYWJPYnNlcnZhdGlvblJlcXVlc3QaJy5kcmlmdC52MS5DYXB0dXJlTGFiT2JzZXJ2YXRpb25SZXNwb25zZRJQCg1MaXN0TGFiRXZlbnRzEh4uZHJpZnQudjEuTGlzdExhYkV2ZW50c1JlcXVlc3QaHy5kcmlmdC52MS5MaXN0TGFiRXZlbnRzUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChpkcmlmdC92MS9sYWJfYWRhcHRlci5wcm90bxIIZHJpZnQudjEingEKE0xhYkRpc2NvdmVyZWREZXZpY2USDgoGc2VyaWFsGAEgASgJEhgKEGNvbm5lY3Rpb25fc3RhdGUYAiABKAkSFwoPY29ubmVjdGlvbl90eXBlGAMgASgJEhQKDHRyYW5zcG9ydF9pZBgEIAEoCRINCgVtb2RlbBgFIAEoCRIPCgdwcm9kdWN0GAYgASgJEg4KBnVzYWJsZRgHIAEoCCKwBAoJTGFiU3RhdHVzEh8KBG1vZGUYASABKA4yES5kcmlmdC52MS5MYWJNb2RlEikKCXJlYWRpbmVzcxgCIAEoDjIWLmRyaWZ0LnYxLkxhYlJlYWRpbmVzcxIXCg9hZGFwdGVyX3ZlcnNpb24YAyABKAkSHgoWcGxhdGZvcm1fdG9vbHNfdmVyc2lvbhgEIAEoCRIYChBjb25uZWN0aW9uX3N0YXRlGAkgASgJEhcKD2Nvbm5lY3Rpb25fdHlwZRgKIAEoCRIWCg5sYXN0X2hlYWx0aF9hdBgLIAEoCRIbChNsYXN0X29ic2VydmF0aW9uX2F0GAwgASgJEhwKFGxhc3Rfc2NyZWVuc2hvdF9oYXNoGA0gASgJEh4KFmxhc3RfaGllcmFyY2h5X3N1bW1hcnkYDiABKAkSHgoWb2JzZXJ2YXRpb25fbGF0ZW5jeV9tcxgPIAEoAxIVCg1mYWlsdXJlX2NsYXNzGBAgASgJEhUKDWluZGV0ZXJtaW5hdGUYESABKAgSFgoOY29ycmVsYXRpb25faWQYEiABKAkSMQoKZGlzY292ZXJlZBgTIAMoCzIdLmRyaWZ0LnYxLkxhYkRpc2NvdmVyZWREZXZpY2VKBAgFEAZKBAgGEAdKBAgHEAhKBAgIEAlSEGNvbmZpcm1lZF9zZXJpYWxSFmNvbmZpcm1lZF9kaXNwbGF5X25hbWVSD3N0YWJsZV9pZGVudGl0eVIMdHJhbnNwb3J0X2lkIpUBCghMYWJFdmVudBIkCgRuYW1lGAEgASgOMhYuZHJpZnQudjEuTGFiRXZlbnROYW1lEhYKDmNvcnJlbGF0aW9uX2lkGAIgASgJEg4KBnNlcmlhbBgDIAEoCRITCgtvY2N1cnJlZF9hdBgEIAEoCRIVCg1mYWlsdXJlX2NsYXNzGAUgASgJEg8KB3N1bW1hcnkYBiABKAki2QQKFExhYk9ic2VydmF0aW9uQnVuZGxlEg4KBnNlcmlhbBgBIAEoCRIXCg9zdGFibGVfaWRlbnRpdHkYAiABKAkSFgoOY29ycmVsYXRpb25faWQYAyABKAkSFwoPaWRlbXBvdGVuY3lfa2V5GAQgASgJEhMKC2NhcHR1cmVkX2F0GAUgASgJEhcKD2FkYXB0ZXJfdmVyc2lvbhgGIAEoCRIeChZwbGF0Zm9ybV90b29sc192ZXJzaW9uGAcgASgJEhQKDGhlYWx0aF9zdGF0ZRgIIAEoCRIvCgpzY3JlZW5zaG90GAkgASgLMhsuZHJpZnQudjEuQXJ0aWZhY3RSZWZlcmVuY2USGAoQc2NyZWVuc2hvdF9ieXRlcxgKIAEoDRIWCg5wcmV2aWV3X2Jhc2U2NBgLIAEoCRIZChFwcmV2aWV3X3RydW5jYXRlZBgMIAEoCBIZChFoaWVyYXJjaHlfc3VtbWFyeRgNIAEoCRISCgpub2RlX2NvdW50GA4gASgNEhEKCW1heF9kZXB0aBgPIAEoDRIaChJoaWVyYXJjaHlfY29tcGxldGUYECABKAgSIQoZaGllcmFyY2h5X2ZyZXNobmVzc190b2tlbhgRIAEoCRISCgpsYXRlbmN5X21zGBIgASgDEhUKDWZhaWx1cmVfY2xhc3MYEyABKAkSFQoNaW5kZXRlcm1pbmF0ZRgUIAEoCBIeChZwb3N0Y29uZGl0aW9uX3ZlcmlmaWVkGBUgASgIEiIKBmV2ZW50cxgWIAMoCzISLmRyaWZ0LnYxLkxhYkV2ZW50ImsKE0dldExhYlN0YXR1c1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEikKB2NvbnRleHQYAiABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dCJfChRHZXRMYWJTdGF0dXNSZXNwb25zZRIjCgZzdGF0dXMYASABKAsyEy5kcmlmdC52MS5MYWJTdGF0dXMSIgoHZmFpbHVyZRgCIAEoCzIRLmRyaWZ0LnYxLkZhaWx1cmUirQEKHENhcHR1cmVMYWJPYnNlcnZhdGlvblJlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEikKB2NvbnRleHQYAiABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIOCgZzZXJpYWwYAyABKAkSEwoLb3BlcmF0b3JfaWQYBCABKAkSEgoKdGltZW91dF9tcxgFIAEoDSKdAQodQ2FwdHVyZUxhYk9ic2VydmF0aW9uUmVzcG9uc2USMwoLb2JzZXJ2YXRpb24YASABKAsyHi5kcmlmdC52MS5MYWJPYnNlcnZhdGlvbkJ1bmRsZRIjCgZzdGF0dXMYAiABKAsyEy5kcmlmdC52MS5MYWJTdGF0dXMSIgoHZmFpbHVyZRgDIAEoCzIRLmRyaWZ0LnYxLkZhaWx1cmUiewoUTGlzdExhYkV2ZW50c1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEikKB2NvbnRleHQYAiABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBINCgVsaW1pdBgDIAEoDSJfChVMaXN0TGFiRXZlbnRzUmVzcG9uc2USIgoGZXZlbnRzGAEgAygLMhIuZHJpZnQudjEuTGFiRXZlbnQSIgoHZmFpbHVyZRgCIAEoCzIRLmRyaWZ0LnYxLkZhaWx1cmUqSAoHTGFiTW9kZRIYChRMQUJfTU9ERV9VTlNQRUNJRklFRBAAEhEKDUxBQl9NT0RFX01PQ0sQARIQCgxMQUJfTU9ERV9MQUIQAiqhAQoMTGFiUmVhZGluZXNzEh0KGUxBQl9SRUFESU5FU1NfVU5TUEVDSUZJRUQQABIdChlMQUJfUkVBRElORVNTX1VOQVZBSUxBQkxFEAESFwoTTEFCX1JFQURJTkVTU19SRUFEWRACEhkKFUxBQl9SRUFESU5FU1NfQkxPQ0tFRBADEh8KG0xBQl9SRUFESU5FU1NfSU5ERVRFUk1JTkFURRAEKsQDCgxMYWJFdmVudE5hbWUSHgoaTEFCX0VWRU5UX05BTUVfVU5TUEVDSUZJRUQQABIkCiBMQUJfRVZFTlRfTkFNRV9BREFQVEVSX1JFQURJTkVTUxACEiYKIkxBQl9FVkVOVF9OQU1FX09CU0VSVkFUSU9OX0NBUFRVUkUQAxIiCh5MQUJfRVZFTlRfTkFNRV9VSV9UUkVFX0NBUFRVUkUQBBIjCh9MQUJfRVZFTlRfTkFNRV9UUkFOU1BPUlRfQ0hBTkdFEAUSJAogTEFCX0VWRU5UX05BTUVfUkVBRE9OTFlfUkVBVFRBQ0gQBhIaChZMQUJfRVZFTlRfTkFNRV9USU1FT1VUEAcSHwobTEFCX0VWRU5UX05BTUVfQ0FOQ0VMTEFUSU9OEAgSGgoWTEFCX0VWRU5UX05BTUVfQ0xFQU5VUBAJEigKJExBQl9FVkVOVF9OQU1FX0lOREVURVJNSU5BVEVfT1VUQ09NRRAKIgQIARABIgQICxALKiJMQUJfRVZFTlRfTkFNRV9UQVJHRVRfQ09ORklSTUFUSU9OKiRMQUJfRVZFTlRfTkFNRV9PUEVSQVRPUl9DT05GSVJNQVRJT04yngIKEUxhYkFkYXB0ZXJTZXJ2aWNlEk0KDEdldExhYlN0YXR1cxIdLmRyaWZ0LnYxLkdldExhYlN0YXR1c1JlcXVlc3QaHi5kcmlmdC52MS5HZXRMYWJTdGF0dXNSZXNwb25zZRJoChVDYXB0dXJlTGFiT2JzZXJ2YXRpb24SJi5kcmlmdC52MS5DYXB0dXJlTGFiT2JzZXJ2YXRpb25SZXF1ZXN0GicuZHJpZnQudjEuQ2FwdHVyZUxhYk9ic2VydmF0aW9uUmVzcG9uc2USUAoNTGlzdExhYkV2ZW50cxIeLmRyaWZ0LnYxLkxpc3RMYWJFdmVudHNSZXF1ZXN0Gh8uZHJpZnQudjEuTGlzdExhYkV2ZW50c1Jlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
 
 /**
- * LabDiscoveredDevice is one enumerated candidate transport. Discovery is
- * deliberately separate from approval: nothing in this message creates or
- * registers a canonical device, and connection_state and transport_id are
- * mutable transport facts that must never be used as device identity.
+ * LabDiscoveredDevice is one enumerated candidate transport observed while
+ * resolving a capture target. Enumeration is read-only evidence: nothing in
+ * this message creates or registers a canonical device, and connection_state
+ * and transport_id are mutable transport facts that must never be used as
+ * device identity.
  *
  * @generated from message drift.v1.LabDiscoveredDevice
  */
@@ -70,6 +71,9 @@ export const LabDiscoveredDeviceSchema: GenMessage<LabDiscoveredDevice> = /*@__P
  * LabStatus is the sanitized projection of the lab adapter boundary. Every
  * timestamp is RFC3339 UTC text and is empty when the event never happened.
  *
+ * The confirmed-target fields are retired: no session state holds a target, so
+ * there is nothing to project. A capture names its own target per call.
+ *
  * @generated from message drift.v1.LabStatus
  */
 export type LabStatus = Message<"drift.v1.LabStatus"> & {
@@ -92,30 +96,6 @@ export type LabStatus = Message<"drift.v1.LabStatus"> & {
    * @generated from field: string platform_tools_version = 4;
    */
   platformToolsVersion: string;
-
-  /**
-   * confirmed_serial is empty until an operator explicitly confirms a target.
-   *
-   * @generated from field: string confirmed_serial = 5;
-   */
-  confirmedSerial: string;
-
-  /**
-   * @generated from field: string confirmed_display_name = 6;
-   */
-  confirmedDisplayName: string;
-
-  /**
-   * stable_identity is the lab-scoped stable identity, never a transport id.
-   *
-   * @generated from field: string stable_identity = 7;
-   */
-  stableIdentity: string;
-
-  /**
-   * @generated from field: string transport_id = 8;
-   */
-  transportId: string;
 
   /**
    * @generated from field: string connection_state = 9;
@@ -172,6 +152,9 @@ export type LabStatus = Message<"drift.v1.LabStatus"> & {
   correlationId: string;
 
   /**
+   * discovered is the candidate set observed while resolving the most recent
+   * capture target. It is read-only evidence and is never a device registry.
+   *
    * @generated from field: repeated drift.v1.LabDiscoveredDevice discovered = 19;
    */
   discovered: LabDiscoveredDevice[];
@@ -409,188 +392,13 @@ export const GetLabStatusResponseSchema: GenMessage<GetLabStatusResponse> = /*@_
   messageDesc(file_drift_v1_lab_adapter, 5);
 
 /**
- * @generated from message drift.v1.DiscoverLabDevicesRequest
- */
-export type DiscoverLabDevicesRequest = Message<"drift.v1.DiscoverLabDevicesRequest"> & {
-  /**
-   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
-   */
-  workspace?: WorkspaceRef;
-
-  /**
-   * @generated from field: drift.v1.RequestContext context = 2;
-   */
-  context?: RequestContext;
-
-  /**
-   * @generated from field: string operator_id = 3;
-   */
-  operatorId: string;
-};
-
-/**
- * Describes the message drift.v1.DiscoverLabDevicesRequest.
- * Use `create(DiscoverLabDevicesRequestSchema)` to create a new message.
- */
-export const DiscoverLabDevicesRequestSchema: GenMessage<DiscoverLabDevicesRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lab_adapter, 6);
-
-/**
- * @generated from message drift.v1.DiscoverLabDevicesResponse
- */
-export type DiscoverLabDevicesResponse = Message<"drift.v1.DiscoverLabDevicesResponse"> & {
-  /**
-   * @generated from field: drift.v1.LabStatus status = 1;
-   */
-  status?: LabStatus;
-
-  /**
-   * @generated from field: drift.v1.Failure failure = 2;
-   */
-  failure?: Failure;
-};
-
-/**
- * Describes the message drift.v1.DiscoverLabDevicesResponse.
- * Use `create(DiscoverLabDevicesResponseSchema)` to create a new message.
- */
-export const DiscoverLabDevicesResponseSchema: GenMessage<DiscoverLabDevicesResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lab_adapter, 7);
-
-/**
- * ConfirmLabTargetRequest requires an explicit serial plus matching
- * confirmation text. The adapter never infers a target from list order,
- * display name, address, or row position.
+ * CaptureLabObservationRequest names the target device explicitly, in the same
+ * call that observes it. serial is required and must name exactly one attached,
+ * usable device: the adapter never infers a target from session state, list
+ * order, display name, address, or row position.
  *
- * @generated from message drift.v1.ConfirmLabTargetRequest
- */
-export type ConfirmLabTargetRequest = Message<"drift.v1.ConfirmLabTargetRequest"> & {
-  /**
-   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
-   */
-  workspace?: WorkspaceRef;
-
-  /**
-   * @generated from field: drift.v1.RequestContext context = 2;
-   */
-  context?: RequestContext;
-
-  /**
-   * @generated from field: string serial = 3;
-   */
-  serial: string;
-
-  /**
-   * @generated from field: string display_name = 4;
-   */
-  displayName: string;
-
-  /**
-   * confirmation_text must equal the serial, or the literal CONFIRM when
-   * exactly one candidate was discovered.
-   *
-   * @generated from field: string confirmation_text = 5;
-   */
-  confirmationText: string;
-
-  /**
-   * @generated from field: string operator_id = 6;
-   */
-  operatorId: string;
-
-  /**
-   * @generated from field: string reason = 7;
-   */
-  reason: string;
-};
-
-/**
- * Describes the message drift.v1.ConfirmLabTargetRequest.
- * Use `create(ConfirmLabTargetRequestSchema)` to create a new message.
- */
-export const ConfirmLabTargetRequestSchema: GenMessage<ConfirmLabTargetRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lab_adapter, 8);
-
-/**
- * @generated from message drift.v1.ConfirmLabTargetResponse
- */
-export type ConfirmLabTargetResponse = Message<"drift.v1.ConfirmLabTargetResponse"> & {
-  /**
-   * @generated from field: drift.v1.LabStatus status = 1;
-   */
-  status?: LabStatus;
-
-  /**
-   * @generated from field: drift.v1.Failure failure = 2;
-   */
-  failure?: Failure;
-};
-
-/**
- * Describes the message drift.v1.ConfirmLabTargetResponse.
- * Use `create(ConfirmLabTargetResponseSchema)` to create a new message.
- */
-export const ConfirmLabTargetResponseSchema: GenMessage<ConfirmLabTargetResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lab_adapter, 9);
-
-/**
- * @generated from message drift.v1.ClearLabTargetRequest
- */
-export type ClearLabTargetRequest = Message<"drift.v1.ClearLabTargetRequest"> & {
-  /**
-   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
-   */
-  workspace?: WorkspaceRef;
-
-  /**
-   * @generated from field: drift.v1.RequestContext context = 2;
-   */
-  context?: RequestContext;
-
-  /**
-   * @generated from field: string operator_id = 3;
-   */
-  operatorId: string;
-
-  /**
-   * @generated from field: string reason = 4;
-   */
-  reason: string;
-};
-
-/**
- * Describes the message drift.v1.ClearLabTargetRequest.
- * Use `create(ClearLabTargetRequestSchema)` to create a new message.
- */
-export const ClearLabTargetRequestSchema: GenMessage<ClearLabTargetRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lab_adapter, 10);
-
-/**
- * @generated from message drift.v1.ClearLabTargetResponse
- */
-export type ClearLabTargetResponse = Message<"drift.v1.ClearLabTargetResponse"> & {
-  /**
-   * @generated from field: drift.v1.LabStatus status = 1;
-   */
-  status?: LabStatus;
-
-  /**
-   * @generated from field: drift.v1.Failure failure = 2;
-   */
-  failure?: Failure;
-};
-
-/**
- * Describes the message drift.v1.ClearLabTargetResponse.
- * Use `create(ClearLabTargetResponseSchema)` to create a new message.
- */
-export const ClearLabTargetResponseSchema: GenMessage<ClearLabTargetResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lab_adapter, 11);
-
-/**
- * CaptureLabObservationRequest requires the serial to match the confirmed
- * target exactly. context.idempotency_key is required: a key whose outcome is
- * unknown is never replayed automatically.
+ * context.idempotency_key is required: a key whose outcome is unknown is never
+ * replayed automatically.
  *
  * @generated from message drift.v1.CaptureLabObservationRequest
  */
@@ -626,7 +434,7 @@ export type CaptureLabObservationRequest = Message<"drift.v1.CaptureLabObservati
  * Use `create(CaptureLabObservationRequestSchema)` to create a new message.
  */
 export const CaptureLabObservationRequestSchema: GenMessage<CaptureLabObservationRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lab_adapter, 12);
+  messageDesc(file_drift_v1_lab_adapter, 6);
 
 /**
  * @generated from message drift.v1.CaptureLabObservationResponse
@@ -653,7 +461,7 @@ export type CaptureLabObservationResponse = Message<"drift.v1.CaptureLabObservat
  * Use `create(CaptureLabObservationResponseSchema)` to create a new message.
  */
 export const CaptureLabObservationResponseSchema: GenMessage<CaptureLabObservationResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lab_adapter, 13);
+  messageDesc(file_drift_v1_lab_adapter, 7);
 
 /**
  * @generated from message drift.v1.ListLabEventsRequest
@@ -680,7 +488,7 @@ export type ListLabEventsRequest = Message<"drift.v1.ListLabEventsRequest"> & {
  * Use `create(ListLabEventsRequestSchema)` to create a new message.
  */
 export const ListLabEventsRequestSchema: GenMessage<ListLabEventsRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lab_adapter, 14);
+  messageDesc(file_drift_v1_lab_adapter, 8);
 
 /**
  * @generated from message drift.v1.ListLabEventsResponse
@@ -702,7 +510,7 @@ export type ListLabEventsResponse = Message<"drift.v1.ListLabEventsResponse"> & 
  * Use `create(ListLabEventsResponseSchema)` to create a new message.
  */
 export const ListLabEventsResponseSchema: GenMessage<ListLabEventsResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_lab_adapter, 15);
+  messageDesc(file_drift_v1_lab_adapter, 9);
 
 /**
  * LabMode reports whether the adapter boundary is answering from deterministic
@@ -776,6 +584,9 @@ export const LabReadinessSchema: GenEnum<LabReadiness> = /*@__PURE__*/
 /**
  * LabEventName is the stable vocabulary of lab adapter audit events.
  *
+ * The confirm-lifecycle event names are retired: capture no longer depends on a
+ * separate target-confirmation step, so nothing can emit them.
+ *
  * @generated from enum drift.v1.LabEventName
  */
 export enum LabEventName {
@@ -783,11 +594,6 @@ export enum LabEventName {
    * @generated from enum value: LAB_EVENT_NAME_UNSPECIFIED = 0;
    */
   UNSPECIFIED = 0,
-
-  /**
-   * @generated from enum value: LAB_EVENT_NAME_TARGET_CONFIRMATION = 1;
-   */
-  TARGET_CONFIRMATION = 1,
 
   /**
    * @generated from enum value: LAB_EVENT_NAME_ADAPTER_READINESS = 2;
@@ -833,11 +639,6 @@ export enum LabEventName {
    * @generated from enum value: LAB_EVENT_NAME_INDETERMINATE_OUTCOME = 10;
    */
   INDETERMINATE_OUTCOME = 10,
-
-  /**
-   * @generated from enum value: LAB_EVENT_NAME_OPERATOR_CONFIRMATION = 11;
-   */
-  OPERATOR_CONFIRMATION = 11,
 }
 
 /**
@@ -847,10 +648,12 @@ export const LabEventNameSchema: GenEnum<LabEventName> = /*@__PURE__*/
   enumDesc(file_drift_v1_lab_adapter, 2);
 
 /**
- * LabAdapterService is the read-only-plus-confirmation boundary for the real
- * device lab slice. It exposes observation and explicit target confirmation
- * only: it issues no device input, holds no lease, grants no approval
- * authority, and never registers a canonical device.
+ * LabAdapterService is the read-only observation boundary for the real device
+ * lab slice. Capture is device-scoped: each call names its target and is
+ * authorized on its own, so the adapter holds no confirmed-target lifecycle.
+ *
+ * It exposes observation only: it issues no device input, holds no lease,
+ * grants no approval authority, and never registers a canonical device.
  *
  * @generated from service drift.v1.LabAdapterService
  */
@@ -862,30 +665,6 @@ export const LabAdapterService: GenService<{
     methodKind: "unary";
     input: typeof GetLabStatusRequestSchema;
     output: typeof GetLabStatusResponseSchema;
-  },
-  /**
-   * @generated from rpc drift.v1.LabAdapterService.DiscoverLabDevices
-   */
-  discoverLabDevices: {
-    methodKind: "unary";
-    input: typeof DiscoverLabDevicesRequestSchema;
-    output: typeof DiscoverLabDevicesResponseSchema;
-  },
-  /**
-   * @generated from rpc drift.v1.LabAdapterService.ConfirmLabTarget
-   */
-  confirmLabTarget: {
-    methodKind: "unary";
-    input: typeof ConfirmLabTargetRequestSchema;
-    output: typeof ConfirmLabTargetResponseSchema;
-  },
-  /**
-   * @generated from rpc drift.v1.LabAdapterService.ClearLabTarget
-   */
-  clearLabTarget: {
-    methodKind: "unary";
-    input: typeof ClearLabTargetRequestSchema;
-    output: typeof ClearLabTargetResponseSchema;
   },
   /**
    * @generated from rpc drift.v1.LabAdapterService.CaptureLabObservation

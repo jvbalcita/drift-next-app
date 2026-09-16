@@ -1,13 +1,15 @@
 // Package lab is the typed application-service boundary for the real-device
-// lab slice. It owns authorization, adapter selection, target confirmation,
+// lab slice. It owns authorization, adapter selection, target resolution,
 // timeouts, cancellation, redaction, audit events, failure classification,
 // indeterminate outcomes, sanitized evidence references, and postcondition
 // verification for read-only Android observation.
 //
-// The package deliberately does two things it would be easy to skip. It keeps
-// candidate discovery separate from operator approval, so nothing here creates
-// or registers a canonical device. And it keeps a confirmed target in service
-// memory only, so a lab session never mutates the control-plane registry.
+// Capture is device-scoped. Every capture call names the one device it observes
+// and is authorized on its own, so the boundary holds no confirmed-target
+// lifecycle and no mutable "current target" session state. The service still
+// keeps candidates separate from approval: resolving a target enumerates
+// attached transports but creates and registers nothing, so a lab session never
+// mutates the control-plane registry.
 package lab
 
 import (
@@ -35,19 +37,20 @@ type Readiness string
 
 const (
 	// ReadinessUnavailable means the adapter itself could not be reached, or
-	// no enumeration has succeeded yet.
+	// no attached candidate has been observed yet.
 	ReadinessUnavailable Readiness = "unavailable"
 
-	// ReadinessReady means a confirmed target was observed usable.
+	// ReadinessReady means the adapter answered and the last resolved target
+	// was observed usable.
 	ReadinessReady Readiness = "ready"
 
-	// ReadinessBlocked means the adapter answered but the session may not
-	// observe: no confirmed target, or a target that is not usable.
+	// ReadinessBlocked means the adapter answered but the last observed
+	// transport state of the named target is not usable.
 	ReadinessBlocked Readiness = "blocked"
 
 	// ReadinessIndeterminate means the outcome of the last operation is
-	// unknown. It stays indeterminate until an operator clears the target or a
-	// later capture with a new idempotency key succeeds.
+	// unknown. It stays indeterminate until a later capture with a new
+	// idempotency key verifies its postcondition.
 	ReadinessIndeterminate Readiness = "indeterminate"
 )
 
@@ -55,7 +58,6 @@ const (
 type EventName string
 
 const (
-	EventTargetConfirmation   EventName = "target_confirmation"
 	EventAdapterReadiness     EventName = "adapter_readiness"
 	EventObservationCapture   EventName = "observation_capture"
 	EventUITreeCapture        EventName = "ui_tree_capture"
@@ -65,39 +67,33 @@ const (
 	EventCancellation         EventName = "cancellation"
 	EventCleanup              EventName = "cleanup"
 	EventIndeterminateOutcome EventName = "indeterminate_outcome"
-	EventOperatorConfirmation EventName = "operator_confirmation"
 )
 
 // Action names one authorized lab operation.
 type Action string
 
 const (
-	ActionDiscover      Action = "discover"
-	ActionConfirmTarget Action = "confirm_target"
-	ActionClearTarget   Action = "clear_target"
-	ActionCapture       Action = "capture_observation"
+	// ActionDiscover is the read-only enumeration the canonical Network Profile
+	// scan uses as its transport source.
+	ActionDiscover Action = "discover"
+
+	// ActionCapture is one read-only observation of an explicitly named device.
+	ActionCapture Action = "capture_observation"
 )
 
-// ConfirmationLiteral is the generic confirmation phrase accepted only when
-// exactly one candidate was discovered. With more than one candidate the
-// operator must type the serial itself so no target can be inferred.
-const ConfirmationLiteral = "CONFIRM"
-
-// StableIdentityPrefix scopes lab-session identity. A lab identity is stable
-// for the session and is never a transport identifier, row number, or address.
+// StableIdentityPrefix scopes lab-session identity. A lab identity is derived
+// from the explicitly named serial and is never a transport identifier, row
+// number, address, or display name.
 const StableIdentityPrefix = "lab:"
 
 // Status is the sanitized projection of the adapter boundary. Timestamps are
-// nil when the corresponding observation never happened.
+// nil when the corresponding observation never happened. It carries no target
+// state: a target exists only inside the call that names it.
 type Status struct {
 	Mode                 Mode
 	Readiness            Readiness
 	AdapterVersion       string
 	PlatformToolsVersion string
-	ConfirmedSerial      string
-	ConfirmedDisplayName string
-	StableIdentity       string
-	TransportID          string
 	ConnectionState      string
 	ConnectionType       string
 	LastHealthAt         *time.Time
@@ -108,13 +104,11 @@ type Status struct {
 	FailureClass         domain.FailureClass
 	Indeterminate        bool
 	CorrelationID        string
-	Discovered           []adb.DiscoveredDevice
+	// Discovered is the attached candidate set observed while resolving the
+	// most recent target. It is read-only evidence and is never a device
+	// registry.
+	Discovered []adb.DiscoveredDevice
 }
-
-// Confirmed reports whether an operator has confirmed a target for this
-// session. A status is never treated as confirmed because a serial appeared in
-// discovery output.
-func (s Status) Confirmed() bool { return s.ConfirmedSerial != "" }
 
 // Event is one sanitized audit record. Summary is bounded redacted prose and
 // never carries raw command output, raw hierarchy XML, or credentials.
@@ -127,18 +121,10 @@ type Event struct {
 	Summary       string
 }
 
-// ConfirmRequest is an explicit operator approval of one enumerated candidate.
-// Reason is required: a confirmation is an auditable decision, not a default.
-type ConfirmRequest struct {
-	Serial           string
-	DisplayName      string
-	ConfirmationText string
-	OperatorID       string
-	Reason           string
-}
-
-// CaptureRequest asks for one bounded read-only observation of the confirmed
-// target. Serial must match the confirmed target exactly.
+// CaptureRequest asks for one bounded read-only observation of one explicitly
+// named device. Serial is required and must name exactly one attached, usable
+// device: the service never infers a target from ambient state, list order,
+// display name, address, or row position.
 type CaptureRequest struct {
 	Serial         string
 	IdempotencyKey string

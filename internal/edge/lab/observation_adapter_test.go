@@ -10,9 +10,8 @@ import (
 	"drift.local/drift-next/internal/edge/lab"
 )
 
-func TestObservationAdapterCapturesTheConfirmedSerial(t *testing.T) {
+func TestObservationAdapterCapturesTheExplicitlyNamedSerial(t *testing.T) {
 	service := newMockService(t)
-	confirm(t, service, "mock-device-alpha")
 	bound, err := lab.NewObservationAdapter(service, "mock-device-alpha", operator)
 	if err != nil {
 		t.Fatal(err)
@@ -31,7 +30,6 @@ func TestObservationAdapterCapturesTheConfirmedSerial(t *testing.T) {
 
 func TestObservationAdapterRefusesAMutatingKind(t *testing.T) {
 	service := newMockService(t)
-	confirm(t, service, "mock-device-alpha")
 	bound, err := lab.NewObservationAdapter(service, "mock-device-alpha", operator)
 	if err != nil {
 		t.Fatal(err)
@@ -43,18 +41,19 @@ func TestObservationAdapterRefusesAMutatingKind(t *testing.T) {
 	}
 }
 
-func TestObservationAdapterRefusesAMismatchedConfirmedSerial(t *testing.T) {
+// The adapter names its serial per call, so a serial that is not actually
+// attached is refused by the capture authorization rather than by session state.
+func TestObservationAdapterRefusesASerialThatIsNotAttached(t *testing.T) {
 	service := newMockService(t)
-	confirm(t, service, "mock-device-alpha")
-	bound, err := lab.NewObservationAdapter(service, "mock-device-beta", operator)
+	bound, err := lab.NewObservationAdapter(service, "mock-device-gamma", operator)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = bound.Execute(context.Background(), action.Intent{
-		Kind: action.Capture, IdempotencyKey: "capture-beta", Timeout: time.Second,
+		Kind: action.Capture, IdempotencyKey: "capture-gamma", Timeout: time.Second,
 		Capabilities: []action.Capability{action.CapabilityCapture},
 	})
 	if _, ok := adapter.IsExecutionError(err); !ok {
-		t.Fatalf("mismatched serial err = %v, want an execution error", err)
+		t.Fatalf("unattached serial err = %v, want an execution error", err)
 	}
 }

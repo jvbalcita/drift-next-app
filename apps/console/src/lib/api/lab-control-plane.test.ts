@@ -7,8 +7,6 @@ import { applyLabIntent, isLabControlPlaneIntent, labIntentFailure } from "./lab
 const status = create(LabStatusSchema, {
   mode: LabMode.LAB,
   readiness: LabReadiness.READY,
-  confirmedSerial: "SERIAL1",
-  confirmedDisplayName: "Lab bench",
   adapterVersion: "lab-adapter 0.13.0",
 })
 
@@ -16,9 +14,6 @@ const status = create(LabStatusSchema, {
 function stubClient(overrides: Partial<LabAdapterClient> = {}) {
   const calls: string[] = []
   const client = {
-    discoverLabDevices: () => { calls.push("discover"); return Promise.resolve(status) },
-    confirmLabTarget: () => { calls.push("confirm"); return Promise.resolve(status) },
-    clearLabTarget: () => { calls.push("clear"); return Promise.resolve(status) },
     captureLabObservation: () => {
       calls.push("capture")
       return Promise.resolve({ status, observation: create(LabObservationBundleSchema, { serial: "SERIAL1", previewBase64: "aGk=" }) })
@@ -31,38 +26,34 @@ function stubClient(overrides: Partial<LabAdapterClient> = {}) {
 const context = { workspaceId: "workspace-1", operatorId: "operator-1" }
 
 describe("lab control plane routing", () => {
-  it("routes lab intents to the adapter and leaves every other intent alone", () => {
-    expect(isLabControlPlaneIntent({ type: "discoverLabDevices" })).toBe(true)
-    expect(isLabControlPlaneIntent({ type: "clearLabTarget" })).toBe(true)
+  it("routes the device-scoped capture to the adapter and leaves every other intent alone", () => {
     expect(isLabControlPlaneIntent({ type: "captureLabObservation", serial: "SERIAL1" })).toBe(true)
     expect(isLabControlPlaneIntent({ type: "refresh" })).toBe(false)
     expect(isLabControlPlaneIntent({ type: "cancelRun", runId: "run-1" })).toBe(false)
+    expect(isLabControlPlaneIntent({ type: "startScan", profileId: "profile-1" })).toBe(false)
     // The mock-only QA affordance must never reach a lab adapter.
     expect(isLabControlPlaneIntent({ type: "simulateLabCaptureFailure" })).toBe(false)
   })
 
-  it("projects each lab intent onto the adapter view", async () => {
+  it("projects the capture onto the adapter view without inventing a target", async () => {
     const { client, calls } = stubClient()
 
-    const discovered = await applyLabIntent(client, { type: "discoverLabDevices" }, context)
-    await applyLabIntent(client, { type: "confirmLabTarget", serial: "SERIAL1", displayName: "Lab bench", confirmationText: "SERIAL1", reason: "Bring-up" }, context)
-    await applyLabIntent(client, { type: "clearLabTarget" }, context)
     const captured = await applyLabIntent(client, { type: "captureLabObservation", serial: "SERIAL1" }, context)
 
-    expect(calls).toEqual(["discover", "confirm", "clear", "capture"])
-    expect(discovered).toMatchObject({ mode: "lab", readiness: "ready", confirmedSerial: "SERIAL1" })
+    expect(calls).toEqual(["capture"])
+    expect(captured).toMatchObject({ mode: "lab", readiness: "ready", lastObservedSerial: "SERIAL1" })
     expect(captured.lastScreenshotPreviewDataUrl).toBe("data:image/png;base64,aGk=")
   })
 
   it("refuses to project a response with no status", async () => {
-    const { client } = stubClient({ discoverLabDevices: () => Promise.resolve(undefined) })
+    const { client } = stubClient({ captureLabObservation: () => Promise.resolve({}) })
 
-    await expect(applyLabIntent(client, { type: "discoverLabDevices" }, context)).rejects.toBeInstanceOf(LabAdapterRequestError)
+    await expect(applyLabIntent(client, { type: "captureLabObservation", serial: "SERIAL1" }, context)).rejects.toBeInstanceOf(LabAdapterRequestError)
   })
 
   it("distinguishes a refusal from an unreachable adapter", () => {
-    const refused = labIntentFailure({ type: "discoverLabDevices" }, new LabAdapterRequestError("policy_denied", "operator is not permitted"))
-    const unreachable = labIntentFailure({ type: "discoverLabDevices" }, new TypeError("Failed to fetch"))
+    const refused = labIntentFailure({ type: "captureLabObservation", serial: "SERIAL1" }, new LabAdapterRequestError("policy_denied", "operator is not permitted"))
+    const unreachable = labIntentFailure({ type: "captureLabObservation", serial: "SERIAL1" }, new TypeError("Failed to fetch"))
 
     expect(refused.ok).toBe(false)
     expect(refused.message).toContain("policy_denied")

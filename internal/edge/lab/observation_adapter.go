@@ -12,8 +12,10 @@ import (
 )
 
 // ObservationAdapter is a typed edge adapter for read-only observation of one
-// confirmed serial. It never injects input, never widens the ADB allow-list,
-// and never executes a mutating catalog kind.
+// explicitly named serial. It never injects input, never widens the ADB
+// allow-list, and never executes a mutating catalog kind. The serial is named on
+// every capture, so the capture authorization is what refuses a device that is
+// not actually attached.
 type ObservationAdapter struct {
 	capturer   ObservationCapturer
 	serial     string
@@ -23,7 +25,6 @@ type ObservationAdapter struct {
 // ObservationCapturer is the lab service slice this adapter needs.
 type ObservationCapturer interface {
 	CaptureObservation(context.Context, CaptureRequest) (ObservationBundle, error)
-	Status(context.Context) Status
 }
 
 func NewObservationAdapter(capturer ObservationCapturer, serial, operatorID string) (*ObservationAdapter, error) {
@@ -60,13 +61,6 @@ func (a *ObservationAdapter) Execute(ctx context.Context, intent action.Intent) 
 		return adapter.Execution{}, &adapter.ExecutionError{
 			Cause:        errors.New("observation adapter does not execute mutating actions"),
 			FailureClass: domain.FailureCapabilityMismatch,
-		}
-	}
-	status := a.capturer.Status(ctx)
-	if status.ConfirmedSerial != a.serial {
-		return adapter.Execution{}, &adapter.ExecutionError{
-			Cause:        platformerrors.New(platformerrors.CodePreconditionFailed, "confirmed transport does not match the registered device"),
-			FailureClass: domain.FailureStaleObservation,
 		}
 	}
 	bundle, err := a.capture(ctx, intent)

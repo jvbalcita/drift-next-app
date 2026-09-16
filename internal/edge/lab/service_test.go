@@ -2,6 +2,7 @@ package lab_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -40,23 +41,19 @@ func newLabService(t *testing.T, fake *fakeAdapter, opts ...lab.Option) *lab.Ser
 	return service
 }
 
-func confirm(t *testing.T, service *lab.Service, serial string) lab.Status {
+// captureFor names the target device explicitly in the same call that observes
+// it. There is no discovery or confirmation step in front of it any more.
+func captureFor(t *testing.T, service *lab.Service, serial, idempotencyKey string) lab.ObservationBundle {
 	t.Helper()
-	ctx := context.Background()
-	if _, err := service.Discover(ctx, operator); err != nil {
-		t.Fatalf("Discover() error = %v", err)
-	}
-	status, err := service.ConfirmTarget(ctx, lab.ConfirmRequest{
-		Serial:           serial,
-		DisplayName:      "Bench device",
-		ConfirmationText: serial,
-		OperatorID:       operator,
-		Reason:           "phase 13 vertical slice",
+	bundle, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
+		Serial:         serial,
+		IdempotencyKey: idempotencyKey,
+		OperatorID:     operator,
 	})
 	if err != nil {
-		t.Fatalf("ConfirmTarget() error = %v", err)
+		t.Fatalf("CaptureObservation(%q) error = %v", serial, err)
 	}
-	return status
+	return bundle
 }
 
 func hasEvent(events []lab.Event, name lab.EventName) bool {
@@ -66,6 +63,21 @@ func hasEvent(events []lab.Event, name lab.EventName) bool {
 		}
 	}
 	return false
+}
+
+// recordingAuthorizer observes what the service asked for, so per-call
+// attribution can be asserted rather than assumed.
+type recordingAuthorizer struct {
+	calls []string
+	deny  bool
+}
+
+func (a *recordingAuthorizer) Authorize(_ context.Context, operatorID string, action lab.Action) error {
+	a.calls = append(a.calls, operatorID+"|"+string(action))
+	if a.deny {
+		return errors.New("operator is not permitted")
+	}
+	return nil
 }
 
 func TestNewServiceDefaultsToMockModeWithoutAnyDeviceWork(t *testing.T) {
@@ -81,11 +93,14 @@ func TestNewServiceDefaultsToMockModeWithoutAnyDeviceWork(t *testing.T) {
 	if status.AdapterVersion != lab.MockAdapterVersion {
 		t.Fatalf("Status().AdapterVersion = %q, want %q", status.AdapterVersion, lab.MockAdapterVersion)
 	}
-	if status.Confirmed() || len(status.Discovered) != 0 {
-		t.Fatalf("Status() = %+v, want no confirmed target and no discovery before Discover", status)
+	if len(status.Discovered) != 0 {
+		t.Fatalf("Status() = %+v, want no discovery before a capture resolves a target", status)
 	}
 }
 
+// The canonical Network Profile scan uses the adapter's read-only enumeration as
+// its transport source. It enumerates and nothing else: no confirmation step
+// exists and no canonical device is created.
 func TestDiscoverEnumeratesWithoutConfirmingOrRegisteringAnything(t *testing.T) {
 	service := newMockService(t)
 
@@ -96,23 +111,17 @@ func TestDiscoverEnumeratesWithoutConfirmingOrRegisteringAnything(t *testing.T) 
 	if len(status.Discovered) != len(lab.DefaultMockCandidates()) {
 		t.Fatalf("Discover() discovered %d candidates, want %d", len(status.Discovered), len(lab.DefaultMockCandidates()))
 	}
-	if status.Confirmed() {
-		t.Fatalf("Discover() confirmed %q; discovery must never confirm a target", status.ConfirmedSerial)
-	}
-	if status.Readiness != lab.ReadinessBlocked {
-		t.Fatalf("Discover() readiness = %q, want %q until a target is confirmed", status.Readiness, lab.ReadinessBlocked)
+	if status.Readiness != lab.ReadinessReady {
+		t.Fatalf("Discover() readiness = %q, want %q once the adapter has answered with attached candidates", status.Readiness, lab.ReadinessReady)
 	}
 	if !hasEvent(service.Events(), lab.EventAdapterReadiness) {
 		t.Fatal("Discover() emitted no adapter_readiness event")
 	}
 }
 
-func TestDiscoverAndCaptureRequireAnAttributableOperator(t *testing.T) {
+func TestCaptureObservationRequiresAnAttributableOperator(t *testing.T) {
 	service := newMockService(t)
 
-	if _, err := service.Discover(context.Background(), " "); platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
-		t.Fatalf("Discover() code = %v, want %v", platformerrors.CodeOf(err), platformerrors.CodePolicyDenied)
-	}
 	_, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
 		Serial:         "mock-device-alpha",
 		IdempotencyKey: "key-1",
@@ -122,109 +131,100 @@ func TestDiscoverAndCaptureRequireAnAttributableOperator(t *testing.T) {
 	}
 }
 
-func TestCaptureObservationIsBlockedBeforeConfirmation(t *testing.T) {
-	service := newMockService(t)
-	if _, err := service.Discover(context.Background(), operator); err != nil {
-		t.Fatalf("Discover() error = %v", err)
+// Each capture is authorized on its own, with the operator and the action the
+// call actually performs. Attribution is per call, not per session.
+func TestCaptureObservationAuthorizesEveryCallByOperator(t *testing.T) {
+	authorizer := &recordingAuthorizer{}
+	service := newMockService(t, lab.WithAuthorizer(authorizer))
+
+	for _, key := range []string{"key-1", "key-2"} {
+		if _, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
+			Serial:         "mock-device-alpha",
+			IdempotencyKey: key,
+			OperatorID:     operator,
+		}); err != nil {
+			t.Fatalf("CaptureObservation(%s) error = %v", key, err)
+		}
 	}
+	if len(authorizer.calls) != 2 {
+		t.Fatalf("authorizer calls = %v, want one authorization per capture", authorizer.calls)
+	}
+	for _, call := range authorizer.calls {
+		if call != operator+"|"+string(lab.ActionCapture) {
+			t.Fatalf("authorizer call = %q, want the per-call operator and capture action", call)
+		}
+	}
+}
+
+func TestCaptureObservationDeniesAnUnauthorizedOperator(t *testing.T) {
+	service := newMockService(t, lab.WithAuthorizer(&recordingAuthorizer{deny: true}))
 
 	_, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
 		Serial:         "mock-device-alpha",
 		IdempotencyKey: "key-1",
 		OperatorID:     operator,
 	})
-	if platformerrors.CodeOf(err) != platformerrors.CodePreconditionFailed {
-		t.Fatalf("CaptureObservation() code = %v, want %v", platformerrors.CodeOf(err), platformerrors.CodePreconditionFailed)
+	if platformerrors.CodeOf(err) != platformerrors.CodePolicyDenied {
+		t.Fatalf("CaptureObservation() code = %v, want %v", platformerrors.CodeOf(err), platformerrors.CodePolicyDenied)
 	}
 }
 
-func TestConfirmTargetRefusesGenericConfirmationWhenSeveralCandidatesAreAttached(t *testing.T) {
-	service := newMockService(t)
-	ctx := context.Background()
-	if _, err := service.Discover(ctx, operator); err != nil {
-		t.Fatalf("Discover() error = %v", err)
-	}
+// A capture that names no device is refused before any adapter is touched: the
+// target is never inferred from ambient state or from list order.
+func TestCaptureObservationRefusesAnUnnamedTargetWithoutTouchingTheAdapter(t *testing.T) {
+	fake := newFakeAdapter()
+	service := newLabService(t, fake)
 
-	status, err := service.ConfirmTarget(ctx, lab.ConfirmRequest{
-		Serial:           "mock-device-alpha",
-		ConfirmationText: lab.ConfirmationLiteral,
-		OperatorID:       operator,
-		Reason:           "phase 13 vertical slice",
-	})
-	if platformerrors.CodeOf(err) != platformerrors.CodeAmbiguousTarget {
-		t.Fatalf("ConfirmTarget() code = %v, want %v", platformerrors.CodeOf(err), platformerrors.CodeAmbiguousTarget)
-	}
-	if status.Confirmed() {
-		t.Fatalf("ConfirmTarget() confirmed %q despite an ambiguous confirmation", status.ConfirmedSerial)
-	}
-	if status.FailureClass != domain.FailureAmbiguousTarget {
-		t.Fatalf("Status().FailureClass = %q, want %q", status.FailureClass, domain.FailureAmbiguousTarget)
-	}
-}
-
-func TestConfirmTargetAcceptsTheGenericLiteralOnlyForASingleCandidate(t *testing.T) {
-	single := lab.DefaultMockCandidates()[:1]
-	service := newMockService(t, lab.WithMockCandidates(single...))
-	ctx := context.Background()
-	if _, err := service.Discover(ctx, operator); err != nil {
-		t.Fatalf("Discover() error = %v", err)
-	}
-
-	status, err := service.ConfirmTarget(ctx, lab.ConfirmRequest{
-		Serial:           single[0].Serial,
-		ConfirmationText: lab.ConfirmationLiteral,
-		OperatorID:       operator,
-		Reason:           "phase 13 vertical slice",
-	})
-	if err != nil {
-		t.Fatalf("ConfirmTarget() error = %v", err)
-	}
-	if status.ConfirmedSerial != single[0].Serial {
-		t.Fatalf("Status().ConfirmedSerial = %q, want %q", status.ConfirmedSerial, single[0].Serial)
-	}
-}
-
-func TestConfirmTargetRejectsASerialThatWasNeverEnumerated(t *testing.T) {
-	service := newMockService(t)
-	ctx := context.Background()
-
-	_, err := service.ConfirmTarget(ctx, lab.ConfirmRequest{
-		Serial:           "mock-device-gamma",
-		ConfirmationText: "mock-device-gamma",
-		OperatorID:       operator,
-		Reason:           "phase 13 vertical slice",
-	})
-	if platformerrors.CodeOf(err) != platformerrors.CodeNotFound {
-		t.Fatalf("ConfirmTarget() code = %v, want %v", platformerrors.CodeOf(err), platformerrors.CodeNotFound)
-	}
-}
-
-// A confirmation is an auditable operator decision, so an unexplained one is
-// refused before any candidate is matched or any device is touched.
-func TestConfirmTargetRequiresAReason(t *testing.T) {
-	service := newMockService(t)
-	ctx := context.Background()
-	if _, err := service.Discover(ctx, operator); err != nil {
-		t.Fatalf("Discover() error = %v", err)
-	}
-
-	for name, reason := range map[string]string{"empty": "", "whitespace": "   "} {
-		status, err := service.ConfirmTarget(ctx, lab.ConfirmRequest{
-			Serial:           "mock-device-alpha",
-			ConfirmationText: "mock-device-alpha",
-			OperatorID:       operator,
-			Reason:           reason,
+	for name, serial := range map[string]string{"empty": "", "whitespace": "   "} {
+		_, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
+			Serial:         serial,
+			IdempotencyKey: "key-" + name,
+			OperatorID:     operator,
 		})
 		if platformerrors.CodeOf(err) != platformerrors.CodeInvalidInput {
-			t.Fatalf("ConfirmTarget(%s reason) code = %v, want %v", name, platformerrors.CodeOf(err), platformerrors.CodeInvalidInput)
+			t.Fatalf("CaptureObservation(%s serial) code = %v, want %v", name, platformerrors.CodeOf(err), platformerrors.CodeInvalidInput)
 		}
-		if status.Confirmed() {
-			t.Fatalf("ConfirmTarget(%s reason) confirmed %q without an audited reason", name, status.ConfirmedSerial)
-		}
+	}
+	if len(fake.recordedCalls()) != 0 {
+		t.Fatalf("adapter calls = %v, want none for a capture that names no device", fake.recordedCalls())
 	}
 }
 
-func TestConfirmTargetRejectsAnUnusableTransportState(t *testing.T) {
+func TestCaptureObservationRefusesASerialThatIsNotAttached(t *testing.T) {
+	fake := newFakeAdapter()
+	service := newLabService(t, fake)
+
+	_, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
+		Serial:         "fakeserial02",
+		IdempotencyKey: "key-1",
+		OperatorID:     operator,
+	})
+	if platformerrors.CodeOf(err) != platformerrors.CodePreconditionFailed {
+		t.Fatalf("CaptureObservation() code = %v, want %v; err=%v", platformerrors.CodeOf(err), platformerrors.CodePreconditionFailed, err)
+	}
+	if fake.callCount("health") != 0 || fake.callCount("screenshot") != 0 {
+		t.Fatal("CaptureObservation() observed a device it had already refused")
+	}
+}
+
+func TestCaptureObservationRefusesAnAmbiguousTarget(t *testing.T) {
+	fake := newFakeAdapter(
+		adb.DiscoveredDevice{Serial: "fakeserial01", State: adb.StateDevice, TransportID: "7", ConnectionType: adb.ConnectionUSB},
+		adb.DiscoveredDevice{Serial: "fakeserial01", State: adb.StateDevice, TransportID: "8", ConnectionType: adb.ConnectionTCP},
+	)
+	service := newLabService(t, fake)
+
+	_, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
+		Serial:         "fakeserial01",
+		IdempotencyKey: "key-1",
+		OperatorID:     operator,
+	})
+	if platformerrors.CodeOf(err) != platformerrors.CodeAmbiguousTarget {
+		t.Fatalf("CaptureObservation() code = %v, want %v", platformerrors.CodeOf(err), platformerrors.CodeAmbiguousTarget)
+	}
+}
+
+func TestCaptureObservationRefusesAnUnusableTarget(t *testing.T) {
 	fake := newFakeAdapter(adb.DiscoveredDevice{
 		Serial:         "fakeserial01",
 		State:          adb.StateUnauthorized,
@@ -232,66 +232,106 @@ func TestConfirmTargetRejectsAnUnusableTransportState(t *testing.T) {
 		ConnectionType: adb.ConnectionUSB,
 	})
 	service := newLabService(t, fake)
-	ctx := context.Background()
-
-	_, err := service.ConfirmTarget(ctx, lab.ConfirmRequest{
-		Serial:           "fakeserial01",
-		ConfirmationText: "fakeserial01",
-		OperatorID:       operator,
-		Reason:           "phase 13 vertical slice",
-	})
-	if platformerrors.CodeOf(err) != platformerrors.CodePreconditionFailed {
-		t.Fatalf("ConfirmTarget() code = %v, want %v", platformerrors.CodeOf(err), platformerrors.CodePreconditionFailed)
-	}
-	if fake.callCount("health") != 0 {
-		t.Fatal("ConfirmTarget() observed health for a candidate it had already refused")
-	}
-}
-
-func TestConfirmTargetBindsASessionIdentityThatIsNotTheTransportIdentity(t *testing.T) {
-	service := newMockService(t)
-	status := confirm(t, service, "mock-device-beta")
-
-	if status.StableIdentity != lab.StableIdentityPrefix+"mock-device-beta" {
-		t.Fatalf("Status().StableIdentity = %q, want %q", status.StableIdentity, lab.StableIdentityPrefix+"mock-device-beta")
-	}
-	if status.StableIdentity == status.TransportID || status.TransportID == "" {
-		t.Fatalf("Status() identity = %q must differ from transport identity %q", status.StableIdentity, status.TransportID)
-	}
-	if status.Readiness != lab.ReadinessReady {
-		t.Fatalf("Status().Readiness = %q, want %q", status.Readiness, lab.ReadinessReady)
-	}
-	if !hasEvent(service.Events(), lab.EventOperatorConfirmation) || !hasEvent(service.Events(), lab.EventTargetConfirmation) {
-		t.Fatalf("ConfirmTarget() events = %+v, want operator and target confirmation records", service.Events())
-	}
-}
-
-func TestCaptureObservationRequiresTheConfirmedSerial(t *testing.T) {
-	service := newMockService(t)
-	confirm(t, service, "mock-device-alpha")
 
 	_, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
-		Serial:         "mock-device-beta",
+		Serial:         "fakeserial01",
 		IdempotencyKey: "key-1",
 		OperatorID:     operator,
 	})
 	if platformerrors.CodeOf(err) != platformerrors.CodePreconditionFailed {
 		t.Fatalf("CaptureObservation() code = %v, want %v", platformerrors.CodeOf(err), platformerrors.CodePreconditionFailed)
 	}
+	if fake.callCount("health") != 0 {
+		t.Fatal("CaptureObservation() observed health for a target it had already refused")
+	}
+	if status := service.Status(context.Background()); status.Readiness != lab.ReadinessBlocked {
+		t.Fatalf("Status().Readiness = %q, want %q for an attached but unusable target", status.Readiness, lab.ReadinessBlocked)
+	}
+}
+
+func TestCaptureObservationRequiresABoundedIdempotencyKey(t *testing.T) {
+	service := newMockService(t)
+
+	_, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
+		Serial:     "mock-device-alpha",
+		OperatorID: operator,
+	})
+	if platformerrors.CodeOf(err) != platformerrors.CodeInvalidInput {
+		t.Fatalf("CaptureObservation() code = %v, want %v", platformerrors.CodeOf(err), platformerrors.CodeInvalidInput)
+	}
+}
+
+// The stable lab identity is derived from the explicitly named serial, and it is
+// never a mutable transport fact.
+func TestCaptureObservationBindsAStableIdentityThatIsNotTheTransportIdentity(t *testing.T) {
+	service := newMockService(t)
+	bundle := captureFor(t, service, "mock-device-beta", "key-1")
+
+	if bundle.StableIdentity != lab.StableIdentityPrefix+"mock-device-beta" {
+		t.Fatalf("bundle.StableIdentity = %q, want %q", bundle.StableIdentity, lab.StableIdentityPrefix+"mock-device-beta")
+	}
+	status := service.Status(context.Background())
+	if len(status.Discovered) == 0 {
+		t.Fatal("Status() recorded no attached candidates for the resolved target")
+	}
+	for _, candidate := range status.Discovered {
+		if candidate.Serial == bundle.Serial && candidate.TransportID == bundle.StableIdentity {
+			t.Fatalf("stable identity %q must never be the transport identity", bundle.StableIdentity)
+		}
+	}
+}
+
+// Resolving a target records the attached candidates it observed without
+// creating or registering anything.
+func TestCaptureObservationRecordsTheAttachedCandidatesItResolved(t *testing.T) {
+	service := newMockService(t)
+	bundle := captureFor(t, service, "mock-device-alpha", "key-1")
+
+	status := service.Status(context.Background())
+	if len(status.Discovered) != len(lab.DefaultMockCandidates()) {
+		t.Fatalf("Status().Discovered = %d candidates, want the %d attached fixtures", len(status.Discovered), len(lab.DefaultMockCandidates()))
+	}
+	var named bool
+	for _, candidate := range status.Discovered {
+		if candidate.Serial == bundle.Serial {
+			named = true
+		}
+	}
+	if !named {
+		t.Fatalf("Status().Discovered = %+v, want the explicitly named serial to be observed as attached", status.Discovered)
+	}
+	if status.Readiness != lab.ReadinessReady {
+		t.Fatalf("Status().Readiness = %q, want %q after a verified capture", status.Readiness, lab.ReadinessReady)
+	}
+}
+
+// Capture is observation only: it may enumerate, read health, take a bounded
+// screenshot, dump the hierarchy, and re-read a changed transport read-only. It
+// must never issue a state-changing device action.
+func TestCaptureObservationIssuesOnlyReadOnlyAdapterCalls(t *testing.T) {
+	fake := newFakeAdapter()
+	service := newLabService(t, fake)
+	captureFor(t, service, "fakeserial01", "key-1")
+
+	readOnly := map[string]bool{
+		"version": true, "enumerate": true, "health": true,
+		"screenshot": true, "hierarchy": true, "reattach": true,
+	}
+	calls := fake.recordedCalls()
+	if len(calls) == 0 {
+		t.Fatal("CaptureObservation() issued no adapter calls at all")
+	}
+	for _, call := range calls {
+		if !readOnly[call] {
+			t.Fatalf("adapter call %q is not a read-only observation", call)
+		}
+	}
 }
 
 func TestCaptureObservationReturnsASanitizedVerifiedBundleInMockMode(t *testing.T) {
 	service := newMockService(t)
-	confirm(t, service, "mock-device-alpha")
+	bundle := captureFor(t, service, "mock-device-alpha", "key-1")
 
-	bundle, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
-		Serial:         "mock-device-alpha",
-		IdempotencyKey: "key-1",
-		OperatorID:     operator,
-	})
-	if err != nil {
-		t.Fatalf("CaptureObservation() error = %v", err)
-	}
 	if !bundle.PostconditionVerified || bundle.FailureClass != "" || bundle.Indeterminate {
 		t.Fatalf("CaptureObservation() bundle = %+v, want a verified determinate observation", bundle)
 	}
@@ -316,16 +356,8 @@ func TestCaptureObservationReturnsASanitizedVerifiedBundleInMockMode(t *testing.
 
 func TestCaptureObservationEmitsABoundedPreviewOnlyWhenEnabled(t *testing.T) {
 	service := newMockService(t, lab.WithScreenshotPreview(lab.MaxScreenshotPreviewBytes))
-	confirm(t, service, "mock-device-alpha")
+	bundle := captureFor(t, service, "mock-device-alpha", "key-1")
 
-	bundle, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
-		Serial:         "mock-device-alpha",
-		IdempotencyKey: "key-1",
-		OperatorID:     operator,
-	})
-	if err != nil {
-		t.Fatalf("CaptureObservation() error = %v", err)
-	}
 	if bundle.PreviewBase64 == "" || bundle.PreviewTruncated {
 		t.Fatalf("bundle preview = %q truncated=%v, want a complete bounded preview", bundle.PreviewBase64, bundle.PreviewTruncated)
 	}
@@ -333,16 +365,8 @@ func TestCaptureObservationEmitsABoundedPreviewOnlyWhenEnabled(t *testing.T) {
 
 func TestCaptureObservationTruncatesRatherThanReturningAPartialImage(t *testing.T) {
 	service := newMockService(t, lab.WithScreenshotPreview(4))
-	confirm(t, service, "mock-device-alpha")
+	bundle := captureFor(t, service, "mock-device-alpha", "key-1")
 
-	bundle, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
-		Serial:         "mock-device-alpha",
-		IdempotencyKey: "key-1",
-		OperatorID:     operator,
-	})
-	if err != nil {
-		t.Fatalf("CaptureObservation() error = %v", err)
-	}
 	if bundle.PreviewBase64 != "" || !bundle.PreviewTruncated {
 		t.Fatalf("bundle preview = %q truncated=%v, want no preview and a truncation flag", bundle.PreviewBase64, bundle.PreviewTruncated)
 	}
@@ -351,7 +375,6 @@ func TestCaptureObservationTruncatesRatherThanReturningAPartialImage(t *testing.
 func TestCaptureObservationDeduplicatesACompletedIdempotencyKey(t *testing.T) {
 	fake := newFakeAdapter()
 	service := newLabService(t, fake)
-	confirm(t, service, "fakeserial01")
 
 	request := lab.CaptureRequest{Serial: "fakeserial01", IdempotencyKey: "key-1", OperatorID: operator}
 	first, err := service.CaptureObservation(context.Background(), request)
@@ -376,7 +399,6 @@ func TestCaptureObservationTimeoutIsIndeterminateAndIsNeverReplayed(t *testing.T
 	fake := newFakeAdapter()
 	fake.screenshotDelay = time.Second
 	service := newLabService(t, fake)
-	confirm(t, service, "fakeserial01")
 
 	request := lab.CaptureRequest{
 		Serial:         "fakeserial01",
@@ -415,7 +437,6 @@ func TestCaptureObservationClassifiesOperatorCancellation(t *testing.T) {
 	fake := newFakeAdapter()
 	fake.screenshotDelay = time.Second
 	service := newLabService(t, fake)
-	confirm(t, service, "fakeserial01")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -444,7 +465,6 @@ func TestCaptureObservationFailsThePostconditionForAnIncompleteHierarchy(t *test
 	fake.hierarchy.Partial = true
 	fake.hierarchy.FailureClass = domain.FailureObservation
 	service := newLabService(t, fake)
-	confirm(t, service, "fakeserial01")
 
 	bundle, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
 		Serial:         "fakeserial01",
@@ -462,29 +482,20 @@ func TestCaptureObservationFailsThePostconditionForAnIncompleteHierarchy(t *test
 	}
 }
 
+// A transport change is detected against the transport identity observed for
+// this device on the previous capture, and it is reconciled read-only.
 func TestCaptureObservationReconcilesATransportChangeReadOnly(t *testing.T) {
 	fake := newFakeAdapter()
 	service := newLabService(t, fake)
-	confirm(t, service, "fakeserial01")
+	captureFor(t, service, "fakeserial01", "key-1")
 	fake.healthTransport = "9"
 
-	bundle, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
-		Serial:         "fakeserial01",
-		IdempotencyKey: "key-1",
-		OperatorID:     operator,
-	})
-	if err != nil {
-		t.Fatalf("CaptureObservation() error = %v", err)
-	}
+	bundle := captureFor(t, service, "fakeserial01", "key-2")
 	if !hasEvent(bundle.Events, lab.EventTransportChange) || !hasEvent(bundle.Events, lab.EventReadonlyReattach) {
 		t.Fatalf("bundle.Events = %+v, want transport change and read-only reattach records", bundle.Events)
 	}
-	status := service.Status(context.Background())
-	if status.TransportID != "9" {
-		t.Fatalf("Status().TransportID = %q, want the re-observed transport identity", status.TransportID)
-	}
-	if status.StableIdentity != lab.StableIdentityPrefix+"fakeserial01" {
-		t.Fatalf("Status().StableIdentity = %q, want it unchanged by a transport change", status.StableIdentity)
+	if bundle.StableIdentity != lab.StableIdentityPrefix+"fakeserial01" {
+		t.Fatalf("bundle.StableIdentity = %q, want it unchanged by a transport change", bundle.StableIdentity)
 	}
 	// The adapter's single-use reattach is what caps the reconciliation; a bare
 	// re-enumeration would let a flapping transport be re-read without limit.
@@ -493,14 +504,13 @@ func TestCaptureObservationReconcilesATransportChangeReadOnly(t *testing.T) {
 	}
 }
 
-// An unknown outcome is only resolved by an operator clear or by a capture that
-// actually verified its postcondition. A later determinate failure says nothing
-// about whether the earlier command reached the device.
+// An unknown outcome is only resolved by a capture that actually verified its
+// postcondition. A later determinate failure says nothing about whether the
+// earlier command reached the device.
 func TestIndeterminateReadinessSurvivesALaterDeterminateFailure(t *testing.T) {
 	fake := newFakeAdapter()
 	fake.screenshotDelay = time.Second
 	service := newLabService(t, fake)
-	confirm(t, service, "fakeserial01")
 
 	if _, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
 		Serial:         "fakeserial01",
@@ -532,14 +542,7 @@ func TestIndeterminateReadinessSurvivesALaterDeterminateFailure(t *testing.T) {
 
 	fake.hierarchy.Truncated = false
 	fake.hierarchy.FailureClass = ""
-	verified, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
-		Serial:         "fakeserial01",
-		IdempotencyKey: "key-verified",
-		OperatorID:     operator,
-	})
-	if err != nil {
-		t.Fatalf("CaptureObservation() error = %v", err)
-	}
+	verified := captureFor(t, service, "fakeserial01", "key-verified")
 	if !verified.PostconditionVerified {
 		t.Fatalf("CaptureObservation() bundle = %+v, want a verified postcondition", verified)
 	}
@@ -548,36 +551,9 @@ func TestIndeterminateReadinessSurvivesALaterDeterminateFailure(t *testing.T) {
 	}
 }
 
-func TestClearTargetReleasesTheSessionAndResolvesIndeterminateReadiness(t *testing.T) {
-	fake := newFakeAdapter()
-	fake.screenshotDelay = time.Second
-	service := newLabService(t, fake)
-	confirm(t, service, "fakeserial01")
-
-	if _, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
-		Serial:         "fakeserial01",
-		IdempotencyKey: "key-1",
-		OperatorID:     operator,
-		Timeout:        20 * time.Millisecond,
-	}); err == nil {
-		t.Fatal("CaptureObservation() unexpectedly succeeded with an expired deadline")
-	}
-
-	status, err := service.ClearTarget(context.Background(), operator)
-	if err != nil {
-		t.Fatalf("ClearTarget() error = %v", err)
-	}
-	if status.Confirmed() || status.Indeterminate || status.Readiness != lab.ReadinessBlocked {
-		t.Fatalf("ClearTarget() status = %+v, want a released, determinate, blocked session", status)
-	}
-	if !hasEvent(service.Events(), lab.EventCleanup) {
-		t.Fatalf("ClearTarget() events = %+v, want a cleanup record", service.Events())
-	}
-}
-
 func TestEventSummariesAreBoundedAndRedacted(t *testing.T) {
 	service := newMockService(t)
-	confirm(t, service, "mock-device-alpha")
+	captureFor(t, service, "mock-device-alpha", "key-1")
 
 	for _, event := range service.Events() {
 		if len(event.Summary) > 512+len("…[truncated]") {
@@ -634,17 +610,25 @@ func TestLabModeRequestedAcceptsAnExplicitOptIn(t *testing.T) {
 	}
 }
 
-func TestDiscoverReportsAnUnavailableAdapterWithoutInventingCandidates(t *testing.T) {
+func TestCaptureObservationReportsAnUnavailableAdapterWithoutInventingCandidates(t *testing.T) {
 	fake := newFakeAdapter()
 	fake.enumerateErr = &adb.OperationError{Op: "enumerate", FailureClass: domain.FailureInfrastructure}
 	service := newLabService(t, fake)
 
-	status, err := service.Discover(context.Background(), operator)
+	bundle, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
+		Serial:         "fakeserial01",
+		IdempotencyKey: "key-1",
+		OperatorID:     operator,
+	})
 	if platformerrors.CodeOf(err) != platformerrors.CodeUnavailable {
-		t.Fatalf("Discover() code = %v, want %v", platformerrors.CodeOf(err), platformerrors.CodeUnavailable)
+		t.Fatalf("CaptureObservation() code = %v, want %v", platformerrors.CodeOf(err), platformerrors.CodeUnavailable)
 	}
+	if bundle.PostconditionVerified || bundle.Indeterminate {
+		t.Fatalf("CaptureObservation() bundle = %+v, want no observation attempted for an unavailable adapter", bundle)
+	}
+	status := service.Status(context.Background())
 	if len(status.Discovered) != 0 || status.Readiness != lab.ReadinessUnavailable {
-		t.Fatalf("Discover() status = %+v, want no candidates and unavailable readiness", status)
+		t.Fatalf("Status() = %+v, want no candidates and unavailable readiness", status)
 	}
 	if status.FailureClass != domain.FailureInfrastructure {
 		t.Fatalf("Status().FailureClass = %q, want %q", status.FailureClass, domain.FailureInfrastructure)

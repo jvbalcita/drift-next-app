@@ -20,10 +20,6 @@ func labStatusProto(status lab.Status) *driftv1.LabStatus {
 		Readiness:            labReadinessProto(status.Readiness),
 		AdapterVersion:       status.AdapterVersion,
 		PlatformToolsVersion: status.PlatformToolsVersion,
-		ConfirmedSerial:      status.ConfirmedSerial,
-		ConfirmedDisplayName: status.ConfirmedDisplayName,
-		StableIdentity:       status.StableIdentity,
-		TransportId:          status.TransportID,
 		ConnectionState:      status.ConnectionState,
 		ConnectionType:       status.ConnectionType,
 		LastHealthAt:         labTimestamp(status.LastHealthAt),
@@ -130,8 +126,6 @@ func labReadinessProto(readiness lab.Readiness) driftv1.LabReadiness {
 
 func labEventNameProto(name lab.EventName) driftv1.LabEventName {
 	switch name {
-	case lab.EventTargetConfirmation:
-		return driftv1.LabEventName_LAB_EVENT_NAME_TARGET_CONFIRMATION
 	case lab.EventAdapterReadiness:
 		return driftv1.LabEventName_LAB_EVENT_NAME_ADAPTER_READINESS
 	case lab.EventObservationCapture:
@@ -150,8 +144,6 @@ func labEventNameProto(name lab.EventName) driftv1.LabEventName {
 		return driftv1.LabEventName_LAB_EVENT_NAME_CLEANUP
 	case lab.EventIndeterminateOutcome:
 		return driftv1.LabEventName_LAB_EVENT_NAME_INDETERMINATE_OUTCOME
-	case lab.EventOperatorConfirmation:
-		return driftv1.LabEventName_LAB_EVENT_NAME_OPERATOR_CONFIRMATION
 	default:
 		return driftv1.LabEventName_LAB_EVENT_NAME_UNSPECIFIED
 	}

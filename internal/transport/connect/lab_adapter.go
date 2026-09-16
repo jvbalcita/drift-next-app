@@ -13,7 +13,6 @@ import (
 
 const (
 	maxLabFieldBytes     = 256
-	maxLabReasonBytes    = 512
 	defaultLabEventLimit = 50
 	maxLabEventLimit     = 200
 )
@@ -22,9 +21,6 @@ const (
 // *lab.Service satisfies it; the handler owns no lab behavior of its own.
 type LabAdapter interface {
 	Status(ctx context.Context) lab.Status
-	Discover(ctx context.Context, operatorID string) (lab.Status, error)
-	ConfirmTarget(ctx context.Context, request lab.ConfirmRequest) (lab.Status, error)
-	ClearTarget(ctx context.Context, operatorID string) (lab.Status, error)
 	CaptureObservation(ctx context.Context, request lab.CaptureRequest) (lab.ObservationBundle, error)
 	Events() []lab.Event
 }
@@ -56,104 +52,9 @@ func (h *LabAdapterHandler) GetLabStatus(ctx context.Context, request *connectrp
 	}), nil
 }
 
-func (h *LabAdapterHandler) DiscoverLabDevices(ctx context.Context, request *connectrpc.Request[driftv1.DiscoverLabDevicesRequest]) (*connectrpc.Response[driftv1.DiscoverLabDevicesResponse], error) {
-	if request == nil {
-		return nil, invalidArgument("lab discovery request is required")
-	}
-	if err := validateWorkspace(request.Msg.GetWorkspace()); err != nil {
-		return nil, err
-	}
-	if err := validateLabOperator(request.Msg.GetOperatorId()); err != nil {
-		return nil, err
-	}
-	service, err := h.adapter()
-	if err != nil {
-		return nil, err
-	}
-	status, discoverErr := service.Discover(ctx, request.Msg.GetOperatorId())
-	if discoverErr != nil {
-		return nil, MapError(discoverErr)
-	}
-	return connectrpc.NewResponse(&driftv1.DiscoverLabDevicesResponse{Status: labStatusProto(status)}), nil
-}
-
-func (h *LabAdapterHandler) ConfirmLabTarget(ctx context.Context, request *connectrpc.Request[driftv1.ConfirmLabTargetRequest]) (*connectrpc.Response[driftv1.ConfirmLabTargetResponse], error) {
-	if request == nil {
-		return nil, invalidArgument("lab confirmation request is required")
-	}
-	message := request.Msg
-	if err := validateWorkspace(message.GetWorkspace()); err != nil {
-		return nil, err
-	}
-	if err := validateLabOperator(message.GetOperatorId()); err != nil {
-		return nil, err
-	}
-	if err := validateRequestID(message.GetContext()); err != nil {
-		return nil, err
-	}
-	if err := validateLabField(message.GetSerial(), maxLabFieldBytes, "lab target serial"); err != nil {
-		return nil, err
-	}
-	if err := validateLabField(message.GetConfirmationText(), maxLabFieldBytes, "lab confirmation text"); err != nil {
-		return nil, err
-	}
-	if message.GetDisplayName() != "" {
-		if err := validateLabField(message.GetDisplayName(), maxLabFieldBytes, "lab target display name"); err != nil {
-			return nil, err
-		}
-	}
-	if message.GetReason() != "" {
-		if err := validateLabField(message.GetReason(), maxLabReasonBytes, "lab confirmation reason"); err != nil {
-			return nil, err
-		}
-	}
-	service, err := h.adapter()
-	if err != nil {
-		return nil, err
-	}
-	status, confirmErr := service.ConfirmTarget(ctx, lab.ConfirmRequest{
-		Serial:           message.GetSerial(),
-		DisplayName:      message.GetDisplayName(),
-		ConfirmationText: message.GetConfirmationText(),
-		OperatorID:       message.GetOperatorId(),
-		Reason:           message.GetReason(),
-	})
-	if confirmErr != nil {
-		return nil, MapError(confirmErr)
-	}
-	return connectrpc.NewResponse(&driftv1.ConfirmLabTargetResponse{Status: labStatusProto(status)}), nil
-}
-
-func (h *LabAdapterHandler) ClearLabTarget(ctx context.Context, request *connectrpc.Request[driftv1.ClearLabTargetRequest]) (*connectrpc.Response[driftv1.ClearLabTargetResponse], error) {
-	if request == nil {
-		return nil, invalidArgument("lab clear request is required")
-	}
-	message := request.Msg
-	if err := validateWorkspace(message.GetWorkspace()); err != nil {
-		return nil, err
-	}
-	if err := validateLabOperator(message.GetOperatorId()); err != nil {
-		return nil, err
-	}
-	if err := validateRequestID(message.GetContext()); err != nil {
-		return nil, err
-	}
-	if message.GetReason() != "" {
-		if err := validateLabField(message.GetReason(), maxLabReasonBytes, "lab clear reason"); err != nil {
-			return nil, err
-		}
-	}
-	service, err := h.adapter()
-	if err != nil {
-		return nil, err
-	}
-	status, clearErr := service.ClearTarget(ctx, message.GetOperatorId())
-	if clearErr != nil {
-		return nil, MapError(clearErr)
-	}
-	return connectrpc.NewResponse(&driftv1.ClearLabTargetResponse{Status: labStatusProto(status)}), nil
-}
-
+// CaptureLabObservation performs one read-only observation of the device named
+// in the request. The serial is required: the handler never supplies a target
+// from session state, discovery order, or any other ambient source.
 func (h *LabAdapterHandler) CaptureLabObservation(ctx context.Context, request *connectrpc.Request[driftv1.CaptureLabObservationRequest]) (*connectrpc.Response[driftv1.CaptureLabObservationResponse], error) {
 	if request == nil {
 		return nil, invalidArgument("lab observation request is required")

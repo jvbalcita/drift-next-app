@@ -66,9 +66,9 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
     }
     if (action === "Screenshot" && source) {
       void (async () => {
-        const serial = captureSerialForDevice(snapshot.labAdapter)
+        const serial = captureSerialForDevice(snapshot.endpoints, source.id)
         if (!serial) {
-          setFeedback("Confirm the connected transport for this device before capturing observation.")
+          setFeedback("This device has no single current transport endpoint to observe.")
           return
         }
         const authorized = await reportDispatch(dispatch, { type: "submitDeviceAction", deviceId: source.id, kind: "capture", confirmed: true }, setFeedback)

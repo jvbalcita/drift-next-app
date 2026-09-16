@@ -35,21 +35,8 @@ func TestCaptureContinuesWhenEvidencePersistenceFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := service.Discover(context.Background(), "operator-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(status.Discovered) == 0 {
-		t.Fatal("expected mock discoveries")
-	}
-	serial := status.Discovered[0].Serial
-	if _, err := service.ConfirmTarget(context.Background(), lab.ConfirmRequest{
-		Serial: serial, OperatorID: "operator-1", ConfirmationText: serial, Reason: "phase-15 capture isolation",
-	}); err != nil {
-		t.Fatal(err)
-	}
 	bundle, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
-		Serial: serial, OperatorID: "operator-1", IdempotencyKey: "idem-1",
+		Serial: "mock-device-alpha", OperatorID: "operator-1", IdempotencyKey: "idem-1",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -67,21 +54,8 @@ func TestCaptureAdmissionOmissionIsNotInfrastructureFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := service.Discover(context.Background(), "operator-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(status.Discovered) == 0 {
-		t.Fatal("expected mock discoveries")
-	}
-	serial := status.Discovered[0].Serial
-	if _, err := service.ConfirmTarget(context.Background(), lab.ConfirmRequest{
-		Serial: serial, OperatorID: "operator-1", ConfirmationText: serial, Reason: "phase-15 admission omission",
-	}); err != nil {
-		t.Fatal(err)
-	}
 	bundle, err := service.CaptureObservation(context.Background(), lab.CaptureRequest{
-		Serial: serial, OperatorID: "operator-1", IdempotencyKey: "idem-omit-1",
+		Serial: "mock-device-alpha", OperatorID: "operator-1", IdempotencyKey: "idem-omit-1",
 	})
 	if err != nil {
 		t.Fatal(err)

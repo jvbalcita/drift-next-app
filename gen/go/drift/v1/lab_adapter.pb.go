@@ -131,11 +131,13 @@ func (LabReadiness) EnumDescriptor() ([]byte, []int) {
 }
 
 // LabEventName is the stable vocabulary of lab adapter audit events.
+//
+// The confirm-lifecycle event names are retired: capture no longer depends on a
+// separate target-confirmation step, so nothing can emit them.
 type LabEventName int32
 
 const (
 	LabEventName_LAB_EVENT_NAME_UNSPECIFIED           LabEventName = 0
-	LabEventName_LAB_EVENT_NAME_TARGET_CONFIRMATION   LabEventName = 1
 	LabEventName_LAB_EVENT_NAME_ADAPTER_READINESS     LabEventName = 2
 	LabEventName_LAB_EVENT_NAME_OBSERVATION_CAPTURE   LabEventName = 3
 	LabEventName_LAB_EVENT_NAME_UI_TREE_CAPTURE       LabEventName = 4
@@ -145,14 +147,12 @@ const (
 	LabEventName_LAB_EVENT_NAME_CANCELLATION          LabEventName = 8
 	LabEventName_LAB_EVENT_NAME_CLEANUP               LabEventName = 9
 	LabEventName_LAB_EVENT_NAME_INDETERMINATE_OUTCOME LabEventName = 10
-	LabEventName_LAB_EVENT_NAME_OPERATOR_CONFIRMATION LabEventName = 11
 )
 
 // Enum value maps for LabEventName.
 var (
 	LabEventName_name = map[int32]string{
 		0:  "LAB_EVENT_NAME_UNSPECIFIED",
-		1:  "LAB_EVENT_NAME_TARGET_CONFIRMATION",
 		2:  "LAB_EVENT_NAME_ADAPTER_READINESS",
 		3:  "LAB_EVENT_NAME_OBSERVATION_CAPTURE",
 		4:  "LAB_EVENT_NAME_UI_TREE_CAPTURE",
@@ -162,11 +162,9 @@ var (
 		8:  "LAB_EVENT_NAME_CANCELLATION",
 		9:  "LAB_EVENT_NAME_CLEANUP",
 		10: "LAB_EVENT_NAME_INDETERMINATE_OUTCOME",
-		11: "LAB_EVENT_NAME_OPERATOR_CONFIRMATION",
 	}
 	LabEventName_value = map[string]int32{
 		"LAB_EVENT_NAME_UNSPECIFIED":           0,
-		"LAB_EVENT_NAME_TARGET_CONFIRMATION":   1,
 		"LAB_EVENT_NAME_ADAPTER_READINESS":     2,
 		"LAB_EVENT_NAME_OBSERVATION_CAPTURE":   3,
 		"LAB_EVENT_NAME_UI_TREE_CAPTURE":       4,
@@ -176,7 +174,6 @@ var (
 		"LAB_EVENT_NAME_CANCELLATION":          8,
 		"LAB_EVENT_NAME_CLEANUP":               9,
 		"LAB_EVENT_NAME_INDETERMINATE_OUTCOME": 10,
-		"LAB_EVENT_NAME_OPERATOR_CONFIRMATION": 11,
 	}
 )
 
@@ -207,10 +204,11 @@ func (LabEventName) EnumDescriptor() ([]byte, []int) {
 	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{2}
 }
 
-// LabDiscoveredDevice is one enumerated candidate transport. Discovery is
-// deliberately separate from approval: nothing in this message creates or
-// registers a canonical device, and connection_state and transport_id are
-// mutable transport facts that must never be used as device identity.
+// LabDiscoveredDevice is one enumerated candidate transport observed while
+// resolving a capture target. Enumeration is read-only evidence: nothing in
+// this message creates or registers a canonical device, and connection_state
+// and transport_id are mutable transport facts that must never be used as
+// device identity.
 type LabDiscoveredDevice struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Serial          string                 `protobuf:"bytes,1,opt,name=serial,proto3" json:"serial,omitempty"`
@@ -305,33 +303,32 @@ func (x *LabDiscoveredDevice) GetUsable() bool {
 
 // LabStatus is the sanitized projection of the lab adapter boundary. Every
 // timestamp is RFC3339 UTC text and is empty when the event never happened.
+//
+// The confirmed-target fields are retired: no session state holds a target, so
+// there is nothing to project. A capture names its own target per call.
 type LabStatus struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	Mode                 LabMode                `protobuf:"varint,1,opt,name=mode,proto3,enum=drift.v1.LabMode" json:"mode,omitempty"`
 	Readiness            LabReadiness           `protobuf:"varint,2,opt,name=readiness,proto3,enum=drift.v1.LabReadiness" json:"readiness,omitempty"`
 	AdapterVersion       string                 `protobuf:"bytes,3,opt,name=adapter_version,json=adapterVersion,proto3" json:"adapter_version,omitempty"`
 	PlatformToolsVersion string                 `protobuf:"bytes,4,opt,name=platform_tools_version,json=platformToolsVersion,proto3" json:"platform_tools_version,omitempty"`
-	// confirmed_serial is empty until an operator explicitly confirms a target.
-	ConfirmedSerial      string `protobuf:"bytes,5,opt,name=confirmed_serial,json=confirmedSerial,proto3" json:"confirmed_serial,omitempty"`
-	ConfirmedDisplayName string `protobuf:"bytes,6,opt,name=confirmed_display_name,json=confirmedDisplayName,proto3" json:"confirmed_display_name,omitempty"`
-	// stable_identity is the lab-scoped stable identity, never a transport id.
-	StableIdentity    string `protobuf:"bytes,7,opt,name=stable_identity,json=stableIdentity,proto3" json:"stable_identity,omitempty"`
-	TransportId       string `protobuf:"bytes,8,opt,name=transport_id,json=transportId,proto3" json:"transport_id,omitempty"`
-	ConnectionState   string `protobuf:"bytes,9,opt,name=connection_state,json=connectionState,proto3" json:"connection_state,omitempty"`
-	ConnectionType    string `protobuf:"bytes,10,opt,name=connection_type,json=connectionType,proto3" json:"connection_type,omitempty"`
-	LastHealthAt      string `protobuf:"bytes,11,opt,name=last_health_at,json=lastHealthAt,proto3" json:"last_health_at,omitempty"`
-	LastObservationAt string `protobuf:"bytes,12,opt,name=last_observation_at,json=lastObservationAt,proto3" json:"last_observation_at,omitempty"`
+	ConnectionState      string                 `protobuf:"bytes,9,opt,name=connection_state,json=connectionState,proto3" json:"connection_state,omitempty"`
+	ConnectionType       string                 `protobuf:"bytes,10,opt,name=connection_type,json=connectionType,proto3" json:"connection_type,omitempty"`
+	LastHealthAt         string                 `protobuf:"bytes,11,opt,name=last_health_at,json=lastHealthAt,proto3" json:"last_health_at,omitempty"`
+	LastObservationAt    string                 `protobuf:"bytes,12,opt,name=last_observation_at,json=lastObservationAt,proto3" json:"last_observation_at,omitempty"`
 	// last_screenshot_hash is a content hash only; screen bytes are not exposed.
 	LastScreenshotHash string `protobuf:"bytes,13,opt,name=last_screenshot_hash,json=lastScreenshotHash,proto3" json:"last_screenshot_hash,omitempty"`
 	// last_hierarchy_summary is bounded prose such as "120 nodes, depth 8, complete".
-	LastHierarchySummary string                 `protobuf:"bytes,14,opt,name=last_hierarchy_summary,json=lastHierarchySummary,proto3" json:"last_hierarchy_summary,omitempty"`
-	ObservationLatencyMs int64                  `protobuf:"varint,15,opt,name=observation_latency_ms,json=observationLatencyMs,proto3" json:"observation_latency_ms,omitempty"`
-	FailureClass         string                 `protobuf:"bytes,16,opt,name=failure_class,json=failureClass,proto3" json:"failure_class,omitempty"`
-	Indeterminate        bool                   `protobuf:"varint,17,opt,name=indeterminate,proto3" json:"indeterminate,omitempty"`
-	CorrelationId        string                 `protobuf:"bytes,18,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"`
-	Discovered           []*LabDiscoveredDevice `protobuf:"bytes,19,rep,name=discovered,proto3" json:"discovered,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	LastHierarchySummary string `protobuf:"bytes,14,opt,name=last_hierarchy_summary,json=lastHierarchySummary,proto3" json:"last_hierarchy_summary,omitempty"`
+	ObservationLatencyMs int64  `protobuf:"varint,15,opt,name=observation_latency_ms,json=observationLatencyMs,proto3" json:"observation_latency_ms,omitempty"`
+	FailureClass         string `protobuf:"bytes,16,opt,name=failure_class,json=failureClass,proto3" json:"failure_class,omitempty"`
+	Indeterminate        bool   `protobuf:"varint,17,opt,name=indeterminate,proto3" json:"indeterminate,omitempty"`
+	CorrelationId        string `protobuf:"bytes,18,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"`
+	// discovered is the candidate set observed while resolving the most recent
+	// capture target. It is read-only evidence and is never a device registry.
+	Discovered    []*LabDiscoveredDevice `protobuf:"bytes,19,rep,name=discovered,proto3" json:"discovered,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LabStatus) Reset() {
@@ -388,34 +385,6 @@ func (x *LabStatus) GetAdapterVersion() string {
 func (x *LabStatus) GetPlatformToolsVersion() string {
 	if x != nil {
 		return x.PlatformToolsVersion
-	}
-	return ""
-}
-
-func (x *LabStatus) GetConfirmedSerial() string {
-	if x != nil {
-		return x.ConfirmedSerial
-	}
-	return ""
-}
-
-func (x *LabStatus) GetConfirmedDisplayName() string {
-	if x != nil {
-		return x.ConfirmedDisplayName
-	}
-	return ""
-}
-
-func (x *LabStatus) GetStableIdentity() string {
-	if x != nil {
-		return x.StableIdentity
-	}
-	return ""
-}
-
-func (x *LabStatus) GetTransportId() string {
-	if x != nil {
-		return x.TransportId
 	}
 	return ""
 }
@@ -909,390 +878,13 @@ func (x *GetLabStatusResponse) GetFailure() *Failure {
 	return nil
 }
 
-type DiscoverLabDevicesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	Context       *RequestContext        `protobuf:"bytes,2,opt,name=context,proto3" json:"context,omitempty"`
-	OperatorId    string                 `protobuf:"bytes,3,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DiscoverLabDevicesRequest) Reset() {
-	*x = DiscoverLabDevicesRequest{}
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DiscoverLabDevicesRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DiscoverLabDevicesRequest) ProtoMessage() {}
-
-func (x *DiscoverLabDevicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DiscoverLabDevicesRequest.ProtoReflect.Descriptor instead.
-func (*DiscoverLabDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *DiscoverLabDevicesRequest) GetWorkspace() *WorkspaceRef {
-	if x != nil {
-		return x.Workspace
-	}
-	return nil
-}
-
-func (x *DiscoverLabDevicesRequest) GetContext() *RequestContext {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-func (x *DiscoverLabDevicesRequest) GetOperatorId() string {
-	if x != nil {
-		return x.OperatorId
-	}
-	return ""
-}
-
-type DiscoverLabDevicesResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        *LabStatus             `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
-	Failure       *Failure               `protobuf:"bytes,2,opt,name=failure,proto3" json:"failure,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DiscoverLabDevicesResponse) Reset() {
-	*x = DiscoverLabDevicesResponse{}
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DiscoverLabDevicesResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DiscoverLabDevicesResponse) ProtoMessage() {}
-
-func (x *DiscoverLabDevicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DiscoverLabDevicesResponse.ProtoReflect.Descriptor instead.
-func (*DiscoverLabDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *DiscoverLabDevicesResponse) GetStatus() *LabStatus {
-	if x != nil {
-		return x.Status
-	}
-	return nil
-}
-
-func (x *DiscoverLabDevicesResponse) GetFailure() *Failure {
-	if x != nil {
-		return x.Failure
-	}
-	return nil
-}
-
-// ConfirmLabTargetRequest requires an explicit serial plus matching
-// confirmation text. The adapter never infers a target from list order,
-// display name, address, or row position.
-type ConfirmLabTargetRequest struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	Workspace   *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	Context     *RequestContext        `protobuf:"bytes,2,opt,name=context,proto3" json:"context,omitempty"`
-	Serial      string                 `protobuf:"bytes,3,opt,name=serial,proto3" json:"serial,omitempty"`
-	DisplayName string                 `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	// confirmation_text must equal the serial, or the literal CONFIRM when
-	// exactly one candidate was discovered.
-	ConfirmationText string `protobuf:"bytes,5,opt,name=confirmation_text,json=confirmationText,proto3" json:"confirmation_text,omitempty"`
-	OperatorId       string `protobuf:"bytes,6,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"`
-	Reason           string `protobuf:"bytes,7,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *ConfirmLabTargetRequest) Reset() {
-	*x = ConfirmLabTargetRequest{}
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ConfirmLabTargetRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ConfirmLabTargetRequest) ProtoMessage() {}
-
-func (x *ConfirmLabTargetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ConfirmLabTargetRequest.ProtoReflect.Descriptor instead.
-func (*ConfirmLabTargetRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *ConfirmLabTargetRequest) GetWorkspace() *WorkspaceRef {
-	if x != nil {
-		return x.Workspace
-	}
-	return nil
-}
-
-func (x *ConfirmLabTargetRequest) GetContext() *RequestContext {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-func (x *ConfirmLabTargetRequest) GetSerial() string {
-	if x != nil {
-		return x.Serial
-	}
-	return ""
-}
-
-func (x *ConfirmLabTargetRequest) GetDisplayName() string {
-	if x != nil {
-		return x.DisplayName
-	}
-	return ""
-}
-
-func (x *ConfirmLabTargetRequest) GetConfirmationText() string {
-	if x != nil {
-		return x.ConfirmationText
-	}
-	return ""
-}
-
-func (x *ConfirmLabTargetRequest) GetOperatorId() string {
-	if x != nil {
-		return x.OperatorId
-	}
-	return ""
-}
-
-func (x *ConfirmLabTargetRequest) GetReason() string {
-	if x != nil {
-		return x.Reason
-	}
-	return ""
-}
-
-type ConfirmLabTargetResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        *LabStatus             `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
-	Failure       *Failure               `protobuf:"bytes,2,opt,name=failure,proto3" json:"failure,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ConfirmLabTargetResponse) Reset() {
-	*x = ConfirmLabTargetResponse{}
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ConfirmLabTargetResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ConfirmLabTargetResponse) ProtoMessage() {}
-
-func (x *ConfirmLabTargetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ConfirmLabTargetResponse.ProtoReflect.Descriptor instead.
-func (*ConfirmLabTargetResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *ConfirmLabTargetResponse) GetStatus() *LabStatus {
-	if x != nil {
-		return x.Status
-	}
-	return nil
-}
-
-func (x *ConfirmLabTargetResponse) GetFailure() *Failure {
-	if x != nil {
-		return x.Failure
-	}
-	return nil
-}
-
-type ClearLabTargetRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	Context       *RequestContext        `protobuf:"bytes,2,opt,name=context,proto3" json:"context,omitempty"`
-	OperatorId    string                 `protobuf:"bytes,3,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"`
-	Reason        string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClearLabTargetRequest) Reset() {
-	*x = ClearLabTargetRequest{}
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClearLabTargetRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClearLabTargetRequest) ProtoMessage() {}
-
-func (x *ClearLabTargetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClearLabTargetRequest.ProtoReflect.Descriptor instead.
-func (*ClearLabTargetRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *ClearLabTargetRequest) GetWorkspace() *WorkspaceRef {
-	if x != nil {
-		return x.Workspace
-	}
-	return nil
-}
-
-func (x *ClearLabTargetRequest) GetContext() *RequestContext {
-	if x != nil {
-		return x.Context
-	}
-	return nil
-}
-
-func (x *ClearLabTargetRequest) GetOperatorId() string {
-	if x != nil {
-		return x.OperatorId
-	}
-	return ""
-}
-
-func (x *ClearLabTargetRequest) GetReason() string {
-	if x != nil {
-		return x.Reason
-	}
-	return ""
-}
-
-type ClearLabTargetResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        *LabStatus             `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
-	Failure       *Failure               `protobuf:"bytes,2,opt,name=failure,proto3" json:"failure,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClearLabTargetResponse) Reset() {
-	*x = ClearLabTargetResponse{}
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClearLabTargetResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClearLabTargetResponse) ProtoMessage() {}
-
-func (x *ClearLabTargetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClearLabTargetResponse.ProtoReflect.Descriptor instead.
-func (*ClearLabTargetResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *ClearLabTargetResponse) GetStatus() *LabStatus {
-	if x != nil {
-		return x.Status
-	}
-	return nil
-}
-
-func (x *ClearLabTargetResponse) GetFailure() *Failure {
-	if x != nil {
-		return x.Failure
-	}
-	return nil
-}
-
-// CaptureLabObservationRequest requires the serial to match the confirmed
-// target exactly. context.idempotency_key is required: a key whose outcome is
-// unknown is never replayed automatically.
+// CaptureLabObservationRequest names the target device explicitly, in the same
+// call that observes it. serial is required and must name exactly one attached,
+// usable device: the adapter never infers a target from session state, list
+// order, display name, address, or row position.
+//
+// context.idempotency_key is required: a key whose outcome is unknown is never
+// replayed automatically.
 type CaptureLabObservationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
@@ -1306,7 +898,7 @@ type CaptureLabObservationRequest struct {
 
 func (x *CaptureLabObservationRequest) Reset() {
 	*x = CaptureLabObservationRequest{}
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[12]
+	mi := &file_drift_v1_lab_adapter_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1318,7 +910,7 @@ func (x *CaptureLabObservationRequest) String() string {
 func (*CaptureLabObservationRequest) ProtoMessage() {}
 
 func (x *CaptureLabObservationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[12]
+	mi := &file_drift_v1_lab_adapter_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1331,7 +923,7 @@ func (x *CaptureLabObservationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CaptureLabObservationRequest.ProtoReflect.Descriptor instead.
 func (*CaptureLabObservationRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{12}
+	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CaptureLabObservationRequest) GetWorkspace() *WorkspaceRef {
@@ -1380,7 +972,7 @@ type CaptureLabObservationResponse struct {
 
 func (x *CaptureLabObservationResponse) Reset() {
 	*x = CaptureLabObservationResponse{}
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[13]
+	mi := &file_drift_v1_lab_adapter_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1392,7 +984,7 @@ func (x *CaptureLabObservationResponse) String() string {
 func (*CaptureLabObservationResponse) ProtoMessage() {}
 
 func (x *CaptureLabObservationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[13]
+	mi := &file_drift_v1_lab_adapter_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1405,7 +997,7 @@ func (x *CaptureLabObservationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CaptureLabObservationResponse.ProtoReflect.Descriptor instead.
 func (*CaptureLabObservationResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{13}
+	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CaptureLabObservationResponse) GetObservation() *LabObservationBundle {
@@ -1440,7 +1032,7 @@ type ListLabEventsRequest struct {
 
 func (x *ListLabEventsRequest) Reset() {
 	*x = ListLabEventsRequest{}
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[14]
+	mi := &file_drift_v1_lab_adapter_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1452,7 +1044,7 @@ func (x *ListLabEventsRequest) String() string {
 func (*ListLabEventsRequest) ProtoMessage() {}
 
 func (x *ListLabEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[14]
+	mi := &file_drift_v1_lab_adapter_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1465,7 +1057,7 @@ func (x *ListLabEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLabEventsRequest.ProtoReflect.Descriptor instead.
 func (*ListLabEventsRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{14}
+	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListLabEventsRequest) GetWorkspace() *WorkspaceRef {
@@ -1499,7 +1091,7 @@ type ListLabEventsResponse struct {
 
 func (x *ListLabEventsResponse) Reset() {
 	*x = ListLabEventsResponse{}
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[15]
+	mi := &file_drift_v1_lab_adapter_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1511,7 +1103,7 @@ func (x *ListLabEventsResponse) String() string {
 func (*ListLabEventsResponse) ProtoMessage() {}
 
 func (x *ListLabEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_lab_adapter_proto_msgTypes[15]
+	mi := &file_drift_v1_lab_adapter_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1524,7 +1116,7 @@ func (x *ListLabEventsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLabEventsResponse.ProtoReflect.Descriptor instead.
 func (*ListLabEventsResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{15}
+	return file_drift_v1_lab_adapter_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListLabEventsResponse) GetEvents() []*LabEvent {
@@ -1553,16 +1145,12 @@ const file_drift_v1_lab_adapter_proto_rawDesc = "" +
 	"\ftransport_id\x18\x04 \x01(\tR\vtransportId\x12\x14\n" +
 	"\x05model\x18\x05 \x01(\tR\x05model\x12\x18\n" +
 	"\aproduct\x18\x06 \x01(\tR\aproduct\x12\x16\n" +
-	"\x06usable\x18\a \x01(\bR\x06usable\"\xed\x06\n" +
+	"\x06usable\x18\a \x01(\bR\x06usable\"\xa1\x06\n" +
 	"\tLabStatus\x12%\n" +
 	"\x04mode\x18\x01 \x01(\x0e2\x11.drift.v1.LabModeR\x04mode\x124\n" +
 	"\treadiness\x18\x02 \x01(\x0e2\x16.drift.v1.LabReadinessR\treadiness\x12'\n" +
 	"\x0fadapter_version\x18\x03 \x01(\tR\x0eadapterVersion\x124\n" +
 	"\x16platform_tools_version\x18\x04 \x01(\tR\x14platformToolsVersion\x12)\n" +
-	"\x10confirmed_serial\x18\x05 \x01(\tR\x0fconfirmedSerial\x124\n" +
-	"\x16confirmed_display_name\x18\x06 \x01(\tR\x14confirmedDisplayName\x12'\n" +
-	"\x0fstable_identity\x18\a \x01(\tR\x0estableIdentity\x12!\n" +
-	"\ftransport_id\x18\b \x01(\tR\vtransportId\x12)\n" +
 	"\x10connection_state\x18\t \x01(\tR\x0fconnectionState\x12'\n" +
 	"\x0fconnection_type\x18\n" +
 	" \x01(\tR\x0econnectionType\x12$\n" +
@@ -1576,7 +1164,7 @@ const file_drift_v1_lab_adapter_proto_rawDesc = "" +
 	"\x0ecorrelation_id\x18\x12 \x01(\tR\rcorrelationId\x12=\n" +
 	"\n" +
 	"discovered\x18\x13 \x03(\v2\x1d.drift.v1.LabDiscoveredDeviceR\n" +
-	"discovered\"\xd5\x01\n" +
+	"discoveredJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tR\x10confirmed_serialR\x16confirmed_display_nameR\x0fstable_identityR\ftransport_id\"\xd5\x01\n" +
 	"\bLabEvent\x12*\n" +
 	"\x04name\x18\x01 \x01(\x0e2\x16.drift.v1.LabEventNameR\x04name\x12%\n" +
 	"\x0ecorrelation_id\x18\x02 \x01(\tR\rcorrelationId\x12\x16\n" +
@@ -1619,35 +1207,6 @@ const file_drift_v1_lab_adapter_proto_rawDesc = "" +
 	"\acontext\x18\x02 \x01(\v2\x18.drift.v1.RequestContextR\acontext\"p\n" +
 	"\x14GetLabStatusResponse\x12+\n" +
 	"\x06status\x18\x01 \x01(\v2\x13.drift.v1.LabStatusR\x06status\x12+\n" +
-	"\afailure\x18\x02 \x01(\v2\x11.drift.v1.FailureR\afailure\"\xa6\x01\n" +
-	"\x19DiscoverLabDevicesRequest\x124\n" +
-	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x122\n" +
-	"\acontext\x18\x02 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12\x1f\n" +
-	"\voperator_id\x18\x03 \x01(\tR\n" +
-	"operatorId\"v\n" +
-	"\x1aDiscoverLabDevicesResponse\x12+\n" +
-	"\x06status\x18\x01 \x01(\v2\x13.drift.v1.LabStatusR\x06status\x12+\n" +
-	"\afailure\x18\x02 \x01(\v2\x11.drift.v1.FailureR\afailure\"\xa4\x02\n" +
-	"\x17ConfirmLabTargetRequest\x124\n" +
-	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x122\n" +
-	"\acontext\x18\x02 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12\x16\n" +
-	"\x06serial\x18\x03 \x01(\tR\x06serial\x12!\n" +
-	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12+\n" +
-	"\x11confirmation_text\x18\x05 \x01(\tR\x10confirmationText\x12\x1f\n" +
-	"\voperator_id\x18\x06 \x01(\tR\n" +
-	"operatorId\x12\x16\n" +
-	"\x06reason\x18\a \x01(\tR\x06reason\"t\n" +
-	"\x18ConfirmLabTargetResponse\x12+\n" +
-	"\x06status\x18\x01 \x01(\v2\x13.drift.v1.LabStatusR\x06status\x12+\n" +
-	"\afailure\x18\x02 \x01(\v2\x11.drift.v1.FailureR\afailure\"\xba\x01\n" +
-	"\x15ClearLabTargetRequest\x124\n" +
-	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x122\n" +
-	"\acontext\x18\x02 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12\x1f\n" +
-	"\voperator_id\x18\x03 \x01(\tR\n" +
-	"operatorId\x12\x16\n" +
-	"\x06reason\x18\x04 \x01(\tR\x06reason\"r\n" +
-	"\x16ClearLabTargetResponse\x12+\n" +
-	"\x06status\x18\x01 \x01(\v2\x13.drift.v1.LabStatusR\x06status\x12+\n" +
 	"\afailure\x18\x02 \x01(\v2\x11.drift.v1.FailureR\afailure\"\xe0\x01\n" +
 	"\x1cCaptureLabObservationRequest\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x122\n" +
@@ -1677,10 +1236,9 @@ const file_drift_v1_lab_adapter_proto_rawDesc = "" +
 	"\x19LAB_READINESS_UNAVAILABLE\x10\x01\x12\x17\n" +
 	"\x13LAB_READINESS_READY\x10\x02\x12\x19\n" +
 	"\x15LAB_READINESS_BLOCKED\x10\x03\x12\x1f\n" +
-	"\x1bLAB_READINESS_INDETERMINATE\x10\x04*\xc0\x03\n" +
+	"\x1bLAB_READINESS_INDETERMINATE\x10\x04*\xc4\x03\n" +
 	"\fLabEventName\x12\x1e\n" +
-	"\x1aLAB_EVENT_NAME_UNSPECIFIED\x10\x00\x12&\n" +
-	"\"LAB_EVENT_NAME_TARGET_CONFIRMATION\x10\x01\x12$\n" +
+	"\x1aLAB_EVENT_NAME_UNSPECIFIED\x10\x00\x12$\n" +
 	" LAB_EVENT_NAME_ADAPTER_READINESS\x10\x02\x12&\n" +
 	"\"LAB_EVENT_NAME_OBSERVATION_CAPTURE\x10\x03\x12\"\n" +
 	"\x1eLAB_EVENT_NAME_UI_TREE_CAPTURE\x10\x04\x12#\n" +
@@ -1690,13 +1248,9 @@ const file_drift_v1_lab_adapter_proto_rawDesc = "" +
 	"\x1bLAB_EVENT_NAME_CANCELLATION\x10\b\x12\x1a\n" +
 	"\x16LAB_EVENT_NAME_CLEANUP\x10\t\x12(\n" +
 	"$LAB_EVENT_NAME_INDETERMINATE_OUTCOME\x10\n" +
-	"\x12(\n" +
-	"$LAB_EVENT_NAME_OPERATOR_CONFIRMATION\x10\v2\xaf\x04\n" +
+	"\"\x04\b\x01\x10\x01\"\x04\b\v\x10\v*\"LAB_EVENT_NAME_TARGET_CONFIRMATION*$LAB_EVENT_NAME_OPERATOR_CONFIRMATION2\x9e\x02\n" +
 	"\x11LabAdapterService\x12M\n" +
-	"\fGetLabStatus\x12\x1d.drift.v1.GetLabStatusRequest\x1a\x1e.drift.v1.GetLabStatusResponse\x12_\n" +
-	"\x12DiscoverLabDevices\x12#.drift.v1.DiscoverLabDevicesRequest\x1a$.drift.v1.DiscoverLabDevicesResponse\x12Y\n" +
-	"\x10ConfirmLabTarget\x12!.drift.v1.ConfirmLabTargetRequest\x1a\".drift.v1.ConfirmLabTargetResponse\x12S\n" +
-	"\x0eClearLabTarget\x12\x1f.drift.v1.ClearLabTargetRequest\x1a .drift.v1.ClearLabTargetResponse\x12h\n" +
+	"\fGetLabStatus\x12\x1d.drift.v1.GetLabStatusRequest\x1a\x1e.drift.v1.GetLabStatusResponse\x12h\n" +
 	"\x15CaptureLabObservation\x12&.drift.v1.CaptureLabObservationRequest\x1a'.drift.v1.CaptureLabObservationResponse\x12P\n" +
 	"\rListLabEvents\x12\x1e.drift.v1.ListLabEventsRequest\x1a\x1f.drift.v1.ListLabEventsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
@@ -1713,7 +1267,7 @@ func file_drift_v1_lab_adapter_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_lab_adapter_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_drift_v1_lab_adapter_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_drift_v1_lab_adapter_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_drift_v1_lab_adapter_proto_goTypes = []any{
 	(LabMode)(0),                          // 0: drift.v1.LabMode
 	(LabReadiness)(0),                     // 1: drift.v1.LabReadiness
@@ -1724,70 +1278,46 @@ var file_drift_v1_lab_adapter_proto_goTypes = []any{
 	(*LabObservationBundle)(nil),          // 6: drift.v1.LabObservationBundle
 	(*GetLabStatusRequest)(nil),           // 7: drift.v1.GetLabStatusRequest
 	(*GetLabStatusResponse)(nil),          // 8: drift.v1.GetLabStatusResponse
-	(*DiscoverLabDevicesRequest)(nil),     // 9: drift.v1.DiscoverLabDevicesRequest
-	(*DiscoverLabDevicesResponse)(nil),    // 10: drift.v1.DiscoverLabDevicesResponse
-	(*ConfirmLabTargetRequest)(nil),       // 11: drift.v1.ConfirmLabTargetRequest
-	(*ConfirmLabTargetResponse)(nil),      // 12: drift.v1.ConfirmLabTargetResponse
-	(*ClearLabTargetRequest)(nil),         // 13: drift.v1.ClearLabTargetRequest
-	(*ClearLabTargetResponse)(nil),        // 14: drift.v1.ClearLabTargetResponse
-	(*CaptureLabObservationRequest)(nil),  // 15: drift.v1.CaptureLabObservationRequest
-	(*CaptureLabObservationResponse)(nil), // 16: drift.v1.CaptureLabObservationResponse
-	(*ListLabEventsRequest)(nil),          // 17: drift.v1.ListLabEventsRequest
-	(*ListLabEventsResponse)(nil),         // 18: drift.v1.ListLabEventsResponse
-	(*ArtifactReference)(nil),             // 19: drift.v1.ArtifactReference
-	(*WorkspaceRef)(nil),                  // 20: drift.v1.WorkspaceRef
-	(*RequestContext)(nil),                // 21: drift.v1.RequestContext
-	(*Failure)(nil),                       // 22: drift.v1.Failure
+	(*CaptureLabObservationRequest)(nil),  // 9: drift.v1.CaptureLabObservationRequest
+	(*CaptureLabObservationResponse)(nil), // 10: drift.v1.CaptureLabObservationResponse
+	(*ListLabEventsRequest)(nil),          // 11: drift.v1.ListLabEventsRequest
+	(*ListLabEventsResponse)(nil),         // 12: drift.v1.ListLabEventsResponse
+	(*ArtifactReference)(nil),             // 13: drift.v1.ArtifactReference
+	(*WorkspaceRef)(nil),                  // 14: drift.v1.WorkspaceRef
+	(*RequestContext)(nil),                // 15: drift.v1.RequestContext
+	(*Failure)(nil),                       // 16: drift.v1.Failure
 }
 var file_drift_v1_lab_adapter_proto_depIdxs = []int32{
 	0,  // 0: drift.v1.LabStatus.mode:type_name -> drift.v1.LabMode
 	1,  // 1: drift.v1.LabStatus.readiness:type_name -> drift.v1.LabReadiness
 	3,  // 2: drift.v1.LabStatus.discovered:type_name -> drift.v1.LabDiscoveredDevice
 	2,  // 3: drift.v1.LabEvent.name:type_name -> drift.v1.LabEventName
-	19, // 4: drift.v1.LabObservationBundle.screenshot:type_name -> drift.v1.ArtifactReference
+	13, // 4: drift.v1.LabObservationBundle.screenshot:type_name -> drift.v1.ArtifactReference
 	5,  // 5: drift.v1.LabObservationBundle.events:type_name -> drift.v1.LabEvent
-	20, // 6: drift.v1.GetLabStatusRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	21, // 7: drift.v1.GetLabStatusRequest.context:type_name -> drift.v1.RequestContext
+	14, // 6: drift.v1.GetLabStatusRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	15, // 7: drift.v1.GetLabStatusRequest.context:type_name -> drift.v1.RequestContext
 	4,  // 8: drift.v1.GetLabStatusResponse.status:type_name -> drift.v1.LabStatus
-	22, // 9: drift.v1.GetLabStatusResponse.failure:type_name -> drift.v1.Failure
-	20, // 10: drift.v1.DiscoverLabDevicesRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	21, // 11: drift.v1.DiscoverLabDevicesRequest.context:type_name -> drift.v1.RequestContext
-	4,  // 12: drift.v1.DiscoverLabDevicesResponse.status:type_name -> drift.v1.LabStatus
-	22, // 13: drift.v1.DiscoverLabDevicesResponse.failure:type_name -> drift.v1.Failure
-	20, // 14: drift.v1.ConfirmLabTargetRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	21, // 15: drift.v1.ConfirmLabTargetRequest.context:type_name -> drift.v1.RequestContext
-	4,  // 16: drift.v1.ConfirmLabTargetResponse.status:type_name -> drift.v1.LabStatus
-	22, // 17: drift.v1.ConfirmLabTargetResponse.failure:type_name -> drift.v1.Failure
-	20, // 18: drift.v1.ClearLabTargetRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	21, // 19: drift.v1.ClearLabTargetRequest.context:type_name -> drift.v1.RequestContext
-	4,  // 20: drift.v1.ClearLabTargetResponse.status:type_name -> drift.v1.LabStatus
-	22, // 21: drift.v1.ClearLabTargetResponse.failure:type_name -> drift.v1.Failure
-	20, // 22: drift.v1.CaptureLabObservationRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	21, // 23: drift.v1.CaptureLabObservationRequest.context:type_name -> drift.v1.RequestContext
-	6,  // 24: drift.v1.CaptureLabObservationResponse.observation:type_name -> drift.v1.LabObservationBundle
-	4,  // 25: drift.v1.CaptureLabObservationResponse.status:type_name -> drift.v1.LabStatus
-	22, // 26: drift.v1.CaptureLabObservationResponse.failure:type_name -> drift.v1.Failure
-	20, // 27: drift.v1.ListLabEventsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	21, // 28: drift.v1.ListLabEventsRequest.context:type_name -> drift.v1.RequestContext
-	5,  // 29: drift.v1.ListLabEventsResponse.events:type_name -> drift.v1.LabEvent
-	22, // 30: drift.v1.ListLabEventsResponse.failure:type_name -> drift.v1.Failure
-	7,  // 31: drift.v1.LabAdapterService.GetLabStatus:input_type -> drift.v1.GetLabStatusRequest
-	9,  // 32: drift.v1.LabAdapterService.DiscoverLabDevices:input_type -> drift.v1.DiscoverLabDevicesRequest
-	11, // 33: drift.v1.LabAdapterService.ConfirmLabTarget:input_type -> drift.v1.ConfirmLabTargetRequest
-	13, // 34: drift.v1.LabAdapterService.ClearLabTarget:input_type -> drift.v1.ClearLabTargetRequest
-	15, // 35: drift.v1.LabAdapterService.CaptureLabObservation:input_type -> drift.v1.CaptureLabObservationRequest
-	17, // 36: drift.v1.LabAdapterService.ListLabEvents:input_type -> drift.v1.ListLabEventsRequest
-	8,  // 37: drift.v1.LabAdapterService.GetLabStatus:output_type -> drift.v1.GetLabStatusResponse
-	10, // 38: drift.v1.LabAdapterService.DiscoverLabDevices:output_type -> drift.v1.DiscoverLabDevicesResponse
-	12, // 39: drift.v1.LabAdapterService.ConfirmLabTarget:output_type -> drift.v1.ConfirmLabTargetResponse
-	14, // 40: drift.v1.LabAdapterService.ClearLabTarget:output_type -> drift.v1.ClearLabTargetResponse
-	16, // 41: drift.v1.LabAdapterService.CaptureLabObservation:output_type -> drift.v1.CaptureLabObservationResponse
-	18, // 42: drift.v1.LabAdapterService.ListLabEvents:output_type -> drift.v1.ListLabEventsResponse
-	37, // [37:43] is the sub-list for method output_type
-	31, // [31:37] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	16, // 9: drift.v1.GetLabStatusResponse.failure:type_name -> drift.v1.Failure
+	14, // 10: drift.v1.CaptureLabObservationRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	15, // 11: drift.v1.CaptureLabObservationRequest.context:type_name -> drift.v1.RequestContext
+	6,  // 12: drift.v1.CaptureLabObservationResponse.observation:type_name -> drift.v1.LabObservationBundle
+	4,  // 13: drift.v1.CaptureLabObservationResponse.status:type_name -> drift.v1.LabStatus
+	16, // 14: drift.v1.CaptureLabObservationResponse.failure:type_name -> drift.v1.Failure
+	14, // 15: drift.v1.ListLabEventsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	15, // 16: drift.v1.ListLabEventsRequest.context:type_name -> drift.v1.RequestContext
+	5,  // 17: drift.v1.ListLabEventsResponse.events:type_name -> drift.v1.LabEvent
+	16, // 18: drift.v1.ListLabEventsResponse.failure:type_name -> drift.v1.Failure
+	7,  // 19: drift.v1.LabAdapterService.GetLabStatus:input_type -> drift.v1.GetLabStatusRequest
+	9,  // 20: drift.v1.LabAdapterService.CaptureLabObservation:input_type -> drift.v1.CaptureLabObservationRequest
+	11, // 21: drift.v1.LabAdapterService.ListLabEvents:input_type -> drift.v1.ListLabEventsRequest
+	8,  // 22: drift.v1.LabAdapterService.GetLabStatus:output_type -> drift.v1.GetLabStatusResponse
+	10, // 23: drift.v1.LabAdapterService.CaptureLabObservation:output_type -> drift.v1.CaptureLabObservationResponse
+	12, // 24: drift.v1.LabAdapterService.ListLabEvents:output_type -> drift.v1.ListLabEventsResponse
+	22, // [22:25] is the sub-list for method output_type
+	19, // [19:22] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_lab_adapter_proto_init() }
@@ -1802,7 +1332,7 @@ func file_drift_v1_lab_adapter_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_lab_adapter_proto_rawDesc), len(file_drift_v1_lab_adapter_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   16,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

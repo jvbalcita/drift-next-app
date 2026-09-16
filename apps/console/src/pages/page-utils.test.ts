@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import type { EndpointView } from "@/lib/domain/control-plane"
 import { resolvedDeviceIds, resolvedId, captureSerialForDevice } from "./page-utils"
 
 describe("resolvedId", () => {
@@ -30,12 +31,31 @@ describe("resolvedDeviceIds", () => {
 })
 
 describe("captureSerialForDevice", () => {
-  it("returns the confirmed serial once a target is confirmed", () => {
-    expect(captureSerialForDevice({ confirmedSerial: "SERIAL-A" })).toBe("SERIAL-A")
+  const endpoints: readonly Pick<EndpointView, "deviceId" | "serial" | "state">[] = [
+    { deviceId: "device-1", serial: "SERIAL-A", state: "current" },
+    { deviceId: "device-1", serial: "SERIAL-OLD", state: "superseded" },
+  ]
+
+  it("names the device's single current endpoint serial", () => {
+    expect(captureSerialForDevice(endpoints, "device-1")).toBe("SERIAL-A")
   })
 
-  it("refuses capture when no transport is confirmed", () => {
-    expect(captureSerialForDevice({ confirmedSerial: "" })).toBe("")
-    expect(captureSerialForDevice({ confirmedSerial: "   " })).toBe("")
+  it("refuses a device with no current endpoint", () => {
+    expect(captureSerialForDevice(endpoints, "device-2")).toBe("")
+  })
+
+  it("refuses an ambiguous device rather than picking one endpoint", () => {
+    const ambiguous: readonly Pick<EndpointView, "deviceId" | "serial" | "state">[] = [
+      ...endpoints,
+      { deviceId: "device-1", serial: "SERIAL-B", state: "current" },
+    ]
+    expect(captureSerialForDevice(ambiguous, "device-1")).toBe("")
+  })
+
+  it("refuses a blank serial", () => {
+    const blank: readonly Pick<EndpointView, "deviceId" | "serial" | "state">[] = [
+      { deviceId: "device-1", serial: "   ", state: "current" },
+    ]
+    expect(captureSerialForDevice(blank, "device-1")).toBe("")
   })
 })

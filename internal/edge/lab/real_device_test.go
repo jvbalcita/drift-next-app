@@ -14,7 +14,7 @@ import (
 	"drift.local/drift-next/internal/edge/lab"
 )
 
-// EnvLabSerial is the explicit serial an operator confirms for the Phase 13
+// EnvLabSerial is the explicit serial an operator names for the Phase 13
 // one-device slice. It is deliberately separate from the two lab-mode gates so
 // that enabling lab mode can never, by itself, select a target.
 //
@@ -50,49 +50,10 @@ func TestRealDeviceReadOnlyObservation(t *testing.T) {
 		t.Fatalf("service mode = %q, want %q: the lab gates were set but the service did not bind a real adapter", mode, lab.ModeLab)
 	}
 
-	discovered, err := service.Discover(ctx, realDeviceOperator)
-	if err != nil {
-		t.Fatalf("Discover() error = %v", err)
-	}
-	t.Logf("discovered %d candidate transports; none registered or confirmed", len(discovered.Discovered))
-
-	candidate := requireEnumeratedTarget(t, discovered.Discovered, serial)
-	t.Logf("target %s is enumerated: state=%s connection=%s", maskSerial(candidate.Serial), candidate.State, candidate.ConnectionType)
-
-	// Confirmation always uses the serial itself, never the generic CONFIRM
-	// literal. With more than one candidate attached the service refuses the
-	// literal anyway; using the serial unconditionally keeps this test honest
-	// in a single-device lab too.
-	confirmed, err := service.ConfirmTarget(ctx, lab.ConfirmRequest{
-		Serial:           serial,
-		ConfirmationText: serial,
-		OperatorID:       realDeviceOperator,
-		Reason:           "phase 13 opt-in read-only compatibility evidence",
-	})
-	if err != nil {
-		t.Fatalf("ConfirmTarget() error = %v", err)
-	}
-	t.Cleanup(func() {
-		clearCtx, clearCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer clearCancel()
-		if _, clearErr := service.ClearTarget(clearCtx, realDeviceOperator); clearErr != nil {
-			t.Logf("ClearTarget() error = %v", clearErr)
-		}
-	})
-
-	if !confirmed.Confirmed() {
-		t.Fatal("ConfirmTarget() returned a status that is not confirmed")
-	}
-	if confirmed.ConfirmedSerial != serial {
-		t.Fatalf("confirmed serial does not match the operator-supplied target")
-	}
-	if !strings.HasPrefix(confirmed.StableIdentity, lab.StableIdentityPrefix) {
-		t.Fatalf("stable identity %q does not carry the lab prefix", confirmed.StableIdentity)
-	}
-	if confirmed.StableIdentity == confirmed.TransportID {
-		t.Fatal("stable identity must never equal the mutable transport identity")
-	}
-
+	// The capture names its target explicitly. The service enumerates, matches
+	// the named serial exactly, and fails closed when it is absent, ambiguous,
+	// or unusable, so this test never has to fall back to a heuristic: with
+	// several transports attached, naming the serial is the whole safeguard.
 	bundle, err := service.CaptureObservation(ctx, lab.CaptureRequest{
 		Serial:         serial,
 		IdempotencyKey: "p13-compat-" + time.Now().UTC().Format("20060102T150405Z"),
@@ -105,6 +66,7 @@ func TestRealDeviceReadOnlyObservation(t *testing.T) {
 		// what actually happened instead of an invented result.
 		t.Fatalf("CaptureObservation() error = %v (failure class %q, indeterminate=%t)", err, bundle.FailureClass, bundle.Indeterminate)
 	}
+	t.Logf("captured %s read-only; no device was registered and no state was changed", maskSerial(bundle.Serial))
 
 	assertObservationBundle(t, bundle, serial)
 	logSanitizedBundle(t, bundle)
@@ -137,44 +99,12 @@ func requireRealDeviceGates(t *testing.T) string {
 
 	serial := strings.TrimSpace(os.Getenv(EnvLabSerial))
 	if serial == "" {
-		t.Skipf("skipping real-device test: %s must name the confirmed target; a target is never inferred", EnvLabSerial)
+		t.Skipf("skipping real-device test: %s must name the target explicitly; a target is never inferred", EnvLabSerial)
 	}
 	if err := adb.ValidateSerial(serial); err != nil {
 		t.Fatalf("%s is not a valid device serial: %v", EnvLabSerial, err)
 	}
 	return serial
-}
-
-// requireEnumeratedTarget fails closed unless the operator-supplied serial is
-// actually attached and usable. With several candidates attached this is the
-// only thing standing between the run and the wrong device, so it never falls
-// back to a single candidate, a prefix match, or a model name.
-func requireEnumeratedTarget(t *testing.T, candidates []adb.DiscoveredDevice, serial string) adb.DiscoveredDevice {
-	t.Helper()
-
-	if len(candidates) == 0 {
-		t.Fatal("no candidate transports were enumerated; nothing to confirm")
-	}
-
-	var matches []adb.DiscoveredDevice
-	for _, candidate := range candidates {
-		if candidate.Serial == serial {
-			matches = append(matches, candidate)
-		}
-	}
-	switch len(matches) {
-	case 0:
-		t.Fatalf("%s names a serial that is not among the %d enumerated candidates; failing closed rather than selecting another device", EnvLabSerial, len(candidates))
-	case 1:
-	default:
-		t.Fatalf("%s matched %d enumerated candidates; the target is ambiguous", EnvLabSerial, len(matches))
-	}
-
-	target := matches[0]
-	if !target.State.Usable() {
-		t.Fatalf("target is attached but not usable: transport state %q", target.State)
-	}
-	return target
 }
 
 // assertObservationBundle checks the read-only postconditions the slice
@@ -184,7 +114,7 @@ func assertObservationBundle(t *testing.T, bundle lab.ObservationBundle, serial 
 	t.Helper()
 
 	if bundle.Serial != serial {
-		t.Fatal("observation bundle does not describe the confirmed target")
+		t.Fatal("observation bundle does not describe the explicitly named target")
 	}
 	if bundle.Indeterminate {
 		t.Fatal("observation bundle is indeterminate; it must not be replayed automatically")

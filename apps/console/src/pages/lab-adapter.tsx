@@ -1,5 +1,5 @@
 import { useRef, useState } from "react"
-import { Activity, Camera, Eraser, ScanSearch, ShieldCheck, Stethoscope, TriangleAlert } from "lucide-react"
+import { Activity, Camera, ShieldCheck, Stethoscope, TriangleAlert } from "lucide-react"
 import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -21,11 +21,6 @@ import { reportDispatch } from "@/lib/api/report-dispatch"
 import { EmptyState, FailureBadge, Panel, StatusBadge, type StatusTone } from "./shared"
 
 type DispatchLab = (intent: ControlPlaneIntent) => Promise<MutationResult>
-
-async function runLabIntent(intent: ControlPlaneIntent, dispatch: DispatchIntent, dispatchLab: DispatchLab | undefined, onFeedback: (message: string) => void) {
-  const mutation = await (dispatchLab?.(intent) ?? Promise.resolve(dispatch(intent)))
-  onFeedback(mutation.message)
-}
 
 const readinessTones: Record<LabReadiness, StatusTone> = { ready: "healthy", blocked: "attention", indeterminate: "attention", unavailable: "neutral" }
 const readinessLabels: Record<LabReadiness, string> = { ready: "Ready", blocked: "Blocked", indeterminate: "Indeterminate", unavailable: "Unavailable" }
@@ -59,7 +54,7 @@ type LabRuntimeProps = {
 
 // LabStatusStrip is the compact lab adapter surface for the control workspace.
 // It surfaces observation, runtime, and spool state only; it dispatches no
-// device input and never presents lab state as a mock frame.
+// device input, and every capture names its own target explicitly.
 export function LabStatusStrip({
   adapter,
   runtimeConnection,
@@ -70,8 +65,7 @@ export function LabStatusStrip({
   onFeedback,
   notice = "",
 }: LabRuntimeProps) {
-  const confirmed = adapter.confirmedSerial.length > 0
-  const canCapture = confirmed && adapter.readiness === "ready"
+  const observed = adapter.lastObservedSerial.length > 0
   return (
     <section className="mt-6 border border-border bg-muted/20" aria-label="Device Adapter Status">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
@@ -81,25 +75,20 @@ export function LabStatusStrip({
         <StatusBadge label={spoolHealth.exhausted ? "Spool Exhausted" : spoolHealth.blocked > 0 ? "Spool Blocked" : "Spool Clear"} tone={spoolHealth.exhausted || spoolHealth.blocked > 0 ? "attention" : "neutral"} />
       </div>
       <dl className="grid gap-3 px-3 py-3 text-[11px] sm:grid-cols-2 xl:grid-cols-4">
-        <LabField label="Confirmed Target" detail={confirmed ? adapter.confirmedDisplayName : "No target confirmed"} mono={false} />
-        <LabField label="Stable Identity" detail={value(adapter.stableIdentity)} />
+        <LabField label="Last Observed" detail={observed ? adapter.lastObservedSerial : "Nothing observed yet"} />
         <LabField label="ADB Transport" detail={`${value(adapter.connectionState)} · ${value(adapter.connectionType)}`} />
-        <LabField label="Transport ID" detail={value(adapter.transportId)} />
         <LabField label="Runtime Connection" detail={runtimeLabels[runtimeConnection.state]} mono={false} />
         <LabField label="Spool Health" detail={`Pending ${spoolHealth.pending} · Blocked ${spoolHealth.blocked} · Max ${spoolHealth.maxSize}`} mono={false} />
         <LabField label="Spool Fence" detail={`${spoolHealth.fenceToken} (observation, not lease)`} />
         <LabField label="Indeterminate Actions" detail={`${indeterminateActions.length} requiring confirmation`} mono={false} />
       </dl>
       <div className="flex flex-wrap items-center gap-2 border-t border-border px-3 py-2">
-        <Button size="sm" variant="outline" onClick={() => void runLabIntent({ type: "discoverLabDevices" }, dispatch, dispatchLab, onFeedback)}><ScanSearch className="size-3.5" aria-hidden="true" />Discover Devices</Button>
-        <ConfirmLabTargetDialog adapter={adapter} dispatch={dispatch} dispatchLab={dispatchLab} onFeedback={onFeedback} />
-        {canCapture ? <Button size="sm" variant="outline" onClick={() => void runLabIntent({ type: "captureLabObservation", serial: adapter.confirmedSerial }, dispatch, dispatchLab, onFeedback)}><Camera className="size-3.5" aria-hidden="true" />Capture Observation</Button> : null}
-        {confirmed ? <Button size="sm" variant="outline" onClick={() => void runLabIntent({ type: "clearLabTarget" }, dispatch, dispatchLab, onFeedback)}><Eraser className="size-3.5" aria-hidden="true" />Clear Target</Button> : null}
-        {adapter.mode === "mock" && confirmed ? <Button size="sm" variant="outline" onClick={() => void runLabIntent({ type: "simulateLabCaptureFailure" }, dispatch, dispatchLab, onFeedback)}><TriangleAlert className="size-3.5" aria-hidden="true" />Simulate Indeterminate</Button> : null}
+        <CaptureObservationDialog dispatch={dispatch} dispatchLab={dispatchLab} onFeedback={onFeedback} />
+        {adapter.mode === "mock" ? <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "simulateLabCaptureFailure" }, onFeedback)}><TriangleAlert className="size-3.5" aria-hidden="true" />Simulate Indeterminate</Button> : null}
         <LabDiagnosticsSheet adapter={adapter} />
         <RuntimeSpoolSheet runtimeConnection={runtimeConnection} spoolHealth={spoolHealth} indeterminateActions={indeterminateActions} dispatch={dispatch} onFeedback={onFeedback} />
       </div>
-      <p aria-live="polite" className="border-t border-border px-3 py-2 text-[11px] leading-5 text-muted-foreground">{notice || "Adapter actions are read-only. Discovery lists candidates; observation captures the confirmed target; spool fence tokens are observations, not leases."}</p>
+      <p aria-live="polite" className="border-t border-border px-3 py-2 text-[11px] leading-5 text-muted-foreground">{notice || "Adapter actions are read-only. A capture names exactly one attached serial; spool fence tokens are observations, not leases."}</p>
     </section>
   )
 }
@@ -113,108 +102,78 @@ function LabField({ label, detail, mono = true }: { label: string; detail: strin
   )
 }
 
-type ConfirmErrors = { serial?: string; displayName?: string; confirmationText?: string; reason?: string; form?: string }
+type CaptureErrors = { serial?: string; form?: string }
 
-export function ConfirmLabTargetDialog({ adapter, dispatch, dispatchLab, onFeedback }: { adapter: LabAdapterView; dispatch: DispatchIntent; dispatchLab?: DispatchLab; onFeedback: (message: string) => void }) {
+// CaptureObservationDialog asks for the exact serial to observe. The serial is
+// submitted in the same call that performs the observation: the adapter is never
+// asked to infer a target from session state, list order, or a display name.
+export function CaptureObservationDialog({ dispatch, dispatchLab, onFeedback, disabled = false }: { dispatch: DispatchIntent; dispatchLab?: DispatchLab; onFeedback: (message: string) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const [serial, setSerial] = useState("")
-  const [displayName, setDisplayName] = useState("")
-  const [confirmationText, setConfirmationText] = useState("")
-  const [reason, setReason] = useState("")
-  const [errors, setErrors] = useState<ConfirmErrors>({})
+  const [errors, setErrors] = useState<CaptureErrors>({})
   const [pending, setPending] = useState(false)
   const summary = useRef<HTMLDivElement>(null)
-  const requiresConfirmationText = adapter.discovered.length > 1
   const messages = Object.values(errors).filter((message): message is string => Boolean(message))
 
   function reset() {
-    setSerial(""); setDisplayName(""); setConfirmationText(""); setReason(""); setErrors({}); setPending(false)
+    setSerial(""); setErrors({}); setPending(false)
   }
 
   async function submit() {
-    const next: ConfirmErrors = {}
-    if (!serial.trim()) next.serial = "Choose the serial of the connected device to confirm."
-    if (!displayName.trim()) next.displayName = "Enter an operator-facing display name."
-    if (requiresConfirmationText && confirmationText.trim() !== serial.trim()) next.confirmationText = "Confirmation text must match the selected serial exactly."
-    if (!reason.trim()) next.reason = "Record why this target is being confirmed."
-    if (Object.keys(next).length === 0) {
-      setPending(true)
-      // With a single candidate the confirmation field is hidden, so the serial
-      // itself is submitted: the service accepts the serial or the CONFIRM
-      // literal, and an empty string is neither.
-      const submittedConfirmation = requiresConfirmationText ? confirmationText.trim() : serial.trim()
-      try {
-        const intent: ControlPlaneIntent = {
-          type: "confirmLabTarget",
-          serial: serial.trim(),
-          displayName: displayName.trim(),
-          confirmationText: submittedConfirmation,
-          reason: reason.trim(),
-        }
-        const mutation = await (dispatchLab?.(intent) ?? Promise.resolve(dispatch(intent)))
-        onFeedback(mutation.message)
-        if (mutation.ok) {
-          setOpen(false)
-          reset()
-          return
-        }
-        setErrors({ form: mutation.message })
-        summary.current?.focus()
-      } finally {
-        setPending(false)
-      }
+    const next: CaptureErrors = {}
+    if (!serial.trim()) next.serial = "Enter the exact serial of the device to observe."
+    if (Object.keys(next).length > 0) {
+      setErrors(next)
+      summary.current?.focus()
       return
     }
-    setErrors(next)
-    summary.current?.focus()
+    setPending(true)
+    try {
+      const intent: ControlPlaneIntent = { type: "captureLabObservation", serial: serial.trim() }
+      const mutation = await (dispatchLab?.(intent) ?? Promise.resolve(dispatch(intent)))
+      onFeedback(mutation.message)
+      if (mutation.ok) {
+        setOpen(false)
+        reset()
+        return
+      }
+      setErrors({ form: mutation.message })
+      summary.current?.focus()
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) reset() }}>
-      <DialogTrigger render={<Button size="sm" variant="outline" disabled={adapter.discovered.length === 0} />}><ShieldCheck className="size-3.5" aria-hidden="true" />Confirm Target</DialogTrigger>
+      <DialogTrigger render={<Button size="sm" variant="outline" disabled={disabled} />}><Camera className="size-3.5" aria-hidden="true" />Capture Observation</DialogTrigger>
       <DialogContent className="max-w-lg rounded-none">
         <DialogHeader>
-          <DialogTitle>Confirm Target</DialogTitle>
-          <DialogDescription>Confirmation authorizes read-only observation of one serial. It acquires no lease, grants no approval, and registers no device.</DialogDescription>
+          <DialogTitle>Capture Observation</DialogTitle>
+          <DialogDescription>One read-only observation of the serial you name here. It acquires no lease, grants no approval, changes no device state, and registers no device.</DialogDescription>
         </DialogHeader>
         <div ref={summary} tabIndex={-1} role={messages.length > 0 ? "alert" : undefined} className="focus-visible:outline-2 focus-visible:outline-primary">
           {messages.length > 0 ? (
             <div className="border-l-2 border-red-500 bg-red-50 p-3 text-xs text-red-800">
-              <p className="font-semibold">Confirmation was not recorded.</p>
+              <p className="font-semibold">The observation was not captured.</p>
               <ul className="mt-1 list-disc pl-4">{messages.map((message) => <li key={message}>{message}</li>)}</ul>
             </div>
           ) : null}
         </div>
         <div className="space-y-4 border-y border-border py-4">
           <div>
-            <label htmlFor="lab-serial" className="text-xs font-semibold">Serial</label>
-            <select id="lab-serial" value={serial} onChange={(event) => setSerial(event.target.value)} aria-invalid={Boolean(errors.serial)} aria-describedby={errors.serial ? "lab-serial-error" : undefined} className="drift-data mt-1 block h-9 w-full border border-input bg-background px-2 text-[11px]">
-              <option value="">Select a discovered serial</option>
-              {adapter.discovered.map((device) => <option key={device.serial} value={device.serial}>{device.serial} · {device.model} · {device.state}</option>)}
-            </select>
-            {errors.serial ? <p id="lab-serial-error" className="mt-1 text-[11px] text-red-700">{errors.serial}</p> : null}
+            <label htmlFor="lab-capture-serial" className="text-xs font-semibold">Target Serial</label>
+            <Input id="lab-capture-serial" value={serial} onChange={(event) => setSerial(event.target.value)} aria-invalid={Boolean(errors.serial)} aria-describedby={errors.serial ? "lab-capture-serial-error" : "lab-capture-serial-description"} className="drift-data mt-1 rounded-none text-xs font-mono" />
+            <p id="lab-capture-serial-description" className="mt-1 text-[11px] text-muted-foreground">Retype the serial exactly. A target is never inferred from a list, a default, or a previous session.</p>
+            {errors.serial ? <p id="lab-capture-serial-error" className="mt-1 text-[11px] text-red-700">{errors.serial}</p> : null}
           </div>
-          <LabTextField id="lab-display-name" label="Display Name" description="Shown to operators; it does not become a device identity." value={displayName} onChange={setDisplayName} error={errors.displayName} />
-          {requiresConfirmationText ? <LabTextField id="lab-confirmation-text" label="Confirmation Text" description="Retype the serial exactly, because more than one serial was discovered." value={confirmationText} onChange={setConfirmationText} error={errors.confirmationText} mono /> : null}
-          <LabTextField id="lab-reason" label="Reason" description="Recorded in the audit ledger with the confirmation event." value={reason} onChange={setReason} error={errors.reason} />
         </div>
         <div className="flex justify-end gap-2">
           <Button size="sm" variant="outline" onClick={() => { setOpen(false); reset() }}>Cancel</Button>
-          <Button size="sm" disabled={pending} onClick={submit}>Confirm Target</Button>
+          <Button size="sm" disabled={pending} onClick={() => void submit()}>Capture Observation</Button>
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function LabTextField({ id, label, description, value: fieldValue, onChange, error, mono = false }: { id: string; label: string; description: string; value: string; onChange: (next: string) => void; error?: string; mono?: boolean }) {
-  return (
-    <div>
-      <label htmlFor={id} className="text-xs font-semibold">{label}</label>
-      <Input id={id} value={fieldValue} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : `${id}-description`} className={`mt-1 rounded-none text-xs ${mono ? "font-mono" : ""}`} />
-      <p id={`${id}-description`} className="mt-1 text-[11px] text-muted-foreground">{description}</p>
-      {error ? <p id={`${id}-error`} className="mt-1 text-[11px] text-red-700">{error}</p> : null}
-    </div>
   )
 }
 
@@ -233,10 +192,7 @@ export function LabDiagnosticsSheet({ adapter }: { adapter: LabAdapterView }) {
             <LabField label="Readiness" detail={readinessLabels[adapter.readiness]} mono={false} />
             <LabField label="Adapter Version" detail={value(adapter.adapterVersion)} mono={false} />
             <LabField label="Platform Tools" detail={value(adapter.platformToolsVersion)} mono={false} />
-            <LabField label="Confirmed Serial" detail={value(adapter.confirmedSerial)} />
-            <LabField label="Confirmed Display Name" detail={value(adapter.confirmedDisplayName)} mono={false} />
-            <LabField label="Stable Identity" detail={value(adapter.stableIdentity)} />
-            <LabField label="Transport ID" detail={value(adapter.transportId)} />
+            <LabField label="Last Observed Serial" detail={value(adapter.lastObservedSerial)} />
             <LabField label="Connection State" detail={value(adapter.connectionState)} mono={false} />
             <LabField label="Connection Type" detail={value(adapter.connectionType)} mono={false} />
             <LabField label="Last Health" detail={value(adapter.lastHealthAt)} />
@@ -247,12 +203,12 @@ export function LabDiagnosticsSheet({ adapter }: { adapter: LabAdapterView }) {
             <LabField label="Correlation ID" detail={value(adapter.correlationId)} />
           </dl>
           <div className="border-t border-border pt-4">
-            <p className="text-xs font-semibold">Discovered Serials</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Discovery is not registration. These serials are never added to the device registry.</p>
+            <p className="text-xs font-semibold">Attached Transports Observed</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">These serials were observed while resolving a capture target. Observation is not registration: none of them is added to the device registry.</p>
             {adapter.discovered.length === 0
-              ? <div className="mt-3"><EmptyState label="No Discovered Serials" detail="Run discovery from the control workspace to list candidate serials." /></div>
+              ? <div className="mt-3"><EmptyState label="No Attached Transports Observed" detail="Capture a named serial to observe the attached transports." /></div>
               : <table className="mt-3 w-full border-collapse text-left text-[11px]">
-                <caption className="sr-only">Discovered serials</caption>
+                <caption className="sr-only">Attached transports observed</caption>
                 <thead><tr className="border-b border-border text-[10px] uppercase tracking-[.08em] text-muted-foreground"><th className="py-2">Serial</th><th className="py-2">State</th><th className="py-2">Model</th><th className="py-2">Transport</th></tr></thead>
                 <tbody>{adapter.discovered.map((device) => <tr key={device.serial} className="border-b border-border/70"><td className="drift-data py-2 text-[10px]">{device.serial}</td><td className="py-2">{device.state}</td><td className="py-2">{device.model}</td><td className="drift-data py-2 text-[10px]">{device.transportId} · {device.connectionType}</td></tr>)}</tbody>
               </table>}
@@ -264,23 +220,23 @@ export function LabDiagnosticsSheet({ adapter }: { adapter: LabAdapterView }) {
 }
 
 // LabObservationFrame renders the sanitized lab preview in its own frame. It is
-// rendered only for a confirmed, ready target with a sanitized preview so a mock
+// rendered only for a completed observation with a sanitized preview, so a mock
 // frame is never presented as live device output.
 export function LabObservationFrame({ adapter, height }: { adapter: LabAdapterView; height: number }) {
-  if (adapter.readiness !== "ready" || !adapter.confirmedSerial || !adapter.lastScreenshotPreviewDataUrl) return null
+  if (adapter.readiness === "unavailable" || !adapter.lastObservedSerial || !adapter.lastScreenshotPreviewDataUrl) return null
   const width = Math.round(height * 9 / 16)
   return (
-    <div className="mb-4 flex flex-wrap items-start gap-4 border border-border bg-card p-3" aria-label={`${adapter.confirmedDisplayName} observation frame`}>
+    <div className="mb-4 flex flex-wrap items-start gap-4 border border-border bg-card p-3" aria-label={`${adapter.lastObservedSerial} observation frame`}>
       <div className="border border-border bg-muted" style={{ width, height }}>
-        <img src={adapter.lastScreenshotPreviewDataUrl} alt={`Sanitized screenshot preview for ${adapter.confirmedDisplayName}`} className="size-full object-contain" />
+        <img src={adapter.lastScreenshotPreviewDataUrl} alt={`Sanitized screenshot preview for ${adapter.lastObservedSerial}`} className="size-full object-contain" />
       </div>
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold">{adapter.confirmedDisplayName}</span>
+          <span className="drift-data text-sm font-semibold">{adapter.lastObservedSerial}</span>
           <StatusBadge label="Read Only" tone="info" />
           <StatusBadge label="Sanitized Preview" tone="healthy" />
         </div>
-        <p className="text-[11px] leading-5 text-muted-foreground">This frame shows the sanitized observation preview for the confirmed target only. No placeholder frame on this page represents live device output.</p>
+        <p className="text-[11px] leading-5 text-muted-foreground">This frame shows the sanitized observation preview for the serial that was explicitly named in the capture call. No placeholder frame on this page represents live device output.</p>
         <p className="text-[11px] leading-5 text-muted-foreground">
           Browse fleet media and retention in{" "}
           <a href="#artifacts/media" className="font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-primary">
@@ -289,7 +245,7 @@ export function LabObservationFrame({ adapter, height }: { adapter: LabAdapterVi
           .
         </p>
         <dl className="grid gap-3 text-[11px] sm:grid-cols-2">
-          <LabField label="Serial" detail={adapter.confirmedSerial} />
+          <LabField label="Serial" detail={adapter.lastObservedSerial} />
           <LabField label="Captured" detail={value(adapter.lastObservationAt)} />
           <LabField label="Screenshot Hash" detail={value(adapter.lastScreenshotHash)} />
           <LabField label="Hierarchy" detail={value(adapter.lastHierarchySummary)} mono={false} />
@@ -300,26 +256,26 @@ export function LabObservationFrame({ adapter, height }: { adapter: LabAdapterVi
 }
 
 // LabAdapterStatusPanel keeps lab adapter state visible in the device registry
-// without letting a discovered serial appear as a registered device.
+// without letting an observed serial appear as a registered device.
 export function LabAdapterStatusPanel({ adapter }: { adapter: LabAdapterView }) {
-  const confirmed = adapter.confirmedSerial.length > 0
+  const observed = adapter.lastObservedSerial.length > 0
   return (
     <Panel
       title="Device Adapter Status"
-      description="Read-only observation boundary for one confirmed serial. Discovered serials are never registered as devices and never appear in the registry table below."
+      description="Read-only observation boundary. Each capture names exactly one attached serial; observed serials are never registered as devices and never appear in the registry table below."
       action={<div className="flex flex-wrap items-center gap-2"><LabModeBadges adapter={adapter} /></div>}
       className="mb-6"
     >
       <dl className="grid gap-4 text-[11px] sm:grid-cols-2 xl:grid-cols-4">
         <LabField label="Adapter Availability" detail={adapter.readiness === "unavailable" ? "Unavailable" : "Available"} mono={false} />
-        <LabField label="Confirmed Target" detail={confirmed ? `${adapter.confirmedDisplayName} · ${adapter.confirmedSerial}` : "No target confirmed"} mono={false} />
-        <LabField label="Authorization State" detail={confirmed ? value(adapter.connectionState) : "Operator confirmation required"} mono={false} />
-        <LabField label="Transport" detail={confirmed ? `${value(adapter.transportId)} · ${value(adapter.connectionType)}` : placeholder} />
+        <LabField label="Last Observed Target" detail={observed ? adapter.lastObservedSerial : "Nothing observed yet"} mono={false} />
+        <LabField label="Authorization State" detail={observed ? value(adapter.connectionState) : "Name a serial per capture"} mono={false} />
+        <LabField label="Transport" detail={observed ? value(adapter.connectionType) : placeholder} />
         <LabField label="Last Health" detail={value(adapter.lastHealthAt)} />
         <LabField label="Last Screenshot" detail={adapter.lastScreenshotHash ? `${value(adapter.lastObservationAt)} · ${adapter.lastScreenshotHash}` : "No screenshot captured"} />
         <LabField label="Last UI-Tree" detail={adapter.lastHierarchySummary ? adapter.lastHierarchySummary : "No UI-tree captured"} mono={false} />
         <LabField label="Versions" detail={`${value(adapter.adapterVersion)} · ${value(adapter.platformToolsVersion)}`} mono={false} />
-        <LabField label="Discovered Serials" detail={`${adapter.discovered.length} listed, 0 registered`} mono={false} />
+        <LabField label="Transports Observed" detail={`${adapter.discovered.length} observed, 0 registered`} mono={false} />
         <LabField label="Outcome" detail={adapter.indeterminate ? "Indeterminate outcome recorded" : adapter.failureClass ? adapter.failureClass.replaceAll("_", " ") : "No failure recorded"} mono={false} />
       </dl>
     </Panel>

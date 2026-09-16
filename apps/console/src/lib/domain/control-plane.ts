@@ -402,17 +402,14 @@ export interface LabDiscoveredDeviceView {
 }
 
 // LabAdapterView projects the read-only lab adapter boundary. It never
-// contributes a DeviceView: a confirmed lab target is an observation subject,
-// not a registered device.
+// contributes a DeviceView: a captured lab target is an observation subject,
+// not a registered device. It carries no session target: a capture names its
+// own device, and lastObservedSerial is per-observation evidence.
 export interface LabAdapterView {
   mode: LabMode
   readiness: LabReadiness
   adapterVersion: string
   platformToolsVersion: string
-  confirmedSerial: string
-  confirmedDisplayName: string
-  stableIdentity: string
-  transportId: string
   connectionState: string
   connectionType: string
   lastHealthAt?: string
@@ -427,6 +424,9 @@ export interface LabAdapterView {
   indeterminate: boolean
   correlationId: string
   discovered: readonly LabDiscoveredDeviceView[]
+  // lastObservedSerial names the device the most recent capture observed. It is
+  // never a session target and is never inferred from list order.
+  lastObservedSerial: string
 }
 
 /**
@@ -638,9 +638,6 @@ export type ControlPlaneIntent =
   | { type: "retirePolicy"; policyId: string; rowVersion: number }
   | { type: "updatePolicy"; policyId: string; ruleSummary: string; rowVersion: number }
   | { type: "updateAccountState"; accountId: string; state: AccountState; rowVersion: number }
-  | { type: "discoverLabDevices" }
-  | { type: "confirmLabTarget"; serial: string; displayName: string; confirmationText: string; reason: string }
-  | { type: "clearLabTarget" }
   | { type: "captureLabObservation"; serial: string }
   // simulateLabCaptureFailure is a mock-only QA affordance for the indeterminate
   // surface. It never reaches the lab adapter and produces no observation.

@@ -3,11 +3,12 @@
 Template and running record for the one-lab-device vertical slice
 ([ADR-0004](../../../docs/adr/0004-real-device-adapter.md)).
 
-**Status:** live one-device evidence recorded 2026-09-15 against operator-confirmed
+**Status:** live one-device evidence recorded 2026-09-15 against operator-named
 serial `192.168.1.109:5555` (SM-G9750, Android 12 / API 31, TCP wireless).
 Evidence log: [`evidence-2026-09-15.md`](./evidence-2026-09-15.md).
 Opt-in test: `TestRealDeviceReadOnlyObservation` **PASS**.
-**Host environment:** 20 attached TCP transports, zero USB; target was never inferred.
+**Host environment:** 20 attached TCP transports, zero USB; the capture named its own
+target and never inferred one.
 
 ## How to read this
 
@@ -15,7 +16,7 @@ Opt-in test: `TestRealDeviceReadOnlyObservation` **PASS**.
 | --- | --- |
 | Measurement | The property being evaluated. |
 | Proven by existing tests | What the current unit/integration suite already establishes, with the test names. Deterministic fakes, no device. |
-| Requires live device | Whether a real confirmed target is needed to close the row. |
+| Requires live device | Whether a real attached target is needed to close the row. |
 | Live result | Measured outcome. Empty until measured. |
 | Evidence | Where the supporting output lives. |
 
@@ -27,24 +28,25 @@ against real hardware — that is the normal state of this table today.
 
 | Measurement | Proven by existing tests | Requires live device | Live result | Evidence |
 | --- | --- | --- | --- | --- |
-| `adb devices -l` parsing across every transport state | Yes — `TestEnumerateParsesEveryTransportState`, `TestEnumerateHandlesAnEmptyDeviceList` | No for parsing; yes for real-world field ordering | Live enumerate returned 20 TCP `device` rows including the confirmed serial with `transport_id` | `evidence-2026-09-15.md`; test log |
+| `adb devices -l` parsing across every transport state | Yes — `TestEnumerateParsesEveryTransportState`, `TestEnumerateHandlesAnEmptyDeviceList` | No for parsing; yes for real-world field ordering | Live enumerate returned 20 TCP `device` rows including the named serial with `transport_id` | `evidence-2026-09-15.md`; test log |
 | Unsafe serials in output are rejected | Yes — `TestEnumerateRejectsUnsafeSerialsInOutput` | No | n/a (fake-provable) | `internal/edge/adb/adapter_test.go` |
 | Unusable transports classified (offline / unauthorized / no permissions) | Yes — `TestValidateDeviceClassifiesUnusableTransports` | Yes, to confirm real devices report the states we classify | not exercised this run (all observed transports were `device`) | — |
-| Transport identity is separate from device identity | Yes — `TestTransportIdentityIsSeparateFromDeviceIdentity`, `TestTransportIdentityReportsAMissingIdentifier`, `TestConfirmTargetBindsASessionIdentityThatIsNotTheTransportIdentity` | Yes, to observe a real transport-id change | Stable lab identity ≠ transport id on confirm/capture; live transport-id *change* not observed | `TestRealDeviceReadOnlyObservation` |
-| USB vs TCP connection-type derivation | Partial — derived from serial shape in `adb.ConnectionUSB` / `ConnectionTCP` | Yes; the current lab has **zero USB transports**, so the USB path is unexercised against hardware | TCP derived and reported for confirmed serial; USB still unexercised | test log `connection=tcp` |
-| Discovery creates/registers nothing | Yes — `TestDiscoverEnumeratesWithoutConfirmingOrRegisteringAnything` | No | n/a (fake-provable); live discover logged 20 candidates with none registered | `TestRealDeviceReadOnlyObservation` |
-| Unavailable adapter reports honestly, invents no candidates | Yes — `TestDiscoverReportsAnUnavailableAdapterWithoutInventingCandidates` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
+| Transport identity is separate from device identity | Yes — `TestTransportIdentityIsSeparateFromDeviceIdentity`, `TestTransportIdentityReportsAMissingIdentifier`, `TestCaptureObservationBindsAStableIdentityThatIsNotTheTransportIdentity` | Yes, to observe a real transport-id change | Stable lab identity ≠ transport id on capture; live transport-id *change* not observed | `TestRealDeviceReadOnlyObservation` |
+| USB vs TCP connection-type derivation | Partial — derived from serial shape in `adb.ConnectionUSB` / `ConnectionTCP` | Yes; the current lab has **zero USB transports**, so the USB path is unexercised against hardware | TCP derived and reported for the named serial; USB still unexercised | test log `connection=tcp` |
+| Discovery creates/registers nothing | Yes — `TestDiscoverEnumeratesWithoutConfirmingOrRegisteringAnything` | No | n/a (fake-provable); live enumeration logged 20 candidates with none registered | `TestRealDeviceReadOnlyObservation` |
+| Unavailable adapter reports honestly, invents no candidates | Yes — `TestCaptureObservationReportsAnUnavailableAdapterWithoutInventingCandidates` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
 
-## 2. Target confirmation
+## 2. Target selection (device-scoped capture)
 
 | Measurement | Proven by existing tests | Requires live device | Live result | Evidence |
 | --- | --- | --- | --- | --- |
-| Generic `CONFIRM` rejected with several candidates | Yes — `TestConfirmTargetRefusesGenericConfirmationWhenSeveralCandidatesAreAttached` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
-| Generic `CONFIRM` accepted only for a single candidate | Yes — `TestConfirmTargetAcceptsTheGenericLiteralOnlyForASingleCandidate` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
-| Never-enumerated serial rejected | Yes — `TestConfirmTargetRejectsASerialThatWasNeverEnumerated` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
-| Unusable transport state rejected at confirmation | Yes — `TestConfirmTargetRejectsAnUnusableTransportState` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
-| Confirmation UX usable with 20 attached transports | No | Yes — this is an operations question, not a unit-test question | Operator typed exact serial among 20; confirm with serial text + reason succeeded | operator confirmation + PASS |
-| Capture blocked before confirmation | Yes — `TestCaptureObservationIsBlockedBeforeConfirmation`, `TestCaptureObservationRequiresTheConfirmedSerial` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
+| Generic `CONFIRM` rejected with several candidates | No — the confirm lifecycle is retired; a capture now names its own device and no confirmation text exists | No | n/a | `docs/adr/0004-real-device-adapter.md` |
+| A capture that names no device is refused without touching the adapter | Yes — `TestCaptureObservationRefusesAnUnnamedTargetWithoutTouchingTheAdapter` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
+| A serial that is not attached is refused, never inferred | Yes — `TestCaptureObservationRefusesASerialThatIsNotAttached` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
+| An ambiguous serial is refused rather than resolved by order | Yes — `TestCaptureObservationRefusesAnAmbiguousTarget` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
+| Unusable transport state refused before any observation | Yes — `TestCaptureObservationRefusesAnUnusableTarget` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
+| Naming one device among 20 attached transports | No | Yes — an operations question, not a unit-test question | Operator named the exact serial among 20; the capture resolved it and refused nothing else | operator transcript + PASS |
+| Capture is authorized per call from the explicit target | Yes — `TestCaptureObservationAuthorizesEveryCallByOperator` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
 
 ## 3. Health and device properties
 
@@ -102,7 +104,7 @@ against real hardware — that is the normal state of this table today.
 | Already-canceled context refused before spawn | Yes — `TestProcessRunnerRefusesAnAlreadyCanceledContext` | No | n/a (fake-provable) | `internal/edge/adb/process_test.go` |
 | Timeout becomes indeterminate and is never replayed | Yes — `TestCaptureObservationTimeoutIsIndeterminateAndIsNeverReplayed` | Yes, to confirm real timeouts land in this path | not exercised this run | — |
 | Completed idempotency key deduplicated | Yes — `TestCaptureObservationDeduplicatesACompletedIdempotencyKey` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
-| Indeterminate cleared only by operator or a new key | Yes — `TestClearTargetReleasesTheSessionAndResolvesIndeterminateReadiness` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
+| Indeterminate resolved only by a new key that verifies its postcondition | Yes — `TestIndeterminateReadinessSurvivesALaterDeterminateFailure` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
 
 ## 8. Reconnect and transport change
 
@@ -110,7 +112,7 @@ against real hardware — that is the normal state of this table today.
 | --- | --- | --- | --- | --- |
 | At most one read-only reattach per observed change | Yes — `TestReattachIsReadOnlyAndUsedAtMostOncePerChange`, `TestReattachRequiresAPreviousTransportIdentity` | Yes, against a real wireless reconnect | not exercised this run | — |
 | Transport change reconciled read-only; no connect/reconnect issued | Yes — `TestCaptureObservationReconcilesATransportChangeReadOnly` | Yes | not exercised this run | — |
-| Stable session identity survives a transport change | Yes — same test + `TestConfirmTargetBindsASessionIdentityThatIsNotTheTransportIdentity` | Yes | Stable ≠ transport on live confirm; change survival not exercised | PASS |
+| Stable session identity survives a transport change | Yes — `TestCaptureObservationReconcilesATransportChangeReadOnly`, `TestCaptureObservationBindsAStableIdentityThatIsNotTheTransportIdentity` | Yes | Stable ≠ transport on live capture; change survival not exercised | PASS |
 | Wireless transport stability over a session | No | Yes | Single capture session completed without transport loss (~12s) | PASS |
 
 ## 9. Failure classification and postconditions
@@ -137,8 +139,9 @@ against real hardware — that is the normal state of this table today.
 | --- | --- | --- | --- | --- |
 | Lab mode requires both the opt-in and the executable path | Yes — `TestLabModeRequiresBothAnOptInAndAnExecutablePath`, `TestLabModeRequestedAcceptsAnExplicitOptIn` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
 | Default is mock mode with no device work | Yes — `TestNewServiceDefaultsToMockModeWithoutAnyDeviceWork` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
-| Operator attribution required for discovery and capture | Yes — `TestDiscoverAndCaptureRequireAnAttributableOperator` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
-| End-to-end read-only slice against a confirmed serial | No | Yes | **PASS** against `192.168.1.109:5555` | `internal/edge/lab/real_device_test.go`; evidence |
+| Operator attribution required for discovery and capture | Yes — `TestCaptureObservationRequiresAnAttributableOperator`, `TestCaptureObservationAuthorizesEveryCallByOperator` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
+| Capture issues only read-only adapter calls | Yes — `TestCaptureObservationIssuesOnlyReadOnlyAdapterCalls` | No | n/a (fake-provable) | `internal/edge/lab/service_test.go` |
+| End-to-end read-only slice against an explicitly named serial | No | Yes | **PASS** against `192.168.1.109:5555` | `internal/edge/lab/real_device_test.go`; evidence |
 
 ## 12. Latency
 
