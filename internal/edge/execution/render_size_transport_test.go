@@ -128,7 +128,7 @@ func TestNoTypedDeviceInputEmitsTheRenderSizeRead(t *testing.T) {
 			return inputs.KeyEvent(context.Background(), execution.KeyEventRequest{KeyCode: 4, Repeat: 1})
 		}},
 		{"typed text by reference", func(inputs *execution.Inputs) error {
-			return inputs.TypeText(context.Background(), execution.TypeTextRequest{Text: execution.TextReference{Handle: "clipboard-1", Length: uint32(len(typedValueFixture))}})
+			return inputs.TypeText(context.Background(), execution.TypeTextRequest{Text: execution.TextReference{Handle: "clipboard-1", Length: uint32(len(typedValueFixture))}, Workspace: textWorkspace})
 		}},
 		{"app launch by package", func(inputs *execution.Inputs) error {
 			return inputs.LaunchApp(context.Background(), execution.LaunchAppRequest{PackageName: "com.example.app"})

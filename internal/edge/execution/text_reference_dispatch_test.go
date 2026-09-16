@@ -35,7 +35,7 @@ func newRegistryForTest(t *testing.T) *execution.TextReferenceRegistry {
 func TestATypedTextDispatchReleasesItsValueOnceAsOneToken(t *testing.T) {
 	ctx := context.Background()
 	registry := newRegistryForTest(t)
-	if err := registry.Register("reference-1", typedValueFixture); err != nil {
+	if err := registry.Register(textWorkspace, "reference-1", typedValueFixture); err != nil {
 		t.Fatalf("register the reference: %v", err)
 	}
 	transport := newFakeDeviceTransport()
@@ -45,7 +45,7 @@ func TestATypedTextDispatchReleasesItsValueOnceAsOneToken(t *testing.T) {
 	}
 	reference := execution.TextReference{Handle: "reference-1", Length: uint32(len(typedValueFixture))}
 
-	if err := inputs.TypeText(ctx, execution.TypeTextRequest{Text: reference}); err != nil {
+	if err := inputs.TypeText(ctx, execution.TypeTextRequest{Text: reference, Workspace: textWorkspace}); err != nil {
 		t.Fatalf("the typed text dispatch was refused: %v", err)
 	}
 	if calls := transport.invocationCount(); calls != 1 {
@@ -59,7 +59,7 @@ func TestATypedTextDispatchReleasesItsValueOnceAsOneToken(t *testing.T) {
 		t.Fatal("the released value did not become the single argument token")
 	}
 
-	if err := inputs.TypeText(ctx, execution.TypeTextRequest{Text: reference}); err == nil {
+	if err := inputs.TypeText(ctx, execution.TypeTextRequest{Text: reference, Workspace: textWorkspace}); err == nil {
 		t.Fatal("the same reference dispatched a second time")
 	}
 	if calls := transport.invocationCount(); calls != 1 {
@@ -74,7 +74,7 @@ func TestATypedTextValueCannotBecomeASecondArgument(t *testing.T) {
 	ctx := context.Background()
 	registry := newRegistryForTest(t)
 	const spaced = "two words"
-	if err := registry.Register("reference-spaced", spaced); err != nil {
+	if err := registry.Register(textWorkspace, "reference-spaced", spaced); err != nil {
 		t.Fatalf("register the reference: %v", err)
 	}
 	transport := newFakeDeviceTransport()
@@ -84,7 +84,7 @@ func TestATypedTextValueCannotBecomeASecondArgument(t *testing.T) {
 	}
 
 	reference := execution.TextReference{Handle: "reference-spaced", Length: uint32(len(spaced))}
-	if err := inputs.TypeText(ctx, execution.TypeTextRequest{Text: reference}); err != nil {
+	if err := inputs.TypeText(ctx, execution.TypeTextRequest{Text: reference, Workspace: textWorkspace}); err != nil {
 		t.Fatalf("the typed text dispatch was refused: %v", err)
 	}
 	call := transport.invocation(0)

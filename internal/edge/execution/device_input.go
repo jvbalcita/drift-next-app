@@ -126,9 +126,12 @@ type TextReference struct {
 	Length uint32
 }
 
-// TypeTextRequest is typed text entry. It carries a reference, never content.
+// TypeTextRequest is typed text entry. It carries a reference, never content,
+// and the workspace that reference belongs to, so a value can only be released
+// into the workspace that registered it.
 type TypeTextRequest struct {
-	Text TextReference
+	Text      TextReference
+	Workspace string
 }
 
 // KeyEventRequest is one key code from the device's key vocabulary, repeated a
@@ -146,11 +149,16 @@ type LaunchAppRequest struct {
 	ActivityName string
 }
 
-// TextResolver releases the value named by a typed-text reference. It is the
-// only component that sees the value; the primitive that calls it hands it
-// straight to the transport and keeps no copy.
+// TextResolver releases the value named by a typed-text reference, in the
+// workspace that reference belongs to. It is the only component that sees the
+// value; the primitive that calls it hands it straight to the transport and
+// keeps no copy.
+//
+// The workspace is an argument rather than an ambient read, because a value an
+// operator supplied belongs to that operator's workspace: the scope travels with
+// the reference, as a coordinate travels with the frame it was measured in.
 type TextResolver interface {
-	Resolve(ctx context.Context, reference TextReference) (string, error)
+	Resolve(ctx context.Context, workspace string, reference TextReference) (string, error)
 }
 
 // InputTransport executes one device operation for an explicit serial. It
@@ -296,13 +304,16 @@ func (i *Inputs) TypeText(ctx context.Context, request TypeTextRequest) error {
 	if err := i.prepared(ctx); err != nil {
 		return err
 	}
+	if strings.TrimSpace(request.Workspace) == "" {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "typed text must name the workspace its reference belongs to")
+	}
 	if err := validateTextReference(request.Text); err != nil {
 		return err
 	}
 	if i.resolver == nil {
 		return platformerrors.New(platformerrors.CodeUnavailable, "typed text has no reference resolver")
 	}
-	value, err := i.resolver.Resolve(ctx, request.Text)
+	value, err := i.resolver.Resolve(ctx, request.Workspace, request.Text)
 	if err != nil {
 		// The resolver's own error is deliberately dropped: it may quote the
 		// value, and this error is logged.

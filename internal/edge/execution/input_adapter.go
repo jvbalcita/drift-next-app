@@ -261,7 +261,7 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 			return adapter.Execution{}, &adapter.ExecutionError{Cause: err, FailureClass: renderSpaceFailureClass(err)}
 		}
 	}
-	if err := runInput(ctx, inputs, payload, kind); err != nil {
+	if err := runInput(ctx, inputs, payload, kind, intent.Workspace); err != nil {
 		// The typed payload and the transport's own diagnostics are never
 		// echoed: a failing device command can quote what it was given.
 		return adapter.Execution{}, &adapter.ExecutionError{
@@ -294,15 +294,17 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 	}, nil
 }
 
-// runInput dispatches to exactly the primitive the payload names.
-func runInput(ctx context.Context, inputs *Inputs, payload InputPayload, kind action.Kind) error {
+// runInput dispatches to exactly the primitive the payload names. A typed-text
+// payload also carries the workspace the reference belongs to, because the value
+// can only be released into the workspace that registered it.
+func runInput(ctx context.Context, inputs *Inputs, payload InputPayload, kind action.Kind, workspace string) error {
 	switch kind {
 	case action.Tap:
 		return inputs.Tap(ctx, *payload.Tap)
 	case action.Swipe:
 		return inputs.Swipe(ctx, *payload.Swipe)
 	case action.TextInput:
-		return inputs.TypeText(ctx, TypeTextRequest{Text: *payload.Text})
+		return inputs.TypeText(ctx, TypeTextRequest{Text: *payload.Text, Workspace: workspace})
 	case action.KeyEvent:
 		return inputs.KeyEvent(ctx, *payload.KeyEvent)
 	case action.LaunchApp:
