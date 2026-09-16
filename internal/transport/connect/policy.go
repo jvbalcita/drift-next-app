@@ -5,8 +5,8 @@ import (
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
-	"drift.local/drift-next/internal/policies"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
+	"drift.local/drift-next/internal/policies"
 	store "drift.local/drift-next/internal/store/sqlite"
 )
 

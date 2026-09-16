@@ -3,8 +3,8 @@ package transportconnect_test
 import (
 	"testing"
 
-	"google.golang.org/protobuf/reflect/protoreflect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func TestDeviceContractPreservesExistingFieldNumbersAndAddsWorkspaceContext(t *testing.T) {

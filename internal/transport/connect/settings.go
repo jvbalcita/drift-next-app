@@ -162,35 +162,35 @@ func settingFromProto(msg *driftv1.Setting) (settings.Setting, error) {
 func settingProto(setting settings.Setting) *driftv1.Setting {
 	definition := settings.DefinitionFor(setting.Key)
 	return &driftv1.Setting{
-		Id:          string(setting.ID),
-		Workspace:   workspaceRef(setting.Workspace),
-		Scope:       settingScopeProto(setting.Scope),
-		TargetId:    setting.TargetID,
-		SettingKey:  setting.Key,
-		ValueJson:   setting.ValueJSON,
-		State:       string(setting.State),
-		RowVersion:  setting.RowVersion,
-		ValueKind:   settingValueKindProto(definition.Kind),
-		Risk:        settingRiskProto(definition.Risk),
-		CreatedAt:   formatTime(setting.CreatedAt),
-		UpdatedAt:   formatTime(setting.UpdatedAt),
+		Id:         string(setting.ID),
+		Workspace:  workspaceRef(setting.Workspace),
+		Scope:      settingScopeProto(setting.Scope),
+		TargetId:   setting.TargetID,
+		SettingKey: setting.Key,
+		ValueJson:  setting.ValueJSON,
+		State:      string(setting.State),
+		RowVersion: setting.RowVersion,
+		ValueKind:  settingValueKindProto(definition.Kind),
+		Risk:       settingRiskProto(definition.Risk),
+		CreatedAt:  formatTime(setting.CreatedAt),
+		UpdatedAt:  formatTime(setting.UpdatedAt),
 	}
 }
 
 func settingHistoryProto(change settings.Change) *driftv1.SettingHistory {
 	return &driftv1.SettingHistory{
-		Id:          change.ID,
-		Workspace:   workspaceRef(change.Workspace),
-		SettingId:   string(change.SettingID),
-		Scope:       settingScopeProto(change.Scope),
-		TargetId:    change.TargetID,
-		SettingKey:  change.Key,
-		ValueJson:   change.ValueJSON,
-		State:       string(change.State),
-		RowVersion:  change.RowVersion,
-		ActorType:   change.ActorType,
-		ActorId:     change.ActorID,
-		ChangedAt:   formatTime(change.ChangedAt),
+		Id:         change.ID,
+		Workspace:  workspaceRef(change.Workspace),
+		SettingId:  string(change.SettingID),
+		Scope:      settingScopeProto(change.Scope),
+		TargetId:   change.TargetID,
+		SettingKey: change.Key,
+		ValueJson:  change.ValueJSON,
+		State:      string(change.State),
+		RowVersion: change.RowVersion,
+		ActorType:  change.ActorType,
+		ActorId:    change.ActorID,
+		ChangedAt:  formatTime(change.ChangedAt),
 	}
 }
 

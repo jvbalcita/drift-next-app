@@ -12,10 +12,10 @@ import (
 func TestSessionTracksReconnectAndRefusesHighRiskWhileDisconnected(t *testing.T) {
 	now := time.Date(2026, 9, 15, 3, 0, 0, 0, time.UTC)
 	session := connection.NewSession(connection.SessionConfig{
-		AgentID:      "agent-lab-1",
-		TransportID:  "usb:1",
-		Protocol:     "drift-edge/1",
-		HelperToken:  "helper-token-obs-only",
+		AgentID:     "agent-lab-1",
+		TransportID: "usb:1",
+		Protocol:    "drift-edge/1",
+		HelperToken: "helper-token-obs-only",
 	}, now)
 
 	status := session.Status(now)
@@ -38,8 +38,8 @@ func TestSessionTracksReconnectAndRefusesHighRiskWhileDisconnected(t *testing.T)
 		t.Fatalf("disconnected low-risk should still authorize for observation: %v", err)
 	}
 
-	session.BeginReconnect(now.Add(3*time.Second))
-	if session.Status(now.Add(3 * time.Second)).State != connection.RuntimeReconnecting {
+	session.BeginReconnect(now.Add(3 * time.Second))
+	if session.Status(now.Add(3*time.Second)).State != connection.RuntimeReconnecting {
 		t.Fatalf("state = %q, want reconnecting", session.Status(now.Add(3*time.Second)).State)
 	}
 
