@@ -82,8 +82,17 @@ type HierarchyCapture struct {
 	FreshnessToken  string
 	FailureClass    domain.FailureClass
 	Nodes           []adapter.TargetNode
-	RawSize         int
-	Latency         time.Duration
+	// ForegroundPackage is the package every focused node in the hierarchy
+	// names, when they name exactly one between them. It is empty when the
+	// hierarchy names no focused node, when its focused nodes disagree, when the
+	// value is not a package name, or when the parse was truncated before the
+	// whole hierarchy was read. Empty means "this capture cannot say which
+	// package is in the foreground" and never "some other package is": a launch
+	// postcondition is evaluated against this value, so a guess here would be
+	// recorded as an attempt nobody observed.
+	ForegroundPackage string
+	RawSize           int
+	Latency           time.Duration
 }
 
 // Complete reports whether the capture may be treated as a full hierarchy.
@@ -250,6 +259,14 @@ func (a *Adapter) Capture(ctx context.Context, serial string) (HierarchyCapture,
 	capture.Nodes = parsed.nodes
 	capture.NodeCount = len(parsed.nodes)
 	capture.MaxDepth = parsed.maxDepth
+	// A truncated parse may have dropped the subtree that held the focused node,
+	// so it declines to name a foreground package even when it saw one: the
+	// capture already reports Partial through Complete, which makes the
+	// observation indeterminate, so declining here costs no verifiable outcome
+	// and keeps a package the adapter did not fully read out of an observation.
+	if !parsed.truncated {
+		capture.ForegroundPackage = foregroundPackage(parsed)
+	}
 
 	if parseErr != nil {
 		capture.Partial = true
@@ -417,6 +434,18 @@ type parseOutcome struct {
 	nodes     []adapter.TargetNode
 	maxDepth  int
 	truncated bool
+	// focusedPackages holds the distinct package names this hierarchy's focused
+	// nodes report. The capture carries a package only when it holds exactly
+	// one, so a disagreement between focused nodes leaves the foreground
+	// package unstated rather than chosen.
+	focusedPackages []string
+	// focusedUnreadable records a focused node whose package attribute is not a
+	// package name. One such node means the capture cannot determine the
+	// foreground package at all: that node may be the one holding focus, and the
+	// value it stated is not something this adapter will carry. Such a node is
+	// not skipped, because skipping it would let another focused node's package
+	// stand in for a package the adapter never validated.
+	focusedUnreadable bool
 }
 
 var boundsPattern = regexp.MustCompile(`^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$`)
@@ -456,6 +485,7 @@ func (a *Adapter) parse(raw []byte) (parseOutcome, error) {
 			}
 			attributes := attributeMap(element)
 			outcome.nodes = append(outcome.nodes, buildNode(attributes, path, depth))
+			rememberFocusedPackage(&outcome, attributes)
 			if depth > outcome.maxDepth {
 				outcome.maxDepth = depth
 			}
@@ -474,6 +504,37 @@ func (a *Adapter) parse(raw []byte) (parseOutcome, error) {
 		return outcome, fmt.Errorf("%w: %d unclosed nodes", ErrDumpMalformed, depth)
 	}
 	return outcome, nil
+}
+
+// rememberFocusedPackage records the package of a focused node. Only a value
+// that is a package name is recorded: a hierarchy is device output, so its
+// package attribute is untrusted input, and a capture that carried an arbitrary
+// string would put that string in front of a postcondition.
+func rememberFocusedPackage(outcome *parseOutcome, attributes map[string]string) {
+	if !attributeBool(attributes, "focused") {
+		return
+	}
+	name := attributes["package"]
+	if !domain.IsPackageName(name) {
+		outcome.focusedUnreadable = true
+		return
+	}
+	for _, seen := range outcome.focusedPackages {
+		if seen == name {
+			return
+		}
+	}
+	outcome.focusedPackages = append(outcome.focusedPackages, name)
+}
+
+// foregroundPackage is the one package every focused node named, or nothing.
+// No focused node, a focused node whose package is not a package name, and
+// disagreeing focused nodes all leave the foreground package unstated.
+func foregroundPackage(outcome parseOutcome) string {
+	if outcome.focusedUnreadable || len(outcome.focusedPackages) != 1 {
+		return ""
+	}
+	return outcome.focusedPackages[0]
 }
 
 func attributeMap(element xml.StartElement) map[string]string {
