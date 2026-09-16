@@ -25,6 +25,11 @@ const (
 	groupActions itemGroup = iota
 	groupTroubleshooting
 	groupShortcut
+	// groupResolution is a decision about an address served by a process this
+	// session did not start. It is rendered apart from the other groups, one item
+	// per line, because it must show the holder before the choice is made and must
+	// not read as an ordinary action.
+	groupResolution
 )
 
 // menuItem is one operator key. The menu grid, the prompt key range, and

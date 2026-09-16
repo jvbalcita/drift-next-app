@@ -39,12 +39,22 @@ type childProcess interface {
 
 type processStarter func(context.Context, string, []string, []string, io.Writer) (childProcess, error)
 
+// listener is one process bound to an address, as far as the platform can tell.
+// PID and command are used to name a holder for the operator, and the pid is
+// used only to signal a process the operator explicitly chose to terminate.
+type listener struct {
+	PID     int
+	Command string
+}
+
 // portChecker answers whether a local TCP address can still be bound by this
-// process, and makes a best-effort attempt to name whatever holds it when it
-// cannot. It is a seam so tests never bind real ports.
+// process, names whatever holds it when it cannot, and lists the holders when
+// the operator has to decide what to do about one. It is a seam so tests never
+// bind a real port and never signal a real process.
 type portChecker interface {
 	Free(address string) bool
 	Holder(address string) string
+	Listeners(address string) []listener
 }
 
 // readyProbe reports whether something currently answers the readiness endpoint
@@ -89,6 +99,15 @@ type Supervisor struct {
 	statuses    map[string]ComponentStatus
 	logs        []string
 	eventSink   func(string)
+	// terminate asks exactly one process to stop, for a listener an operator
+	// explicitly chose to terminate. It is a seam so no test signals a real
+	// process, and it is the only place this runtime signals a process it did
+	// not start.
+	terminate func(int) error
+	// adopted records the listener an operator chose to keep, per component
+	// name. It is a record of a decision the operator made, never an inference
+	// this runtime drew on their behalf.
+	adopted map[string]adoptedListener
 }
 
 func newSupervisor(config Config, dataDir string) *Supervisor {
@@ -105,6 +124,8 @@ func newSupervisor(config Config, dataDir string) *Supervisor {
 		readyWait:   defaultReadyTimeout,
 		processes:   map[string]childProcess{},
 		statuses:    map[string]ComponentStatus{},
+		terminate:   terminateProcess,
+		adopted:     map[string]adoptedListener{},
 	}
 	supervisor.probe = supervisor.probeReady
 	return supervisor
@@ -177,29 +198,38 @@ func (s *Supervisor) observedState(name string) componentState {
 // stopping anything. This keeps a restarted TUI honest about runtime state.
 //
 // A response on a component's port is not health: any process can answer there.
-// A component is only reported ready when this session started its process; a
-// listener this session does not own is reported as external and is never
-// reported ready.
+// A component is only reported ready when this session started its process. A
+// listener this session does not own is reported as external, and one an
+// operator chose to keep is reported as adopted - never as ready, because
+// nothing verified what that process is running.
 func (s *Supervisor) RefreshStatus(ctx context.Context) {
 	for _, component := range managedComponents {
 		address := component.Address(s.config)
 		if address == "" {
 			continue
 		}
-		if s.probe(ctx, address) {
-			if s.owns(component.Name) {
+		if s.owns(component.Name) {
+			if s.probe(ctx, address) {
 				s.setStatus(component.Name, stateReady, "Ready (started by this session)")
 				continue
 			}
-			detail := fmt.Sprintf("%s is served by a process this session did not start; a restart will refuse until it is stopped", address)
+			s.setStatus(component.Name, stateStarting, "Started by this session; not answering /readyz yet")
+			continue
+		}
+		if entry, adopted := s.adoptedListenerFor(component.Name); adopted {
+			detail := adoptedDetail(entry)
+			if s.observedState(component.Name) != stateAdopted {
+				s.appendLog(component.Name + ": " + detail)
+			}
+			s.setStatus(component.Name, stateAdopted, detail)
+			continue
+		}
+		if s.probe(ctx, address) {
+			detail := externalDetail(address, s.describeHolder(address))
 			if s.observedState(component.Name) != stateExternal {
 				s.appendLog(component.Name + ": " + detail)
 			}
 			s.setStatus(component.Name, stateExternal, detail)
-			continue
-		}
-		if s.owns(component.Name) {
-			s.setStatus(component.Name, stateStarting, "Started by this session; not answering /readyz yet")
 			continue
 		}
 		s.setStatus(component.Name, stateStopped, "Not started")
@@ -319,7 +349,7 @@ func (s *Supervisor) StartAll(ctx context.Context, launchDesktop bool) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.waitReady(ctx, "Control Plane", s.config.ControlPlaneAddress); err != nil {
+	if err := s.waitReadyFor(ctx, "Control Plane", s.config.ControlPlaneAddress); err != nil {
 		_ = s.StopAll(ctx)
 		return fmt.Errorf("control plane readiness: %w", err)
 	}
@@ -327,7 +357,7 @@ func (s *Supervisor) StartAll(ctx context.Context, launchDesktop bool) error {
 		_ = s.StopAll(ctx)
 		return err
 	}
-	if err := s.waitReady(ctx, "Device Service", s.config.EdgeAgentAddress); err != nil {
+	if err := s.waitReadyFor(ctx, "Device Service", s.config.EdgeAgentAddress); err != nil {
 		_ = s.StopAll(ctx)
 		return fmt.Errorf("device service readiness: %w", err)
 	}
@@ -356,7 +386,7 @@ func (s *Supervisor) StartComponent(ctx context.Context, name string) error {
 		if err := s.startComponent(ctx, name, s.config.ControlPlaneAddress, "go", []string{"run", "./cmd/control-plane"}, []string{"DRIFT_CONTROL_PLANE_ADDR=" + s.config.ControlPlaneAddress, "DRIFT_CONTROL_PLANE_DB=" + s.config.DatabasePath, "DRIFT_ARTIFACT_CAS_ROOT=" + s.config.ArtifactRoot, "DRIFT_RUNTIME_DEVICE_MODE=connected", "DRIFT_RUNTIME_ADB_PATH=" + s.config.ADBPath, "DRIFT_RUNTIME_SERVICE_TOKEN=" + s.config.ServiceToken}); err != nil {
 			return err
 		}
-		return s.waitReady(ctx, name, s.config.ControlPlaneAddress)
+		return s.waitReadyFor(ctx, name, s.config.ControlPlaneAddress)
 	case "Device Service":
 		if err := s.startComponent(ctx, name, s.config.EdgeAgentAddress, "go", []string{"run", "./cmd/edge-agent"}, []string{"DRIFT_EDGE_AGENT_ADDR=" + s.config.EdgeAgentAddress}); err != nil {
 			return err
@@ -373,6 +403,10 @@ func (s *Supervisor) StartComponent(ctx context.Context, name string) error {
 // the address is actually free. A listener this session does not own is a
 // failure, not a successful stop: reporting success there tells the operator a
 // stale process was replaced when it was not.
+//
+// An adopted listener is the deliberate exception: the operator chose to keep
+// that process, so leaving it running is the outcome they asked for rather than
+// a stop that failed.
 func (s *Supervisor) StopComponent(name string) error {
 	address := s.componentAddress(name)
 	s.mu.Lock()
@@ -384,14 +418,18 @@ func (s *Supervisor) StopComponent(name string) error {
 			s.setStatus(name, stateStopped, "Stopped (nothing was started by this session)")
 			return nil
 		}
-		return s.failOperation(name, fmt.Errorf("%s: nothing was started by this session, but %s is still held by %s; stop that process outside the TUI and retry", name, address, s.describeHolder(address)))
+		if entry, adopted := s.adoptedListenerFor(name); adopted {
+			s.setStatus(name, stateAdopted, adoptedDetail(entry))
+			return nil
+		}
+		return s.failOperation(name, fmt.Errorf("%s: nothing was started by this session, but %s is still held by %s; %s, or %s", name, address, s.describeHolder(address), resolveAdoptOffer, resolveTerminateOffer))
 	}
 	if err := process.Stop(); err != nil {
 		s.setStatus(name, stateFailed, fmt.Sprintf("stop failed: %v", err))
 		return fmt.Errorf("stop %s: %w", name, err)
 	}
 	if !s.waitAddressFree(address) {
-		return s.failOperation(name, fmt.Errorf("%s: stopped the process this session started, but %s is still held by %s; stop that process outside the TUI and retry", name, address, s.describeHolder(address)))
+		return s.failOperation(name, fmt.Errorf("%s: stopped the process this session started, but %s is still held by %s; %s, or %s", name, address, s.describeHolder(address), resolveAdoptOffer, resolveTerminateOffer))
 	}
 	s.setStatus(name, stateStopped, "Stopped")
 	return nil
@@ -403,9 +441,16 @@ func (s *Supervisor) startComponent(ctx context.Context, name, address, executab
 		return nil
 	}
 	// A process this session does not own would keep the address, so the child
-	// could not bind and the stale binary would keep serving. Refuse instead.
+	// could not bind and the stale binary would keep serving. Refuse instead -
+	// unless the operator already decided to keep that process, in which case
+	// there is nothing to start and the component is reported as adopted rather
+	// than as anything this session verified.
 	if !s.addressFree(address) {
-		return s.failOperation(name, fmt.Errorf("%s: %s is already held by %s; this session did not start it, so starting another process would leave the stale one serving - stop that process and retry", name, address, s.describeHolder(address)))
+		if entry, adopted := s.adoptedListenerFor(name); adopted {
+			s.setStatus(name, stateAdopted, adoptedDetail(entry))
+			return nil
+		}
+		return s.failOperation(name, blockedStartError(name, address, s.describeHolder(address)))
 	}
 	s.setStatus(name, stateStarting, "Starting")
 	process, err := s.start(ctx, executable, args, extraEnv, logWriter{supervisor: s})
@@ -510,7 +555,14 @@ func (s *Supervisor) StopAll(_ context.Context) error {
 		if free {
 			continue
 		}
-		detail := fmt.Sprintf("%s is still held by %s; stop that process outside the TUI and retry", address, s.describeHolder(address))
+		// An adopted listener is not this session's to stop. The operator chose
+		// to keep it running, so it is the outcome they asked for rather than a
+		// stop that failed - and a restart must not be blocked by it.
+		if entry, adopted := s.adoptedListenerFor(component.Name); adopted {
+			s.setStatus(component.Name, stateAdopted, adoptedDetail(entry))
+			continue
+		}
+		detail := fmt.Sprintf("%s is still held by %s; %s, or %s", address, s.describeHolder(address), resolveAdoptOffer, resolveTerminateOffer)
 		failures = append(failures, component.Name+": "+detail)
 		s.setStatus(component.Name, stateFailed, detail)
 		s.appendLog(component.Name + ": " + detail)
@@ -560,62 +612,40 @@ func (netPortChecker) Free(address string) bool {
 	return true
 }
 
-// Holder makes a best-effort attempt to name the process listening on an
-// address. It returns an empty string whenever the platform cannot tell us; the
-// caller still reports the address as occupied.
-func (netPortChecker) Holder(address string) string {
+// lsofListeners is the one place a listening process is resolved, so naming a
+// holder and listing the holders to act on can never disagree about who holds an
+// address.
+func (netPortChecker) lsofListeners(address string) []listener {
 	_, port, err := net.SplitHostPort(address)
 	if err != nil {
-		return ""
+		return nil
 	}
 	lsof, err := exec.LookPath("lsof")
 	if err != nil {
-		return ""
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	output, err := exec.CommandContext(ctx, lsof, "-nP", "-sTCP:LISTEN", "-iTCP:"+port, "-Fpc").Output()
 	if err != nil {
-		return ""
+		return nil
 	}
-	return formatListenerHolders(string(output))
+	return parseListenerHolders(string(output))
 }
 
-// formatListenerHolders parses `lsof -Fpc` output into a short description of
-// the listening processes, for example "node (pid 4711)".
-func formatListenerHolders(output string) string {
-	var holders []string
-	command, pid := "", ""
-	flush := func() {
-		switch {
-		case command != "" && pid != "":
-			holders = append(holders, fmt.Sprintf("%s (pid %s)", command, pid))
-		case pid != "":
-			holders = append(holders, fmt.Sprintf("pid %s", pid))
-		}
-		command, pid = "", ""
-	}
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		switch {
-		case line == "":
-			continue
-		case strings.HasPrefix(line, "p"):
-			flush()
-			pid = strings.TrimPrefix(line, "p")
-		case strings.HasPrefix(line, "c"):
-			command = strings.TrimPrefix(line, "c")
-		}
-	}
-	flush()
-	switch len(holders) {
-	case 0:
-		return ""
-	case 1:
-		return holders[0]
-	default:
-		return fmt.Sprintf("%s and %d more", holders[0], len(holders)-1)
-	}
+// Holder makes a best-effort attempt to name the process listening on an
+// address. It returns an empty string whenever the platform cannot tell us; the
+// caller still reports the address as occupied.
+func (c netPortChecker) Holder(address string) string {
+	return describeListeners(c.lsofListeners(address))
+}
+
+// Listeners returns the processes bound to an address, for the case where an
+// operator has to choose what to do about one. An empty result means the
+// platform could not tell us, which is not the same as nothing being there: the
+// caller still refuses to start on an address it cannot bind.
+func (c netPortChecker) Listeners(address string) []listener {
+	return c.lsofListeners(address)
 }
 
 type managedProcess struct{ process *os.Process }
