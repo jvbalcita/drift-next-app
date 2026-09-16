@@ -25,6 +25,16 @@ const (
 )
 
 const (
+	// continuationMark prefixes the second and later rows of one logical line
+	// that had to wrap inside a bounded region, so a wrapped line is visibly one
+	// line rather than several events.
+	continuationMark = "↳"
+	// ellipsisMark ends a line that had to be cut to fit. Nothing is dropped
+	// without it: an operator reading a shortened line can see that it is short.
+	ellipsisMark = "…"
+)
+
+const (
 	// fallbackFrameWidth is used when the terminal size cannot be read (piped
 	// output, unknown window size, or a platform without a size query).
 	fallbackFrameWidth = 100
