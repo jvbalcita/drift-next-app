@@ -99,7 +99,7 @@ function renderSection(route: Route, snapshot: ReturnType<typeof useControlPlane
     case "Devices": return <DevicesPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Accounts": return <AccountsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Network Profiles": return <NetworkProfilesPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
-    case "Groups": return <GroupsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
+    case "Groups": return <GroupsPage snapshot={snapshot} dispatch={dispatch} />
     case "Agents": return <AgentsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Workflows": return <WorkflowsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Runs": return <RunsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />

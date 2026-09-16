@@ -316,7 +316,7 @@ func TestGroupMovePlacement(t *testing.T) {
 	}, "operator", "op-1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.NewGroupService(db).Create(ctx, groups.Group{
+	if _, err := store.NewGroupService(db).Create(ctx, groups.Group{
 		ID: "group-1", Workspace: "workspace-a", Name: "Fleet", State: groups.GroupActive,
 	}, "operator", "op-1"); err != nil {
 		t.Fatal(err)
@@ -340,6 +340,124 @@ func TestGroupMovePlacement(t *testing.T) {
 	}
 	if len(listed.Msg.Memberships) != 1 || listed.Msg.Memberships[0].GetDeviceId() != "device-1" || listed.Msg.Memberships[0].GetGroupId() != "group-1" {
 		t.Fatalf("list memberships = %#v", listed.Msg.Memberships)
+	}
+}
+
+func TestGroupRenameDeleteReorderAndUngroup(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	workspace := &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"}
+	for _, device := range []devices.Device{
+		{ID: "device-1", Workspace: "workspace-a", DisplayName: "One", State: devices.Active},
+		{ID: "device-2", Workspace: "workspace-a", DisplayName: "Two", State: devices.Active},
+	} {
+		if err := store.NewDeviceService(db).Create(ctx, device, "operator", "op-1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, group := range []groups.Group{
+		{ID: "group-1", Workspace: "workspace-a", Name: "Rack One", State: groups.GroupActive},
+		{ID: "group-2", Workspace: "workspace-a", Name: "Rack Two", State: groups.GroupActive},
+	} {
+		if _, err := store.NewGroupService(db).Create(ctx, group, "operator", "op-1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := transportconnect.NewGroupHandler(db)
+	if _, err := handler.MoveDeviceToGroup(ctx, connectrpc.NewRequest(&driftv1.MoveDeviceToGroupRequest{
+		Context: requestContext("move-1"), Workspace: workspace, DeviceId: "device-1", GroupId: "group-1", Position: 1,
+	})); err != nil {
+		t.Fatalf("move error = %v", err)
+	}
+
+	renamed, err := handler.RenameDeviceGroup(ctx, connectrpc.NewRequest(&driftv1.RenameDeviceGroupRequest{
+		Context: requestContext("rename-1"), Workspace: workspace, GroupId: "group-1", DisplayName: "Rack A", RowVersion: 1,
+	}))
+	if err != nil || renamed.Msg.Group.GetDisplayName() != "Rack A" || renamed.Msg.Group.GetRowVersion() != 2 {
+		t.Fatalf("rename = %#v err=%v", renamed, err)
+	}
+	if renamed.Msg.Group.GetPosition() == 0 {
+		t.Fatalf("rename response dropped the persisted group order: %#v", renamed.Msg.Group)
+	}
+	// A stale row version is a conflict, not a silent overwrite.
+	if _, err := handler.RenameDeviceGroup(ctx, connectrpc.NewRequest(&driftv1.RenameDeviceGroupRequest{
+		Context: requestContext("rename-2"), Workspace: workspace, GroupId: "group-1", DisplayName: "Stale", RowVersion: 1,
+	})); connectrpc.CodeOf(err) != connectrpc.CodeAlreadyExists {
+		t.Fatalf("stale rename code = %v, want already_exists; err=%v", connectrpc.CodeOf(err), err)
+	}
+
+	removed, err := handler.RemoveDeviceFromGroup(ctx, connectrpc.NewRequest(&driftv1.RemoveDeviceFromGroupRequest{
+		Context: requestContext("remove-1"), Workspace: workspace, DeviceId: "device-1",
+	}))
+	if err != nil || removed.Msg.Membership.GetState() != "ended" || removed.Msg.Membership.GetEndedAt() == "" {
+		t.Fatalf("remove device = %#v err=%v", removed, err)
+	}
+	// Removing a placement is not a device mutation: the device row survives
+	// and can be placed again, and no Ungrouped group row is invented.
+	if _, err := handler.RemoveDeviceFromGroup(ctx, connectrpc.NewRequest(&driftv1.RemoveDeviceFromGroupRequest{
+		Context: requestContext("remove-2"), Workspace: workspace, DeviceId: "device-1",
+	})); connectrpc.CodeOf(err) != connectrpc.CodeAlreadyExists {
+		t.Fatalf("second remove code = %v, want already_exists; err=%v", connectrpc.CodeOf(err), err)
+	}
+	if _, err := handler.MoveDeviceToGroup(ctx, connectrpc.NewRequest(&driftv1.MoveDeviceToGroupRequest{
+		Context: requestContext("move-2"), Workspace: workspace, DeviceId: "device-1", GroupId: "group-2", Position: 1,
+	})); err != nil {
+		t.Fatalf("re-place after ungroup error = %v", err)
+	}
+
+	reordered, err := handler.ReorderDeviceGroups(ctx, connectrpc.NewRequest(&driftv1.ReorderDeviceGroupsRequest{
+		Context: requestContext("reorder-1"), Workspace: workspace, GroupIds: []string{"group-2", "group-1"},
+	}))
+	if err != nil || len(reordered.Msg.Groups) != 2 {
+		t.Fatalf("reorder = %#v err=%v", reordered, err)
+	}
+	if reordered.Msg.Groups[0].GetId() != "group-2" || reordered.Msg.Groups[1].GetId() != "group-1" {
+		t.Fatalf("group order = %#v, want group-2 then group-1", reordered.Msg.Groups)
+	}
+	if reordered.Msg.Groups[0].GetPosition() != 1 || reordered.Msg.Groups[1].GetPosition() != 2 {
+		t.Fatalf("group positions = %d,%d, want 1,2", reordered.Msg.Groups[0].GetPosition(), reordered.Msg.Groups[1].GetPosition())
+	}
+	// An order that does not name every group exactly once is rejected.
+	if _, err := handler.ReorderDeviceGroups(ctx, connectrpc.NewRequest(&driftv1.ReorderDeviceGroupsRequest{
+		Context: requestContext("reorder-2"), Workspace: workspace, GroupIds: []string{"group-1"},
+	})); connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("partial reorder code = %v, want invalid_argument; err=%v", connectrpc.CodeOf(err), err)
+	}
+
+	// Deleting a group requires explicit confirmation.
+	if _, err := handler.DeleteDeviceGroup(ctx, connectrpc.NewRequest(&driftv1.DeleteDeviceGroupRequest{
+		Context: requestContext("delete-1"), Workspace: workspace, GroupId: "group-2", RowVersion: 1,
+	})); connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("unconfirmed delete code = %v, want invalid_argument; err=%v", connectrpc.CodeOf(err), err)
+	}
+	deleted, err := handler.DeleteDeviceGroup(ctx, connectrpc.NewRequest(&driftv1.DeleteDeviceGroupRequest{
+		Context: requestContext("delete-2"), Workspace: workspace, GroupId: "group-2", RowVersion: 1, Confirmed: true,
+	}))
+	if err != nil || deleted.Msg.Group.GetState() != driftv1.GroupState_GROUP_STATE_RETIRED {
+		t.Fatalf("delete group = %#v err=%v", deleted, err)
+	}
+	listed, err := handler.ListDeviceGroups(ctx, connectrpc.NewRequest(&driftv1.ListDeviceGroupsRequest{Workspace: workspace}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	active := 0
+	for _, membership := range listed.Msg.Memberships {
+		if membership.GetState() == "active" {
+			active++
+		}
+	}
+	if active != 0 {
+		t.Fatalf("active placements after retire = %d, want 0", active)
+	}
+	// Membership history survives: retiring a group ends its placements, it
+	// never erases evidence and never invents an Ungrouped group row.
+	if len(listed.Msg.Memberships) != 2 {
+		t.Fatalf("membership history after retire = %#v, want both placements retained", listed.Msg.Memberships)
+	}
+	for _, group := range listed.Msg.Groups {
+		if group.GetId() == "ungrouped" {
+			t.Fatal("a persisted Ungrouped group was invented")
+		}
 	}
 }
 

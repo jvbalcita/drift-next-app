@@ -260,9 +260,9 @@ const scanObservations: ObservedDeviceView[] = [
 ]
 
 const groups: GroupView[] = [
-  { id: "group-rack-a", name: "Rack A", state: "active", rowVersion: 4 },
-  { id: "group-rack-b", name: "Rack B", state: "active", rowVersion: 2 },
-  { id: "group-rack-c", name: "Rack C", state: "active", rowVersion: 3 },
+  { id: "group-rack-a", name: "Rack A", state: "active", position: 1, rowVersion: 4 },
+  { id: "group-rack-b", name: "Rack B", state: "active", position: 2, rowVersion: 2 },
+  { id: "group-rack-c", name: "Rack C", state: "active", position: 3, rowVersion: 3 },
 ]
 
 const memberships: MembershipView[] = [
@@ -925,8 +925,16 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.startScan(intent)
       case "moveDeviceToGroup":
         return this.moveDeviceToGroup(intent)
+      case "removeDeviceFromGroup":
+        return this.removeDeviceFromGroup(intent)
       case "createDeviceGroup":
         return this.createDeviceGroup(intent)
+      case "renameDeviceGroup":
+        return this.renameDeviceGroup(intent)
+      case "deleteDeviceGroup":
+        return this.deleteDeviceGroup(intent)
+      case "reorderDeviceGroups":
+        return this.reorderDeviceGroups(intent)
       case "createAutomationAgent":
         return this.createAutomationAgent(intent)
       case "assignAutomationAgentDevice":
@@ -1751,20 +1759,78 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       return rejection(intent, "Target group was not found or is retired.")
     }
     const nowEnded = this.snapshot.memberships.map((membership) => membership.deviceId === device.id && membership.state === "active" ? { ...membership, state: "ended" as const, endedAt: "just now" } : membership)
-    const nextMemberships = intent.groupId === "ungrouped" ? nowEnded : [...nowEnded, { id: `membership-${this.nextSequence++}`, groupId: intent.groupId, deviceId: device.id, position: intent.position, state: "active" as const, startedAt: "just now" }]
+    if (intent.groupId === "ungrouped") {
+      this.snapshot = { ...this.snapshot, memberships: nowEnded }
+      return result(intent, `${device.displayName} moved to computed Ungrouped.`, device.id)
+    }
+    // A move into an occupied position shifts the displaced placements down, the
+    // same renumber the control plane applies inside one transaction. Mirroring
+    // this keeps the mock projection a faithful stand-in for the real store.
+    const shifted = nowEnded.map((membership) => membership.groupId === intent.groupId && membership.state === "active" && membership.position >= intent.position ? { ...membership, position: membership.position + 1 } : membership)
+    const nextMemberships = [...shifted, { id: `membership-${this.nextSequence++}`, groupId: intent.groupId, deviceId: device.id, position: intent.position, state: "active" as const, startedAt: "just now" }]
     this.snapshot = { ...this.snapshot, memberships: nextMemberships }
-    return result(intent, intent.groupId === "ungrouped" ? `${device.displayName} moved to computed Ungrouped.` : `${device.displayName} moved in the mock projection.`, device.id)
+    return result(intent, `${device.displayName} moved in the mock projection.`, device.id)
+  }
+
+  private removeDeviceFromGroup(intent: Extract<ControlPlaneIntent, { type: "removeDeviceFromGroup" }>): MutationResult {
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) return rejection(intent, "Device was not found.")
+    const active = this.snapshot.memberships.find((membership) => membership.deviceId === device.id && membership.state === "active")
+    if (!active) return rejection(intent, `${device.displayName} is already ungrouped.`, device.id, "precondition_failed")
+    // Removing a device ends one placement; it never creates a persisted
+    // Ungrouped authority, so the computed view stays the only source of it.
+    const nextMemberships = this.snapshot.memberships.map((membership) => membership.id === active.id ? { ...membership, state: "ended" as const, endedAt: "just now" } : membership)
+    this.snapshot = { ...this.snapshot, memberships: nextMemberships }
+    return result(intent, `${device.displayName} removed from its group.`, device.id)
   }
 
   private createDeviceGroup(intent: Extract<ControlPlaneIntent, { type: "createDeviceGroup" }>): MutationResult {
     const name = intent.name.trim()
     if (!name) return rejection(intent, "Group name is required.", "", "invalid_input")
     const id = `group-${this.nextSequence++}`
+    const position = this.snapshot.groups.reduce((highest, group) => Math.max(highest, group.position), 0) + 1
     this.snapshot = {
       ...this.snapshot,
-      groups: [...this.snapshot.groups, { id, name, state: "active", rowVersion: 1 }],
+      groups: [...this.snapshot.groups, { id, name, state: "active", position, rowVersion: 1 }],
     }
     return result(intent, "Device group created.", id)
+  }
+
+  private renameDeviceGroup(intent: Extract<ControlPlaneIntent, { type: "renameDeviceGroup" }>): MutationResult {
+    const name = intent.name.trim()
+    if (!name) return rejection(intent, "Group name is required.", intent.groupId, "invalid_input")
+    const group = this.snapshot.groups.find((candidate) => candidate.id === intent.groupId)
+    if (!group) return rejection(intent, "Group was not found.", intent.groupId)
+    if (group.state !== "active") return rejection(intent, "A retired group cannot be renamed.", intent.groupId, "precondition_failed")
+    if (group.rowVersion !== intent.rowVersion) return result(intent, "Group changed since it was loaded.", intent.groupId, true)
+    const groups = this.snapshot.groups.map((candidate) => candidate.id === group.id ? { ...candidate, name, rowVersion: candidate.rowVersion + 1 } : candidate)
+    this.snapshot = { ...this.snapshot, groups }
+    return result(intent, "Device group renamed.", group.id)
+  }
+
+  private deleteDeviceGroup(intent: Extract<ControlPlaneIntent, { type: "deleteDeviceGroup" }>): MutationResult {
+    if (!intent.confirmed) return rejection(intent, "Deleting a group requires confirmation.", intent.groupId, "precondition_failed")
+    const group = this.snapshot.groups.find((candidate) => candidate.id === intent.groupId)
+    if (!group) return rejection(intent, "Group was not found.", intent.groupId)
+    if (group.state !== "active") return rejection(intent, "Group is already retired.", intent.groupId, "precondition_failed")
+    if (group.rowVersion !== intent.rowVersion) return result(intent, "Group changed since it was loaded.", intent.groupId, true)
+    // The group is retired in place and its current placements end, so the
+    // devices fall back into the computed Ungrouped view.
+    const groups = this.snapshot.groups.map((candidate) => candidate.id === group.id ? { ...candidate, state: "retired" as const, rowVersion: candidate.rowVersion + 1 } : candidate)
+    const memberships = this.snapshot.memberships.map((membership) => membership.groupId === group.id && membership.state === "active" ? { ...membership, state: "ended" as const, endedAt: "just now" } : membership)
+    this.snapshot = { ...this.snapshot, groups, memberships }
+    return result(intent, "Device group retired.", group.id)
+  }
+
+  private reorderDeviceGroups(intent: Extract<ControlPlaneIntent, { type: "reorderDeviceGroups" }>): MutationResult {
+    const known = new Set(this.snapshot.groups.map((group) => group.id))
+    if (intent.groupIds.length !== known.size || intent.groupIds.some((id) => !known.has(id))) {
+      return rejection(intent, "Group order must name every group exactly once.", "", "invalid_input")
+    }
+    const positions = new Map(intent.groupIds.map((id, index) => [id, index + 1]))
+    const groups = this.snapshot.groups.map((group) => ({ ...group, position: positions.get(group.id) ?? group.position }))
+    this.snapshot = { ...this.snapshot, groups }
+    return result(intent, "Group order saved.")
   }
 
   private createAutomationAgent(intent: Extract<ControlPlaneIntent, { type: "createAutomationAgent" }>): MutationResult {

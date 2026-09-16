@@ -36,6 +36,8 @@ React/Vite operator UI
 - Keep the action-safety boundary in the lease/fencing/policy/control-session kernel, not in the existence of a device row: a device row carries identity and observation history, and confers no authority to act on the device.
 - Keep current projections separate from append-only audit, event, observation, and evidence history.
 - Use explicit state machines for workflows, control sessions, devices, package lifecycle, approval, and recovery states.
+- Treat group and placement order as persisted operator order. Never derive it from insertion order, a row id, or a list index; write the whole order, not a single occupied slot, and reach an order by renumbering inside one transaction rather than by overwriting a neighbour's position.
+- Ungrouping ends a placement. "Ungrouped" is a computed view over devices with no active membership, never a stored group, and a row that append-only evidence references is retired in place rather than deleted.
 - Use typed identifiers internally. Never make a mutable serial, IP/port, display name, account label, or UI row number the primary identity.
 
 ## 3. Control, workflow, and concurrency design

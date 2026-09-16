@@ -274,6 +274,46 @@ describe("MockControlPlaneClient", () => {
     expect(snapshot.groups.some((group) => group.id === "ungrouped")).toBe(false)
   })
 
+  it("renames a device group in place", () => {
+    const client = new MockControlPlaneClient()
+    const renamed = client.dispatch({ type: "renameDeviceGroup", groupId: "group-rack-b", name: "Rack E", rowVersion: 2 })
+    const snapshot = client.getSnapshot()
+
+    expect(renamed.ok).toBe(true)
+    expect(snapshot.groups.find((group) => group.id === "group-rack-b")?.name).toBe("Rack E")
+    expect(snapshot.groups.find((group) => group.id === "group-rack-b")?.rowVersion).toBe(3)
+  })
+
+  it("retires a deleted device group and returns its devices to the computed Ungrouped view", () => {
+    const client = new MockControlPlaneClient()
+    const deleted = client.dispatch({ type: "deleteDeviceGroup", groupId: "group-rack-c", rowVersion: 3, confirmed: true })
+    const snapshot = client.getSnapshot()
+
+    expect(deleted.ok).toBe(true)
+    expect(snapshot.groups.find((group) => group.id === "group-rack-c")?.state).toBe("retired")
+    expect(snapshot.memberships.some((membership) => membership.deviceId === "orion-01" && membership.state === "active")).toBe(false)
+    expect(snapshot.groups.some((group) => group.id === "ungrouped")).toBe(false)
+  })
+
+  it("removes a device from its group without persisting an Ungrouped group", () => {
+    const client = new MockControlPlaneClient()
+    const removed = client.dispatch({ type: "removeDeviceFromGroup", deviceId: "atlas-04" })
+    const snapshot = client.getSnapshot()
+
+    expect(removed.ok).toBe(true)
+    expect(snapshot.memberships.some((membership) => membership.deviceId === "atlas-04" && membership.state === "active")).toBe(false)
+    expect(snapshot.groups.some((group) => group.id === "ungrouped")).toBe(false)
+  })
+
+  it("reorders the groups themselves by persisted position", () => {
+    const client = new MockControlPlaneClient()
+    const reordered = client.dispatch({ type: "reorderDeviceGroups", groupIds: ["group-rack-c", "group-rack-a", "group-rack-b"] })
+    const ordered = [...client.getSnapshot().groups].sort((left, right) => left.position - right.position)
+
+    expect(reordered.ok).toBe(true)
+    expect(ordered.map((group) => group.name)).toEqual(["Rack C", "Rack A", "Rack B"])
+  })
+
   it("creates an automation agent and assigns an explicit device", () => {
     const client = new MockControlPlaneClient()
     const created = client.dispatch({ type: "createAutomationAgent", name: "Night steward" })

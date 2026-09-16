@@ -71,12 +71,15 @@ func (GroupState) EnumDescriptor() ([]byte, []int) {
 }
 
 type DeviceGroup struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	State         GroupState             `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.GroupState" json:"state,omitempty"`
-	RowVersion    uint64                 `protobuf:"varint,5,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace   *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DisplayName string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	State       GroupState             `protobuf:"varint,4,opt,name=state,proto3,enum=drift.v1.GroupState" json:"state,omitempty"`
+	RowVersion  uint64                 `protobuf:"varint,5,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	// position is the persisted operator order of the group itself, the same
+	// ordering POST /groups/reorder used to write.
+	Position      uint32 `protobuf:"varint,6,opt,name=position,proto3" json:"position,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -142,6 +145,13 @@ func (x *DeviceGroup) GetState() GroupState {
 func (x *DeviceGroup) GetRowVersion() uint64 {
 	if x != nil {
 		return x.RowVersion
+	}
+	return 0
+}
+
+func (x *DeviceGroup) GetPosition() uint32 {
+	if x != nil {
+		return x.Position
 	}
 	return 0
 }
@@ -574,18 +584,475 @@ func (x *CreateDeviceGroupResponse) GetGroup() *DeviceGroup {
 	return nil
 }
 
+// RenameDeviceGroup replaces PATCH /groups/:id from the legacy registry API.
+type RenameDeviceGroupRequest struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Context     *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace   *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	GroupId     string                 `protobuf:"bytes,3,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	DisplayName string                 `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// row_version is the optimistic-concurrency guard the caller last observed.
+	RowVersion    uint64 `protobuf:"varint,5,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenameDeviceGroupRequest) Reset() {
+	*x = RenameDeviceGroupRequest{}
+	mi := &file_drift_v1_group_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenameDeviceGroupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenameDeviceGroupRequest) ProtoMessage() {}
+
+func (x *RenameDeviceGroupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_group_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenameDeviceGroupRequest.ProtoReflect.Descriptor instead.
+func (*RenameDeviceGroupRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_group_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RenameDeviceGroupRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RenameDeviceGroupRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *RenameDeviceGroupRequest) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
+	}
+	return ""
+}
+
+func (x *RenameDeviceGroupRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *RenameDeviceGroupRequest) GetRowVersion() uint64 {
+	if x != nil {
+		return x.RowVersion
+	}
+	return 0
+}
+
+type RenameDeviceGroupResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Group         *DeviceGroup           `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenameDeviceGroupResponse) Reset() {
+	*x = RenameDeviceGroupResponse{}
+	mi := &file_drift_v1_group_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenameDeviceGroupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenameDeviceGroupResponse) ProtoMessage() {}
+
+func (x *RenameDeviceGroupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_group_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenameDeviceGroupResponse.ProtoReflect.Descriptor instead.
+func (*RenameDeviceGroupResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_group_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *RenameDeviceGroupResponse) GetGroup() *DeviceGroup {
+	if x != nil {
+		return x.Group
+	}
+	return nil
+}
+
+// DeleteDeviceGroup replaces DELETE /groups/:id. A group that carries history is
+// retired in place, never erased: memberships are append-only evidence.
+type DeleteDeviceGroupRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	GroupId       string                 `protobuf:"bytes,3,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	RowVersion    uint64                 `protobuf:"varint,4,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	Confirmed     bool                   `protobuf:"varint,5,opt,name=confirmed,proto3" json:"confirmed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteDeviceGroupRequest) Reset() {
+	*x = DeleteDeviceGroupRequest{}
+	mi := &file_drift_v1_group_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteDeviceGroupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteDeviceGroupRequest) ProtoMessage() {}
+
+func (x *DeleteDeviceGroupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_group_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteDeviceGroupRequest.ProtoReflect.Descriptor instead.
+func (*DeleteDeviceGroupRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_group_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *DeleteDeviceGroupRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *DeleteDeviceGroupRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *DeleteDeviceGroupRequest) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
+	}
+	return ""
+}
+
+func (x *DeleteDeviceGroupRequest) GetRowVersion() uint64 {
+	if x != nil {
+		return x.RowVersion
+	}
+	return 0
+}
+
+func (x *DeleteDeviceGroupRequest) GetConfirmed() bool {
+	if x != nil {
+		return x.Confirmed
+	}
+	return false
+}
+
+type DeleteDeviceGroupResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Group         *DeviceGroup           `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteDeviceGroupResponse) Reset() {
+	*x = DeleteDeviceGroupResponse{}
+	mi := &file_drift_v1_group_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteDeviceGroupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteDeviceGroupResponse) ProtoMessage() {}
+
+func (x *DeleteDeviceGroupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_group_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteDeviceGroupResponse.ProtoReflect.Descriptor instead.
+func (*DeleteDeviceGroupResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_group_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *DeleteDeviceGroupResponse) GetGroup() *DeviceGroup {
+	if x != nil {
+		return x.Group
+	}
+	return nil
+}
+
+// ReorderDeviceGroups replaces POST /groups/reorder: the groups themselves.
+type ReorderDeviceGroupsRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Context   *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	// group_ids is the complete desired order of the workspace's groups.
+	GroupIds      []string `protobuf:"bytes,3,rep,name=group_ids,json=groupIds,proto3" json:"group_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReorderDeviceGroupsRequest) Reset() {
+	*x = ReorderDeviceGroupsRequest{}
+	mi := &file_drift_v1_group_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReorderDeviceGroupsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReorderDeviceGroupsRequest) ProtoMessage() {}
+
+func (x *ReorderDeviceGroupsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_group_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReorderDeviceGroupsRequest.ProtoReflect.Descriptor instead.
+func (*ReorderDeviceGroupsRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_group_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ReorderDeviceGroupsRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *ReorderDeviceGroupsRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ReorderDeviceGroupsRequest) GetGroupIds() []string {
+	if x != nil {
+		return x.GroupIds
+	}
+	return nil
+}
+
+type ReorderDeviceGroupsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Groups        []*DeviceGroup         `protobuf:"bytes,1,rep,name=groups,proto3" json:"groups,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReorderDeviceGroupsResponse) Reset() {
+	*x = ReorderDeviceGroupsResponse{}
+	mi := &file_drift_v1_group_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReorderDeviceGroupsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReorderDeviceGroupsResponse) ProtoMessage() {}
+
+func (x *ReorderDeviceGroupsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_group_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReorderDeviceGroupsResponse.ProtoReflect.Descriptor instead.
+func (*ReorderDeviceGroupsResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_group_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ReorderDeviceGroupsResponse) GetGroups() []*DeviceGroup {
+	if x != nil {
+		return x.Groups
+	}
+	return nil
+}
+
+// RemoveDeviceFromGroup replaces PATCH /devices/:id/group with a null group. It
+// ends the active placement; ungrouped stays a computed view, never a row.
+type RemoveDeviceFromGroupRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId      string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveDeviceFromGroupRequest) Reset() {
+	*x = RemoveDeviceFromGroupRequest{}
+	mi := &file_drift_v1_group_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveDeviceFromGroupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveDeviceFromGroupRequest) ProtoMessage() {}
+
+func (x *RemoveDeviceFromGroupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_group_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveDeviceFromGroupRequest.ProtoReflect.Descriptor instead.
+func (*RemoveDeviceFromGroupRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_group_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RemoveDeviceFromGroupRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RemoveDeviceFromGroupRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *RemoveDeviceFromGroupRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+type RemoveDeviceFromGroupResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Membership    *GroupMembership       `protobuf:"bytes,1,opt,name=membership,proto3" json:"membership,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveDeviceFromGroupResponse) Reset() {
+	*x = RemoveDeviceFromGroupResponse{}
+	mi := &file_drift_v1_group_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveDeviceFromGroupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveDeviceFromGroupResponse) ProtoMessage() {}
+
+func (x *RemoveDeviceFromGroupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_group_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveDeviceFromGroupResponse.ProtoReflect.Descriptor instead.
+func (*RemoveDeviceFromGroupResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_group_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *RemoveDeviceFromGroupResponse) GetMembership() *GroupMembership {
+	if x != nil {
+		return x.Membership
+	}
+	return nil
+}
+
 var File_drift_v1_group_proto protoreflect.FileDescriptor
 
 const file_drift_v1_group_proto_rawDesc = "" +
 	"\n" +
-	"\x14drift/v1/group.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xc3\x01\n" +
+	"\x14drift/v1/group.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xdf\x01\n" +
 	"\vDeviceGroup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12*\n" +
 	"\x05state\x18\x04 \x01(\x0e2\x14.drift.v1.GroupStateR\x05state\x12\x1f\n" +
 	"\vrow_version\x18\x05 \x01(\x04R\n" +
-	"rowVersion\"\xc5\x01\n" +
+	"rowVersion\x12\x1a\n" +
+	"\bposition\x18\x06 \x01(\rR\bposition\"\xc5\x01\n" +
 	"\x0fGroupMembership\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bgroup_id\x18\x02 \x01(\tR\agroupId\x12\x1b\n" +
@@ -617,16 +1084,52 @@ const file_drift_v1_group_proto_rawDesc = "" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\"H\n" +
 	"\x19CreateDeviceGroupResponse\x12+\n" +
-	"\x05group\x18\x01 \x01(\v2\x15.drift.v1.DeviceGroupR\x05group*Z\n" +
+	"\x05group\x18\x01 \x01(\v2\x15.drift.v1.DeviceGroupR\x05group\"\xe3\x01\n" +
+	"\x18RenameDeviceGroupRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x19\n" +
+	"\bgroup_id\x18\x03 \x01(\tR\agroupId\x12!\n" +
+	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12\x1f\n" +
+	"\vrow_version\x18\x05 \x01(\x04R\n" +
+	"rowVersion\"H\n" +
+	"\x19RenameDeviceGroupResponse\x12+\n" +
+	"\x05group\x18\x01 \x01(\v2\x15.drift.v1.DeviceGroupR\x05group\"\xde\x01\n" +
+	"\x18DeleteDeviceGroupRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x19\n" +
+	"\bgroup_id\x18\x03 \x01(\tR\agroupId\x12\x1f\n" +
+	"\vrow_version\x18\x04 \x01(\x04R\n" +
+	"rowVersion\x12\x1c\n" +
+	"\tconfirmed\x18\x05 \x01(\bR\tconfirmed\"H\n" +
+	"\x19DeleteDeviceGroupResponse\x12+\n" +
+	"\x05group\x18\x01 \x01(\v2\x15.drift.v1.DeviceGroupR\x05group\"\xa3\x01\n" +
+	"\x1aReorderDeviceGroupsRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tgroup_ids\x18\x03 \x03(\tR\bgroupIds\"L\n" +
+	"\x1bReorderDeviceGroupsResponse\x12-\n" +
+	"\x06groups\x18\x01 \x03(\v2\x15.drift.v1.DeviceGroupR\x06groups\"\xa5\x01\n" +
+	"\x1cRemoveDeviceFromGroupRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\"Z\n" +
+	"\x1dRemoveDeviceFromGroupResponse\x129\n" +
+	"\n" +
+	"membership\x18\x01 \x01(\v2\x19.drift.v1.GroupMembershipR\n" +
+	"membership*Z\n" +
 	"\n" +
 	"GroupState\x12\x1b\n" +
 	"\x17GROUP_STATE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12GROUP_STATE_ACTIVE\x10\x01\x12\x17\n" +
-	"\x13GROUP_STATE_RETIRED\x10\x022\xa5\x02\n" +
+	"\x13GROUP_STATE_RETIRED\x10\x022\xaf\x05\n" +
 	"\fGroupService\x12Y\n" +
 	"\x10ListDeviceGroups\x12!.drift.v1.ListDeviceGroupsRequest\x1a\".drift.v1.ListDeviceGroupsResponse\x12\\\n" +
 	"\x11MoveDeviceToGroup\x12\".drift.v1.MoveDeviceToGroupRequest\x1a#.drift.v1.MoveDeviceToGroupResponse\x12\\\n" +
-	"\x11CreateDeviceGroup\x12\".drift.v1.CreateDeviceGroupRequest\x1a#.drift.v1.CreateDeviceGroupResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\x11CreateDeviceGroup\x12\".drift.v1.CreateDeviceGroupRequest\x1a#.drift.v1.CreateDeviceGroupResponse\x12\\\n" +
+	"\x11RenameDeviceGroup\x12\".drift.v1.RenameDeviceGroupRequest\x1a#.drift.v1.RenameDeviceGroupResponse\x12\\\n" +
+	"\x11DeleteDeviceGroup\x12\".drift.v1.DeleteDeviceGroupRequest\x1a#.drift.v1.DeleteDeviceGroupResponse\x12b\n" +
+	"\x13ReorderDeviceGroups\x12$.drift.v1.ReorderDeviceGroupsRequest\x1a%.drift.v1.ReorderDeviceGroupsResponse\x12h\n" +
+	"\x15RemoveDeviceFromGroup\x12&.drift.v1.RemoveDeviceFromGroupRequest\x1a'.drift.v1.RemoveDeviceFromGroupResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_group_proto_rawDescOnce sync.Once
@@ -641,47 +1144,75 @@ func file_drift_v1_group_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_group_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_drift_v1_group_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_drift_v1_group_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_drift_v1_group_proto_goTypes = []any{
-	(GroupState)(0),                   // 0: drift.v1.GroupState
-	(*DeviceGroup)(nil),               // 1: drift.v1.DeviceGroup
-	(*GroupMembership)(nil),           // 2: drift.v1.GroupMembership
-	(*ListDeviceGroupsRequest)(nil),   // 3: drift.v1.ListDeviceGroupsRequest
-	(*ListDeviceGroupsResponse)(nil),  // 4: drift.v1.ListDeviceGroupsResponse
-	(*MoveDeviceToGroupRequest)(nil),  // 5: drift.v1.MoveDeviceToGroupRequest
-	(*MoveDeviceToGroupResponse)(nil), // 6: drift.v1.MoveDeviceToGroupResponse
-	(*CreateDeviceGroupRequest)(nil),  // 7: drift.v1.CreateDeviceGroupRequest
-	(*CreateDeviceGroupResponse)(nil), // 8: drift.v1.CreateDeviceGroupResponse
-	(*WorkspaceRef)(nil),              // 9: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),               // 10: drift.v1.PageRequest
-	(*PageResponse)(nil),              // 11: drift.v1.PageResponse
-	(*RequestContext)(nil),            // 12: drift.v1.RequestContext
+	(GroupState)(0),                       // 0: drift.v1.GroupState
+	(*DeviceGroup)(nil),                   // 1: drift.v1.DeviceGroup
+	(*GroupMembership)(nil),               // 2: drift.v1.GroupMembership
+	(*ListDeviceGroupsRequest)(nil),       // 3: drift.v1.ListDeviceGroupsRequest
+	(*ListDeviceGroupsResponse)(nil),      // 4: drift.v1.ListDeviceGroupsResponse
+	(*MoveDeviceToGroupRequest)(nil),      // 5: drift.v1.MoveDeviceToGroupRequest
+	(*MoveDeviceToGroupResponse)(nil),     // 6: drift.v1.MoveDeviceToGroupResponse
+	(*CreateDeviceGroupRequest)(nil),      // 7: drift.v1.CreateDeviceGroupRequest
+	(*CreateDeviceGroupResponse)(nil),     // 8: drift.v1.CreateDeviceGroupResponse
+	(*RenameDeviceGroupRequest)(nil),      // 9: drift.v1.RenameDeviceGroupRequest
+	(*RenameDeviceGroupResponse)(nil),     // 10: drift.v1.RenameDeviceGroupResponse
+	(*DeleteDeviceGroupRequest)(nil),      // 11: drift.v1.DeleteDeviceGroupRequest
+	(*DeleteDeviceGroupResponse)(nil),     // 12: drift.v1.DeleteDeviceGroupResponse
+	(*ReorderDeviceGroupsRequest)(nil),    // 13: drift.v1.ReorderDeviceGroupsRequest
+	(*ReorderDeviceGroupsResponse)(nil),   // 14: drift.v1.ReorderDeviceGroupsResponse
+	(*RemoveDeviceFromGroupRequest)(nil),  // 15: drift.v1.RemoveDeviceFromGroupRequest
+	(*RemoveDeviceFromGroupResponse)(nil), // 16: drift.v1.RemoveDeviceFromGroupResponse
+	(*WorkspaceRef)(nil),                  // 17: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),                   // 18: drift.v1.PageRequest
+	(*PageResponse)(nil),                  // 19: drift.v1.PageResponse
+	(*RequestContext)(nil),                // 20: drift.v1.RequestContext
 }
 var file_drift_v1_group_proto_depIdxs = []int32{
-	9,  // 0: drift.v1.DeviceGroup.workspace:type_name -> drift.v1.WorkspaceRef
+	17, // 0: drift.v1.DeviceGroup.workspace:type_name -> drift.v1.WorkspaceRef
 	0,  // 1: drift.v1.DeviceGroup.state:type_name -> drift.v1.GroupState
-	9,  // 2: drift.v1.ListDeviceGroupsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	10, // 3: drift.v1.ListDeviceGroupsRequest.page:type_name -> drift.v1.PageRequest
+	17, // 2: drift.v1.ListDeviceGroupsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	18, // 3: drift.v1.ListDeviceGroupsRequest.page:type_name -> drift.v1.PageRequest
 	1,  // 4: drift.v1.ListDeviceGroupsResponse.groups:type_name -> drift.v1.DeviceGroup
-	11, // 5: drift.v1.ListDeviceGroupsResponse.page:type_name -> drift.v1.PageResponse
+	19, // 5: drift.v1.ListDeviceGroupsResponse.page:type_name -> drift.v1.PageResponse
 	2,  // 6: drift.v1.ListDeviceGroupsResponse.memberships:type_name -> drift.v1.GroupMembership
-	12, // 7: drift.v1.MoveDeviceToGroupRequest.context:type_name -> drift.v1.RequestContext
-	9,  // 8: drift.v1.MoveDeviceToGroupRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	20, // 7: drift.v1.MoveDeviceToGroupRequest.context:type_name -> drift.v1.RequestContext
+	17, // 8: drift.v1.MoveDeviceToGroupRequest.workspace:type_name -> drift.v1.WorkspaceRef
 	2,  // 9: drift.v1.MoveDeviceToGroupResponse.membership:type_name -> drift.v1.GroupMembership
-	12, // 10: drift.v1.CreateDeviceGroupRequest.context:type_name -> drift.v1.RequestContext
-	9,  // 11: drift.v1.CreateDeviceGroupRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	20, // 10: drift.v1.CreateDeviceGroupRequest.context:type_name -> drift.v1.RequestContext
+	17, // 11: drift.v1.CreateDeviceGroupRequest.workspace:type_name -> drift.v1.WorkspaceRef
 	1,  // 12: drift.v1.CreateDeviceGroupResponse.group:type_name -> drift.v1.DeviceGroup
-	3,  // 13: drift.v1.GroupService.ListDeviceGroups:input_type -> drift.v1.ListDeviceGroupsRequest
-	5,  // 14: drift.v1.GroupService.MoveDeviceToGroup:input_type -> drift.v1.MoveDeviceToGroupRequest
-	7,  // 15: drift.v1.GroupService.CreateDeviceGroup:input_type -> drift.v1.CreateDeviceGroupRequest
-	4,  // 16: drift.v1.GroupService.ListDeviceGroups:output_type -> drift.v1.ListDeviceGroupsResponse
-	6,  // 17: drift.v1.GroupService.MoveDeviceToGroup:output_type -> drift.v1.MoveDeviceToGroupResponse
-	8,  // 18: drift.v1.GroupService.CreateDeviceGroup:output_type -> drift.v1.CreateDeviceGroupResponse
-	16, // [16:19] is the sub-list for method output_type
-	13, // [13:16] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	20, // 13: drift.v1.RenameDeviceGroupRequest.context:type_name -> drift.v1.RequestContext
+	17, // 14: drift.v1.RenameDeviceGroupRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	1,  // 15: drift.v1.RenameDeviceGroupResponse.group:type_name -> drift.v1.DeviceGroup
+	20, // 16: drift.v1.DeleteDeviceGroupRequest.context:type_name -> drift.v1.RequestContext
+	17, // 17: drift.v1.DeleteDeviceGroupRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	1,  // 18: drift.v1.DeleteDeviceGroupResponse.group:type_name -> drift.v1.DeviceGroup
+	20, // 19: drift.v1.ReorderDeviceGroupsRequest.context:type_name -> drift.v1.RequestContext
+	17, // 20: drift.v1.ReorderDeviceGroupsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	1,  // 21: drift.v1.ReorderDeviceGroupsResponse.groups:type_name -> drift.v1.DeviceGroup
+	20, // 22: drift.v1.RemoveDeviceFromGroupRequest.context:type_name -> drift.v1.RequestContext
+	17, // 23: drift.v1.RemoveDeviceFromGroupRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	2,  // 24: drift.v1.RemoveDeviceFromGroupResponse.membership:type_name -> drift.v1.GroupMembership
+	3,  // 25: drift.v1.GroupService.ListDeviceGroups:input_type -> drift.v1.ListDeviceGroupsRequest
+	5,  // 26: drift.v1.GroupService.MoveDeviceToGroup:input_type -> drift.v1.MoveDeviceToGroupRequest
+	7,  // 27: drift.v1.GroupService.CreateDeviceGroup:input_type -> drift.v1.CreateDeviceGroupRequest
+	9,  // 28: drift.v1.GroupService.RenameDeviceGroup:input_type -> drift.v1.RenameDeviceGroupRequest
+	11, // 29: drift.v1.GroupService.DeleteDeviceGroup:input_type -> drift.v1.DeleteDeviceGroupRequest
+	13, // 30: drift.v1.GroupService.ReorderDeviceGroups:input_type -> drift.v1.ReorderDeviceGroupsRequest
+	15, // 31: drift.v1.GroupService.RemoveDeviceFromGroup:input_type -> drift.v1.RemoveDeviceFromGroupRequest
+	4,  // 32: drift.v1.GroupService.ListDeviceGroups:output_type -> drift.v1.ListDeviceGroupsResponse
+	6,  // 33: drift.v1.GroupService.MoveDeviceToGroup:output_type -> drift.v1.MoveDeviceToGroupResponse
+	8,  // 34: drift.v1.GroupService.CreateDeviceGroup:output_type -> drift.v1.CreateDeviceGroupResponse
+	10, // 35: drift.v1.GroupService.RenameDeviceGroup:output_type -> drift.v1.RenameDeviceGroupResponse
+	12, // 36: drift.v1.GroupService.DeleteDeviceGroup:output_type -> drift.v1.DeleteDeviceGroupResponse
+	14, // 37: drift.v1.GroupService.ReorderDeviceGroups:output_type -> drift.v1.ReorderDeviceGroupsResponse
+	16, // 38: drift.v1.GroupService.RemoveDeviceFromGroup:output_type -> drift.v1.RemoveDeviceFromGroupResponse
+	32, // [32:39] is the sub-list for method output_type
+	25, // [25:32] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_group_proto_init() }
@@ -696,7 +1227,7 @@ func file_drift_v1_group_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_group_proto_rawDesc), len(file_drift_v1_group_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

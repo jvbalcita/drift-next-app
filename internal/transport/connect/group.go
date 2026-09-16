@@ -106,17 +106,141 @@ func (h *GroupHandler) CreateDeviceGroup(ctx context.Context, request *connectrp
 	if idErr != nil {
 		return nil, idErr
 	}
-	group := groups.Group{
+	group, createErr := store.NewGroupService(h.db).Create(ctx, groups.Group{
 		ID:        groups.GroupID(id),
 		Workspace: workspace,
 		Name:      name,
 		State:     groups.GroupActive,
-	}
-	if createErr := store.NewGroupService(h.db).Create(ctx, group, actorType, actorID); createErr != nil {
+	}, actorType, actorID)
+	if createErr != nil {
 		return nil, MapError(createErr)
 	}
-	group.RowVersion = 1
 	return connectrpc.NewResponse(&driftv1.CreateDeviceGroupResponse{Group: deviceGroupProto(group)}), nil
+}
+
+// RenameDeviceGroup restores the legacy PATCH /groups/:id capability.
+func (h *GroupHandler) RenameDeviceGroup(ctx context.Context, request *connectrpc.Request[driftv1.RenameDeviceGroupRequest]) (*connectrpc.Response[driftv1.RenameDeviceGroupResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("rename device group request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	groupID := strings.TrimSpace(request.Msg.GetGroupId())
+	if groupID == "" {
+		return nil, invalidArgument("group ID is required")
+	}
+	name := strings.TrimSpace(request.Msg.GetDisplayName())
+	if name == "" {
+		return nil, invalidArgument("group name is required")
+	}
+	if renameErr := store.NewGroupService(h.db).Rename(ctx, workspace, groups.GroupID(groupID), name, request.Msg.GetRowVersion(), actorType, actorID); renameErr != nil {
+		return nil, MapError(renameErr)
+	}
+	renamed, err := store.NewGroupRepository(h.db).Get(ctx, workspace, groups.GroupID(groupID))
+	if err != nil {
+		return nil, MapError(err)
+	}
+	return connectrpc.NewResponse(&driftv1.RenameDeviceGroupResponse{Group: deviceGroupProto(renamed)}), nil
+}
+
+// DeleteDeviceGroup restores the legacy DELETE /groups/:id capability. It
+// retires the group and releases its placements, preserving membership history.
+func (h *GroupHandler) DeleteDeviceGroup(ctx context.Context, request *connectrpc.Request[driftv1.DeleteDeviceGroupRequest]) (*connectrpc.Response[driftv1.DeleteDeviceGroupResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("delete device group request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	groupID := strings.TrimSpace(request.Msg.GetGroupId())
+	if groupID == "" {
+		return nil, invalidArgument("group ID is required")
+	}
+	if !request.Msg.GetConfirmed() {
+		return nil, invalidArgument("deleting a device group requires confirmation")
+	}
+	if retireErr := store.NewGroupService(h.db).Retire(ctx, workspace, groups.GroupID(groupID), request.Msg.GetRowVersion(), actorType, actorID); retireErr != nil {
+		return nil, MapError(retireErr)
+	}
+	retired, err := store.NewGroupRepository(h.db).Get(ctx, workspace, groups.GroupID(groupID))
+	if err != nil {
+		return nil, MapError(err)
+	}
+	return connectrpc.NewResponse(&driftv1.DeleteDeviceGroupResponse{Group: deviceGroupProto(retired)}), nil
+}
+
+// ReorderDeviceGroups restores the legacy POST /groups/reorder capability.
+func (h *GroupHandler) ReorderDeviceGroups(ctx context.Context, request *connectrpc.Request[driftv1.ReorderDeviceGroupsRequest]) (*connectrpc.Response[driftv1.ReorderDeviceGroupsResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("reorder device groups request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	if len(request.Msg.GetGroupIds()) == 0 {
+		return nil, invalidArgument("group order is required")
+	}
+	ordered := make([]groups.GroupID, 0, len(request.Msg.GetGroupIds()))
+	for _, id := range request.Msg.GetGroupIds() {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" {
+			return nil, invalidArgument("group order must name every group exactly once")
+		}
+		ordered = append(ordered, groups.GroupID(trimmed))
+	}
+	if reorderErr := store.NewGroupService(h.db).Reorder(ctx, workspace, ordered, actorType, actorID); reorderErr != nil {
+		return nil, MapError(reorderErr)
+	}
+	listed, err := store.NewGroupRepository(h.db).List(ctx, workspace)
+	if err != nil {
+		return nil, MapError(err)
+	}
+	out := make([]*driftv1.DeviceGroup, 0, len(listed))
+	for _, group := range listed {
+		out = append(out, deviceGroupProto(group))
+	}
+	return connectrpc.NewResponse(&driftv1.ReorderDeviceGroupsResponse{Groups: out}), nil
+}
+
+// RemoveDeviceFromGroup restores the legacy PATCH /devices/:id/group ungroup
+// path. It ends the active placement and never writes an Ungrouped row.
+func (h *GroupHandler) RemoveDeviceFromGroup(ctx context.Context, request *connectrpc.Request[driftv1.RemoveDeviceFromGroupRequest]) (*connectrpc.Response[driftv1.RemoveDeviceFromGroupResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("remove device from group request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	deviceID := strings.TrimSpace(request.Msg.GetDeviceId())
+	if deviceID == "" {
+		return nil, invalidArgument("device ID is required")
+	}
+	ended, removeErr := store.NewGroupService(h.db).RemoveDevice(ctx, workspace, devices.DeviceID(deviceID), actorType, actorID)
+	if removeErr != nil {
+		return nil, MapError(removeErr)
+	}
+	return connectrpc.NewResponse(&driftv1.RemoveDeviceFromGroupResponse{Membership: membershipProto(ended)}), nil
 }
 
 func deviceGroupProto(group groups.Group) *driftv1.DeviceGroup {
@@ -133,6 +257,7 @@ func deviceGroupProto(group groups.Group) *driftv1.DeviceGroup {
 		DisplayName: group.Name,
 		State:       state,
 		RowVersion:  group.RowVersion,
+		Position:    group.Position,
 	}
 }
 
