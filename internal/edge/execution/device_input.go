@@ -61,6 +61,12 @@ const (
 	launcherCategory = "android.intent.category.LAUNCHER"
 )
 
+// MaxTypedTextValueLength is the largest value a typed-text reference may carry,
+// in bytes: the bound the typed input contract states, the registry enforces and
+// any surface that admits a value into the process must read it from. It is
+// exported so that boundary does not keep a second, drifting copy of the number.
+const MaxTypedTextValueLength = maxInputTypedTextLength
+
 var (
 	// inputForbiddenTokenRunes never appear in an argument token handed to the
 	// device. They carry meaning to a shell, and this boundary has no shell: a

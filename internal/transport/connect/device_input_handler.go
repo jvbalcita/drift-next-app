@@ -23,9 +23,10 @@ import (
 // second, unaudited place where authority is decided.
 //
 // Typed text and app launch have no RPC here on purpose. Both are
-// contract-complete but not dispatchable from this surface: typed text has a
-// resolver but no surface that can register a value with it (ARC-107), and a
-// launch names its target in the intent (ARC-73) without being dispatched here.
+// contract-complete but not dispatchable from this surface: no RPC here carries
+// a typed-text payload, even though the value a reference names now has a
+// registration surface of its own (ARC-107); and a launch names its target in
+// the intent (ARC-73) without being dispatched here.
 // A route whose only possible outcome is a refusal is a control an operator
 // surface would render and then find dead. They are added when the card that
 // makes them dispatchable lands.

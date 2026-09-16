@@ -9,6 +9,7 @@ import (
 	"drift.local/drift-next/gen/go/drift/v1/driftv1connect"
 	"drift.local/drift-next/internal/health"
 	transportconnect "drift.local/drift-next/internal/transport/connect"
+	transportlocal "drift.local/drift-next/internal/transport/local"
 )
 
 // Route is one mounted Connect service: the generated path prefix and handler.
@@ -61,6 +62,25 @@ func DeviceInputRoute(inputs transportconnect.DeviceInputs, token string) Route 
 	}
 	path, connectHandler := driftv1connect.NewDeviceInputServiceHandler(handler)
 	return Route{Path: path, Handler: RequireLabToken(token, connectHandler)}
+}
+
+// TextReferenceRoute mounts the boundary where a typed-text value enters the
+// process, and only when the handler was actually constructed.
+//
+// A nil handler yields an empty route, so a deployment that did not construct
+// the registry or the handle source exposes no registration surface at all —
+// rather than a surface whose only answer is a refusal. The gate is on the
+// handler the constructor returned, so a typed-nil registry cannot slip past it.
+//
+// It carries the same constant-time token check as the other local surfaces:
+// loopback reachability alone is not authority for a hostile local caller. When
+// no token is configured the route is unguarded on loopback, exactly as the
+// device input surface is, and main refuses that combination in lab mode.
+func TextReferenceRoute(handler *transportlocal.TextReferenceHandler, token string) Route {
+	if handler == nil {
+		return Route{}
+	}
+	return Route{Path: transportlocal.Path, Handler: RequireLabToken(token, handler)}
 }
 
 // ProductRoutes mounts the local product Connect surfaces when handlers were

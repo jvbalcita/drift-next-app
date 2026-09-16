@@ -15,6 +15,11 @@ type registryClock struct{ now time.Time }
 
 func (c *registryClock) Now() time.Time { return c.now }
 
+// dispatchWorkspace is the workspace these dispatches are made in. The registry
+// files a value under the workspace that registered it, so a dispatch that did
+// not name one would be refused rather than served.
+const dispatchWorkspace = "workspace-alpha"
+
 func newRegistryForTest(t *testing.T) *execution.TextReferenceRegistry {
 	t.Helper()
 	registry, err := execution.NewTextReferenceRegistry(
@@ -28,14 +33,20 @@ func newRegistryForTest(t *testing.T) *execution.TextReferenceRegistry {
 	return registry
 }
 
+// dispatchContext is the context a device input runs under: the dispatcher scopes
+// every attempt to the workspace of the request it is dispatching.
+func dispatchContext() context.Context {
+	return execution.WithTextReferenceWorkspace(context.Background(), dispatchWorkspace)
+}
+
 // What "typed text is dispatchable" means, composed: a registered reference is
 // released into exactly one device argument, and it cannot be released a second
 // time. Before this resolver existed the primitive had nothing to release a
 // reference through, so the kind could only refuse.
 func TestATypedTextDispatchReleasesItsValueOnceAsOneToken(t *testing.T) {
-	ctx := context.Background()
+	ctx := dispatchContext()
 	registry := newRegistryForTest(t)
-	if err := registry.Register("reference-1", typedValueFixture); err != nil {
+	if err := registry.Register(dispatchWorkspace, "reference-1", typedValueFixture); err != nil {
 		t.Fatalf("register the reference: %v", err)
 	}
 	transport := newFakeDeviceTransport()
@@ -71,10 +82,10 @@ func TestATypedTextDispatchReleasesItsValueOnceAsOneToken(t *testing.T) {
 // carried in the device's own encoding for it, so a value cannot split into an
 // extra token and reach the device as something the operator did not type.
 func TestATypedTextValueCannotBecomeASecondArgument(t *testing.T) {
-	ctx := context.Background()
+	ctx := dispatchContext()
 	registry := newRegistryForTest(t)
 	const spaced = "two words"
-	if err := registry.Register("reference-spaced", spaced); err != nil {
+	if err := registry.Register(dispatchWorkspace, "reference-spaced", spaced); err != nil {
 		t.Fatalf("register the reference: %v", err)
 	}
 	transport := newFakeDeviceTransport()

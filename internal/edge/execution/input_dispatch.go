@@ -581,6 +581,12 @@ func (d *InputDispatcher) Run(ctx context.Context, request InputRequest, actorTy
 	if d == nil || d.control == nil || ctx == nil {
 		return action.Result{}, platformerrors.New(platformerrors.CodeInvalidInput, "context and device input dispatcher are required")
 	}
+	// The workspace of the request scopes the whole attempt, so a typed-text
+	// reference is released only inside the workspace that registered it. It is
+	// applied here, once, by the boundary that owns the request: a resolver that
+	// had to infer the workspace from anything else could release a value into
+	// the wrong one.
+	ctx = WithTextReferenceWorkspace(ctx, request.Workspace)
 	outcome := d.dispatch(ctx, request, actorType, actorID)
 	recordErr := d.recordEvidence(ctx, request, outcome, actorType, actorID)
 	if outcome.err != nil {

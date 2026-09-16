@@ -17,6 +17,7 @@ import (
 	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/organizations"
+	"drift.local/drift-next/internal/platform/clock"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 	"drift.local/drift-next/internal/platform/ids"
 	migrationrunner "drift.local/drift-next/internal/platform/migrations"
@@ -24,6 +25,7 @@ import (
 	"drift.local/drift-next/internal/service"
 	store "drift.local/drift-next/internal/store/sqlite"
 	transportconnect "drift.local/drift-next/internal/transport/connect"
+	transportlocal "drift.local/drift-next/internal/transport/local"
 )
 
 const (
@@ -136,6 +138,21 @@ func main() {
 	productHandlers.Action.SetExecutor(actionRuntime)
 	defer func() { _ = actionRuntime.Close() }()
 
+	// The boundary that owns every typed-text value, and the only holder of one.
+	// It is constructed here, given to the dispatcher as the resolver the typed
+	// text primitive releases a reference through, and given to the registration
+	// surface below — one registry, one lifetime, one process. Nothing else in
+	// this process holds a value that was registered with it: not the request
+	// that carried it, not the handler, not a cache, and not a log.
+	textReferences, textReferenceErr := execution.NewTextReferenceRegistry(
+		clock.System{},
+		execution.DefaultTextReferenceTTL,
+		execution.DefaultTextReferenceCapacity,
+	)
+	if textReferenceErr != nil {
+		log.Fatalf("refusing to start: construct the text reference registry: %v", textReferenceErr)
+	}
+
 	// One bounded auto-scan of the default network profile per process start.
 	// It reuses the manual scan machinery, is cancelled by the same shutdown
 	// context as the listener, is owned by main (see the wait below), and never
@@ -165,12 +182,22 @@ func main() {
 	// to "no input surface" rather than to a route that cannot dispatch anything
 	// (AGENTS.md section 6).
 	inputMounted := false
-	if inputRoute := deviceInputRoute(labService, actionRuntime, db, labToken); inputRoute.Path != "" {
+	if inputRoute := deviceInputRoute(labService, actionRuntime, db, labToken, textReferences); inputRoute.Path != "" {
 		routes = append(routes, inputRoute)
 		inputMounted = true
 	}
+	// The surface a typed-text value is registered through. It is mounted only
+	// when the handler was constructed, so a missing registry or handle source
+	// degrades to "no registration surface" rather than to a route that cannot
+	// register anything.
+	textReferenceHandler := transportlocal.NewTextReferenceHandler(textReferences, ids.NewRandom())
+	textReferenceMounted := false
+	if textReferenceRoute := service.TextReferenceRoute(textReferenceHandler, labToken); textReferenceRoute.Path != "" {
+		routes = append(routes, textReferenceRoute)
+		textReferenceMounted = true
+	}
 	server := service.NewHTTPServer("control-plane", address, routes...)
-	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted))
+	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, text reference surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), textReferenceMountState(textReferenceMounted))
 	serveErr := service.Serve(ctx, server)
 	// The startup scan is owned work, not a detached worker: wait for it to
 	// obey cancellation before the process returns.
@@ -197,6 +224,16 @@ func mountState(mounted bool) string {
 		return "mounted"
 	}
 	return "not mounted; the device input path was not constructed"
+}
+
+// textReferenceMountState reports whether the registration surface was mounted.
+// Like mountState, it reports reachability and nothing about what the registry
+// will accept, and it names no value.
+func textReferenceMountState(mounted bool) string {
+	if mounted {
+		return "mounted"
+	}
+	return "not mounted; the registration boundary was not constructed"
 }
 
 // inputObservationOperator is the identity the composition reads a device's
@@ -233,7 +270,7 @@ func observationSource(labService *lab.Service) execution.ObservationSourceFacto
 // contract with the evidence recorder bound; and the application boundary resolves
 // the device to its serial and assigns the attempt identity (4c), which is what
 // satisfies the port this route serves.
-func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, db *store.DB, token string) service.Route {
+func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, db *store.DB, token string, textReferences execution.TextResolver) service.Route {
 	transport, err := execution.NewInputTransportFromAllowlisted(labService.DeviceTransport())
 	if err != nil {
 		log.Printf("device input surface not mounted: %v", err)
@@ -254,13 +291,11 @@ func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, db 
 		execution.NewStoreControlProbe(db, deviceState),
 		observer,
 		transport,
-		// The resolver exists, but no surface can register a value with it yet:
-		// where the plaintext enters is a boundary decision of its own, carded
-		// as ARC-107. Wiring a registry nothing can register into would leave
-		// typed text refusing for a different reason than it does now, so a
-		// typed-text payload keeps failing closed at the boundary instead of
-		// being dispatched with a value nobody released.
-		nil,
+		// The registry that owns every typed-text value. It is reachable only
+		// through the registration surface mounted below, which is the one
+		// boundary that admits a value into this process; the dispatcher itself
+		// can release a reference but can never create one.
+		textReferences,
 		execution.WithEvidenceRecorder(store.NewActionEvidenceService(db)),
 	)
 	if err != nil {
