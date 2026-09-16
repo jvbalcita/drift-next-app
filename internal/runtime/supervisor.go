@@ -39,12 +39,22 @@ type childProcess interface {
 
 type processStarter func(context.Context, string, []string, []string, io.Writer) (childProcess, error)
 
+// listener is one process bound to an address, as far as the platform can tell.
+// PID and command are used to name a holder for the operator, and the pid is
+// used only to signal a process the operator explicitly chose to terminate.
+type listener struct {
+	PID     int
+	Command string
+}
+
 // portChecker answers whether a local TCP address can still be bound by this
-// process, and makes a best-effort attempt to name whatever holds it when it
-// cannot. It is a seam so tests never bind real ports.
+// process, names whatever holds it when it cannot, and lists the holders when
+// the operator has to decide what to do about one. It is a seam so tests never
+// bind a real port and never signal a real process.
 type portChecker interface {
 	Free(address string) bool
 	Holder(address string) string
+	Listeners(address string) []listener
 }
 
 // readyProbe reports whether something currently answers the readiness endpoint
@@ -89,6 +99,11 @@ type Supervisor struct {
 	statuses    map[string]ComponentStatus
 	logs        []string
 	eventSink   func(string)
+	// terminate asks exactly one process to stop, for a listener an operator
+	// explicitly chose to terminate. It is a seam so no test signals a real
+	// process, and it is the only place this runtime signals a process it did
+	// not start.
+	terminate func(int) error
 }
 
 func newSupervisor(config Config, dataDir string) *Supervisor {
@@ -105,6 +120,7 @@ func newSupervisor(config Config, dataDir string) *Supervisor {
 		readyWait:   defaultReadyTimeout,
 		processes:   map[string]childProcess{},
 		statuses:    map[string]ComponentStatus{},
+		terminate:   terminateProcess,
 	}
 	supervisor.probe = supervisor.probeReady
 	return supervisor
@@ -560,62 +576,40 @@ func (netPortChecker) Free(address string) bool {
 	return true
 }
 
-// Holder makes a best-effort attempt to name the process listening on an
-// address. It returns an empty string whenever the platform cannot tell us; the
-// caller still reports the address as occupied.
-func (netPortChecker) Holder(address string) string {
+// lsofListeners is the one place a listening process is resolved, so naming a
+// holder and listing the holders to act on can never disagree about who holds an
+// address.
+func (netPortChecker) lsofListeners(address string) []listener {
 	_, port, err := net.SplitHostPort(address)
 	if err != nil {
-		return ""
+		return nil
 	}
 	lsof, err := exec.LookPath("lsof")
 	if err != nil {
-		return ""
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	output, err := exec.CommandContext(ctx, lsof, "-nP", "-sTCP:LISTEN", "-iTCP:"+port, "-Fpc").Output()
 	if err != nil {
-		return ""
+		return nil
 	}
-	return formatListenerHolders(string(output))
+	return parseListenerHolders(string(output))
 }
 
-// formatListenerHolders parses `lsof -Fpc` output into a short description of
-// the listening processes, for example "node (pid 4711)".
-func formatListenerHolders(output string) string {
-	var holders []string
-	command, pid := "", ""
-	flush := func() {
-		switch {
-		case command != "" && pid != "":
-			holders = append(holders, fmt.Sprintf("%s (pid %s)", command, pid))
-		case pid != "":
-			holders = append(holders, fmt.Sprintf("pid %s", pid))
-		}
-		command, pid = "", ""
-	}
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		switch {
-		case line == "":
-			continue
-		case strings.HasPrefix(line, "p"):
-			flush()
-			pid = strings.TrimPrefix(line, "p")
-		case strings.HasPrefix(line, "c"):
-			command = strings.TrimPrefix(line, "c")
-		}
-	}
-	flush()
-	switch len(holders) {
-	case 0:
-		return ""
-	case 1:
-		return holders[0]
-	default:
-		return fmt.Sprintf("%s and %d more", holders[0], len(holders)-1)
-	}
+// Holder makes a best-effort attempt to name the process listening on an
+// address. It returns an empty string whenever the platform cannot tell us; the
+// caller still reports the address as occupied.
+func (c netPortChecker) Holder(address string) string {
+	return describeListeners(c.lsofListeners(address))
+}
+
+// Listeners returns the processes bound to an address, for the case where an
+// operator has to choose what to do about one. An empty result means the
+// platform could not tell us, which is not the same as nothing being there: the
+// caller still refuses to start on an address it cannot bind.
+func (c netPortChecker) Listeners(address string) []listener {
+	return c.lsofListeners(address)
 }
 
 type managedProcess struct{ process *os.Process }

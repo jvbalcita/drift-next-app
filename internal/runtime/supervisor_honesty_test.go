@@ -16,14 +16,24 @@ type fakePortChecker struct {
 	held      map[string]string
 	freeAfter map[string]int
 	calls     map[string]int
+	// pids records the processes a test wants reported as bound to an address,
+	// so an operator's termination can be observed without a real pid in the
+	// picture.
+	pids map[string][]listener
 }
 
 func newFakePortChecker() *fakePortChecker {
-	return &fakePortChecker{held: map[string]string{}, freeAfter: map[string]int{}, calls: map[string]int{}}
+	return &fakePortChecker{held: map[string]string{}, freeAfter: map[string]int{}, calls: map[string]int{}, pids: map[string][]listener{}}
 }
 
 // hold records an address as occupied by a process this session does not own.
 func (f *fakePortChecker) hold(address, holder string) { f.held[address] = holder }
+
+// holdWithPids records an address as occupied by named processes.
+func (f *fakePortChecker) holdWithPids(address, holder string, entries ...listener) {
+	f.hold(address, holder)
+	f.pids[address] = entries
+}
 
 // releaseAfter records the number of observations after which a stopped process
 // has released the address.
@@ -41,6 +51,10 @@ func (f *fakePortChecker) Free(address string) bool {
 }
 
 func (f *fakePortChecker) Holder(address string) string { return f.held[address] }
+
+func (f *fakePortChecker) Listeners(address string) []listener {
+	return append([]listener(nil), f.pids[address]...)
+}
 
 // fakeReadyProbe answers the readiness endpoint for addresses in serving.
 type fakeReadyProbe struct{ serving map[string]bool }
@@ -79,6 +93,9 @@ func newTestSupervisor(t *testing.T, ports *fakePortChecker, serving map[string]
 	supervisor.readyWait = 50 * time.Millisecond
 	supervisor.discoverADB = func(string) (string, error) { return "/usr/bin/adb", nil }
 	supervisor.runCommand = func(context.Context, string, ...string) error { return nil }
+	// A test must never signal a real process: a termination is recorded by the
+	// individual test that exercises one, through this seam.
+	supervisor.terminate = func(int) error { return nil }
 	started := &[]string{}
 	supervisor.start = func(_ context.Context, executable string, args, _ []string, _ io.Writer) (childProcess, error) {
 		*started = append(*started, executable+" "+strings.Join(args, " "))
