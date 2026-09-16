@@ -37,6 +37,7 @@ import {
   type AccountState,
 } from "@/gen/drift/v1/account_pb"
 import { SubmitActionRequestSchema, SubmitActionResponseSchema } from "@/gen/drift/v1/action_pb"
+import { KeyEventRequestSchema, KeyEventResponseSchema, SwipeRequestSchema, SwipeResponseSchema, TapRequestSchema, TapResponseSchema } from "@/gen/drift/v1/device_input_pb"
 import {
   DeleteArtifactRequestSchema,
   DeleteArtifactResponseSchema,
@@ -490,6 +491,14 @@ export class ActionClient {
   }
 }
 
+export class DeviceInputClient {
+  private readonly rpc: TypedConnectClient
+  constructor(json: ConnectJsonClient) { this.rpc = new TypedConnectClient(json, "drift.v1.DeviceInputService") }
+  tap(requestId: string, init: MessageInitShape<typeof TapRequestSchema>) { return this.rpc.call("Tap", TapRequestSchema, TapResponseSchema, { ...init, context: requestContext({ requestId }) }) }
+  swipe(requestId: string, init: MessageInitShape<typeof SwipeRequestSchema>) { return this.rpc.call("Swipe", SwipeRequestSchema, SwipeResponseSchema, { ...init, context: requestContext({ requestId }) }) }
+  keyEvent(requestId: string, init: MessageInitShape<typeof KeyEventRequestSchema>) { return this.rpc.call("KeyEvent", KeyEventRequestSchema, KeyEventResponseSchema, { ...init, context: requestContext({ requestId }) }) }
+}
+
 export class AccountClient {
   private readonly rpc: TypedConnectClient
   constructor(json: ConnectJsonClient) {
@@ -924,6 +933,7 @@ export interface ControlPlaneServices {
   edgeAgent: EdgeAgentClient
   lease: LeaseClient
   action: ActionClient
+  deviceInput: DeviceInputClient
   account: AccountClient
   settings: SettingsClient
   policy: PolicyClient
@@ -950,6 +960,7 @@ export function createControlPlaneServices(json: ConnectJsonClient): ControlPlan
     edgeAgent: new EdgeAgentClient(json),
     lease: new LeaseClient(json),
     action: new ActionClient(json),
+    deviceInput: new DeviceInputClient(json),
     account: new AccountClient(json),
     settings: new SettingsClient(json),
     policy: new PolicyClient(json),

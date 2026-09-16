@@ -1,6 +1,9 @@
+import { useState } from "react"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { DeviceView } from "@/lib/domain/control-plane"
+import type { ControlPlaneSnapshot, DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
 import { stableIdentityLabel, type InspectionSection, type InspectionTab } from "./device-inspection"
 
 /**
@@ -17,12 +20,16 @@ export function DeviceInspectSheet({
   activeTab,
   onTabChange,
   onClose,
+  snapshot,
+  dispatch,
 }: {
   device?: DeviceView
   tabs: readonly InspectionTab[]
   activeTab: string
   onTabChange: (tab: string) => void
   onClose: () => void
+  snapshot: ControlPlaneSnapshot
+  dispatch: DispatchIntent
 }) {
   return (
     <Sheet open={Boolean(device)} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -41,10 +48,72 @@ export function DeviceInspectSheet({
                 {tab.sections.map((section, index) => <InspectionSectionView key={`${tab.id}-${section.title ?? index}`} section={section} />)}
               </TabsContent>
             ))}
+            <DeviceInputControls device={device} snapshot={snapshot} dispatch={dispatch} />
           </Tabs>
         ) : null}
       </SheetContent>
     </Sheet>
+  )
+}
+
+function DeviceInputControls({ device, snapshot, dispatch }: { device: DeviceView; snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent }) {
+  const [mode, setMode] = useState<"tap" | "swipe" | "key">("tap")
+  const [values, setValues] = useState({ x: "0", y: "0", startX: "0", startY: "0", endX: "0", endY: "0", durationMs: "300", width: "1080", height: "1920", keyCode: "4", observationToken: "" })
+  const [status, setStatus] = useState("")
+  const lease = snapshot.leases.find((candidate) => candidate.deviceId === device.id && candidate.state === "active")
+  const observation = snapshot.observations.find((candidate) => candidate.deviceId === device.id && candidate.freshnessToken)
+  if (device.lifecycle === "retired" || device.controlEligibility !== "eligible" || !lease || !observation) return null
+  const token = observation.freshnessToken
+  const set = (key: keyof typeof values, value: string) => setValues((current) => ({ ...current, [key]: value }))
+
+  async function submit() {
+    const number = (key: keyof typeof values) => Number(values[key])
+    const common = { deviceId: device.id, confirmed: true }
+    const result = mode === "tap"
+      ? await dispatch({ type: "submitDeviceTap", ...common, x: number("x"), y: number("y"), renderWidth: number("width"), renderHeight: number("height"), observationToken: values.observationToken || token })
+      : mode === "swipe"
+        ? await dispatch({ type: "submitDeviceSwipe", ...common, startX: number("startX"), startY: number("startY"), endX: number("endX"), endY: number("endY"), durationMs: number("durationMs"), renderWidth: number("width"), renderHeight: number("height"), observationToken: values.observationToken || token })
+        : await dispatch({ type: "submitDeviceKeyEvent", ...common, keyCode: number("keyCode") })
+    setStatus(`${result.ok ? "Kernel outcome" : "Kernel refusal"}: ${result.message}`)
+  }
+
+  return (
+    <section aria-labelledby="device-input-title" className="mt-6 space-y-3 border-t border-border pt-5">
+      <div>
+        <h3 id="device-input-title" className="text-[10px] font-semibold uppercase tracking-[.08em]">Device input</h3>
+        <p className="text-[11px] leading-5 text-muted-foreground">Lab/fake-device path only. Actions require this device's active lease and latest observation.</p>
+      </div>
+      <div className="flex flex-wrap gap-1" role="group" aria-label="Device input type">
+        {(["tap", "swipe", "key"] as const).map((item) => (
+          <Button key={item} type="button" size="sm" variant={mode === item ? "default" : "outline"} onClick={() => setMode(item)}>
+            {item === "key" ? "Key event" : item[0].toUpperCase() + item.slice(1)}
+          </Button>
+        ))}
+      </div>
+      {mode === "tap" ? (
+        <div className="grid grid-cols-2 gap-2">
+          <Input aria-label="Tap X" inputMode="numeric" value={values.x} onChange={(event) => set("x", event.target.value)} />
+          <Input aria-label="Tap Y" inputMode="numeric" value={values.y} onChange={(event) => set("y", event.target.value)} />
+        </div>
+      ) : null}
+      {mode === "swipe" ? (
+        <div className="grid grid-cols-2 gap-2">
+          {(["startX", "startY", "endX", "endY", "durationMs"] as const).map((key) => (
+            <Input key={key} aria-label={key} inputMode="numeric" value={values[key]} onChange={(event) => set(key, event.target.value)} />
+          ))}
+        </div>
+      ) : null}
+      {mode === "key" ? <Input aria-label="Key code" inputMode="numeric" value={values.keyCode} onChange={(event) => set("keyCode", event.target.value)} /> : null}
+      {mode !== "key" ? (
+        <div className="grid grid-cols-2 gap-2">
+          <Input aria-label="Render width" inputMode="numeric" value={values.width} onChange={(event) => set("width", event.target.value)} />
+          <Input aria-label="Render height" inputMode="numeric" value={values.height} onChange={(event) => set("height", event.target.value)} />
+          <Input className="col-span-2" aria-label="Observation token" value={values.observationToken || token} onChange={(event) => set("observationToken", event.target.value)} />
+        </div>
+      ) : null}
+      <Button type="button" onClick={() => void submit()}>Submit to kernel</Button>
+      <p role="status" aria-live="polite" className="min-h-5 text-xs">{status}</p>
+    </section>
   )
 }
 

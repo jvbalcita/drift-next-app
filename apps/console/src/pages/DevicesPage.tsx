@@ -38,7 +38,7 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
         </div>
         <DataTablePagination page={safePage} pageSize={pageSize} total={devices.length} onPageChange={setPage} onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(0) }} /></>}
       </TabsContent></Tabs>
-    <DeviceInspectSheet device={detail} tabs={inspection} activeTab={activeInspectionTab} onTabChange={setInspectTab} onClose={() => setInspectedId(null)} /></>
+    <DeviceInspectSheet device={detail} tabs={inspection} activeTab={activeInspectionTab} onTabChange={setInspectTab} onClose={() => setInspectedId(null)} snapshot={snapshot} dispatch={dispatch} /></>
 }
 function DeviceRow({ device, endpoints, onInspect }: { device: DeviceView; endpoints: ControlPlaneSnapshot["endpoints"]; onInspect: () => void }) {
   // Stable identity leads the row. A scanned device's display name is its

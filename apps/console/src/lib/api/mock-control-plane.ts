@@ -1003,6 +1003,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.beginDeviceControl(intent)
       case "endDeviceControl":
         return this.endDeviceControl(intent)
+      case "submitDeviceTap":
+      case "submitDeviceSwipe":
+      case "submitDeviceKeyEvent":
+        return result(intent, `${intent.type.replace("submitDevice", "")} accepted by fake device kernel.`)
       case "submitDeviceAction":
         return this.submitDeviceAction(intent)
       case "beginRecording":

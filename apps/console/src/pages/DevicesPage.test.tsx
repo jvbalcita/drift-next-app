@@ -151,6 +151,20 @@ describe("DevicesPage inspection surface", () => {
     expect(within(endpointPanel).getByText(/Transport endpoints are mutable/i)).toBeInTheDocument()
   })
 
+  it("submits a typed tap and renders the kernel outcome", async () => {
+    const user = userEvent.setup(); const page = renderDevicesPage(); const sheet = await openInspect(user, 0)
+    await user.click(within(sheet).getByRole("button", { name: "Submit to kernel" }))
+    expect(page.intents).toContainEqual(expect.objectContaining({ type: "submitDeviceTap", deviceId: "atlas-04", observationToken: "fresh-atlas-04" }))
+    expect(within(sheet).getByRole("status")).toHaveTextContent(/Kernel outcome/i)
+  })
+
+  it("renders a kernel refusal without replacing it with an internal error", async () => {
+    const user = userEvent.setup(); const client = new MockControlPlaneClient()
+    const dispatch = async (intent: ControlPlaneIntent): Promise<MutationResult> => intent.type === "submitDeviceTap" ? { ok: false, kind: intent.type, message: "Lease has expired.", errorCode: "precondition_failed" } : await client.dispatch(intent)
+    render(<DevicesPage snapshot={client.getSnapshot()} dispatch={dispatch} view="all" />)
+    const sheet = await openInspect(user, 0); await user.click(within(sheet).getByRole("button", { name: "Submit to kernel" }))
+    expect(within(sheet).getByRole("status")).toHaveTextContent("Kernel refusal: Lease has expired.")
+  })
   it("renders real projection data in every tab that survives", async () => {
     const user = userEvent.setup()
     renderDevicesPage()

@@ -1855,6 +1855,24 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         }
         return mutation(intent, "Device lease released and control session closed.")
       }
+      case "submitDeviceTap": {
+        const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
+        if (!lease) return failure(intent, "Acquire an active lease before submitting a tap.", { errorCode: "precondition_failed" })
+        const response = await this.services.deviceInput.tap(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: intent.observationToken, approvalGranted: intent.confirmed, tap: { point: { x: intent.x, y: intent.y }, renderSpace: { renderWidth: intent.renderWidth, renderHeight: intent.renderHeight, observationToken: intent.observationToken } } })
+        return mutation(intent, `Tap outcome: ${response.result?.outcome ?? "unknown"}.`, { resourceId: response.result?.actionId })
+      }
+      case "submitDeviceSwipe": {
+        const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
+        if (!lease) return failure(intent, "Acquire an active lease before submitting a swipe.", { errorCode: "precondition_failed" })
+        const response = await this.services.deviceInput.swipe(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: intent.observationToken, approvalGranted: intent.confirmed, swipe: { start: { x: intent.startX, y: intent.startY }, end: { x: intent.endX, y: intent.endY }, durationMs: intent.durationMs, renderSpace: { renderWidth: intent.renderWidth, renderHeight: intent.renderHeight, observationToken: intent.observationToken } } })
+        return mutation(intent, `Swipe outcome: ${response.result?.outcome ?? "unknown"}.`, { resourceId: response.result?.actionId })
+      }
+      case "submitDeviceKeyEvent": {
+        const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
+        if (!lease) return failure(intent, "Acquire an active lease before submitting a key event.", { errorCode: "precondition_failed" })
+        const response = await this.services.deviceInput.keyEvent(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: "", approvalGranted: intent.confirmed, keyEvent: { keyCode: intent.keyCode } })
+        return mutation(intent, `Key event outcome: ${response.result?.outcome ?? "unknown"}.`, { resourceId: response.result?.actionId })
+      }
       case "submitDeviceAction": {
         if (!intent.confirmed && intent.kind !== "observe" && intent.kind !== "health_check") {
           return failure(intent, "This action requires confirmation.", { errorCode: "precondition_failed" })
