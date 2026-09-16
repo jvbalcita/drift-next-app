@@ -76,10 +76,15 @@ const (
 // viewState is everything the frame renders. It is mutated only by the console
 // loop goroutine, so rendering never observes a half-applied update.
 type viewState struct {
-	components  []runtime.ComponentStatus
-	events      []string
-	logs        []string
-	mode        viewMode
+	components []runtime.ComponentStatus
+	events     []string
+	logs       []string
+	mode       viewMode
+	// actions is the item list this frame renders and dispatches. The console
+	// supplies it, because a resolution exists only while the condition it
+	// resolves exists. renderFrame falls back to the static menu when it is
+	// empty, so a frame never advertises a key it cannot dispatch.
+	actions     []menuItem
 	input       string
 	busy        bool
 	busyLabel   string
@@ -210,12 +215,23 @@ func renderFrame(state viewState, width int, color bool) []string {
 		lines = append(lines, renderWindow(bulleted, "No events recorded yet.", eventRegionRows, p)...)
 	}
 	lines = append(lines, rule("Actions", "", frameWidth, p))
-	lines = append(lines, renderMenu(frameWidth, p)...)
+	lines = append(lines, renderMenu(actionItems(state), frameWidth, p)...)
 	lines = append(lines, renderPrompt(state, p))
 	for index, line := range lines {
 		lines[index] = clipLine(line, frameWidth)
 	}
 	return lines
+}
+
+// actionItems is the item list a frame renders and dispatches: the console's
+// list when it has one, and the static menu otherwise. Both the grid and the
+// prompt range come from the same list, so a frame can never advertise a key it
+// cannot dispatch.
+func actionItems(state viewState) []menuItem {
+	if len(state.actions) == 0 {
+		return menu()
+	}
+	return state.actions
 }
 
 // rule renders a section separator that fills the frame width.
@@ -240,7 +256,10 @@ func refreshedLabel(state viewState) string {
 }
 
 // renderComponent shows state as text as well as colour so status never depends
-// on colour alone.
+// on colour alone. "external" and "adopted" carry their own marks because they
+// are neither failure nor health: a listener this session did not start is a
+// condition the operator has to decide about, and an adopted one is a decision,
+// not a verification.
 func renderComponent(component runtime.ComponentStatus, p palette) string {
 	state := string(component.State)
 	icon, color := "○", sgrDim
@@ -251,6 +270,10 @@ func renderComponent(component runtime.ComponentStatus, p palette) string {
 		icon, color = "◐", sgrYellow
 	case "failed":
 		icon, color = "×", sgrRed
+	case "external":
+		icon, color = "◌", sgrYellow
+	case "adopted":
+		icon, color = "◑", sgrCyan
 	}
 	detail := strings.TrimSpace(component.Detail)
 	if detail == "" {
@@ -323,22 +346,31 @@ func renderWindow(content []string, empty string, rows int, p palette) []string 
 	return lines
 }
 
-func renderMenu(width int, p palette) []string {
-	items := menu()
+func renderMenu(items []menuItem, width int, p palette) []string {
 	primary := make([]string, 0, len(items))
 	troubleshooting := make([]string, 0, len(items))
+	resolutions := make([]string, 0, len(items))
 	for _, item := range items {
 		if item.Shortcut {
 			continue
 		}
 		cell := " " + p.style(sgrCyan, item.Key) + " " + item.Label
-		if item.Group == groupTroubleshooting {
+		switch item.Group {
+		case groupTroubleshooting:
 			troubleshooting = append(troubleshooting, cell)
-			continue
+		case groupResolution:
+			resolutions = append(resolutions, cell)
+		default:
+			primary = append(primary, cell)
 		}
-		primary = append(primary, cell)
 	}
 	lines := gridRows(primary, width)
+	if len(resolutions) > 0 {
+		// One full-width line per resolution, not a grid cell: the holder has to
+		// be readable before the choice is made, and a column would clip it away.
+		lines = append(lines, p.style(sgrDim, "  Needs a decision - nothing is changed until one is chosen"))
+		lines = append(lines, resolutions...)
+	}
 	if len(troubleshooting) > 0 {
 		lines = append(lines, p.style(sgrDim, "  Troubleshooting"))
 		lines = append(lines, gridRows(troubleshooting, width)...)
@@ -382,5 +414,5 @@ func gridRows(cells []string, width int) []string {
 // renderPrompt is the last frame line: the terminal cursor ends up right after
 // the typed input, so typing never lands outside the stable frame.
 func renderPrompt(state viewState, p palette) string {
-	return p.style(sgrCyan, promptLabel(menu())) + state.input
+	return p.style(sgrCyan, promptLabel(actionItems(state))) + state.input
 }

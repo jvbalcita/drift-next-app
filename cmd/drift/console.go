@@ -253,10 +253,22 @@ func (c *console) refresh() {
 	_ = c.ops.refresh(ctx)
 	cancel()
 	c.state.components = c.ops.status()
+	c.state.actions = c.actionItems()
 	c.state.logs = c.ops.logs()
 	c.state.refreshed = c.now()
 	c.lastRefresh = c.state.refreshed
 	c.dirty = true
+}
+
+// actionItems is the list this console renders and dispatches: the static menu,
+// plus the two resolutions for every address currently served by a process this
+// session did not start. It is rebuilt on each refresh, so a decision appears
+// when the condition appears and is gone once the operator has dealt with it.
+func (c *console) actionItems() []menuItem {
+	if c.ops.externalComponents == nil {
+		return menu()
+	}
+	return append(menu(), resolutionItems(c.ops.externalComponents())...)
 }
 
 func (c *console) onTick() {
@@ -309,7 +321,14 @@ func (c *console) submit() bool {
 		c.refresh()
 		return false
 	}
-	item, found := lookupItem(menu(), answer)
+	// Dispatch from the rendered list, so the keys an operator can see are exactly
+	// the keys that work: a resolution cannot be advertised and not exist, and it
+	// cannot exist without being advertised.
+	items := c.state.actions
+	if len(items) == 0 {
+		items = c.actionItems()
+	}
+	item, found := lookupItem(items, answer)
 	if !found {
 		c.state.notice = fmt.Sprintf("Unknown action %q. Choose one of the listed keys.", clipLine(answer, 8))
 		c.state.noticeLevel = noticeFail

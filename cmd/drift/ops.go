@@ -22,21 +22,30 @@ type ops struct {
 	realDeviceTests func(context.Context) error
 	startComponent  func(context.Context, string) error
 	stopComponent   func(string) error
+	// externalComponents is what the operator is offered a decision about, and
+	// adopt and terminate are the two decisions. They exist separately from the
+	// rest because the choice must be visible before it is made.
+	externalComponents func() []runtime.ExternalComponent
+	adopt              func(string) error
+	terminate          func(context.Context, string) error
 }
 
 func supervisorOps(supervisor *runtime.Supervisor) ops {
 	return ops{
-		status:          supervisor.Status,
-		logs:            supervisor.Logs,
-		refresh:         func(ctx context.Context) error { supervisor.RefreshStatus(ctx); return nil },
-		setEventSink:    supervisor.SetEventSink,
-		setup:           supervisor.Setup,
-		startAll:        func(ctx context.Context) error { return supervisor.StartAll(ctx, true) },
-		stopAll:         supervisor.StopAll,
-		runChecks:       supervisor.RunChecks,
-		buildAll:        supervisor.BuildAll,
-		realDeviceTests: supervisor.RunRealDeviceTests,
-		startComponent:  supervisor.StartComponent,
-		stopComponent:   supervisor.StopComponent,
+		status:             supervisor.Status,
+		logs:               supervisor.Logs,
+		refresh:            func(ctx context.Context) error { supervisor.RefreshStatus(ctx); return nil },
+		setEventSink:       supervisor.SetEventSink,
+		setup:              supervisor.Setup,
+		startAll:           func(ctx context.Context) error { return supervisor.StartAll(ctx, true) },
+		stopAll:            supervisor.StopAll,
+		runChecks:          supervisor.RunChecks,
+		buildAll:           supervisor.BuildAll,
+		realDeviceTests:    supervisor.RunRealDeviceTests,
+		startComponent:     supervisor.StartComponent,
+		stopComponent:      supervisor.StopComponent,
+		externalComponents: supervisor.ExternalComponents,
+		adopt:              supervisor.Adopt,
+		terminate:          supervisor.Terminate,
 	}
 }

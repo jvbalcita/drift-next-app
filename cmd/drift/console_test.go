@@ -41,6 +41,9 @@ type fakeOps struct {
 	release   chan struct{}
 	err       error
 	refreshes int
+	// external is what the console is told is served by a process this session
+	// did not start.
+	external []runtime.ExternalComponent
 }
 
 func newFakeOps() *fakeOps {
@@ -129,6 +132,19 @@ func (f *fakeOps) asOps() ops {
 		},
 		stopComponent: func(name string) error {
 			f.record("stopComponent:" + name)
+			return f.err
+		},
+		externalComponents: func() []runtime.ExternalComponent {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			return append([]runtime.ExternalComponent(nil), f.external...)
+		},
+		adopt: func(name string) error {
+			f.record("adopt:" + name)
+			return f.err
+		},
+		terminate: func(_ context.Context, name string) error {
+			f.record("terminate:" + name)
 			return f.err
 		},
 	}
