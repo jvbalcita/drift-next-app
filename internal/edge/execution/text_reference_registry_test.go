@@ -20,8 +20,9 @@ func (c *movingClock) Now() time.Time           { return c.now }
 func (c *movingClock) advance(by time.Duration) { c.now = c.now.Add(by) }
 
 const (
-	registryHandle = "reference-1"
-	registryValue  = "a-registered-value"
+	registryHandle     = "reference-1"
+	registryValue      = "a-registered-value"
+	referenceWorkspace = "workspace-1"
 )
 
 func newRegistryFixture(t *testing.T) (*TextReferenceRegistry, *movingClock) {
@@ -42,17 +43,17 @@ func referenceTo(handle, value string) TextReference {
 // again, so a replayed request cannot type content that was already typed.
 func TestAReferenceIsReleasedOnce(t *testing.T) {
 	registry, _ := newRegistryFixture(t)
-	if err := registry.Register(registryHandle, registryValue); err != nil {
+	if err := registry.Register(referenceWorkspace, registryHandle, registryValue); err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	value, err := registry.Resolve(context.Background(), referenceTo(registryHandle, registryValue))
+	value, err := registry.Resolve(context.Background(), referenceWorkspace, referenceTo(registryHandle, registryValue))
 	if err != nil {
 		t.Fatalf("the first release was refused: %v", err)
 	}
 	if value != registryValue {
 		t.Fatal("the released value is not the value that was registered")
 	}
-	if _, err := registry.Resolve(context.Background(), referenceTo(registryHandle, registryValue)); err == nil {
+	if _, err := registry.Resolve(context.Background(), referenceWorkspace, referenceTo(registryHandle, registryValue)); err == nil {
 		t.Fatal("the same reference was released twice")
 	}
 	if held := registry.Held(); held != 0 {
@@ -64,7 +65,7 @@ func TestAReferenceIsReleasedOnce(t *testing.T) {
 // it is refused with its own code rather than as a generic failure.
 func TestAnUnregisteredReferenceIsRefused(t *testing.T) {
 	registry, _ := newRegistryFixture(t)
-	_, err := registry.Resolve(context.Background(), referenceTo("never-registered", registryValue))
+	_, err := registry.Resolve(context.Background(), referenceWorkspace, referenceTo("never-registered", registryValue))
 	if err == nil {
 		t.Fatal("an unregistered reference was released")
 	}
@@ -77,11 +78,11 @@ func TestAnUnregisteredReferenceIsRefused(t *testing.T) {
 // after the operator's action cannot release it late.
 func TestAnExpiredReferenceIsRefused(t *testing.T) {
 	registry, now := newRegistryFixture(t)
-	if err := registry.Register(registryHandle, registryValue); err != nil {
+	if err := registry.Register(referenceWorkspace, registryHandle, registryValue); err != nil {
 		t.Fatalf("register: %v", err)
 	}
 	now.advance(DefaultTextReferenceTTL)
-	if _, err := registry.Resolve(context.Background(), referenceTo(registryHandle, registryValue)); err == nil {
+	if _, err := registry.Resolve(context.Background(), referenceWorkspace, referenceTo(registryHandle, registryValue)); err == nil {
 		t.Fatal("an expired reference was released")
 	}
 	if held := registry.Held(); held != 0 {
@@ -93,12 +94,12 @@ func TestAnExpiredReferenceIsRefused(t *testing.T) {
 // reference: the value stays held, so cancelling does not silently consume it.
 func TestACancelledDispatchDoesNotConsumeTheReference(t *testing.T) {
 	registry, _ := newRegistryFixture(t)
-	if err := registry.Register(registryHandle, registryValue); err != nil {
+	if err := registry.Register(referenceWorkspace, registryHandle, registryValue); err != nil {
 		t.Fatalf("register: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := registry.Resolve(ctx, referenceTo(registryHandle, registryValue)); err == nil {
+	if _, err := registry.Resolve(ctx, referenceWorkspace, referenceTo(registryHandle, registryValue)); err == nil {
 		t.Fatal("a cancelled release was served")
 	}
 	if held := registry.Held(); held != 1 {
@@ -110,21 +111,21 @@ func TestACancelledDispatchDoesNotConsumeTheReference(t *testing.T) {
 // value must not be in it. The handle may be, because only the value is secret.
 func TestARefusalNeverCarriesTheValue(t *testing.T) {
 	registry, now := newRegistryFixture(t)
-	if err := registry.Register(registryHandle, registryValue); err != nil {
+	if err := registry.Register(referenceWorkspace, registryHandle, registryValue); err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	if _, err := registry.Resolve(context.Background(), referenceTo(registryHandle, registryValue)); err != nil {
+	if _, err := registry.Resolve(context.Background(), referenceWorkspace, referenceTo(registryHandle, registryValue)); err != nil {
 		t.Fatalf("release: %v", err)
 	}
-	_, releasedErr := registry.Resolve(context.Background(), referenceTo(registryHandle, registryValue))
+	_, releasedErr := registry.Resolve(context.Background(), referenceWorkspace, referenceTo(registryHandle, registryValue))
 
-	if err := registry.Register("reference-2", registryValue); err != nil {
+	if err := registry.Register(referenceWorkspace, "reference-2", registryValue); err != nil {
 		t.Fatalf("register the expiring reference: %v", err)
 	}
 	now.advance(DefaultTextReferenceTTL)
-	_, expiredErr := registry.Resolve(context.Background(), referenceTo("reference-2", registryValue))
+	_, expiredErr := registry.Resolve(context.Background(), referenceWorkspace, referenceTo("reference-2", registryValue))
 
-	_, neverRegisteredErr := registry.Resolve(context.Background(), referenceTo("never-registered", registryValue))
+	_, neverRegisteredErr := registry.Resolve(context.Background(), referenceWorkspace, referenceTo("never-registered", registryValue))
 
 	for name, err := range map[string]error{"released": releasedErr, "expired": expiredErr, "never registered": neverRegisteredErr} {
 		if err == nil {
@@ -147,7 +148,7 @@ func TestTheRegistryAgreesWithTheContractAboutHandles(t *testing.T) {
 		strings.Repeat("a", maxInputTextHandleLength+1),
 	}
 	for _, handle := range handles {
-		registered := registry.Register(handle, registryValue)
+		registered := registry.Register(referenceWorkspace, handle, registryValue)
 		admitted := validateTextReference(TextReference{Handle: handle, Length: 1})
 		switch {
 		case registered == nil && admitted != nil:
@@ -162,10 +163,10 @@ func TestTheRegistryAgreesWithTheContractAboutHandles(t *testing.T) {
 // an empty reference would dispatch a keystroke sequence for nothing.
 func TestTheRegistryRefusesAnEmptyOrUnboundedValue(t *testing.T) {
 	registry, _ := newRegistryFixture(t)
-	if err := registry.Register(registryHandle, ""); err == nil {
+	if err := registry.Register(referenceWorkspace, registryHandle, ""); err == nil {
 		t.Fatal("an empty value was registered")
 	}
-	if err := registry.Register(registryHandle, strings.Repeat("x", maxInputTypedTextLength+1)); err == nil {
+	if err := registry.Register(referenceWorkspace, registryHandle, strings.Repeat("x", maxInputTypedTextLength+1)); err == nil {
 		t.Fatal("a value beyond the typed text bound was registered")
 	}
 	if held := registry.Held(); held != 0 {
@@ -177,17 +178,17 @@ func TestTheRegistryRefusesAnEmptyOrUnboundedValue(t *testing.T) {
 // replacing the value an operator is about to dispatch.
 func TestAHandleHoldsOneValue(t *testing.T) {
 	registry, _ := newRegistryFixture(t)
-	if err := registry.Register(registryHandle, registryValue); err != nil {
+	if err := registry.Register(referenceWorkspace, registryHandle, registryValue); err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	err := registry.Register(registryHandle, "a-different-value")
+	err := registry.Register(referenceWorkspace, registryHandle, "a-different-value")
 	if err == nil {
 		t.Fatal("the same handle was registered twice")
 	}
 	if code := platformerrors.CodeOf(err); code != platformerrors.CodeConflict {
 		t.Fatalf("refusal code = %q, want %q", code, platformerrors.CodeConflict)
 	}
-	value, err := registry.Resolve(context.Background(), referenceTo(registryHandle, registryValue))
+	value, err := registry.Resolve(context.Background(), referenceWorkspace, referenceTo(registryHandle, registryValue))
 	if err != nil {
 		t.Fatalf("the held reference was lost by the refused registration: %v", err)
 	}
@@ -204,23 +205,23 @@ func TestTheRegistryStaysWithinItsCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new registry: %v", err)
 	}
-	if err := registry.Register("reference-1", registryValue); err != nil {
+	if err := registry.Register(referenceWorkspace, "reference-1", registryValue); err != nil {
 		t.Fatalf("register the first: %v", err)
 	}
-	if err := registry.Register("reference-2", registryValue); err != nil {
+	if err := registry.Register(referenceWorkspace, "reference-2", registryValue); err != nil {
 		t.Fatalf("register the second: %v", err)
 	}
-	err = registry.Register("reference-3", registryValue)
+	err = registry.Register(referenceWorkspace, "reference-3", registryValue)
 	if err == nil {
 		t.Fatal("the registry grew past its capacity")
 	}
 	if code := platformerrors.CodeOf(err); code != platformerrors.CodeUnavailable {
 		t.Fatalf("refusal code = %q, want %q", code, platformerrors.CodeUnavailable)
 	}
-	if _, err := registry.Resolve(context.Background(), referenceTo("reference-1", registryValue)); err != nil {
+	if _, err := registry.Resolve(context.Background(), referenceWorkspace, referenceTo("reference-1", registryValue)); err != nil {
 		t.Fatalf("release: %v", err)
 	}
-	if err := registry.Register("reference-3", registryValue); err != nil {
+	if err := registry.Register(referenceWorkspace, "reference-3", registryValue); err != nil {
 		t.Fatalf("a released reference did not free its capacity: %v", err)
 	}
 }

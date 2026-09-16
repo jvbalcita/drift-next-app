@@ -29,6 +29,10 @@ const (
 	// which surface leaked, never the value.
 	typedValueFixture = "typed-value-fixture-1"
 
+	// textWorkspace is the scope a typed-text reference belongs to: a value is
+	// only ever released into the workspace that registered it.
+	textWorkspace = "workspace-1"
+
 	// testRenderWidth/testRenderHeight are the `wm size` OVERRIDE the cases
 	// declare, never a physical panel size.
 	testRenderWidth  = 1080
@@ -139,7 +143,7 @@ type fakeResolver struct {
 	handles []string
 }
 
-func (r *fakeResolver) Resolve(ctx context.Context, reference execution.TextReference) (string, error) {
+func (r *fakeResolver) Resolve(ctx context.Context, workspace string, reference execution.TextReference) (string, error) {
 	r.mu.Lock()
 	r.handles = append(r.handles, reference.Handle)
 	value, err := r.value, r.err
@@ -316,7 +320,8 @@ func TestTypedTextIssuesTheExpectedNarrowCall(t *testing.T) {
 	inputs := newInputs(t, transport, resolver)
 
 	if err := inputs.TypeText(context.Background(), execution.TypeTextRequest{
-		Text: execution.TextReference{Handle: "value-ref-1", Length: uint32(len(typedValueFixture))},
+		Text:      execution.TextReference{Handle: "value-ref-1", Length: uint32(len(typedValueFixture))},
+		Workspace: textWorkspace,
 	}); err != nil {
 		t.Fatalf("type text: %v", err)
 	}
@@ -491,7 +496,8 @@ func TestTypedTextNeverRendersItsValueAnywhere(t *testing.T) {
 	}
 
 	request := execution.TypeTextRequest{
-		Text: execution.TextReference{Handle: "value-ref-1", Length: uint32(len(typedValueFixture))},
+		Text:      execution.TextReference{Handle: "value-ref-1", Length: uint32(len(typedValueFixture))},
+		Workspace: textWorkspace,
 	}
 	leaks(t, "the value form of a typed-text request", fmt.Sprintf("%v", request))
 	leaks(t, "the debug form of a typed-text request", fmt.Sprintf("%+v", request))
@@ -561,7 +567,8 @@ func TestTypedTextIsResolvedOnlyAtDispatch(t *testing.T) {
 
 	// An invalid reference is refused before the resolver is asked for the value.
 	if err := inputs.TypeText(context.Background(), execution.TypeTextRequest{
-		Text: execution.TextReference{Handle: "not a handle", Length: 4},
+		Text:      execution.TextReference{Handle: "not a handle", Length: 4},
+		Workspace: textWorkspace,
 	}); platformerrors.CodeOf(err) != platformerrors.CodeInvalidInput {
 		t.Fatalf("code = %v err = %v, want invalid_input", platformerrors.CodeOf(err), err)
 	}
@@ -573,7 +580,8 @@ func TestTypedTextIsResolvedOnlyAtDispatch(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := inputs.TypeText(ctx, execution.TypeTextRequest{
-		Text: execution.TextReference{Handle: "value-ref-2", Length: uint32(len(typedValueFixture))},
+		Text:      execution.TextReference{Handle: "value-ref-2", Length: uint32(len(typedValueFixture))},
+		Workspace: textWorkspace,
 	}); err == nil {
 		t.Fatal("a cancelled typed-text call reported success")
 	}
@@ -600,7 +608,8 @@ func TestTypedTextRefusesAValueItCannotCarryWithoutShellMeaning(t *testing.T) {
 			inputs := newInputs(t, transport, &fakeResolver{value: value})
 
 			err := inputs.TypeText(context.Background(), execution.TypeTextRequest{
-				Text: execution.TextReference{Handle: "value-ref-1", Length: uint32(len(value))},
+				Text:      execution.TextReference{Handle: "value-ref-1", Length: uint32(len(value))},
+				Workspace: textWorkspace,
 			})
 
 			if platformerrors.CodeOf(err) != platformerrors.CodeInvalidInput {
@@ -621,7 +630,8 @@ func TestTypedTextRefusesAReferenceWhoseValueLengthDoesNotMatch(t *testing.T) {
 	inputs := newInputs(t, transport, &fakeResolver{value: typedValueFixture})
 
 	err := inputs.TypeText(context.Background(), execution.TypeTextRequest{
-		Text: execution.TextReference{Handle: "value-ref-1", Length: uint32(len(typedValueFixture)) + 5},
+		Text:      execution.TextReference{Handle: "value-ref-1", Length: uint32(len(typedValueFixture)) + 5},
+		Workspace: textWorkspace,
 	})
 	if platformerrors.CodeOf(err) != platformerrors.CodeInvalidInput {
 		t.Fatalf("code = %v err = %v, want invalid_input", platformerrors.CodeOf(err), err)
@@ -811,7 +821,8 @@ func TestTypedTextFailsClosedWithoutAResolver(t *testing.T) {
 	inputs := newInputs(t, transport, nil)
 
 	err := inputs.TypeText(context.Background(), execution.TypeTextRequest{
-		Text: execution.TextReference{Handle: "value-ref-1", Length: 4},
+		Text:      execution.TextReference{Handle: "value-ref-1", Length: 4},
+		Workspace: textWorkspace,
 	})
 	if err == nil {
 		t.Fatal("typed text executed with no resolver")

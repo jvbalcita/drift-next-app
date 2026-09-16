@@ -17,6 +17,7 @@ import (
 	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/organizations"
+	"drift.local/drift-next/internal/platform/clock"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 	"drift.local/drift-next/internal/platform/ids"
 	migrationrunner "drift.local/drift-next/internal/platform/migrations"
@@ -160,17 +161,35 @@ func main() {
 		routes = append(routes, service.ArtifactRoute(artifactAPI, labToken))
 	}
 	routes = append(routes, service.ProductRoutes(productHandlers, labToken)...)
+	// The text reference registry is the boundary that owns a typed-text value
+	// until it is released at dispatch, and the registration surface below is
+	// where such a value enters the process. The registry is constructed before
+	// the input surface because the dispatcher is given it as the typed-text
+	// resolver: typed text is only dispatchable if something can register a
+	// reference for it to release (ARC-107).
+	textReferences, referenceErr := execution.NewTextReferenceRegistry(clock.System{}, execution.DefaultTextReferenceTTL, execution.DefaultTextReferenceCapacity)
+	if referenceErr != nil {
+		log.Printf("text reference surface not mounted: %v", referenceErr)
+	}
+
 	// The typed device input surface. It is mounted only when the whole path was
 	// constructed: an empty Route mounts nothing, so a missing dependency degrades
 	// to "no input surface" rather than to a route that cannot dispatch anything
 	// (AGENTS.md section 6).
 	inputMounted := false
-	if inputRoute := deviceInputRoute(labService, actionRuntime, db, labToken); inputRoute.Path != "" {
+	if inputRoute := deviceInputRoute(labService, actionRuntime, textReferences, db, labToken); inputRoute.Path != "" {
 		routes = append(routes, inputRoute)
 		inputMounted = true
 	}
+	// The one boundary that admits operator-supplied content into this process,
+	// mounted only when a registry was constructed to hold what it admits.
+	referenceMounted := false
+	if referenceRoute := service.TextReferenceRoute(textReferences, labToken); referenceRoute.Path != "" {
+		routes = append(routes, referenceRoute)
+		referenceMounted = true
+	}
 	server := service.NewHTTPServer("control-plane", address, routes...)
-	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted))
+	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, text reference surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), referenceMountState(referenceMounted))
 	serveErr := service.Serve(ctx, server)
 	// The startup scan is owned work, not a detached worker: wait for it to
 	// obey cancellation before the process returns.
@@ -197,6 +216,16 @@ func mountState(mounted bool) string {
 		return "mounted"
 	}
 	return "not mounted; the device input path was not constructed"
+}
+
+// referenceMountState reports whether the registration surface was mounted, and
+// separately from the input surface, because the two fail for different reasons:
+// a registry that could not be constructed is not a dispatcher that was not.
+func referenceMountState(mounted bool) string {
+	if mounted {
+		return "mounted"
+	}
+	return "not mounted; no reference registry was constructed"
 }
 
 // inputObservationOperator is the identity the composition reads a device's
@@ -233,7 +262,7 @@ func observationSource(labService *lab.Service) execution.ObservationSourceFacto
 // contract with the evidence recorder bound; and the application boundary resolves
 // the device to its serial and assigns the attempt identity (4c), which is what
 // satisfies the port this route serves.
-func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, db *store.DB, token string) service.Route {
+func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, textReferences *execution.TextReferenceRegistry, db *store.DB, token string) service.Route {
 	transport, err := execution.NewInputTransportFromAllowlisted(labService.DeviceTransport())
 	if err != nil {
 		log.Printf("device input surface not mounted: %v", err)
@@ -254,13 +283,11 @@ func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, db 
 		execution.NewStoreControlProbe(db, deviceState),
 		observer,
 		transport,
-		// The resolver exists, but no surface can register a value with it yet:
-		// where the plaintext enters is a boundary decision of its own, carded
-		// as ARC-107. Wiring a registry nothing can register into would leave
-		// typed text refusing for a different reason than it does now, so a
-		// typed-text payload keeps failing closed at the boundary instead of
-		// being dispatched with a value nobody released.
-		nil,
+		// The typed-text resolver: the same registry the registration surface
+		// writes to, so a typed-text payload releases a value only if one was
+		// registered for its workspace. With no registry (no surface was
+		// constructed) the primitive still fails closed on its own.
+		textReferences,
 		execution.WithEvidenceRecorder(store.NewActionEvidenceService(db)),
 	)
 	if err != nil {

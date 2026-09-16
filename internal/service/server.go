@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"drift.local/drift-next/gen/go/drift/v1/driftv1connect"
+	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/health"
 	transportconnect "drift.local/drift-next/internal/transport/connect"
 )
@@ -61,6 +62,23 @@ func DeviceInputRoute(inputs transportconnect.DeviceInputs, token string) Route 
 	}
 	path, connectHandler := driftv1connect.NewDeviceInputServiceHandler(handler)
 	return Route{Path: path, Handler: RequireLabToken(token, connectHandler)}
+}
+
+// TextReferenceRoute mounts the local surface that registers a typed-text value
+// with the reference registry, and only when a registry was actually
+// constructed: a nil registry yields an empty route, so a deployment without one
+// exposes no surface rather than a control that can only refuse.
+//
+// The route carries the same constant-time token check as the other local
+// surfaces. This is the one boundary that admits operator-supplied content into
+// the process, and loopback reachability alone is not authority for a hostile
+// local caller.
+func TextReferenceRoute(registry *execution.TextReferenceRegistry, token string) Route {
+	handler := NewTextReferenceHandler(registry)
+	if handler == nil {
+		return Route{}
+	}
+	return Route{Path: TextReferencePath, Handler: RequireLabToken(token, handler)}
 }
 
 // ProductRoutes mounts the local product Connect surfaces when handlers were

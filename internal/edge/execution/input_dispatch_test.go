@@ -925,7 +925,7 @@ func TestTheRealAdapterAdmitsTheArgumentArraysThePrimitivesBuild(t *testing.T) {
 		{
 			name: "typed text by reference",
 			build: func(inputs *execution.Inputs) error {
-				return inputs.TypeText(context.Background(), execution.TypeTextRequest{Text: execution.TextReference{Handle: "clipboard-1", Length: uint32(len(typedValueFixture))}})
+				return inputs.TypeText(context.Background(), execution.TypeTextRequest{Text: execution.TextReference{Handle: "clipboard-1", Length: uint32(len(typedValueFixture))}, Workspace: textWorkspace})
 			},
 			wantArgs: []string{"shell", "input", "text", typedValueFixture},
 		},

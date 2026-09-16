@@ -380,7 +380,8 @@ func TestInputsWithoutACoordinateDoNotNeedARenderSize(t *testing.T) {
 		t.Fatalf("launch app: %v", err)
 	}
 	if err := inputs.TypeText(context.Background(), execution.TypeTextRequest{
-		Text: execution.TextReference{Handle: "value-ref-1", Length: uint32(len(typedValueFixture))},
+		Text:      execution.TextReference{Handle: "value-ref-1", Length: uint32(len(typedValueFixture))},
+		Workspace: textWorkspace,
 	}); err != nil {
 		t.Fatalf("type text: %v", err)
 	}
