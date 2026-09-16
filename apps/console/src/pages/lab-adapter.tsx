@@ -18,7 +18,7 @@ import type {
 } from "@/lib/domain/control-plane"
 import { usesMockControlPlane } from "@/lib/api/connect-json"
 import { reportDispatch } from "@/lib/api/report-dispatch"
-import { EmptyState, FailureBadge, Panel, StatusBadge, type StatusTone } from "./shared"
+import { EmptyState, FailureBadge, StatusBadge, type StatusTone } from "./shared"
 
 type DispatchLab = (intent: ControlPlaneIntent) => Promise<MutationResult>
 
@@ -255,30 +255,18 @@ export function LabObservationFrame({ adapter, height }: { adapter: LabAdapterVi
   )
 }
 
-// LabAdapterStatusPanel keeps lab adapter state visible in the device registry
-// without letting an observed serial appear as a registered device.
-export function LabAdapterStatusPanel({ adapter }: { adapter: LabAdapterView }) {
-  const observed = adapter.lastObservedSerial.length > 0
+// LabAdapterIndicator is the compact adapter signal for surfaces that are not
+// the control workspace. It keeps the observation boundary visible ("observed"
+// is not "registered") in one line and exposes the detail on demand, so the
+// adapter never spends permanent header space. It dispatches nothing.
+export function LabAdapterIndicator({ adapter }: { adapter: LabAdapterView }) {
   return (
-    <Panel
-      title="Device Adapter Status"
-      description="Read-only observation boundary. Each capture names exactly one attached serial; observed serials are never registered as devices and never appear in the registry table below."
-      action={<div className="flex flex-wrap items-center gap-2"><LabModeBadges adapter={adapter} /></div>}
-      className="mb-6"
-    >
-      <dl className="grid gap-4 text-[11px] sm:grid-cols-2 xl:grid-cols-4">
-        <LabField label="Adapter Availability" detail={adapter.readiness === "unavailable" ? "Unavailable" : "Available"} mono={false} />
-        <LabField label="Last Observed Target" detail={observed ? adapter.lastObservedSerial : "Nothing observed yet"} mono={false} />
-        <LabField label="Authorization State" detail={observed ? value(adapter.connectionState) : "Name a serial per capture"} mono={false} />
-        <LabField label="Transport" detail={observed ? value(adapter.connectionType) : placeholder} />
-        <LabField label="Last Health" detail={value(adapter.lastHealthAt)} />
-        <LabField label="Last Screenshot" detail={adapter.lastScreenshotHash ? `${value(adapter.lastObservationAt)} · ${adapter.lastScreenshotHash}` : "No screenshot captured"} />
-        <LabField label="Last UI-Tree" detail={adapter.lastHierarchySummary ? adapter.lastHierarchySummary : "No UI-tree captured"} mono={false} />
-        <LabField label="Versions" detail={`${value(adapter.adapterVersion)} · ${value(adapter.platformToolsVersion)}`} mono={false} />
-        <LabField label="Transports Observed" detail={`${adapter.discovered.length} observed, 0 registered`} mono={false} />
-        <LabField label="Outcome" detail={adapter.indeterminate ? "Indeterminate outcome recorded" : adapter.failureClass ? adapter.failureClass.replaceAll("_", " ") : "No failure recorded"} mono={false} />
-      </dl>
-    </Panel>
+    <div role="group" aria-label="Device Adapter" className="flex flex-wrap items-center gap-2">
+      <span className="text-[11px] font-medium text-muted-foreground">Device Adapter</span>
+      <LabModeBadges adapter={adapter} />
+      <span className="text-[11px] text-muted-foreground">{`${adapter.discovered.length} observed · 0 registered`}</span>
+      <LabDiagnosticsSheet adapter={adapter} />
+    </div>
   )
 }
 

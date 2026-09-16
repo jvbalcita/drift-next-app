@@ -372,17 +372,21 @@ describe("Drift command center", () => {
     expect(within(frame).getByText(/sha256:mock-/)).toBeInTheDocument()
   })
 
-  it("keeps the lab adapter section separate from registered devices", async () => {
+  it("keeps the lab adapter boundary separate from registered devices", async () => {
     const user = userEvent.setup()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Devices/ }))
-    expect(await screen.findByText("Device Adapter Status")).toBeInTheDocument()
-    expect(screen.getByText(/Each capture names exactly one attached serial/i)).toBeInTheDocument()
-    expect(screen.getByText("0 observed, 0 registered")).toBeInTheDocument()
-    expect(screen.getByText("Nothing observed yet")).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: /Device Registry/i })).toBeInTheDocument()
+    // the adapter is a compact on-demand signal, not a permanent header panel
+    expect(screen.queryByRole("heading", { name: "Device Adapter Status" })).not.toBeInTheDocument()
+    expect(screen.getByText("0 observed · 0 registered")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: /Adapter Diagnostics/ }))
+    const sheet = await screen.findByRole("dialog")
+    expect(within(sheet).getByRole("heading", { name: "Device Adapter Diagnostics" })).toBeInTheDocument()
+    expect(within(sheet).getByText(/Observation is not registration/i)).toBeInTheDocument()
     expect(screen.queryByText(/MOCKSERIAL/)).not.toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: /Device Registry/i })).toBeInTheDocument()
   })
 
   it("lists lab adapter events through the existing event filters", async () => {
