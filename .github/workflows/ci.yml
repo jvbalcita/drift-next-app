@@ -66,13 +66,81 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Detect Tauri-relevant changes
+        id: gate
+        env:
+          # Interpolated through the environment rather than into the script
+          # body: github.event values are untrusted input and must never be
+          # pasted straight into a run: command.
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          # cargo check only compiles the Rust shell, so this job can only fail
+          # when the shell or its manifest changes. Running it on every PR pays
+          # the Rust toolchain, nine apt packages and a full pnpm install for
+          # changes that cannot affect it.
+          #
+          # The job is never SKIPPED, only its expensive steps: a skipped job
+          # reports as a missing required check and can block a merge, whereas a
+          # job that runs its gate and exits reports green.
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$BASE_REF" in
+            ""|*[!A-Za-z0-9._/-]*)
+              # An unexpected base ref means the gate cannot decide; run the
+              # full check rather than skip a check that might be needed.
+              echo "run=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          # Every failure below must resolve to run=true. A gate that cannot
+          # determine what changed must run the check, never skip it: skipping
+          # is the one outcome that can let a broken shell merge.
+          #
+          # The fetch is NOT shallow. A depth-1 fetch of the base branch has no
+          # common ancestor, so `origin/BASE...HEAD` cannot resolve and the
+          # name-only diff comes back empty - which reads exactly like "nothing
+          # relevant changed" and silently skipped this very job on the PR that
+          # introduced it.
+          if ! git fetch --no-tags origin "$BASE_REF"; then
+            echo "gate: could not fetch $BASE_REF - running the full check"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CHANGED="$(git diff --name-only "origin/$BASE_REF...HEAD" 2>/dev/null)" || CHANGED=""
+          if [ -z "$CHANGED" ]; then
+            echo "gate: could not determine the changed files - running the full check"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "gate: changed files follow"
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^(apps/console/src-tauri/|.*Cargo\.(toml|lock)$|.*tauri\.conf\.json$|\.github/workflows/ci\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Report the gate decision
+        run: |
+          if [ "${{ steps.gate.outputs.run }}" = "true" ]; then
+            echo "Tauri-relevant files changed in this PR - running the full check."
+          else
+            echo "No Tauri-relevant file changed in this PR - skipping the Rust toolchain, the apt prerequisites and the pnpm install." 
+            echo "cargo check compiles only apps/console/src-tauri, so a change outside it cannot break it."
+          fi
       - uses: pnpm/action-setup@v4
+        if: steps.gate.outputs.run == 'true'
       - uses: actions/setup-node@v4
+        if: steps.gate.outputs.run == 'true'
         with:
           node-version: 22
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.gate.outputs.run == 'true'
       - name: Install Tauri Linux build prerequisites
+        if: steps.gate.outputs.run == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --yes \
@@ -86,4 +154,6 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
       - run: pnpm install --frozen-lockfile
+        if: steps.gate.outputs.run == 'true'
       - run: cargo check --manifest-path apps/console/src-tauri/Cargo.toml --locked
+        if: steps.gate.outputs.run == 'true'
