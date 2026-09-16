@@ -31,21 +31,6 @@ func (s *stubLabAdapter) Status(context.Context) lab.Status {
 	return lab.Status{Mode: lab.ModeMock, Readiness: lab.ReadinessUnavailable}
 }
 
-func (s *stubLabAdapter) Discover(context.Context, string) (lab.Status, error) {
-	s.calls++
-	return lab.Status{Mode: lab.ModeMock}, s.err
-}
-
-func (s *stubLabAdapter) ConfirmTarget(context.Context, lab.ConfirmRequest) (lab.Status, error) {
-	s.calls++
-	return lab.Status{Mode: lab.ModeMock}, s.err
-}
-
-func (s *stubLabAdapter) ClearTarget(context.Context, string) (lab.Status, error) {
-	s.calls++
-	return lab.Status{Mode: lab.ModeMock}, s.err
-}
-
 func (s *stubLabAdapter) CaptureObservation(context.Context, lab.CaptureRequest) (lab.ObservationBundle, error) {
 	s.calls++
 	return lab.ObservationBundle{}, s.err
@@ -82,23 +67,18 @@ func TestLabHandlerRejectsMissingWorkspaceBeforeReachingTheService(t *testing.T)
 	}
 }
 
-func TestLabHandlerRequiresAnOperatorAndRequestIdentity(t *testing.T) {
+func TestLabHandlerRequiresAnOperatorRequestIdentityAndTarget(t *testing.T) {
 	stub := &stubLabAdapter{}
 	handler := transportconnect.NewLabAdapterHandler(stub)
 	workspace := &driftv1.WorkspaceRef{WorkspaceId: labWorkspace}
 
-	if _, err := handler.DiscoverLabDevices(context.Background(), connectrpc.NewRequest(&driftv1.DiscoverLabDevicesRequest{
-		Workspace: workspace,
+	if _, err := handler.CaptureLabObservation(context.Background(), connectrpc.NewRequest(&driftv1.CaptureLabObservationRequest{
+		Workspace:  workspace,
+		Context:    labRequestContext("key-1"),
+		OperatorId: "",
+		Serial:     labSerial,
 	})); connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
-		t.Fatalf("DiscoverLabDevices() code = %v, want %v", connectrpc.CodeOf(err), connectrpc.CodeInvalidArgument)
-	}
-	if _, err := handler.ConfirmLabTarget(context.Background(), connectrpc.NewRequest(&driftv1.ConfirmLabTargetRequest{
-		Workspace:        workspace,
-		OperatorId:       labOperator,
-		Serial:           labSerial,
-		ConfirmationText: labSerial,
-	})); connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
-		t.Fatalf("ConfirmLabTarget() code = %v, want %v", connectrpc.CodeOf(err), connectrpc.CodeInvalidArgument)
+		t.Fatalf("CaptureLabObservation() without an operator code = %v, want %v", connectrpc.CodeOf(err), connectrpc.CodeInvalidArgument)
 	}
 	if _, err := handler.CaptureLabObservation(context.Background(), connectrpc.NewRequest(&driftv1.CaptureLabObservationRequest{
 		Workspace:  workspace,
@@ -107,6 +87,14 @@ func TestLabHandlerRequiresAnOperatorAndRequestIdentity(t *testing.T) {
 		Context:    &driftv1.RequestContext{RequestId: "request-1"},
 	})); connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
 		t.Fatalf("CaptureLabObservation() without an idempotency key code = %v, want %v", connectrpc.CodeOf(err), connectrpc.CodeInvalidArgument)
+	}
+	// The capture names its own target: an unnamed one never reaches the service.
+	if _, err := handler.CaptureLabObservation(context.Background(), connectrpc.NewRequest(&driftv1.CaptureLabObservationRequest{
+		Workspace:  workspace,
+		Context:    labRequestContext("key-1"),
+		OperatorId: labOperator,
+	})); connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("CaptureLabObservation() without a serial code = %v, want %v", connectrpc.CodeOf(err), connectrpc.CodeInvalidArgument)
 	}
 	if stub.calls != 0 {
 		t.Fatal("lab handler reached the service for invalid input")
@@ -155,12 +143,16 @@ func TestLabHandlerMapsClassifiedServiceFailuresToStableCodes(t *testing.T) {
 		want connectrpc.Code
 	}{
 		"precondition": {
-			err:  platformerrors.New(platformerrors.CodePreconditionFailed, "lab capture requires an explicitly confirmed target"),
+			err:  platformerrors.New(platformerrors.CodePreconditionFailed, "the named target is not attached"),
 			want: connectrpc.CodeFailedPrecondition,
 		},
 		"postcondition": {
 			err:  platformerrors.New(platformerrors.CodePostconditionFailed, "lab observation did not satisfy its postcondition"),
 			want: connectrpc.CodeFailedPrecondition,
+		},
+		"not found": {
+			err:  platformerrors.New(platformerrors.CodeNotFound, "lab target was not observed"),
+			want: connectrpc.CodeNotFound,
 		},
 		"indeterminate": {
 			err:  platformerrors.New(platformerrors.CodeIndeterminateCompletion, "outcome is unknown"),
@@ -191,47 +183,10 @@ func TestLabHandlerMapsClassifiedServiceFailuresToStableCodes(t *testing.T) {
 	}
 }
 
-func TestLabHandlerProjectsAConfirmedObservationWithoutRawEvidence(t *testing.T) {
+func TestLabHandlerProjectsAnObservationWithoutRawEvidence(t *testing.T) {
 	handler := transportconnect.NewLabAdapterHandler(newMockLabService(t))
 	ctx := context.Background()
 	workspace := &driftv1.WorkspaceRef{WorkspaceId: labWorkspace}
-
-	discovered, err := handler.DiscoverLabDevices(ctx, connectrpc.NewRequest(&driftv1.DiscoverLabDevicesRequest{
-		Workspace:  workspace,
-		OperatorId: labOperator,
-	}))
-	if err != nil {
-		t.Fatalf("DiscoverLabDevices() error = %v", err)
-	}
-	if len(discovered.Msg.GetStatus().GetDiscovered()) == 0 {
-		t.Fatal("DiscoverLabDevices() returned no candidates")
-	}
-	if discovered.Msg.GetStatus().GetConfirmedSerial() != "" {
-		t.Fatal("DiscoverLabDevices() confirmed a target; discovery must never confirm")
-	}
-	if discovered.Msg.GetStatus().GetMode() != driftv1.LabMode_LAB_MODE_MOCK {
-		t.Fatalf("DiscoverLabDevices() mode = %v, want mock", discovered.Msg.GetStatus().GetMode())
-	}
-
-	confirmed, err := handler.ConfirmLabTarget(ctx, connectrpc.NewRequest(&driftv1.ConfirmLabTargetRequest{
-		Workspace:        workspace,
-		Context:          labRequestContext(""),
-		OperatorId:       labOperator,
-		Serial:           labSerial,
-		DisplayName:      "Bench device",
-		ConfirmationText: labSerial,
-		Reason:           "phase 13 vertical slice",
-	}))
-	if err != nil {
-		t.Fatalf("ConfirmLabTarget() error = %v", err)
-	}
-	status := confirmed.Msg.GetStatus()
-	if status.GetReadiness() != driftv1.LabReadiness_LAB_READINESS_READY {
-		t.Fatalf("ConfirmLabTarget() readiness = %v, want ready", status.GetReadiness())
-	}
-	if status.GetStableIdentity() == status.GetTransportId() {
-		t.Fatalf("stable identity %q must not be the transport identity", status.GetStableIdentity())
-	}
 
 	captured, err := handler.CaptureLabObservation(ctx, connectrpc.NewRequest(&driftv1.CaptureLabObservationRequest{
 		Workspace:  workspace,
@@ -243,6 +198,9 @@ func TestLabHandlerProjectsAConfirmedObservationWithoutRawEvidence(t *testing.T)
 		t.Fatalf("CaptureLabObservation() error = %v", err)
 	}
 	observation := captured.Msg.GetObservation()
+	if observation.GetSerial() != labSerial {
+		t.Fatalf("observation serial = %q, want the explicitly named target", observation.GetSerial())
+	}
 	if !observation.GetPostconditionVerified() || observation.GetIndeterminate() {
 		t.Fatalf("observation = %+v, want a verified determinate capture", observation)
 	}
@@ -257,6 +215,9 @@ func TestLabHandlerProjectsAConfirmedObservationWithoutRawEvidence(t *testing.T)
 	}
 	if !strings.Contains(observation.GetCapturedAt(), "T") {
 		t.Fatalf("observation.CapturedAt = %q, want RFC3339 UTC text", observation.GetCapturedAt())
+	}
+	if status := captured.Msg.GetStatus(); status.GetReadiness() != driftv1.LabReadiness_LAB_READINESS_READY {
+		t.Fatalf("CaptureLabObservation() readiness = %v, want ready", status.GetReadiness())
 	}
 
 	events, err := handler.ListLabEvents(ctx, connectrpc.NewRequest(&driftv1.ListLabEventsRequest{Workspace: workspace}))
@@ -273,7 +234,7 @@ func TestLabHandlerProjectsAConfirmedObservationWithoutRawEvidence(t *testing.T)
 	}
 }
 
-func TestLabHandlerRefusesReplayOfAnUnresolvedIdempotencyKey(t *testing.T) {
+func TestLabHandlerRefusesACaptureForASerialThatIsNotAttached(t *testing.T) {
 	handler := transportconnect.NewLabAdapterHandler(newMockLabService(t))
 	ctx := context.Background()
 	workspace := &driftv1.WorkspaceRef{WorkspaceId: labWorkspace}
@@ -282,9 +243,64 @@ func TestLabHandlerRefusesReplayOfAnUnresolvedIdempotencyKey(t *testing.T) {
 		Workspace:  workspace,
 		Context:    labRequestContext("key-1"),
 		OperatorId: labOperator,
-		Serial:     labSerial,
+		Serial:     "mock-device-gamma",
 	})); connectrpc.CodeOf(err) != connectrpc.CodeFailedPrecondition {
-		t.Fatalf("CaptureLabObservation() before confirmation code = %v, want %v", connectrpc.CodeOf(err), connectrpc.CodeFailedPrecondition)
+		t.Fatalf("CaptureLabObservation() for an unattached serial code = %v, want %v", connectrpc.CodeOf(err), connectrpc.CodeFailedPrecondition)
+	}
+}
+
+// The duplicate discovery/confirmation lifecycle is gone from the contract, and
+// the retired field numbers and names stay reserved so no future change can
+// reuse them.
+func TestLabAdapterContractNoLongerExposesTheConfirmLifecycle(t *testing.T) {
+	file := driftv1.File_drift_v1_lab_adapter_proto
+	service := file.Services().ByName("LabAdapterService")
+	if service == nil {
+		t.Fatal("LabAdapterService is missing from the contract")
+	}
+	for _, removed := range []string{"DiscoverLabDevices", "ConfirmLabTarget", "ClearLabTarget"} {
+		if method := service.Methods().ByName(protoreflect.Name(removed)); method != nil {
+			t.Fatalf("LabAdapterService still exposes the retired RPC %q", removed)
+		}
+	}
+	for _, removed := range []string{"DiscoverLabDevicesRequest", "ConfirmLabTargetRequest", "ClearLabTargetRequest"} {
+		if message := file.Messages().ByName(protoreflect.Name(removed)); message != nil {
+			t.Fatalf("the contract still declares the retired message %q", removed)
+		}
+	}
+
+	status := file.Messages().ByName("LabStatus")
+	for name, number := range map[protoreflect.Name]protoreflect.FieldNumber{
+		"confirmed_serial":       5,
+		"confirmed_display_name": 6,
+		"stable_identity":        7,
+		"transport_id":           8,
+	} {
+		if field := status.Fields().ByName(name); field != nil {
+			t.Fatalf("LabStatus still declares the retired confirm field %q", name)
+		}
+		if !status.ReservedNames().Has(name) {
+			t.Fatalf("LabStatus does not reserve the retired field name %q", name)
+		}
+		if !status.ReservedRanges().Has(number) {
+			t.Fatalf("LabStatus does not reserve the retired field number %d", number)
+		}
+	}
+
+	eventNames := file.Enums().ByName("LabEventName")
+	for name, number := range map[protoreflect.Name]protoreflect.EnumNumber{
+		"LAB_EVENT_NAME_TARGET_CONFIRMATION":   1,
+		"LAB_EVENT_NAME_OPERATOR_CONFIRMATION": 11,
+	} {
+		if value := eventNames.Values().ByName(name); value != nil {
+			t.Fatalf("LabEventName still declares the retired confirm event %q", name)
+		}
+		if !eventNames.ReservedNames().Has(name) {
+			t.Fatalf("LabEventName does not reserve the retired event name %q", name)
+		}
+		if !eventNames.ReservedRanges().Has(number) {
+			t.Fatalf("LabEventName does not reserve the retired event number %d", number)
+		}
 	}
 }
 

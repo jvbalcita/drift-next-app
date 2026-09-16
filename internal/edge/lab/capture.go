@@ -54,6 +54,10 @@ func (r *captureRun) execute(ctx context.Context) (ObservationBundle, error) {
 	}
 	r.emit(EventObservationCapture, "", "health observed with transport state "+report.State)
 
+	// The transport identity observed here is what a later capture of the same
+	// named device compares against. It is mutable observation state only.
+	r.service.observeTransportID(report.TransportID)
+
 	if transportErr := r.reconcileTransport(ctx, report); transportErr != nil {
 		return r.fail(bundle, transportErr, "transport identity could not be reconciled")
 	}
@@ -160,7 +164,6 @@ func (r *captureRun) reconcileTransport(ctx context.Context, report adb.HealthRe
 	}
 
 	r.service.mu.Lock()
-	r.service.state.TransportID = report.TransportID
 	r.service.state.ConnectionState = string(candidate.State)
 	r.service.state.ConnectionType = candidate.ConnectionType
 	r.service.mu.Unlock()

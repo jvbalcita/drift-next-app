@@ -23,7 +23,9 @@ type deviceActor struct {
 }
 
 // Registry owns one actor per device and runs authorized observation through
-// the confirmed lab transport for that device's current endpoint serial.
+// the lab transport for that device's current endpoint serial. The serial is
+// named on every capture, so the lab boundary authorizes it against the
+// attached transports instead of against session state.
 type Registry struct {
 	lab     lab.ObservationCapturer
 	db      *store.DB
@@ -46,10 +48,6 @@ func (r *Registry) Run(ctx context.Context, intent action.Intent, actorType, act
 	serial, err := r.currentSerial(ctx, intent.Workspace, intent.DeviceID)
 	if err != nil {
 		return action.Result{}, err
-	}
-	status := r.lab.Status(ctx)
-	if status.ConfirmedSerial != serial {
-		return action.Result{}, platformerrors.New(platformerrors.CodePreconditionFailed, "confirmed transport does not match the registered device")
 	}
 	actor, err := r.actorFor(intent.DeviceID, serial, actorID)
 	if err != nil {

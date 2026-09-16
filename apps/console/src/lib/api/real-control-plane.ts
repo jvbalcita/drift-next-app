@@ -159,10 +159,6 @@ function emptyLabAdapter(): LabAdapterView {
     readiness: "unavailable",
     adapterVersion: "",
     platformToolsVersion: "",
-    confirmedSerial: "",
-    confirmedDisplayName: "",
-    stableIdentity: "",
-    transportId: "",
     connectionState: "",
     connectionType: "",
     lastScreenshotHash: "",
@@ -171,6 +167,7 @@ function emptyLabAdapter(): LabAdapterView {
     indeterminate: false,
     correlationId: "",
     discovered: [],
+    lastObservedSerial: "",
   }
 }
 
@@ -1887,9 +1884,6 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         return mutation(intent, intent.confirm ? "Spool replay confirmed for the selected sequence." : "Spool item dropped without replay.")
       }
       case "updatePolicy":
-      case "discoverLabDevices":
-      case "confirmLabTarget":
-      case "clearLabTarget":
       case "captureLabObservation":
       case "simulateLabCaptureFailure":
       case "enqueueMockSpoolItem":

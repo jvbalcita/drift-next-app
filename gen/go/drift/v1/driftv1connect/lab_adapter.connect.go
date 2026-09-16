@@ -36,15 +36,6 @@ const (
 	// LabAdapterServiceGetLabStatusProcedure is the fully-qualified name of the LabAdapterService's
 	// GetLabStatus RPC.
 	LabAdapterServiceGetLabStatusProcedure = "/drift.v1.LabAdapterService/GetLabStatus"
-	// LabAdapterServiceDiscoverLabDevicesProcedure is the fully-qualified name of the
-	// LabAdapterService's DiscoverLabDevices RPC.
-	LabAdapterServiceDiscoverLabDevicesProcedure = "/drift.v1.LabAdapterService/DiscoverLabDevices"
-	// LabAdapterServiceConfirmLabTargetProcedure is the fully-qualified name of the LabAdapterService's
-	// ConfirmLabTarget RPC.
-	LabAdapterServiceConfirmLabTargetProcedure = "/drift.v1.LabAdapterService/ConfirmLabTarget"
-	// LabAdapterServiceClearLabTargetProcedure is the fully-qualified name of the LabAdapterService's
-	// ClearLabTarget RPC.
-	LabAdapterServiceClearLabTargetProcedure = "/drift.v1.LabAdapterService/ClearLabTarget"
 	// LabAdapterServiceCaptureLabObservationProcedure is the fully-qualified name of the
 	// LabAdapterService's CaptureLabObservation RPC.
 	LabAdapterServiceCaptureLabObservationProcedure = "/drift.v1.LabAdapterService/CaptureLabObservation"
@@ -56,9 +47,6 @@ const (
 // LabAdapterServiceClient is a client for the drift.v1.LabAdapterService service.
 type LabAdapterServiceClient interface {
 	GetLabStatus(context.Context, *connect.Request[v1.GetLabStatusRequest]) (*connect.Response[v1.GetLabStatusResponse], error)
-	DiscoverLabDevices(context.Context, *connect.Request[v1.DiscoverLabDevicesRequest]) (*connect.Response[v1.DiscoverLabDevicesResponse], error)
-	ConfirmLabTarget(context.Context, *connect.Request[v1.ConfirmLabTargetRequest]) (*connect.Response[v1.ConfirmLabTargetResponse], error)
-	ClearLabTarget(context.Context, *connect.Request[v1.ClearLabTargetRequest]) (*connect.Response[v1.ClearLabTargetResponse], error)
 	CaptureLabObservation(context.Context, *connect.Request[v1.CaptureLabObservationRequest]) (*connect.Response[v1.CaptureLabObservationResponse], error)
 	ListLabEvents(context.Context, *connect.Request[v1.ListLabEventsRequest]) (*connect.Response[v1.ListLabEventsResponse], error)
 }
@@ -80,24 +68,6 @@ func NewLabAdapterServiceClient(httpClient connect.HTTPClient, baseURL string, o
 			connect.WithSchema(labAdapterServiceMethods.ByName("GetLabStatus")),
 			connect.WithClientOptions(opts...),
 		),
-		discoverLabDevices: connect.NewClient[v1.DiscoverLabDevicesRequest, v1.DiscoverLabDevicesResponse](
-			httpClient,
-			baseURL+LabAdapterServiceDiscoverLabDevicesProcedure,
-			connect.WithSchema(labAdapterServiceMethods.ByName("DiscoverLabDevices")),
-			connect.WithClientOptions(opts...),
-		),
-		confirmLabTarget: connect.NewClient[v1.ConfirmLabTargetRequest, v1.ConfirmLabTargetResponse](
-			httpClient,
-			baseURL+LabAdapterServiceConfirmLabTargetProcedure,
-			connect.WithSchema(labAdapterServiceMethods.ByName("ConfirmLabTarget")),
-			connect.WithClientOptions(opts...),
-		),
-		clearLabTarget: connect.NewClient[v1.ClearLabTargetRequest, v1.ClearLabTargetResponse](
-			httpClient,
-			baseURL+LabAdapterServiceClearLabTargetProcedure,
-			connect.WithSchema(labAdapterServiceMethods.ByName("ClearLabTarget")),
-			connect.WithClientOptions(opts...),
-		),
 		captureLabObservation: connect.NewClient[v1.CaptureLabObservationRequest, v1.CaptureLabObservationResponse](
 			httpClient,
 			baseURL+LabAdapterServiceCaptureLabObservationProcedure,
@@ -116,9 +86,6 @@ func NewLabAdapterServiceClient(httpClient connect.HTTPClient, baseURL string, o
 // labAdapterServiceClient implements LabAdapterServiceClient.
 type labAdapterServiceClient struct {
 	getLabStatus          *connect.Client[v1.GetLabStatusRequest, v1.GetLabStatusResponse]
-	discoverLabDevices    *connect.Client[v1.DiscoverLabDevicesRequest, v1.DiscoverLabDevicesResponse]
-	confirmLabTarget      *connect.Client[v1.ConfirmLabTargetRequest, v1.ConfirmLabTargetResponse]
-	clearLabTarget        *connect.Client[v1.ClearLabTargetRequest, v1.ClearLabTargetResponse]
 	captureLabObservation *connect.Client[v1.CaptureLabObservationRequest, v1.CaptureLabObservationResponse]
 	listLabEvents         *connect.Client[v1.ListLabEventsRequest, v1.ListLabEventsResponse]
 }
@@ -126,21 +93,6 @@ type labAdapterServiceClient struct {
 // GetLabStatus calls drift.v1.LabAdapterService.GetLabStatus.
 func (c *labAdapterServiceClient) GetLabStatus(ctx context.Context, req *connect.Request[v1.GetLabStatusRequest]) (*connect.Response[v1.GetLabStatusResponse], error) {
 	return c.getLabStatus.CallUnary(ctx, req)
-}
-
-// DiscoverLabDevices calls drift.v1.LabAdapterService.DiscoverLabDevices.
-func (c *labAdapterServiceClient) DiscoverLabDevices(ctx context.Context, req *connect.Request[v1.DiscoverLabDevicesRequest]) (*connect.Response[v1.DiscoverLabDevicesResponse], error) {
-	return c.discoverLabDevices.CallUnary(ctx, req)
-}
-
-// ConfirmLabTarget calls drift.v1.LabAdapterService.ConfirmLabTarget.
-func (c *labAdapterServiceClient) ConfirmLabTarget(ctx context.Context, req *connect.Request[v1.ConfirmLabTargetRequest]) (*connect.Response[v1.ConfirmLabTargetResponse], error) {
-	return c.confirmLabTarget.CallUnary(ctx, req)
-}
-
-// ClearLabTarget calls drift.v1.LabAdapterService.ClearLabTarget.
-func (c *labAdapterServiceClient) ClearLabTarget(ctx context.Context, req *connect.Request[v1.ClearLabTargetRequest]) (*connect.Response[v1.ClearLabTargetResponse], error) {
-	return c.clearLabTarget.CallUnary(ctx, req)
 }
 
 // CaptureLabObservation calls drift.v1.LabAdapterService.CaptureLabObservation.
@@ -156,9 +108,6 @@ func (c *labAdapterServiceClient) ListLabEvents(ctx context.Context, req *connec
 // LabAdapterServiceHandler is an implementation of the drift.v1.LabAdapterService service.
 type LabAdapterServiceHandler interface {
 	GetLabStatus(context.Context, *connect.Request[v1.GetLabStatusRequest]) (*connect.Response[v1.GetLabStatusResponse], error)
-	DiscoverLabDevices(context.Context, *connect.Request[v1.DiscoverLabDevicesRequest]) (*connect.Response[v1.DiscoverLabDevicesResponse], error)
-	ConfirmLabTarget(context.Context, *connect.Request[v1.ConfirmLabTargetRequest]) (*connect.Response[v1.ConfirmLabTargetResponse], error)
-	ClearLabTarget(context.Context, *connect.Request[v1.ClearLabTargetRequest]) (*connect.Response[v1.ClearLabTargetResponse], error)
 	CaptureLabObservation(context.Context, *connect.Request[v1.CaptureLabObservationRequest]) (*connect.Response[v1.CaptureLabObservationResponse], error)
 	ListLabEvents(context.Context, *connect.Request[v1.ListLabEventsRequest]) (*connect.Response[v1.ListLabEventsResponse], error)
 }
@@ -174,24 +123,6 @@ func NewLabAdapterServiceHandler(svc LabAdapterServiceHandler, opts ...connect.H
 		LabAdapterServiceGetLabStatusProcedure,
 		svc.GetLabStatus,
 		connect.WithSchema(labAdapterServiceMethods.ByName("GetLabStatus")),
-		connect.WithHandlerOptions(opts...),
-	)
-	labAdapterServiceDiscoverLabDevicesHandler := connect.NewUnaryHandler(
-		LabAdapterServiceDiscoverLabDevicesProcedure,
-		svc.DiscoverLabDevices,
-		connect.WithSchema(labAdapterServiceMethods.ByName("DiscoverLabDevices")),
-		connect.WithHandlerOptions(opts...),
-	)
-	labAdapterServiceConfirmLabTargetHandler := connect.NewUnaryHandler(
-		LabAdapterServiceConfirmLabTargetProcedure,
-		svc.ConfirmLabTarget,
-		connect.WithSchema(labAdapterServiceMethods.ByName("ConfirmLabTarget")),
-		connect.WithHandlerOptions(opts...),
-	)
-	labAdapterServiceClearLabTargetHandler := connect.NewUnaryHandler(
-		LabAdapterServiceClearLabTargetProcedure,
-		svc.ClearLabTarget,
-		connect.WithSchema(labAdapterServiceMethods.ByName("ClearLabTarget")),
 		connect.WithHandlerOptions(opts...),
 	)
 	labAdapterServiceCaptureLabObservationHandler := connect.NewUnaryHandler(
@@ -210,12 +141,6 @@ func NewLabAdapterServiceHandler(svc LabAdapterServiceHandler, opts ...connect.H
 		switch r.URL.Path {
 		case LabAdapterServiceGetLabStatusProcedure:
 			labAdapterServiceGetLabStatusHandler.ServeHTTP(w, r)
-		case LabAdapterServiceDiscoverLabDevicesProcedure:
-			labAdapterServiceDiscoverLabDevicesHandler.ServeHTTP(w, r)
-		case LabAdapterServiceConfirmLabTargetProcedure:
-			labAdapterServiceConfirmLabTargetHandler.ServeHTTP(w, r)
-		case LabAdapterServiceClearLabTargetProcedure:
-			labAdapterServiceClearLabTargetHandler.ServeHTTP(w, r)
 		case LabAdapterServiceCaptureLabObservationProcedure:
 			labAdapterServiceCaptureLabObservationHandler.ServeHTTP(w, r)
 		case LabAdapterServiceListLabEventsProcedure:
@@ -231,18 +156,6 @@ type UnimplementedLabAdapterServiceHandler struct{}
 
 func (UnimplementedLabAdapterServiceHandler) GetLabStatus(context.Context, *connect.Request[v1.GetLabStatusRequest]) (*connect.Response[v1.GetLabStatusResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.LabAdapterService.GetLabStatus is not implemented"))
-}
-
-func (UnimplementedLabAdapterServiceHandler) DiscoverLabDevices(context.Context, *connect.Request[v1.DiscoverLabDevicesRequest]) (*connect.Response[v1.DiscoverLabDevicesResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.LabAdapterService.DiscoverLabDevices is not implemented"))
-}
-
-func (UnimplementedLabAdapterServiceHandler) ConfirmLabTarget(context.Context, *connect.Request[v1.ConfirmLabTargetRequest]) (*connect.Response[v1.ConfirmLabTargetResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.LabAdapterService.ConfirmLabTarget is not implemented"))
-}
-
-func (UnimplementedLabAdapterServiceHandler) ClearLabTarget(context.Context, *connect.Request[v1.ClearLabTargetRequest]) (*connect.Response[v1.ClearLabTargetResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.LabAdapterService.ClearLabTarget is not implemented"))
 }
 
 func (UnimplementedLabAdapterServiceHandler) CaptureLabObservation(context.Context, *connect.Request[v1.CaptureLabObservationRequest]) (*connect.Response[v1.CaptureLabObservationResponse], error) {

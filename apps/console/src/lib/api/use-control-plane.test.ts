@@ -9,10 +9,6 @@ function adapter(overrides: Partial<LabAdapterView> = {}): LabAdapterView {
     readiness: "ready",
     adapterVersion: "1.0.0",
     platformToolsVersion: "36.0.0",
-    confirmedSerial: "",
-    confirmedDisplayName: "",
-    stableIdentity: "",
-    transportId: "",
     connectionState: "detached",
     connectionType: "",
     lastScreenshotHash: "",
@@ -21,6 +17,7 @@ function adapter(overrides: Partial<LabAdapterView> = {}): LabAdapterView {
     indeterminate: false,
     correlationId: "",
     discovered: [],
+    lastObservedSerial: "",
     ...overrides,
   }
 }
@@ -40,8 +37,7 @@ describe("mergeAdapterProjection", () => {
     const populated = {
       ...current,
       labAdapter: adapter({
-        confirmedSerial: "SERIAL1",
-        confirmedDisplayName: "Pixel",
+        lastObservedSerial: "SERIAL1",
         discovered: [{ serial: "SERIAL1", state: "device", model: "Pixel", transportId: "usb:1", connectionType: "usb" }],
       }),
     }
@@ -54,35 +50,34 @@ describe("mergeAdapterProjection", () => {
     const merged = mergeAdapterProjection(next, populated)
 
     expect(merged.devices).toEqual([])
-    expect(merged.labAdapter.confirmedSerial).toBe("SERIAL1")
+    expect(merged.labAdapter.lastObservedSerial).toBe("SERIAL1")
     expect(merged.labAdapter.discovered).toHaveLength(1)
   })
 
-  it("uses the next adapter when it reports discovered devices", () => {
+  it("uses the next adapter when it reports observed transports", () => {
     const current = createMockControlPlaneClient().getSnapshot()
     const next = {
       ...current,
       labAdapter: adapter({
-        confirmedSerial: "SERIAL2",
+        lastObservedSerial: "SERIAL2",
         discovered: [{ serial: "SERIAL2", state: "device", model: "Pixel", transportId: "usb:2", connectionType: "usb" }],
       }),
     }
 
     const merged = mergeAdapterProjection(next, {
       ...current,
-      labAdapter: adapter({ confirmedSerial: "SERIAL1" }),
+      labAdapter: adapter({ lastObservedSerial: "SERIAL1", discovered: [{ serial: "SERIAL1", state: "device", model: "Pixel", transportId: "usb:1", connectionType: "usb" }] }),
     })
 
-    expect(merged.labAdapter.confirmedSerial).toBe("SERIAL2")
+    expect(merged.labAdapter.lastObservedSerial).toBe("SERIAL2")
   })
 
-  it("uses a live empty adapter overlay instead of restoring a cleared target", () => {
+  it("uses a live empty adapter overlay instead of restoring an earlier observation", () => {
     const current = createMockControlPlaneClient().getSnapshot()
     const populated = {
       ...current,
       labAdapter: adapter({
-        confirmedSerial: "SERIAL1",
-        confirmedDisplayName: "Pixel",
+        lastObservedSerial: "SERIAL1",
         lastHealthAt: "10:00:00",
       }),
     }
@@ -90,7 +85,7 @@ describe("mergeAdapterProjection", () => {
       ...current,
       labAdapter: adapter({
         readiness: "unavailable",
-        confirmedSerial: "",
+        lastObservedSerial: "",
         lastHealthAt: "10:01:00",
         correlationId: "corr-cleared",
       }),
@@ -98,14 +93,14 @@ describe("mergeAdapterProjection", () => {
 
     const merged = mergeAdapterProjection(next, populated)
 
-    expect(merged.labAdapter.confirmedSerial).toBe("")
+    expect(merged.labAdapter.lastObservedSerial).toBe("")
   })
 
   it("does not keep adapter state when the control plane is unreachable", () => {
     const current = createMockControlPlaneClient().getSnapshot()
     const populated = {
       ...current,
-      labAdapter: adapter({ confirmedSerial: "SERIAL1", lastHealthAt: "10:00:00" }),
+      labAdapter: adapter({ lastObservedSerial: "SERIAL1", lastHealthAt: "10:00:00" }),
     }
     const next = {
       ...current,
@@ -119,7 +114,7 @@ describe("mergeAdapterProjection", () => {
 
     const merged = mergeAdapterProjection(next, populated)
 
-    expect(merged.labAdapter.confirmedSerial).toBe("")
+    expect(merged.labAdapter.lastObservedSerial).toBe("")
     expect(merged.runtimeConnection.state).toBe("disconnected")
   })
 })
@@ -129,12 +124,12 @@ describe("applyAdapterIntentProjection", () => {
     const current = createMockControlPlaneClient().getSnapshot()
     const populated = {
       ...current,
-      labAdapter: adapter({ confirmedSerial: "SERIAL1" }),
+      labAdapter: adapter({ lastObservedSerial: "SERIAL1" }),
     }
 
     const next = applyAdapterIntentProjection(populated, placeholderAdapter())
 
-    expect(next.labAdapter.confirmedSerial).toBe("")
+    expect(next.labAdapter.lastObservedSerial).toBe("")
     expect(next.labAdapter.readiness).toBe("unavailable")
   })
 })

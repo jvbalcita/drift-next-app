@@ -24,7 +24,7 @@ function isControlPlaneOutage(snapshot: ControlPlaneSnapshot): boolean {
 
 function isUnobservedAdapter(adapter: LabAdapterView): boolean {
   return adapter.discovered.length === 0
-    && adapter.confirmedSerial.length === 0
+    && adapter.lastObservedSerial.length === 0
     && adapter.adapterVersion.length === 0
     && adapter.correlationId.length === 0
     && adapter.lastHealthAt === undefined

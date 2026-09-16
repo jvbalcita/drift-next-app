@@ -2,6 +2,34 @@
 
 - Status: Accepted — owner authorized controlled P13 one-lab-device work 2026-09-15
 - Date: 2026-09-15
+- Amended: 2026-09-16 — the confirm-then-capture lifecycle is retired in favour of device-scoped capture (Discovery Phase E). See the amendment below.
+
+## Amendment: device-scoped capture (Discovery Phase E)
+
+**This amendment deliberately reverses the confirm-then-capture decision recorded below.**
+
+The original decision introduced a second discovery lifecycle on the lab adapter: `DiscoverLabDevices` enumerated candidates, `ConfirmLabTarget` bound one of them to mutable session state (`state.ConfirmedSerial`, `StableIdentity`, `TransportID`), and `CaptureLabObservation` then required that the request serial match the confirmed target exactly. That lifecycle duplicated the canonical Network Profile scan and made capture depend on session state rather than on the call that performs it.
+
+It also had a structural defect that a removal would have silently broken: `authorizeCapture` hard-required `state.ConfirmedSerial != ""`, and that field was written only by `ConfirmTarget`. Capture was therefore *unreachable* without the confirmation step, so this was not dead code that could simply be deleted — capture had to be reworked first.
+
+The amendment replaces confirm-then-capture with **device-scoped capture**:
+
+- `CaptureLabObservation` names its target explicitly in the same call that observes it. `serial` is required and must resolve to exactly one attached, usable transport; the service re-enumerates on every capture because a cached list is not evidence that the named device is still attached.
+- Authorization happens per call, from the explicit target, against the operator who made the call. There is no confirmed-target session state and no mutable "current target" to inherit.
+- `ConfirmedSerial`, `ConfirmedDisplayName`, `StableIdentity`, and `TransportID` are removed from `LabStatus`; the confirm-only `ConfirmationRejection` classification paths, the `ConfirmRequest` type, `matchCandidate`, and the two confirm-only audit event names (`LAB_EVENT_NAME_TARGET_CONFIRMATION`, `LAB_EVENT_NAME_OPERATOR_CONFIRMATION`) are removed with them. Field numbers 5–8, field names, and enum numbers 1 and 11 are reserved so nothing is reused.
+- The `DiscoverLabDevices`, `ConfirmLabTarget`, and `ClearLabTarget` RPCs are removed. The application-service `Discover` remains, because it is the canonical Network Profile scan's transport source and PR #28's single discovery path — it is no longer reachable as an operator RPC.
+- Indeterminate readiness is now resolved only by a later capture whose postcondition verifies. `ClearTarget` is gone, so there is no "clear" escape hatch; the indeterminate policy below is unchanged in substance.
+
+Four properties are preserved deliberately, and each has a test that would fail if it regressed:
+
+- **Capture stays read-only.** It still observes only: enumerate, health, screenshot, hierarchy, and the adapter's single-use read-only reattach. It is not routed through the lease or control-session path, and `TestCaptureObservationIssuesOnlyReadOnlyAdapterCalls` asserts that every adapter call it makes is a read-only one.
+- **Operator attribution is preserved and strengthened.** Attribution is now per call rather than per session; `TestCaptureObservationAuthorizesEveryCallByOperator` asserts the authorizer is asked for the calling operator on every capture.
+- **Explicit intent is preserved.** Capturing still requires naming exactly one device. An unnamed target, an unattached serial, an ambiguous serial, and an unusable transport are each refused (`TestCaptureObservationRefusesAnUnnamedTargetWithoutTouchingTheAdapter`, `...RefusesASerialThatIsNotAttached`, `...RefusesAnAmbiguousTarget`, `...RefusesAnUnusableTarget`), and nothing falls back to list order, a default, a display name, or a previous session.
+- **The P7 kernel is untouched.** Leases, fencing, policy, and control sessions are unchanged; capture still holds no lease and issues no fencing token.
+
+The contract-level consequence is asserted in `TestLabAdapterContractNoLongerExposesTheConfirmLifecycle`: the retired RPCs, messages, fields, and event names are gone, and their numbers stay reserved.
+
+The console follows the same boundary. The lab strip offers one action — capture — which asks for the exact serial and submits it in the same intent; the discovery button, the confirm dialog, the clear button, and the four-intent routing split are removed. The Control page names the selected device's single current endpoint serial rather than reusing a session target.
 
 ## Context
 
@@ -27,9 +55,9 @@ This P13 authorization covered one confirmed lab device under attended read-only
 
 ### One-device boundary
 
-A lab session holds at most one confirmed target, in service memory, for the life of the session. Discovery is separate from approval: `LabAdapterService.DiscoverLabDevices` enumerates candidates and creates nothing. `ConfirmLabTarget` requires an explicit serial that was actually enumerated and a matching confirmation text. The generic literal `CONFIRM` is accepted only when exactly one candidate was discovered; with more than one candidate the operator must type the serial itself, so a target can never be inferred from list order, row position, display name, model, or address.
+A lab capture observes exactly one explicitly named device and holds no target between calls. Naming is the whole of the operator's intent: `LabAdapterService.CaptureLabObservation` carries the serial, and the service resolves that exact name against the currently attached transports on every call. Nothing is inferred from list order, row position, display name, model, or address, and the adapter never falls back to a single candidate.
 
-Confirming a target does not register a canonical device, does not write the control-plane registry, does not grant a lease, and does not confer approval authority.
+Naming a device does not register a canonical device, does not write the control-plane registry, does not grant a lease, and does not confer approval authority. Enumeration remains available to the canonical Network Profile scan as its transport source; it is not an operator-facing RPC.
 
 ### Non-goals
 
@@ -49,7 +77,7 @@ The adb executable is explicit configuration: an absolute path supplied through 
 
 ### Stable identity versus transport identity
 
-A lab session identity is prefixed `lab:` and stays stable for the session. The adb transport identifier, the connection state, the connection type, the serial's network address, and the UI row are mutable transport facts. `Adapter.TransportIdentity` returns transport identity deliberately separately from stable identity, and neither the proto nor the service ever uses a transport fact as a primary key. `LabDiscoveredDevice.transport_id` is documented in the contract as a transport fact that must not be used as device identity.
+A capture's lab identity is prefixed `lab:` and is derived from the serial that call named, so it is stable for that device across calls and sessions. The adb transport identifier, the connection state, the connection type, the serial's network address, and the UI row are mutable transport facts. `Adapter.TransportIdentity` returns transport identity deliberately separately from stable identity, and neither the proto nor the service ever uses a transport fact as a primary key. `LabDiscoveredDevice.transport_id` is documented in the contract as a transport fact that must not be used as device identity.
 
 ### Native ADB/UIAutomator baseline
 
@@ -69,9 +97,9 @@ The helper question is deferred, not closed. Revisit it only if semantic-targeti
 
 The adversary model for this slice is a hostile or compromised device, a hostile transport on the lab network, untrusted command output, and **a hostile or compromised process running as the operator on the same host**. The slice is read-only, so the primary risks are command injection into the host, data exfiltration through captured evidence, targeting the wrong device, treating an uncertain outcome as success, and a local process driving the lab surface without the operator's knowledge.
 
-Each is addressed structurally: argv-only execution removes host injection; hashes, bounds, and redaction limit evidence exposure; explicit confirmation removes inference of a target; and indeterminate outcomes stay indeterminate rather than resolving to success.
+Each is addressed structurally: argv-only execution removes host injection; hashes, bounds, and redaction limit evidence exposure; naming one exact attached serial per call removes inference of a target; and indeterminate outcomes stay indeterminate rather than resolving to success.
 
-The local-caller risk is addressed in two layers, because loopback alone does not answer it. First, the listen address is validated rather than trusted: `DRIFT_CONTROL_PLANE_ADDR` must resolve to a loopback literal (`127.0.0.0/8`, `::1`, or `localhost`), and anything else — including a bare `:port`, which binds every interface — aborts startup with a fatal log instead of exposing the lab surface to the network. Second, the mounted lab route is guarded by a shared secret: a caller must present `X-Drift-Lab-Token` matching `DRIFT_P13_LAB_TOKEN`, compared in constant time, or every lab RPC is refused with `401` and a generic body that leaks nothing about the configured token, the mode, or the confirmed target.
+The local-caller risk is addressed in two layers, because loopback alone does not answer it. First, the listen address is validated rather than trusted: `DRIFT_CONTROL_PLANE_ADDR` must resolve to a loopback literal (`127.0.0.0/8`, `::1`, or `localhost`), and anything else — including a bare `:port`, which binds every interface — aborts startup with a fatal log instead of exposing the lab surface to the network. Second, the mounted lab route is guarded by a shared secret: a caller must present `X-Drift-Lab-Token` matching `DRIFT_P13_LAB_TOKEN`, compared in constant time, or every lab RPC is refused with `401` and a generic body that leaks nothing about the configured token, the mode, or the observed target.
 
 Real-device mode makes that token mandatory: when `DRIFT_P13_LAB_MODE=1`, an empty or absent `DRIFT_P13_LAB_TOKEN` aborts startup. Mock mode may omit the token, because no device is reachable and no observation is real; running an unguarded loopback surface is therefore a mock-only posture, not a production-like one. The console sends the token through `VITE_DRIFT_LAB_TOKEN`. The token authenticates a local caller to the lab route only. It is not a device credential, grants no lease, carries no fencing authority, and never appears in a log, an audit summary, or an error body.
 
@@ -105,7 +133,7 @@ Transport, device-offline, postcondition, cleanup-failed, and operator-cancelled
 
 ### Indeterminate action policy
 
-There is no blind replay. An idempotency key whose outcome is unknown is never retried automatically. The session readiness stays `indeterminate` until an operator clears the target or a later capture with a **new** idempotency key **verifies its postcondition**. A later determinate failure does not resolve it: a failed capture says nothing about whether the earlier command reached the device. A completed key is deduplicated and returns its recorded outcome rather than re-running the observation.
+There is no blind replay. An idempotency key whose outcome is unknown is never retried automatically. The session readiness stays `indeterminate` until a later capture with a **new** idempotency key **verifies its postcondition**. A later determinate failure does not resolve it: a failed capture says nothing about whether the earlier command reached the device. A completed key is deduplicated and returns its recorded outcome rather than re-running the observation. There is no "clear" verb: since capture names its own target per call, an unknown outcome can only be settled by evidence, not by an operator declaration.
 
 ### Reconnect behavior
 
@@ -115,7 +143,7 @@ When a transport identity changes mid-session, the lab service calls the adapter
 
 Drift never enables wireless debugging, never runs `adb pair`, never runs `adb connect`, and never opens a device-side port. Discovery is not enablement: enumerating a transport that an operator already established says nothing about Drift authorizing it.
 
-A wireless target requires explicit operator confirmation of the exact `host:port` serial. This is not theoretical for the current lab: a read-only `adb devices -l` on the P13 host enumerated **20 attached transports, all TCP `host:port` wireless transports and zero USB**. In that environment nothing may be inferred, which is precisely why the generic `CONFIRM` literal is rejected whenever more than one candidate exists.
+A wireless target requires the operator to name the exact `host:port` serial. This is not theoretical for the current lab: a read-only `adb devices -l` on the P13 host enumerated **20 attached transports, all TCP `host:port` wireless transports and zero USB**. In that environment nothing may be inferred, which is precisely why a capture that names no device, names an unattached serial, or names an ambiguous serial is refused outright rather than resolved to "the only plausible one".
 
 ### Port exposure and firewall policy
 
@@ -125,7 +153,7 @@ The Drift service listens on loopback, and that is enforced at startup rather th
 
 Helper tokens are not applicable: no helper is adopted, so no helper token exists in this slice. This is unchanged from ADR-0005's rule that a helper token would authenticate helper traffic only and would never substitute for Drift authority. The local lab token described above is the same kind of narrow credential: it authenticates a local caller to the lab route and is never Drift authority.
 
-Control-plane leases and fencing tokens remain authoritative and are untouched by this slice. The lab service holds no lease, issues no fencing token, and grants no mutating authority. Its session confirmation is an observation scope, not ownership of a device.
+Control-plane leases and fencing tokens remain authoritative and are untouched by this slice. The lab service holds no lease, issues no fencing token, and grants no mutating authority. Its per-call target is an observation scope, not ownership of a device.
 
 ### Provenance and signing
 
@@ -143,17 +171,19 @@ Captured process output is redacted before it reaches an error, a log, an audit 
 
 There is no dedicated routed lab page. The lab surfaces are the Control, Devices, and Events pages, which compose the lab components exported from `apps/console/src/pages/lab-adapter.tsx`: Control renders `LabStatusStrip` and `LabObservationFrame`, Devices renders `LabAdapterStatusPanel`, and Events renders the lab audit records alongside every other event.
 
-The default data path is the mock control plane, so the console ships with typed intents and no network dependency. The optional Connect client in `apps/console/src/lib/api/lab-adapter-client.ts` is used only when `VITE_DRIFT_LAB_ADAPTER_URL` is set. When it is, `useControlPlane` routes exactly the four lab intents — `discoverLabDevices`, `confirmLabTarget`, `clearLabTarget`, `captureLabObservation` — through `applyLabIntent` in `lab-control-plane.ts`, which projects the returned `LabStatus` onto `snapshot.labAdapter` via `toLabAdapterView`. Every non-lab intent stays on the mock client, and a failed lab call leaves the previous projection untouched while reporting the failure in the lab strip's live region, so an unreachable adapter is never rendered as a fresh observation. The mock-only `simulateLabCaptureFailure` intent exercises the indeterminate surface without a device and is never routed to the adapter.
+The default data path is the mock control plane, so the console ships with typed intents and no network dependency. The optional Connect client in `apps/console/src/lib/api/lab-adapter-client.ts` is used only when `VITE_DRIFT_LAB_ADAPTER_URL` is set. When it is, `useControlPlane` routes exactly one lab intent — `captureLabObservation` — through `applyLabIntent` in `lab-control-plane.ts`, which projects the returned `LabStatus` onto `snapshot.labAdapter` via `toLabAdapterView`. Every other intent stays on the mock client, and a failed lab call leaves the previous projection untouched while reporting the failure in the lab strip's live region, so an unreachable adapter is never rendered as a fresh observation. The mock-only `simulateLabCaptureFailure` intent exercises the indeterminate surface without a device and is never routed to the adapter.
 
-The existing Control page design is preserved: the lab slice adds status, confirmation, and evidence surfaces within the established visual system rather than restyling the page. The UI renders sanitized state and requests typed intents; it implements no authorization, no confirmation policy, and no device protocol. Status must not be conveyed by color alone, and indeterminate must be visibly distinct from both success and failure. Mock observations report zero latency and an explicitly unmeasured hierarchy summary, so a fixture is never read as a device measurement.
+The lab strip offers one action: capture, which asks for the exact serial and submits it in the same typed intent. There is no discovery button, no confirm dialog, and no clear button, because there is no lifecycle left to drive — a device exists only inside the call that names it. The Control page names the selected device's single current endpoint serial; with no current endpoint, or more than one, it refuses rather than choosing.
+
+The existing Control page design is preserved: the lab slice adds status and evidence surfaces within the established visual system rather than restyling the page. The UI renders sanitized state and requests typed intents; it implements no authorization, no target-selection policy, and no device protocol. Status must not be conveyed by color alone, and indeterminate must be visibly distinct from both success and failure. Mock observations report zero latency and an explicitly unmeasured hierarchy summary, so a fixture is never read as a device measurement.
 
 ### Operational limitations
 
-- Multi-device environments require explicit serial confirmation. The lab host had 20 attached transports; capture proceeded only after the operator typed `192.168.1.109:5555`.
+- Multi-device environments require the operator to name the exact serial. The lab host had 20 attached transports; capture proceeded only after the operator named `192.168.1.109:5555`.
 - CI skips real-device tests. They are opt-in, gated on `DRIFT_P13_LAB_MODE`, `DRIFT_P13_ADB_PATH`, and `DRIFT_P13_LAB_SERIAL`, and CI sets none of them.
 - The wireless fleet attached in the lab must not be auto-targeted. Enumeration is not selection, and no heuristic may promote a candidate.
 - Evidence persistence is not part of this slice: `artifact_id` stays empty until the artifact store is wired in, so bundles reference captures by content hash only.
-- Session state is in-memory and does not survive a service restart.
+- Session state is in-memory and does not survive a service restart. Only observation-derived state is kept: the retained audit ring buffer, idempotency outcomes, and the last observed transport identity used to detect a transport change between two captures of the same named device.
 
 ### Recommendation and expansion decision
 
@@ -172,20 +202,20 @@ The existing Control page design is preserved: the lab slice adds status, confir
 ## Consequences
 
 - P13 ships with no new runtime dependency, no on-device install, and no new network exposure.
-- The console gains lab surfaces that are strictly read-only plus confirmation, so the Control page's existing behavior and design are unaffected.
-- Every capture costs an explicit operator confirmation in the current lab. That is deliberate friction and will be felt.
-- An indeterminate outcome requires operator action to clear. There is no automatic recovery path, by design.
+- The console gains lab surfaces that are strictly read-only, so the Control page's existing behavior and design are unaffected.
+- Every capture names its own target. The friction of the old confirmation step is gone; the explicit-intent guarantee is not, because a capture with no device name, an unattached serial, an ambiguous serial, or an unusable transport is refused before any adapter call.
+- An indeterminate outcome can only be resolved by a later capture that verifies its postcondition. There is no automatic recovery path and no operator "clear", by design.
 - Semantic targeting and action postconditions remain unproven against a real device; if they later demand accessibility-event data, the helper question reopens under ADR-0005's gate.
 - P14 registration/runtime spool was blocked by this P13 ADR until separate owner authorization; that authorization was granted 2026-09-15 for one-device attended lab work only. This P13 slice still produces adapter evidence, not P14 completion evidence.
-- Live one-device measurements for the operator-confirmed serial `192.168.1.109:5555` are recorded in `tests/compatibility/adb/matrix.md` and `tests/compatibility/adb/evidence-2026-09-15.md`. Remaining gaps (USB path, forced timeout, transport-id change, dump file-fallback) are listed explicitly and do not reopen helper adoption.
+- Live one-device measurements for the operator-named serial `192.168.1.109:5555` are recorded in `tests/compatibility/adb/matrix.md` and `tests/compatibility/adb/evidence-2026-09-15.md`. Remaining gaps (USB path, forced timeout, transport-id change, dump file-fallback) are listed explicitly and do not reopen helper adoption.
 
 ## Validation
 
 - Unit and integration tests in `internal/edge/adb` cover serial validation, argv construction without shell metacharacters, the getprop allow-list, device-path namespacing, rejection of blind replay and arbitrary shell, redaction of adb keys and vendor keys, bounded redaction, transport-state parsing, transport identity separation, bounded PNG screenshots, single-use read-only reattach, exit-status classification, timeout kill, cancellation as distinct from timeout, refusal of an already-canceled context, and non-inheritance of the host environment.
 - Tests in `internal/edge/uiautomator` cover stdout streaming without a temporary file, temporary-file fallback with removal after success, failure, and cancellation, honest reporting of cleanup failure, malformed and empty dumps, node/depth/payload bounds, truncation marking, serial validation before any command, allow-listed commands only, and text sanitization.
-- Tests in `internal/edge/lab` cover mock-mode default with no device work, discovery that confirms and registers nothing, operator attribution, capture blocked before confirmation, rejection of the generic literal with several candidates, rejection of a never-enumerated serial and an unusable transport, stable identity distinct from transport identity, sanitized verified bundles, bounded preview and truncation, idempotency-key deduplication, timeout as indeterminate and never replayed, operator cancellation, postcondition failure on an incomplete hierarchy, read-only transport-change reconciliation, target clearing, bounded redacted event summaries, and the dual-gate lab-mode requirement.
-- Tests in `internal/edge/lab` additionally cover the required confirmation reason, the single-use `ReattachReadOnly` call on the transport-change path, and an indeterminate readiness that survives a later determinate failure and is resolved only by a verified capture or an operator clear.
+- Tests in `internal/edge/lab` cover mock-mode default with no device work, scan enumeration that confirms and registers nothing, per-call operator attribution, refusal of a capture that names no device, refusal of an unattached serial, an ambiguous serial, and an unusable transport, resolution of an explicitly named attached target, read-only adapter calls only, stable identity distinct from transport identity, sanitized verified bundles, bounded preview and truncation, idempotency-key deduplication, timeout as indeterminate and never replayed, operator cancellation, postcondition failure on an incomplete hierarchy, read-only transport-change reconciliation, bounded redacted event summaries, and the dual-gate lab-mode requirement.
+- Tests in `internal/edge/lab` additionally cover the single-use `ReattachReadOnly` call on the transport-change path, and an indeterminate readiness that survives a later determinate failure and is resolved only by a verified capture.
 - Tests in `internal/service` cover loopback address validation — including rejection of a bare `:port`, `0.0.0.0`, and a non-loopback hostname — and the constant-time lab token guard for missing, wrong, and correct tokens.
-- `buf lint` and `buf build` validate the `LabAdapterService` contract; console tests cover the typed client, the lab token header, the mock/lab intent routing split, the refusal-versus-unreachable distinction, and the mock indeterminate simulation.
-- An opt-in real-device test in `internal/edge/lab/real_device_test.go` exercises the read-only path against a confirmed lab serial. It skips unless `DRIFT_P13_LAB_MODE=1`, `DRIFT_P13_ADB_PATH`, and `DRIFT_P13_LAB_SERIAL` are all set, and it fails closed when the serial is not present in discovery.
-- Real-device acceptance requires filling `tests/compatibility/adb/matrix.md` with measured results from a confirmed serial, plus Sentinel and owner review, before any expansion is reconsidered.
+- `buf lint` and `buf build` validate the `LabAdapterService` contract; `TestLabAdapterContractNoLongerExposesTheConfirmLifecycle` asserts the retired RPCs, messages, fields, and event names are gone and their numbers stay reserved. Console tests cover the typed client, the lab token header, the single-intent lab routing, the refusal-versus-unreachable distinction, and the mock indeterminate simulation.
+- An opt-in real-device test in `internal/edge/lab/real_device_test.go` exercises the read-only path against an explicitly named lab serial. It skips unless `DRIFT_P13_LAB_MODE=1`, `DRIFT_P13_ADB_PATH`, and `DRIFT_P13_LAB_SERIAL` are all set, and it fails closed when the named serial is not an attached, usable transport.
+- Real-device acceptance requires filling `tests/compatibility/adb/matrix.md` with measured results from a named serial, plus Sentinel and owner review, before any expansion is reconsidered.

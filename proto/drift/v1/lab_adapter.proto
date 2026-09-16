@@ -26,9 +26,14 @@ enum LabReadiness {
 }
 
 // LabEventName is the stable vocabulary of lab adapter audit events.
+//
+// The confirm-lifecycle event names are retired: capture no longer depends on a
+// separate target-confirmation step, so nothing can emit them.
 enum LabEventName {
+  reserved 1, 11;
+  reserved "LAB_EVENT_NAME_TARGET_CONFIRMATION", "LAB_EVENT_NAME_OPERATOR_CONFIRMATION";
+
   LAB_EVENT_NAME_UNSPECIFIED = 0;
-  LAB_EVENT_NAME_TARGET_CONFIRMATION = 1;
   LAB_EVENT_NAME_ADAPTER_READINESS = 2;
   LAB_EVENT_NAME_OBSERVATION_CAPTURE = 3;
   LAB_EVENT_NAME_UI_TREE_CAPTURE = 4;
@@ -38,13 +43,13 @@ enum LabEventName {
   LAB_EVENT_NAME_CANCELLATION = 8;
   LAB_EVENT_NAME_CLEANUP = 9;
   LAB_EVENT_NAME_INDETERMINATE_OUTCOME = 10;
-  LAB_EVENT_NAME_OPERATOR_CONFIRMATION = 11;
 }
 
-// LabDiscoveredDevice is one enumerated candidate transport. Discovery is
-// deliberately separate from approval: nothing in this message creates or
-// registers a canonical device, and connection_state and transport_id are
-// mutable transport facts that must never be used as device identity.
+// LabDiscoveredDevice is one enumerated candidate transport observed while
+// resolving a capture target. Enumeration is read-only evidence: nothing in
+// this message creates or registers a canonical device, and connection_state
+// and transport_id are mutable transport facts that must never be used as
+// device identity.
 message LabDiscoveredDevice {
   string serial = 1;
   string connection_state = 2;
@@ -57,17 +62,17 @@ message LabDiscoveredDevice {
 
 // LabStatus is the sanitized projection of the lab adapter boundary. Every
 // timestamp is RFC3339 UTC text and is empty when the event never happened.
+//
+// The confirmed-target fields are retired: no session state holds a target, so
+// there is nothing to project. A capture names its own target per call.
 message LabStatus {
+  reserved 5, 6, 7, 8;
+  reserved "confirmed_serial", "confirmed_display_name", "stable_identity", "transport_id";
+
   LabMode mode = 1;
   LabReadiness readiness = 2;
   string adapter_version = 3;
   string platform_tools_version = 4;
-  // confirmed_serial is empty until an operator explicitly confirms a target.
-  string confirmed_serial = 5;
-  string confirmed_display_name = 6;
-  // stable_identity is the lab-scoped stable identity, never a transport id.
-  string stable_identity = 7;
-  string transport_id = 8;
   string connection_state = 9;
   string connection_type = 10;
   string last_health_at = 11;
@@ -80,6 +85,8 @@ message LabStatus {
   string failure_class = 16;
   bool indeterminate = 17;
   string correlation_id = 18;
+  // discovered is the candidate set observed while resolving the most recent
+  // capture target. It is read-only evidence and is never a device registry.
   repeated LabDiscoveredDevice discovered = 19;
 }
 
@@ -139,52 +146,13 @@ message GetLabStatusResponse {
   Failure failure = 2;
 }
 
-message DiscoverLabDevicesRequest {
-  WorkspaceRef workspace = 1;
-  RequestContext context = 2;
-  string operator_id = 3;
-}
-
-message DiscoverLabDevicesResponse {
-  LabStatus status = 1;
-  Failure failure = 2;
-}
-
-// ConfirmLabTargetRequest requires an explicit serial plus matching
-// confirmation text. The adapter never infers a target from list order,
-// display name, address, or row position.
-message ConfirmLabTargetRequest {
-  WorkspaceRef workspace = 1;
-  RequestContext context = 2;
-  string serial = 3;
-  string display_name = 4;
-  // confirmation_text must equal the serial, or the literal CONFIRM when
-  // exactly one candidate was discovered.
-  string confirmation_text = 5;
-  string operator_id = 6;
-  string reason = 7;
-}
-
-message ConfirmLabTargetResponse {
-  LabStatus status = 1;
-  Failure failure = 2;
-}
-
-message ClearLabTargetRequest {
-  WorkspaceRef workspace = 1;
-  RequestContext context = 2;
-  string operator_id = 3;
-  string reason = 4;
-}
-
-message ClearLabTargetResponse {
-  LabStatus status = 1;
-  Failure failure = 2;
-}
-
-// CaptureLabObservationRequest requires the serial to match the confirmed
-// target exactly. context.idempotency_key is required: a key whose outcome is
-// unknown is never replayed automatically.
+// CaptureLabObservationRequest names the target device explicitly, in the same
+// call that observes it. serial is required and must name exactly one attached,
+// usable device: the adapter never infers a target from session state, list
+// order, display name, address, or row position.
+//
+// context.idempotency_key is required: a key whose outcome is unknown is never
+// replayed automatically.
 message CaptureLabObservationRequest {
   WorkspaceRef workspace = 1;
   RequestContext context = 2;
@@ -210,15 +178,14 @@ message ListLabEventsResponse {
   Failure failure = 2;
 }
 
-// LabAdapterService is the read-only-plus-confirmation boundary for the real
-// device lab slice. It exposes observation and explicit target confirmation
-// only: it issues no device input, holds no lease, grants no approval
-// authority, and never registers a canonical device.
+// LabAdapterService is the read-only observation boundary for the real device
+// lab slice. Capture is device-scoped: each call names its target and is
+// authorized on its own, so the adapter holds no confirmed-target lifecycle.
+//
+// It exposes observation only: it issues no device input, holds no lease,
+// grants no approval authority, and never registers a canonical device.
 service LabAdapterService {
   rpc GetLabStatus(GetLabStatusRequest) returns (GetLabStatusResponse);
-  rpc DiscoverLabDevices(DiscoverLabDevicesRequest) returns (DiscoverLabDevicesResponse);
-  rpc ConfirmLabTarget(ConfirmLabTargetRequest) returns (ConfirmLabTargetResponse);
-  rpc ClearLabTarget(ClearLabTargetRequest) returns (ClearLabTargetResponse);
   rpc CaptureLabObservation(CaptureLabObservationRequest) returns (CaptureLabObservationResponse);
   rpc ListLabEvents(ListLabEventsRequest) returns (ListLabEventsResponse);
 }

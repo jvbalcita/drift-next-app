@@ -195,6 +195,14 @@ func (f *fakeAdapter) callCount(call string) int {
 	return count
 }
 
+// recordedCalls returns a copy of every adapter call the service made, so a
+// test can assert what the boundary did and did not do.
+func (f *fakeAdapter) recordedCalls() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.calls...)
+}
+
 // wait honors both a scripted delay and the caller's context so a deadline can
 // expire mid-operation.
 func wait(ctx context.Context, delay time.Duration) error {

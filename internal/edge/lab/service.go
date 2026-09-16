@@ -53,8 +53,7 @@ const (
 	maxRetainedOutcomes    = 64
 	maxSummaryLength       = 512
 	maxOperatorIDLength    = 128
-	maxDisplayNameLength   = 128
-	maxReasonLength        = 512
+	maxTargetSerialBytes   = 256
 	maxIdempotencyKeyBytes = 128
 	maxCorrelationIDBytes  = 128
 )
@@ -100,8 +99,8 @@ type EvidencePersister interface {
 }
 
 // Authorizer decides whether an operator may perform one lab action. The
-// service always asks before touching an adapter, so authorization cannot be
-// skipped by a transport caller.
+// service asks before every capture, so authorization cannot be skipped by a
+// transport caller and is never inherited from an earlier call.
 type Authorizer interface {
 	Authorize(ctx context.Context, operatorID string, action Action) error
 }
@@ -127,9 +126,9 @@ type captureOutcome struct {
 	reason   string
 }
 
-// Service is the typed lab adapter boundary. A confirmed target lives only in
-// this struct: the service never writes a device into the control-plane
-// registry.
+// Service is the typed lab adapter boundary. It holds no target: a device is
+// named inside one capture call, and the service never writes a device into the
+// control-plane registry.
 type Service struct {
 	mode           Mode
 	devices        DeviceRunner
@@ -151,6 +150,12 @@ type Service struct {
 	events       []Event
 	outcomes     map[string]captureOutcome
 	outcomeOrder []string
+
+	// lastTransportID is the mutable transport identity observed for the most
+	// recently resolved target. It is never identity and never a target: it
+	// exists only so a transport change between two captures of the same named
+	// device can be detected and reconciled once.
+	lastTransportID string
 }
 
 // Option configures a Service at construction time.
@@ -203,8 +208,8 @@ func WithLabAdapters(devices DeviceRunner, hierarchy HierarchyObserver) Option {
 	}
 }
 
-// WithMockCandidates replaces the deterministic mock discovery fixtures. It has
-// no effect once WithLabAdapters has bound real adapters.
+// WithMockCandidates replaces the deterministic mock attached-device fixtures.
+// It has no effect once WithLabAdapters has bound real adapters.
 func WithMockCandidates(candidates ...adb.DiscoveredDevice) Option {
 	return func(s *Service) error {
 		if s.mode == ModeLab {
@@ -305,8 +310,10 @@ func (s *Service) Events() []Event {
 	return append([]Event(nil), s.events...)
 }
 
-// Discover enumerates candidate transports. It only enumerates: it never
-// confirms a target, and it never registers a canonical device.
+// Discover enumerates the attached candidate transports that back the canonical
+// scan. It only enumerates: it never confirms a target, never registers a
+// canonical device, and exposes no operator-facing lifecycle. The Network
+// Profile scan is the single discovery path; this is its transport source.
 func (s *Service) Discover(ctx context.Context, operatorID string) (Status, error) {
 	if err := s.authorize(ctx, operatorID, ActionDiscover); err != nil {
 		return s.Status(ctx), err
@@ -323,7 +330,7 @@ func (s *Service) Discover(ctx context.Context, operatorID string) (Status, erro
 	candidates, enumerateErr := s.devices.Enumerate(callCtx)
 	if enumerateErr != nil {
 		class := adb.FailureClassOf(enumerateErr)
-		s.recordDiscoveryFailure(correlationID, class, enumerateErr)
+		s.recordEnumerationFailure(correlationID, class, enumerateErr)
 		return s.Status(ctx), classifiedError(class, "lab adapter could not enumerate devices", enumerateErr)
 	}
 
@@ -345,7 +352,7 @@ func (s *Service) Discover(ctx context.Context, operatorID string) (Status, erro
 		CorrelationID: correlationID,
 		OccurredAt:    s.clock.Now(),
 		FailureClass:  s.state.FailureClass,
-		Summary:       fmt.Sprintf("enumerated %d candidate transports in %s mode; none were registered or confirmed", len(candidates), s.mode),
+		Summary:       fmt.Sprintf("enumerated %d attached candidate transports in %s mode; none were registered", len(candidates), s.mode),
 	})
 	status := s.snapshotLocked()
 	s.mu.Unlock()
@@ -353,152 +360,13 @@ func (s *Service) Discover(ctx context.Context, operatorID string) (Status, erro
 	return status, nil
 }
 
-// ConfirmTarget binds one explicitly named candidate to this session.
+// CaptureObservation performs one bounded read-only observation of the device
+// named in this call: health, then a screenshot, then a view-hierarchy dump.
 //
-// The serial must match an enumerated candidate exactly. When more than one
-// candidate is attached, the confirmation text must be the serial itself: the
-// generic CONFIRM phrase is refused so a target can never be inferred from
-// list order, display name, address, or row position.
-func (s *Service) ConfirmTarget(ctx context.Context, request ConfirmRequest) (Status, error) {
-	if err := s.authorize(ctx, request.OperatorID, ActionConfirmTarget); err != nil {
-		return s.Status(ctx), err
-	}
-	if err := s.devices.ValidateSerial(request.Serial); err != nil {
-		return s.Status(ctx), platformerrors.Wrap(platformerrors.CodeInvalidInput, "lab target serial is not a valid device serial", err)
-	}
-	if request.DisplayName != "" {
-		if err := validateBoundedText(request.DisplayName, maxDisplayNameLength); err != nil {
-			return s.Status(ctx), platformerrors.Wrap(platformerrors.CodeInvalidInput, "lab target display name must be bounded and sanitized", err)
-		}
-	}
-	// A confirmation is an auditable operator decision, so it must carry a
-	// reason. An absent reason is refused rather than defaulted.
-	if err := validateBoundedText(strings.TrimSpace(request.Reason), maxReasonLength); err != nil {
-		return s.Status(ctx), platformerrors.Wrap(platformerrors.CodeInvalidInput, "lab confirmation requires a bounded, sanitized reason", err)
-	}
-
-	correlationID, err := s.newCorrelationID("")
-	if err != nil {
-		return s.Status(ctx), err
-	}
-
-	callCtx, cancel := context.WithTimeout(ctx, s.captureTimeout)
-	defer cancel()
-
-	// Confirmation always re-enumerates: a cached list is not evidence that the
-	// named target is still attached.
-	candidates, enumerateErr := s.devices.Enumerate(callCtx)
-	if enumerateErr != nil {
-		class := adb.FailureClassOf(enumerateErr)
-		s.recordDiscoveryFailure(correlationID, class, enumerateErr)
-		return s.Status(ctx), classifiedError(class, "lab adapter could not enumerate devices", enumerateErr)
-	}
-
-	s.mu.Lock()
-	s.state.Discovered = append([]adb.DiscoveredDevice(nil), candidates...)
-	s.mu.Unlock()
-
-	candidate, matchErr := matchCandidate(candidates, request)
-	if matchErr != nil {
-		s.recordConfirmationRejection(correlationID, request.Serial, matchErr)
-		return s.Status(ctx), matchErr.platformError()
-	}
-
-	s.mu.Lock()
-	s.appendEventLocked(Event{
-		Name:          EventOperatorConfirmation,
-		CorrelationID: correlationID,
-		Serial:        candidate.Serial,
-		OccurredAt:    s.clock.Now(),
-		Summary:       fmt.Sprintf("operator %s typed a matching confirmation for %d attached candidates", redaction.RedactString(request.OperatorID), len(candidates)),
-	})
-	s.mu.Unlock()
-
-	report, healthErr := s.devices.Health(callCtx, candidate.Serial)
-	if healthErr != nil {
-		class := adb.FailureClassOf(healthErr)
-		s.recordConfirmationFailure(correlationID, candidate.Serial, class, "target health could not be observed")
-		return s.Status(ctx), classifiedError(class, "lab target health could not be observed", healthErr)
-	}
-	if report.FailureClass != "" {
-		s.recordConfirmationFailure(correlationID, candidate.Serial, report.FailureClass, "target is attached but not observable")
-		return s.Status(ctx), classifiedError(report.FailureClass, "lab target is attached but not usable", nil)
-	}
-
-	observedAt := s.clock.Now()
-
-	s.mu.Lock()
-	s.state.ConfirmedSerial = candidate.Serial
-	s.state.ConfirmedDisplayName = request.DisplayName
-	s.state.StableIdentity = StableIdentityPrefix + candidate.Serial
-	s.state.TransportID = transportIDOf(candidate, report)
-	s.state.ConnectionState = string(candidate.State)
-	s.state.ConnectionType = candidate.ConnectionType
-	s.state.LastHealthAt = &observedAt
-	s.state.CorrelationID = correlationID
-	s.state.FailureClass = ""
-	s.state.Indeterminate = false
-	if report.PlatformToolsVersion != "" {
-		s.state.PlatformToolsVersion = report.PlatformToolsVersion
-	}
-	s.refreshReadinessLocked()
-	s.appendEventLocked(Event{
-		Name:          EventTargetConfirmation,
-		CorrelationID: correlationID,
-		Serial:        candidate.Serial,
-		OccurredAt:    observedAt,
-		Summary:       fmt.Sprintf("confirmed lab target %s as session identity %s; reason recorded; no canonical device was registered", candidate.Serial, s.state.StableIdentity),
-	})
-	status := s.snapshotLocked()
-	s.mu.Unlock()
-
-	return status, nil
-}
-
-// ClearTarget releases the confirmed target and resolves a stuck indeterminate
-// readiness. Clearing is the operator's explicit acknowledgement that an
-// unknown outcome has been reviewed.
-func (s *Service) ClearTarget(ctx context.Context, operatorID string) (Status, error) {
-	if err := s.authorize(ctx, operatorID, ActionClearTarget); err != nil {
-		return s.Status(ctx), err
-	}
-	correlationID, err := s.newCorrelationID("")
-	if err != nil {
-		return s.Status(ctx), err
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	released := s.state.ConfirmedSerial
-	s.state.ConfirmedSerial = ""
-	s.state.ConfirmedDisplayName = ""
-	s.state.StableIdentity = ""
-	s.state.TransportID = ""
-	s.state.ConnectionState = ""
-	s.state.ConnectionType = ""
-	s.state.LastScreenshotHash = ""
-	s.state.LastHierarchySummary = ""
-	s.state.ObservationLatencyMs = 0
-	s.state.LastObservationAt = nil
-	s.state.LastHealthAt = nil
-	s.state.Indeterminate = false
-	s.state.FailureClass = ""
-	s.state.CorrelationID = correlationID
-	s.refreshReadinessLocked()
-	s.appendEventLocked(Event{
-		Name:          EventCleanup,
-		CorrelationID: correlationID,
-		Serial:        released,
-		OccurredAt:    s.clock.Now(),
-		Summary:       fmt.Sprintf("operator %s released the confirmed lab target", redaction.RedactString(operatorID)),
-	})
-	return s.snapshotLocked(), nil
-}
-
-// CaptureObservation performs one bounded read-only observation: health, then a
-// screenshot, then a view-hierarchy dump. It requires a confirmed target whose
-// serial matches exactly.
+// The serial is the whole of the operator's intent. Authorization resolves that
+// exact name against the currently attached transports on every call, so no
+// session state, list order, display name, address, or row position can select
+// a device, and nothing is registered or confirmed.
 //
 // A timeout after a command may already have been dispatched yields an
 // indeterminate outcome. The idempotency key is then recorded as unresolved and
@@ -513,6 +381,12 @@ func (s *Service) CaptureObservation(ctx context.Context, request CaptureRequest
 	if request.Timeout < 0 || request.Timeout > MaxCaptureTimeout {
 		return ObservationBundle{}, platformerrors.New(platformerrors.CodeInvalidInput, "lab capture timeout is out of range")
 	}
+	if err := validateBoundedText(request.Serial, maxTargetSerialBytes); err != nil {
+		return ObservationBundle{}, platformerrors.Wrap(platformerrors.CodeInvalidInput, "lab capture requires an explicitly named target serial", err)
+	}
+	if err := s.devices.ValidateSerial(request.Serial); err != nil {
+		return ObservationBundle{}, platformerrors.Wrap(platformerrors.CodeInvalidInput, "lab target serial is not a valid device serial", err)
+	}
 
 	correlationID, err := s.newCorrelationID(request.CorrelationID)
 	if err != nil {
@@ -522,11 +396,9 @@ func (s *Service) CaptureObservation(ctx context.Context, request CaptureRequest
 	s.captureMu.Lock()
 	defer s.captureMu.Unlock()
 
-	serial, stableIdentity, previousTransportID, err := s.authorizeCapture(request)
-	if err != nil {
-		return ObservationBundle{}, err
-	}
-	if bundle, replayErr, decided := s.replayOutcome(request.IdempotencyKey); decided {
+	// A repeated idempotency key is answered before any device work: a resolved
+	// key returns its recorded bundle, an unresolved one is refused.
+	if bundle, replayErr, decided := s.replayOutcome(request.Serial, request.IdempotencyKey); decided {
 		return bundle, replayErr
 	}
 
@@ -537,10 +409,15 @@ func (s *Service) CaptureObservation(ctx context.Context, request CaptureRequest
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	target, stableIdentity, previousTransportID, err := s.resolveTarget(callCtx, correlationID, request.Serial)
+	if err != nil {
+		return ObservationBundle{}, err
+	}
+
 	run := &captureRun{
 		service:             s,
 		correlationID:       correlationID,
-		serial:              serial,
+		serial:              target.Serial,
 		stableIdentity:      stableIdentity,
 		previousTransportID: previousTransportID,
 		request:             request,
@@ -552,33 +429,51 @@ func (s *Service) CaptureObservation(ctx context.Context, request CaptureRequest
 	return bundle, captureErr
 }
 
-// authorizeCapture enforces the confirmed-target and readiness preconditions.
-func (s *Service) authorizeCapture(request CaptureRequest) (serial string, stableIdentity string, transportID string, err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// resolveTarget authorizes one capture against the device named in the request.
+// It always re-enumerates: a cached list is not evidence that the named target
+// is still attached, and it never falls back to a heuristic when the name is
+// absent, ambiguous, or unusable.
+func (s *Service) resolveTarget(ctx context.Context, correlationID, serial string) (adb.DiscoveredDevice, string, string, error) {
+	candidates, enumerateErr := s.devices.Enumerate(ctx)
+	if enumerateErr != nil {
+		class := adb.FailureClassOf(enumerateErr)
+		s.recordEnumerationFailure(correlationID, class, enumerateErr)
+		return adb.DiscoveredDevice{}, "", "", classifiedError(class, "lab adapter could not enumerate attached devices", enumerateErr)
+	}
 
-	if s.state.ConfirmedSerial == "" {
-		return "", "", "", platformerrors.New(platformerrors.CodePreconditionFailed, "lab capture requires an explicitly confirmed target")
+	s.mu.Lock()
+	s.state.Discovered = append([]adb.DiscoveredDevice(nil), candidates...)
+	s.mu.Unlock()
+
+	target, rejection := matchAttachedTarget(candidates, serial)
+	if rejection != nil {
+		s.recordTargetRejection(correlationID, serial, rejection, candidates)
+		return adb.DiscoveredDevice{}, "", "", rejection.platformError()
 	}
-	if request.Serial != s.state.ConfirmedSerial {
-		return "", "", "", platformerrors.New(platformerrors.CodePreconditionFailed, "lab capture serial does not match the confirmed target")
-	}
-	switch s.state.Readiness {
-	case ReadinessReady, ReadinessIndeterminate:
-	case ReadinessUnavailable:
-		return "", "", "", platformerrors.New(platformerrors.CodeUnavailable, "lab adapter is unavailable")
-	case ReadinessBlocked, "":
-		return "", "", "", platformerrors.New(platformerrors.CodePreconditionFailed, "lab adapter is not ready to observe")
-	default:
-		return "", "", "", platformerrors.New(platformerrors.CodePreconditionFailed, "lab adapter readiness is unknown")
-	}
-	return s.state.ConfirmedSerial, s.state.StableIdentity, s.state.TransportID, nil
+
+	s.mu.Lock()
+	previousTransportID := s.lastTransportID
+	s.state.ConnectionState = string(target.State)
+	s.state.ConnectionType = target.ConnectionType
+	s.state.CorrelationID = correlationID
+	s.state.FailureClass = ""
+	s.refreshReadinessLocked()
+	s.appendEventLocked(Event{
+		Name:          EventAdapterReadiness,
+		CorrelationID: correlationID,
+		Serial:        target.Serial,
+		OccurredAt:    s.clock.Now(),
+		Summary:       fmt.Sprintf("resolved the explicitly named target among %d attached transports; no device was registered or confirmed", len(candidates)),
+	})
+	s.mu.Unlock()
+
+	return target, StableIdentityPrefix + target.Serial, previousTransportID, nil
 }
 
 // replayOutcome answers a repeated idempotency key without dispatching work. A
 // completed key returns its stored bundle; a key whose outcome is unknown is
 // refused so no observation is silently retried.
-func (s *Service) replayOutcome(key string) (ObservationBundle, error, bool) {
+func (s *Service) replayOutcome(serial, key string) (ObservationBundle, error, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -589,7 +484,7 @@ func (s *Service) replayOutcome(key string) (ObservationBundle, error, bool) {
 	if outcome.resolved {
 		return outcome.bundle, nil, true
 	}
-	return ObservationBundle{Serial: s.state.ConfirmedSerial, IdempotencyKey: key, FailureClass: outcome.class, Indeterminate: true},
+	return ObservationBundle{Serial: serial, IdempotencyKey: key, FailureClass: outcome.class, Indeterminate: true},
 		platformerrors.New(platformerrors.CodeIndeterminateCompletion, "a previous capture with this idempotency key ended with an unknown outcome and is never replayed automatically"),
 		true
 }
@@ -620,11 +515,14 @@ func (s *Service) commitStatus(bundle ObservationBundle) {
 	observedAt := bundle.CapturedAt
 	s.state.CorrelationID = bundle.CorrelationID
 	s.state.FailureClass = bundle.FailureClass
-	// An unknown outcome is sticky. Only an explicit ClearTarget or a capture
-	// whose postcondition actually verified may resolve it: a later determinate
-	// failure says nothing about whether the earlier command reached the device.
+	// An unknown outcome is sticky. Only a capture whose postcondition actually
+	// verified may resolve it: a later determinate failure says nothing about
+	// whether the earlier command reached the device.
 	s.state.Indeterminate = bundle.Indeterminate || (s.state.Indeterminate && !bundle.PostconditionVerified)
 	s.state.ObservationLatencyMs = bundle.LatencyMs
+	if bundle.PlatformToolsVersion != "" {
+		s.state.PlatformToolsVersion = bundle.PlatformToolsVersion
+	}
 	if bundle.ScreenshotHash != "" {
 		s.state.LastScreenshotHash = bundle.ScreenshotHash
 	}
@@ -653,8 +551,6 @@ func (s *Service) refreshReadinessLocked() {
 		s.state.Readiness = ReadinessUnavailable
 	case len(s.state.Discovered) == 0:
 		s.state.Readiness = ReadinessUnavailable
-	case s.state.ConfirmedSerial == "":
-		s.state.Readiness = ReadinessBlocked
 	case s.state.ConnectionState != "" && !adb.DeviceAuthState(s.state.ConnectionState).Usable():
 		s.state.Readiness = ReadinessBlocked
 	default:
@@ -686,7 +582,7 @@ func (s *Service) appendEventLocked(event Event) Event {
 	return event
 }
 
-func (s *Service) recordDiscoveryFailure(correlationID string, class domain.FailureClass, cause error) {
+func (s *Service) recordEnumerationFailure(correlationID string, class domain.FailureClass, cause error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state.CorrelationID = correlationID
@@ -702,36 +598,41 @@ func (s *Service) recordDiscoveryFailure(correlationID string, class domain.Fail
 	})
 }
 
-func (s *Service) recordConfirmationRejection(correlationID, serial string, rejection *confirmationRejection) {
+func (s *Service) recordTargetRejection(correlationID, serial string, rejection *targetRejection, candidates []adb.DiscoveredDevice) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state.CorrelationID = correlationID
 	s.state.FailureClass = rejection.class
+	if rejection.class == domain.FailureTransport {
+		// The device is attached but unusable, so its transport facts are still
+		// observed evidence and readiness stays honest about them.
+		for _, candidate := range candidates {
+			if candidate.Serial == serial {
+				s.state.ConnectionState = string(candidate.State)
+				s.state.ConnectionType = candidate.ConnectionType
+			}
+		}
+	}
 	s.refreshReadinessLocked()
 	s.appendEventLocked(Event{
-		Name:          EventTargetConfirmation,
+		Name:          EventObservationCapture,
 		CorrelationID: correlationID,
 		Serial:        serial,
 		OccurredAt:    s.clock.Now(),
 		FailureClass:  rejection.class,
-		Summary:       "confirmation rejected: " + rejection.message,
+		Summary:       "capture refused: " + rejection.message,
 	})
 }
 
-func (s *Service) recordConfirmationFailure(correlationID, serial string, class domain.FailureClass, summary string) {
+// observeTransportID records the transport identity observed for the target of
+// the capture that just ran. It is mutable observation state, never identity.
+func (s *Service) observeTransportID(transportID string) {
+	if transportID == "" {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.state.CorrelationID = correlationID
-	s.state.FailureClass = class
-	s.refreshReadinessLocked()
-	s.appendEventLocked(Event{
-		Name:          EventTargetConfirmation,
-		CorrelationID: correlationID,
-		Serial:        serial,
-		OccurredAt:    s.clock.Now(),
-		FailureClass:  class,
-		Summary:       "confirmation rejected: " + summary,
-	})
+	s.lastTransportID = transportID
 }
 
 func (s *Service) authorize(ctx context.Context, operatorID string, action Action) error {
@@ -758,76 +659,55 @@ func (s *Service) newCorrelationID(requested string) (string, error) {
 	return generated, nil
 }
 
-// confirmationRejection is a refused confirmation with both an audit
+// targetRejection is a refused target resolution with both an audit
 // classification and a safe operator-facing message.
-type confirmationRejection struct {
+type targetRejection struct {
 	class   domain.FailureClass
 	code    platformerrors.Code
 	message string
 }
 
-func (r *confirmationRejection) Error() string { return r.message }
+func (r *targetRejection) Error() string { return r.message }
 
-func (r *confirmationRejection) platformError() error {
+func (r *targetRejection) platformError() error {
 	return platformerrors.New(r.code, r.message)
 }
 
-// matchCandidate resolves a confirmation request to exactly one enumerated
-// candidate. Nothing is inferred from order, name, address, or row position.
-func matchCandidate(candidates []adb.DiscoveredDevice, request ConfirmRequest) (adb.DiscoveredDevice, *confirmationRejection) {
+// matchAttachedTarget resolves an explicitly named serial to exactly one
+// attached, usable device. Nothing is inferred from order, name, address, or
+// row position.
+func matchAttachedTarget(candidates []adb.DiscoveredDevice, serial string) (adb.DiscoveredDevice, *targetRejection) {
 	matches := make([]adb.DiscoveredDevice, 0, 1)
 	for _, candidate := range candidates {
-		if candidate.Serial == request.Serial {
+		if candidate.Serial == serial {
 			matches = append(matches, candidate)
 		}
 	}
 	switch len(matches) {
 	case 0:
-		return adb.DiscoveredDevice{}, &confirmationRejection{
+		return adb.DiscoveredDevice{}, &targetRejection{
 			class:   domain.FailureDeviceOffline,
-			code:    platformerrors.CodeNotFound,
-			message: "the requested serial is not among the enumerated candidates",
+			code:    platformerrors.CodePreconditionFailed,
+			message: "the named serial is not among the currently attached devices",
 		}
 	case 1:
 	default:
-		return adb.DiscoveredDevice{}, &confirmationRejection{
+		return adb.DiscoveredDevice{}, &targetRejection{
 			class:   domain.FailureAmbiguousTarget,
 			code:    platformerrors.CodeAmbiguousTarget,
-			message: "the requested serial matched more than one enumerated candidate",
+			message: "the named serial matched more than one attached device",
 		}
 	}
 
-	if len(candidates) > 1 && request.ConfirmationText != request.Serial {
-		return adb.DiscoveredDevice{}, &confirmationRejection{
-			class:   domain.FailureAmbiguousTarget,
-			code:    platformerrors.CodeAmbiguousTarget,
-			message: "more than one device is attached, so the confirmation text must be the exact serial",
-		}
-	}
-	if request.ConfirmationText != request.Serial && request.ConfirmationText != ConfirmationLiteral {
-		return adb.DiscoveredDevice{}, &confirmationRejection{
-			class:   domain.FailurePolicyDenied,
-			code:    platformerrors.CodeInvalidInput,
-			message: "confirmation text must be the exact serial or the literal CONFIRM",
-		}
-	}
-
-	candidate := matches[0]
-	if !candidate.State.Usable() {
-		return adb.DiscoveredDevice{}, &confirmationRejection{
+	target := matches[0]
+	if !target.State.Usable() {
+		return adb.DiscoveredDevice{}, &targetRejection{
 			class:   domain.FailureTransport,
 			code:    platformerrors.CodePreconditionFailed,
-			message: "the requested candidate is attached but its transport state is not usable",
+			message: "the named device is attached but its transport state is not usable",
 		}
 	}
-	return candidate, nil
-}
-
-func transportIDOf(candidate adb.DiscoveredDevice, report adb.HealthReport) string {
-	if report.TransportID != "" {
-		return report.TransportID
-	}
-	return candidate.TransportID
+	return target, nil
 }
 
 // classifiedError maps a device failure class to a stable application code.

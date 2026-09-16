@@ -6,17 +6,16 @@ import type {
 } from "@/lib/domain/control-plane"
 
 // labIntentTypes are the only intents the optional lab Connect client answers.
-// Every other intent stays on the mock control plane.
+// Every other intent stays on the mock control plane. Capture is the only lab
+// intent: it names its own device, so there is no discovery or confirmation
+// step to route.
 const labIntentTypes = new Set<ControlPlaneIntent["type"]>([
-  "discoverLabDevices",
-  "confirmLabTarget",
-  "clearLabTarget",
   "captureLabObservation",
 ])
 
 export type LabControlPlaneIntent = Extract<
   ControlPlaneIntent,
-  { type: "discoverLabDevices" | "confirmLabTarget" | "clearLabTarget" | "captureLabObservation" }
+  { type: "captureLabObservation" }
 >
 
 export function isLabControlPlaneIntent(intent: ControlPlaneIntent): intent is LabControlPlaneIntent {
@@ -39,29 +38,9 @@ export async function applyLabIntent(
   const requestId = newRequestId()
   const options = { workspaceId: context.workspaceId, requestId, operatorId: context.operatorId, correlationId: requestId, idempotencyKey: requestId }
 
-  switch (intent.type) {
-    case "discoverLabDevices":
-      return project(await client.discoverLabDevices(options))
-    case "confirmLabTarget":
-      return project(
-        await client.confirmLabTarget(options, {
-          serial: intent.serial,
-          displayName: intent.displayName,
-          confirmationText: intent.confirmationText,
-          reason: intent.reason,
-        }),
-      )
-    case "clearLabTarget":
-      return project(await client.clearLabTarget(options, "operator released the confirmed lab target from the console"))
-    case "captureLabObservation": {
-      const { status, observation } = await client.captureLabObservation(options, intent.serial)
-      return project(status, observation)
-    }
-    default: {
-      const unreachable: never = intent
-      throw new Error(`unhandled lab intent ${JSON.stringify(unreachable)}`)
-    }
-  }
+  // Capture is the only lab intent, and it names its own target.
+  const { status, observation } = await client.captureLabObservation(options, intent.serial)
+  return project(status, observation)
 }
 
 // labIntentFailure renders a lab failure as an operator-facing mutation result.
