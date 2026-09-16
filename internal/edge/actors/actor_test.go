@@ -147,6 +147,69 @@ func TestActorMapsTimeoutAndCleanupFailureWithoutHidingOutcome(t *testing.T) {
 	}
 }
 
+// blockingAdapter blocks until its context ends. It exists to prove that the
+// actor's execution derives from the caller's context, so cancelling the caller
+// stops the in-flight device call instead of only ending the caller's wait.
+type blockingAdapter struct {
+	capabilities []action.Capability
+	entered      chan struct{}
+	exited       chan struct{}
+	once         sync.Once
+}
+
+func newBlockingAdapter(capability action.Capability) *blockingAdapter {
+	return &blockingAdapter{capabilities: []action.Capability{capability}, entered: make(chan struct{}), exited: make(chan struct{})}
+}
+
+func (b *blockingAdapter) Capabilities() []action.Capability { return b.capabilities }
+
+func (b *blockingAdapter) Observe(context.Context) (adapter.Observation, error) {
+	return adapter.Observation{}, nil
+}
+
+func (b *blockingAdapter) Cleanup(context.Context, action.Intent) error { return nil }
+
+func (b *blockingAdapter) Execute(ctx context.Context, _ action.Intent) (adapter.Execution, error) {
+	b.once.Do(func() { close(b.entered) })
+	<-ctx.Done()
+	close(b.exited)
+	return adapter.Execution{Dispatched: true, Outcome: action.OutcomeIndeterminate, Postcondition: action.PostconditionUnknown, FailureClass: domain.FailureIndeterminate},
+		&adapter.ExecutionError{Cause: ctx.Err(), Dispatched: true, FailureClass: domain.FailureIndeterminate}
+}
+
+func TestActorStopsTheInFlightCallWhenTheCallerCancels(t *testing.T) {
+	blocking := newBlockingAdapter(action.CapabilityTap)
+	actor, err := actors.New("device-a", blocking, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer actor.Close()
+	intent := actorIntent("attempt-blocked", "key-blocked")
+	intent.Timeout = time.Minute
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, submitErr := actor.Submit(ctx, actors.Request{Intent: intent, Authorized: true})
+		done <- submitErr
+	}()
+	select {
+	case <-blocking.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the adapter call was never entered")
+	}
+	cancel()
+	select {
+	case <-blocking.exited:
+	case <-time.After(5 * time.Second):
+		t.Fatal("cancelling the caller did not stop the in-flight adapter call")
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the actor did not return after cancellation")
+	}
+}
+
 func TestActorRejectsUntrustedOrIncompatibleRequests(t *testing.T) {
 	fake := adapter.NewFakeAdapter(action.CapabilityTap)
 	actor, err := actors.New("device-a", fake, 1)

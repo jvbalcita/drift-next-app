@@ -452,7 +452,9 @@ func TestRunAllowlistedRefusesUnapprovedArgv(t *testing.T) {
 	adapter := newTestAdapter(t, runner)
 
 	for _, args := range [][]string{
-		{"shell", "input", "tap", "1", "2"},
+		{"shell", "input", "tap", "1"},
+		{"shell", "input", "tap", "1", "2", "3"},
+		{"shell", "input", "tap", "-1", "2"},
 		{"shell", "getprop", "ro.serialno"},
 		{"exec-out", "cat", "/data/misc/adb/adb_keys"},
 		{"devices", "-l"},
