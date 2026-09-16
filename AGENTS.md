@@ -124,6 +124,7 @@ React/Vite operator UI
 - Use semantic HTML first. Every interactive element must be keyboard-accessible, have a visible focus state, and expose an accessible name.
 - Do not convey status by color alone. Include text, iconography, or other non-color signals.
 - Support loading, empty, error, disabled, retry, narrow-screen, keyboard-only, and reduced-motion states as part of normal feature completion.
+- Render a control only when it performs its action: it either runs the operation and reports the true outcome, or it is not shown. Never gate a destructive confirmation on an operation the service cannot execute, and never render a tab, panel, or section without a backing read path—an empty shell is worse than an absent one.
 - Use Skeleton components for layout-preserving loading states and avoid unnecessary layout shift.
 
 ## 8. Tauri and Rust
