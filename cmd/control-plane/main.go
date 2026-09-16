@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	dbmigrations "drift.local/drift-next/db/migrations"
 	"drift.local/drift-next/internal/artifacts"
@@ -134,6 +135,23 @@ func main() {
 	productHandlers.Action.SetExecutor(actionRuntime)
 	defer func() { _ = actionRuntime.Close() }()
 
+	// One bounded auto-scan of the default network profile per process start.
+	// It reuses the manual scan machinery, is cancelled by the same shutdown
+	// context as the listener, is owned by main (see the wait below), and never
+	// aborts startup: every outcome is recorded and logged instead.
+	autoScan := product.NewStartupAutoScanner(product.StartupAutoScanConfig{
+		Workspaces: store.NewWorkspaceRepository(db),
+		Profiles:   store.NewNetworkProfileRepository(db),
+		Runner:     discovery.NewService(db, scanner),
+		Recorder:   db,
+		StartedAt:  time.Now().UTC(),
+	})
+	autoScanDone := make(chan struct{})
+	go func() {
+		defer close(autoScanDone)
+		log.Printf("%s", autoScan.Run(ctx).Report())
+	}()
+
 	routes := []service.Route{
 		service.LabAdapterRoute(labService, labToken),
 	}
@@ -143,8 +161,12 @@ func main() {
 	routes = append(routes, service.ProductRoutes(productHandlers, labToken)...)
 	server := service.NewHTTPServer("control-plane", address, routes...)
 	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s)", address, labMode, tokenState(labToken))
-	if err := service.Serve(ctx, server); err != nil {
-		log.Fatal(err)
+	serveErr := service.Serve(ctx, server)
+	// The startup scan is owned work, not a detached worker: wait for it to
+	// obey cancellation before the process returns.
+	<-autoScanDone
+	if serveErr != nil {
+		log.Fatal(serveErr)
 	}
 }
 
