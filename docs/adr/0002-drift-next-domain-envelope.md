@@ -2,6 +2,7 @@
 
 - Status: Accepted — owner-approved 2026-09-14
 - Date: 2026-09-13; approved 2026-09-14
+- Amended: 2026-09-16 — the discovery candidate/approval/registration model in the Decision below is reversed by ADR-0007; a scan now observes and upserts devices directly.
 
 ## Context
 

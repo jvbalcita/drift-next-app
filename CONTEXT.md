@@ -9,7 +9,7 @@ A single installation's isolated authority scope and ownership boundary.
 _Avoid_: Organization when referring to the local authority scope.
 
 **Device**:
-A stable, registered Android or fake-device identity managed by the workspace.
+A stable Android or fake-device identity managed by the workspace, created and refreshed by observing it.
 _Avoid_: Serial, endpoint, handset name
 
 **Endpoint**:
@@ -20,9 +20,9 @@ _Avoid_: Device identity, serial as device ID
 A local runtime that reports capabilities and hosts device actors; it is not the logical automation personality assigned to a device.
 _Avoid_: Automation agent, device
 
-**Scan candidate**:
-Non-authoritative evidence discovered by a bounded scan and awaiting an approval decision.
-_Avoid_: Device, discovered device
+**Scan observation**:
+Evidence a bounded scan produced about one attached device; it upserts the canonical device and its current endpoint and is not a queued candidate awaiting a decision.
+_Avoid_: Candidate, approval pending, discovered device
 
 **Ungrouped**:
 The computed view of devices without an active group placement.
