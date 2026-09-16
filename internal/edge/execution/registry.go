@@ -6,8 +6,10 @@
 // primitives in this package — tap, swipe, typed text by reference, key event
 // and app launch. Each takes typed parameters, honours cancellation and its own
 // deadline, validates a coordinate against the render space carried with it
-// (the `wm size` OVERRIDE, never the physical panel size), and executes an
-// argument array this package built. There is no shell, no exec, and no
+// (the `wm size` OVERRIDE, never the physical panel size), cross-checks that
+// frame against the render size the device actually reports — refusing on a
+// mismatch, an unreadable device, or a reading too old to trust — and executes
+// an argument array this package built. There is no shell, no exec, and no
 // caller-authored command text: a generic or incomplete payload has no
 // representation here. These primitives carry no authority of their own — the
 // lease, fencing, policy, control-session and emergency-stop kernel authorizes;

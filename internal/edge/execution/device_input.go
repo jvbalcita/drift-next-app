@@ -209,10 +209,11 @@ const (
 // it never holds authority of its own: authorization belongs to the kernel, and
 // these primitives execute what the kernel has already authorized.
 type Inputs struct {
-	transport InputTransport
-	resolver  TextResolver
-	serial    string
-	timeout   time.Duration
+	transport   InputTransport
+	resolver    TextResolver
+	serial      string
+	timeout     time.Duration
+	renderSizes RenderSizeSource
 }
 
 // InputOption configures the device input boundary at construction time.
@@ -259,6 +260,9 @@ func (i *Inputs) Tap(ctx context.Context, request TapRequest) error {
 	if err := validateRenderPoint(request.Point, request.Space); err != nil {
 		return err
 	}
+	if err := i.checkRenderSpace(ctx, request.Space); err != nil {
+		return err
+	}
 	return i.execute(ctx, "tap", tapArgv(request.Point), detailSafe)
 }
 
@@ -274,6 +278,9 @@ func (i *Inputs) Swipe(ctx context.Context, request SwipeRequest) error {
 		return err
 	}
 	if err := validateRenderPoint(request.End, request.Space); err != nil {
+		return err
+	}
+	if err := i.checkRenderSpace(ctx, request.Space); err != nil {
 		return err
 	}
 	return i.execute(ctx, "swipe", swipeArgv(request.Start, request.End, request.DurationMS), detailSafe)

@@ -102,6 +102,20 @@ func (p InputPayload) observationToken() string {
 	}
 }
 
+// renderSpace reports the render frame a coordinate-bearing payload declares.
+// An input that carries no coordinate has none, and the render-space cross-check
+// does not apply to it.
+func (p InputPayload) renderSpace() (RenderSpace, bool) {
+	switch {
+	case p.Tap != nil:
+		return p.Tap.Space, true
+	case p.Swipe != nil:
+		return p.Swipe.Space, true
+	default:
+		return RenderSpace{}, false
+	}
+}
+
 func (p InputPayload) validate() error {
 	switch {
 	case p.Tap != nil:
@@ -375,6 +389,47 @@ type InputRequest struct {
 
 // --- the dispatcher ---------------------------------------------------------
 
+// RenderSizeSourceFactory builds the source of one device's actual render size
+// from the narrow transport that device is reached through. It is the seam
+// between the two gates: the dispatcher authorizes and dispatches, and the
+// render-space cross-check asks the device what size it presents at before a
+// coordinate is sent.
+//
+// The factory receives the device's own unfiltered transport, never a counting
+// wrapper around it: a render-size read is a read-only precondition check, not
+// the input itself, and must not be counted as one.
+type RenderSizeSourceFactory func(transport InputTransport, serial string) (RenderSizeSource, error)
+
+// DefaultRenderSizeSource is the composition this boundary dispatches with: the
+// real `WmSizeReader` over the same narrow transport the input primitives use,
+// so the render-size read goes through the ADB allow-list like every other
+// device call.
+//
+// Until the allow-list admits that read (card ARC-75) the real transport
+// refuses `shell wm size` with `adb.ErrArgvNotAllowlisted`, the reader reports
+// the device render size as unavailable, and a coordinate-bearing input is
+// refused. That is the required fail-closed behaviour of this composition, not
+// a fallback to another frame.
+func DefaultRenderSizeSource(transport InputTransport, serial string) (RenderSizeSource, error) {
+	return NewWmSizeReader(transport, serial)
+}
+
+// DispatcherOption configures the dispatcher at construction time.
+type DispatcherOption func(*InputDispatcher) error
+
+// WithRenderSizeSourceFactory replaces how the dispatcher resolves the render
+// size a device presents at. It exists so a test can state that size directly,
+// and so the production composition stays one reviewable function.
+func WithRenderSizeSourceFactory(factory RenderSizeSourceFactory) DispatcherOption {
+	return func(dispatcher *InputDispatcher) error {
+		if factory == nil {
+			return errors.New("a device render-size source factory is required")
+		}
+		dispatcher.renderSizes = factory
+		return nil
+	}
+}
+
 // InputDispatcher runs one typed device input through the whole P7 contract. It
 // owns one serialized actor per device, so two inputs for the same device never
 // run concurrently, and it holds a typed payload only for the duration of the
@@ -385,6 +440,11 @@ type InputDispatcher struct {
 	observer  PostconditionObserver
 	transport InputTransport
 	resolver  TextResolver
+
+	// renderSizes is how a coordinate-bearing dispatch learns the size the
+	// device actually presents at. It defaults to the real reader over the same
+	// narrow transport; a coordinate is refused when no source can be built.
+	renderSizes RenderSizeSourceFactory
 
 	mu      sync.Mutex
 	devices map[string]*deviceInput
@@ -399,11 +459,24 @@ type deviceInput struct {
 // NewInputDispatcher binds the dispatcher to the control kernel, the readiness
 // probe, the postcondition observer and the narrow device transport. A nil
 // resolver is permitted: typed text then fails closed until a resolver exists.
-func NewInputDispatcher(control ControlPlane, probe ControlProbe, observer PostconditionObserver, transport InputTransport, resolver TextResolver) (*InputDispatcher, error) {
+//
+// The render-size source defaults to `DefaultRenderSizeSource`, so a
+// coordinate-bearing input is cross-checked against the device by the real
+// reader unless a caller replaces the seam explicitly.
+func NewInputDispatcher(control ControlPlane, probe ControlProbe, observer PostconditionObserver, transport InputTransport, resolver TextResolver, options ...DispatcherOption) (*InputDispatcher, error) {
 	if control == nil || probe == nil || observer == nil || transport == nil {
 		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "device input dispatch requires a control kernel, a readiness probe, a postcondition observer and a transport")
 	}
-	return &InputDispatcher{control: control, probe: probe, observer: observer, transport: transport, resolver: resolver, devices: make(map[string]*deviceInput)}, nil
+	dispatcher := &InputDispatcher{control: control, probe: probe, observer: observer, transport: transport, resolver: resolver, renderSizes: DefaultRenderSizeSource, devices: make(map[string]*deviceInput)}
+	for _, option := range options {
+		if option == nil {
+			return nil, platformerrors.New(platformerrors.CodeInvalidInput, "a device input dispatcher option is required")
+		}
+		if err := option(dispatcher); err != nil {
+			return nil, err
+		}
+	}
+	return dispatcher, nil
 }
 
 // Close releases every per-device actor this dispatcher owns.
@@ -484,7 +557,7 @@ func (d *InputDispatcher) deviceFor(deviceID, serial string) (*deviceInput, erro
 		_ = bound.actor.Close()
 		delete(d.devices, deviceID)
 	}
-	boundAdapter := newInputAdapter(d.transport, d.resolver, d.observer, serial)
+	boundAdapter := newInputAdapter(d.transport, d.resolver, d.observer, serial, d.renderSizes)
 	actor, err := actors.New(deviceID, boundAdapter, 8)
 	if err != nil {
 		return nil, platformerrors.Wrap(platformerrors.CodeInternal, "create device input actor", err)

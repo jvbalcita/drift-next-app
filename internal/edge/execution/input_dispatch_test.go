@@ -2,6 +2,7 @@ package execution_test
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -223,19 +224,13 @@ type dispatchFixture struct {
 	dispatcher *execution.InputDispatcher
 }
 
+// newDispatchFixture is the composed-path fixture: the dispatcher carries the
+// kernel, the narrow transport and the render-size seam, and the device reading
+// it states matches the frame the payloads above declare. A case that wants a
+// different reading uses newComposedDispatchFixture directly.
 func newDispatchFixture(t *testing.T) dispatchFixture {
 	t.Helper()
-	control := &fakeControl{}
-	probe := &fakeProbe{}
-	observer := &fakeObserver{observation: execution.PostconditionObservation{Token: postToken}}
-	transport := newFakeDeviceTransport()
-	resolver := &fakeResolver{value: typedValueFixture}
-	dispatcher, err := execution.NewInputDispatcher(control, probe, observer, transport, resolver)
-	if err != nil {
-		t.Fatalf("new input dispatcher: %v", err)
-	}
-	t.Cleanup(func() { _ = dispatcher.Close() })
-	return dispatchFixture{control: control, probe: probe, observer: observer, transport: transport, resolver: resolver, dispatcher: dispatcher}
+	return newComposedDispatchFixture(t, testRenderSizeSource)
 }
 
 // --- refusals ---------------------------------------------------------------
@@ -686,6 +681,179 @@ func TestInputDispatcherStopsTheInFlightCallOnCancellation(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the dispatcher did not return after cancellation")
 	}
+}
+
+// --- the two gates composed -------------------------------------------------
+
+// testRenderSizeSource is the device render size the composed-path cases state
+// for a transport serial. It matches the frame those payloads declare.
+func testRenderSizeSource(execution.InputTransport, string) (execution.RenderSizeSource, error) {
+	return &fakeRenderSizes{size: testDeviceRenderSize()}, nil
+}
+
+// newComposedDispatchFixture is newDispatchFixture with the render-size seam
+// stated explicitly, so a case can choose the size the device presents at.
+func newComposedDispatchFixture(t *testing.T, factory execution.RenderSizeSourceFactory) dispatchFixture {
+	t.Helper()
+	control := &fakeControl{}
+	probe := &fakeProbe{}
+	observer := &fakeObserver{observation: execution.PostconditionObservation{Token: postToken}}
+	transport := newFakeDeviceTransport()
+	dispatcher, err := execution.NewInputDispatcher(control, probe, observer, transport, &fakeResolver{value: typedValueFixture}, execution.WithRenderSizeSourceFactory(factory))
+	if err != nil {
+		t.Fatalf("new input dispatcher: %v", err)
+	}
+	t.Cleanup(func() { _ = dispatcher.Close() })
+	return dispatchFixture{control: control, probe: probe, observer: observer, transport: transport, dispatcher: dispatcher}
+}
+
+// TestTheDispatchGatesComposeOnTheCoordinateFrame is the composition proof for
+// the two safety gates that this reconciliation joins. ARC-62 authorises and
+// dispatches a coordinate-bearing input through the kernel and admits the
+// argument array it emits; ARC-63 independently cross-checks the render frame
+// the coordinate declares against the size the device actually presents at.
+// Neither replaces the other, so a coordinate has to satisfy both, and a frame
+// the device does not present at is refused *by the render-space gate* rather
+// than being allowed through to fail at the transport.
+func TestTheDispatchGatesComposeOnTheCoordinateFrame(t *testing.T) {
+	t.Run("a matching device reading is dispatched through both gates", func(t *testing.T) {
+		fixture := newComposedDispatchFixture(t, testRenderSizeSource)
+		result, err := fixture.dispatcher.Run(context.Background(), inputRequest("attempt-composed-tap", "key-composed-tap", tapPayload()), "operator", "operator-1")
+		if err != nil {
+			t.Fatalf("dispatch: %v", err)
+		}
+		if result.Outcome != action.OutcomeVerified || !result.PostconditionPassed {
+			t.Fatalf("result = %#v, want verified with a passed postcondition", result)
+		}
+		if calls := fixture.transport.invocationCount(); calls != 1 {
+			t.Fatalf("device calls = %d, want exactly 1", calls)
+		}
+		matchArgs(t, fixture.transport.invocation(0).args, "shell", "input", "tap", "540", "960")
+	})
+
+	// The refusal cases. The boundary records a render-space refusal in the
+	// result - the frame check runs inside the actor's execution, after the
+	// kernel dispatched, so it is a completion rather than a pre-dispatch error -
+	// and the result is what an operator surface reads. What must be true for
+	// every one of them is that the class names the render-space gate rather
+	// than the transport, and that no input reached the device.
+	refusals := []struct {
+		name  string
+		size  execution.DeviceRenderSize
+		err   error
+		build error
+		want  domain.FailureClass
+	}{
+		{
+			name: "a mismatched device reading is refused by the render-space gate",
+			size: overrideRenderSize(540, 1140),
+			want: domain.FailureStaleObservation,
+		},
+		{
+			name: "a device reading that cannot be established is refused, not assumed",
+			err:  platformerrors.New(platformerrors.CodeUnavailable, "the device render size could not be read"),
+			want: domain.FailureObservation,
+		},
+		{
+			name:  "a coordinate whose render-size source cannot be built is refused",
+			build: platformerrors.New(platformerrors.CodeUnavailable, "no render-size reader could be built for this serial"),
+			want:  domain.FailureInfrastructure,
+		},
+	}
+	for index, test := range refusals {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newComposedDispatchFixture(t, func(execution.InputTransport, string) (execution.RenderSizeSource, error) {
+				if test.build != nil {
+					return nil, test.build
+				}
+				return &fakeRenderSizes{size: test.size, err: test.err}, nil
+			})
+			request := inputRequest("attempt-composed-refused", fmt.Sprintf("key-composed-refused-%d", index), tapPayload())
+			result, err := fixture.dispatcher.Run(context.Background(), request, "operator", "operator-1")
+			if err != nil {
+				t.Fatalf("dispatch returned %v, want the refusal recorded in the result rather than as a kernel error", err)
+			}
+			if result.Outcome == action.OutcomeVerified || result.PostconditionPassed {
+				t.Fatalf("result = %#v, want a refusal rather than success", result)
+			}
+			if result.Outcome == action.OutcomeIndeterminate {
+				t.Fatalf("result = %#v, want a refusal rather than an indeterminate in-flight call", result)
+			}
+			if result.FailureClass == string(domain.FailureTransport) {
+				t.Fatalf("refusal class = %q, want the render-space refusal: a transport class means the frame was never checked and the tap was sent anyway", result.FailureClass)
+			}
+			if result.FailureClass != string(test.want) {
+				t.Fatalf("refusal class = %q, want %q", result.FailureClass, test.want)
+			}
+			if fixture.control.called("indeterminate") {
+				t.Fatal("the render-size refusal was recorded as an unusable in-flight call, so the check ran after the input was attempted")
+			}
+			if calls := fixture.transport.invocationCount(); calls != 0 {
+				t.Fatalf("device calls = %d, want 0: a refusable frame was dispatched anyway", calls)
+			}
+		})
+	}
+
+	// The kind that carries no coordinate is unaffected by the new gate: the
+	// render-space cross-check is scoped to the inputs a frame can be wrong for.
+	t.Run("a key event carries no frame and is still dispatched", func(t *testing.T) {
+		fixture := newComposedDispatchFixture(t, func(execution.InputTransport, string) (execution.RenderSizeSource, error) {
+			return nil, platformerrors.New(platformerrors.CodeUnavailable, "no render-size reader could be built for this serial")
+		})
+		result, err := fixture.dispatcher.Run(context.Background(), inputRequest("attempt-composed-key", "key-composed-key", keyEventPayload()), "operator", "operator-1")
+		if err != nil {
+			t.Fatalf("dispatch: %v", err)
+		}
+		if result.Outcome != action.OutcomeVerified {
+			t.Fatalf("result = %#v, want verified", result)
+		}
+		if calls := fixture.transport.invocationCount(); calls != 1 {
+			t.Fatalf("device calls = %d, want exactly 1", calls)
+		}
+		matchArgs(t, fixture.transport.invocation(0).args, "shell", "input", "keyevent", "4")
+	})
+
+	// The production composition, against the real allow-list: the default
+	// render-size source is the real reader over the same narrow transport, so
+	// the read is admitted (or not) by the same allow-list as every other
+	// device call. `shell wm size` is not admitted yet - that is card ARC-75 -
+	// so this path is fail-closed today, and it fails closed *before* the
+	// allow-listed adapter is asked to run anything.
+	t.Run("the real composition refuses a coordinate until the render-size read is admitted", func(t *testing.T) {
+		runner := adb.NewFakeRunner().RespondDefault(adb.FakeResponse{})
+		adapter, err := adb.NewAdapter("/opt/android/platform-tools/adb", runner, adb.WithOperationTimeout(time.Second))
+		if err != nil {
+			t.Fatalf("new adapter: %v", err)
+		}
+		control := &fakeControl{}
+		probe := &fakeProbe{}
+		observer := &fakeObserver{observation: execution.PostconditionObservation{Token: postToken}}
+		dispatcher, err := execution.NewInputDispatcher(control, probe, observer, execution.NewADBInputTransport(adapter), &fakeResolver{value: typedValueFixture})
+		if err != nil {
+			t.Fatalf("new input dispatcher: %v", err)
+		}
+		defer func() { _ = dispatcher.Close() }()
+
+		result, err := dispatcher.Run(context.Background(), inputRequest("attempt-composed-real", "key-composed-real", tapPayload()), "operator", "operator-1")
+		if err != nil {
+			t.Fatalf("dispatch returned %v, want the refusal recorded in the result", err)
+		}
+		if result.Outcome == action.OutcomeVerified {
+			t.Fatalf("result = %#v, want a refusal rather than success", result)
+		}
+		if result.FailureClass == string(domain.FailureTransport) {
+			t.Fatalf("refusal class = %q, want the render-space refusal", result.FailureClass)
+		}
+		if result.FailureClass != string(domain.FailureObservation) {
+			t.Fatalf("refusal class = %q, want %q: the device render size could not be read", result.FailureClass, domain.FailureObservation)
+		}
+		if control.called("indeterminate") {
+			t.Fatal("the render-size read was counted as the input reaching the device, so an unauthorized read was recorded as an unusable in-flight call")
+		}
+		if invocations := runner.Invocations(); len(invocations) != 0 {
+			t.Fatalf("process invocations = %d, want 0: the allow-list refused the read after asking the host to run something", len(invocations))
+		}
+	})
 }
 
 // --- the allow-list admission, proved against the real adapter --------------
