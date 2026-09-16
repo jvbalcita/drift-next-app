@@ -29,7 +29,7 @@ The RPC names follow the repository's `buf lint` rule — `<Method>Request`/`<Me
 
 ### 2. Typed text and app launch are omitted, not exposed and refusing
 
-ADR-0008 §"Consequences" already records both defects: `TypeTextInput` has no reference resolver, so a plaintext value cannot be dispatched and the contract deliberately has no field for one; and the launch payload has no domain representation, because `action.Intent` carries no package or activity name. The card that makes them dispatchable is ARC-73.
+ADR-0008 §"Consequences" records both defects: the contract gives `TypeTextInput` no field for a plaintext value, by design, and the surface that would register one does not exist (ARC-107); and `action.Intent` now names the launch target and the request hash covers it (ARC-73), while no route here dispatches a launch.
 
 **An RPC whose only possible outcome is a refusal was not shipped.** A control either performs its action and reports the true outcome, or it is not shown: a `TypeText` route that always answered `unsupported` would render in an operator surface as an input an operator can use, and it would make the surface's refusal list carry a reason that means "this surface does not do that yet" — which is not a dispatch refusal at all. The alternative (expose them and refuse with an honest distinct reason) was considered and rejected; see Alternatives.
 
