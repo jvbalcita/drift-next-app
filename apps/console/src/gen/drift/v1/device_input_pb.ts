@@ -2,15 +2,19 @@
 // @generated from file drift/v1/device_input.proto (package drift.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv1";
-import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv1";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
+import type { ActionResult, KeyEventInput, SwipeInput, TapInput } from "./action_pb";
+import { file_drift_v1_action } from "./action_pb";
+import type { RequestContext, WorkspaceRef } from "./common_pb";
+import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file drift/v1/device_input.proto.
  */
 export const file_drift_v1_device_input: GenFile = /*@__PURE__*/
-  fileDesc("ChtkcmlmdC92MS9kZXZpY2VfaW5wdXQucHJvdG8SCGRyaWZ0LnYxIn4KEkRldmljZUlucHV0UmVmdXNhbBIyCgZyZWFzb24YASABKA4yIi5kcmlmdC52MS5EZXZpY2VJbnB1dFJlZnVzYWxSZWFzb24SDAoEY29kZRgCIAEoCRIVCg1mYWlsdXJlX2NsYXNzGAMgASgJEg8KB21lc3NhZ2UYBCABKAkqzgUKGERldmljZUlucHV0UmVmdXNhbFJlYXNvbhIrCidERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fVU5TUEVDSUZJRUQQABItCilERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fTEVBU0VfTUlTU0lORxABEi0KKURFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9MRUFTRV9FWFBJUkVEEAISLgoqREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0xFQVNFX05PVF9IRUxEEAMSKwonREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0ZFTkNFX1NUQUxFEAQSMgouREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX05PX0NPTlRST0xfU0VTU0lPThAFEi4KKkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9MRUFTRV9DT05GTElDVBAGEi4KKkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9FTUVSR0VOQ1lfU1RPUBAHEi0KKURFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9QT0xJQ1lfREVOSUVEEAgSMwovREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0NBUEFCSUxJVFlfTUlTTUFUQ0gQCRIuCipERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fREVWSUNFX09GRkxJTkUQChIzCi9ERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fREVWSUNFX1VOQVVUSE9SSVpFRBALEjIKLkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9ERVZJQ0VfVU5BVkFJTEFCTEUQDBI5CjVERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fRFVQTElDQVRFX0lERU1QT1RFTkNZX0tFWRANQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw");
+  fileDesc("ChtkcmlmdC92MS9kZXZpY2VfaW5wdXQucHJvdG8SCGRyaWZ0LnYxIn4KEkRldmljZUlucHV0UmVmdXNhbBIyCgZyZWFzb24YASABKA4yIi5kcmlmdC52MS5EZXZpY2VJbnB1dFJlZnVzYWxSZWFzb24SDAoEY29kZRgCIAEoCRIVCg1mYWlsdXJlX2NsYXNzGAMgASgJEg8KB21lc3NhZ2UYBCABKAkijQIKClRhcFJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSEAoIbGVhc2VfaWQYBCABKAkSFQoNZmVuY2luZ190b2tlbhgFIAEoBBIXCg9pZGVtcG90ZW5jeV9rZXkYBiABKAkSGQoRb2JzZXJ2YXRpb25fdG9rZW4YByABKAkSHwoDdGFwGAggASgLMhIuZHJpZnQudjEuVGFwSW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI1CgtUYXBSZXNwb25zZRImCgZyZXN1bHQYASABKAsyFi5kcmlmdC52MS5BY3Rpb25SZXN1bHQikwIKDFN3aXBlUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIQCghsZWFzZV9pZBgEIAEoCRIVCg1mZW5jaW5nX3Rva2VuGAUgASgEEhcKD2lkZW1wb3RlbmN5X2tleRgGIAEoCRIZChFvYnNlcnZhdGlvbl90b2tlbhgHIAEoCRIjCgVzd2lwZRgIIAEoCzIULmRyaWZ0LnYxLlN3aXBlSW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI3Cg1Td2lwZVJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCKdAgoPS2V5RXZlbnRSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEhAKCGxlYXNlX2lkGAQgASgJEhUKDWZlbmNpbmdfdG9rZW4YBSABKAQSFwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJEhkKEW9ic2VydmF0aW9uX3Rva2VuGAcgASgJEioKCWtleV9ldmVudBgIIAEoCzIXLmRyaWZ0LnYxLktleUV2ZW50SW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI6ChBLZXlFdmVudFJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCrOBQoYRGV2aWNlSW5wdXRSZWZ1c2FsUmVhc29uEisKJ0RFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9VTlNQRUNJRklFRBAAEi0KKURFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9MRUFTRV9NSVNTSU5HEAESLQopREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0xFQVNFX0VYUElSRUQQAhIuCipERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fTEVBU0VfTk9UX0hFTEQQAxIrCidERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fRkVOQ0VfU1RBTEUQBBIyCi5ERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fTk9fQ09OVFJPTF9TRVNTSU9OEAUSLgoqREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0xFQVNFX0NPTkZMSUNUEAYSLgoqREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0VNRVJHRU5DWV9TVE9QEAcSLQopREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX1BPTElDWV9ERU5JRUQQCBIzCi9ERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fQ0FQQUJJTElUWV9NSVNNQVRDSBAJEi4KKkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9ERVZJQ0VfT0ZGTElORRAKEjMKL0RFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9ERVZJQ0VfVU5BVVRIT1JJWkVEEAsSMgouREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0RFVklDRV9VTkFWQUlMQUJMRRAMEjkKNURFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9EVVBMSUNBVEVfSURFTVBPVEVOQ1lfS0VZEA0yxQEKEkRldmljZUlucHV0U2VydmljZRIyCgNUYXASFC5kcmlmdC52MS5UYXBSZXF1ZXN0GhUuZHJpZnQudjEuVGFwUmVzcG9uc2USOAoFU3dpcGUSFi5kcmlmdC52MS5Td2lwZVJlcXVlc3QaFy5kcmlmdC52MS5Td2lwZVJlc3BvbnNlEkEKCEtleUV2ZW50EhkuZHJpZnQudjEuS2V5RXZlbnRSZXF1ZXN0GhouZHJpZnQudjEuS2V5RXZlbnRSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_action, file_drift_v1_common]);
 
 /**
  * A refused device input, as the dispatch boundary reports it.
@@ -63,6 +67,238 @@ export type DeviceInputRefusal = Message<"drift.v1.DeviceInputRefusal"> & {
  */
 export const DeviceInputRefusalSchema: GenMessage<DeviceInputRefusal> = /*@__PURE__*/
   messageDesc(file_drift_v1_device_input, 0);
+
+/**
+ * TapRequest submits one tap: a semantic target, or a point inside
+ * the render space it was measured in. A tap that names neither, or both, is
+ * refused before the kernel is asked.
+ *
+ * @generated from message drift.v1.TapRequest
+ */
+export type TapRequest = Message<"drift.v1.TapRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string device_id = 3;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: string lease_id = 4;
+   */
+  leaseId: string;
+
+  /**
+   * @generated from field: uint64 fencing_token = 5;
+   */
+  fencingToken: bigint;
+
+  /**
+   * @generated from field: string idempotency_key = 6;
+   */
+  idempotencyKey: string;
+
+  /**
+   * @generated from field: string observation_token = 7;
+   */
+  observationToken: string;
+
+  /**
+   * @generated from field: drift.v1.TapInput tap = 8;
+   */
+  tap?: TapInput;
+
+  /**
+   * @generated from field: bool approval_granted = 9;
+   */
+  approvalGranted: boolean;
+};
+
+/**
+ * Describes the message drift.v1.TapRequest.
+ * Use `create(TapRequestSchema)` to create a new message.
+ */
+export const TapRequestSchema: GenMessage<TapRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_input, 1);
+
+/**
+ * @generated from message drift.v1.TapResponse
+ */
+export type TapResponse = Message<"drift.v1.TapResponse"> & {
+  /**
+   * @generated from field: drift.v1.ActionResult result = 1;
+   */
+  result?: ActionResult;
+};
+
+/**
+ * Describes the message drift.v1.TapResponse.
+ * Use `create(TapResponseSchema)` to create a new message.
+ */
+export const TapResponseSchema: GenMessage<TapResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_input, 2);
+
+/**
+ * SwipeRequest submits one swipe. Both endpoints belong to the one
+ * render space carried with the request, and that frame is required.
+ *
+ * @generated from message drift.v1.SwipeRequest
+ */
+export type SwipeRequest = Message<"drift.v1.SwipeRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string device_id = 3;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: string lease_id = 4;
+   */
+  leaseId: string;
+
+  /**
+   * @generated from field: uint64 fencing_token = 5;
+   */
+  fencingToken: bigint;
+
+  /**
+   * @generated from field: string idempotency_key = 6;
+   */
+  idempotencyKey: string;
+
+  /**
+   * @generated from field: string observation_token = 7;
+   */
+  observationToken: string;
+
+  /**
+   * @generated from field: drift.v1.SwipeInput swipe = 8;
+   */
+  swipe?: SwipeInput;
+
+  /**
+   * @generated from field: bool approval_granted = 9;
+   */
+  approvalGranted: boolean;
+};
+
+/**
+ * Describes the message drift.v1.SwipeRequest.
+ * Use `create(SwipeRequestSchema)` to create a new message.
+ */
+export const SwipeRequestSchema: GenMessage<SwipeRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_input, 3);
+
+/**
+ * @generated from message drift.v1.SwipeResponse
+ */
+export type SwipeResponse = Message<"drift.v1.SwipeResponse"> & {
+  /**
+   * @generated from field: drift.v1.ActionResult result = 1;
+   */
+  result?: ActionResult;
+};
+
+/**
+ * Describes the message drift.v1.SwipeResponse.
+ * Use `create(SwipeResponseSchema)` to create a new message.
+ */
+export const SwipeResponseSchema: GenMessage<SwipeResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_input, 4);
+
+/**
+ * KeyEventRequest submits one key event. It carries a bounded key
+ * code from the device's key vocabulary and no command text.
+ *
+ * @generated from message drift.v1.KeyEventRequest
+ */
+export type KeyEventRequest = Message<"drift.v1.KeyEventRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string device_id = 3;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: string lease_id = 4;
+   */
+  leaseId: string;
+
+  /**
+   * @generated from field: uint64 fencing_token = 5;
+   */
+  fencingToken: bigint;
+
+  /**
+   * @generated from field: string idempotency_key = 6;
+   */
+  idempotencyKey: string;
+
+  /**
+   * @generated from field: string observation_token = 7;
+   */
+  observationToken: string;
+
+  /**
+   * @generated from field: drift.v1.KeyEventInput key_event = 8;
+   */
+  keyEvent?: KeyEventInput;
+
+  /**
+   * @generated from field: bool approval_granted = 9;
+   */
+  approvalGranted: boolean;
+};
+
+/**
+ * Describes the message drift.v1.KeyEventRequest.
+ * Use `create(KeyEventRequestSchema)` to create a new message.
+ */
+export const KeyEventRequestSchema: GenMessage<KeyEventRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_input, 5);
+
+/**
+ * @generated from message drift.v1.KeyEventResponse
+ */
+export type KeyEventResponse = Message<"drift.v1.KeyEventResponse"> & {
+  /**
+   * @generated from field: drift.v1.ActionResult result = 1;
+   */
+  result?: ActionResult;
+};
+
+/**
+ * Describes the message drift.v1.KeyEventResponse.
+ * Use `create(KeyEventResponseSchema)` to create a new message.
+ */
+export const KeyEventResponseSchema: GenMessage<KeyEventResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_input, 6);
 
 /**
  * DeviceInputRefusalReason is the dispatch boundary's stable refusal vocabulary.
@@ -178,3 +414,58 @@ export enum DeviceInputRefusalReason {
  */
 export const DeviceInputRefusalReasonSchema: GenEnum<DeviceInputRefusalReason> = /*@__PURE__*/
   enumDesc(file_drift_v1_device_input, 0);
+
+/**
+ * The device input surface.
+ *
+ * Each RPC submits exactly one typed device input for one device, and each
+ * carries the same tuple the action-safety kernel authorizes: the workspace, the
+ * device, the lease and its fencing token, an idempotency key, the observation
+ * the input was resolved against, and (where policy requires it) an approval.
+ * The payload is the published typed payload for that kind — the same `TapInput`,
+ * `SwipeInput` and `KeyEventInput` messages ActionIntent carries — so this
+ * surface introduces no second representation of a device input.
+ *
+ * A refused input answers with a Connect error whose code comes from the
+ * boundary's stable vocabulary and which carries a DeviceInputRefusal detail. A
+ * successful input answers with an ActionResult: the outcome, and the attempt it
+ * belongs to. There is no response that reports success for an input the device
+ * did not receive.
+ *
+ * Typed text (ACTION_KIND_TEXT_INPUT) and app launch (ACTION_KIND_LAUNCH_APP) are
+ * deliberately **absent**. Both are contract-complete but not dispatchable: typed
+ * text has no reference resolver, and the intent carries no package or activity
+ * field. A route whose only possible outcome is a refusal is a control an
+ * operator surface will render and then find dead, so these two are added when
+ * the card that makes them dispatchable lands rather than exposed as refusals
+ * now.
+ *
+ * @generated from service drift.v1.DeviceInputService
+ */
+export const DeviceInputService: GenService<{
+  /**
+   * @generated from rpc drift.v1.DeviceInputService.Tap
+   */
+  tap: {
+    methodKind: "unary";
+    input: typeof TapRequestSchema;
+    output: typeof TapResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.DeviceInputService.Swipe
+   */
+  swipe: {
+    methodKind: "unary";
+    input: typeof SwipeRequestSchema;
+    output: typeof SwipeResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.DeviceInputService.KeyEvent
+   */
+  keyEvent: {
+    methodKind: "unary";
+    input: typeof KeyEventRequestSchema;
+    output: typeof KeyEventResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_drift_v1_device_input, 0);

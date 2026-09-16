@@ -210,16 +210,516 @@ func (x *DeviceInputRefusal) GetMessage() string {
 	return ""
 }
 
+// TapRequest submits one tap: a semantic target, or a point inside
+// the render space it was measured in. A tap that names neither, or both, is
+// refused before the kernel is asked.
+type TapRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Context          *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace        *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId         string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	LeaseId          string                 `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	FencingToken     uint64                 `protobuf:"varint,5,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
+	IdempotencyKey   string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	ObservationToken string                 `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
+	Tap              *TapInput              `protobuf:"bytes,8,opt,name=tap,proto3" json:"tap,omitempty"`
+	ApprovalGranted  bool                   `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *TapRequest) Reset() {
+	*x = TapRequest{}
+	mi := &file_drift_v1_device_input_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TapRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TapRequest) ProtoMessage() {}
+
+func (x *TapRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_input_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TapRequest.ProtoReflect.Descriptor instead.
+func (*TapRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *TapRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *TapRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *TapRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *TapRequest) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+func (x *TapRequest) GetFencingToken() uint64 {
+	if x != nil {
+		return x.FencingToken
+	}
+	return 0
+}
+
+func (x *TapRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *TapRequest) GetObservationToken() string {
+	if x != nil {
+		return x.ObservationToken
+	}
+	return ""
+}
+
+func (x *TapRequest) GetTap() *TapInput {
+	if x != nil {
+		return x.Tap
+	}
+	return nil
+}
+
+func (x *TapRequest) GetApprovalGranted() bool {
+	if x != nil {
+		return x.ApprovalGranted
+	}
+	return false
+}
+
+type TapResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        *ActionResult          `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TapResponse) Reset() {
+	*x = TapResponse{}
+	mi := &file_drift_v1_device_input_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TapResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TapResponse) ProtoMessage() {}
+
+func (x *TapResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_input_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TapResponse.ProtoReflect.Descriptor instead.
+func (*TapResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *TapResponse) GetResult() *ActionResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+// SwipeRequest submits one swipe. Both endpoints belong to the one
+// render space carried with the request, and that frame is required.
+type SwipeRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Context          *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace        *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId         string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	LeaseId          string                 `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	FencingToken     uint64                 `protobuf:"varint,5,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
+	IdempotencyKey   string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	ObservationToken string                 `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
+	Swipe            *SwipeInput            `protobuf:"bytes,8,opt,name=swipe,proto3" json:"swipe,omitempty"`
+	ApprovalGranted  bool                   `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *SwipeRequest) Reset() {
+	*x = SwipeRequest{}
+	mi := &file_drift_v1_device_input_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SwipeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SwipeRequest) ProtoMessage() {}
+
+func (x *SwipeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_input_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SwipeRequest.ProtoReflect.Descriptor instead.
+func (*SwipeRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SwipeRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *SwipeRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *SwipeRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *SwipeRequest) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+func (x *SwipeRequest) GetFencingToken() uint64 {
+	if x != nil {
+		return x.FencingToken
+	}
+	return 0
+}
+
+func (x *SwipeRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *SwipeRequest) GetObservationToken() string {
+	if x != nil {
+		return x.ObservationToken
+	}
+	return ""
+}
+
+func (x *SwipeRequest) GetSwipe() *SwipeInput {
+	if x != nil {
+		return x.Swipe
+	}
+	return nil
+}
+
+func (x *SwipeRequest) GetApprovalGranted() bool {
+	if x != nil {
+		return x.ApprovalGranted
+	}
+	return false
+}
+
+type SwipeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        *ActionResult          `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SwipeResponse) Reset() {
+	*x = SwipeResponse{}
+	mi := &file_drift_v1_device_input_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SwipeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SwipeResponse) ProtoMessage() {}
+
+func (x *SwipeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_input_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SwipeResponse.ProtoReflect.Descriptor instead.
+func (*SwipeResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *SwipeResponse) GetResult() *ActionResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+// KeyEventRequest submits one key event. It carries a bounded key
+// code from the device's key vocabulary and no command text.
+type KeyEventRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Context          *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace        *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId         string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	LeaseId          string                 `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	FencingToken     uint64                 `protobuf:"varint,5,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
+	IdempotencyKey   string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	ObservationToken string                 `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
+	KeyEvent         *KeyEventInput         `protobuf:"bytes,8,opt,name=key_event,json=keyEvent,proto3" json:"key_event,omitempty"`
+	ApprovalGranted  bool                   `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *KeyEventRequest) Reset() {
+	*x = KeyEventRequest{}
+	mi := &file_drift_v1_device_input_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KeyEventRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KeyEventRequest) ProtoMessage() {}
+
+func (x *KeyEventRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_input_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KeyEventRequest.ProtoReflect.Descriptor instead.
+func (*KeyEventRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *KeyEventRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *KeyEventRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *KeyEventRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *KeyEventRequest) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+func (x *KeyEventRequest) GetFencingToken() uint64 {
+	if x != nil {
+		return x.FencingToken
+	}
+	return 0
+}
+
+func (x *KeyEventRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *KeyEventRequest) GetObservationToken() string {
+	if x != nil {
+		return x.ObservationToken
+	}
+	return ""
+}
+
+func (x *KeyEventRequest) GetKeyEvent() *KeyEventInput {
+	if x != nil {
+		return x.KeyEvent
+	}
+	return nil
+}
+
+func (x *KeyEventRequest) GetApprovalGranted() bool {
+	if x != nil {
+		return x.ApprovalGranted
+	}
+	return false
+}
+
+type KeyEventResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        *ActionResult          `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KeyEventResponse) Reset() {
+	*x = KeyEventResponse{}
+	mi := &file_drift_v1_device_input_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KeyEventResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KeyEventResponse) ProtoMessage() {}
+
+func (x *KeyEventResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_input_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KeyEventResponse.ProtoReflect.Descriptor instead.
+func (*KeyEventResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *KeyEventResponse) GetResult() *ActionResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
 var File_drift_v1_device_input_proto protoreflect.FileDescriptor
 
 const file_drift_v1_device_input_proto_rawDesc = "" +
 	"\n" +
-	"\x1bdrift/v1/device_input.proto\x12\bdrift.v1\"\xa3\x01\n" +
+	"\x1bdrift/v1/device_input.proto\x12\bdrift.v1\x1a\x15drift/v1/action.proto\x1a\x15drift/v1/common.proto\"\xa3\x01\n" +
 	"\x12DeviceInputRefusal\x12:\n" +
 	"\x06reason\x18\x01 \x01(\x0e2\".drift.v1.DeviceInputRefusalReasonR\x06reason\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12#\n" +
 	"\rfailure_class\x18\x03 \x01(\tR\ffailureClass\x12\x18\n" +
-	"\amessage\x18\x04 \x01(\tR\amessage*\xce\x05\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\"\xfa\x02\n" +
+	"\n" +
+	"TapRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12\x19\n" +
+	"\blease_id\x18\x04 \x01(\tR\aleaseId\x12#\n" +
+	"\rfencing_token\x18\x05 \x01(\x04R\ffencingToken\x12'\n" +
+	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x12+\n" +
+	"\x11observation_token\x18\a \x01(\tR\x10observationToken\x12$\n" +
+	"\x03tap\x18\b \x01(\v2\x12.drift.v1.TapInputR\x03tap\x12)\n" +
+	"\x10approval_granted\x18\t \x01(\bR\x0fapprovalGranted\"=\n" +
+	"\vTapResponse\x12.\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result\"\x82\x03\n" +
+	"\fSwipeRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12\x19\n" +
+	"\blease_id\x18\x04 \x01(\tR\aleaseId\x12#\n" +
+	"\rfencing_token\x18\x05 \x01(\x04R\ffencingToken\x12'\n" +
+	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x12+\n" +
+	"\x11observation_token\x18\a \x01(\tR\x10observationToken\x12*\n" +
+	"\x05swipe\x18\b \x01(\v2\x14.drift.v1.SwipeInputR\x05swipe\x12)\n" +
+	"\x10approval_granted\x18\t \x01(\bR\x0fapprovalGranted\"?\n" +
+	"\rSwipeResponse\x12.\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result\"\x8f\x03\n" +
+	"\x0fKeyEventRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12\x19\n" +
+	"\blease_id\x18\x04 \x01(\tR\aleaseId\x12#\n" +
+	"\rfencing_token\x18\x05 \x01(\x04R\ffencingToken\x12'\n" +
+	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x12+\n" +
+	"\x11observation_token\x18\a \x01(\tR\x10observationToken\x124\n" +
+	"\tkey_event\x18\b \x01(\v2\x17.drift.v1.KeyEventInputR\bkeyEvent\x12)\n" +
+	"\x10approval_granted\x18\t \x01(\bR\x0fapprovalGranted\"B\n" +
+	"\x10KeyEventResponse\x12.\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result*\xce\x05\n" +
 	"\x18DeviceInputRefusalReason\x12+\n" +
 	"'DEVICE_INPUT_REFUSAL_REASON_UNSPECIFIED\x10\x00\x12-\n" +
 	")DEVICE_INPUT_REFUSAL_REASON_LEASE_MISSING\x10\x01\x12-\n" +
@@ -235,7 +735,11 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"\x123\n" +
 	"/DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAUTHORIZED\x10\v\x122\n" +
 	".DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAVAILABLE\x10\f\x129\n" +
-	"5DEVICE_INPUT_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY\x10\rB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"5DEVICE_INPUT_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY\x10\r2\xc5\x01\n" +
+	"\x12DeviceInputService\x122\n" +
+	"\x03Tap\x12\x14.drift.v1.TapRequest\x1a\x15.drift.v1.TapResponse\x128\n" +
+	"\x05Swipe\x12\x16.drift.v1.SwipeRequest\x1a\x17.drift.v1.SwipeResponse\x12A\n" +
+	"\bKeyEvent\x12\x19.drift.v1.KeyEventRequest\x1a\x1a.drift.v1.KeyEventResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_device_input_proto_rawDescOnce sync.Once
@@ -250,18 +754,48 @@ func file_drift_v1_device_input_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_device_input_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_drift_v1_device_input_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_drift_v1_device_input_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_drift_v1_device_input_proto_goTypes = []any{
 	(DeviceInputRefusalReason)(0), // 0: drift.v1.DeviceInputRefusalReason
 	(*DeviceInputRefusal)(nil),    // 1: drift.v1.DeviceInputRefusal
+	(*TapRequest)(nil),            // 2: drift.v1.TapRequest
+	(*TapResponse)(nil),           // 3: drift.v1.TapResponse
+	(*SwipeRequest)(nil),          // 4: drift.v1.SwipeRequest
+	(*SwipeResponse)(nil),         // 5: drift.v1.SwipeResponse
+	(*KeyEventRequest)(nil),       // 6: drift.v1.KeyEventRequest
+	(*KeyEventResponse)(nil),      // 7: drift.v1.KeyEventResponse
+	(*RequestContext)(nil),        // 8: drift.v1.RequestContext
+	(*WorkspaceRef)(nil),          // 9: drift.v1.WorkspaceRef
+	(*TapInput)(nil),              // 10: drift.v1.TapInput
+	(*ActionResult)(nil),          // 11: drift.v1.ActionResult
+	(*SwipeInput)(nil),            // 12: drift.v1.SwipeInput
+	(*KeyEventInput)(nil),         // 13: drift.v1.KeyEventInput
 }
 var file_drift_v1_device_input_proto_depIdxs = []int32{
-	0, // 0: drift.v1.DeviceInputRefusal.reason:type_name -> drift.v1.DeviceInputRefusalReason
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	0,  // 0: drift.v1.DeviceInputRefusal.reason:type_name -> drift.v1.DeviceInputRefusalReason
+	8,  // 1: drift.v1.TapRequest.context:type_name -> drift.v1.RequestContext
+	9,  // 2: drift.v1.TapRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	10, // 3: drift.v1.TapRequest.tap:type_name -> drift.v1.TapInput
+	11, // 4: drift.v1.TapResponse.result:type_name -> drift.v1.ActionResult
+	8,  // 5: drift.v1.SwipeRequest.context:type_name -> drift.v1.RequestContext
+	9,  // 6: drift.v1.SwipeRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	12, // 7: drift.v1.SwipeRequest.swipe:type_name -> drift.v1.SwipeInput
+	11, // 8: drift.v1.SwipeResponse.result:type_name -> drift.v1.ActionResult
+	8,  // 9: drift.v1.KeyEventRequest.context:type_name -> drift.v1.RequestContext
+	9,  // 10: drift.v1.KeyEventRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	13, // 11: drift.v1.KeyEventRequest.key_event:type_name -> drift.v1.KeyEventInput
+	11, // 12: drift.v1.KeyEventResponse.result:type_name -> drift.v1.ActionResult
+	2,  // 13: drift.v1.DeviceInputService.Tap:input_type -> drift.v1.TapRequest
+	4,  // 14: drift.v1.DeviceInputService.Swipe:input_type -> drift.v1.SwipeRequest
+	6,  // 15: drift.v1.DeviceInputService.KeyEvent:input_type -> drift.v1.KeyEventRequest
+	3,  // 16: drift.v1.DeviceInputService.Tap:output_type -> drift.v1.TapResponse
+	5,  // 17: drift.v1.DeviceInputService.Swipe:output_type -> drift.v1.SwipeResponse
+	7,  // 18: drift.v1.DeviceInputService.KeyEvent:output_type -> drift.v1.KeyEventResponse
+	16, // [16:19] is the sub-list for method output_type
+	13, // [13:16] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_device_input_proto_init() }
@@ -269,15 +803,17 @@ func file_drift_v1_device_input_proto_init() {
 	if File_drift_v1_device_input_proto != nil {
 		return
 	}
+	file_drift_v1_action_proto_init()
+	file_drift_v1_common_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_device_input_proto_rawDesc), len(file_drift_v1_device_input_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   1,
+			NumMessages:   7,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_drift_v1_device_input_proto_goTypes,
 		DependencyIndexes: file_drift_v1_device_input_proto_depIdxs,
