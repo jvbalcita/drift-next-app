@@ -20,6 +20,12 @@ const (
 	// maxDiagnosticErrorBytes bounds one server-side diagnostic record so a
 	// single failure cannot flood the operator log.
 	maxDiagnosticErrorBytes = 512
+
+	// genericInternalMessage is the single message an unclassified failure
+	// answers with. It is named here so a boundary that must not answer with it —
+	// every refused device input, which carries its own stable reason and
+	// message — can assert that rather than repeating the string.
+	genericInternalMessage = "request could not be completed"
 )
 
 // MapError converts a transport-independent platform failure into a stable
@@ -44,42 +50,55 @@ func MapError(err error) error {
 		return nil
 	}
 	code := connectrpc.CodeInternal
-	message := "request could not be completed"
+	message := genericInternalMessage
 	var typed *platformerrors.Error
 	if errors.As(err, &typed) {
 		message = typed.ClientMessage()
-		switch typed.Code() {
-		case platformerrors.CodeInvalidInput:
-			code = connectrpc.CodeInvalidArgument
-		case platformerrors.CodeNotFound:
-			code = connectrpc.CodeNotFound
-		case platformerrors.CodeConflict, platformerrors.CodeLeaseConflict:
-			code = connectrpc.CodeAlreadyExists
-		case platformerrors.CodeUnavailable, platformerrors.CodeMigrationLocked:
-			code = connectrpc.CodeUnavailable
-		case platformerrors.CodeTimeout, platformerrors.CodeDeadlineExceeded:
-			code = connectrpc.CodeDeadlineExceeded
-		case platformerrors.CodeCanceled:
-			code = connectrpc.CodeCanceled
-		case platformerrors.CodePolicyDenied:
-			code = connectrpc.CodePermissionDenied
-		case platformerrors.CodeCapabilityMismatch,
-			platformerrors.CodePreconditionFailed,
-			platformerrors.CodePostconditionFailed:
-			code = connectrpc.CodeFailedPrecondition
-		case platformerrors.CodeStaleObservation, platformerrors.CodeAmbiguousTarget:
-			code = connectrpc.CodeFailedPrecondition
-		case platformerrors.CodeEmergencyStopped:
-			code = connectrpc.CodeAborted
-		case platformerrors.CodeIndeterminateCompletion:
-			code = connectrpc.CodeUnknown
-		case platformerrors.CodeCleanupFailed:
-			code = connectrpc.CodeFailedPrecondition
-		}
+		code = connectCodeFor(typed.Code())
 	} else {
 		logUnmappedError(err)
 	}
 	return connectrpc.NewError(code, &safeError{message: message})
+}
+
+// connectCodeFor maps a platform error code to the Connect code a client sees.
+//
+// It is separated from MapError so that a boundary answering with its own typed
+// error — a refused device input, which carries a reason and a stable message as
+// well as a code — resolves exactly the Connect code the shared mapper would
+// resolve. A second, drifting copy of this table is the thing this function
+// exists to prevent.
+func connectCodeFor(code platformerrors.Code) connectrpc.Code {
+	switch code {
+	case platformerrors.CodeInvalidInput:
+		return connectrpc.CodeInvalidArgument
+	case platformerrors.CodeNotFound:
+		return connectrpc.CodeNotFound
+	case platformerrors.CodeConflict, platformerrors.CodeLeaseConflict:
+		return connectrpc.CodeAlreadyExists
+	case platformerrors.CodeUnavailable, platformerrors.CodeMigrationLocked:
+		return connectrpc.CodeUnavailable
+	case platformerrors.CodeTimeout, platformerrors.CodeDeadlineExceeded:
+		return connectrpc.CodeDeadlineExceeded
+	case platformerrors.CodeCanceled:
+		return connectrpc.CodeCanceled
+	case platformerrors.CodePolicyDenied:
+		return connectrpc.CodePermissionDenied
+	case platformerrors.CodeCapabilityMismatch,
+		platformerrors.CodePreconditionFailed,
+		platformerrors.CodePostconditionFailed:
+		return connectrpc.CodeFailedPrecondition
+	case platformerrors.CodeStaleObservation, platformerrors.CodeAmbiguousTarget:
+		return connectrpc.CodeFailedPrecondition
+	case platformerrors.CodeEmergencyStopped:
+		return connectrpc.CodeAborted
+	case platformerrors.CodeIndeterminateCompletion:
+		return connectrpc.CodeUnknown
+	case platformerrors.CodeCleanupFailed:
+		return connectrpc.CodeFailedPrecondition
+	default:
+		return connectrpc.CodeInternal
+	}
 }
 
 // logUnmappedError records an unclassified failure at the transport boundary.
