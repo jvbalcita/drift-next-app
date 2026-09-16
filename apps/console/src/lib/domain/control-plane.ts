@@ -684,6 +684,9 @@ export type ControlPlaneIntent =
   | { type: "beginDeviceControl"; deviceId: string }
   | { type: "endDeviceControl"; deviceId: string }
   | { type: "submitDeviceAction"; deviceId: string; kind: DeviceActionKind; confirmed: boolean }
+  | { type: "submitDeviceTap"; deviceId: string; x: number; y: number; renderWidth: number; renderHeight: number; observationToken: string; confirmed: boolean }
+  | { type: "submitDeviceSwipe"; deviceId: string; startX: number; startY: number; endX: number; endY: number; durationMs: number; renderWidth: number; renderHeight: number; observationToken: string; confirmed: boolean }
+  | { type: "submitDeviceKeyEvent"; deviceId: string; keyCode: number; confirmed: boolean }
   | { type: "beginRecording"; deviceId: string }
   | { type: "stopRecording"; sessionId: string }
   | { type: "discardRecording"; sessionId: string }
