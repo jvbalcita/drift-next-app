@@ -59,5 +59,9 @@ func NewServiceFromEnv(lookup EnvLookup, opts ...Option) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewService(append([]Option{WithLabAdapters(devices, hierarchy)}, opts...)...)
+	// The adapter is bound to the input path as well as to the observation path:
+	// it is the device's own transport, so the render-size cross-check and the
+	// input primitives reach the device through one adapter with no wrapper
+	// between them (ARC-76).
+	return NewService(append([]Option{WithLabAdapters(devices, hierarchy), WithLabTransport(devices)}, opts...)...)
 }
