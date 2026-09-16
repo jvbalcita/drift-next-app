@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -20,6 +21,9 @@ const (
 	stateStarting componentState = "starting"
 	stateReady    componentState = "ready"
 	stateFailed   componentState = "failed"
+	// stateExternal means an address is served by a process this session did not
+	// start. It is deliberately not stateReady: a responding port is not health.
+	stateExternal componentState = "external"
 )
 
 // ComponentStatus is safe to render in a terminal or desktop status surface.
@@ -32,24 +36,81 @@ type ComponentStatus struct {
 type childProcess interface {
 	Stop() error
 }
+
 type processStarter func(context.Context, string, []string, []string, io.Writer) (childProcess, error)
+
+// portChecker answers whether a local TCP address can still be bound by this
+// process, and makes a best-effort attempt to name whatever holds it when it
+// cannot. It is a seam so tests never bind real ports.
+type portChecker interface {
+	Free(address string) bool
+	Holder(address string) string
+}
+
+// readyProbe reports whether something currently answers the readiness endpoint
+// for an address. It is a seam so tests never make real HTTP requests.
+type readyProbe func(context.Context, string) bool
+
+// managedComponent is one allow-listed service the supervisor can own.
+type managedComponent struct {
+	Name    string
+	Address func(Config) string
+}
+
+// managedComponents is the single source of truth for component names, their
+// configured address, and the order status is rendered in.
+var managedComponents = []managedComponent{
+	{Name: "Control Plane", Address: func(c Config) string { return c.ControlPlaneAddress }},
+	{Name: "Device Service", Address: func(c Config) string { return c.EdgeAgentAddress }},
+	{Name: "Desktop Application", Address: func(Config) string { return "" }},
+}
+
+const (
+	defaultFreeWindow   = 2 * time.Second
+	defaultPollInterval = 100 * time.Millisecond
+	defaultReadyTimeout = 15 * time.Second
+)
 
 // Supervisor owns only the allow-listed local processes needed by Drift.
 type Supervisor struct {
-	config    Config
-	dataDir   string
-	start     processStarter
-	client    *http.Client
-	mu        sync.Mutex
-	processes map[string]childProcess
-	statuses  map[string]ComponentStatus
-	logs      []string
-	eventSink func(string)
+	config      Config
+	dataDir     string
+	start       processStarter
+	client      *http.Client
+	ports       portChecker
+	probe       readyProbe
+	discoverADB func(string) (string, error)
+	runCommand  func(context.Context, string, ...string) error
+	freeWindow  time.Duration
+	poll        time.Duration
+	readyWait   time.Duration
+	mu          sync.Mutex
+	processes   map[string]childProcess
+	statuses    map[string]ComponentStatus
+	logs        []string
+	eventSink   func(string)
 }
 
-func NewSupervisor(config Config, dataDir string) *Supervisor {
-	return &Supervisor{config: config, dataDir: dataDir, start: startCommand, client: &http.Client{Timeout: 750 * time.Millisecond}, processes: map[string]childProcess{}, statuses: map[string]ComponentStatus{}}
+func newSupervisor(config Config, dataDir string) *Supervisor {
+	supervisor := &Supervisor{
+		config:      config,
+		dataDir:     dataDir,
+		start:       startCommand,
+		client:      &http.Client{Timeout: 750 * time.Millisecond},
+		ports:       netPortChecker{},
+		discoverADB: DefaultADBDiscovery,
+		runCommand:  runCommand,
+		freeWindow:  defaultFreeWindow,
+		poll:        defaultPollInterval,
+		readyWait:   defaultReadyTimeout,
+		processes:   map[string]childProcess{},
+		statuses:    map[string]ComponentStatus{},
+	}
+	supervisor.probe = supervisor.probeReady
+	return supervisor
 }
+
+func NewSupervisor(config Config, dataDir string) *Supervisor { return newSupervisor(config, dataDir) }
 
 func (s *Supervisor) setStatus(name string, state componentState, detail string) {
 	s.mu.Lock()
@@ -57,15 +118,16 @@ func (s *Supervisor) setStatus(name string, state componentState, detail string)
 	s.statuses[name] = ComponentStatus{Name: name, State: state, Detail: detail}
 }
 
+// Status returns the last observed state of every allow-listed component. A
+// component with no observation is reported as stopped, never as ready.
 func (s *Supervisor) Status() []ComponentStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	names := []string{"Control Plane", "Device Service", "Desktop Application"}
-	result := make([]ComponentStatus, 0, len(names))
-	for _, name := range names {
-		status := s.statuses[name]
+	result := make([]ComponentStatus, 0, len(managedComponents))
+	for _, component := range managedComponents {
+		status := s.statuses[component.Name]
 		if status.Name == "" {
-			status = ComponentStatus{Name: name, State: stateStopped, Detail: "Not started"}
+			status = ComponentStatus{Name: component.Name, State: stateStopped, Detail: "Not started"}
 		}
 		result = append(result, status)
 	}
@@ -85,24 +147,80 @@ func (s *Supervisor) SetEventSink(sink func(string)) {
 	s.eventSink = sink
 }
 
+// componentAddress resolves the configured address for a component. It is empty
+// for components that do not expose a local TCP address.
+func (s *Supervisor) componentAddress(name string) string {
+	for _, component := range managedComponents {
+		if component.Name == name {
+			return component.Address(s.config)
+		}
+	}
+	return ""
+}
+
+// owns reports whether this session started the component's process.
+func (s *Supervisor) owns(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.processes[name]
+	return ok
+}
+
+// observedState returns the last recorded state for a component.
+func (s *Supervisor) observedState(name string) componentState {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.statuses[name].State
+}
+
 // RefreshStatus observes already-running local services without starting or
 // stopping anything. This keeps a restarted TUI honest about runtime state.
+//
+// A response on a component's port is not health: any process can answer there.
+// A component is only reported ready when this session started its process; a
+// listener this session does not own is reported as external and is never
+// reported ready.
 func (s *Supervisor) RefreshStatus(ctx context.Context) {
-	for name, address := range map[string]string{
-		"Control Plane":  s.config.ControlPlaneAddress,
-		"Device Service": s.config.EdgeAgentAddress,
-	} {
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+address+"/readyz", nil)
-		response, err := s.client.Do(req)
-		if err == nil {
-			_ = response.Body.Close()
-			if response.StatusCode == http.StatusOK {
-				s.setStatus(name, stateReady, "Ready (already running)")
+	for _, component := range managedComponents {
+		address := component.Address(s.config)
+		if address == "" {
+			continue
+		}
+		if s.probe(ctx, address) {
+			if s.owns(component.Name) {
+				s.setStatus(component.Name, stateReady, "Ready (started by this session)")
 				continue
 			}
+			detail := fmt.Sprintf("%s is served by a process this session did not start; a restart will refuse until it is stopped", address)
+			if s.observedState(component.Name) != stateExternal {
+				s.appendLog(component.Name + ": " + detail)
+			}
+			s.setStatus(component.Name, stateExternal, detail)
+			continue
 		}
-		s.setStatus(name, stateStopped, "Not started")
+		if s.owns(component.Name) {
+			s.setStatus(component.Name, stateStarting, "Started by this session; not answering /readyz yet")
+			continue
+		}
+		s.setStatus(component.Name, stateStopped, "Not started")
 	}
+}
+
+// probeReady performs the readiness request used by waitReady.
+func (s *Supervisor) probeReady(ctx context.Context, address string) bool {
+	if strings.TrimSpace(address) == "" {
+		return false
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+address+"/readyz", nil)
+	if err != nil {
+		return false
+	}
+	response, err := s.client.Do(req)
+	if err != nil {
+		return false
+	}
+	_ = response.Body.Close()
+	return response.StatusCode == http.StatusOK
 }
 
 // RunChecks executes the repository's fixed validation commands without a shell.
@@ -168,7 +286,7 @@ func (s *Supervisor) appendLog(line string) {
 
 // Setup validates local prerequisites and creates the owned storage/configuration.
 func (s *Supervisor) Setup(ctx context.Context) error {
-	adbPath, err := DefaultADBDiscovery(s.config.ADBPath)
+	adbPath, err := s.discoverADB(s.config.ADBPath)
 	if err != nil {
 		return err
 	}
@@ -179,7 +297,7 @@ func (s *Supervisor) Setup(ctx context.Context) error {
 	if err := os.MkdirAll(s.config.ArtifactRoot, 0o700); err != nil {
 		return fmt.Errorf("create artifact directory: %w", err)
 	}
-	if err := exec.CommandContext(ctx, adbPath, "start-server").Run(); err != nil {
+	if err := s.runCommand(ctx, adbPath, "start-server"); err != nil {
 		return fmt.Errorf("start adb: %w", err)
 	}
 	s.appendLog("ADB discovered and validated")
@@ -191,7 +309,7 @@ func (s *Supervisor) StartAll(ctx context.Context, launchDesktop bool) error {
 	if err := s.Setup(ctx); err != nil {
 		return err
 	}
-	if err := s.startComponent(ctx, "Control Plane", "go", []string{"run", "./cmd/control-plane"}, []string{
+	if err := s.startComponent(ctx, "Control Plane", s.config.ControlPlaneAddress, "go", []string{"run", "./cmd/control-plane"}, []string{
 		"DRIFT_CONTROL_PLANE_ADDR=" + s.config.ControlPlaneAddress,
 		"DRIFT_CONTROL_PLANE_DB=" + s.config.DatabasePath,
 		"DRIFT_ARTIFACT_CAS_ROOT=" + s.config.ArtifactRoot,
@@ -201,20 +319,20 @@ func (s *Supervisor) StartAll(ctx context.Context, launchDesktop bool) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.waitReady(ctx, s.config.ControlPlaneAddress); err != nil {
+	if err := s.waitReady(ctx, "Control Plane", s.config.ControlPlaneAddress); err != nil {
 		_ = s.StopAll(ctx)
 		return fmt.Errorf("control plane readiness: %w", err)
 	}
-	if err := s.startComponent(ctx, "Device Service", "go", []string{"run", "./cmd/edge-agent"}, []string{"DRIFT_EDGE_AGENT_ADDR=" + s.config.EdgeAgentAddress}); err != nil {
+	if err := s.startComponent(ctx, "Device Service", s.config.EdgeAgentAddress, "go", []string{"run", "./cmd/edge-agent"}, []string{"DRIFT_EDGE_AGENT_ADDR=" + s.config.EdgeAgentAddress}); err != nil {
 		_ = s.StopAll(ctx)
 		return err
 	}
-	if err := s.waitReady(ctx, s.config.EdgeAgentAddress); err != nil {
+	if err := s.waitReady(ctx, "Device Service", s.config.EdgeAgentAddress); err != nil {
 		_ = s.StopAll(ctx)
 		return fmt.Errorf("device service readiness: %w", err)
 	}
 	if launchDesktop {
-		if err := s.startComponent(ctx, "Desktop Application", "pnpm", []string{"--filter", "console", "exec", "tauri", "dev"}, []string{
+		if err := s.startComponent(ctx, "Desktop Application", "", "pnpm", []string{"--filter", "console", "exec", "tauri", "dev"}, []string{
 			"VITE_DRIFT_CONTROL_PLANE_URL=http://" + s.config.ControlPlaneAddress,
 			"VITE_DRIFT_RUNTIME_ADAPTER_URL=http://" + s.config.ControlPlaneAddress,
 			"VITE_DRIFT_RUNTIME_SERVICE_TOKEN=" + s.config.ServiceToken,
@@ -235,48 +353,60 @@ func (s *Supervisor) StartComponent(ctx context.Context, name string) error {
 	}
 	switch name {
 	case "Control Plane":
-		if err := s.startComponent(ctx, name, "go", []string{"run", "./cmd/control-plane"}, []string{"DRIFT_CONTROL_PLANE_ADDR=" + s.config.ControlPlaneAddress, "DRIFT_CONTROL_PLANE_DB=" + s.config.DatabasePath, "DRIFT_ARTIFACT_CAS_ROOT=" + s.config.ArtifactRoot, "DRIFT_RUNTIME_DEVICE_MODE=connected", "DRIFT_RUNTIME_ADB_PATH=" + s.config.ADBPath, "DRIFT_RUNTIME_SERVICE_TOKEN=" + s.config.ServiceToken}); err != nil {
+		if err := s.startComponent(ctx, name, s.config.ControlPlaneAddress, "go", []string{"run", "./cmd/control-plane"}, []string{"DRIFT_CONTROL_PLANE_ADDR=" + s.config.ControlPlaneAddress, "DRIFT_CONTROL_PLANE_DB=" + s.config.DatabasePath, "DRIFT_ARTIFACT_CAS_ROOT=" + s.config.ArtifactRoot, "DRIFT_RUNTIME_DEVICE_MODE=connected", "DRIFT_RUNTIME_ADB_PATH=" + s.config.ADBPath, "DRIFT_RUNTIME_SERVICE_TOKEN=" + s.config.ServiceToken}); err != nil {
 			return err
 		}
-		return s.waitReady(ctx, s.config.ControlPlaneAddress)
+		return s.waitReady(ctx, name, s.config.ControlPlaneAddress)
 	case "Device Service":
-		if err := s.startComponent(ctx, name, "go", []string{"run", "./cmd/edge-agent"}, []string{"DRIFT_EDGE_AGENT_ADDR=" + s.config.EdgeAgentAddress}); err != nil {
+		if err := s.startComponent(ctx, name, s.config.EdgeAgentAddress, "go", []string{"run", "./cmd/edge-agent"}, []string{"DRIFT_EDGE_AGENT_ADDR=" + s.config.EdgeAgentAddress}); err != nil {
 			return err
 		}
-		return s.waitReady(ctx, s.config.EdgeAgentAddress)
+		return s.waitReady(ctx, name, s.config.EdgeAgentAddress)
 	case "Desktop Application":
-		return s.startComponent(ctx, name, "pnpm", []string{"--filter", "console", "exec", "tauri", "dev"}, []string{"VITE_DRIFT_CONTROL_PLANE_URL=http://" + s.config.ControlPlaneAddress, "VITE_DRIFT_RUNTIME_ADAPTER_URL=http://" + s.config.ControlPlaneAddress, "VITE_DRIFT_RUNTIME_SERVICE_TOKEN=" + s.config.ServiceToken, "VITE_DRIFT_RUNTIME_OPERATOR_ID=" + s.config.OperatorID})
+		return s.startComponent(ctx, name, "", "pnpm", []string{"--filter", "console", "exec", "tauri", "dev"}, []string{"VITE_DRIFT_CONTROL_PLANE_URL=http://" + s.config.ControlPlaneAddress, "VITE_DRIFT_RUNTIME_ADAPTER_URL=http://" + s.config.ControlPlaneAddress, "VITE_DRIFT_RUNTIME_SERVICE_TOKEN=" + s.config.ServiceToken, "VITE_DRIFT_RUNTIME_OPERATOR_ID=" + s.config.OperatorID})
 	default:
 		return fmt.Errorf("unknown component %q", name)
 	}
 }
 
-// StopComponent stops one owned component and is idempotent.
+// StopComponent stops one component this session started and then verifies that
+// the address is actually free. A listener this session does not own is a
+// failure, not a successful stop: reporting success there tells the operator a
+// stale process was replaced when it was not.
 func (s *Supervisor) StopComponent(name string) error {
+	address := s.componentAddress(name)
 	s.mu.Lock()
 	process := s.processes[name]
 	delete(s.processes, name)
 	s.mu.Unlock()
 	if process == nil {
-		s.setStatus(name, stateStopped, "Stopped")
-		return nil
+		if s.addressFree(address) {
+			s.setStatus(name, stateStopped, "Stopped (nothing was started by this session)")
+			return nil
+		}
+		return s.failOperation(name, fmt.Errorf("%s: nothing was started by this session, but %s is still held by %s; stop that process outside the TUI and retry", name, address, s.describeHolder(address)))
 	}
 	if err := process.Stop(); err != nil {
-		s.setStatus(name, stateStopped, "Stopped")
+		s.setStatus(name, stateFailed, fmt.Sprintf("stop failed: %v", err))
 		return fmt.Errorf("stop %s: %w", name, err)
+	}
+	if !s.waitAddressFree(address) {
+		return s.failOperation(name, fmt.Errorf("%s: stopped the process this session started, but %s is still held by %s; stop that process outside the TUI and retry", name, address, s.describeHolder(address)))
 	}
 	s.setStatus(name, stateStopped, "Stopped")
 	return nil
 }
 
-func (s *Supervisor) startComponent(ctx context.Context, name, executable string, args, extraEnv []string) error {
-	s.mu.Lock()
-	if _, exists := s.processes[name]; exists {
-		s.mu.Unlock()
-		s.setStatus(name, stateReady, "Already running")
+func (s *Supervisor) startComponent(ctx context.Context, name, address, executable string, args, extraEnv []string) error {
+	if s.owns(name) {
+		s.setStatus(name, stateReady, "Ready (already running in this session)")
 		return nil
 	}
-	s.mu.Unlock()
+	// A process this session does not own would keep the address, so the child
+	// could not bind and the stale binary would keep serving. Refuse instead.
+	if !s.addressFree(address) {
+		return s.failOperation(name, fmt.Errorf("%s: %s is already held by %s; this session did not start it, so starting another process would leave the stale one serving - stop that process and retry", name, address, s.describeHolder(address)))
+	}
 	s.setStatus(name, stateStarting, "Starting")
 	process, err := s.start(ctx, executable, args, extraEnv, logWriter{supervisor: s})
 	if err != nil {
@@ -290,25 +420,53 @@ func (s *Supervisor) startComponent(ctx context.Context, name, executable string
 	return nil
 }
 
-func (s *Supervisor) waitReady(ctx context.Context, address string) error {
-	url := "http://" + address + "/readyz"
-	ticker := time.NewTicker(100 * time.Millisecond)
+// failOperation records a failed stop or start so the status surface and the log
+// show why the operator's action did not happen.
+func (s *Supervisor) failOperation(name string, err error) error {
+	s.setStatus(name, stateFailed, err.Error())
+	s.appendLog(err.Error())
+	return err
+}
+
+// describeHolder names the conflicting process when the platform can tell us,
+// and states plainly that the address is occupied when it cannot.
+func (s *Supervisor) describeHolder(address string) string {
+	if holder := strings.TrimSpace(s.ports.Holder(address)); holder != "" {
+		return holder
+	}
+	return "a process this session did not start"
+}
+
+// addressFree reports whether this process can bind the address right now.
+func (s *Supervisor) addressFree(address string) bool {
+	return strings.TrimSpace(address) == "" || s.ports.Free(address)
+}
+
+// waitAddressFree polls until the address can be bound again. A killed process
+// group does not release its socket instantly, so the wait is bounded rather
+// than immediate.
+func (s *Supervisor) waitAddressFree(address string) bool {
+	deadline := time.Now().Add(s.freeWindow)
+	for {
+		if s.addressFree(address) {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		time.Sleep(s.poll)
+	}
+}
+
+func (s *Supervisor) waitReady(ctx context.Context, name, address string) error {
+	ticker := time.NewTicker(s.poll)
 	defer ticker.Stop()
-	deadline := time.NewTimer(15 * time.Second)
+	deadline := time.NewTimer(s.readyWait)
 	defer deadline.Stop()
 	for {
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		response, err := s.client.Do(req)
-		if err == nil {
-			_ = response.Body.Close()
-			if response.StatusCode == http.StatusOK {
-				if address == s.config.ControlPlaneAddress {
-					s.setStatus("Control Plane", stateReady, "Ready")
-				} else {
-					s.setStatus("Device Service", stateReady, "Ready")
-				}
-				return nil
-			}
+		if s.probe(ctx, address) {
+			s.setStatus(name, stateReady, "Ready (started by this session)")
+			return nil
 		}
 		select {
 		case <-ticker.C:
@@ -320,22 +478,47 @@ func (s *Supervisor) waitReady(ctx context.Context, address string) error {
 	}
 }
 
-// StopAll terminates owned child processes and is safe to call repeatedly.
+// StopAll terminates owned child processes and is safe to call repeatedly. It
+// also verifies that every address this supervisor manages is actually free: a
+// restart built on a stop that freed nothing would otherwise look successful.
 func (s *Supervisor) StopAll(_ context.Context) error {
 	s.mu.Lock()
 	processes := s.processes
 	s.processes = map[string]childProcess{}
 	s.mu.Unlock()
-	var first error
+	failures := make([]string, 0, len(processes))
 	for name, process := range processes {
 		if err := process.Stop(); err != nil {
-			if first == nil {
-				first = fmt.Errorf("stop %s: %w", name, err)
-			}
+			failures = append(failures, fmt.Sprintf("stop %s: %v", name, err))
+			s.setStatus(name, stateFailed, fmt.Sprintf("stop failed: %v", err))
+			continue
 		}
 		s.setStatus(name, stateStopped, "Stopped")
 	}
-	return first
+	for _, component := range managedComponents {
+		address := component.Address(s.config)
+		if address == "" {
+			continue
+		}
+		_, stopped := processes[component.Name]
+		free := false
+		if stopped {
+			free = s.waitAddressFree(address)
+		} else {
+			free = s.addressFree(address)
+		}
+		if free {
+			continue
+		}
+		detail := fmt.Sprintf("%s is still held by %s; stop that process outside the TUI and retry", address, s.describeHolder(address))
+		failures = append(failures, component.Name+": "+detail)
+		s.setStatus(component.Name, stateFailed, detail)
+		s.appendLog(component.Name + ": " + detail)
+	}
+	if len(failures) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s", strings.Join(failures, "; "))
 }
 
 func startCommand(ctx context.Context, executable string, args, extraEnv []string, output io.Writer) (childProcess, error) {
@@ -352,6 +535,87 @@ func startCommand(ctx context.Context, executable string, args, extraEnv []strin
 		return nil, err
 	}
 	return managedProcess{process: cmd.Process}, nil
+}
+
+// runCommand executes a fixed subprocess with an argument array. It never uses a
+// shell, so no argument can be interpreted as shell syntax.
+func runCommand(ctx context.Context, executable string, args ...string) error {
+	return exec.CommandContext(ctx, executable, args...).Run()
+}
+
+// netPortChecker binds the address to decide whether it is free. A process that
+// answers a readiness probe without holding the port is not a conflict, and a
+// process holding the port without answering is; only binding tells us which.
+type netPortChecker struct{}
+
+func (netPortChecker) Free(address string) bool {
+	if strings.TrimSpace(address) == "" {
+		return true
+	}
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return false
+	}
+	_ = listener.Close()
+	return true
+}
+
+// Holder makes a best-effort attempt to name the process listening on an
+// address. It returns an empty string whenever the platform cannot tell us; the
+// caller still reports the address as occupied.
+func (netPortChecker) Holder(address string) string {
+	_, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return ""
+	}
+	lsof, err := exec.LookPath("lsof")
+	if err != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, lsof, "-nP", "-sTCP:LISTEN", "-iTCP:"+port, "-Fpc").Output()
+	if err != nil {
+		return ""
+	}
+	return formatListenerHolders(string(output))
+}
+
+// formatListenerHolders parses `lsof -Fpc` output into a short description of
+// the listening processes, for example "node (pid 4711)".
+func formatListenerHolders(output string) string {
+	var holders []string
+	command, pid := "", ""
+	flush := func() {
+		switch {
+		case command != "" && pid != "":
+			holders = append(holders, fmt.Sprintf("%s (pid %s)", command, pid))
+		case pid != "":
+			holders = append(holders, fmt.Sprintf("pid %s", pid))
+		}
+		command, pid = "", ""
+	}
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case line == "":
+			continue
+		case strings.HasPrefix(line, "p"):
+			flush()
+			pid = strings.TrimPrefix(line, "p")
+		case strings.HasPrefix(line, "c"):
+			command = strings.TrimPrefix(line, "c")
+		}
+	}
+	flush()
+	switch len(holders) {
+	case 0:
+		return ""
+	case 1:
+		return holders[0]
+	default:
+		return fmt.Sprintf("%s and %d more", holders[0], len(holders)-1)
+	}
 }
 
 type managedProcess struct{ process *os.Process }
