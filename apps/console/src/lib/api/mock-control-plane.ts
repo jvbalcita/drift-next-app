@@ -231,8 +231,8 @@ const observations: ObservationView[] = devices.map((device, index) => ({
 }))
 
 const networkProfiles: NetworkProfileView[] = [
-  { id: "profile-lab-a", name: "Lab A staging", addressPolicy: "192.0.2.0/24", ports: [5555], isDefault: true, state: "active", rowVersion: 3 },
-  { id: "profile-lab-b", name: "Lab B review", addressPolicy: "198.51.100.0/24", ports: [5555, 5037], isDefault: false, state: "disabled", rowVersion: 2 },
+  { id: "profile-lab-a", name: "Lab A staging", addressPolicy: "192.0.2.0/24", ports: [5555], isDefault: true },
+  { id: "profile-lab-b", name: "Lab B review", addressPolicy: "198.51.100.0/24", ports: [5555, 5037], isDefault: false },
 ]
 
 const scanRuns: ScanRunView[] = [
@@ -902,8 +902,8 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.createNetworkProfile(intent)
       case "updateNetworkProfile":
         return this.updateNetworkProfile(intent)
-      case "retireNetworkProfile":
-        return this.retireNetworkProfile(intent)
+      case "deleteNetworkProfile":
+        return this.deleteNetworkProfile(intent)
       case "startScan":
         return this.startScan(intent)
       case "moveDeviceToGroup":
@@ -1751,34 +1751,36 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (intent.name.trim() === "" || intent.addressPolicy.trim() === "" || intent.ports.length === 0) {
       return rejection(intent, "Profile name, bounded address policy, and at least one port are required.")
     }
-    if (intent.isDefault) return rejection(intent, "A draft Network Profile cannot be default; activate it first.")
     const id = `profile-mock-${this.nextSequence++}`
-    const profile: NetworkProfileView = { id, name: intent.name.trim(), addressPolicy: intent.addressPolicy.trim(), ports: [...intent.ports], isDefault: false, state: "draft", rowVersion: 1 }
+    const profile: NetworkProfileView = { id, name: intent.name.trim(), addressPolicy: intent.addressPolicy.trim(), ports: [...intent.ports], isDefault: intent.isDefault }
     this.snapshot = { ...this.snapshot, networkProfiles: [profile, ...this.snapshot.networkProfiles] }
-    return result(intent, "Network Profile saved as draft; no scan was started.", id)
+    return result(intent, "Network Profile saved; no scan was started.", id)
   }
 
   private updateNetworkProfile(intent: Extract<ControlPlaneIntent, { type: "updateNetworkProfile" }>): MutationResult {
     const profile = this.snapshot.networkProfiles.find((candidate) => candidate.id === intent.profileId)
     if (!profile) return rejection(intent, "Network Profile was not found.")
-    if (profile.rowVersion !== intent.rowVersion) return result(intent, "This Network Profile changed elsewhere. Reload before saving.", profile.id, true)
-    if (intent.isDefault && profile.state !== "active") return rejection(intent, "Only an active Network Profile can be default.", profile.id)
-    const updated: NetworkProfileView = { ...profile, name: intent.name.trim(), addressPolicy: intent.addressPolicy.trim(), ports: [...intent.ports], isDefault: intent.isDefault, rowVersion: profile.rowVersion + 1 }
+    const updated: NetworkProfileView = { ...profile, name: intent.name.trim(), addressPolicy: intent.addressPolicy.trim(), ports: [...intent.ports], isDefault: intent.isDefault }
     this.snapshot = { ...this.snapshot, networkProfiles: this.snapshot.networkProfiles.map((candidate) => candidate.id === profile.id ? updated : candidate) }
     return result(intent, "Network Profile updated in the mock projection.", profile.id)
   }
 
-  private retireNetworkProfile(intent: Extract<ControlPlaneIntent, { type: "retireNetworkProfile" }>): MutationResult {
+  private deleteNetworkProfile(intent: Extract<ControlPlaneIntent, { type: "deleteNetworkProfile" }>): MutationResult {
+    if (!intent.confirmed) return rejection(intent, "Deleting a Network Profile requires confirmation.", intent.profileId, "precondition_failed")
     const profile = this.snapshot.networkProfiles.find((candidate) => candidate.id === intent.profileId)
-    if (!profile) return rejection(intent, "Network Profile was not found.")
-    if (profile.rowVersion !== intent.rowVersion) return result(intent, "This Network Profile changed elsewhere. Reload before retiring.", profile.id, true)
-    this.snapshot = { ...this.snapshot, networkProfiles: this.snapshot.networkProfiles.map((candidate) => candidate.id === profile.id ? { ...candidate, state: "retired", isDefault: false, rowVersion: candidate.rowVersion + 1 } : candidate) }
-    return result(intent, "Network Profile retired in the mock projection.", profile.id)
+    if (!profile) return rejection(intent, "Network Profile was not found.", intent.profileId)
+    // Scan history outlives the profile: the runs stay, their reference clears.
+    this.snapshot = {
+      ...this.snapshot,
+      networkProfiles: this.snapshot.networkProfiles.filter((candidate) => candidate.id !== profile.id),
+      scanRuns: this.snapshot.scanRuns.map((run) => run.networkProfileId === profile.id ? { ...run, networkProfileId: "" } : run),
+    }
+    return result(intent, "Network Profile deleted in the mock projection.", profile.id)
   }
 
   private startScan(intent: Extract<ControlPlaneIntent, { type: "startScan" }>): MutationResult {
     const profile = this.snapshot.networkProfiles.find((candidate) => candidate.id === intent.profileId)
-    if (!profile || profile.state !== "active") return rejection(intent, "Only an active Network Profile can start a scan.")
+    if (!profile) return rejection(intent, "Select a saved Network Profile before starting a scan.")
     const id = `scan-run-${String(this.nextSequence++).padStart(3, "0")}`
     const scan: ScanRunView = { id, networkProfileId: profile.id, state: "running", requestedAt: "just now" }
     this.snapshot = { ...this.snapshot, scanRuns: [scan, ...this.snapshot.scanRuns] }

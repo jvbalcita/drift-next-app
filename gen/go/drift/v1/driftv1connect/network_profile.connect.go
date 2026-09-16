@@ -42,6 +42,9 @@ const (
 	// NetworkProfileServiceUpdateNetworkProfileProcedure is the fully-qualified name of the
 	// NetworkProfileService's UpdateNetworkProfile RPC.
 	NetworkProfileServiceUpdateNetworkProfileProcedure = "/drift.v1.NetworkProfileService/UpdateNetworkProfile"
+	// NetworkProfileServiceDeleteNetworkProfileProcedure is the fully-qualified name of the
+	// NetworkProfileService's DeleteNetworkProfile RPC.
+	NetworkProfileServiceDeleteNetworkProfileProcedure = "/drift.v1.NetworkProfileService/DeleteNetworkProfile"
 )
 
 // NetworkProfileServiceClient is a client for the drift.v1.NetworkProfileService service.
@@ -49,6 +52,7 @@ type NetworkProfileServiceClient interface {
 	ListNetworkProfiles(context.Context, *connect.Request[v1.ListNetworkProfilesRequest]) (*connect.Response[v1.ListNetworkProfilesResponse], error)
 	CreateNetworkProfile(context.Context, *connect.Request[v1.CreateNetworkProfileRequest]) (*connect.Response[v1.CreateNetworkProfileResponse], error)
 	UpdateNetworkProfile(context.Context, *connect.Request[v1.UpdateNetworkProfileRequest]) (*connect.Response[v1.UpdateNetworkProfileResponse], error)
+	DeleteNetworkProfile(context.Context, *connect.Request[v1.DeleteNetworkProfileRequest]) (*connect.Response[v1.DeleteNetworkProfileResponse], error)
 }
 
 // NewNetworkProfileServiceClient constructs a client for the drift.v1.NetworkProfileService
@@ -80,6 +84,12 @@ func NewNetworkProfileServiceClient(httpClient connect.HTTPClient, baseURL strin
 			connect.WithSchema(networkProfileServiceMethods.ByName("UpdateNetworkProfile")),
 			connect.WithClientOptions(opts...),
 		),
+		deleteNetworkProfile: connect.NewClient[v1.DeleteNetworkProfileRequest, v1.DeleteNetworkProfileResponse](
+			httpClient,
+			baseURL+NetworkProfileServiceDeleteNetworkProfileProcedure,
+			connect.WithSchema(networkProfileServiceMethods.ByName("DeleteNetworkProfile")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -88,6 +98,7 @@ type networkProfileServiceClient struct {
 	listNetworkProfiles  *connect.Client[v1.ListNetworkProfilesRequest, v1.ListNetworkProfilesResponse]
 	createNetworkProfile *connect.Client[v1.CreateNetworkProfileRequest, v1.CreateNetworkProfileResponse]
 	updateNetworkProfile *connect.Client[v1.UpdateNetworkProfileRequest, v1.UpdateNetworkProfileResponse]
+	deleteNetworkProfile *connect.Client[v1.DeleteNetworkProfileRequest, v1.DeleteNetworkProfileResponse]
 }
 
 // ListNetworkProfiles calls drift.v1.NetworkProfileService.ListNetworkProfiles.
@@ -105,11 +116,17 @@ func (c *networkProfileServiceClient) UpdateNetworkProfile(ctx context.Context, 
 	return c.updateNetworkProfile.CallUnary(ctx, req)
 }
 
+// DeleteNetworkProfile calls drift.v1.NetworkProfileService.DeleteNetworkProfile.
+func (c *networkProfileServiceClient) DeleteNetworkProfile(ctx context.Context, req *connect.Request[v1.DeleteNetworkProfileRequest]) (*connect.Response[v1.DeleteNetworkProfileResponse], error) {
+	return c.deleteNetworkProfile.CallUnary(ctx, req)
+}
+
 // NetworkProfileServiceHandler is an implementation of the drift.v1.NetworkProfileService service.
 type NetworkProfileServiceHandler interface {
 	ListNetworkProfiles(context.Context, *connect.Request[v1.ListNetworkProfilesRequest]) (*connect.Response[v1.ListNetworkProfilesResponse], error)
 	CreateNetworkProfile(context.Context, *connect.Request[v1.CreateNetworkProfileRequest]) (*connect.Response[v1.CreateNetworkProfileResponse], error)
 	UpdateNetworkProfile(context.Context, *connect.Request[v1.UpdateNetworkProfileRequest]) (*connect.Response[v1.UpdateNetworkProfileResponse], error)
+	DeleteNetworkProfile(context.Context, *connect.Request[v1.DeleteNetworkProfileRequest]) (*connect.Response[v1.DeleteNetworkProfileResponse], error)
 }
 
 // NewNetworkProfileServiceHandler builds an HTTP handler from the service implementation. It
@@ -137,6 +154,12 @@ func NewNetworkProfileServiceHandler(svc NetworkProfileServiceHandler, opts ...c
 		connect.WithSchema(networkProfileServiceMethods.ByName("UpdateNetworkProfile")),
 		connect.WithHandlerOptions(opts...),
 	)
+	networkProfileServiceDeleteNetworkProfileHandler := connect.NewUnaryHandler(
+		NetworkProfileServiceDeleteNetworkProfileProcedure,
+		svc.DeleteNetworkProfile,
+		connect.WithSchema(networkProfileServiceMethods.ByName("DeleteNetworkProfile")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.NetworkProfileService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case NetworkProfileServiceListNetworkProfilesProcedure:
@@ -145,6 +168,8 @@ func NewNetworkProfileServiceHandler(svc NetworkProfileServiceHandler, opts ...c
 			networkProfileServiceCreateNetworkProfileHandler.ServeHTTP(w, r)
 		case NetworkProfileServiceUpdateNetworkProfileProcedure:
 			networkProfileServiceUpdateNetworkProfileHandler.ServeHTTP(w, r)
+		case NetworkProfileServiceDeleteNetworkProfileProcedure:
+			networkProfileServiceDeleteNetworkProfileHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -164,4 +189,8 @@ func (UnimplementedNetworkProfileServiceHandler) CreateNetworkProfile(context.Co
 
 func (UnimplementedNetworkProfileServiceHandler) UpdateNetworkProfile(context.Context, *connect.Request[v1.UpdateNetworkProfileRequest]) (*connect.Response[v1.UpdateNetworkProfileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.NetworkProfileService.UpdateNetworkProfile is not implemented"))
+}
+
+func (UnimplementedNetworkProfileServiceHandler) DeleteNetworkProfile(context.Context, *connect.Request[v1.DeleteNetworkProfileRequest]) (*connect.Response[v1.DeleteNetworkProfileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.NetworkProfileService.DeleteNetworkProfile is not implemented"))
 }

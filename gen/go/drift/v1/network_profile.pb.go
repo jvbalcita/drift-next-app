@@ -401,6 +401,109 @@ func (x *UpdateNetworkProfileResponse) GetProfile() *NetworkProfile {
 	return nil
 }
 
+// DeleteNetworkProfileRequest removes one saved profile outright. Network
+// profiles are delete-only by owner decision: there is no state to advance and
+// no disable step, so deletion is the whole lifecycle.
+type DeleteNetworkProfileRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Context          *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace        *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	NetworkProfileId string                 `protobuf:"bytes,3,opt,name=network_profile_id,json=networkProfileId,proto3" json:"network_profile_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *DeleteNetworkProfileRequest) Reset() {
+	*x = DeleteNetworkProfileRequest{}
+	mi := &file_drift_v1_network_profile_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteNetworkProfileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteNetworkProfileRequest) ProtoMessage() {}
+
+func (x *DeleteNetworkProfileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_network_profile_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteNetworkProfileRequest.ProtoReflect.Descriptor instead.
+func (*DeleteNetworkProfileRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_network_profile_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DeleteNetworkProfileRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *DeleteNetworkProfileRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *DeleteNetworkProfileRequest) GetNetworkProfileId() string {
+	if x != nil {
+		return x.NetworkProfileId
+	}
+	return ""
+}
+
+// DeleteNetworkProfileResponse carries no projection: the profile no longer
+// exists once this succeeds. Scan history that referenced it already survives
+// with a null profile reference, so there is nothing for the caller to refresh
+// from the response itself.
+type DeleteNetworkProfileResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteNetworkProfileResponse) Reset() {
+	*x = DeleteNetworkProfileResponse{}
+	mi := &file_drift_v1_network_profile_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteNetworkProfileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteNetworkProfileResponse) ProtoMessage() {}
+
+func (x *DeleteNetworkProfileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_network_profile_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteNetworkProfileResponse.ProtoReflect.Descriptor instead.
+func (*DeleteNetworkProfileResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_network_profile_proto_rawDescGZIP(), []int{8}
+}
+
 var File_drift_v1_network_profile_proto protoreflect.FileDescriptor
 
 const file_drift_v1_network_profile_proto_rawDesc = "" +
@@ -429,11 +532,17 @@ const file_drift_v1_network_profile_proto_rawDesc = "" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x122\n" +
 	"\aprofile\x18\x02 \x01(\v2\x18.drift.v1.NetworkProfileR\aprofileJ\x04\b\x03\x10\x04R\x14expected_row_version\"R\n" +
 	"\x1cUpdateNetworkProfileResponse\x122\n" +
-	"\aprofile\x18\x01 \x01(\v2\x18.drift.v1.NetworkProfileR\aprofile2\xc9\x02\n" +
+	"\aprofile\x18\x01 \x01(\v2\x18.drift.v1.NetworkProfileR\aprofile\"\xb5\x01\n" +
+	"\x1bDeleteNetworkProfileRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12,\n" +
+	"\x12network_profile_id\x18\x03 \x01(\tR\x10networkProfileId\"\x1e\n" +
+	"\x1cDeleteNetworkProfileResponse2\xb0\x03\n" +
 	"\x15NetworkProfileService\x12b\n" +
 	"\x13ListNetworkProfiles\x12$.drift.v1.ListNetworkProfilesRequest\x1a%.drift.v1.ListNetworkProfilesResponse\x12e\n" +
 	"\x14CreateNetworkProfile\x12%.drift.v1.CreateNetworkProfileRequest\x1a&.drift.v1.CreateNetworkProfileResponse\x12e\n" +
-	"\x14UpdateNetworkProfile\x12%.drift.v1.UpdateNetworkProfileRequest\x1a&.drift.v1.UpdateNetworkProfileResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\x14UpdateNetworkProfile\x12%.drift.v1.UpdateNetworkProfileRequest\x1a&.drift.v1.UpdateNetworkProfileResponse\x12e\n" +
+	"\x14DeleteNetworkProfile\x12%.drift.v1.DeleteNetworkProfileRequest\x1a&.drift.v1.DeleteNetworkProfileResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_network_profile_proto_rawDescOnce sync.Once
@@ -447,7 +556,7 @@ func file_drift_v1_network_profile_proto_rawDescGZIP() []byte {
 	return file_drift_v1_network_profile_proto_rawDescData
 }
 
-var file_drift_v1_network_profile_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_drift_v1_network_profile_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_drift_v1_network_profile_proto_goTypes = []any{
 	(*NetworkProfile)(nil),               // 0: drift.v1.NetworkProfile
 	(*ListNetworkProfilesRequest)(nil),   // 1: drift.v1.ListNetworkProfilesRequest
@@ -456,34 +565,40 @@ var file_drift_v1_network_profile_proto_goTypes = []any{
 	(*CreateNetworkProfileResponse)(nil), // 4: drift.v1.CreateNetworkProfileResponse
 	(*UpdateNetworkProfileRequest)(nil),  // 5: drift.v1.UpdateNetworkProfileRequest
 	(*UpdateNetworkProfileResponse)(nil), // 6: drift.v1.UpdateNetworkProfileResponse
-	(*WorkspaceRef)(nil),                 // 7: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),                  // 8: drift.v1.PageRequest
-	(*PageResponse)(nil),                 // 9: drift.v1.PageResponse
-	(*RequestContext)(nil),               // 10: drift.v1.RequestContext
+	(*DeleteNetworkProfileRequest)(nil),  // 7: drift.v1.DeleteNetworkProfileRequest
+	(*DeleteNetworkProfileResponse)(nil), // 8: drift.v1.DeleteNetworkProfileResponse
+	(*WorkspaceRef)(nil),                 // 9: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),                  // 10: drift.v1.PageRequest
+	(*PageResponse)(nil),                 // 11: drift.v1.PageResponse
+	(*RequestContext)(nil),               // 12: drift.v1.RequestContext
 }
 var file_drift_v1_network_profile_proto_depIdxs = []int32{
-	7,  // 0: drift.v1.NetworkProfile.workspace:type_name -> drift.v1.WorkspaceRef
-	7,  // 1: drift.v1.ListNetworkProfilesRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	8,  // 2: drift.v1.ListNetworkProfilesRequest.page:type_name -> drift.v1.PageRequest
+	9,  // 0: drift.v1.NetworkProfile.workspace:type_name -> drift.v1.WorkspaceRef
+	9,  // 1: drift.v1.ListNetworkProfilesRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	10, // 2: drift.v1.ListNetworkProfilesRequest.page:type_name -> drift.v1.PageRequest
 	0,  // 3: drift.v1.ListNetworkProfilesResponse.profiles:type_name -> drift.v1.NetworkProfile
-	9,  // 4: drift.v1.ListNetworkProfilesResponse.page:type_name -> drift.v1.PageResponse
-	10, // 5: drift.v1.CreateNetworkProfileRequest.context:type_name -> drift.v1.RequestContext
+	11, // 4: drift.v1.ListNetworkProfilesResponse.page:type_name -> drift.v1.PageResponse
+	12, // 5: drift.v1.CreateNetworkProfileRequest.context:type_name -> drift.v1.RequestContext
 	0,  // 6: drift.v1.CreateNetworkProfileRequest.profile:type_name -> drift.v1.NetworkProfile
 	0,  // 7: drift.v1.CreateNetworkProfileResponse.profile:type_name -> drift.v1.NetworkProfile
-	10, // 8: drift.v1.UpdateNetworkProfileRequest.context:type_name -> drift.v1.RequestContext
+	12, // 8: drift.v1.UpdateNetworkProfileRequest.context:type_name -> drift.v1.RequestContext
 	0,  // 9: drift.v1.UpdateNetworkProfileRequest.profile:type_name -> drift.v1.NetworkProfile
 	0,  // 10: drift.v1.UpdateNetworkProfileResponse.profile:type_name -> drift.v1.NetworkProfile
-	1,  // 11: drift.v1.NetworkProfileService.ListNetworkProfiles:input_type -> drift.v1.ListNetworkProfilesRequest
-	3,  // 12: drift.v1.NetworkProfileService.CreateNetworkProfile:input_type -> drift.v1.CreateNetworkProfileRequest
-	5,  // 13: drift.v1.NetworkProfileService.UpdateNetworkProfile:input_type -> drift.v1.UpdateNetworkProfileRequest
-	2,  // 14: drift.v1.NetworkProfileService.ListNetworkProfiles:output_type -> drift.v1.ListNetworkProfilesResponse
-	4,  // 15: drift.v1.NetworkProfileService.CreateNetworkProfile:output_type -> drift.v1.CreateNetworkProfileResponse
-	6,  // 16: drift.v1.NetworkProfileService.UpdateNetworkProfile:output_type -> drift.v1.UpdateNetworkProfileResponse
-	14, // [14:17] is the sub-list for method output_type
-	11, // [11:14] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	12, // 11: drift.v1.DeleteNetworkProfileRequest.context:type_name -> drift.v1.RequestContext
+	9,  // 12: drift.v1.DeleteNetworkProfileRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	1,  // 13: drift.v1.NetworkProfileService.ListNetworkProfiles:input_type -> drift.v1.ListNetworkProfilesRequest
+	3,  // 14: drift.v1.NetworkProfileService.CreateNetworkProfile:input_type -> drift.v1.CreateNetworkProfileRequest
+	5,  // 15: drift.v1.NetworkProfileService.UpdateNetworkProfile:input_type -> drift.v1.UpdateNetworkProfileRequest
+	7,  // 16: drift.v1.NetworkProfileService.DeleteNetworkProfile:input_type -> drift.v1.DeleteNetworkProfileRequest
+	2,  // 17: drift.v1.NetworkProfileService.ListNetworkProfiles:output_type -> drift.v1.ListNetworkProfilesResponse
+	4,  // 18: drift.v1.NetworkProfileService.CreateNetworkProfile:output_type -> drift.v1.CreateNetworkProfileResponse
+	6,  // 19: drift.v1.NetworkProfileService.UpdateNetworkProfile:output_type -> drift.v1.UpdateNetworkProfileResponse
+	8,  // 20: drift.v1.NetworkProfileService.DeleteNetworkProfile:output_type -> drift.v1.DeleteNetworkProfileResponse
+	17, // [17:21] is the sub-list for method output_type
+	13, // [13:17] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_network_profile_proto_init() }
@@ -498,7 +613,7 @@ func file_drift_v1_network_profile_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_network_profile_proto_rawDesc), len(file_drift_v1_network_profile_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -98,6 +98,32 @@ func (h *NetworkProfileHandler) UpdateNetworkProfile(ctx context.Context, reques
 	return connectrpc.NewResponse(&driftv1.UpdateNetworkProfileResponse{Profile: networkProfileProto(stored)}), nil
 }
 
+// DeleteNetworkProfile removes one saved profile outright. Network profiles
+// have no lifecycle, so deletion is the whole operation: scan history that named
+// the profile survives with a null reference, and the caller's next list call
+// reflects the removal.
+func (h *NetworkProfileHandler) DeleteNetworkProfile(ctx context.Context, request *connectrpc.Request[driftv1.DeleteNetworkProfileRequest]) (*connectrpc.Response[driftv1.DeleteNetworkProfileResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("delete network profile request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	profileID := networkprofiles.NetworkProfileID(request.Msg.GetNetworkProfileId())
+	if profileID == "" {
+		return nil, invalidArgument("network profile ID is required")
+	}
+	if deleteErr := store.NewNetworkProfileService(h.db).Delete(ctx, workspace, profileID, actorType, actorID); deleteErr != nil {
+		return nil, MapError(deleteErr)
+	}
+	return connectrpc.NewResponse(&driftv1.DeleteNetworkProfileResponse{}), nil
+}
+
 func networkProfileFromProto(msg *driftv1.NetworkProfile) (networkprofiles.NetworkProfile, error) {
 	var profile networkprofiles.NetworkProfile
 	if msg == nil {

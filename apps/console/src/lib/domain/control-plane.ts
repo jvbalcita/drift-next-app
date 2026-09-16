@@ -142,8 +142,6 @@ export interface NetworkProfileView {
   addressPolicy: string
   ports: readonly number[]
   isDefault: boolean
-  state: "draft" | "active" | "disabled" | "retired"
-  rowVersion: number
 }
 
 export interface ScanRunView {
@@ -614,8 +612,8 @@ export type ControlPlaneIntent =
   | { type: "startMirrorPreview"; sourceDeviceId: string; followerDeviceIds: readonly string[] }
   | { type: "stopMirrorPreview"; sessionId: string }
   | { type: "createNetworkProfile"; name: string; addressPolicy: string; ports: readonly number[]; isDefault: boolean }
-  | { type: "updateNetworkProfile"; profileId: string; name: string; addressPolicy: string; ports: readonly number[]; isDefault: boolean; rowVersion: number }
-  | { type: "retireNetworkProfile"; profileId: string; rowVersion: number }
+  | { type: "updateNetworkProfile"; profileId: string; name: string; addressPolicy: string; ports: readonly number[]; isDefault: boolean }
+  | { type: "deleteNetworkProfile"; profileId: string; confirmed: boolean }
   | { type: "startScan"; profileId: string }
   | { type: "moveDeviceToGroup"; deviceId: string; groupId: string; position: number }
   | { type: "createDeviceGroup"; name: string }

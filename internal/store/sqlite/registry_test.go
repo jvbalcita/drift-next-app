@@ -54,4 +54,39 @@ func TestNetworkProfileDeleteSucceedsWithScanHistory(t *testing.T) {
 	if len(remaining) != 1 {
 		t.Fatalf("scan history after profile deletion = %d, want 1 (history is immutable evidence)", len(remaining))
 	}
+	if remaining[0].NetworkProfileID != "" {
+		t.Fatalf("scan history profile reference = %q, want a null reference once the profile is gone", remaining[0].NetworkProfileID)
+	}
+}
+
+func TestNetworkProfileDeleteReportsNotFoundWithoutCrossWorkspaceDamage(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	for _, workspace := range []organizations.Workspace{
+		{ID: "scope-a", Name: "A", State: organizations.WorkspaceActive},
+		{ID: "scope-b", Name: "B", State: organizations.WorkspaceActive},
+	} {
+		if err := store.NewWorkspaceService(db).Create(ctx, workspace, "operator", "op-1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	profiles := store.NewNetworkProfileService(db)
+	profileA := networkprofiles.NetworkProfile{ID: "profile-a", Workspace: "scope-a", Name: "A", AddressPolicy: "192.0.2.0/28", Ports: []uint16{5555}}
+	if err := profiles.Create(ctx, profileA, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	// A profile that does not exist, and a profile that exists in another
+	// workspace, are both plain not_found here: the delete is workspace-scoped,
+	// so it must not report on, or remove, another workspace's row.
+	if err := profiles.Delete(ctx, "scope-a", "profile-missing", "operator", "op-1"); platformerrors.CodeOf(err) != platformerrors.CodeNotFound {
+		t.Fatalf("Delete(unknown profile) code = %v, want not_found; err=%v", platformerrors.CodeOf(err), err)
+	}
+	if err := profiles.Delete(ctx, "scope-b", profileA.ID, "operator", "op-1"); platformerrors.CodeOf(err) != platformerrors.CodeNotFound {
+		t.Fatalf("Delete(other workspace) code = %v, want not_found; err=%v", platformerrors.CodeOf(err), err)
+	}
+	listed, err := store.NewNetworkProfileRepository(db).List(ctx, "scope-a")
+	if err != nil || len(listed) != 1 || listed[0].ID != profileA.ID {
+		t.Fatalf("profiles after refused deletes = %#v err=%v, want the original profile intact", listed, err)
+	}
 }

@@ -313,12 +313,19 @@ func (d *DB) scanRunByKey(ctx context.Context, workspace organizations.Workspace
 
 func scanRunRow(row interface{ Scan(...any) error }, run *discovery.ScanRun) error {
 	var requested, started, finished, key, failure sql.NullString
-	var profileID, workspace, id string
+	var profileID sql.NullString
+	var workspace, id string
 	var state string
 	if err := row.Scan(&id, &workspace, &profileID, &state, &requested, &started, &finished, &key, &failure); err != nil {
 		return err
 	}
-	run.ID, run.Workspace, run.NetworkProfileID, run.State = discovery.ScanRunID(id), organizations.WorkspaceID(workspace), networkprofiles.NetworkProfileID(profileID), discovery.ScanRunState(state)
+	run.ID, run.Workspace, run.State = discovery.ScanRunID(id), organizations.WorkspaceID(workspace), discovery.ScanRunState(state)
+	// The profile reference is nullable history: a run outlives the profile it
+	// named, so a deleted profile leaves the run readable with no reference
+	// instead of making the history unreadable.
+	if profileID.Valid {
+		run.NetworkProfileID = networkprofiles.NetworkProfileID(profileID.String)
+	}
 	run.RequestedAt, _ = time.Parse(time.RFC3339Nano, requested.String)
 	if started.Valid {
 		t, _ := time.Parse(time.RFC3339Nano, started.String)

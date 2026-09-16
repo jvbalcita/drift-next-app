@@ -120,6 +120,80 @@ func TestNetworkProfileCreatePersistsAndPaginates(t *testing.T) {
 	}
 }
 
+func TestNetworkProfileDeleteRemovesTheProfileAndReportsNotFound(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	if err := store.NewWorkspaceService(db).Create(ctx, organizations.Workspace{
+		ID: "workspace-b", Name: "B", State: organizations.WorkspaceActive,
+	}, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	profiles := store.NewNetworkProfileService(db)
+	mine := networkprofiles.NetworkProfile{
+		ID: "profile-mine", Workspace: "workspace-a", Name: "Mine",
+		AddressPolicy: "192.0.2.0/28", Ports: []uint16{5555},
+	}
+	theirs := networkprofiles.NetworkProfile{
+		ID: "profile-theirs", Workspace: "workspace-b", Name: "Theirs",
+		AddressPolicy: "198.51.100.0/28", Ports: []uint16{5555},
+	}
+	for _, profile := range []networkprofiles.NetworkProfile{mine, theirs} {
+		if err := profiles.Create(ctx, profile, "operator", "op-1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := transportconnect.NewNetworkProfileHandler(db)
+
+	// Another workspace naming this profile must not learn that it exists, and
+	// must not remove it.
+	_, err := handler.DeleteNetworkProfile(ctx, connectrpc.NewRequest(&driftv1.DeleteNetworkProfileRequest{
+		Context:          requestContext("delete-cross-workspace"),
+		Workspace:        &driftv1.WorkspaceRef{WorkspaceId: "workspace-b"},
+		NetworkProfileId: string(mine.ID),
+	}))
+	if connectrpc.CodeOf(err) != connectrpc.CodeNotFound {
+		t.Fatalf("cross-workspace delete code = %v, want not_found; err=%v", connectrpc.CodeOf(err), err)
+	}
+
+	// A profile that never existed is not_found, never a conflict.
+	_, err = handler.DeleteNetworkProfile(ctx, connectrpc.NewRequest(&driftv1.DeleteNetworkProfileRequest{
+		Context:          requestContext("delete-missing"),
+		Workspace:        &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		NetworkProfileId: "profile-missing",
+	}))
+	if connectrpc.CodeOf(err) != connectrpc.CodeNotFound {
+		t.Fatalf("delete of a missing profile code = %v, want not_found; err=%v", connectrpc.CodeOf(err), err)
+	}
+
+	if _, err := handler.DeleteNetworkProfile(ctx, connectrpc.NewRequest(&driftv1.DeleteNetworkProfileRequest{
+		Context:          requestContext("delete-mine"),
+		Workspace:        &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		NetworkProfileId: string(mine.ID),
+	})); err != nil {
+		t.Fatalf("delete = %v, want the profile removed", err)
+	}
+
+	remaining, err := store.NewNetworkProfileRepository(db).List(ctx, "workspace-a")
+	if err != nil || len(remaining) != 0 {
+		t.Fatalf("profiles in workspace-a after delete = %#v err=%v, want none", remaining, err)
+	}
+	untouched, err := store.NewNetworkProfileRepository(db).List(ctx, "workspace-b")
+	if err != nil || len(untouched) != 1 || untouched[0].ID != theirs.ID {
+		t.Fatalf("profiles in workspace-b = %#v err=%v, want the other workspace's profile intact", untouched, err)
+	}
+}
+
+func TestNetworkProfileDeleteRequiresProfileIdentity(t *testing.T) {
+	db := openProductDB(t)
+	_, err := transportconnect.NewNetworkProfileHandler(db).DeleteNetworkProfile(context.Background(), connectrpc.NewRequest(&driftv1.DeleteNetworkProfileRequest{
+		Context:   requestContext("delete-no-profile"),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+	}))
+	if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+		t.Fatalf("delete without a profile id code = %v, want invalid_argument; err=%v", connectrpc.CodeOf(err), err)
+	}
+}
+
 func TestDiscoveryStartScanUpsertsObservedDevicesWithoutDuplicatingDevices(t *testing.T) {
 	db := openProductDB(t)
 	ctx := context.Background()

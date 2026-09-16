@@ -39,8 +39,22 @@ message UpdateNetworkProfileRequest {
 message UpdateNetworkProfileResponse {
   NetworkProfile profile = 1;
 }
+// DeleteNetworkProfileRequest removes one saved profile outright. Network
+// profiles are delete-only by owner decision: there is no state to advance and
+// no disable step, so deletion is the whole lifecycle.
+message DeleteNetworkProfileRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string network_profile_id = 3;
+}
+// DeleteNetworkProfileResponse carries no projection: the profile no longer
+// exists once this succeeds. Scan history that referenced it already survives
+// with a null profile reference, so there is nothing for the caller to refresh
+// from the response itself.
+message DeleteNetworkProfileResponse {}
 service NetworkProfileService {
   rpc ListNetworkProfiles(ListNetworkProfilesRequest) returns (ListNetworkProfilesResponse);
   rpc CreateNetworkProfile(CreateNetworkProfileRequest) returns (CreateNetworkProfileResponse);
   rpc UpdateNetworkProfile(UpdateNetworkProfileRequest) returns (UpdateNetworkProfileResponse);
+  rpc DeleteNetworkProfile(DeleteNetworkProfileRequest) returns (DeleteNetworkProfileResponse);
 }

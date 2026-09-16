@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/network_profile.proto.
  */
 export const file_drift_v1_network_profile: GenFile = /*@__PURE__*/
-  fileDesc("Ch5kcmlmdC92MS9uZXR3b3JrX3Byb2ZpbGUucHJvdG8SCGRyaWZ0LnYxIsABCg5OZXR3b3JrUHJvZmlsZRIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSFAoMZGlzcGxheV9uYW1lGAMgASgJEhYKDmFkZHJlc3NfcG9saWN5GAQgASgJEhUKDWFsbG93ZWRfcG9ydHMYBSADKA0SEgoKaXNfZGVmYXVsdBgGIAEoCEoECAcQCEoECAgQCVIFc3RhdGVSC3Jvd192ZXJzaW9uImwKGkxpc3ROZXR3b3JrUHJvZmlsZXNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QibwobTGlzdE5ldHdvcmtQcm9maWxlc1Jlc3BvbnNlEioKCHByb2ZpbGVzGAEgAygLMhguZHJpZnQudjEuTmV0d29ya1Byb2ZpbGUSJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSJzChtDcmVhdGVOZXR3b3JrUHJvZmlsZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKB3Byb2ZpbGUYAiABKAsyGC5kcmlmdC52MS5OZXR3b3JrUHJvZmlsZSJJChxDcmVhdGVOZXR3b3JrUHJvZmlsZVJlc3BvbnNlEikKB3Byb2ZpbGUYASABKAsyGC5kcmlmdC52MS5OZXR3b3JrUHJvZmlsZSKPAQobVXBkYXRlTmV0d29ya1Byb2ZpbGVSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgdwcm9maWxlGAIgASgLMhguZHJpZnQudjEuTmV0d29ya1Byb2ZpbGVKBAgDEARSFGV4cGVjdGVkX3Jvd192ZXJzaW9uIkkKHFVwZGF0ZU5ldHdvcmtQcm9maWxlUmVzcG9uc2USKQoHcHJvZmlsZRgBIAEoCzIYLmRyaWZ0LnYxLk5ldHdvcmtQcm9maWxlMskCChVOZXR3b3JrUHJvZmlsZVNlcnZpY2USYgoTTGlzdE5ldHdvcmtQcm9maWxlcxIkLmRyaWZ0LnYxLkxpc3ROZXR3b3JrUHJvZmlsZXNSZXF1ZXN0GiUuZHJpZnQudjEuTGlzdE5ldHdvcmtQcm9maWxlc1Jlc3BvbnNlEmUKFENyZWF0ZU5ldHdvcmtQcm9maWxlEiUuZHJpZnQudjEuQ3JlYXRlTmV0d29ya1Byb2ZpbGVSZXF1ZXN0GiYuZHJpZnQudjEuQ3JlYXRlTmV0d29ya1Byb2ZpbGVSZXNwb25zZRJlChRVcGRhdGVOZXR3b3JrUHJvZmlsZRIlLmRyaWZ0LnYxLlVwZGF0ZU5ldHdvcmtQcm9maWxlUmVxdWVzdBomLmRyaWZ0LnYxLlVwZGF0ZU5ldHdvcmtQcm9maWxlUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("Ch5kcmlmdC92MS9uZXR3b3JrX3Byb2ZpbGUucHJvdG8SCGRyaWZ0LnYxIsABCg5OZXR3b3JrUHJvZmlsZRIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSFAoMZGlzcGxheV9uYW1lGAMgASgJEhYKDmFkZHJlc3NfcG9saWN5GAQgASgJEhUKDWFsbG93ZWRfcG9ydHMYBSADKA0SEgoKaXNfZGVmYXVsdBgGIAEoCEoECAcQCEoECAgQCVIFc3RhdGVSC3Jvd192ZXJzaW9uImwKGkxpc3ROZXR3b3JrUHJvZmlsZXNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QibwobTGlzdE5ldHdvcmtQcm9maWxlc1Jlc3BvbnNlEioKCHByb2ZpbGVzGAEgAygLMhguZHJpZnQudjEuTmV0d29ya1Byb2ZpbGUSJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSJzChtDcmVhdGVOZXR3b3JrUHJvZmlsZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKB3Byb2ZpbGUYAiABKAsyGC5kcmlmdC52MS5OZXR3b3JrUHJvZmlsZSJJChxDcmVhdGVOZXR3b3JrUHJvZmlsZVJlc3BvbnNlEikKB3Byb2ZpbGUYASABKAsyGC5kcmlmdC52MS5OZXR3b3JrUHJvZmlsZSKPAQobVXBkYXRlTmV0d29ya1Byb2ZpbGVSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgdwcm9maWxlGAIgASgLMhguZHJpZnQudjEuTmV0d29ya1Byb2ZpbGVKBAgDEARSFGV4cGVjdGVkX3Jvd192ZXJzaW9uIkkKHFVwZGF0ZU5ldHdvcmtQcm9maWxlUmVzcG9uc2USKQoHcHJvZmlsZRgBIAEoCzIYLmRyaWZ0LnYxLk5ldHdvcmtQcm9maWxlIo8BChtEZWxldGVOZXR3b3JrUHJvZmlsZVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIaChJuZXR3b3JrX3Byb2ZpbGVfaWQYAyABKAkiHgocRGVsZXRlTmV0d29ya1Byb2ZpbGVSZXNwb25zZTKwAwoVTmV0d29ya1Byb2ZpbGVTZXJ2aWNlEmIKE0xpc3ROZXR3b3JrUHJvZmlsZXMSJC5kcmlmdC52MS5MaXN0TmV0d29ya1Byb2ZpbGVzUmVxdWVzdBolLmRyaWZ0LnYxLkxpc3ROZXR3b3JrUHJvZmlsZXNSZXNwb25zZRJlChRDcmVhdGVOZXR3b3JrUHJvZmlsZRIlLmRyaWZ0LnYxLkNyZWF0ZU5ldHdvcmtQcm9maWxlUmVxdWVzdBomLmRyaWZ0LnYxLkNyZWF0ZU5ldHdvcmtQcm9maWxlUmVzcG9uc2USZQoUVXBkYXRlTmV0d29ya1Byb2ZpbGUSJS5kcmlmdC52MS5VcGRhdGVOZXR3b3JrUHJvZmlsZVJlcXVlc3QaJi5kcmlmdC52MS5VcGRhdGVOZXR3b3JrUHJvZmlsZVJlc3BvbnNlEmUKFERlbGV0ZU5ldHdvcmtQcm9maWxlEiUuZHJpZnQudjEuRGVsZXRlTmV0d29ya1Byb2ZpbGVSZXF1ZXN0GiYuZHJpZnQudjEuRGVsZXRlTmV0d29ya1Byb2ZpbGVSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.NetworkProfile
@@ -179,6 +179,55 @@ export const UpdateNetworkProfileResponseSchema: GenMessage<UpdateNetworkProfile
   messageDesc(file_drift_v1_network_profile, 6);
 
 /**
+ * DeleteNetworkProfileRequest removes one saved profile outright. Network
+ * profiles are delete-only by owner decision: there is no state to advance and
+ * no disable step, so deletion is the whole lifecycle.
+ *
+ * @generated from message drift.v1.DeleteNetworkProfileRequest
+ */
+export type DeleteNetworkProfileRequest = Message<"drift.v1.DeleteNetworkProfileRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string network_profile_id = 3;
+   */
+  networkProfileId: string;
+};
+
+/**
+ * Describes the message drift.v1.DeleteNetworkProfileRequest.
+ * Use `create(DeleteNetworkProfileRequestSchema)` to create a new message.
+ */
+export const DeleteNetworkProfileRequestSchema: GenMessage<DeleteNetworkProfileRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_network_profile, 7);
+
+/**
+ * DeleteNetworkProfileResponse carries no projection: the profile no longer
+ * exists once this succeeds. Scan history that referenced it already survives
+ * with a null profile reference, so there is nothing for the caller to refresh
+ * from the response itself.
+ *
+ * @generated from message drift.v1.DeleteNetworkProfileResponse
+ */
+export type DeleteNetworkProfileResponse = Message<"drift.v1.DeleteNetworkProfileResponse"> & {
+};
+
+/**
+ * Describes the message drift.v1.DeleteNetworkProfileResponse.
+ * Use `create(DeleteNetworkProfileResponseSchema)` to create a new message.
+ */
+export const DeleteNetworkProfileResponseSchema: GenMessage<DeleteNetworkProfileResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_network_profile, 8);
+
+/**
  * @generated from service drift.v1.NetworkProfileService
  */
 export const NetworkProfileService: GenService<{
@@ -205,6 +254,14 @@ export const NetworkProfileService: GenService<{
     methodKind: "unary";
     input: typeof UpdateNetworkProfileRequestSchema;
     output: typeof UpdateNetworkProfileResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.NetworkProfileService.DeleteNetworkProfile
+   */
+  deleteNetworkProfile: {
+    methodKind: "unary";
+    input: typeof DeleteNetworkProfileRequestSchema;
+    output: typeof DeleteNetworkProfileResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_network_profile, 0);

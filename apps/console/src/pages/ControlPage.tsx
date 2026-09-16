@@ -35,7 +35,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
   const [port, setPort] = useState("5555")
   const [startIp, setStartIp] = useState("192.168.1.1")
   const [endIp, setEndIp] = useState("192.168.1.255")
-  const [profileId, setProfileId] = useState(snapshot.networkProfiles.find((profile) => profile.state === "active")?.id ?? snapshot.networkProfiles[0]?.id ?? "")
+  const [profileId, setProfileId] = useState(snapshot.networkProfiles.find((profile) => profile.isDefault)?.id ?? snapshot.networkProfiles[0]?.id ?? "")
   const drag = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
   const source = snapshot.devices.find((device) => device.id === sourceId)
   const followers = snapshot.devices.filter((device) => followerIds.includes(device.id))
@@ -167,8 +167,8 @@ function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, 
         <div><p className="text-xs font-semibold">Quick OTG Setup</p><p className="mt-1 text-[11px] leading-5 text-muted-foreground">Discovery only. This does not open a USB or network transport.</p></div>
         <div><p className="text-xs font-medium">Set Port</p><div className="mt-2 flex gap-2"><Input aria-label="Set Port" inputMode="numeric" value={port} onChange={(event) => onPortChange(event.target.value)} className="font-mono text-xs" /><Button size="sm" onClick={onActivate}>Activate</Button></div></div>
         <div><p className="text-xs font-medium">IP Range</p><div className="mt-2 space-y-2"><IpAddressInput label="IP Range Start" value={startIp} onChange={onStartIpChange} /><IpAddressInput label="IP Range End" value={endIp} onChange={onEndIpChange} /></div></div>
-        <Choice label="Saved Network" value={profileId} options={profiles.map((profile) => profile.id)} labels={Object.fromEntries(profiles.map((profile) => [profile.id, `${profile.name} · ${profile.state.charAt(0).toUpperCase()}${profile.state.slice(1)}`]))} onChange={onProfileIdChange} />
-        <div className="grid grid-cols-2 gap-2"><Button variant="outline" size="sm" onClick={() => onFeedback(`Range ${startIp}–${endIp} added at port ${port}.`)}><Network className="size-3.5" aria-hidden="true" />Add</Button><Button size="sm" onClick={onScan} disabled={!activeProfile || activeProfile.state !== "active"}><ScanLine className="size-3.5" aria-hidden="true" />Scan</Button></div>
+        <Choice label="Saved Network" value={profileId} options={profiles.map((profile) => profile.id)} labels={Object.fromEntries(profiles.map((profile) => [profile.id, profile.isDefault ? `${profile.name} · Default` : profile.name]))} onChange={onProfileIdChange} />
+        <div className="grid grid-cols-2 gap-2"><Button variant="outline" size="sm" onClick={() => onFeedback(`Range ${startIp}–${endIp} added at port ${port}.`)}><Network className="size-3.5" aria-hidden="true" />Add</Button><Button size="sm" onClick={onScan} disabled={!activeProfile}><ScanLine className="size-3.5" aria-hidden="true" />Scan</Button></div>
       </TabsContent>
     </Tabs>
   </aside>

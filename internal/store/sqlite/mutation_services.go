@@ -165,7 +165,21 @@ func (s *NetworkProfileService) Delete(ctx context.Context, workspace organizati
 		if err != nil {
 			return err
 		}
-		if err := RequireAffected(result, "network profile"); err != nil {
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return platformerrors.Wrap(platformerrors.CodeInternal, "read affected row count", err)
+		}
+		// A profile that is absent from this workspace is not_found, not a
+		// conflict: a conflict would confirm that an id the caller cannot see
+		// exists somewhere else. The delete is workspace-scoped, so another
+		// workspace's row is never touched and can never be reported on.
+		if affected == 0 {
+			return platformerrors.New(platformerrors.CodeNotFound, "network profile was not found")
+		}
+		// Scan history is immutable evidence: the run survives the profile it
+		// named, and only its profile reference is cleared. scan_runs keeps
+		// network_profile_id nullable with no restricting key for exactly this.
+		if _, err := tx.ExecContext(ctx, `UPDATE scan_runs SET network_profile_id=NULL WHERE workspace_id=? AND network_profile_id=?`, workspace, id); err != nil {
 			return err
 		}
 		return s.store.recordMutation(ctx, tx, string(workspace), "network_profile", string(id), "network_profile.deleted", actorType, actorID)

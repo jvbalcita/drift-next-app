@@ -23,7 +23,8 @@ function renderNetworkProfilesPage(control: { failIntent?: ControlPlaneIntent["t
   const view = () => (
     <NetworkProfilesPage snapshot={client.getSnapshot()} dispatch={dispatch} view="profiles" onViewChange={() => undefined} />
   )
-  return { client, control, intents, ...render(view()) }
+  const rendered = render(view())
+  return { client, control, intents, refreshView: () => rendered.rerender(view()), ...rendered }
 }
 
 function pageBanner() {
@@ -61,16 +62,17 @@ describe("NetworkProfilesPage profile save failures", () => {
 
   it("surfaces a control-plane rejection from the real client inside the dialog", async () => {
     const user = userEvent.setup()
-    renderNetworkProfilesPage()
-    const dialog = await openCreateDialog(user)
+    const page = renderNetworkProfilesPage()
+    // The profile is already gone from the control plane (deleted in another
+    // session) while this catalog still lists it.
+    await page.client.dispatch({ type: "deleteNetworkProfile", profileId: "profile-lab-a", confirmed: true })
+    const dialog = await openEditDialog(user)
 
-    await user.type(within(dialog).getByLabelText("Profile Name"), "Test")
-    await user.click(within(dialog).getByLabelText("Use as Default Discovery Policy"))
     await user.click(within(dialog).getByRole("button", { name: "Save Profile" }))
 
     const failure = within(screen.getByRole("dialog")).getByRole("alert")
-    expect(failure).toHaveTextContent("A draft Network Profile cannot be default; activate it first.")
-    expect(pageBanner()).not.toHaveTextContent("cannot be default")
+    expect(failure).toHaveTextContent("Network Profile was not found.")
+    expect(pageBanner()).not.toHaveTextContent("was not found")
   })
 
   it("closes the dialog and clears the failure notice after a successful save", async () => {
@@ -87,7 +89,7 @@ describe("NetworkProfilesPage profile save failures", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
-    expect(pageBanner()).toHaveTextContent(/saved as draft/i)
+    expect(pageBanner()).toHaveTextContent(/Network Profile saved; no scan was started/i)
   })
 
   it("keeps per-field validation errors reported and distinguishable from a save failure", async () => {
@@ -105,14 +107,60 @@ describe("NetworkProfilesPage profile save failures", () => {
     expect(page.intents).toHaveLength(0)
   })
 
-  it("still reports failures for non-modal actions in the page-level banner", async () => {
-    const user = userEvent.setup()
-    renderNetworkProfilesPage({ failIntent: "retireNetworkProfile", message: "Network Profile was not found." })
-    const dialog = await openEditDialog(user)
+})
 
-    await user.click(within(dialog).getByRole("button", { name: "Retire" }))
+describe("NetworkProfilesPage saved profile catalog", () => {
+  it("enables Configure Scan for any selected profile instead of gating on a lifecycle state", async () => {
+    const user = userEvent.setup()
+    renderNetworkProfilesPage()
+    // A saved profile has no lifecycle: it is either saved or deleted. Selecting
+    // the second catalog row must be enough to start configuring a scan.
+    await user.click(screen.getAllByRole("button", { name: "Edit Profile" })[1])
+    await user.keyboard("{Escape}")
+
+    const scanButtons = screen.getAllByRole("button", { name: "Configure Scan" })
+    expect(scanButtons.length).toBeGreaterThan(0)
+    for (const button of scanButtons) {
+      expect(button).toBeEnabled()
+    }
+  })
+
+  it("deletes a confirmed profile and drops it from the catalog", async () => {
+    const user = userEvent.setup()
+    const page = renderNetworkProfilesPage()
+    expect(screen.getByText("Lab A staging")).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole("button", { name: "Delete Profile" })[0])
+    await user.click(within(document.body).getByRole("button", { name: "Confirm Delete" }))
+
+    expect(page.intents).toEqual([{ type: "deleteNetworkProfile", profileId: "profile-lab-a", confirmed: true }])
+    page.refreshView()
+    expect(screen.queryByText("Lab A staging")).not.toBeInTheDocument()
+  })
+
+  it("surfaces a failed delete in the page banner and keeps the profile listed", async () => {
+    const user = userEvent.setup()
+    const page = renderNetworkProfilesPage({ failIntent: "deleteNetworkProfile", message: "Network Profile was not found." })
+
+    await user.click(screen.getAllByRole("button", { name: "Delete Profile" })[0])
+    await user.click(within(document.body).getByRole("button", { name: "Confirm Delete" }))
 
     expect(pageBanner()).toHaveTextContent("Network Profile was not found.")
-    expect(within(dialog).queryByText(/save failed/i)).not.toBeInTheDocument()
+    page.refreshView()
+    expect(screen.getByText("Lab A staging")).toBeInTheDocument()
+  })
+
+  it("renders no lifecycle state column and no row version for a saved profile", () => {
+    renderNetworkProfilesPage()
+
+    const catalog = screen.getByRole("table", { name: "Network profile catalog" })
+    expect(within(catalog).queryByRole("columnheader", { name: "State" })).not.toBeInTheDocument()
+    expect(within(catalog).queryByText(/row v/)).not.toBeInTheDocument()
+  })
+
+  it("describes scan history without claiming a scan runs against an active profile", () => {
+    renderNetworkProfilesPage()
+
+    expect(screen.queryByText(/active profile/i)).not.toBeInTheDocument()
   })
 })

@@ -406,8 +406,6 @@ function mapNetworkProfile(profile: NetworkProfile): NetworkProfileView {
     addressPolicy: profile.addressPolicy,
     ports: profile.allowedPorts,
     isDefault: profile.isDefault,
-    state: "active",
-    rowVersion: 1,
   }
 }
 
@@ -1295,18 +1293,6 @@ function mapAutomationAgentProfiles(
   })
 }
 
-function mapProfileToProto(profile: NetworkProfileView, workspaceId: string): NetworkProfile {
-  return create(NetworkProfileSchema, {
-    id: profile.id,
-    workspace: workspaceRef(workspaceId),
-    displayName: profile.name,
-    addressPolicy: profile.addressPolicy,
-    allowedPorts: [...profile.ports],
-    isDefault: profile.isDefault,
-
-  })
-}
-
 async function settle<T>(promise: Promise<T>, fallback: T): Promise<{ value: T; failed: boolean; network: boolean; unauthorized: boolean }> {
   try {
     return { value: await promise, failed: false, network: false, unauthorized: false }
@@ -1639,11 +1625,10 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         }))
         return mutation(intent, "Network profile updated.")
       }
-      case "retireNetworkProfile": {
-        const current = this.snapshot.networkProfiles.find((profile) => profile.id === intent.profileId)
-        if (!current) return failure(intent, "Network profile was not found.", { errorCode: "invalid_input" })
-        await this.services.networkProfile.updateNetworkProfile(requestId, mapProfileToProto(current, workspaceId))
-        return mutation(intent, "Network profile retired.")
+      case "deleteNetworkProfile": {
+        if (!intent.confirmed) return failure(intent, "Deleting a Network Profile requires confirmation.", { errorCode: "precondition_failed" })
+        await this.services.networkProfile.deleteNetworkProfile(requestId, workspaceId, intent.profileId)
+        return mutation(intent, "Network profile deleted.")
       }
       case "startScan": {
         const response = await this.services.discovery.startScan(requestId, workspaceId, intent.profileId)
