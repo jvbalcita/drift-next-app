@@ -25,6 +25,12 @@ const (
 	FailureAmbiguousTarget    FailureClass = "ambiguous_target"
 	FailureStaleObservation   FailureClass = "stale_observation"
 	FailureCapabilityMismatch FailureClass = "capability_mismatch"
+	// FailureReferenceUnreleased is a typed-text reference that could not be
+	// released. It is distinct from a transport failure because it makes no
+	// device call at all: the value was refused before any command was built, so
+	// an operator reading it looks at the reference they named rather than at the
+	// device connection.
+	FailureReferenceUnreleased FailureClass = "reference_unreleased"
 )
 
 // Valid reports whether the failure class is part of the shared vocabulary.
@@ -35,7 +41,8 @@ func (f FailureClass) Valid() bool {
 		FailurePolicyDenied, FailureOperatorCancelled, FailureCleanupFailed,
 		FailureTransport, FailureObservation, FailureInfrastructure,
 		FailureIndeterminate, FailureInvalidTransition, FailureAmbiguousTarget,
-		FailureStaleObservation, FailureCapabilityMismatch:
+		FailureStaleObservation, FailureCapabilityMismatch,
+		FailureReferenceUnreleased:
 		return true
 	default:
 		return false

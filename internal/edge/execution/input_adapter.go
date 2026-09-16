@@ -320,6 +320,9 @@ func failureClassFor(err error) domain.FailureClass {
 	if isRenderSpaceRefusal(err) {
 		return renderSpaceFailureClass(err)
 	}
+	if isTextReferenceFailure(err) {
+		return domain.FailureReferenceUnreleased
+	}
 	switch platformerrors.CodeOf(err) {
 	case platformerrors.CodeCanceled:
 		return domain.FailureOperatorCancelled
@@ -332,6 +335,17 @@ func failureClassFor(err error) domain.FailureClass {
 	default:
 		return domain.FailureInfrastructure
 	}
+}
+
+// isTextReferenceFailure reports whether a failure came from releasing a
+// typed-text reference rather than from a device command. The registry and the
+// primitive that calls it produce their own typed error, and the generic mapping
+// would otherwise flatten "the reference could not be released" into "the input's
+// device command failed at the transport". The first made no device call at all,
+// and the two send an operator to different places.
+func isTextReferenceFailure(err error) bool {
+	var reference *TextReferenceError
+	return errors.As(err, &reference)
 }
 
 // isRenderSpaceRefusal reports whether a refusal came from the render-space
