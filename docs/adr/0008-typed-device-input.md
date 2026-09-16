@@ -3,6 +3,7 @@
 - Status: Accepted — owner authorized lifting a deferral whose stated precondition is met (Wave 1a, ARC-58/ARC-59)
 - Date: 2026-09-16
 - Lifts: the device-command deferral carried by `proto/drift/v1/device.proto` and recorded in ADR-0002 (foundation exclusions) and ADR-0004 (read-only one-device slice)
+- Amended: 2026-09-16 — both dispatchability defects recorded under Consequences are closed: `action.Intent` now carries the launch target and the request hash covers it, and a resolver for the typed-text reference handle exists. The boundary at which a value is registered into that resolver is recorded as still open, and deliberately not decided by this amendment.
 
 ## What was deferred, and by what
 
@@ -64,13 +65,41 @@ The owner has authorized lifting constraints whose stated preconditions are met.
 
 - The device command surface now exists in the contract. `ACTION_KIND_LAUNCH_APP` joins the typed catalog, so the legacy app-launch capability has a first-class identity rather than a missing one.
 - Submission of the five inputs is now stricter than before: a mutating input whose typed payload is absent or incomplete is refused with `invalid_argument` instead of reaching the kernel, and the published flat payload fields are no longer accepted for these kinds. Submission was not previously reachable for input kinds, so no shipped caller regresses.
-- `TypeTextInput` is contract-complete but not dispatchable yet: the reference handle has no resolver, and nothing maps a plaintext stand-in into the domain intent. Typed text therefore fails closed until the dispatch slice supplies a resolver; it cannot be dispatched with a plaintext value, because the contract has no field for one.
-- The launch payload likewise has no domain representation yet: `action.Intent` carries no package or activity name, so the dispatch slice adds them and decides whether they join the request hash. That decision is deliberately deferred rather than taken by widening the hash in a contract-only change.
+- `TypeTextInput` was contract-complete but not dispatchable: the reference handle had no resolver, and nothing mapped a plaintext stand-in into the domain intent. Typed text failed closed rather than being dispatched with a value nobody released. **Closed** as to the resolver; see the amendment below, which also records the boundary this ADR does not decide.
+- The launch payload had no domain representation: `action.Intent` carried no package or activity name, and the request hash covered no part of the target, so two launches naming different packages were one request as far as the kernel could tell. Deciding that was left to the dispatch slice rather than taken by widening the hash in a contract-only change. **Closed**; see the amendment below.
 - A device input now requires the caller to state the render frame and the observation it came from. That is more friction than a bare `(x, y)`, and it is the friction that makes a downscaled vision coordinate unfedable to a device instead of silently mistargeted.
 - Every input remains subject to the unchanged kernel: no lease, no dispatch; stale fence, no dispatch; emergency stop, no dispatch; no control session, no authority.
 
+## Amendment: the two dispatchability defects, and the boundary left open
+
+### The launch target is part of the request
+
+`action.Intent` carries a `Launch` target (`internal/action/catalog.go`), nil for every other kind, and `RequestHash` covers it (`internal/action/hash.go`) — the decision this ADR deferred rather than took. `Intent.Validate` requires a target for the launch kind and refuses a launch target carried by any other kind, so a launch with no package is refused at the contract instead of being interpreted by the transport.
+
+That the hash had to cover the target is a correctness property and not a tidiness one. When an idempotency key is reused, the kernel compares the stored request hash and refuses a different request as a reused key (`internal/store/sqlite/idempotency.go`). With no part of the target in the hash, two launches of different packages were one request: the second was served from the first attempt's recorded result, the device was never asked to launch it, and nothing refused it, because the kernel could not tell the requests apart.
+
+It is wired at both construction sites: `intentFor` (`internal/edge/execution/input_dispatch.go`), whose kind switch carried no launch case at all, and `actionIntentFromProto` (`internal/transport/connect/action.go`). The package and activity rules are single-sourced in the domain (`domain.IsPackageName`, `domain.IsActivityComponent`), so the kernel cannot admit a target the boundary that builds the argument array would refuse. The transport, execution and adapter layers each still carry their own copy of the package pattern; collapsing those is a separate cleanup, deliberately not folded in here.
+
+### A resolver releases the typed-text reference handle
+
+`TextReferenceRegistry` (`internal/edge/execution/text_reference_registry.go`) is the boundary that owns the value, and the only component that returns it:
+
+- released at most once, so a replayed request cannot type content that was already typed;
+- expiring, so a dispatch arriving after the operator's action is refused rather than served late;
+- bounded in capacity and in value length, so it cannot be used as a store;
+- never durable, and every refusal is a fixed sentence that names no value. A value that survived a restart would need somewhere to survive in, and every such place is a place content could be persisted in or rendered from;
+- a cancelled dispatch does not consume the reference, so cancelling cannot silently spend it.
+
+The handle rule is now one definition (`validateTextHandle`), shared by the contract that admits a reference and the registry that holds its value.
+
+### What is deliberately still open
+
+**No surface hands a value to a resolver.** Decision 5 above keeps content out of the contract, and nothing registers a reference. The resolver is therefore delivered and tested but not constructed in production: a typed-text dispatch still fails closed there, with its own message, rather than being dispatched with a value nobody released. Wiring it without that surface would change only the reason typed text refuses, which is the shape ADR-0012 already rejected for this route — "a control an operator surface renders and an operator finds dead". Where plaintext enters the system (an additive method on the existing loopback surface, a separate loopback path, or a durable encrypted store) is a boundary decision this amendment does not take, and it is raised rather than assumed.
+
 ## Validation
 
+- `internal/action/launch_target_test.go` and `internal/edge/execution/launch_idempotency_test.go` are the evidence for the launch half: the RED was the compiler refusing `unknown field Launch in struct literal of type Intent`; two launches of different packages do not share a request hash, a default-activity launch differs from a named one, an absent/empty/blank target is refused, a target that is command text is refused, a launch target on another kind is refused, and end to end through the real store a second launch of a different package under one key is refused as a reused key while the same package is served from the recorded result with no second device call. Both directions were fault-injected against the committed tree: with the intent wiring removed the idempotency assertion fails, and with the hash coverage removed the contract assertion prints both packages sharing one hash.
+- `internal/edge/execution/text_reference_registry_test.go` and `internal/edge/execution/text_reference_dispatch_test.go` are the evidence for the text half: a reference is released once or not at all, an unregistered or expired reference is refused with its own code, a cancelled dispatch does not consume the value, no refusal carries the value, the registry agrees with the contract about which handles exist, a handle holds one value, capacity is enforced and reclaimed, an unusable registry cannot be constructed, and composed: a registered reference dispatches as exactly one argument token, the second dispatch is refused with no second device call, and a space in the value cannot become a second argument.
 - `internal/transport/connect/device_input_contract_test.go` covers: each of the five inputs round-tripping through the generated types with its payload intact; a coordinate-bearing input carrying and retaining its render space, with refusal of a missing frame, a mismatched observation, a point outside the frame and a point with no frame; the absence of any plaintext-capable field on the typed text payload; refusal of a text-shaped handle without echoing it; the payload-required matrix (tap with no target, tap naming both a target and a point, swipe without endpoints or with an unbounded duration, text with no reference or no length, key event with no code, launch with no or malformed package, and a kind carrying another kind's payload); the nil intent; the non-input kinds being unaffected; the refusal on the live `SubmitAction` path; and the structural absence of any generic command or shell member.
 - `internal/action/catalog_test.go` pins the catalog size and the completeness of every specification, including `launch_app`.
 - `buf lint`, `buf build` and `pnpm contracts:generate:check` validate the contract and confirm the generated Go and TypeScript artifacts match it.
