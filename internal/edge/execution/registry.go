@@ -1,6 +1,17 @@
 // Package execution binds one authorized control-plane attempt to a serialized
-// per-device actor. Mutating catalog kinds stay fail-closed: the observation
-// adapter never injects input.
+// per-device actor.
+//
+// Observation stays read-only: the observation adapter never injects input. A
+// mutating catalog kind executes only through the five narrow, parameterised
+// primitives in this package — tap, swipe, typed text by reference, key event
+// and app launch. Each takes typed parameters, honours cancellation and its own
+// deadline, validates a coordinate against the render space carried with it
+// (the `wm size` OVERRIDE, never the physical panel size), and executes an
+// argument array this package built. There is no shell, no exec, and no
+// caller-authored command text: a generic or incomplete payload has no
+// representation here. These primitives carry no authority of their own — the
+// lease, fencing, policy, control-session and emergency-stop kernel authorizes;
+// they only execute what it authorized.
 package execution
 
 import (
