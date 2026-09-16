@@ -85,6 +85,34 @@ func (r *Registry) Close() error {
 	return first
 }
 
+// EndpointSerialResolver resolves a device to the serial of the one transport
+// endpoint that is current for it.
+//
+// It is the application-boundary resolution ADR-0012 deliberately kept out of
+// the transport contract: an RPC names a device, and a transport that resolved
+// the serial itself would be inventing a target the caller never named. The
+// boundary resolves it here, against the same registry the observation path
+// uses, so both reach the same device for the same reason.
+type EndpointSerialResolver interface {
+	CurrentSerial(ctx context.Context, workspace, deviceID string) (string, error)
+}
+
+// CurrentSerial resolves the serial of a device's single current transport
+// endpoint. It is the exported form of the lookup Run already performs, so the
+// composition root resolves a device the same way this registry does instead of
+// reimplementing the rule and drifting from it.
+//
+// It refuses rather than guesses: no current endpoint, more than one current
+// endpoint, and a current endpoint with no serial are all failures that name no
+// serial. A guess here would send an operator's input to whatever device
+// happened to be reachable.
+func (r *Registry) CurrentSerial(ctx context.Context, workspace, deviceID string) (string, error) {
+	if r == nil || r.db == nil {
+		return "", runner.ErrUnavailable
+	}
+	return r.currentSerial(ctx, workspace, deviceID)
+}
+
 func (r *Registry) currentSerial(ctx context.Context, workspace, deviceID string) (string, error) {
 	endpoints, err := store.NewEndpointRepository(r.db).ListCurrent(ctx, organizations.WorkspaceID(workspace), devices.DeviceID(deviceID))
 	if err != nil {

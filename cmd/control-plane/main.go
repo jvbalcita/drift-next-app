@@ -18,6 +18,7 @@ import (
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/organizations"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
+	"drift.local/drift-next/internal/platform/ids"
 	migrationrunner "drift.local/drift-next/internal/platform/migrations"
 	"drift.local/drift-next/internal/product"
 	"drift.local/drift-next/internal/service"
@@ -159,8 +160,17 @@ func main() {
 		routes = append(routes, service.ArtifactRoute(artifactAPI, labToken))
 	}
 	routes = append(routes, service.ProductRoutes(productHandlers, labToken)...)
+	// The typed device input surface. It is mounted only when the whole path was
+	// constructed: an empty Route mounts nothing, so a missing dependency degrades
+	// to "no input surface" rather than to a route that cannot dispatch anything
+	// (AGENTS.md section 6).
+	inputMounted := false
+	if inputRoute := deviceInputRoute(labService, actionRuntime, db, labToken); inputRoute.Path != "" {
+		routes = append(routes, inputRoute)
+		inputMounted = true
+	}
 	server := service.NewHTTPServer("control-plane", address, routes...)
-	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s)", address, labMode, tokenState(labToken))
+	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted))
 	serveErr := service.Serve(ctx, server)
 	// The startup scan is owned work, not a detached worker: wait for it to
 	// obey cancellation before the process returns.
@@ -177,4 +187,87 @@ func tokenState(token string) string {
 		return "not configured; loopback-only"
 	}
 	return "required"
+}
+
+// mountState reports whether the device input surface was mounted. It does not
+// imply that a mounted surface will accept an input: the kernel still decides
+// every dispatch.
+func mountState(mounted bool) string {
+	if mounted {
+		return "mounted"
+	}
+	return "not mounted; the device input path was not constructed"
+}
+
+// inputObservationOperator is the identity the composition reads a device's
+// postcondition observation under. It is the composition's own identity rather
+// than a user's: the operator who asked for the action is the actor the kernel
+// records on the attempt, and this read happens on that action's behalf. Naming a
+// service identity keeps the read attributable without inventing a person.
+const inputObservationOperator = "control-plane-input-observer"
+
+// observationSource builds the postcondition observer's per-device observation
+// read over the lab boundary's read-only observation adapter. The adapter names
+// the serial on every capture, so the read is authorized against the attached
+// transports rather than against session state.
+func observationSource(labService *lab.Service) execution.ObservationSourceFactory {
+	return func(serial string) (execution.ObservationSource, error) {
+		return lab.NewObservationAdapter(labService, serial, inputObservationOperator)
+	}
+}
+
+// deviceInputRoute builds the typed device input route, or an empty Route when the
+// path cannot be constructed.
+//
+// Every dependency is checked, and every absence returns an empty Route, which
+// mounts nothing at all. That is deliberate rather than defensive: a route whose
+// dispatcher cannot dispatch is worse than no route, because it advertises a
+// surface that cannot work (AGENTS.md section 6). Each reason is logged rather
+// than swallowed, so a deployment that expected the surface can see which
+// dependency was missing instead of finding no route and no explanation.
+//
+// The composed path, in the order a request travels it: the transport is the
+// device's own allow-listed runner (4a); the readiness probe judges the device from
+// the lab boundary's attached set (4b); the postcondition observer reads the
+// device's current observation (slice 3); the dispatcher carries the whole P7
+// contract with the evidence recorder bound; and the application boundary resolves
+// the device to its serial and assigns the attempt identity (4c), which is what
+// satisfies the port this route serves.
+func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, db *store.DB, token string) service.Route {
+	transport, err := execution.NewInputTransportFromAllowlisted(labService.DeviceTransport())
+	if err != nil {
+		log.Printf("device input surface not mounted: %v", err)
+		return service.Route{}
+	}
+	observer, err := execution.NewObservationPostconditionObserver(resolver, observationSource(labService))
+	if err != nil {
+		log.Printf("device input surface not mounted: %v", err)
+		return service.Route{}
+	}
+	deviceState, err := execution.NewTransportObserverFromAttached(labService)
+	if err != nil {
+		log.Printf("device input surface not mounted: %v", err)
+		return service.Route{}
+	}
+	dispatcher, err := execution.NewInputDispatcher(
+		store.NewActionService(db),
+		execution.NewStoreControlProbe(db, deviceState),
+		observer,
+		transport,
+		// No text-reference resolver exists yet (ARC-73), so a typed-text payload
+		// fails closed at the boundary instead of being dispatched with a value
+		// nobody released.
+		nil,
+		execution.WithEvidenceRecorder(store.NewActionEvidenceService(db)),
+	)
+	if err != nil {
+		log.Printf("device input surface not mounted: %v", err)
+		return service.Route{}
+	}
+	boundary, err := transportconnect.NewDeviceInputBoundary(dispatcher, resolver, ids.NewRandom())
+	if err != nil {
+		log.Printf("device input surface not mounted: %v", err)
+		return service.Route{}
+	}
+	return service.DeviceInputRoute(boundary, token)
 }

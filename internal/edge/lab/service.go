@@ -130,9 +130,14 @@ type captureOutcome struct {
 // named inside one capture call, and the service never writes a device into the
 // control-plane registry.
 type Service struct {
-	mode           Mode
-	devices        DeviceRunner
-	hierarchy      HierarchyObserver
+	mode      Mode
+	devices   DeviceRunner
+	hierarchy HierarchyObserver
+	// transport is the device's own allow-listed runner, bound only by the
+	// explicit WithLabTransport opt-in and exposed to the composition root
+	// through DeviceTransport. It is nil unless that option bound one, so a
+	// service that was not asked to expose a transport cannot expose one.
+	transport      DeviceTransport
 	authorizer     Authorizer
 	clock          clock.Clock
 	ids            ids.IDGenerator
