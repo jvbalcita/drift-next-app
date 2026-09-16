@@ -161,14 +161,14 @@ func (o *fakeObserver) ObservePostcondition(context.Context, action.Intent, exec
 // --- request builders -------------------------------------------------------
 
 const (
-	inputSerial          = testSerial
-	inputWorkspace       = "input-workspace"
-	inputDevice          = "device-alpha"
-	inputLease           = "lease-alpha"
-	inputHolder          = "holder-alpha"
-	inputFencingToken    = 7
-	inputObservation     = "observation-1"
-	inputPostObservation = "observation-2"
+	inputSerial       = testSerial
+	inputWorkspace    = "input-workspace"
+	inputDevice       = "device-alpha"
+	inputLease        = "lease-alpha"
+	inputHolder       = "holder-alpha"
+	inputFencingToken = 7
+	obsToken          = "observation-1"
+	postToken         = "observation-2"
 )
 
 func tapPayload() execution.InputPayload {
@@ -206,7 +206,7 @@ func inputRequest(id, key string, payload execution.InputPayload) execution.Inpu
 		HolderID:          inputHolder,
 		FencingToken:      inputFencingToken,
 		IdempotencyKey:    key,
-		ObservationToken:  inputObservation,
+		ObservationToken:  obsToken,
 		InvocationSurface: action.SurfaceManual,
 		ApprovalGranted:   true,
 		Timeout:           30 * time.Second,
@@ -227,7 +227,7 @@ func newDispatchFixture(t *testing.T) dispatchFixture {
 	t.Helper()
 	control := &fakeControl{}
 	probe := &fakeProbe{}
-	observer := &fakeObserver{observation: execution.PostconditionObservation{Token: inputPostObservation}}
+	observer := &fakeObserver{observation: execution.PostconditionObservation{Token: postToken}}
 	transport := newFakeDeviceTransport()
 	resolver := &fakeResolver{value: typedValueFixture}
 	dispatcher, err := execution.NewInputDispatcher(control, probe, observer, transport, resolver)
@@ -426,21 +426,21 @@ func TestInputDispatcherDispatchesEachInputKindThroughTheKernel(t *testing.T) {
 			payload:     tapPayload(),
 			wantKind:    action.Tap,
 			wantArgs:    []string{"shell", "input", "tap", "540", "960"},
-			observation: execution.PostconditionObservation{Token: inputPostObservation},
+			observation: execution.PostconditionObservation{Token: postToken},
 		},
 		{
 			name:        "swipe",
 			payload:     swipePayload(),
 			wantKind:    action.Swipe,
 			wantArgs:    []string{"shell", "input", "swipe", "540", "1600", "540", "400", "300"},
-			observation: execution.PostconditionObservation{Token: inputPostObservation},
+			observation: execution.PostconditionObservation{Token: postToken},
 		},
 		{
 			name:        "key event",
 			payload:     keyEventPayload(),
 			wantKind:    action.KeyEvent,
 			wantArgs:    []string{"shell", "input", "keyevent", "4"},
-			observation: execution.PostconditionObservation{Token: inputPostObservation},
+			observation: execution.PostconditionObservation{Token: postToken},
 		},
 		{
 			name:        "typed text by reference",
@@ -448,14 +448,14 @@ func TestInputDispatcherDispatchesEachInputKindThroughTheKernel(t *testing.T) {
 			target:      action.SemanticTarget{ResourceID: "composer"},
 			wantKind:    action.TextInput,
 			wantArgs:    []string{"shell", "input", "text", typedValueFixture},
-			observation: execution.PostconditionObservation{Token: inputPostObservation, FieldLength: len(typedValueFixture)},
+			observation: execution.PostconditionObservation{Token: postToken, FieldLength: len(typedValueFixture)},
 		},
 		{
 			name:        "app launch",
 			payload:     launchPayload(),
 			wantKind:    action.LaunchApp,
 			wantArgs:    []string{"shell", "monkey", "-p", "com.example.app", "-c", "android.intent.category.LAUNCHER", "1"},
-			observation: execution.PostconditionObservation{Token: inputPostObservation, ForegroundPackage: "com.example.app"},
+			observation: execution.PostconditionObservation{Token: postToken, ForegroundPackage: "com.example.app"},
 		},
 	}
 	for _, test := range cases {
@@ -483,7 +483,7 @@ func TestInputDispatcherDispatchesEachInputKindThroughTheKernel(t *testing.T) {
 			if completion.Postcondition != action.PostconditionPassed {
 				t.Fatalf("completion postcondition = %q, want passed", completion.Postcondition)
 			}
-			if completion.ObservationToken != inputPostObservation {
+			if completion.ObservationToken != postToken {
 				t.Fatalf("completion observation token = %q, want the fresh observation", completion.ObservationToken)
 			}
 			if completion.AttemptID != request.IntentID || completion.LeaseID != inputLease || completion.FencingToken != inputFencingToken {
@@ -517,7 +517,7 @@ func TestInputDispatcherEvaluatesTheCatalogPostcondition(t *testing.T) {
 		{
 			name:        "a tap with no observable effect fails its postcondition",
 			payload:     tapPayload(),
-			observation: execution.PostconditionObservation{Token: inputObservation},
+			observation: execution.PostconditionObservation{Token: obsToken},
 			wantPost:    action.PostconditionFailed,
 			wantOutcome: action.OutcomeFailed,
 			wantCode:    platformerrors.CodeStaleObservation,
@@ -525,7 +525,7 @@ func TestInputDispatcherEvaluatesTheCatalogPostcondition(t *testing.T) {
 		{
 			name:        "a launch that lands on another package fails its postcondition",
 			payload:     launchPayload(),
-			observation: execution.PostconditionObservation{Token: inputPostObservation, ForegroundPackage: "com.somewhere.else"},
+			observation: execution.PostconditionObservation{Token: postToken, ForegroundPackage: "com.somewhere.else"},
 			wantPost:    action.PostconditionFailed,
 			wantOutcome: action.OutcomeFailed,
 			wantCode:    platformerrors.CodeInvalidInput,
@@ -534,7 +534,7 @@ func TestInputDispatcherEvaluatesTheCatalogPostcondition(t *testing.T) {
 			name:        "typed text that does not carry the referenced length fails its postcondition",
 			payload:     textPayload(),
 			target:      action.SemanticTarget{ResourceID: "composer"},
-			observation: execution.PostconditionObservation{Token: inputPostObservation, FieldLength: 1},
+			observation: execution.PostconditionObservation{Token: postToken, FieldLength: 1},
 			wantPost:    action.PostconditionFailed,
 			wantOutcome: action.OutcomeFailed,
 			wantCode:    platformerrors.CodeInvalidInput,
@@ -630,7 +630,7 @@ func (s *signallingTransport) RunDeviceCommand(ctx context.Context, serial strin
 func TestInputDispatcherStopsTheInFlightCallOnCancellation(t *testing.T) {
 	control := &fakeControl{}
 	probe := &fakeProbe{}
-	observer := &fakeObserver{observation: execution.PostconditionObservation{Token: inputPostObservation}}
+	observer := &fakeObserver{observation: execution.PostconditionObservation{Token: postToken}}
 	inner := newFakeDeviceTransport()
 	never := make(chan struct{})
 	signalled := &signallingTransport{inner: inner, exited: make(chan struct{})}

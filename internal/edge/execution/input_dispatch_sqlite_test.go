@@ -66,7 +66,7 @@ func newSQLiteInputFixture(t *testing.T, leaseTTL time.Duration, transportState 
 	}
 
 	transport := newFakeDeviceTransport()
-	observer := &fakeObserver{observation: execution.PostconditionObservation{Token: inputPostObservation}}
+	observer := &fakeObserver{observation: execution.PostconditionObservation{Token: postToken}}
 	probe := execution.NewStoreControlProbe(db, execution.DeviceTransportObserverFunc(func(context.Context, string) (adb.DeviceAuthState, error) {
 		return transportState, nil
 	}))
