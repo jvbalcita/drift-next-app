@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"drift.local/drift-next/internal/action"
+	"drift.local/drift-next/internal/domain"
 	"drift.local/drift-next/internal/edge/execution"
 )
 
@@ -63,6 +64,14 @@ func TestATypedTextReferenceIsConsumedOnlyInItsOwnWorkspace(t *testing.T) {
 	}
 	if foreignResult.Outcome != action.OutcomeFailed {
 		t.Fatalf("outcome = %q, want a failed attempt", foreignResult.Outcome)
+	}
+	// The class names the cause: this refusal made no device call, so it must not
+	// be recorded as a failure of the device connection.
+	if foreignResult.FailureClass == string(domain.FailureTransport) {
+		t.Fatalf("a refusal that reached no device was recorded as %q", foreignResult.FailureClass)
+	}
+	if foreignResult.FailureClass != string(domain.FailureReferenceUnreleased) {
+		t.Fatalf("failure class = %q, want %q", foreignResult.FailureClass, domain.FailureReferenceUnreleased)
 	}
 	if calls := transport.invocationCount(); calls != 0 {
 		t.Fatalf("device calls = %d, want 0: a refused typed-text dispatch reaches no device", calls)
