@@ -28,6 +28,7 @@ const (
 	Home        Kind = "home"
 	Enter       Kind = "enter"
 	KeyEvent    Kind = "key_event"
+	LaunchApp   Kind = "launch_app"
 	UIChange    Kind = "ui_change"
 	StateChange Kind = "state_change"
 )
@@ -187,6 +188,7 @@ var catalog = map[Kind]Specification{
 	Home:        {Kind: Home, RequiredCapabilities: []Capability{CapabilitySystemInput}, Risk: RiskMedium, Retry: RetryAfterObservation, Mutating: true, RequiresObservation: true, EvidenceRequired: true, AllowedSurfaces: []InvocationSurface{SurfaceManual, SurfaceRecorder, SurfaceReplay, SurfaceMirror}},
 	Enter:       {Kind: Enter, RequiredCapabilities: []Capability{CapabilitySystemInput}, Risk: RiskMedium, Retry: RetryAfterObservation, Mutating: true, RequiresObservation: true, EvidenceRequired: true, AllowedSurfaces: []InvocationSurface{SurfaceManual, SurfaceRecorder, SurfaceReplay}},
 	KeyEvent:    {Kind: KeyEvent, RequiredCapabilities: []Capability{CapabilitySystemInput}, Risk: RiskHigh, Retry: RetryNeverBlind, Mutating: true, RequiresObservation: true, EvidenceRequired: true, AllowedSurfaces: []InvocationSurface{SurfaceManual, SurfaceRecorder, SurfaceReplay}},
+	LaunchApp:   {Kind: LaunchApp, RequiredCapabilities: []Capability{CapabilitySystemInput}, Risk: RiskMedium, Retry: RetryAfterObservation, Mutating: true, RequiresObservation: true, EvidenceRequired: true, AllowedSurfaces: []InvocationSurface{SurfaceManual, SurfaceRecorder, SurfaceReplay}},
 	UIChange:    {Kind: UIChange, RequiredCapabilities: []Capability{CapabilitySystemInput}, Risk: RiskHigh, Retry: RetryNeverBlind, Mutating: true, RequiresObservation: true, EvidenceRequired: true, AllowedSurfaces: []InvocationSurface{SurfaceManual, SurfaceRecorder, SurfaceReplay}},
 	StateChange: {Kind: StateChange, RequiredCapabilities: []Capability{CapabilitySystemInput}, Risk: RiskIrreversible, Retry: RetryNeverBlind, Mutating: true, RequiresObservation: true, EvidenceRequired: true, AllowedSurfaces: []InvocationSurface{SurfaceManual}},
 }
