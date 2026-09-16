@@ -62,7 +62,15 @@ func ValidateDeviceInputIntent(msg *driftv1.ActionIntent) error {
 }
 
 func validateTapInput(msg *driftv1.ActionIntent) error {
-	tap := msg.GetTap()
+	return validateTapPayload(msg.GetTap(), msg.GetObservationToken())
+}
+
+// validateTapPayload is the one implementation of the tap contract. The action
+// intent path and the device input surface both call it, so a requirement added
+// to one cannot go missing from the other: two copies of a validation rule is
+// two chances for them to disagree, and the disagreement would be a payload the
+// device receives that only one boundary checked.
+func validateTapPayload(tap *driftv1.TapInput, observationToken string) error {
 	if tap == nil {
 		return invalidArgument("a tap requires its typed tap payload")
 	}
@@ -77,11 +85,16 @@ func validateTapInput(msg *driftv1.ActionIntent) error {
 		}
 		return nil
 	}
-	return validateDevicePoint(tap.GetPoint(), tap.GetRenderSpace(), msg.GetObservationToken())
+	return validateDevicePoint(tap.GetPoint(), tap.GetRenderSpace(), observationToken)
 }
 
 func validateSwipeInput(msg *driftv1.ActionIntent) error {
-	swipe := msg.GetSwipe()
+	return validateSwipePayload(msg.GetSwipe(), msg.GetObservationToken())
+}
+
+// validateSwipePayload is the one implementation of the swipe contract, shared
+// for the same reason validateTapPayload is.
+func validateSwipePayload(swipe *driftv1.SwipeInput, observationToken string) error {
 	if swipe == nil {
 		return invalidArgument("a swipe requires its typed swipe payload")
 	}
@@ -91,10 +104,10 @@ func validateSwipeInput(msg *driftv1.ActionIntent) error {
 	if duration := swipe.GetDurationMs(); duration == 0 || duration > maxSwipeDurationMS {
 		return invalidArgument("a swipe duration must be between 1 and 300000 milliseconds")
 	}
-	if err := validateDevicePoint(swipe.GetStart(), swipe.GetRenderSpace(), msg.GetObservationToken()); err != nil {
+	if err := validateDevicePoint(swipe.GetStart(), swipe.GetRenderSpace(), observationToken); err != nil {
 		return err
 	}
-	return validateDevicePoint(swipe.GetEnd(), swipe.GetRenderSpace(), msg.GetObservationToken())
+	return validateDevicePoint(swipe.GetEnd(), swipe.GetRenderSpace(), observationToken)
 }
 
 func validateTypeTextInput(msg *driftv1.ActionIntent) error {
@@ -117,7 +130,12 @@ func validateTypeTextInput(msg *driftv1.ActionIntent) error {
 }
 
 func validateKeyEventInput(msg *driftv1.ActionIntent) error {
-	keyEvent := msg.GetKeyEvent()
+	return validateKeyEventPayload(msg.GetKeyEvent())
+}
+
+// validateKeyEventPayload is the one implementation of the key event contract,
+// shared by the action intent path and the device input surface.
+func validateKeyEventPayload(keyEvent *driftv1.KeyEventInput) error {
 	if keyEvent == nil {
 		return invalidArgument("a key event requires its typed key event payload")
 	}
