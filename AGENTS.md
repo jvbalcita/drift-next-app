@@ -69,6 +69,14 @@ React/Vite operator UI
 - Check and return affected-row results for conditional updates such as leases, fencing, optimistic concurrency, and state transitions.
 - Use database constraints for durable cardinality and uniqueness invariants; do not rely only on application-side checks.
 
+### Terminal surfaces
+
+- Keep terminal surfaces safe to leave. Restore terminal state on every exit path, including normal exit, error exit, signals, and panics; never leave an operator's terminal in a modified state.
+- Emit raw ANSI escape sequences only when stdout is a terminal and `NO_COLOR` is unset. Write no escape sequences when output is piped, redirected, or captured.
+- Detect the terminal width and bound every region the surface redraws. Do not assume a fixed size, and do not let a redrawn region grow without limit.
+- Separate rendering from input handling so layout and colour behaviour can be tested without a terminal.
+- Prefer the least invasive rendering that still produces a stable frame. Do not take the alternate screen or hide the cursor without a reason.
+
 ## 5. SQLite and local artifacts
 
 - SQLite is owned by the Go service. UI processes and packages never open or write the database directly.
