@@ -16,13 +16,8 @@ func connectionArrays(t *testing.T) map[string][]string {
 	if err != nil {
 		t.Fatalf("ConnectArgv(%q) = %v", endpoint, err)
 	}
-	disconnect, err := DisconnectArgv(endpoint)
-	if err != nil {
-		t.Fatalf("DisconnectArgv(%q) = %v", endpoint, err)
-	}
 	return map[string][]string{
 		"connect":      connect,
-		"disconnect":   disconnect,
 		"kill-server":  KillServerArgv(),
 		"start-server": StartServerArgv(),
 	}
@@ -45,8 +40,8 @@ func TestTheConnectionAdmissionsAreRecognisedWithTheirOwnOperationNames(t *testi
 		}
 		names[name] = true
 	}
-	if len(names) != 4 {
-		t.Fatalf("admitted operation names = %d, want 4", len(names))
+	if len(names) != 3 {
+		t.Fatalf("admitted operation names = %d, want 3", len(names))
 	}
 }
 
@@ -97,8 +92,29 @@ func TestTheConnectionAdmissionsRefuseCommandText(t *testing.T) {
 		if _, err := ConnectArgv(bad); err == nil {
 			t.Fatalf("ConnectArgv(%q) built an array for an endpoint that is not one", bad)
 		}
-		if _, err := DisconnectArgv(bad); err == nil {
-			t.Fatalf("DisconnectArgv(%q) built an array for an endpoint that is not one", bad)
+	}
+}
+
+// D6: there is no `disconnect`. A targeted disconnect removes the host's transport
+// record while leaving the device itself reachable, so a recovery proven against it
+// proves nothing about the failures that actually occur, and this card's recovery
+// path is kill-server + start-server followed by re-establishing each endpoint.
+//
+// This test exists so the removal cannot be quietly reverted: an admission that is
+// gone with no assertion pinning its absence is an admission that comes back.
+func TestThereIsNoDisconnectAdmission(t *testing.T) {
+	for name, args := range map[string][]string{
+		"the targeted form":    {"disconnect", endpoint},
+		"the bare form":        {"disconnect"},
+		"the fleet-wide form":  {"disconnect", "--all"},
+		"with a serial":        {"disconnect", "-s", "mock-device-alpha"},
+		"a malformed endpoint": {"disconnect", "192.168.1.109:5555:1"},
+	} {
+		if opName, ok := matchesHostAllowlist(args); ok {
+			t.Fatalf("%s %v was admitted by the host recogniser as %q; there is no disconnect admission (D6)", name, args, opName)
+		}
+		if opName, ok := matchesAllowlist(args); ok {
+			t.Fatalf("%s %v was admitted by the combined table as %q; there is no disconnect admission (D6)", name, args, opName)
 		}
 	}
 }

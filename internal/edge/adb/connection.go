@@ -1,6 +1,7 @@
 package adb
 
 import (
+	"strconv"
 	"strings"
 
 	platformerrors "drift.local/drift-next/internal/platform/errors"
@@ -22,7 +23,7 @@ import (
 const (
 	// maxEndpointOctet is the largest value an IPv4 octet may carry.
 	maxEndpointOctet = 255
-	// maxEndpointPort is the largest port a connect or disconnect may name.
+	// maxEndpointPort is the largest port a connect may name.
 	maxEndpointPort = 65535
 )
 
@@ -56,14 +57,19 @@ func ConnectArgv(endpoint string) ([]string, error) {
 	return []string{"connect", endpoint}, nil
 }
 
-// DisconnectArgv builds `adb disconnect IPv4:port`. The targeted form is the
-// only one admitted: a bare `disconnect`, which drops every transport the server
-// holds, is a fleet-wide action and has no place here.
-func DisconnectArgv(endpoint string) ([]string, error) {
+// EndpointPort reads the port out of an endpoint, so that a port decision is made
+// on a value this package's own rule has already validated rather than on a number
+// parsed out of arbitrary text.
+func EndpointPort(endpoint string) (uint16, error) {
 	if err := ValidateEndpoint(endpoint); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return []string{"disconnect", endpoint}, nil
+	_, port, _ := strings.Cut(endpoint, ":")
+	value, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return 0, platformerrors.New(platformerrors.CodeInvalidInput, "an endpoint port must be between 1 and 65535")
+	}
+	return uint16(value), nil
 }
 
 // KillServerArgv builds `adb kill-server`. It has no variable position at all:
@@ -73,20 +79,28 @@ func KillServerArgv() []string { return []string{"kill-server"} }
 // StartServerArgv builds `adb start-server`. It has no variable position at all.
 func StartServerArgv() []string { return []string{"start-server"} }
 
-// matchesHostAllowlist recognises exactly the four connection-management arrays
-// this adapter issues. It is a recogniser of its own, like the device-input and
-// read-only ones, because a safety property can only be asserted if both sides of
-// it can be asked independently in a test.
+// matchesHostAllowlist recognises exactly the three connection-management arrays
+// this adapter issues: `connect`, `kill-server` and `start-server`. It is a
+// recogniser of its own, like the device-input and read-only ones, because a safety
+// property can only be asserted if both sides of it can be asked independently in a
+// test.
+//
+// There is deliberately NO `disconnect`. It removes the host's transport record
+// while leaving the device itself reachable, so a "recovered" state reached through
+// it is a state the product fabricated: the fleet would read as unreachable while
+// the hardware is fine, and a recovery proven against that has proven nothing about
+// the failures that actually occur. The real ones are a device going away, adbd
+// restarting, the network dropping, or the adb server not running — and the last is
+// produced honestly by `kill-server` + `start-server`, which the recovery path uses.
+// Re-adding a targeted disconnect needs its own case argued on its own card.
 //
 // The operation name it returns is deliberately not an action-catalog kind: these
-// are reads-or-recovery of the transport layer, and none of them may be selected
-// as an operator action through the catalog.
+// are transport-layer recovery, and none of them may be selected as an operator
+// action through the catalog.
 func matchesHostAllowlist(args []string) (string, bool) {
 	switch {
 	case len(args) == 2 && args[0] == "connect" && ValidateEndpoint(args[1]) == nil:
 		return "connect", true
-	case len(args) == 2 && args[0] == "disconnect" && ValidateEndpoint(args[1]) == nil:
-		return "disconnect", true
 	case len(args) == 1 && args[0] == "kill-server":
 		return "kill-server", true
 	case len(args) == 1 && args[0] == "start-server":

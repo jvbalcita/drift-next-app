@@ -86,11 +86,7 @@ func hostArrays(t *testing.T) [][]string {
 	if err != nil {
 		t.Fatalf("ConnectArgv() = %v", err)
 	}
-	disconnect, err := DisconnectArgv("192.168.1.110:5555")
-	if err != nil {
-		t.Fatalf("DisconnectArgv() = %v", err)
-	}
-	return [][]string{connect, disconnect, KillServerArgv(), StartServerArgv()}
+	return [][]string{connect, KillServerArgv(), StartServerArgv()}
 }
 
 // foreignTokens are drawn from both admissions' vocabularies, so mutating any
@@ -218,8 +214,8 @@ func TestTheAdmissionsNeverBothMatch(t *testing.T) {
 	if len(readOnlyNames) != 8 {
 		t.Fatalf("the corpus reached %d read-only operation names (%v), want all 8", len(readOnlyNames), sortedKeys(readOnlyNames))
 	}
-	if len(hostNames) != 4 {
-		t.Fatalf("the corpus reached %d host operation names (%v), want all 4", len(hostNames), sortedKeys(hostNames))
+	if len(hostNames) != 3 {
+		t.Fatalf("the corpus reached %d host operation names (%v), want all 3", len(hostNames), sortedKeys(hostNames))
 	}
 }
 
@@ -259,8 +255,8 @@ func TestNoTwoAdmissionsShareAnOperationName(t *testing.T) {
 		}
 		hostNames[name] = strings.Join(args, " ")
 	}
-	if len(hostNames) != 4 {
-		t.Fatalf("the host admission reports %d operation names (%v), want 4", len(hostNames), sortedKeys(hostNames))
+	if len(hostNames) != 3 {
+		t.Fatalf("the host admission reports %d operation names (%v), want 3", len(hostNames), sortedKeys(hostNames))
 	}
 
 	for _, group := range []struct {
