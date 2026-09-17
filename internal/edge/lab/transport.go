@@ -146,3 +146,47 @@ func (s *Service) DeviceTransport() DeviceTransport {
 	}
 	return s.transport
 }
+
+// ErrFrameTransportRequired reports a capture-path opt-in that binds nothing.
+var ErrFrameTransportRequired = errors.New("a lab frame transport is required to expose one")
+
+// FrameTransport is the device's own read-only capture path: one bounded,
+// hashed PNG per call, through the allow-listed fixed builder shape the adapter
+// admits for `exec-out screencap`. It is exposed so the composition root can
+// drive a frame engine over the same adapter this service already captures
+// through, rather than constructing a second adapter that behaves differently.
+//
+// It is a separate interface, and a separate opt-in, from DeviceTransport on
+// purpose: reading a device's screen and running a device input are different
+// powers, and a service that was not asked for the capture path must not expose
+// one. (*adb.Adapter) and this package's mock adapter both satisfy it.
+type FrameTransport interface {
+	Screenshot(ctx context.Context, serial string) (adb.ScreenshotResult, error)
+}
+
+// WithLabFrameTransport binds the device's own capture path for a frame engine
+// the composition root builds. Like the other transport options it refuses a nil
+// transport rather than binding one, so a missing capture path is a construction
+// failure instead of a nil that every later caller has to remember to check.
+func WithLabFrameTransport(transport FrameTransport) Option {
+	return func(s *Service) error {
+		if transport == nil {
+			return ErrFrameTransportRequired
+		}
+		s.frames = transport
+		return nil
+	}
+}
+
+// FrameTransport returns the capture path this service was built with, or nil
+// when it was built without one.
+//
+// Nil is not an error here for the same reason it is not on the other accessors:
+// it means no capture path was bound, and the caller must build no frame engine
+// and start no capture worker from this service.
+func (s *Service) FrameTransport() FrameTransport {
+	if s == nil {
+		return nil
+	}
+	return s.frames
+}

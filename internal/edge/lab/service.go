@@ -146,7 +146,12 @@ type Service struct {
 	// enumerator is the attached-transport reader, bound only by the explicit
 	// WithLabEnumerator opt-in. Nil unless bound, so a surface that must compare
 	// the fleet before and after is not mounted over a service that cannot read it.
-	enumerator     TransportEnumerator
+	enumerator TransportEnumerator
+	// frames is the device's own read-only capture path, bound only by the
+	// explicit WithLabFrameTransport opt-in and exposed to the composition root
+	// through FrameTransport. It is nil unless that option bound one, so a
+	// service that was not asked to expose a capture path cannot expose one.
+	frames         FrameTransport
 	authorizer     Authorizer
 	clock          clock.Clock
 	ids            ids.IDGenerator
@@ -217,6 +222,11 @@ func WithLabAdapters(devices DeviceRunner, hierarchy HierarchyObserver) Option {
 		}
 		s.devices = devices
 		s.hierarchy = hierarchy
+		// Mock mode's capture path is a fixture, and a fixture frame reported as
+		// a device's screen is the exact claim this boundary exists to prevent.
+		// Binding real adapters therefore clears it: a lab-mode service exposes a
+		// capture path only when WithLabFrameTransport binds the device's own.
+		s.frames = nil
 		s.mode = ModeLab
 		return nil
 	}
@@ -232,6 +242,7 @@ func WithMockCandidates(candidates ...adb.DiscoveredDevice) Option {
 		mock := newMockAdapter(candidates)
 		s.devices = mock
 		s.hierarchy = mock
+		s.frames = mock
 		return nil
 	}
 }
@@ -287,6 +298,7 @@ func NewService(opts ...Option) (*Service, error) {
 		mode:           ModeMock,
 		devices:        mock,
 		hierarchy:      mock,
+		frames:         mock,
 		authorizer:     OperatorRequired{},
 		clock:          clock.System{},
 		ids:            ids.NewRandom(),

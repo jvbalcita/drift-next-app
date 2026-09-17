@@ -65,6 +65,9 @@ func NewServiceFromEnv(lookup EnvLookup, opts ...Option) (*Service, error) {
 	// between them (ARC-76). It is bound as the HOST runner too, through its own
 	// opt-in: opening an endpoint and restarting the adb server act on the server
 	// rather than on one device, and the transport surface the OTG Setup tab
-	// performs needs those operations over this same adapter (ARC-67).
-	return NewService(append([]Option{WithLabAdapters(devices, hierarchy), WithLabTransport(devices), WithLabHostTransport(devices), WithLabEnumerator(devices)}, opts...)...)
+	// performs needs those operations over this same adapter (ARC-67). It is bound
+	// as the capture path through its own opt-in as well, so a frame engine the
+	// composition root builds captures through this adapter rather than through a
+	// second one that behaves differently.
+	return NewService(append([]Option{WithLabAdapters(devices, hierarchy), WithLabTransport(devices), WithLabHostTransport(devices), WithLabEnumerator(devices), WithLabFrameTransport(devices)}, opts...)...)
 }
