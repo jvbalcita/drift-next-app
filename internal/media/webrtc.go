@@ -222,6 +222,23 @@ func (t *StreamTransport) Peers() []StreamStats {
 	return out
 }
 
+// Stream reports the live peer carrying one stream identity, or false when there
+// is none. It is how a surface finds the stream a browser named, and it confers
+// nothing: the peer it returns is already this transport's own.
+func (t *StreamTransport) Stream(streamKey string) (*StreamPeer, bool) {
+	if t == nil || streamKey == "" {
+		return nil, false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for peer := range t.peers {
+		if peer.StreamKey() == streamKey {
+			return peer, true
+		}
+	}
+	return nil, false
+}
+
 // Close releases every peer and waits for its forwarder, so nothing this
 // transport started outlives the call. The wait is bounded by ctx: a peer that
 // does not stop inside the bound is named in the error rather than waited for
@@ -279,6 +296,11 @@ type StreamStats struct {
 	// Serial names the transport endpoint the frames came from. It is reported
 	// to the service's own surfaces and never to the browser.
 	Serial string
+	// RenderWidth and RenderHeight are the size the device's stream is encoded
+	// at, which is the coordinate frame every input for this device must be
+	// measured in. They are zero until the stream's handshake has completed.
+	RenderWidth  int
+	RenderHeight int
 	// ConnectionState is the peer connection's last reported state.
 	ConnectionState string
 	// Frames counts the pictures forwarded.
@@ -473,10 +495,13 @@ func (p *StreamPeer) Stats() StreamStats {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	width, height := p.session.FrameSize()
 	stats := StreamStats{
 		StreamKey:       p.session.StreamKey(),
 		DeviceID:        p.session.DeviceID(),
 		Serial:          p.session.Serial(),
+		RenderWidth:     width,
+		RenderHeight:    height,
 		ConnectionState: p.state.String(),
 		Frames:          p.frames,
 		KeyFrames:       p.keys,

@@ -92,13 +92,20 @@ func NewDeviceInputHandler(inputs DeviceInputs) *DeviceInputHandler {
 // instead of a route that is never mounted at all — a dead control, which is the
 // outcome this gate exists to prevent.
 func isAbsentDeviceInputs(inputs DeviceInputs) bool {
-	if inputs == nil {
+	return isNilInterface(inputs)
+}
+
+// isNilInterface reports a value that is absent as a call target, including the
+// typed-nil shape a plain nil check misses: an interface holding a nil pointer is
+// not nil, and `var d *Dispatcher; NewHandler(d)` compiles.
+func isNilInterface(value any) bool {
+	if value == nil {
 		return true
 	}
-	value := reflect.ValueOf(inputs)
-	switch value.Kind() {
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
-		return value.IsNil()
+		return reflected.IsNil()
 	default:
 		return false
 	}

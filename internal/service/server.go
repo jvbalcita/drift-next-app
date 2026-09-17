@@ -123,6 +123,27 @@ func ConnectionRoute(operations transportconnect.Connections, token string) Rout
 	return Route{Path: path, Handler: RequireLabToken(token, connectHandler)}
 }
 
+// DeviceMirrorRoute mounts the live mirror surface, and only when a stream
+// transport and a device-to-serial resolver were both constructed.
+//
+// A nil transport, a nil resolver or a typed-nil one yields an empty route, so a
+// deployment without a live mirror exposes no stream surface at all — rather than
+// a surface that can only answer with a refusal, which an operator surface would
+// render as a control and then find dead. The gate is on the handler the
+// constructor actually returned, not on the caller's argument.
+//
+// The route carries the same constant-time token check as the other local
+// surfaces. It reaches devices and carries their screens, so loopback
+// reachability alone is not authority for a hostile local caller.
+func DeviceMirrorRoute(streams transportconnect.DeviceMirrors, serials transportconnect.DeviceSerialResolver, token string) Route {
+	handler := transportconnect.NewDeviceMirrorHandler(streams, serials)
+	if handler == nil {
+		return Route{}
+	}
+	path, connectHandler := driftv1connect.NewDeviceMirrorServiceHandler(handler)
+	return Route{Path: path, Handler: RequireLabToken(token, connectHandler)}
+}
+
 // ProductRoutes mounts the local product Connect surfaces when handlers were
 // constructed against an open SQLite store. Empty handlers are skipped.
 func ProductRoutes(handlers *transportconnect.ProductHandlers, token string) []Route {
