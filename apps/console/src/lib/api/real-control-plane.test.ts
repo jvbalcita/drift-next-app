@@ -2,7 +2,7 @@
 
 import { create } from "@bufbuild/protobuf"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { DeviceSchema, DeviceStatus } from "@/gen/drift/v1/device_pb"
+import { DeviceSchema, DeviceStatus, DeviceTransport } from "@/gen/drift/v1/device_pb"
 import { createRealControlPlaneClient, mapDevice } from "./real-control-plane"
 
 afterEach(() => {
@@ -32,6 +32,30 @@ describe("mapDevice", () => {
       location: "",
       workflow: "",
     })
+  })
+
+  it("reads the transport the control plane recorded instead of deriving it from the endpoint", () => {
+    const tcp = create(DeviceSchema, {
+      id: "device-tcp",
+      status: DeviceStatus.ONLINE,
+      endpointId: "endpoint-tcp",
+      transport: DeviceTransport.TCP,
+    })
+    expect(mapDevice(tcp)).toMatchObject({ endpointId: "endpoint-tcp", transport: "tcp" })
+
+    const usb = create(DeviceSchema, {
+      id: "device-usb",
+      status: DeviceStatus.ONLINE,
+      endpointId: "endpoint-usb",
+      transport: DeviceTransport.USB,
+    })
+    expect(mapDevice(usb)).toMatchObject({ endpointId: "endpoint-usb", transport: "usb" })
+
+    // A device whose transport the control plane never observed reads as
+    // unspecified. It has no endpoint address to guess from, and it is not
+    // reported as either transport.
+    const unobserved = create(DeviceSchema, { id: "device-unobserved", status: DeviceStatus.ONLINE })
+    expect(mapDevice(unobserved).transport).toBe("unspecified")
   })
 })
 

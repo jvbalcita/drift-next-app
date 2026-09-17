@@ -13,7 +13,7 @@ import { ActionKind, HaltState as ProtoHaltState } from "@/gen/drift/v1/action_p
 import type { AutomationAgent, AutomationAgentProfile } from "@/gen/drift/v1/automation_agent_pb"
 import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
-import { DeviceStatus } from "@/gen/drift/v1/device_pb"
+import { DeviceStatus, DeviceTransport } from "@/gen/drift/v1/device_pb"
 import type { ActivateFleetResponse, FleetActivationOutcome, RestartServerResponse } from "@/gen/drift/v1/connection_pb"
 import type { ObservedDevice, ScanRun } from "@/gen/drift/v1/discovery_pb"
 import { DeviceLinkState as ProtoDeviceLinkState, ScanRunState } from "@/gen/drift/v1/discovery_pb"
@@ -89,6 +89,7 @@ import type {
   ControlPlaneSnapshot,
   DeviceLifecycleState,
   DeviceStatus as DeviceStatusView,
+  DeviceTransportView,
   DeviceView,
   DeviceActionKind,
   HaltView,
@@ -313,6 +314,27 @@ function lifecycleFor(status: DeviceStatusView): DeviceLifecycleState {
   return status === "offline" ? "unavailable" : "active"
 }
 
+/**
+ * mapTransport reads the transport the control plane recorded for a device. A
+ * transport the control plane did not observe is reported as "unspecified"
+ * rather than derived here from the endpoint address: the console reads the fact
+ * instead of reconstructing it.
+ */
+function mapTransport(transport: DeviceTransport): DeviceTransportView {
+  switch (transport) {
+    case DeviceTransport.USB:
+      return "usb"
+    case DeviceTransport.TCP:
+      return "tcp"
+    case DeviceTransport.UNSPECIFIED:
+      return "unspecified"
+    default: {
+      const _exhaustive: never = transport
+      return _exhaustive
+    }
+  }
+}
+
 export function mapDevice(device: Device): DeviceView {
   const status = mapDeviceStatus(device.status)
   return {
@@ -327,6 +349,7 @@ export function mapDevice(device: Device): DeviceView {
     lastSeen: device.lastSeenAt,
     agentId: device.agentId,
     endpointId: device.endpointId,
+    transport: mapTransport(device.transport),
     location: "",
     packageName: "",
     activityName: "",

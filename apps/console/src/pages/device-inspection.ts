@@ -1,6 +1,7 @@
 import type {
   ControlPlaneSnapshot,
   DeviceStatus,
+  DeviceTransportView,
   DeviceView,
   EndpointView,
   EventView,
@@ -52,6 +53,17 @@ const statusLabels: Record<DeviceStatus, string> = {
   online: "Online",
   attention: "Needs attention",
   offline: "Offline",
+}
+
+/**
+ * transportLabels names the transport a device was observed over. A transport
+ * the control plane never observed reads as "Not recorded" — a statement about
+ * the record — rather than as a placeholder for a value nobody holds.
+ */
+const transportLabels: Record<DeviceTransportView, string> = {
+  usb: "USB",
+  tcp: "TCP",
+  unspecified: "Not recorded",
 }
 
 const trimmed = (value: string | undefined) => (value ?? "").trim()
@@ -143,6 +155,7 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
           row("Reported Name", reportedDeviceName(device, endpoints)),
           row("Device Record", device.id, true),
           row("Lifecycle", device.lifecycle),
+          row("Transport", transportLabels[device.transport]),
           row("Control Eligibility", device.controlEligibility),
           row("Location", device.location),
           row("Platform", device.platformVersion),

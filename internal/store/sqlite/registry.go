@@ -222,17 +222,31 @@ func deviceIDForObservation(ctx context.Context, tx *sql.Tx, workspace organizat
 // only refreshes its observation time; a changed transport supersedes the
 // previous endpoint and records a new one, so endpoint identity stays mutable
 // while device identity does not.
+//
+// The transport is recorded from the observation here, once, and the record is
+// what every later reader reads. A changed transport is a changed transport even
+// when it shares an address with the one before it, so the comparison is on the
+// transport as well as the address: two transports that happen to carry the same
+// address must not collapse into one record.
 func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, deviceID devices.DeviceID, observation discovery.ObservedDevice, at string) (string, error) {
-	endpointType := "adb_tcp"
-	if strings.TrimSpace(observation.Host) == "" {
-		endpointType = "adb_usb"
+	transport := endpoints.TransportOf(observation.Serial, observation.Host, observation.Port)
+	host, port := observation.Host, observation.Port
+	if host == "" && port == 0 {
+		// A device reached over TCP is named by the address it answers on, so
+		// the address is the observation's own reading rather than the absence
+		// of one. Recording it is what keeps this endpoint distinguishable from
+		// the same device's USB transport.
+		if observedHost, observedPort, ok := endpoints.SplitAddress(observation.Serial); ok {
+			host, port = observedHost, observedPort
+		}
 	}
-	var currentID, currentHost string
+	endpointType := transportToken(transport)
+	var currentID, currentHost, currentType string
 	var currentPort int64
-	err := tx.QueryRowContext(ctx, `SELECT id, COALESCE(host, ''), COALESCE(port, 0) FROM device_endpoints WHERE workspace_id=? AND device_id=? AND state='current'`, workspace, deviceID).Scan(&currentID, &currentHost, &currentPort)
+	err := tx.QueryRowContext(ctx, `SELECT id, COALESCE(host, ''), COALESCE(port, 0), endpoint_type FROM device_endpoints WHERE workspace_id=? AND device_id=? AND state='current'`, workspace, deviceID).Scan(&currentID, &currentHost, &currentPort, &currentType)
 	switch err {
 	case nil:
-		if currentHost == observation.Host && uint16(currentPort) == observation.Port {
+		if currentHost == host && uint16(currentPort) == port && currentType == endpointType {
 			if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET observed_at=?, endpoint_type=? WHERE workspace_id=? AND id=?`, at, endpointType, workspace, currentID); err != nil {
 				return "", err
 			}
@@ -250,17 +264,45 @@ func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizat
 	if err != nil {
 		return "", platformerrors.Wrap(platformerrors.CodeInternal, "generate endpoint ID", err)
 	}
-	var serial, host any
+	var serial, endpointHost any
 	if strings.TrimSpace(observation.Serial) != "" {
 		serial = observation.Serial
 	}
-	if strings.TrimSpace(observation.Host) != "" {
-		host = observation.Host
+	if strings.TrimSpace(host) != "" {
+		endpointHost = host
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id, workspace_id, device_id, endpoint_type, serial, host, port, state, observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'current', ?)`, endpointID, workspace, deviceID, endpointType, serial, host, observation.Port, at); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id, workspace_id, device_id, endpoint_type, serial, host, port, state, observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'current', ?)`, endpointID, workspace, deviceID, endpointType, serial, endpointHost, port, at); err != nil {
 		return "", mapConstraint(err)
 	}
 	return endpointID, nil
+}
+
+// transportToken is the device_endpoints.endpoint_type spelling of a transport.
+// The column's vocabulary is the stored fact's spelling and not a second
+// classification: an endpoint whose transport was never observed is stored as
+// the record it is rather than being guessed into a transport.
+func transportToken(transport endpoints.Transport) string {
+	switch transport {
+	case endpoints.TransportUSB:
+		return "adb_usb"
+	case endpoints.TransportTCP:
+		return "adb_tcp"
+	default:
+		return "mock"
+	}
+}
+
+// transportFromToken reads a stored endpoint_type back as a transport. A token
+// this binary does not know is reported as unspecified rather than guessed at.
+func transportFromToken(token string) endpoints.Transport {
+	switch token {
+	case "adb_usb":
+		return endpoints.TransportUSB
+	case "adb_tcp":
+		return endpoints.TransportTCP
+	default:
+		return endpoints.TransportUnspecified
+	}
 }
 
 func platformVersionFor(observation discovery.ObservedDevice) string {
@@ -368,12 +410,13 @@ func (d *DB) ListScanRuns(ctx context.Context, workspace organizations.Workspace
 // ListEndpoints exposes endpoint history separately from the stable device
 // projection. currentOnly is a read filter, not a lifecycle mutation; an empty
 // deviceID lists every endpoint in the workspace, a non-empty one narrows the
-// read to that device.
+// read to that device. The transport is read from the stored record, so a caller
+// reporting it reports the observation rather than rebuilding it.
 func (d *DB) ListEndpoints(ctx context.Context, workspace organizations.WorkspaceID, deviceID devices.DeviceID, currentOnly bool) ([]endpoints.Endpoint, error) {
 	if err := validateWorkspace(string(workspace)); err != nil {
 		return nil, err
 	}
-	query := `SELECT id, workspace_id, device_id, serial, host, port, state, observed_at FROM device_endpoints WHERE workspace_id=?`
+	query := `SELECT id, workspace_id, device_id, endpoint_type, serial, host, port, state, observed_at FROM device_endpoints WHERE workspace_id=?`
 	args := []any{workspace}
 	if deviceID != "" {
 		query += ` AND device_id=?`
@@ -393,10 +436,11 @@ func (d *DB) ListEndpoints(ctx context.Context, workspace organizations.Workspac
 		var endpoint endpoints.Endpoint
 		var serial, host sql.NullString
 		var port sql.NullInt64
-		var observed string
-		if err := rows.Scan(&endpoint.ID, &endpoint.Workspace, &endpoint.DeviceID, &serial, &host, &port, &endpoint.State, &observed); err != nil {
+		var endpointType, observed string
+		if err := rows.Scan(&endpoint.ID, &endpoint.Workspace, &endpoint.DeviceID, &endpointType, &serial, &host, &port, &endpoint.State, &observed); err != nil {
 			return nil, err
 		}
+		endpoint.Transport = transportFromToken(endpointType)
 		if serial.Valid {
 			endpoint.Serial = serial.String
 		}

@@ -73,6 +73,63 @@ func (DeviceStatus) EnumDescriptor() ([]byte, []int) {
 	return file_drift_v1_device_proto_rawDescGZIP(), []int{0}
 }
 
+// DeviceTransport is the transport a device was observed over.
+//
+// It is a fact about the transport and not a device lifecycle: a device has no
+// lifecycle beyond its identity and its observation history, so nothing here is
+// a state an operator advances.
+type DeviceTransport int32
+
+const (
+	// A device whose current endpoint carries no observed transport, or a device
+	// with no current endpoint at all. It is reported as unspecified rather than
+	// guessed into one of the transports below.
+	DeviceTransport_DEVICE_TRANSPORT_UNSPECIFIED DeviceTransport = 0
+	DeviceTransport_DEVICE_TRANSPORT_USB         DeviceTransport = 1
+	DeviceTransport_DEVICE_TRANSPORT_TCP         DeviceTransport = 2
+)
+
+// Enum value maps for DeviceTransport.
+var (
+	DeviceTransport_name = map[int32]string{
+		0: "DEVICE_TRANSPORT_UNSPECIFIED",
+		1: "DEVICE_TRANSPORT_USB",
+		2: "DEVICE_TRANSPORT_TCP",
+	}
+	DeviceTransport_value = map[string]int32{
+		"DEVICE_TRANSPORT_UNSPECIFIED": 0,
+		"DEVICE_TRANSPORT_USB":         1,
+		"DEVICE_TRANSPORT_TCP":         2,
+	}
+)
+
+func (x DeviceTransport) Enum() *DeviceTransport {
+	p := new(DeviceTransport)
+	*p = x
+	return p
+}
+
+func (x DeviceTransport) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (DeviceTransport) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_device_proto_enumTypes[1].Descriptor()
+}
+
+func (DeviceTransport) Type() protoreflect.EnumType {
+	return &file_drift_v1_device_proto_enumTypes[1]
+}
+
+func (x DeviceTransport) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use DeviceTransport.Descriptor instead.
+func (DeviceTransport) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{1}
+}
+
 // Device is the operator-facing projection of an edge-managed Android device.
 //
 // The device command surface is not a raw passthrough and not a generic shell:
@@ -97,8 +154,14 @@ type Device struct {
 	Workspace       *WorkspaceRef          `protobuf:"bytes,9,opt,name=workspace,proto3" json:"workspace,omitempty"`
 	EndpointId      string                 `protobuf:"bytes,10,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
 	RowVersion      uint64                 `protobuf:"varint,11,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// transport is how this device is currently reachable: over USB, or over TCP
+	// at the endpoint named by endpoint_id. It is a recorded observation, read
+	// back from the endpoint registry, and never derived by a client from the
+	// shape of an endpoint address — a client that reconstructs it can disagree
+	// with the observation it is reporting on.
+	Transport     DeviceTransport `protobuf:"varint,12,opt,name=transport,proto3,enum=drift.v1.DeviceTransport" json:"transport,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Device) Reset() {
@@ -206,6 +269,13 @@ func (x *Device) GetRowVersion() uint64 {
 		return x.RowVersion
 	}
 	return 0
+}
+
+func (x *Device) GetTransport() DeviceTransport {
+	if x != nil {
+		return x.Transport
+	}
+	return DeviceTransport_DEVICE_TRANSPORT_UNSPECIFIED
 }
 
 type ListDevicesRequest struct {
@@ -428,7 +498,7 @@ var File_drift_v1_device_proto protoreflect.FileDescriptor
 
 const file_drift_v1_device_proto_rawDesc = "" +
 	"\n" +
-	"\x15drift/v1/device.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x93\x03\n" +
+	"\x15drift/v1/device.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xcc\x03\n" +
 	"\x06Device\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x19\n" +
@@ -445,7 +515,8 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	" \x01(\tR\n" +
 	"endpointId\x12\x1f\n" +
 	"\vrow_version\x18\v \x01(\x04R\n" +
-	"rowVersion\"\x9e\x01\n" +
+	"rowVersion\x127\n" +
+	"\ttransport\x18\f \x01(\x0e2\x19.drift.v1.DeviceTransportR\ttransport\"\x9e\x01\n" +
 	"\x12ListDevicesRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
@@ -463,7 +534,11 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	"\x19DEVICE_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14DEVICE_STATUS_ONLINE\x10\x01\x12\x1b\n" +
 	"\x17DEVICE_STATUS_ATTENTION\x10\x02\x12\x19\n" +
-	"\x15DEVICE_STATUS_OFFLINE\x10\x032\xa1\x01\n" +
+	"\x15DEVICE_STATUS_OFFLINE\x10\x03*g\n" +
+	"\x0fDeviceTransport\x12 \n" +
+	"\x1cDEVICE_TRANSPORT_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14DEVICE_TRANSPORT_USB\x10\x01\x12\x18\n" +
+	"\x14DEVICE_TRANSPORT_TCP\x10\x022\xa1\x01\n" +
 	"\rDeviceService\x12J\n" +
 	"\vListDevices\x12\x1c.drift.v1.ListDevicesRequest\x1a\x1d.drift.v1.ListDevicesResponse\x12D\n" +
 	"\tGetDevice\x12\x1a.drift.v1.GetDeviceRequest\x1a\x1b.drift.v1.GetDeviceResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
@@ -480,37 +555,39 @@ func file_drift_v1_device_proto_rawDescGZIP() []byte {
 	return file_drift_v1_device_proto_rawDescData
 }
 
-var file_drift_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_drift_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_drift_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_drift_v1_device_proto_goTypes = []any{
 	(DeviceStatus)(0),           // 0: drift.v1.DeviceStatus
-	(*Device)(nil),              // 1: drift.v1.Device
-	(*ListDevicesRequest)(nil),  // 2: drift.v1.ListDevicesRequest
-	(*ListDevicesResponse)(nil), // 3: drift.v1.ListDevicesResponse
-	(*GetDeviceRequest)(nil),    // 4: drift.v1.GetDeviceRequest
-	(*GetDeviceResponse)(nil),   // 5: drift.v1.GetDeviceResponse
-	(*WorkspaceRef)(nil),        // 6: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),         // 7: drift.v1.PageRequest
-	(*PageResponse)(nil),        // 8: drift.v1.PageResponse
+	(DeviceTransport)(0),        // 1: drift.v1.DeviceTransport
+	(*Device)(nil),              // 2: drift.v1.Device
+	(*ListDevicesRequest)(nil),  // 3: drift.v1.ListDevicesRequest
+	(*ListDevicesResponse)(nil), // 4: drift.v1.ListDevicesResponse
+	(*GetDeviceRequest)(nil),    // 5: drift.v1.GetDeviceRequest
+	(*GetDeviceResponse)(nil),   // 6: drift.v1.GetDeviceResponse
+	(*WorkspaceRef)(nil),        // 7: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),         // 8: drift.v1.PageRequest
+	(*PageResponse)(nil),        // 9: drift.v1.PageResponse
 }
 var file_drift_v1_device_proto_depIdxs = []int32{
 	0,  // 0: drift.v1.Device.status:type_name -> drift.v1.DeviceStatus
-	6,  // 1: drift.v1.Device.workspace:type_name -> drift.v1.WorkspaceRef
-	6,  // 2: drift.v1.ListDevicesRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	7,  // 3: drift.v1.ListDevicesRequest.page:type_name -> drift.v1.PageRequest
-	1,  // 4: drift.v1.ListDevicesResponse.devices:type_name -> drift.v1.Device
-	8,  // 5: drift.v1.ListDevicesResponse.page:type_name -> drift.v1.PageResponse
-	6,  // 6: drift.v1.GetDeviceRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	1,  // 7: drift.v1.GetDeviceResponse.device:type_name -> drift.v1.Device
-	2,  // 8: drift.v1.DeviceService.ListDevices:input_type -> drift.v1.ListDevicesRequest
-	4,  // 9: drift.v1.DeviceService.GetDevice:input_type -> drift.v1.GetDeviceRequest
-	3,  // 10: drift.v1.DeviceService.ListDevices:output_type -> drift.v1.ListDevicesResponse
-	5,  // 11: drift.v1.DeviceService.GetDevice:output_type -> drift.v1.GetDeviceResponse
-	10, // [10:12] is the sub-list for method output_type
-	8,  // [8:10] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	7,  // 1: drift.v1.Device.workspace:type_name -> drift.v1.WorkspaceRef
+	1,  // 2: drift.v1.Device.transport:type_name -> drift.v1.DeviceTransport
+	7,  // 3: drift.v1.ListDevicesRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	8,  // 4: drift.v1.ListDevicesRequest.page:type_name -> drift.v1.PageRequest
+	2,  // 5: drift.v1.ListDevicesResponse.devices:type_name -> drift.v1.Device
+	9,  // 6: drift.v1.ListDevicesResponse.page:type_name -> drift.v1.PageResponse
+	7,  // 7: drift.v1.GetDeviceRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	2,  // 8: drift.v1.GetDeviceResponse.device:type_name -> drift.v1.Device
+	3,  // 9: drift.v1.DeviceService.ListDevices:input_type -> drift.v1.ListDevicesRequest
+	5,  // 10: drift.v1.DeviceService.GetDevice:input_type -> drift.v1.GetDeviceRequest
+	4,  // 11: drift.v1.DeviceService.ListDevices:output_type -> drift.v1.ListDevicesResponse
+	6,  // 12: drift.v1.DeviceService.GetDevice:output_type -> drift.v1.GetDeviceResponse
+	11, // [11:13] is the sub-list for method output_type
+	9,  // [9:11] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_device_proto_init() }
@@ -524,7 +601,7 @@ func file_drift_v1_device_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_device_proto_rawDesc), len(file_drift_v1_device_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,

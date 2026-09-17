@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"drift.local/drift-next/internal/discovery"
+	"drift.local/drift-next/internal/endpoints"
 	"drift.local/drift-next/internal/organizations"
 	store "drift.local/drift-next/internal/store/sqlite"
 )
@@ -83,12 +84,12 @@ func TestOneSerialOnTwoTransportsKeepsOneDeviceIdentity(t *testing.T) {
 	// Both transports stay on the record: the off-port one is precisely what
 	// port activation exists for, so losing it here would make Activate
 	// unreachable.
-	var endpoints int
-	if err := store.SQLForTest(db).QueryRow(`SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ?`, workspace.ID).Scan(&endpoints); err != nil {
+	var endpointRows int
+	if err := store.SQLForTest(db).QueryRow(`SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ?`, workspace.ID).Scan(&endpointRows); err != nil {
 		t.Fatal(err)
 	}
-	if endpoints != 2 {
-		t.Fatalf("endpoints = %d, want 2: both transports must be recorded against the one device", endpoints)
+	if endpointRows != 2 {
+		t.Fatalf("endpoints = %d, want 2: both transports must be recorded against the one device", endpointRows)
 	}
 
 	// And the transport is the mutable half: the newest observation is current.
@@ -103,5 +104,32 @@ func TestOneSerialOnTwoTransportsKeepsOneDeviceIdentity(t *testing.T) {
 	// The same device_id must be what the client is given back, not a fresh one.
 	if first[0].DeviceID != second[0].DeviceID || string(second[0].DeviceID) == "" {
 		t.Fatalf("second observation returned device_id %q; want the stable identity from the first", second[0].DeviceID)
+	}
+
+	// Both transports carry their own transport on the one identity: the serial
+	// observed over USB and then over TCP records USB and TCP — not two copies of
+	// one answer, and not a transport invented from the address of the other.
+	recorded, err := db.ListEndpoints(ctx, workspace.ID, first[0].DeviceID, false)
+	if err != nil {
+		t.Fatalf("ListEndpoints() = %v", err)
+	}
+	seen := map[endpoints.Transport]int{}
+	for _, endpoint := range recorded {
+		seen[endpoint.Transport]++
+	}
+	if seen[endpoints.TransportUSB] != 1 || seen[endpoints.TransportTCP] != 1 {
+		t.Fatalf("transports recorded against device %q = %v, want one USB and one TCP transport", first[0].DeviceID, seen)
+	}
+
+	// The transport is the mutable half and the current one is the newest
+	// observation, so the device the console reads is reachable over TCP — while
+	// the USB transport it was observed over stays on the record instead of
+	// being lost.
+	currentOnly, err := db.ListEndpoints(ctx, workspace.ID, first[0].DeviceID, true)
+	if err != nil {
+		t.Fatalf("ListEndpoints(current only) = %v", err)
+	}
+	if len(currentOnly) != 1 || currentOnly[0].Transport != endpoints.TransportTCP {
+		t.Fatalf("current transport = %#v, want exactly the TCP transport the newest observation recorded", currentOnly)
 	}
 }

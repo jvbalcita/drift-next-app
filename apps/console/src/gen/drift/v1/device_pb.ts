@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device.proto.
  */
 export const file_drift_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChVkcmlmdC92MS9kZXZpY2UucHJvdG8SCGRyaWZ0LnYxIpYCCgZEZXZpY2USCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCGFnZW50X2lkGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLmRyaWZ0LnYxLkRldmljZVN0YXR1cxIYChBwbGF0Zm9ybV92ZXJzaW9uGAUgASgJEhcKD2JhdHRlcnlfcGVyY2VudBgGIAEoDRISCgpsYXRlbmN5X21zGAcgASgNEhQKDGxhc3Rfc2Vlbl9hdBgIIAEoCRIpCgl3b3Jrc3BhY2UYCSABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEwoLZW5kcG9pbnRfaWQYCiABKAkSEwoLcm93X3ZlcnNpb24YCyABKAQifQoSTGlzdERldmljZXNSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgDIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0Il4KE0xpc3REZXZpY2VzUmVzcG9uc2USIQoHZGV2aWNlcxgBIAMoCzIQLmRyaWZ0LnYxLkRldmljZRIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlImkKEEdldERldmljZVJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhEKCWRldmljZV9pZBgCIAEoCRIpCgl3b3Jrc3BhY2UYAyABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYiNQoRR2V0RGV2aWNlUmVzcG9uc2USIAoGZGV2aWNlGAEgASgLMhAuZHJpZnQudjEuRGV2aWNlKn8KDERldmljZVN0YXR1cxIdChlERVZJQ0VfU1RBVFVTX1VOU1BFQ0lGSUVEEAASGAoUREVWSUNFX1NUQVRVU19PTkxJTkUQARIbChdERVZJQ0VfU1RBVFVTX0FUVEVOVElPThACEhkKFURFVklDRV9TVEFUVVNfT0ZGTElORRADMqEBCg1EZXZpY2VTZXJ2aWNlEkoKC0xpc3REZXZpY2VzEhwuZHJpZnQudjEuTGlzdERldmljZXNSZXF1ZXN0Gh0uZHJpZnQudjEuTGlzdERldmljZXNSZXNwb25zZRJECglHZXREZXZpY2USGi5kcmlmdC52MS5HZXREZXZpY2VSZXF1ZXN0GhsuZHJpZnQudjEuR2V0RGV2aWNlUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChVkcmlmdC92MS9kZXZpY2UucHJvdG8SCGRyaWZ0LnYxIsQCCgZEZXZpY2USCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCGFnZW50X2lkGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLmRyaWZ0LnYxLkRldmljZVN0YXR1cxIYChBwbGF0Zm9ybV92ZXJzaW9uGAUgASgJEhcKD2JhdHRlcnlfcGVyY2VudBgGIAEoDRISCgpsYXRlbmN5X21zGAcgASgNEhQKDGxhc3Rfc2Vlbl9hdBgIIAEoCRIpCgl3b3Jrc3BhY2UYCSABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEwoLZW5kcG9pbnRfaWQYCiABKAkSEwoLcm93X3ZlcnNpb24YCyABKAQSLAoJdHJhbnNwb3J0GAwgASgOMhkuZHJpZnQudjEuRGV2aWNlVHJhbnNwb3J0In0KEkxpc3REZXZpY2VzUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAyABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJeChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiEKB2RldmljZXMYASADKAsyEC5kcmlmdC52MS5EZXZpY2USJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSJpChBHZXREZXZpY2VSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSKQoJd29ya3NwYWNlGAMgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmIjUKEUdldERldmljZVJlc3BvbnNlEiAKBmRldmljZRgBIAEoCzIQLmRyaWZ0LnYxLkRldmljZSp/CgxEZXZpY2VTdGF0dXMSHQoZREVWSUNFX1NUQVRVU19VTlNQRUNJRklFRBAAEhgKFERFVklDRV9TVEFUVVNfT05MSU5FEAESGwoXREVWSUNFX1NUQVRVU19BVFRFTlRJT04QAhIZChVERVZJQ0VfU1RBVFVTX09GRkxJTkUQAypnCg9EZXZpY2VUcmFuc3BvcnQSIAocREVWSUNFX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEhgKFERFVklDRV9UUkFOU1BPUlRfVVNCEAESGAoUREVWSUNFX1RSQU5TUE9SVF9UQ1AQAjKhAQoNRGV2aWNlU2VydmljZRJKCgtMaXN0RGV2aWNlcxIcLmRyaWZ0LnYxLkxpc3REZXZpY2VzUmVxdWVzdBodLmRyaWZ0LnYxLkxpc3REZXZpY2VzUmVzcG9uc2USRAoJR2V0RGV2aWNlEhouZHJpZnQudjEuR2V0RGV2aWNlUmVxdWVzdBobLmRyaWZ0LnYxLkdldERldmljZVJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
 
 /**
  * Device is the operator-facing projection of an edge-managed Android device.
@@ -84,6 +84,17 @@ export type Device = Message<"drift.v1.Device"> & {
    * @generated from field: uint64 row_version = 11;
    */
   rowVersion: bigint;
+
+  /**
+   * transport is how this device is currently reachable: over USB, or over TCP
+   * at the endpoint named by endpoint_id. It is a recorded observation, read
+   * back from the endpoint registry, and never derived by a client from the
+   * shape of an endpoint address — a client that reconstructs it can disagree
+   * with the observation it is reporting on.
+   *
+   * @generated from field: drift.v1.DeviceTransport transport = 12;
+   */
+  transport: DeviceTransport;
 };
 
 /**
@@ -216,6 +227,42 @@ export enum DeviceStatus {
  */
 export const DeviceStatusSchema: GenEnum<DeviceStatus> = /*@__PURE__*/
   enumDesc(file_drift_v1_device, 0);
+
+/**
+ * DeviceTransport is the transport a device was observed over.
+ *
+ * It is a fact about the transport and not a device lifecycle: a device has no
+ * lifecycle beyond its identity and its observation history, so nothing here is
+ * a state an operator advances.
+ *
+ * @generated from enum drift.v1.DeviceTransport
+ */
+export enum DeviceTransport {
+  /**
+   * A device whose current endpoint carries no observed transport, or a device
+   * with no current endpoint at all. It is reported as unspecified rather than
+   * guessed into one of the transports below.
+   *
+   * @generated from enum value: DEVICE_TRANSPORT_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: DEVICE_TRANSPORT_USB = 1;
+   */
+  USB = 1,
+
+  /**
+   * @generated from enum value: DEVICE_TRANSPORT_TCP = 2;
+   */
+  TCP = 2,
+}
+
+/**
+ * Describes the enum drift.v1.DeviceTransport.
+ */
+export const DeviceTransportSchema: GenEnum<DeviceTransport> = /*@__PURE__*/
+  enumDesc(file_drift_v1_device, 1);
 
 /**
  * @generated from service drift.v1.DeviceService
