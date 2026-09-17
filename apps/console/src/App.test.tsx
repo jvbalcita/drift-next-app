@@ -36,7 +36,7 @@ describe("Drift command center", () => {
     await user.click(screen.getByRole("button", { name: /Nova 02/ }))
     expect(screen.getByText(/Android 13/)).toBeInTheDocument()
     expect(screen.getAllByText("Reconnecting to agent")).toHaveLength(2)
-    expect(screen.getByRole("button", { name: /Run workflow/ })).toBeDisabled()
+    expect(screen.queryByRole("button", { name: /Run workflow/ })).not.toBeInTheDocument()
 
     await user.type(screen.getByLabelText(/search devices/i), "Orion")
     expect(screen.queryByRole("button", { name: /Atlas 04/ })).not.toBeInTheDocument()
