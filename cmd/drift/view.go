@@ -403,9 +403,9 @@ func renderFrame(state viewState, width int, color bool) []string {
 // cannot dispatch.
 func actionItems(state viewState) []menuItem {
 	if len(state.actions) == 0 {
-		return menu()
+		return numberedActionItems(menu())
 	}
-	return state.actions
+	return numberedActionItems(state.actions)
 }
 
 // rule renders a section separator that fills the frame width.
