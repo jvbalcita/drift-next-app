@@ -206,3 +206,33 @@ describe("ControlPage OTG Setup tab", () => {
     expect(screen.queryByRole("button", { name: "Connect" })).not.toBeInTheDocument()
   })
 })
+
+describe("ControlPage connection filters", () => {
+  it("shows all devices by default, filters by observed transport, and updates the count", async () => {
+    const user = userEvent.setup()
+    const client = new MockControlPlaneClient()
+    render(<ControlPage snapshot={client.getSnapshot()} dispatch={async (intent) => client.dispatch(intent)} />)
+
+    expect(screen.getByLabelText("Device connection filters")).toHaveTextContent("6 / 6 devices shown")
+    expect(screen.getByRole("button", { name: "USB" })).toHaveAttribute("aria-pressed", "false")
+
+    await user.click(screen.getByRole("button", { name: "USB" }))
+
+    expect(screen.getByLabelText("Device connection filters")).toHaveTextContent("2 / 6 devices shown")
+    expect(screen.getByRole("button", { name: /Atlas 04/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Nova 05/i })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Atlas 07/i })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "USB" })).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("renders an empty state when a connection filter has no matching devices", async () => {
+    const user = userEvent.setup()
+    const client = new MockControlPlaneClient()
+    render(<ControlPage snapshot={client.getSnapshot()} dispatch={async (intent) => client.dispatch(intent)} />)
+
+    await user.click(screen.getByRole("button", { name: "OTG" }))
+
+    expect(screen.getByLabelText("Device connection filters")).toHaveTextContent("0 / 6 devices shown")
+    expect(screen.getByText("No Devices for This Connection")).toBeInTheDocument()
+  })
+})
