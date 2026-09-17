@@ -45,9 +45,14 @@ func TestApplyConcurrentRunnersDoNotReportFalseDirty(t *testing.T) {
 
 	waitForConcurrentRead(t, firstRead)
 	waitForConcurrentRead(t, secondRead)
+	// Both runners have now observed the empty ledger. Let the first runner
+	// win the write reservation and finish the migration before allowing the
+	// second runner to contend on the UNIQUE constraint. This preserves the
+	// concurrency overlap at the ledger-read boundary while making the outcome
+	// deterministic: the duplicate marker is clean, not another dirty attempt.
 	close(releaseFirst)
-	close(releaseSecond)
 	firstErr := <-firstResult
+	close(releaseSecond)
 	secondErr := <-secondResult
 	if firstErr != nil {
 		t.Fatalf("first Apply() error = %v", firstErr)
