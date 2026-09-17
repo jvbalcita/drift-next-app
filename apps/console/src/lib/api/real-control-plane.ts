@@ -15,6 +15,7 @@ import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
 import { DeviceStatus, DeviceTransport } from "@/gen/drift/v1/device_pb"
 import type { ActivateFleetResponse, FleetActivationOutcome, RestartServerResponse } from "@/gen/drift/v1/connection_pb"
+import type { DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
 import type { ObservedDevice, ScanRun } from "@/gen/drift/v1/discovery_pb"
 import { DeviceLinkState as ProtoDeviceLinkState, ScanRunState } from "@/gen/drift/v1/discovery_pb"
 import type { EdgeAgent } from "@/gen/drift/v1/edge_agent_pb"
@@ -61,6 +62,7 @@ import {
 } from "@/lib/api/connect-json"
 import { createControlPlaneServices, type ControlPlaneServices } from "@/lib/api/control-plane-clients"
 import { addressPoliciesAreEquivalent, isTransportPort, parseDiscoveryRange } from "@/lib/api/address-range"
+import { deviceSettingProto, deviceSettingsApplySentence, deviceSettingsApplyView } from "@/lib/device-settings"
 import type {
   AccountAssignmentState as AccountAssignmentViewState,
   AccountDeviceAssignmentView,
@@ -1847,6 +1849,33 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         }
         const response = await this.services.connection.activateFleet(requestId, intent.port)
         return mutation(intent, fleetActivationReport(response))
+      }
+      case "applyFleetDeviceSettings": {
+        // The settings are a closed set the shared module owns, so a name this
+        // build cannot turn into a contract value is refused here rather than
+        // sent as UNSPECIFIED and answered with a shape error.
+        if (intent.settings.length === 0) {
+          return failure(intent, "A fleet settings apply needs at least one setting to apply. Nothing was sent.", { errorCode: "invalid_input" })
+        }
+        const settings: DeviceSetting[] = []
+        for (const name of intent.settings) {
+          const setting = deviceSettingProto(name)
+          if (setting === null) {
+            return failure(intent, "The requested device setting is not one this console can apply. Nothing was sent.", { errorCode: "invalid_input" })
+          }
+          settings.push(setting)
+        }
+        if (!intent.confirmed) {
+          return failure(intent, "Applying these settings changes device state and needs the operator's explicit confirmation. Nothing was sent.", { errorCode: "precondition_failed" })
+        }
+        const applied = await this.services.deviceSettings.applyDeviceSettings(requestId, workspaceId, settings, intent.confirmed)
+        const view = deviceSettingsApplyView(applied)
+        if (view === null) {
+          // A row this build cannot name is NOT dropped: dropping it would hide a
+          // device's outcome, which is the one thing this surface must never do.
+          return failure(intent, "The control plane reported a setting this console build cannot render, so the per-device outcomes are withheld rather than shown in part.", { errorCode: "precondition_failed" })
+        }
+        return mutation(intent, deviceSettingsApplySentence(view), { deviceSettingsApply: view })
       }
       case "restartTransportServer": {
         if (intent.endpoints.length === 0) {

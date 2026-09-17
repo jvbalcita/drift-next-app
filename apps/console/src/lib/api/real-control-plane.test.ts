@@ -1129,3 +1129,130 @@ describe("RealControlPlaneClient transport surface", () => {
     expect(urls).toEqual([])
   })
 })
+
+/**
+ * The fleet device-settings apply.
+ *
+ * This surface reaches real devices and changes their settings, so the boundary
+ * it draws with the control plane is asserted rather than assumed: the request
+ * names the reviewed settings and no device list, a high-risk change is refused
+ * without the operator's explicit approval, an unnameable row is withheld rather
+ * than shown in part, and an empty fleet is reported as an empty fleet.
+ */
+describe("real control plane fleet device settings", () => {
+  const jsonResponse = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } })
+  const settingsCalls = (url: string) => url.endsWith("/drift.v1.DeviceSettingsService/ApplyDeviceSettings")
+
+  it("applies the reviewed settings and carries every device's own row back", async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (settingsCalls(url)) {
+        bodies.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>)
+        return jsonResponse({
+          totalDevices: 2,
+          appliedDevices: 1,
+          failedDevices: 1,
+          results: [
+            { deviceId: "device-alpha", setting: "DEVICE_SETTING_ROTATION_LOCK", applied: true, verified: true, message: "the device reported the setting holding after the change" },
+            { deviceId: "device-alpha", setting: "DEVICE_SETTING_AUTOFILL_OFF", applied: true, verified: true, message: "the device reported the setting holding after the change" },
+            {
+              deviceId: "device-beta",
+              setting: "DEVICE_SETTING_AUTOFILL_OFF",
+              applied: false,
+              verified: true,
+              refusal: "DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED",
+              failureClass: "postcondition",
+              message: "the device answered and does not report the setting holding the required value",
+            },
+          ],
+        })
+      }
+      return jsonResponse({})
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "applyFleetDeviceSettings", settings: ["rotation_lock", "autofill_off"], confirmed: true })
+
+    expect(result.ok).toBe(true)
+    // The settings are named, and NO device list is: the fleet is read from the
+    // registry by the control plane, so a console cannot assert which devices are
+    // attached.
+    expect(bodies[0]).toMatchObject({ approvalGranted: true })
+    expect(bodies[0].settings).toEqual(["DEVICE_SETTING_ROTATION_LOCK", "DEVICE_SETTING_AUTOFILL_OFF"])
+    expect(Object.keys(bodies[0])).not.toEqual(expect.arrayContaining(["devices", "deviceIds", "serials", "endpoints"]))
+
+    // Every row is carried, and the one that did not apply is named with the
+    // control plane's own sentence.
+    expect(result.deviceSettingsApply?.outcomes).toHaveLength(3)
+    expect(result.deviceSettingsApply?.appliedDevices).toBe(1)
+    expect(result.deviceSettingsApply?.failedDevices).toBe(1)
+    expect(result.message).toContain("device-beta")
+    expect(result.message).toContain("does not report the setting holding")
+  })
+
+  it("refuses an unconfirmed apply without contacting the control plane", async () => {
+    const urls: string[] = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      urls.push(String(input))
+      return jsonResponse({})
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "applyFleetDeviceSettings", settings: ["autofill_off"], confirmed: false })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toContain("explicit confirmation")
+    expect(urls).toEqual([])
+  })
+
+  it("refuses an empty setting set and a name it cannot turn into a setting", async () => {
+    const urls: string[] = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      urls.push(String(input))
+      return jsonResponse({})
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const empty = await client.dispatch({ type: "applyFleetDeviceSettings", settings: [], confirmed: true })
+    const unknown = await client.dispatch({ type: "applyFleetDeviceSettings", settings: [{ toString: () => "unreviewed" } as unknown as "rotation_lock"], confirmed: true })
+
+    expect(empty.ok).toBe(false)
+    expect(unknown.ok).toBe(false)
+    expect(urls).toEqual([])
+  })
+
+  it("withholds the per-device outcomes rather than showing a row it cannot name", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (settingsCalls(url)) {
+        return jsonResponse({ totalDevices: 1, results: [{ deviceId: "device-alpha", setting: 99, applied: true }] })
+      }
+      return jsonResponse({})
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "applyFleetDeviceSettings", settings: ["rotation_lock"], confirmed: true })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toContain("withheld")
+    expect(result.deviceSettingsApply).toBeUndefined()
+  })
+
+  it("reports an apply with no device as an empty fleet, never as success", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (settingsCalls(url)) {
+        return jsonResponse({ totalDevices: 0, appliedDevices: 0, failedDevices: 0, results: [] })
+      }
+      return jsonResponse({})
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "applyFleetDeviceSettings", settings: ["rotation_lock"], confirmed: true })
+
+    expect(result.ok).toBe(true)
+    expect(result.message).toContain("No device")
+    expect(result.deviceSettingsApply?.totalDevices).toBe(0)
+  })
+})

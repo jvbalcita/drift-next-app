@@ -390,11 +390,11 @@ func (a *DeviceSettingsApplier) applyToDevice(
 ) []DeviceSettingOutcome {
 	lease, err := a.leases.Acquire(ctx, workspace, devices.DeviceID(deviceID), sessionID, request.HolderID, actorType, actorID)
 	if err != nil {
-		refusal := SettingsLeaseUnavailable
-		if platformerrors.CodeOf(err) == platformerrors.CodeNotFound {
-			refusal = SettingsNoTransportSerial
-		}
-		return refusedRows(deviceID, settings, refusal, domain.FailureLeaseConflict)
+		// Every way a lease can be refused here is the same fact to an operator:
+		// this device is not available to act on. The refusal keeps its own
+		// reason rather than being folded into the result for the rest, and the
+		// run continues.
+		return refusedRows(deviceID, settings, SettingsLeaseUnavailable, domain.FailureLeaseConflict)
 	}
 	defer func() {
 		// Released on the way out even when a setting failed, so a failed apply
