@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it } from "vitest"
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import { Toaster } from "@/components/ui/sonner"
-import type { ControlPlaneIntent, MutationResult } from "@/lib/domain/control-plane"
+import type { ControlPlaneIntent, DeviceView, MutationResult } from "@/lib/domain/control-plane"
 import { ControlPage } from "./ControlPage"
 
 beforeEach(() => {
@@ -448,5 +448,124 @@ describe("ControlPage connection filters", () => {
     expect(screen.getByRole("button", { name: /Atlas 07/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Orion 03/i })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Nova 02/i })).not.toBeInTheDocument()
+  })
+})
+
+describe("ControlPage device observation status", () => {
+  /**
+   * The snapshot this suite renders holds the two absent states the wire can
+   * report: Nova 05 is OFFLINE (observed before, not observed now) and Atlas 09
+   * is UNSPECIFIED (no scan has observed it). They are built here rather than
+   * added to the mock client so the existing fleet counts stay what they were.
+   */
+  function harness() {
+    const client = new MockControlPlaneClient()
+    const snapshot = client.getSnapshot()
+    const neverObserved: DeviceView = {
+      id: "atlas-09",
+      displayName: "Atlas 09",
+      stableIdentity: "device-109",
+      lifecycle: "unavailable",
+      status: "unobserved",
+      platformVersion: "",
+      batteryPercent: 0,
+      latencyMs: 0,
+      lastSeen: "",
+      agentId: "",
+      endpointId: "",
+      transport: "unspecified",
+      location: "",
+      packageName: "",
+      activityName: "",
+      workflow: "",
+      workflowStatus: "",
+      taskProgress: 0,
+      controlEligibility: "offline",
+      capabilities: [],
+    }
+    snapshot.devices = [...snapshot.devices, neverObserved]
+    const dispatch = async (intent: ControlPlaneIntent) => client.dispatch(intent)
+    return { snapshot, dispatch }
+  }
+
+  it("marks a device that is not observed in its frame instead of showing it as online", () => {
+    const { snapshot, dispatch } = harness()
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
+
+    // Nova 05 is offline in this snapshot. Its frame says so, and the mark
+    // CENTRED in the frame names the device and its state, so the fact does not
+    // depend on the frame's colour.
+    const departed = screen.getByRole("button", { name: /Nova 05/i })
+    expect(within(departed).getByText("Offline")).toBeInTheDocument()
+    const departedMark = within(departed).getByRole("img", { name: "Nova 05 is offline: observed before, not observed in the last successful scan." })
+    expect(departedMark.parentElement?.parentElement).toHaveClass("inset-0", "place-items-center")
+
+    // Atlas 09 has never been observed. It reads as NOT OBSERVED — not as
+    // offline, which would claim it was seen and then lost — and it carries its
+    // own mark.
+    const unseen = screen.getByRole("button", { name: /Atlas 09/i })
+    expect(within(unseen).getByText("Not Observed")).toBeInTheDocument()
+    expect(within(unseen).queryByText("Offline")).not.toBeInTheDocument()
+    expect(within(unseen).getByRole("img", { name: "Atlas 09 is not observed: no successful scan has observed this device yet." })).toBeInTheDocument()
+
+    // An observed device carries no such mark, so the mark is what distinguishes
+    // the absent frames rather than something every frame shows.
+    const online = screen.getByRole("button", { name: /Atlas 04/i })
+    expect(within(online).getByText("Online")).toBeInTheDocument()
+    expect(within(online).queryByRole("img")).not.toBeInTheDocument()
+  })
+
+  it("keeps the OTG/HOLD tag on control eligibility, and never reads OTG on an absent frame", () => {
+    const { snapshot, dispatch } = harness()
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
+
+    // The tag is untouched by this change and is consistent with the status:
+    // neither an offline device nor one no scan has observed is eligible, so both
+    // read HOLD while an eligible observed device still reads OTG.
+    for (const name of [/Nova 05/i, /Atlas 09/i]) {
+      const frame = screen.getByRole("button", { name })
+      expect(within(frame).getByText("HOLD")).toBeInTheDocument()
+      expect(within(frame).queryByText("OTG")).not.toBeInTheDocument()
+    }
+    expect(within(screen.getByRole("button", { name: /Atlas 04/i })).getByText("OTG")).toBeInTheDocument()
+  })
+
+  it("keeps the absent mark at the smallest landscape frame", async () => {
+    const user = userEvent.setup()
+    const { snapshot, dispatch } = harness()
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
+
+    // 192px is the smallest frame the console offers, and landscape makes it
+    // 192x108. The mark is centred in the frame at every size rather than only in
+    // the default portrait one.
+    await user.click(screen.getByRole("button", { name: "Open Workspace Settings" }))
+    await user.click(screen.getByRole("button", { name: "Landscape" }))
+
+    const unseen = screen.getByRole("button", { name: /Atlas 09/i })
+    expect(unseen).toHaveStyle({ width: "192px", height: "108px" })
+    expect(within(unseen).getByRole("img", { name: /Atlas 09 is not observed/ })).toBeInTheDocument()
+    expect(within(unseen).getByText("Not Observed")).toBeInTheDocument()
+  })
+
+  it("shows the same observation truth per row in the Device List, with copy that says what a status means", async () => {
+    const user = userEvent.setup()
+    const { snapshot, dispatch } = harness()
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
+
+    await user.click(screen.getByRole("button", { name: "Devices" }))
+    const dialog = await screen.findByRole("dialog")
+
+    // The copy states what the column reports: the last observation the control
+    // plane recorded, rather than a live connection.
+    expect(within(dialog).getByText(/which is what the last successful scan observed rather than whether the device answers right now/)).toBeInTheDocument()
+
+    // A device that is not currently observed is marked as such on its own row,
+    // and the two absent states stay two different facts.
+    const departed = within(dialog).getByRole("row", { name: /Nova 05/ })
+    expect(within(departed).getByText("Offline")).toBeInTheDocument()
+    const unseen = within(dialog).getByRole("row", { name: /Atlas 09/ })
+    expect(within(unseen).getByText("Not Observed")).toBeInTheDocument()
+    expect(within(unseen).queryByText("Offline")).not.toBeInTheDocument()
+    expect(within(within(dialog).getByRole("row", { name: /Atlas 04/ })).getByText("Online")).toBeInTheDocument()
   })
 })

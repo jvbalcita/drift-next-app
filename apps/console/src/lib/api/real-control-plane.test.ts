@@ -45,7 +45,7 @@ describe("mapDevice", () => {
       status: DeviceStatus.UNSPECIFIED,
       lastSeenAt: "",
     })
-    expect(mapDevice(neverObserved)).toMatchObject({ status: "offline", controlEligibility: "offline", lastSeen: "" })
+    expect(mapDevice(neverObserved)).toMatchObject({ status: "unobserved", controlEligibility: "offline", lastSeen: "" })
 
     // A device that was observed and has since left arrives as OFFLINE with the
     // last observation it did have, so the operator can still see when it was last
@@ -56,6 +56,11 @@ describe("mapDevice", () => {
       lastSeenAt: "10:00:00",
     })
     expect(mapDevice(departed)).toMatchObject({ status: "offline", controlEligibility: "offline", lastSeen: "10:00:00" })
+
+    // And the two stay TELLABLE APART: "nobody has observed this device" and
+    // "this device was observed and left" are different facts, so they never
+    // reach the console as one status. Both remain ineligible.
+    expect(mapDevice(neverObserved).status).not.toBe(mapDevice(departed).status)
   })
 
   it("reads the transport the control plane recorded instead of deriving it from the endpoint", () => {
