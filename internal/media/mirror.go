@@ -34,6 +34,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -56,6 +57,13 @@ const (
 	// the capture: the stream is live, and a backlog of old frames replayed later
 	// is a worse lie than a dropped one.
 	DefaultMirrorQueue = 64
+
+	// DefaultMirrorCloseTimeout bounds the release of one device's stream - the
+	// kill of the device-side server and the removal of its reverse tunnel. It
+	// exists so a device that stops answering cannot hold the process open at
+	// shutdown: the stream's own release is the last thing a session's worker
+	// does, and waiting for that without a bound is a wait that may not end.
+	DefaultMirrorCloseTimeout = 5 * time.Second
 )
 
 // MirrorSession is one device's live mirror, as the engine holds it.
@@ -233,6 +241,11 @@ type MirrorEngine struct {
 	sessions map[string]*mirrorSession
 	stopped  bool
 
+	// accounting is what the audit reports: the sessions and streams this
+	// engine started and stopped. It outlives the sessions themselves, so a
+	// stopped engine can still say what it owned.
+	accounting mirrorAccounting
+
 	// wg counts the engine's own goroutines, so a shutdown waits for them rather
 	// than returning while a capture is still running.
 	wg sync.WaitGroup
@@ -306,6 +319,7 @@ func (e *MirrorEngine) Start(ctx context.Context, deviceID, serial string) (Mirr
 		// close.
 		session.bind(ctx)
 		e.sessions[deviceID] = session
+		e.accounting.sessionStarted()
 		e.wg.Add(1)
 		go func() {
 			defer e.wg.Done()
@@ -371,8 +385,19 @@ func (e *MirrorEngine) Input(ctx context.Context, deviceID string, input MirrorI
 // Stop ends every session and waits for the engine's own goroutines.
 //
 // It is what the composition root calls before the process returns, so no
-// capture outlives the process that owned it.
+// capture outlives the process that owned it. The wait is bounded by ctx, and a
+// session that does not stop inside that bound is named in the returned error
+// rather than waited for without end: a shutdown that blocks forever on one
+// wedged device is worse than a shutdown that reports what it could not end,
+// because the operator can act on the second and not on the first.
+//
+// When every session has stopped the engine's goroutines have finished with it
+// - each session releases its stream before its worker returns - so nothing is
+// left running when this returns nil.
 func (e *MirrorEngine) Stop(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	e.mu.Lock()
 	e.stopped = true
 	sessions := make([]*mirrorSession, 0, len(e.sessions))
@@ -380,14 +405,23 @@ func (e *MirrorEngine) Stop(ctx context.Context) error {
 		sessions = append(sessions, session)
 	}
 	e.mu.Unlock()
-	var first error
+	reason := errors.New("media: the mirror engine was stopped")
+	outstanding := make([]string, 0, len(sessions))
 	for _, session := range sessions {
-		if err := session.stop(ctx, errors.New("media: the mirror engine was stopped")); err != nil && first == nil {
-			first = err
+		if err := session.stop(ctx, reason); err != nil {
+			outstanding = append(outstanding, session.deviceID)
 		}
 	}
+	if len(outstanding) > 0 {
+		sort.Strings(outstanding)
+		return fmt.Errorf("media: %d mirror session(s) had not stopped when the shutdown bound expired (%s): %w",
+			len(outstanding), strings.Join(outstanding, ", "), ctx.Err())
+	}
+	// Every session's worker has returned, so this waits on nothing. It is kept
+	// because it is the exact guarantee: no goroutine of this engine is running
+	// when Stop returns.
 	e.wg.Wait()
-	return first
+	return nil
 }
 
 // forget removes a session once it has ended, so the next viewer of that device
@@ -423,6 +457,7 @@ type mirrorSession struct {
 	height     int
 	failed     error
 	done       chan struct{}
+	finished   chan struct{}
 	stopOnce   sync.Once
 	idleTimer  *time.Timer
 	spsPPS     []byte
@@ -451,6 +486,7 @@ func newMirrorSession(deviceID, serial string, engine *MirrorEngine) *mirrorSess
 		frames:    make(chan StreamFrame),
 		viewers:   make(map[string]*mirrorViewer),
 		done:      make(chan struct{}),
+		finished:  make(chan struct{}),
 		startedAt: time.Now(),
 		scid:      uint32(time.Now().UnixNano()) & 0x7fffffff,
 	}
@@ -577,15 +613,21 @@ func (s *mirrorSession) detach(id string) {
 	s.mu.Unlock()
 }
 
-// stop ends the session with a reason and waits for its worker.
+// stop ends the session with a reason and waits for its worker to finish.
+//
+// It waits for the worker rather than for the session's end signal: end() closes
+// done the moment the session has decided to stop, while the worker still has to
+// leave its read loop and release the device's stream. Waiting on done alone
+// would let a caller believe a stream was closed while it was still open, which
+// is the whole difference between an owned capture and an orphaned one.
 func (s *mirrorSession) stop(ctx context.Context, reason error) error {
 	s.end(reason)
 	select {
-	case <-s.done:
+	case <-s.finished:
+		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	return nil
 }
 
 // end closes the session once, with the reason it ended.
@@ -620,6 +662,7 @@ func (s *mirrorSession) end(reason error) {
 		close(s.frames)
 		close(s.done)
 		s.engine.forget(s)
+		s.engine.accounting.sessionEnded()
 		log.Printf("live mirror ended for %s: %v", s.deviceID, reason)
 	})
 }
@@ -677,16 +720,31 @@ func insideFrame(x, y, width, height int) bool {
 // ends for a reason of its own - its last viewer leaving, its stream failing -
 // unblocks this worker and closes the device's stream immediately.
 func (s *mirrorSession) run() {
+	// finished is registered first so it is closed LAST, after every defer
+	// below it - the stream's own release included. A caller waiting on it has
+	// therefore waited for the device's stream to be released rather than
+	// merely for this session to have decided to end.
+	defer close(s.finished)
 	ctx := s.context()
 	stream, err := s.engine.dialer.Dial(ctx, s.deviceID, s.serial)
 	if err != nil {
 		s.end(fmt.Errorf("media: opening the mirror for %s: %w", s.deviceID, err))
 		return
 	}
+	s.engine.accounting.streamDialed()
 	defer func() {
-		if closeErr := stream.Close(context.WithoutCancel(ctx)); closeErr != nil {
+		// The release is bounded: it kills the device-side server and removes
+		// the reverse tunnel, and a device that stopped answering must not be
+		// able to hold this worker - and therefore the process's shutdown - open
+		// without end. A release that did not complete is counted as one that
+		// did not, so the audit reports it instead of the engine assuming it.
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), DefaultMirrorCloseTimeout)
+		defer cancel()
+		if closeErr := stream.Close(closeCtx); closeErr != nil {
 			log.Printf("live mirror cleanup for %s: %v", s.deviceID, closeErr)
+			return
 		}
+		s.engine.accounting.streamClosed()
 	}()
 
 	width, height, err := stream.FrameSize(ctx)

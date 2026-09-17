@@ -37,6 +37,8 @@ type fakeStream struct {
 	resets    int
 	closeN    int
 	inputErr  error
+	closeErr  error
+	closeHold chan struct{}
 	closeFlag bool
 	once      sync.Once
 }
@@ -110,13 +112,53 @@ func (s *fakeStream) RequestKeyframe(context.Context) error {
 	return s.resetErr
 }
 
-func (s *fakeStream) Close(context.Context) error {
+func (s *fakeStream) Close(ctx context.Context) error {
 	s.mu.Lock()
 	s.closeN++
 	s.closeFlag = true
+	hold := s.closeHold
+	err := s.closeErr
 	s.mu.Unlock()
+	if hold != nil {
+		// A device that stopped answering: the release does not complete until
+		// the test lets it, and the caller's own bound is what has to survive it.
+		select {
+		case <-hold:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	if err != nil {
+		return err
+	}
 	s.once.Do(func() { close(s.closed) })
 	return nil
+}
+
+// holdClose makes the stream's release block until the returned function is
+// called. It is the device that went away mid-session.
+func (s *fakeStream) holdClose() func() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closeHold = make(chan struct{})
+	hold := s.closeHold
+	release := func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.closeHold == hold {
+			close(s.closeHold)
+			s.closeHold = nil
+		}
+	}
+	return release
+}
+
+// failClose makes the stream's release report an error, as a device whose tunnel
+// refused to be removed does.
+func (s *fakeStream) failClose(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closeErr = err
 }
 
 func (s *fakeStream) state() (resets, closeN, inputs int) {
@@ -726,8 +768,13 @@ func TestMirrorDropsFramesForAViewerThatFallsBehind(t *testing.T) {
 			t.Fatal("the capture stalled behind a viewer that stopped reading")
 		}
 	}
-	waitFor(t, "the viewer to have lost frames to its own backlog", func() bool {
-		return dropped(t, viewer) > 0
+	// Every push has returned once the session's READER has taken the frame, not
+	// once the viewer has been offered it, so the queue's contents can only be
+	// judged after all four frames have been through the viewer. With a depth-1
+	// queue that is exactly three drops: the first frame is queued, and each of
+	// the three after it displaces one.
+	waitFor(t, "the viewer to have lost every frame but the newest to its own backlog", func() bool {
+		return dropped(t, viewer) == 3
 	})
 	// What the viewer still holds is the newest frame, not the oldest: a backlog
 	// of stale frames is worse than a missed one.
@@ -781,5 +828,116 @@ func TestMirrorMirrorsOneDevicePerSessionAndBoundsHowMany(t *testing.T) {
 func TestMirrorRefusesASessionWithoutADialer(t *testing.T) {
 	if _, err := NewMirrorEngine(MirrorEngineConfig{}); err == nil {
 		t.Fatal("a mirror engine was built with no dialer")
+	}
+}
+
+// TestMirrorAuditCountsWhatTheEngineStartedAndStopped is the audit's own test:
+// the composition root reads these numbers to state that no capture outlived the
+// process, so they have to be the engine's real history rather than a count of
+// what it happens to hold right now.
+func TestMirrorAuditCountsWhatTheEngineStartedAndStopped(t *testing.T) {
+	dialer := newFakeDialer()
+	engine := newEngine(t, dialer, MirrorEngineConfig{})
+	if audit := engine.Audit(); audit.SessionsStarted != 0 || audit.StreamsDialed != 0 || !audit.Clean() {
+		t.Fatalf("an engine that started nothing reported %s", audit.Report())
+	}
+
+	viewers := make([]MirrorViewer, 0, 2)
+	for _, device := range []string{"device-1", "device-2"} {
+		session, viewer, err := engine.Start(context.Background(), device, "SERIAL-"+device)
+		if err != nil {
+			t.Fatalf("Start %s: %v", device, err)
+		}
+		sessionReady(t, session)
+		viewers = append(viewers, viewer)
+	}
+	for _, viewer := range viewers {
+		defer viewer.Close()
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := engine.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	audit := engine.Audit()
+	if audit.SessionsStarted != 2 || audit.SessionsEnded != 2 || audit.StreamsDialed != 2 || audit.StreamsClosed != 2 {
+		t.Fatalf("audit = %s, want two sessions and two streams started and stopped", audit.Report())
+	}
+	if len(audit.DevicesStillOpen) != 0 {
+		t.Fatalf("the audit still names %v after every session stopped", audit.DevicesStillOpen)
+	}
+	if !audit.Clean() {
+		t.Fatalf("a completed shutdown was audited as unclean: %s", audit.Report())
+	}
+	if !strings.Contains(audit.Report(), "nothing of the engine's own was left running") {
+		t.Fatalf("the audit does not state what it found: %q", audit.Report())
+	}
+}
+
+// TestMirrorAuditReportsAStreamThatDidNotCloseCleanly covers the failure the
+// audit exists for: the release of a device's stream is what ends the device-side
+// server, so a release that did not complete must be counted as one that did not
+// - and said out loud - rather than assumed to have worked because the session
+// ended.
+func TestMirrorAuditReportsAStreamThatDidNotCloseCleanly(t *testing.T) {
+	dialer := newFakeDialer()
+	engine := newEngine(t, dialer, MirrorEngineConfig{})
+	session, viewer, err := engine.Start(context.Background(), "device-1", "SERIAL-1")
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	sessionReady(t, session)
+	defer viewer.Close()
+	dialer.streamFor(t, "device-1").failClose(errors.New("fake: the reverse tunnel refused to go away"))
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := engine.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	audit := engine.Audit()
+	if audit.StreamsDialed != 1 || audit.StreamsClosed != 0 {
+		t.Fatalf("audit = %s, want the stream counted as dialed and not closed", audit.Report())
+	}
+	if audit.Clean() {
+		t.Fatalf("a stream that failed to close was audited as clean: %s", audit.Report())
+	}
+	if !strings.Contains(audit.Report(), "did not close cleanly") {
+		t.Fatalf("the audit does not report the failed release: %q", audit.Report())
+	}
+}
+
+// TestMirrorStopNamesASessionThatDidNotStopWithinTheBound is the other half of
+// the composition root's shutdown: the wait for a session is bounded, and what
+// the bound expired on is named. A shutdown that blocks on one wedged device
+// cannot be acted on by an operator; one that reports the device can.
+func TestMirrorStopNamesASessionThatDidNotStopWithinTheBound(t *testing.T) {
+	dialer := newFakeDialer()
+	engine, err := NewMirrorEngine(MirrorEngineConfig{Dialer: dialer})
+	if err != nil {
+		t.Fatalf("NewMirrorEngine: %v", err)
+	}
+	session, _, startErr := engine.Start(context.Background(), "device-stuck", "SERIAL-STUCK")
+	if startErr != nil {
+		t.Fatalf("Start: %v", startErr)
+	}
+	sessionReady(t, session)
+	release := dialer.streamFor(t, "device-stuck").holdClose()
+	defer release()
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	err = engine.Stop(stopCtx)
+	if err == nil {
+		t.Fatal("Stop reported a clean shutdown while a session was still releasing its stream")
+	}
+	if !strings.Contains(err.Error(), "device-stuck") {
+		t.Fatalf("Stop's error does not name the device that did not stop: %v", err)
+	}
+	// The engine's own numbers have to agree with the error rather than leaving
+	// the composition root to parse it.
+	if audit := engine.Audit(); audit.Clean() {
+		t.Fatalf("the audit called a shutdown clean while a stream was still open: %s", audit.Report())
 	}
 }
