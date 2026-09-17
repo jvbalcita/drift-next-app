@@ -626,20 +626,45 @@ func TestMirrorCarriesInputForALiveDeviceAndRefusesEveryOtherCase(t *testing.T) 
 	stream := dialer.streamFor(t, "device-1")
 	sessionReady(t, session)
 
-	tap := MirrorInput{Kind: MirrorInputTap, X: 540, Y: 1140}
+	tap := MirrorInput{Kind: MirrorInputTap, X: 540, Y: 1140, FrameWidth: 1080, FrameHeight: 2280}
 	if err := engine.Input(context.Background(), "device-1", tap); err != nil {
 		t.Fatalf("a tap on a live mirror was refused: %v", err)
 	}
-	swipe := MirrorInput{Kind: MirrorInputSwipe, X: 10, Y: 20, EndX: 30, EndY: 40, Duration: 100 * time.Millisecond}
+	swipe := MirrorInput{Kind: MirrorInputSwipe, X: 10, Y: 20, EndX: 30, EndY: 40, Duration: 100 * time.Millisecond, FrameWidth: 1080, FrameHeight: 2280}
 	if err := engine.Input(context.Background(), "device-1", swipe); err != nil {
 		t.Fatalf("a swipe on a live mirror was refused: %v", err)
 	}
+	if err := engine.Input(context.Background(), "device-1", MirrorInput{Kind: MirrorInputKeyEvent, KeyCode: 3}); err != nil {
+		t.Fatalf("a key event on a live mirror was refused: %v", err)
+	}
 	sent := stream.sentInputs()
-	if len(sent) != 2 || sent[0].Kind != MirrorInputTap || sent[1].Kind != MirrorInputSwipe {
-		t.Fatalf("the stream received %+v, want the tap and the swipe", sent)
+	if len(sent) != 3 || sent[0].Kind != MirrorInputTap || sent[1].Kind != MirrorInputSwipe || sent[2].Kind != MirrorInputKeyEvent {
+		t.Fatalf("the stream received %+v, want the tap, the swipe and the key event", sent)
 	}
 	if sent[0].X != 540 || sent[0].Y != 1140 {
 		t.Fatalf("the tap reached the device as (%d,%d), want (540,1140)", sent[0].X, sent[0].Y)
+	}
+
+	// A coordinate measured in another frame is refused, never scaled: the same
+	// point declared in the device's physical panel size is a different point,
+	// and a hop that scaled it would send a tap the operator did not make.
+	physical := tap
+	physical.FrameWidth, physical.FrameHeight = 1440, 3040
+	if err := engine.Input(context.Background(), "device-1", physical); err == nil {
+		t.Fatal("a coordinate declared in the device's physical size was accepted")
+	} else if !strings.Contains(err.Error(), "1440x3040") || !strings.Contains(err.Error(), "1080x2280") {
+		t.Fatalf("the refusal does not name both frames: %v", err)
+	}
+	// A coordinate with no frame at all is refused before a session is asked.
+	frameless := MirrorInput{Kind: MirrorInputTap, X: 10, Y: 10}
+	if err := engine.Input(context.Background(), "device-1", frameless); err == nil {
+		t.Fatal("a coordinate with no render space was accepted")
+	}
+	// A point outside the stream's frame is refused, never clamped.
+	outside := tap
+	outside.X = 2000
+	if err := engine.Input(context.Background(), "device-1", outside); err == nil {
+		t.Fatal("a point outside the stream's frame was accepted")
 	}
 
 	// A device with no live mirror: refusal, and nothing dialed for it.
@@ -657,7 +682,7 @@ func TestMirrorCarriesInputForALiveDeviceAndRefusesEveryOtherCase(t *testing.T) 
 	if err := engine.Input(context.Background(), "device-1", MirrorInput{}); err == nil {
 		t.Fatal("an input with no kind was accepted")
 	}
-	if got := stream.sentInputs(); len(got) != 2 {
+	if got := stream.sentInputs(); len(got) != 3 {
 		t.Fatalf("a refused input reached the device: %+v", got)
 	}
 

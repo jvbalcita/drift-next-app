@@ -173,6 +173,14 @@ type MirrorInput struct {
 	// KeyCode and Repeat are the key event, for a key kind.
 	KeyCode uint32
 	Repeat  uint32
+	// FrameWidth and FrameHeight are the render space the coordinate was
+	// measured in - the size the device presents at. They are required for a
+	// coordinate-bearing kind and they must equal the frame the stream is
+	// encoded at: a coordinate measured somewhere else, or measured nowhere, is
+	// refused rather than scaled into a frame it was not measured in
+	// (AGENTS.md section 3). A text or key input carries no coordinate and
+	// states no frame.
+	FrameWidth, FrameHeight int
 }
 
 // MirrorInputKinds are the kinds the engine will carry. Anything else is refused
@@ -185,11 +193,24 @@ const (
 	MirrorInputKeyEvent = "keyevent"
 )
 
+// carriesCoordinate reports whether this kind's payload is a coordinate, and so
+// whether it must state the frame it was measured in.
+func (i MirrorInput) carriesCoordinate() bool {
+	return i.Kind == MirrorInputTap || i.Kind == MirrorInputSwipe
+}
+
 // validate refuses an input the engine does not carry, before a device is
-// reached.
+// reached. A coordinate-bearing input without a frame is refused here, at the
+// boundary, rather than carried to a session that would have to guess the frame
+// or drop the coordinate.
 func (i MirrorInput) validate() error {
 	switch i.Kind {
-	case MirrorInputTap, MirrorInputSwipe, MirrorInputText, MirrorInputKeyEvent:
+	case MirrorInputTap, MirrorInputSwipe:
+		if i.FrameWidth <= 0 || i.FrameHeight <= 0 {
+			return fmt.Errorf("media: a %s carries coordinates and states no render space to measure them in", i.Kind)
+		}
+		return nil
+	case MirrorInputText, MirrorInputKeyEvent:
 		return nil
 	default:
 		return fmt.Errorf("media: %q is not a typed mirror input", i.Kind)
@@ -604,19 +625,48 @@ func (s *mirrorSession) end(reason error) {
 }
 
 // sendInput carries one authorized input to the device's stream.
+//
+// This is the second of the two gates the coordinate rule has (AGENTS.md
+// section 3): the kernel authorizes the action against its own render-space
+// observation, and this cross-check independently refuses a coordinate declared
+// in a frame the stream is not encoded at. Neither gate replaces the other, so a
+// dispatch must satisfy both. A frame the stream does not present at is refused
+// with a distinct error naming both sizes, and nothing reaches the device.
 func (s *mirrorSession) sendInput(ctx context.Context, input MirrorInput) error {
 	s.mu.Lock()
 	stream := s.stream
 	closed := s.closed
 	failed := s.failed
+	width, height := s.width, s.height
 	s.mu.Unlock()
 	if closed {
 		return fmt.Errorf("media: the mirror for %s has ended: %w", s.deviceID, failed)
 	}
-	if stream == nil {
+	if stream == nil || width <= 0 || height <= 0 {
 		return fmt.Errorf("media: the mirror for %s is not streaming yet", s.deviceID)
 	}
+	if input.carriesCoordinate() {
+		if input.FrameWidth != width || input.FrameHeight != height {
+			return fmt.Errorf(
+				"media: the input was measured in a %dx%d frame and %s streams at %dx%d, so the coordinate is refused rather than scaled",
+				input.FrameWidth, input.FrameHeight, s.deviceID, width, height)
+		}
+		// A point outside the frame is refused here as well as at the transport.
+		// Clamping it would send a tap at a different place from the one the
+		// operator made, and the operator would have no way to tell.
+		if !insideFrame(input.X, input.Y, width, height) {
+			return fmt.Errorf("media: the %s point (%d,%d) lies outside the %dx%d frame %s streams", input.Kind, input.X, input.Y, width, height, s.deviceID)
+		}
+		if input.Kind == MirrorInputSwipe && !insideFrame(input.EndX, input.EndY, width, height) {
+			return fmt.Errorf("media: the swipe end (%d,%d) lies outside the %dx%d frame %s streams", input.EndX, input.EndY, width, height, s.deviceID)
+		}
+	}
 	return stream.SendInput(ctx, input)
+}
+
+// insideFrame reports whether a point lies inside a frame of this size.
+func insideFrame(x, y, width, height int) bool {
+	return x >= 0 && y >= 0 && x < width && y < height
 }
 
 // run owns one session's whole lifetime: it opens the stream, publishes frames
