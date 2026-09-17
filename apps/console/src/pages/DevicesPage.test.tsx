@@ -25,11 +25,12 @@ function snapshotWithDevices(deviceIds: readonly string[], overrides: Partial<Co
   return { ...base, ...overrides, devices: overrides.devices ?? base.devices.filter((device) => deviceIds.includes(device.id)) }
 }
 
-// A scanned device is registered from its transport observation, so the registry
-// stores the observation serial (host:port) as the display name.
+// A scanned device may initially have only transport identity, but an adapter
+// model is a valid human-facing fallback for the device name and table column.
 const scannedDevice: DeviceView = {
   id: "device-777",
   displayName: "192.168.1.123:5555",
+  phoneModel: "SM-G9750",
   stableIdentity: "device-777",
   lifecycle: "registered",
   status: "online",
@@ -74,31 +75,74 @@ function scannedSnapshot(): ControlPlaneSnapshot {
   })
 }
 
+function warningSnapshot(): ControlPlaneSnapshot {
+  return snapshotWithDevices(["atlas-04"], {
+    projectionWarnings: [{ source: "endpoints", message: "Endpoint read was incomplete." }],
+  })
+}
+
 async function openInspect(user: ReturnType<typeof userEvent.setup>, index = 0) {
   await user.click(screen.getAllByRole("button", { name: /^Inspect / })[index])
   return await screen.findByRole("dialog")
 }
 
 describe("DevicesPage registry table", () => {
-  it("sizes the registry container to its content instead of a fixed height", () => {
+  it("states when the registry projection is incomplete", () => {
+    renderDevicesPage(warningSnapshot())
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Registry read needs attention")
+    expect(screen.getByRole("alert")).toHaveTextContent("Endpoint read was incomplete.")
+  })
+
+  it("sizes the registry container to its content and keeps the wide table scrollable", () => {
     renderDevicesPage()
 
     const region = screen.getByRole("region", { name: "Device Registry" })
     expect(region).toHaveClass("max-h-[min(62vh,680px)]")
-    expect(region).toHaveClass("overflow-auto")
+    expect(region).toHaveClass("overflow-x-auto")
+    expect(region).toHaveClass("overflow-y-auto")
     expect(region.className).not.toMatch(/(^|\s)h-\[/)
     expect(within(region).getByRole("table", { name: "Device Registry" })).toBeInTheDocument()
   })
 
-  it("titles a scanned device on its stable identity and keeps the address in the endpoint column", () => {
+  it("shows the requested projection columns and keeps transport fields separate", () => {
     renderDevicesPage(scannedSnapshot())
 
-    const row = screen.getByRole("row", { name: /device-777/ })
-    expect(within(row).getByText("device-777")).toBeInTheDocument()
-    expect(within(row).getByText("192.168.1.123:5555")).toBeInTheDocument()
-    // the identity cell leads the row and holds no transport address
-    expect(within(row).getAllByRole("cell")[0]).toHaveTextContent("device-777")
+    const row = screen.getByRole("row", { name: /SM-G9750/ })
+    const cells = within(row).getAllByRole("cell")
+    expect(screen.getByRole("columnheader", { name: "Device Name" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Phone Model" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Serial Number" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Endpoint" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Port" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Lifecycle" })).not.toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Last Seen" })).toBeInTheDocument()
+    expect(cells[0]).toHaveTextContent("SM-G9750")
+    expect(cells[0]).not.toHaveTextContent("stable · device-777")
+    expect(cells[1]).toHaveTextContent("SM-G9750")
+    expect(cells[2]).toHaveTextContent("192.168.1.123:5555")
+    expect(cells[3]).toHaveTextContent("192.168.1.123")
+    expect(cells[4]).toHaveTextContent("5555")
+    expect(cells[5]).toHaveTextContent("Online")
+    expect(cells[5]).not.toHaveTextContent("Registered")
+    expect(cells[6]).toHaveTextContent("12 sec ago")
+  })
+
+  it("withholds a stale endpoint when the device projection names another record", () => {
+    // The fixture has a current endpoint for the device, but the device record
+    // points at a different endpoint ID. The table must not silently substitute
+    // the current record and claim it is the named endpoint.
+    const device = { ...scannedDevice, endpointId: "endpoint-missing" }
+    const endpoint = { ...scannedEndpoint, id: "endpoint-current" }
+    const snapshot = snapshotWithDevices([], { devices: [device], endpoints: [endpoint] })
+    renderDevicesPage(snapshot)
+
+    const row = screen.getByRole("row", { name: /SM-G9750/ })
+    const cells = within(row).getAllByRole("cell")
+    expect(cells[2]).toHaveTextContent("—")
+    expect(cells[3]).toHaveTextContent("—")
+    expect(cells[4]).toHaveTextContent("—")
   })
 })
 
@@ -135,21 +179,26 @@ describe("DevicesPage bulk controls", () => {
 })
 
 describe("DevicesPage inspection surface", () => {
-  it("titles the inspection surface on stable identity, never on the transport address", async () => {
+  it("titles the inspection surface on a device name fallback, never on the transport address", async () => {
     const user = userEvent.setup()
     renderDevicesPage(scannedSnapshot())
 
     const sheet = await openInspect(user)
 
-    expect(within(sheet).getByRole("heading", { name: "device-777" })).toBeInTheDocument()
+    expect(within(sheet).getByRole("heading", { name: "SM-G9750" })).toBeInTheDocument()
+    expect(within(sheet).getByText("Stable Identity")).toBeInTheDocument()
+    expect(within(sheet).getAllByText("device-777").length).toBeGreaterThan(0)
     expect(within(sheet).queryByRole("heading", { name: "192.168.1.123:5555" })).not.toBeInTheDocument()
 
-    await user.click(within(sheet).getByRole("tab", { name: "Endpoint" }))
-    const endpointPanel = within(sheet).getByRole("tabpanel", { name: "Endpoint" })
-    expect(within(endpointPanel).getByText("Address")).toBeInTheDocument()
+    expect(within(sheet).queryByRole("tablist")).not.toBeInTheDocument()
+    expect(within(sheet).queryAllByRole("tab")).toHaveLength(0)
+    expect(sheet).toHaveClass("bg-popover")
+    expect(sheet.querySelectorAll(".bg-background")).toHaveLength(0)
+    expect(within(sheet).getByRole("heading", { name: "Connection & Endpoints" })).toBeInTheDocument()
+    expect(within(sheet).getByText("Address")).toBeInTheDocument()
     // the address is an endpoint attribute; for a network target the serial is the same string
-    expect(within(endpointPanel).getAllByText("192.168.1.123:5555").length).toBeGreaterThan(0)
-    expect(within(endpointPanel).getByText(/Transport endpoints are mutable/i)).toBeInTheDocument()
+    expect(within(sheet).getAllByText("192.168.1.123:5555").length).toBeGreaterThan(0)
+    expect(within(sheet).getByText(/Transport endpoints are mutable/i)).toBeInTheDocument()
   })
 
   it("submits a typed tap and renders the kernel outcome", async () => {
@@ -166,62 +215,62 @@ describe("DevicesPage inspection surface", () => {
     const sheet = await openInspect(user, 0); await user.click(within(sheet).getByRole("button", { name: "Submit to kernel" }))
     expect(within(sheet).getByRole("status")).toHaveTextContent("Kernel refusal: Lease has expired.")
   })
-  it("renders real projection data in every tab that survives", async () => {
+  it("renders the complete backed projection as one sectioned inspection flow", async () => {
     const user = userEvent.setup()
     renderDevicesPage()
 
     const sheet = await openInspect(user, 0)
 
-    // the title is the stable identity, and the identity section carries it as a record too
-    expect(within(sheet).getByRole("heading", { name: "device-101" })).toBeInTheDocument()
-    expect(within(sheet).getAllByText("device-101").length).toBeGreaterThan(1)
-    expect(within(sheet).getByText("Atlas 04")).toBeInTheDocument()
+    // The title is the device name; stable identity remains a record inside the
+    // identity section rather than replacing the human-facing name.
+    expect(within(sheet).getByRole("heading", { name: "Atlas 04" })).toBeInTheDocument()
+    expect(within(sheet).getAllByText(/device-101/).length).toBeGreaterThan(0)
+    expect(within(sheet).getAllByText("Atlas 04").length).toBeGreaterThan(1)
+    expect(within(sheet).queryByText("DEVICE INSPECTION")).not.toBeInTheDocument()
+    expect(within(sheet).getByText("Stable Identity")).toBeInTheDocument()
+    expect(within(sheet).queryByText("Lifecycle")).not.toBeInTheDocument()
     expect(within(sheet).getByText(/Rack A · Bay 04/)).toBeInTheDocument()
 
-    await user.click(within(sheet).getByRole("tab", { name: "Endpoint" }))
-    const endpointPanel = within(sheet).getByRole("tabpanel", { name: "Endpoint" })
-    expect(within(endpointPanel).getByText("192.0.2.10:5555")).toBeInTheDocument()
+    expect(within(sheet).queryAllByRole("tab")).toHaveLength(0)
+    expect(within(sheet).getByRole("heading", { name: "Connection & Endpoints" })).toBeInTheDocument()
+    expect(within(sheet).getByText("192.0.2.10:5555")).toBeInTheDocument()
     // superseded endpoint history is a real projection, not a placeholder
-    expect(within(endpointPanel).getByText("192.0.2.9:5555")).toBeInTheDocument()
+    expect(within(sheet).getByText("192.0.2.9:5555")).toBeInTheDocument()
+    expect(within(sheet).getByRole("heading", { name: "Health & Runtime" })).toBeInTheDocument()
+    expect(within(sheet).getByText("86%")).toBeInTheDocument()
+    expect(within(sheet).getByText("42 ms")).toBeInTheDocument()
+    expect(within(sheet).getAllByText("Edge Alpha").length).toBeGreaterThan(0)
 
-    await user.click(within(sheet).getByRole("tab", { name: "Health" }))
-    const healthPanel = within(sheet).getByRole("tabpanel", { name: "Health" })
-    expect(within(healthPanel).getByText("86%")).toBeInTheDocument()
-    expect(within(healthPanel).getByText("42 ms")).toBeInTheDocument()
-    expect(within(healthPanel).getByText("Edge Alpha")).toBeInTheDocument()
-
-    await user.click(within(sheet).getByRole("tab", { name: "Activity" }))
-    const activityPanel = within(sheet).getByRole("tabpanel", { name: "Activity" })
+    expect(within(sheet).getByRole("heading", { name: "Recent Events" })).toBeInTheDocument()
     // the observation appears as its own record and as the run target's evidence
-    expect(within(activityPanel).getAllByText("observation-atlas-04").length).toBeGreaterThan(1)
-    expect(within(activityPanel).getByText("run-1042 · Content validation")).toBeInTheDocument()
-    expect(within(activityPanel).getByText("lease.renewed")).toBeInTheDocument()
+    expect(within(sheet).getAllByText("observation-atlas-04").length).toBeGreaterThan(1)
+    expect(within(sheet).getByText("run-1042 · Content validation")).toBeInTheDocument()
+    expect(within(sheet).getByText("lease.renewed")).toBeInTheDocument()
 
-    await user.click(within(sheet).getByRole("tab", { name: "Access" }))
-    const accessPanel = within(sheet).getByRole("tabpanel", { name: "Access" })
-    expect(within(accessPanel).getByText("operator-1")).toBeInTheDocument()
-    expect(within(accessPanel).getByText("18")).toBeInTheDocument()
-    expect(within(accessPanel).getByText("Operations demo")).toBeInTheDocument()
+    expect(within(sheet).getByRole("heading", { name: "Control Leases" })).toBeInTheDocument()
+    expect(within(sheet).getByText("operator-1")).toBeInTheDocument()
+    expect(within(sheet).getByText("18")).toBeInTheDocument()
+    expect(within(sheet).getByText("Operations demo")).toBeInTheDocument()
   })
 
-  it("hides an inspection tab the device has no data source for", async () => {
+  it("hides an inspection section the device has no data source for", async () => {
     const user = userEvent.setup()
     renderDevicesPage(snapshotWithDevices(["orion-03"]))
 
     const sheet = await openInspect(user)
 
-    expect(within(sheet).getByRole("tab", { name: "Identity" })).toBeInTheDocument()
-    expect(within(sheet).getByRole("tab", { name: "Activity" })).toBeInTheDocument()
-    expect(within(sheet).queryByRole("tab", { name: "Access" })).not.toBeInTheDocument()
-    expect(within(sheet).queryByRole("tab", { name: "Lifecycle" })).not.toBeInTheDocument()
+    expect(within(sheet).getByRole("heading", { name: "Device Identity" })).toBeInTheDocument()
+    expect(within(sheet).getByRole("heading", { name: "Observations" })).toBeInTheDocument()
+    expect(within(sheet).queryByRole("heading", { name: "Control Leases" })).not.toBeInTheDocument()
+    expect(within(sheet).queryByRole("heading", { name: "Lifecycle" })).not.toBeInTheDocument()
   })
 
-  it("shows the access tab when the device does have lease and account data", async () => {
+  it("shows the access section when the device does have lease and account data", async () => {
     const user = userEvent.setup()
     renderDevicesPage(snapshotWithDevices(["atlas-04"]))
 
     const sheet = await openInspect(user)
 
-    expect(within(sheet).getByRole("tab", { name: "Access" })).toBeInTheDocument()
+    expect(within(sheet).getByRole("heading", { name: "Control Leases" })).toBeInTheDocument()
   })
 })

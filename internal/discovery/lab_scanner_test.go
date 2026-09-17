@@ -49,7 +49,7 @@ func TestAuthorizedLabScannerMapsRuntimeDevicesInsideTheHostRange(t *testing.T) 
 		Authorized: true,
 		LabMode:    true,
 		Enumerator: stubEnumerator{devices: []discovery.RuntimeDevice{{
-			Serial: "LABSERIAL001", Host: "192.0.2.10", Port: 5555, TransportID: "tcp:192.0.2.10:5555", Fingerprint: "fp-1",
+			Serial: "LABSERIAL001", Host: "192.0.2.10", Port: 5555, TransportID: "tcp:192.0.2.10:5555", Model: "SM-G9750", DeviceName: "ALTA 1", Fingerprint: "fp-1",
 		}, {
 			Serial: "BAD-PORT", Host: "192.0.2.11", Port: 22, TransportID: "tcp:192.0.2.11:22", Fingerprint: "fp-2",
 		}, {
@@ -76,6 +76,11 @@ func TestAuthorizedLabScannerMapsRuntimeDevicesInsideTheHostRange(t *testing.T) 
 	}
 	if !seen["LABSERIAL001"] || !seen["USB-LAB"] || !seen["BAD-PORT"] {
 		t.Fatalf("observations = %#v, want LABSERIAL001, USB-LAB and BAD-PORT", observations)
+	}
+	for _, observation := range observations {
+		if observation.Serial == "LABSERIAL001" && observation.DeviceName != "ALTA 1" {
+			t.Fatalf("LABSERIAL001 DeviceName = %q, want the captured runtime name", observation.DeviceName)
+		}
 	}
 	if seen["OUT-OF-CIDR"] {
 		t.Fatalf("observations = %#v; a device outside the profile's host range must not be observed", observations)

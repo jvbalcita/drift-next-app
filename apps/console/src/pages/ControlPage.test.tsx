@@ -497,7 +497,7 @@ describe("ControlPage device observation status", () => {
     // depend on the frame's colour.
     const departed = screen.getByRole("button", { name: /Nova 05/i })
     expect(within(departed).getByText("Offline")).toBeInTheDocument()
-    const departedMark = within(departed).getByRole("img", { name: "Nova 05 is offline: observed before, not observed in the last successful scan." })
+    const departedMark = within(departed).getByRole("img", { name: "Nova 05 is offline: observed before, but no current transport is recorded." })
     expect(departedMark.parentElement?.parentElement).toHaveClass("inset-0", "place-items-center")
 
     // Atlas 09 has never been observed. It reads as NOT OBSERVED — not as
@@ -506,7 +506,7 @@ describe("ControlPage device observation status", () => {
     const unseen = screen.getByRole("button", { name: /Atlas 09/i })
     expect(within(unseen).getByText("Not Observed")).toBeInTheDocument()
     expect(within(unseen).queryByText("Offline")).not.toBeInTheDocument()
-    expect(within(unseen).getByRole("img", { name: "Atlas 09 is not observed: no successful scan has observed this device yet." })).toBeInTheDocument()
+    expect(within(unseen).getByRole("img", { name: "Atlas 09 is not observed: no observation has been recorded for this device." })).toBeInTheDocument()
 
     // An observed device carries no such mark, so the mark is what distinguishes
     // the absent frames rather than something every frame shows.
@@ -557,7 +557,7 @@ describe("ControlPage device observation status", () => {
 
     // The copy states what the column reports: the last observation the control
     // plane recorded, rather than a live connection.
-    expect(within(dialog).getByText(/which is what the last successful scan observed rather than whether the device answers right now/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/current observation fact recorded by the control plane, not a claim that the device answers at this moment/)).toBeInTheDocument()
 
     // A device that is not currently observed is marked as such on its own row,
     // and the two absent states stay two different facts.

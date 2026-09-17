@@ -8,11 +8,11 @@ import (
 	"drift.local/drift-next/internal/action"
 )
 
-// --- the two admissions must stay separable (card ARC-75 refinement) ---------
+// --- the admissions must stay separable (card ARC-75 refinement) -------------
 //
-// `matchesAllowlist` serves two admissions that reach the same entry point an
-// operator-authored input reaches: the six argument arrays the five typed device
-// input builders produce (ADR-0010), and the read-only builders plus the
+// `matchesAllowlist` serves several admissions that reach the same entry point
+// an operator-authored input reaches: typed device inputs, catalogued device
+// settings, read-only builders, transport controls, host controls, and the
 // render-size declaration read (ARC-75). Their separation is a safety property
 // rather than a naming preference, so every half of it is asserted rather than
 // argued:
@@ -90,8 +90,9 @@ func hostArrays(t *testing.T) [][]string {
 }
 
 // settingsArrays is every array the catalogued device-settings admission
-// recognises: the five writes the two settings issue and the four read-backs
-// they verify their own postconditions with (ARC-137, ADR-0016). Every token is
+// recognises: the five writes the two settings issue, the four read-backs
+// they verify their own postconditions with, and the captured Android device
+// name read (ARC-137, ADR-0016). Every token is
 // spelled out here rather than imported from the builder, because the allow-list
 // is an independent second gate and a property asserted against the builder's own
 // output would prove nothing about the gate.
@@ -106,6 +107,7 @@ func settingsArrays() [][]string {
 		{"shell", "settings", "get", "system", "user_rotation"},
 		{"shell", "settings", "get", "secure", "autofill_service"},
 		{"shell", "cmd", "autofill", "get", "default-augmented-service-enabled"},
+		{"shell", "settings", "get", "global", "device_name"},
 	}
 }
 
@@ -133,6 +135,9 @@ var settingsNearMisses = [][]string{
 	{"shell", "settings", "get", "system", "accelerometer_rotation", "extra"},
 	{"shell", "settings", "get", "system"},
 	{"shell", "cmd", "autofill", "get", "default-augmented-service-enabled", "0"},
+	{"shell", "settings", "get", "global", "device_name", "extra"},
+	{"shell", "settings", "get", "secure", "device_name"},
+	{"shell", "settings", "get", "global", "bluetooth_name"},
 	{"shell", "settings", "list", "system"},
 	// A different binary, a shell wrapper, a flag, a path or a second command.
 	{"sh", "settings", "get", "system", "user_rotation"},
@@ -176,7 +181,7 @@ func admissionFamilies(t *testing.T) []admissionFamily {
 	t.Helper()
 	return []admissionFamily{
 		{"input", matchesDeviceInputAllowlist, inputArrays(), 6},
-		{"settings", matchesDeviceSettingsAllowlist, settingsArrays(), 9},
+		{"settings", matchesDeviceSettingsAllowlist, settingsArrays(), 10},
 		{"read-only", matchesReadOnlyAllowlist, readOnlyArrays(t), 8},
 		{"host", matchesHostAllowlist, hostArrays(t), 3},
 		{"transport", matchesTransportAllowlist, transportArrays(t), 1},

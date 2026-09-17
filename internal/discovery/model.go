@@ -55,6 +55,7 @@ type ObservedDevice struct {
 	Port        uint16
 	Serial      string
 	Model       string
+	DeviceName  string
 	Fingerprint string
 	State       DeviceLinkState
 	Evidence    map[string]string

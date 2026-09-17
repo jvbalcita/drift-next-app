@@ -270,3 +270,120 @@ func TestWatcherArrivalRequiresAnActor(t *testing.T) {
 		t.Fatalf("devices = %d, want 0: an unattributed arrival is not persisted", got)
 	}
 }
+
+// An unauthorized transport is an observation, but it is not a current
+// endpoint. Keeping it current would make the device list report ONLINE even
+// though the adapter cannot use the device until the operator accepts its
+// debugging prompt.
+func TestUnauthorizedArrivalIsObservedButNotCurrent(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	workspace := organizations.WorkspaceID("w-arrival-unauthorized")
+	newArrivalWorkspace(t, db, workspace)
+
+	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
+	observed, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial: "SER-UNAUTHORIZED",
+		Host:   "192.0.2.9",
+		Port:   5555,
+		Model:  "SM-G9750",
+		State:  discovery.LinkUnauthorized,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("RecordArrivals() error = %v", err)
+	}
+	if len(observed) != 1 {
+		t.Fatalf("RecordArrivals() returned %d observations, want one", len(observed))
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ? AND state = 'current'`, workspace); got != 0 {
+		t.Fatalf("current endpoints = %d, want none for an unauthorized transport", got)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ? AND state = 'observed'`, workspace); got != 1 {
+		t.Fatalf("observed endpoints = %d, want the unauthorized observation retained as history", got)
+	}
+	device, err := store.NewDeviceRepository(db).Get(ctx, workspace, observed[0].DeviceID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if device.DisplayName != "SM-G9750" || device.PlatformVersion != "SM-G9750" {
+		t.Fatalf("device projection = %#v, want the adapter model refreshed into name and phone-model source", device)
+	}
+}
+
+// A later adapter observation can provide the model after the first transport
+// sighting only supplied a serial/address. The transport-shaped placeholder is
+// replaceable; an operator-owned name is not.
+func TestObservationRefreshesGeneratedDeviceNameAndPhoneModel(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	workspace := organizations.WorkspaceID("w-arrival-model-refresh")
+	newArrivalWorkspace(t, db, workspace)
+	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
+
+	first, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial: "SER-MODEL-REFRESH",
+		Host:   "192.0.2.10",
+		Port:   5555,
+		State:  discovery.LinkOnline,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("first RecordArrivals() error = %v", err)
+	}
+	second, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial: "SER-MODEL-REFRESH",
+		Host:   "192.0.2.10",
+		Port:   5555,
+		Model:  "SM-G9750",
+		State:  discovery.LinkOnline,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("second RecordArrivals() error = %v", err)
+	}
+	if first[0].DeviceID != second[0].DeviceID {
+		t.Fatalf("model refresh minted a new device identity: first=%q second=%q", first[0].DeviceID, second[0].DeviceID)
+	}
+	device, err := store.NewDeviceRepository(db).Get(ctx, workspace, first[0].DeviceID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if device.DisplayName != "SM-G9750" || device.PlatformVersion != "SM-G9750" {
+		t.Fatalf("refreshed device = %#v, want model-backed display name and phone-model source", device)
+	}
+}
+
+func TestObservationCapturesAndRefreshesAndroidDeviceName(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	workspace := organizations.WorkspaceID("w-arrival-device-name")
+	newArrivalWorkspace(t, db, workspace)
+	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
+
+	first, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial:     "SER-DEVICE-NAME",
+		Model:      "SM-G9750",
+		DeviceName: "ALTA 1",
+		State:      discovery.LinkOnline,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("first RecordArrivals() error = %v", err)
+	}
+	second, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial:     "SER-DEVICE-NAME",
+		Model:      "SM-G9750",
+		DeviceName: "MEKENI 21",
+		State:      discovery.LinkOnline,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("second RecordArrivals() error = %v", err)
+	}
+	if first[0].DeviceID != second[0].DeviceID {
+		t.Fatalf("device-name refresh minted a new device identity: first=%q second=%q", first[0].DeviceID, second[0].DeviceID)
+	}
+	device, err := store.NewDeviceRepository(db).Get(ctx, workspace, first[0].DeviceID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if device.DisplayName != "MEKENI 21" || device.PlatformVersion != "SM-G9750" {
+		t.Fatalf("device projection = %#v, want the captured name and phone model", device)
+	}
+}

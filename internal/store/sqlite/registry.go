@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -143,6 +144,9 @@ func (d *DB) FinishScan(ctx context.Context, workspace organizations.WorkspaceID
 				return err
 			}
 			observed = append(observed, persisted)
+		}
+		if err := d.reconcileMissingEndpoints(ctx, tx, workspace, run, observations, observed, now, actorType, actorID); err != nil {
+			return err
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE scan_runs SET state='completed', finished_at=? WHERE workspace_id=? AND id=? AND state='running'`, now.Format(time.RFC3339Nano), workspace, id); err != nil {
 			return err
@@ -287,7 +291,10 @@ func (d *DB) upsertObservedDevice(ctx context.Context, tx *sql.Tx, workspace org
 			return result, platformerrors.Wrap(platformerrors.CodeInternal, "generate device ID", idErr)
 		}
 		deviceID = devices.DeviceID(generated)
-		displayName := strings.TrimSpace(observation.Model)
+		displayName := observedDeviceName(observation)
+		if displayName == "" {
+			displayName = strings.TrimSpace(observation.Model)
+		}
 		if displayName == "" {
 			displayName = strings.TrimSpace(observation.Serial)
 		}
@@ -297,11 +304,38 @@ func (d *DB) upsertObservedDevice(ctx context.Context, tx *sql.Tx, workspace org
 		if _, err := tx.ExecContext(ctx, `INSERT INTO devices (id, workspace_id, display_name, platform_version, state, last_seen_at, created_at, updated_at, row_version) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 1)`, deviceID, workspace, displayName, platformVersionFor(observation), at, at, at); err != nil {
 			return result, mapConstraint(err)
 		}
-	} else if _, err := tx.ExecContext(ctx, `UPDATE devices SET last_seen_at=?, updated_at=?, row_version=row_version+1 WHERE workspace_id=? AND id=?`, at, at, workspace, deviceID); err != nil {
-		return result, err
+	} else {
+		var currentDisplayName, currentPlatformVersion string
+		if err := tx.QueryRowContext(ctx, `SELECT display_name, platform_version FROM devices WHERE workspace_id=? AND id=?`, workspace, deviceID).Scan(&currentDisplayName, &currentPlatformVersion); err != nil {
+			return result, classifyContext(err)
+		}
+		model := strings.TrimSpace(observation.Model)
+		capturedName := observedDeviceName(observation)
+		switch {
+		case capturedName != "" && model != "":
+			if _, err := tx.ExecContext(ctx, `UPDATE devices SET display_name=?, platform_version=?, last_seen_at=?, updated_at=?, row_version=row_version+1 WHERE workspace_id=? AND id=?`, capturedName, model, at, at, workspace, deviceID); err != nil {
+				return result, err
+			}
+		case capturedName != "":
+			if _, err := tx.ExecContext(ctx, `UPDATE devices SET display_name=?, last_seen_at=?, updated_at=?, row_version=row_version+1 WHERE workspace_id=? AND id=?`, capturedName, at, at, workspace, deviceID); err != nil {
+				return result, err
+			}
+		case model != "":
+			displayName := currentDisplayName
+			if generatedDisplayName(currentDisplayName, observation) {
+				displayName = model
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE devices SET display_name=?, platform_version=?, last_seen_at=?, updated_at=?, row_version=row_version+1 WHERE workspace_id=? AND id=?`, displayName, model, at, at, workspace, deviceID); err != nil {
+				return result, err
+			}
+		default:
+			if _, err := tx.ExecContext(ctx, `UPDATE devices SET last_seen_at=?, updated_at=?, row_version=row_version+1 WHERE workspace_id=? AND id=?`, at, at, workspace, deviceID); err != nil {
+				return result, err
+			}
+		}
 	}
 
-	endpointID, err := d.upsertEndpoint(ctx, tx, workspace, deviceID, observation, at)
+	endpointID, err := d.upsertEndpoint(ctx, tx, workspace, deviceID, observation, at, observation.Actionable())
 	if err != nil {
 		return result, err
 	}
@@ -309,6 +343,44 @@ func (d *DB) upsertObservedDevice(ctx context.Context, tx *sql.Tx, workspace org
 	result.EndpointID = endpointID
 	result.Known = known
 	return result, nil
+}
+
+// observedDeviceName accepts a captured Android device name as a bounded,
+// single-line projection value. A malformed or sentinel value is ignored so
+// the registry can fall back to the model/identity without persisting control
+// characters or silently truncating the name.
+func observedDeviceName(observation discovery.ObservedDevice) string {
+	name := strings.TrimSpace(observation.DeviceName)
+	if name == "" || strings.EqualFold(name, "unknown") || strings.EqualFold(name, "null") {
+		return ""
+	}
+	if len(name) > 128 || strings.IndexFunc(name, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return ""
+	}
+	return name
+}
+
+// generatedDisplayName reports whether a name came from the transport rather
+// than from an operator. The registry used to seed known devices from a
+// serial/address and then never refreshed that projection, so an adapter model
+// could not replace the transport-shaped placeholder on a later observation.
+// A real operator name is preserved.
+func generatedDisplayName(name string, observation discovery.ObservedDevice) bool {
+	name = strings.TrimSpace(name)
+	if name == "" || name == "unknown" {
+		return true
+	}
+	host, port := observedTransportAddress(observation)
+	for _, candidate := range []string{
+		strings.TrimSpace(observation.Serial),
+		strings.TrimSpace(observation.Host),
+		joinHostPort(host, port),
+	} {
+		if candidate != "" && name == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 // deviceIDForObservation resolves an observation to an existing device through
@@ -358,7 +430,7 @@ func observedTransportAddress(observation discovery.ObservedDevice) (string, uin
 // TransportOf and the resolution below populate an address exactly when the
 // observation was made over TCP and leave it empty exactly when it was made over
 // USB, so comparing the address compares the transport it belongs to.
-func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, deviceID devices.DeviceID, observation discovery.ObservedDevice, at string) (string, error) {
+func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, deviceID devices.DeviceID, observation discovery.ObservedDevice, at string, actionable bool) (string, error) {
 	transport := endpoints.TransportOf(observation.Serial, observation.Host, observation.Port)
 	host, port := observedTransportAddress(observation)
 	endpointType := transportToken(transport)
@@ -368,13 +440,23 @@ func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizat
 	switch err {
 	case nil:
 		if currentHost == host && uint16(currentPort) == port {
-			if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET observed_at=?, endpoint_type=? WHERE workspace_id=? AND id=?`, at, endpointType, workspace, currentID); err != nil {
+			if actionable {
+				if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET observed_at=?, endpoint_type=?, state='current' WHERE workspace_id=? AND id=?`, at, endpointType, workspace, currentID); err != nil {
+					return "", err
+				}
+				return currentID, nil
+			}
+			// An unauthorized/offline observation is still retained as history,
+			// but it must not leave the device looking reachable through this
+			// endpoint.
+			if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET state='superseded', superseded_at=? WHERE workspace_id=? AND id=? AND state='current'`, at, workspace, currentID); err != nil {
 				return "", err
 			}
-			return currentID, nil
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET state='superseded', superseded_at=? WHERE workspace_id=? AND id=? AND state='current'`, at, workspace, currentID); err != nil {
-			return "", err
+		if actionable {
+			if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET state='superseded', superseded_at=? WHERE workspace_id=? AND id=? AND state='current'`, at, workspace, currentID); err != nil {
+				return "", err
+			}
 		}
 	case sql.ErrNoRows:
 	default:
@@ -392,10 +474,125 @@ func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizat
 	if strings.TrimSpace(host) != "" {
 		endpointHost = host
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id, workspace_id, device_id, endpoint_type, serial, host, port, state, observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'current', ?)`, endpointID, workspace, deviceID, endpointType, serial, endpointHost, port, at); err != nil {
+	state := endpoints.Observed
+	if actionable {
+		state = endpoints.Current
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id, workspace_id, device_id, endpoint_type, serial, host, port, state, observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, endpointID, workspace, deviceID, endpointType, serial, endpointHost, port, state, at); err != nil {
 		return "", mapConstraint(err)
 	}
 	return endpointID, nil
+}
+
+func joinHostPort(host string, port uint16) string {
+	if strings.TrimSpace(host) == "" || port == 0 {
+		return ""
+	}
+	return host + ":" + strconv.FormatUint(uint64(port), 10)
+}
+
+type currentEndpointRecord struct {
+	id           string
+	deviceID     devices.DeviceID
+	endpointType string
+	serial       string
+	host         string
+	port         uint16
+}
+
+type endpointObservationKey struct {
+	deviceID     devices.DeviceID
+	endpointType string
+	serial       string
+	host         string
+	port         uint16
+}
+
+func endpointKey(deviceID devices.DeviceID, endpointType, serial, host string, port uint16) endpointObservationKey {
+	return endpointObservationKey{
+		deviceID:     deviceID,
+		endpointType: endpointType,
+		serial:       strings.TrimSpace(serial),
+		host:         strings.TrimSpace(host),
+		port:         port,
+	}
+}
+
+// reconcileMissingEndpoints closes the startup gap left by a watcher baseline.
+// The watcher can only report a departure after it has taken its first view;
+// current endpoints persisted before process start therefore need a successful
+// saved-profile scan to compare them with the adapter's complete observation.
+// Entered ranges have no saved profile reference and deliberately skip this
+// reconciliation because their target is not the saved policy the endpoint
+// record may have come from.
+func (d *DB) reconcileMissingEndpoints(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, run discovery.ScanRun, requested []discovery.ObservedDevice, persisted []discovery.ObservedDevice, at time.Time, actorType, actorID string) error {
+	if strings.TrimSpace(string(run.NetworkProfileID)) == "" {
+		return nil
+	}
+
+	var addressPolicy string
+	if err := tx.QueryRowContext(ctx, `SELECT address_policy FROM network_profiles WHERE workspace_id=? AND id=?`, workspace, run.NetworkProfileID).Scan(&addressPolicy); err != nil {
+		if err == sql.ErrNoRows {
+			// A deleted profile cannot establish the scope of a reconciliation.
+			return nil
+		}
+		return classifyContext(err)
+	}
+	profile := networkprofiles.NetworkProfile{AddressPolicy: addressPolicy}
+
+	observed := make(map[endpointObservationKey]struct{}, len(requested))
+	for index, observation := range requested {
+		if !observation.Actionable() || index >= len(persisted) {
+			continue
+		}
+		host, port := observedTransportAddress(observation)
+		observed[endpointKey(persisted[index].DeviceID, transportToken(endpoints.TransportOf(observation.Serial, observation.Host, observation.Port)), observation.Serial, host, port)] = struct{}{}
+	}
+
+	rows, err := tx.QueryContext(ctx, `SELECT id, device_id, endpoint_type, COALESCE(serial,''), COALESCE(host,''), COALESCE(port,0) FROM device_endpoints WHERE workspace_id=? AND state='current'`, workspace)
+	if err != nil {
+		return classifyContext(err)
+	}
+	current := make([]currentEndpointRecord, 0)
+	for rows.Next() {
+		var endpoint currentEndpointRecord
+		var port int64
+		if err := rows.Scan(&endpoint.id, &endpoint.deviceID, &endpoint.endpointType, &endpoint.serial, &endpoint.host, &port); err != nil {
+			rows.Close()
+			return err
+		}
+		endpoint.port = uint16(port)
+		current = append(current, endpoint)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return classifyContext(err)
+	}
+	if err := rows.Close(); err != nil {
+		return classifyContext(err)
+	}
+
+	for _, endpoint := range current {
+		transport := transportFromToken(endpoint.endpointType)
+		inScope := transport == endpoints.TransportUSB || (transport == endpoints.TransportTCP && profile.ContainsHost(endpoint.host))
+		if !inScope {
+			continue
+		}
+		if _, found := observed[endpointKey(endpoint.deviceID, endpoint.endpointType, endpoint.serial, endpoint.host, endpoint.port)]; found {
+			continue
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET state='superseded', superseded_at=? WHERE workspace_id=? AND id=? AND state='current'`, at.Format(time.RFC3339Nano), workspace, endpoint.id)
+		if err != nil {
+			return err
+		}
+		if err := RequireAffected(result, "device endpoint"); err != nil {
+			return err
+		}
+		if err := d.recordMutation(ctx, tx, string(workspace), "device", string(endpoint.deviceID), "device.departed", actorType, actorID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // transportToken is the device_endpoints.endpoint_type spelling of a transport.

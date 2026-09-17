@@ -18,6 +18,7 @@ type RuntimeDevice struct {
 	Port        uint16
 	TransportID string
 	Model       string
+	DeviceName  string
 	Fingerprint string
 	State       DeviceLinkState
 }
@@ -114,6 +115,7 @@ func ObservedDeviceFromRuntime(device RuntimeDevice) ObservedDevice {
 		Port:        device.Port,
 		Serial:      device.Serial,
 		Model:       device.Model,
+		DeviceName:  device.DeviceName,
 		Fingerprint: device.Fingerprint,
 		State:       device.State,
 		Evidence: map[string]string{

@@ -4,7 +4,7 @@ import "testing"
 
 // The catalogued device-settings admission (ARC-137, ADR-0016).
 //
-// The admission is nine fixed argument arrays with no variable position, so
+// The admission is ten fixed argument arrays with no variable position, so
 // nothing here is parameterised and there is no bound to derive. What has to be
 // asserted is the other direction: every array one token away from an admitted
 // one is refused, because a recogniser that widened "the value is 0" into "the
@@ -27,6 +27,7 @@ func TestTheSettingsAdmissionAdmitsExactlyItsOwnArrays(t *testing.T) {
 		{want: "settings-rotation-zero-read", args: []string{"shell", "settings", "get", "system", "user_rotation"}},
 		{want: "settings-autofill-service-read", args: []string{"shell", "settings", "get", "secure", "autofill_service"}},
 		{want: "settings-autofill-augmented-read", args: []string{"shell", "cmd", "autofill", "get", "default-augmented-service-enabled"}},
+		{want: "settings-device-name", args: deviceNameArgv()},
 	}
 	for _, test := range tests {
 		name, ok := matchesDeviceSettingsAllowlist(test.args)

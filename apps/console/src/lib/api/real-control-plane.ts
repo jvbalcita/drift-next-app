@@ -122,6 +122,7 @@ import type {
   PolicyState,
   PolicyView,
   ProfileState,
+  ProjectionWarning,
   RecordingMediaView,
   RecordingSessionState,
   RunState as RunViewState,
@@ -231,6 +232,7 @@ export function emptyControlPlaneSnapshot(options?: {
   return {
     workspaceName: options?.workspaceName ?? "",
     workspaceId: options?.workspaceId ?? defaultWorkspaceId,
+    projectionWarnings: [],
     devices: [],
     edgeAgents: [],
     endpoints: [],
@@ -355,9 +357,14 @@ function mapTransport(transport: DeviceTransport): DeviceTransportView {
 
 export function mapDevice(device: Device): DeviceView {
   const status = mapDeviceStatus(device.status)
+  const phoneModel = meaningfulModel(device.platformVersion)
   return {
     id: device.id,
     displayName: device.displayName || device.id,
+    // The current Device RPC carries the adapter model in platform_version.
+    // Keep a named view field so the Devices page does not label that source as
+    // an Android release; a future additive RPC field can replace this mapping.
+    ...(phoneModel ? { phoneModel } : {}),
     stableIdentity: device.id,
     lifecycle: lifecycleFor(status),
     status,
@@ -377,6 +384,16 @@ export function mapDevice(device: Device): DeviceView {
     controlEligibility: eligibilityFor(status),
     capabilities: [],
   }
+}
+
+function meaningfulModel(value: string): string | undefined {
+  const model = value.trim()
+  if (model.length === 0 || model.toLowerCase() === "unknown") return undefined
+  // Older registry rows used platform_version for the adapter model, while
+  // other rows legitimately contain an Android release. Do not label a bare
+  // release number as a phone model in the new table column.
+  if (/^(?:android\s*)?\d+(?:\.\d+){0,2}$/i.test(model)) return undefined
+  return model
 }
 
 function mapEdgeState(state: EdgeAgentState): EdgeAgentViewState {
@@ -1388,6 +1405,18 @@ async function settle<T>(promise: Promise<T>, fallback: T): Promise<{ value: T; 
   }
 }
 
+function deviceEndpointProjectionMismatches(devices: readonly DeviceView[], endpoints: readonly EndpointView[]): boolean {
+  const deviceIDs = new Set(devices.map((device) => device.id))
+  const currentEndpointIDs = new Set(endpoints.filter((endpoint) => endpoint.state === "current").map((endpoint) => endpoint.id))
+  const currentEndpointDeviceIDs = new Set(endpoints.filter((endpoint) => endpoint.state === "current").map((endpoint) => endpoint.deviceId))
+  if (endpoints.some((endpoint) => endpoint.state === "current" && !deviceIDs.has(endpoint.deviceId))) return true
+  return devices.some((device) => (
+    !device.endpointId && currentEndpointDeviceIDs.has(device.id)
+  ) || (
+    device.endpointId.length > 0 && !currentEndpointIDs.has(device.endpointId)
+  ))
+}
+
 function mutation(intent: ControlPlaneIntent, message: string, extra?: Partial<MutationResult>): MutationResult {
   return { ok: true, kind: intent.type, message, ...extra }
 }
@@ -1491,9 +1520,9 @@ export class RealControlPlaneClient implements ControlPlaneClient {
     const results = await Promise.all([
       settle(this.services.workspace.getWorkspace(workspaceId).then((response) => response.workspace), undefined),
       settle(this.services.action.getHalt(workspaceId).then((response) => ({ state: response.halt?.state === ProtoHaltState.EMERGENCY_STOP ? "emergency_stop" : "clear", reason: response.halt?.reason ?? "", updatedAt: response.halt?.updatedAt ?? "", rowVersion: Number(response.halt?.rowVersion ?? 0), lastActorId: response.halt?.lastActorId ?? "" } satisfies HaltView)), { state: "clear", reason: "", updatedAt: "", rowVersion: 0, lastActorId: "" } satisfies HaltView),
-      settle(this.services.device.listDevices(workspaceId).then((response) => response.devices.map(mapDevice)), [] as DeviceView[]),
+      settle(this.services.device.listDevices(workspaceId).then((response) => response.devices.map(mapDevice)), previous.devices),
       settle(this.services.edgeAgent.listEdgeAgents(workspaceId).then((response) => response.edgeAgents.map(mapEdgeAgent)), [] as EdgeAgentView[]),
-      settle(this.services.endpoint.listDeviceEndpoints(workspaceId).then((response) => response.endpoints.map(mapEndpoint)), [] as EndpointView[]),
+      settle(this.services.endpoint.listDeviceEndpoints(workspaceId).then((response) => response.endpoints.map(mapEndpoint)), previous.endpoints),
       settle(this.services.networkProfile.listNetworkProfiles(workspaceId).then((response) => response.profiles.map(mapNetworkProfile)), [] as NetworkProfileView[]),
       settle(this.services.group.listDeviceGroups(workspaceId).then((response) => ({
         groups: response.groups.map(mapGroup),
@@ -1674,6 +1703,26 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       runtimeStatus,
     ] = results
 
+    const projectionWarnings: ProjectionWarning[] = []
+    if (devices.failed) {
+      projectionWarnings.push({
+        source: "devices",
+        message: "The device projection could not be refreshed. The last successful device list remains visible.",
+      })
+    }
+    if (endpoints.failed) {
+      projectionWarnings.push({
+        source: "endpoints",
+        message: "The endpoint projection could not be refreshed. Endpoint, serial, and port cells remain from the last successful read.",
+      })
+    }
+    if (!devices.failed && !endpoints.failed && deviceEndpointProjectionMismatches(devices.value, endpoints.value)) {
+      projectionWarnings.push({
+        source: "endpoints",
+        message: "The device and endpoint projections disagree. Only unambiguous current endpoint fields are shown.",
+      })
+    }
+
     const workspaceRecord = workspace.value as Workspace | undefined
     const assigned = new Map(accountDeviceAssignments.value.filter((item) => item.state === "active").map((item) => [item.accountId, item.deviceId]))
     const serviceByAccount = new Map(accountServiceStates.value.map((item) => [item.accountId, item.state]))
@@ -1682,6 +1731,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       workspaceName: workspaceRecord?.displayName ?? previous.workspaceName,
       halt: halt.value,
       workspaceId,
+      projectionWarnings,
       devices: devices.value,
       edgeAgents: edgeAgents.value,
       endpoints: endpoints.value,

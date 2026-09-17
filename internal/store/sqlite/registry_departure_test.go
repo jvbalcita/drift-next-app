@@ -221,3 +221,52 @@ func TestADeviceThatReturnsIsObservedAgain(t *testing.T) {
 		t.Fatalf("current endpoints after the return = %d, want the observation it came back at", got)
 	}
 }
+
+// A watcher baseline cannot see a transport that was already persisted before
+// the process started. A successful saved-profile scan is the complete view
+// that closes that gap, so a missing USB endpoint is superseded without
+// deleting its device identity or last positive observation.
+func TestSavedProfileScanSupersedesCurrentEndpointMissingFromTheScan(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	workspace := organizations.WorkspaceID("w-reconcile-scan")
+	profile := newArrivalWorkspace(t, db, workspace)
+	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
+
+	arrived, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial: "SER-MISSING-BEFORE-START",
+		Model:  "SM-G9750",
+		State:  discovery.LinkOnline,
+		Evidence: map[string]string{
+			"connection": "usb",
+		},
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("RecordArrivals() error = %v", err)
+	}
+	deviceID := arrived[0].DeviceID
+	before, err := store.NewDeviceRepository(db).Get(ctx, workspace, deviceID)
+	if err != nil {
+		t.Fatalf("Get() before scan error = %v", err)
+	}
+
+	if _, _, err := svc.StartScan(ctx, workspace, profile.ID, "reconcile-scan", "system", "control-plane"); err != nil {
+		t.Fatalf("StartScan() error = %v", err)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ? AND state = 'current'`, workspace); got != 0 {
+		t.Fatalf("current endpoints after empty saved-profile scan = %d, want none", got)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ? AND state = 'superseded'`, workspace); got != 1 {
+		t.Fatalf("superseded endpoints after empty saved-profile scan = %d, want the missing transport recorded as departed", got)
+	}
+	after, err := store.NewDeviceRepository(db).Get(ctx, workspace, deviceID)
+	if err != nil {
+		t.Fatalf("Get() after scan error = %v", err)
+	}
+	if after.ID != before.ID || after.LastSeenAt == nil || !after.LastSeenAt.Equal(*before.LastSeenAt) {
+		t.Fatalf("device after reconciliation = %#v, want identity and last positive observation preserved", after)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM audit_events WHERE workspace_id = ? AND resource_type = 'device' AND resource_id = ? AND event_name = 'device.departed'`, workspace, deviceID); got != 1 {
+		t.Fatalf("device.departed audit events = %d, want one for the missing current endpoint", got)
+	}
+}

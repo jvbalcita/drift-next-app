@@ -18,16 +18,16 @@ export const deviceStatusLabels: Record<DeviceStatus, string> = {
 }
 
 /**
- * What each status MEANS, in one clause. A status is a reading of the last
- * successful observation, never a live connection, so the copy never says
- * "connected": the control plane records what a scan observed rather than
- * whether the device answers at this moment.
+ * What each status MEANS, in one clause. A status is a reading of the current
+ * registry observation, never a live connection, so the copy never says
+ * "connected": the control plane records what it holds rather than whether
+ * the device answers at this moment.
  */
 export const deviceStatusMeanings: Record<DeviceStatus, string> = {
-  online: "observed in the last successful scan",
-  attention: "observed in the last successful scan with a condition to review",
-  offline: "observed before, not observed in the last successful scan",
-  unobserved: "no successful scan has observed this device yet",
+  online: "observed by the control plane and still current",
+  attention: "observed by the control plane with a condition to review",
+  offline: "observed before, but no current transport is recorded",
+  unobserved: "no observation has been recorded for this device",
 }
 
 /**
@@ -38,13 +38,13 @@ export const deviceStatusMeanings: Record<DeviceStatus, string> = {
 export function deviceObservationSentence(deviceName: string, status: DeviceStatus): string {
   switch (status) {
     case "online":
-      return `${deviceName} is online: observed in the last successful scan.`
+      return `${deviceName} is online: ${deviceStatusMeanings.online}.`
     case "attention":
-      return `${deviceName} needs attention: observed in the last successful scan with a condition to review.`
+      return `${deviceName} needs attention: ${deviceStatusMeanings.attention}.`
     case "offline":
-      return `${deviceName} is offline: observed before, not observed in the last successful scan.`
+      return `${deviceName} is offline: ${deviceStatusMeanings.offline}.`
     case "unobserved":
-      return `${deviceName} is not observed: no successful scan has observed this device yet.`
+      return `${deviceName} is not observed: ${deviceStatusMeanings.unobserved}.`
   }
 }
 

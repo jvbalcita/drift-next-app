@@ -239,6 +239,7 @@ type ObservedDevice struct {
 	Known         bool                   `protobuf:"varint,6,opt,name=known,proto3" json:"known,omitempty"`
 	DeviceId      string                 `protobuf:"bytes,7,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	EndpointId    string                 `protobuf:"bytes,8,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
+	DeviceName    string                 `protobuf:"bytes,9,opt,name=device_name,json=deviceName,proto3" json:"device_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -325,6 +326,13 @@ func (x *ObservedDevice) GetDeviceId() string {
 func (x *ObservedDevice) GetEndpointId() string {
 	if x != nil {
 		return x.EndpointId
+	}
+	return ""
+}
+
+func (x *ObservedDevice) GetDeviceName() string {
+	if x != nil {
+		return x.DeviceName
 	}
 	return ""
 }
@@ -686,7 +694,7 @@ const file_drift_v1_discovery_proto_rawDesc = "" +
 	"\frequested_at\x18\x05 \x01(\tR\vrequestedAt\x12\x1f\n" +
 	"\vfinished_at\x18\x06 \x01(\tR\n" +
 	"finishedAt\x12+\n" +
-	"\afailure\x18\a \x01(\v2\x11.drift.v1.FailureR\afailure\"\xeb\x01\n" +
+	"\afailure\x18\a \x01(\v2\x11.drift.v1.FailureR\afailure\"\x8c\x02\n" +
 	"\x0eObservedDevice\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12\x16\n" +
@@ -696,7 +704,9 @@ const file_drift_v1_discovery_proto_rawDesc = "" +
 	"\x05known\x18\x06 \x01(\bR\x05known\x12\x1b\n" +
 	"\tdevice_id\x18\a \x01(\tR\bdeviceId\x12\x1f\n" +
 	"\vendpoint_id\x18\b \x01(\tR\n" +
-	"endpointId\"\xaa\x01\n" +
+	"endpointId\x12\x1f\n" +
+	"\vdevice_name\x18\t \x01(\tR\n" +
+	"deviceName\"\xaa\x01\n" +
 	"\x10StartScanRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12,\n" +

@@ -221,6 +221,8 @@ func getStateArgv() []string { return []string{"get-state"} }
 
 func screencapArgv() []string { return []string{"exec-out", "screencap", "-p"} }
 
+func deviceNameArgv() []string { return []string{"shell", "settings", "get", "global", "device_name"} }
+
 func getPropArgv(property string) ([]string, error) {
 	if _, ok := allowedProperties[property]; !ok {
 		return nil, fmt.Errorf("%w: %s", ErrPropertyNotAllowlisted, property)
@@ -311,10 +313,10 @@ func matchesAllowlist(args []string) (string, bool) {
 	return matchesHostAllowlist(args)
 }
 
-// matchesDeviceSettingsAllowlist recognises exactly the nine argument arrays the
-// two catalogued device settings issue: the five writes that change rotation
-// lock and autofill, and the four reads each operation uses to verify its own
-// postcondition by reading the setting back off the device.
+// matchesDeviceSettingsAllowlist recognises exactly the ten argument arrays the
+// catalogued device settings use: the five writes that change rotation lock and
+// autofill, the four reads each operation uses to verify its own postcondition,
+// and the fixed read of Android's global device_name setting.
 //
 // Every array is arity-fixed and literal. There is no decimal, no name, no flag,
 // no path and no second command in any position, so this admission cannot
@@ -351,6 +353,8 @@ func matchesDeviceSettingsAllowlist(args []string) (string, bool) {
 		return "settings-autofill-service-read", true
 	case equalArgv(args, []string{"shell", "cmd", "autofill", "get", "default-augmented-service-enabled"}):
 		return "settings-autofill-augmented-read", true
+	case equalArgv(args, deviceNameArgv()):
+		return "settings-device-name", true
 	default:
 		return "", false
 	}
@@ -359,7 +363,7 @@ func matchesDeviceSettingsAllowlist(args []string) (string, bool) {
 // matchesReadOnlyAllowlist recognises the read-only builders this adapter issues
 // and the render-size declaration read admitted for the render-space
 // cross-check. It is deliberately a function of its own rather than an inline
-// switch, because the separation between the two admissions is a safety property
+// switch, because the separation between admissions is a safety property
 // and a property can only be asserted if both sides of it can be asked
 // independently in a test.
 func matchesReadOnlyAllowlist(args []string) (string, bool) {

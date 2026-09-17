@@ -57,6 +57,7 @@ func runtimeDevice(device adb.DiscoveredDevice) discovery.RuntimeDevice {
 		Port:        port,
 		TransportID: device.TransportID,
 		Model:       device.Model,
+		DeviceName:  device.DeviceName,
 		State:       runtimeLinkState(device.State),
 	}
 }
