@@ -226,7 +226,7 @@ describe("ControlPage OTG Setup tab", () => {
     // The saved network control is pointed somewhere ELSE. Whatever the range
     // Scan observes, it cannot be this profile's range (198.51.100.0/24).
     await user.click(screen.getByRole("button", { name: "Saved Network" }))
-    await user.click(screen.getByRole("menuitem", { name: "Lab B review" }))
+    await user.click(await screen.findByRole("menuitem", { name: "Lab B review" }))
     expect(screen.getByRole("button", { name: "Saved Network" })).toHaveTextContent("Lab B review")
 
     // The range the operator types is the scan's target: the second range's
