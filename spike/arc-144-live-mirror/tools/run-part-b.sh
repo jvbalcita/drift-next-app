@@ -94,15 +94,20 @@ elif [[ "$MODE" == "tauri" ]]; then
   # inside the run and the rig would time out waiting for the probe.
   TAURI_CONFIG=$(printf '{"build":{"beforeDevCommand":"","devUrl":"http://127.0.0.1:%s/"}}' "$PORT")
   CONSOLE_DIR=${CONSOLE_DIR:-$PWD/../../apps/console}
-  CONSOLE_BIN=${CONSOLE_BIN:-$CONSOLE_DIR/src-tauri/target/debug/drift_command_center}
+  # What is already running before this script starts is not this script's to stop:
+  # only instances that appear after the launch are closed at the end. (The first
+  # version matched the app by its absolute path, which missed it -- `tauri dev`
+  # starts it as `target/debug/...` -- and left a window and its dev CLI behind.)
+  BEFORE_APP=$(pgrep -f drift_command_center || true)
   ( cd "$CONSOLE_DIR" && pnpm exec tauri dev --config "$TAURI_CONFIG" ) \
     > "results/logs/$LABEL-tauri.log" 2>&1 &
   TAURI_PID=$!
   echo "started the console's Tauri shell (pid $TAURI_PID) at the rig page"
   wait "$SERVER_PID" || true
-  # Close only what this script started: the app binary it built, by its exact
-  # path, and the dev CLI by the pid it was given.
-  pkill -f "$CONSOLE_BIN" 2>/dev/null || true
+  for pid in $(pgrep -f drift_command_center || true); do
+    case " $BEFORE_APP " in *" $pid "*) ;; *) kill "$pid" 2>/dev/null || true ;; esac
+  done
+  pkill -P "$TAURI_PID" 2>/dev/null || true
   kill "$TAURI_PID" 2>/dev/null || true
 else
   DRIVER_FLAGS=()
