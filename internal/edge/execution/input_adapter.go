@@ -21,10 +21,10 @@ import (
 )
 
 // inputCapabilities are the capabilities this boundary can execute. They are
-// the union of what the five catalog entries require, so the actor's capability
-// check is a real check and not a formality.
+// the union of what the catalog entries it runs require, so the actor's
+// capability check is a real check and not a formality.
 func inputCapabilities() []action.Capability {
-	return []action.Capability{action.CapabilityTap, action.CapabilityGesture, action.CapabilityTextInput, action.CapabilitySystemInput}
+	return []action.Capability{action.CapabilityTap, action.CapabilityGesture, action.CapabilityTextInput, action.CapabilitySystemInput, action.CapabilityDeviceSettings}
 }
 
 // countingTransport records whether the device was actually reached. It exists
@@ -261,7 +261,8 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 			return adapter.Execution{}, &adapter.ExecutionError{Cause: err, FailureClass: renderSpaceFailureClass(err)}
 		}
 	}
-	if err := runInput(ctx, inputs, payload, kind, intent.Workspace); err != nil {
+	readback, readBack, err := runInput(ctx, inputs, payload, kind, intent.Workspace)
+	if err != nil {
 		// The typed payload and the transport's own diagnostics are never
 		// echoed: a failing device command can quote what it was given.
 		return adapter.Execution{}, &adapter.ExecutionError{
@@ -269,6 +270,29 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 			Dispatched:   counted.attempted(),
 			FailureClass: failureClassFor(err),
 		}
+	}
+	if readBack {
+		// A catalogued settings operation read its own postcondition back off
+		// the device. There is nothing for the observation port to add, and that
+		// reading is what the action catalog's declared postcondition is
+		// evaluated against - so a setting that was written and did not read back
+		// as required fails here rather than being reported as applied.
+		//
+		// The reading names itself, because the kernel requires a completion to
+		// identify the observation it was evaluated against and for a settings
+		// operation the read-back IS that observation.
+		token := readback.Token()
+		observation := PostconditionObservation{SettingReadback: &readback, Token: token}
+		report.observation = observation
+		report.observed = true
+		postcondition, failure, outcome := evaluatePostcondition(spec, intent, payload, observation)
+		return adapter.Execution{
+			Outcome:          outcome,
+			Postcondition:    postcondition,
+			FailureClass:     failure,
+			Dispatched:       true,
+			ObservationToken: token,
+		}, nil
 	}
 	observation, observeErr := a.observer.ObservePostcondition(ctx, intent, payload)
 	if observeErr != nil {
@@ -297,20 +321,33 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 // runInput dispatches to exactly the primitive the payload names. A typed-text
 // payload also carries the workspace the reference belongs to, because the value
 // can only be released into the workspace that registered it.
-func runInput(ctx context.Context, inputs *Inputs, payload InputPayload, kind action.Kind, workspace string) error {
+//
+// The second return reports that the primitive read its own postcondition back
+// off the device and hands that reading to the caller. The catalogued settings
+// operations are the kinds that do: their postcondition is a device SETTING, so
+// the read-back is part of the operation and there is nothing for the
+// observation port to add. Every other kind returns false and is observed
+// through the port as before.
+func runInput(ctx context.Context, inputs *Inputs, payload InputPayload, kind action.Kind, workspace string) (SettingReadback, bool, error) {
 	switch kind {
 	case action.Tap:
-		return inputs.Tap(ctx, *payload.Tap)
+		return SettingReadback{}, false, inputs.Tap(ctx, *payload.Tap)
 	case action.Swipe:
-		return inputs.Swipe(ctx, *payload.Swipe)
+		return SettingReadback{}, false, inputs.Swipe(ctx, *payload.Swipe)
 	case action.TextInput:
-		return inputs.TypeText(ctx, TypeTextRequest{Text: *payload.Text, Workspace: workspace})
+		return SettingReadback{}, false, inputs.TypeText(ctx, TypeTextRequest{Text: *payload.Text, Workspace: workspace})
 	case action.KeyEvent:
-		return inputs.KeyEvent(ctx, *payload.KeyEvent)
+		return SettingReadback{}, false, inputs.KeyEvent(ctx, *payload.KeyEvent)
 	case action.LaunchApp:
-		return inputs.LaunchApp(ctx, *payload.Launch)
+		return SettingReadback{}, false, inputs.LaunchApp(ctx, *payload.Launch)
+	case action.RotationLock:
+		readback, err := inputs.ApplyRotationLock(ctx)
+		return readback, true, err
+	case action.AutofillOff:
+		readback, err := inputs.ApplyAutofillOff(ctx)
+		return readback, true, err
 	default:
-		return platformerrors.New(platformerrors.CodeInvalidInput, "device input kind is not dispatchable")
+		return SettingReadback{}, false, platformerrors.New(platformerrors.CodeInvalidInput, "device input kind is not dispatchable")
 	}
 }
 

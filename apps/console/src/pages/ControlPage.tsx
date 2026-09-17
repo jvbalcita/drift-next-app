@@ -9,8 +9,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
+import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceSettingName, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import { deviceObservationSentence, deviceStatusLabels, notObserved } from "@/lib/device-status"
+import { deviceSettingLabels, deviceSettingNames } from "@/lib/device-settings"
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import { captureSerialForDevice } from "./page-utils"
@@ -236,7 +237,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
     {!workspacePinned ? <WorkspaceToggle side={settings.workspaceSide} onToggle={() => { setWorkspaceOpen(true); setWorkspacePinned(true) }} /> : null}
     <div className="mt-6 flex flex-wrap items-center gap-2 border-y border-border py-3" aria-label="Control workspace toolbar">
       <span className="mr-auto text-xs"><span className="drift-data font-semibold">{selectedCount}</span> selected · {settings.controlSmall ? "compact-frame control enabled" : source ? "click another phone to select followers" : "click a phone to open its large frame"}</span>
-      <ConsoleSettingsDialog settings={settings} onChange={setSettings} modalPinned={modalPinned} onModalPinnedChange={setModalPinned} />
+      <ConsoleSettingsDialog settings={settings} onChange={setSettings} modalPinned={modalPinned} onModalPinnedChange={setModalPinned} dispatch={dispatch} />
       <DeviceListDialog devices={snapshot.devices} endpoints={snapshot.endpoints} onReload={() => { void runTask("refreshDeviceList", { type: "refresh" }) }} pendingAction={pendingAction} />
       {source ? <Button size="sm" variant="outline" onClick={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]) }}><X className="size-3.5" aria-hidden="true" />Close Screen</Button> : null}
       <Button size="sm" variant="outline" disabled={!source || modalPinned} onClick={() => setPosition(initialPosition)}><Crosshair className="size-3.5" aria-hidden="true" />Reset Position</Button>
@@ -367,8 +368,116 @@ function OtgSetupPanel({ endpoints, profiles, port, onPortChange, startIp, onSta
   </>
 }
 
-function ConsoleSettingsDialog({ settings, onChange, modalPinned, onModalPinnedChange }: { settings: ConsoleSettings; onChange: (value: ConsoleSettings) => void; modalPinned: boolean; onModalPinnedChange: (value: boolean) => void }) {
-  return <Dialog><DialogTrigger render={<Button size="sm" variant="outline" />}><Settings2 className="size-3.5" aria-hidden="true" />Settings</DialogTrigger><DialogContent className="max-h-[calc(100vh-2rem)] max-w-xl overflow-y-auto rounded-none"><DialogHeader><DialogTitle>Console Settings</DialogTitle><DialogDescription>Local display and interaction preferences. These controls do not alter device policy, transport, or runtime state.</DialogDescription></DialogHeader><Tabs defaultValue="appearance" className="border-y border-border py-4"><TabsList className="grid w-full grid-cols-2 rounded-none border-b border-border bg-muted/30 p-1" aria-label="Console Settings sections"><TabsTrigger value="appearance">Workspace Appearance</TabsTrigger><TabsTrigger value="presentation">Device Presentation</TabsTrigger></TabsList><TabsContent value="appearance" className="space-y-5 p-1 pt-5"><Slider label="Devices Gap" value={settings.gap} min={4} max={32} unit="px" onChange={(gap) => onChange({ ...settings, gap })} /><Slider label="Info Opacity" value={settings.opacity} min={30} max={100} unit="%" onChange={(opacity) => onChange({ ...settings, opacity })} /><SettingToggle label="Auto Screen Off" description="Preference for inactive compact frames." checked={settings.autoScreenOff} onChange={(autoScreenOff) => onChange({ ...settings, autoScreenOff })} /><SettingToggle label="Control Small Screen" description="Uses compact-frame control rather than opening the big device." checked={settings.controlSmall} onChange={(controlSmall) => onChange({ ...settings, controlSmall })} /><Choice label="Connection" value={settings.connection} options={["WebRTC", "TCP"]} onChange={(connection) => onChange({ ...settings, connection: connection as ConsoleSettings["connection"] })} /><Choice label="Priority" value={settings.priority} options={["Speed", "Quality"]} onChange={(priority) => onChange({ ...settings, priority: priority as ConsoleSettings["priority"] })} /></TabsContent><TabsContent value="presentation" className="space-y-5 p-1 pt-5"><PositionToggle label="Control Position" value={settings.controlsSide} onChange={(controlsSide) => onChange({ ...settings, controlsSide })} /><PositionToggle label="Workspace Position" value={settings.workspaceSide} onChange={(workspaceSide) => onChange({ ...settings, workspaceSide })} /><SettingToggle label="Connect Tag" description="Show the OTG or Hold badge on compact frames." checked={settings.showTag} onChange={(showTag) => onChange({ ...settings, showTag })} /><SettingToggle label="Device Index" description="Show the numbered device index." checked={settings.showIndex} onChange={(showIndex) => onChange({ ...settings, showIndex })} /><SettingToggle label="Device Name" description="Show the device display name." checked={settings.showName} onChange={(showName) => onChange({ ...settings, showName })} /><SettingToggle label="Device IP" description="Show the compact-frame endpoint identifier." checked={settings.showIp} onChange={(showIp) => onChange({ ...settings, showIp })} /><SettingToggle label="Modal Control Position" description="Pinned places the big frame beside the device grid; drag floats it above the page." checked={modalPinned} onChange={onModalPinnedChange} onLabel="Pinned" offLabel="Drag" /></TabsContent></Tabs></DialogContent></Dialog>
+/**
+ * The Console Settings dialog.
+ *
+ * Its description is load-bearing: two of its tabs are local display preferences
+ * and one of them is not. The Fleet Device Settings tab changes the DEVICES
+ * themselves, so the description says so rather than leaving a disclaimer that
+ * the controls "do not alter device policy, transport, or runtime state" over a
+ * control that does alter device state.
+ */
+function ConsoleSettingsDialog({ settings, onChange, modalPinned, onModalPinnedChange, dispatch }: { settings: ConsoleSettings; onChange: (value: ConsoleSettings) => void; modalPinned: boolean; onModalPinnedChange: (value: boolean) => void; dispatch: DispatchIntent }) {
+  return <Dialog><DialogTrigger render={<Button size="sm" variant="outline" />}><Settings2 className="size-3.5" aria-hidden="true" />Settings</DialogTrigger><DialogContent className="max-h-[calc(100vh-2rem)] max-w-xl overflow-y-auto rounded-none"><DialogHeader><DialogTitle>Console Settings</DialogTitle><DialogDescription>Workspace Appearance and Device Presentation are local display and interaction preferences; they do not alter device policy, transport, or runtime state. Fleet Device Settings DOES alter device state: it applies the two settings this fleet requires to every device in the workspace&apos;s registry, through the control plane&apos;s lease, fencing and postcondition path.</DialogDescription></DialogHeader><Tabs defaultValue="appearance" className="border-y border-border py-4"><TabsList className="grid w-full grid-cols-3 rounded-none border-b border-border bg-muted/30 p-1" aria-label="Console Settings sections"><TabsTrigger value="appearance" className="rounded-none">Workspace Appearance</TabsTrigger><TabsTrigger value="presentation" className="rounded-none">Device Presentation</TabsTrigger><TabsTrigger value="fleet" className="rounded-none">Fleet Device Settings</TabsTrigger></TabsList><TabsContent value="appearance" className="space-y-5 p-1 pt-5"><Slider label="Devices Gap" value={settings.gap} min={4} max={32} unit="px" onChange={(gap) => onChange({ ...settings, gap })} /><Slider label="Info Opacity" value={settings.opacity} min={30} max={100} unit="%" onChange={(opacity) => onChange({ ...settings, opacity })} /><SettingToggle label="Auto Screen Off" description="Preference for inactive compact frames." checked={settings.autoScreenOff} onChange={(autoScreenOff) => onChange({ ...settings, autoScreenOff })} /><SettingToggle label="Control Small Screen" description="Uses compact-frame control rather than opening the big device." checked={settings.controlSmall} onChange={(controlSmall) => onChange({ ...settings, controlSmall })} /><Choice label="Connection" value={settings.connection} options={["WebRTC", "TCP"]} onChange={(connection) => onChange({ ...settings, connection: connection as ConsoleSettings["connection"] })} /><Choice label="Priority" value={settings.priority} options={["Speed", "Quality"]} onChange={(priority) => onChange({ ...settings, priority: priority as ConsoleSettings["priority"] })} /></TabsContent><TabsContent value="presentation" className="space-y-5 p-1 pt-5"><PositionToggle label="Control Position" value={settings.controlsSide} onChange={(controlsSide) => onChange({ ...settings, controlsSide })} /><PositionToggle label="Workspace Position" value={settings.workspaceSide} onChange={(workspaceSide) => onChange({ ...settings, workspaceSide })} /><SettingToggle label="Connect Tag" description="Show the OTG or Hold badge on compact frames." checked={settings.showTag} onChange={(showTag) => onChange({ ...settings, showTag })} /><SettingToggle label="Device Index" description="Show the numbered device index." checked={settings.showIndex} onChange={(showIndex) => onChange({ ...settings, showIndex })} /><SettingToggle label="Device Name" description="Show the device display name." checked={settings.showName} onChange={(showName) => onChange({ ...settings, showName })} /><SettingToggle label="Device IP" description="Show the compact-frame endpoint identifier." checked={settings.showIp} onChange={(showIp) => onChange({ ...settings, showIp })} /><SettingToggle label="Modal Control Position" description="Pinned places the big frame beside the device grid; drag floats it above the page." checked={modalPinned} onChange={onModalPinnedChange} onLabel="Pinned" offLabel="Drag" /></TabsContent><TabsContent value="fleet" className="space-y-5 p-1 pt-5"><FleetDeviceSettingsPanel dispatch={dispatch} /></TabsContent></Tabs></DialogContent></Dialog>
+}
+
+/**
+ * The fleet device-settings apply.
+ *
+ * Two settings, one control, because they are two halves of one preparation step:
+ * the recorded skills are coordinate-based, which a rotating device invalidates,
+ * and the Android autofill popup lands on top of the login forms this fleet
+ * drives. Both are the control plane's catalogued operations, so this panel
+ * offers them and nothing else: there is no settings key here to compose, and no
+ * per-device list, because the fleet is read from the registry by the control
+ * plane rather than asserted by this console.
+ *
+ * The outcomes are rendered PER DEVICE AND PER SETTING. An aggregate verdict
+ * would hide the one device that is still rotating, which is the only row an
+ * operator has to act on.
+ */
+function FleetDeviceSettingsPanel({ dispatch }: { dispatch: DispatchIntent }) {
+  const [confirmed, setConfirmed] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [applyView, setApplyView] = useState<DeviceSettingsApplyView | null>(null)
+  const [failureMessage, setFailureMessage] = useState("")
+  const requested = [...deviceSettingNames]
+
+  function applyToFleet() {
+    if (!confirmed || pending) return
+    setPending(true)
+    const operation = dispatch({ type: "applyFleetDeviceSettings", settings: requested, confirmed: true })
+    toast.promise(operation, {
+      loading: "Applying device settings to the fleet…",
+      success: (result) => result.ok
+        ? { message: "Fleet device settings applied", description: result.message }
+        : { message: "Fleet device settings not applied", description: result.message },
+      error: (error) => ({ message: "Fleet device settings not applied", description: errorMessage(error) }),
+    })
+    void operation.then(
+      (result) => {
+        setApplyView(result.ok ? result.deviceSettingsApply ?? null : null)
+        setFailureMessage(result.ok ? "" : result.message)
+        setPending(false)
+      },
+      (error: unknown) => {
+        setApplyView(null)
+        setFailureMessage(errorMessage(error))
+        setPending(false)
+      },
+    )
+  }
+
+  return <>
+    <div className="border-l-2 border-primary pl-3">
+      <p className="text-xs font-semibold">Fleet Device Settings</p>
+      <p className="mt-1 text-[11px] leading-4 text-muted-foreground">These change the DEVICES, not this view. Applying runs through the control plane: one control session, a lease per device, one attempt per setting, and the setting read back off the device before it is reported as applied.</p>
+    </div>
+    <ul className="space-y-2">
+      {requested.map((name) => <li key={name} className="flex items-start gap-2 border border-border p-3">
+        <span className="grid size-7 shrink-0 place-items-center border border-primary/30 bg-card text-primary">{name === "rotation_lock" ? <RotateCw className="size-3.5" aria-hidden="true" /> : <Keyboard className="size-3.5" aria-hidden="true" />}</span>
+        <span className="min-w-0">
+          <span className="block text-xs font-semibold">{deviceSettingLabels[name]}</span>
+          <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{deviceSettingPurpose(name)}</span>
+        </span>
+      </li>)}
+    </ul>
+    <SettingToggle label="Confirm Fleet Apply" description="Required for every device: one of these settings rewrites a secure setting, so the control plane's policy decision refuses it without the operator's explicit approval." checked={confirmed} onChange={setConfirmed} onLabel="Confirmed" offLabel="Not confirmed" />
+    <div className="space-y-2">
+      <ControlLabel label="Apply To Fleet" explanation="Sends all of the settings above to every device in this workspace's registry that is not retired, one device at a time. A device that is under another operator's control, or that has no current transport, is reported as its own refusal and the rest of the fleet is still prepared." />
+      <Button type="button" className="w-full rounded-none" disabled={!confirmed || pending} aria-busy={pending} onClick={applyToFleet}>{pending ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <RotateCw className="size-3.5" aria-hidden="true" />}Apply to Fleet</Button>
+    </div>
+    {failureMessage !== "" ? <OperatorNotice>{failureMessage}</OperatorNotice> : null}
+    {applyView ? <FleetSettingsResult view={applyView} /> : null}
+  </>
+}
+
+/** What each setting is for, stated once so the panel cannot disagree with itself. */
+function deviceSettingPurpose(name: DeviceSettingName): string {
+  return name === "rotation_lock"
+    ? "Holds the device in its natural orientation and turns auto-rotate off. A coordinate-recorded skill is invalid in any other orientation, so this is what makes a recording replayable."
+    : "Removes the selected autofill service and disables the augmented one. The autofill popup otherwise lands on top of the login forms this fleet drives."
+}
+
+/**
+ * FleetSettingsResult renders the control plane's own rows.
+ *
+ * Every device gets its own row for every setting, with the sentence the control
+ * plane reported for it, and a row whose setting was not read back off the device
+ * says so rather than reading like a confirmed change.
+ */
+function FleetSettingsResult({ view }: { view: DeviceSettingsApplyView }) {
+  return <div className="border border-border">
+    <p className="border-b border-border bg-muted/30 px-3 py-2 text-xs" aria-live="polite"><span className="drift-data font-semibold">{view.appliedDevices}</span> of <span className="drift-data font-semibold">{view.totalDevices}</span> device(s) applied and verified every requested setting · <span className="drift-data font-semibold">{view.failedDevices}</span> did not</p>
+    {view.outcomes.length === 0
+      ? <p className="px-3 py-3 text-[11px] leading-4 text-muted-foreground">No device was reported for this apply, so there is no per-device outcome to read.</p>
+      : <div className="max-h-64 overflow-y-auto"><table className="w-full text-left text-xs"><caption className="sr-only">Every device&apos;s outcome for every setting this apply ran</caption><thead className="sticky top-0 bg-muted/80 text-[10px] uppercase tracking-[.08em] text-muted-foreground"><tr><th scope="col" className="px-3 py-2 font-semibold">Device</th><th scope="col" className="px-3 py-2 font-semibold">Setting</th><th scope="col" className="px-3 py-2 font-semibold">Outcome</th><th scope="col" className="px-3 py-2 font-semibold">Detail</th></tr></thead><tbody className="divide-y divide-border">{view.outcomes.map((outcome, index) => <tr key={`${outcome.deviceId}-${outcome.setting}-${index}`}>
+        <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">{outcome.deviceId}</td>
+        <td className="px-3 py-2">{deviceSettingLabels[outcome.setting]}</td>
+        <td className="px-3 py-2 font-medium">{outcome.applied ? "Applied" : "Not applied"}{outcome.verified ? " · read back off the device" : " · no read-back"}</td>
+        <td className="px-3 py-2 text-muted-foreground">{outcome.message}</td>
+      </tr>)}</tbody></table></div>}
+  </div>
 }
 
 function DeviceListDialog({ devices, endpoints, onReload, pendingAction }: { devices: readonly DeviceView[]; endpoints: ControlPlaneSnapshot["endpoints"]; onReload: () => void; pendingAction: TaskAction | null }) {

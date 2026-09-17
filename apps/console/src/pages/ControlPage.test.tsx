@@ -569,3 +569,96 @@ describe("ControlPage device observation status", () => {
     expect(within(within(dialog).getByRole("row", { name: /Atlas 04/ })).getByText("Online")).toBeInTheDocument()
   })
 })
+
+/**
+ * The Console Settings dialog's Fleet Device Settings tab.
+ *
+ * It is the only control in that dialog that changes a DEVICE, so two things are
+ * asserted rather than assumed: the dialog says so, and the apply names the
+ * reviewed settings and no device list, because the fleet is read from the
+ * registry by the control plane.
+ */
+describe("ControlPage Console Settings fleet device settings", () => {
+  function harness() {
+    const client = new MockControlPlaneClient()
+    const intents: ControlPlaneIntent[] = []
+    const dispatch = async (intent: ControlPlaneIntent) => {
+      intents.push(intent)
+      return client.dispatch(intent)
+    }
+    return { client, intents, dispatch }
+  }
+
+  async function openFleetTab(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: "Settings" }))
+    await user.click(await screen.findByRole("tab", { name: "Fleet Device Settings" }))
+  }
+
+  it("says in the dialog that this tab changes device state", async () => {
+    const user = userEvent.setup()
+    const { client, dispatch } = harness()
+    render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
+
+    await user.click(screen.getByRole("button", { name: "Settings" }))
+    // The old description claimed these controls were local display preferences
+    // that never alter device state. That sentence is now false of one of its
+    // tabs, so it is gone rather than left in place.
+    expect(screen.queryByText(/These controls do not alter device policy, transport, or runtime state/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Fleet Device Settings DOES alter device state/i)).toBeInTheDocument()
+
+    await user.click(await screen.findByRole("tab", { name: "Fleet Device Settings" }))
+    expect(screen.getByText(/These change the DEVICES, not this view/i)).toBeInTheDocument()
+    expect(screen.getByText("Rotation Lock")).toBeInTheDocument()
+    expect(screen.getByText("Autofill Off")).toBeInTheDocument()
+  })
+
+  it("does not apply anything until the operator confirms, and then reports every device and setting", async () => {
+    const user = userEvent.setup()
+    // The fleet is seeded WITHOUT one device's current endpoint, and both the page
+    // and the client are given that same fleet: the control plane reads the fleet
+    // from its own registry, so a device nothing has observed has to be reported
+    // as its own refusal rather than folded into a count.
+    const seeded = new MockControlPlaneClient().getSnapshot()
+    seeded.endpoints = seeded.endpoints.filter((endpoint) => endpoint.deviceId !== "nova-02")
+    const client = new MockControlPlaneClient(seeded)
+    const intents: ControlPlaneIntent[] = []
+    const dispatch = async (intent: ControlPlaneIntent) => {
+      intents.push(intent)
+      return client.dispatch(intent)
+    }
+    render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
+
+    await openFleetTab(user)
+
+    const apply = screen.getByRole("button", { name: "Apply to Fleet" })
+    expect(apply).toBeDisabled()
+    await user.click(apply)
+    expect(intents.some((intent) => intent.type === "applyFleetDeviceSettings")).toBe(false)
+
+    await user.click(screen.getByRole("switch", { name: /Confirm Fleet Apply/i }))
+    expect(apply).toBeEnabled()
+    await user.click(apply)
+
+    await waitFor(() => {
+      expect(intents.some((intent) => intent.type === "applyFleetDeviceSettings")).toBe(true)
+    })
+    const applied = intents.find((intent) => intent.type === "applyFleetDeviceSettings")
+    // The closed set of reviewed settings, in the order they are offered, and NO
+    // device list: a console cannot assert which devices are attached.
+    expect(applied).toEqual({ type: "applyFleetDeviceSettings", settings: ["rotation_lock", "autofill_off"], confirmed: true })
+
+    const table = await screen.findByRole("table", { name: /every setting this apply ran/i })
+    // One row per device per setting: 6 devices x 2 settings, plus the header.
+    expect(within(table).getAllByRole("row")).toHaveLength(13)
+    expect(within(table).getAllByText("nova-02")).toHaveLength(2)
+    // The outcome cell also carries whether the device was read back, so it is
+    // matched by prefix: "Applied · read back off the device" is a confirmed
+    // change and "Not applied · no read-back" is a device nothing was read from.
+    expect(within(table).getAllByText(/^Not applied/)).toHaveLength(2)
+    expect(within(table).getAllByText(/^Applied/)).toHaveLength(10)
+    expect(within(table).getAllByText(/no read-back/)).toHaveLength(2)
+    // The refused device carries the control plane's own sentence, not a generic
+    // failure.
+    expect(within(table).getAllByText(/no single current transport endpoint/)).toHaveLength(2)
+  })
+})

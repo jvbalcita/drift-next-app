@@ -672,6 +672,50 @@ export interface SettingHistoryView {
 
 export type DeviceActionKind = "observe" | "health_check" | "capture" | "home" | "back"
 
+/**
+ * The two device settings the fleet actually requires, as the console names
+ * them. They are a closed set: each is a reviewed operation the control plane
+ * has a fixed device command for, not a settings key an operator composes, so a
+ * surface can offer both and nothing else.
+ */
+export type DeviceSettingName = "rotation_lock" | "autofill_off"
+
+/**
+ * The name a reported row carries. It is the console's own name for a setting it
+ * knows, or `unrecognised` for a setting the control plane reported and this
+ * build does not know — which is kept and shown rather than dropped, because a
+ * dropped row is a device whose outcome nobody can read.
+ */
+export type DeviceSettingReportedName = DeviceSettingName | "unrecognised"
+
+/**
+ * ONE setting's outcome for ONE device, as the control plane reported it.
+ *
+ * There is a row per device per setting and never one verdict for the fleet: an
+ * operator has to be able to read WHICH device was left unlocked, and for which
+ * setting. `verified` reports that the DEVICE's own read-back was taken, so a row
+ * with `verified: false` is one where nothing was read off the device at all.
+ */
+export interface DeviceSettingOutcomeView {
+  deviceId: string
+  setting: DeviceSettingReportedName
+  applied: boolean
+  verified: boolean
+  /** Empty when the setting was applied. */
+  refusal: string
+  failureClass: string
+  /** The control plane's fixed operator-facing sentence for this row. */
+  message: string
+}
+
+/** Every device's own answer for every setting an apply ran. */
+export interface DeviceSettingsApplyView {
+  totalDevices: number
+  appliedDevices: number
+  failedDevices: number
+  outcomes: readonly DeviceSettingOutcomeView[]
+}
+
 export type ControlPlaneIntent =
   | { type: "refresh" }
   | { type: "startMirrorPreview"; sourceDeviceId: string; followerDeviceIds: readonly string[] }
@@ -770,6 +814,21 @@ export type ControlPlaneIntent =
   | { type: "submitDeviceTap"; deviceId: string; x: number; y: number; renderWidth: number; renderHeight: number; observationToken: string; confirmed: boolean }
   | { type: "submitDeviceSwipe"; deviceId: string; startX: number; startY: number; endX: number; endY: number; durationMs: number; renderWidth: number; renderHeight: number; observationToken: string; confirmed: boolean }
   | { type: "submitDeviceKeyEvent"; deviceId: string; keyCode: number; confirmed: boolean }
+  /**
+   * applyFleetDeviceSettings applies the catalogued device settings — rotation
+   * lock and autofill off — to every device in the registry, through the same
+   * control kernel every other device action goes through: one control session,
+   * one lease per device, one attempt per setting per device, each verified by
+   * reading the setting back off the device.
+   *
+   * It names the settings to apply and NO device list, for the same reason
+   * activateFleet names no device: the fleet is read from the registry by the
+   * control plane, so an operator action cannot assert which devices are
+   * attached. `confirmed` is the operator's explicit approval, which the policy
+   * evaluator requires for a high-risk setting because autofill off rewrites a
+   * secure setting.
+   */
+  | { type: "applyFleetDeviceSettings"; settings: readonly DeviceSettingName[]; confirmed: boolean }
   | { type: "beginRecording"; deviceId: string }
   | { type: "stopRecording"; sessionId: string }
   | { type: "discardRecording"; sessionId: string }
@@ -786,6 +845,12 @@ export interface MutationResult {
   conflict?: boolean
   /** Prerequisite / authorization failure classification when ok is false. */
   errorCode?: PrerequisiteErrorCode
+  /**
+   * deviceSettingsApply carries a fleet settings apply's per-device answers.
+   * It is present only for that intent, and it is what the console renders row
+   * by row: the summary sentence is derived from it, never a substitute for it.
+   */
+  deviceSettingsApply?: DeviceSettingsApplyView
 }
 
 export interface ControlPlaneClient {

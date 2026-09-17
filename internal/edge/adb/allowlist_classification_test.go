@@ -89,6 +89,62 @@ func hostArrays(t *testing.T) [][]string {
 	return [][]string{connect, KillServerArgv(), StartServerArgv()}
 }
 
+// settingsArrays is every array the catalogued device-settings admission
+// recognises: the five writes the two settings issue and the four read-backs
+// they verify their own postconditions with (ARC-137, ADR-0016). Every token is
+// spelled out here rather than imported from the builder, because the allow-list
+// is an independent second gate and a property asserted against the builder's own
+// output would prove nothing about the gate.
+func settingsArrays() [][]string {
+	return [][]string{
+		{"shell", "settings", "put", "system", "accelerometer_rotation", "0"},
+		{"shell", "settings", "put", "system", "user_rotation", "0"},
+		{"shell", "settings", "delete", "secure", "autofill_service"},
+		{"shell", "cmd", "autofill", "set", "default-augmented-service-enabled", "0", "false"},
+		{"shell", "cmd", "autofill", "reset"},
+		{"shell", "settings", "get", "system", "accelerometer_rotation"},
+		{"shell", "settings", "get", "system", "user_rotation"},
+		{"shell", "settings", "get", "secure", "autofill_service"},
+		{"shell", "cmd", "autofill", "get", "default-augmented-service-enabled"},
+	}
+}
+
+// settingsNearMisses are the arrays closest to the settings admission that it
+// must refuse: the same shapes with one token changed to something a device
+// would read as a different command, a different value, or a second command.
+var settingsNearMisses = [][]string{
+	// The same subcommand with the other value: a setting written to 1 is
+	// exactly the change this admission exists to prevent.
+	{"shell", "settings", "put", "system", "accelerometer_rotation", "1"},
+	{"shell", "settings", "put", "system", "user_rotation", "1"},
+	// A namespace, a key or a value the reviewed operation does not name.
+	{"shell", "settings", "put", "secure", "accelerometer_rotation", "0"},
+	{"shell", "settings", "put", "system", "auto_rotate", "0"},
+	{"shell", "settings", "put", "system", "accelerometer_rotation"},
+	{"shell", "settings", "put", "system", "accelerometer_rotation", "0", "1"},
+	{"shell", "settings", "delete", "secure", "autofill_service", "extra"},
+	{"shell", "settings", "delete", "system", "autofill_service"},
+	{"shell", "cmd", "autofill", "set", "default-augmented-service-enabled", "0", "true"},
+	{"shell", "cmd", "autofill", "set", "default-augmented-service-enabled", "1", "false"},
+	{"shell", "cmd", "autofill", "set", "default-augmented-service-enabled", "0"},
+	{"shell", "cmd", "autofill", "reset", "extra"},
+	{"shell", "cmd", "autofill", "disable"},
+	// A read with a second command attached, or a second position.
+	{"shell", "settings", "get", "system", "accelerometer_rotation", "extra"},
+	{"shell", "settings", "get", "system"},
+	{"shell", "cmd", "autofill", "get", "default-augmented-service-enabled", "0"},
+	{"shell", "settings", "list", "system"},
+	// A different binary, a shell wrapper, a flag, a path or a second command.
+	{"sh", "settings", "get", "system", "user_rotation"},
+	{"shell", "sh", "-c", "settings get system user_rotation"},
+	{"shell", "settings", "--help"},
+	{"shell", "settings", "get", "system", "/data/local/tmp/user_rotation"},
+	{"shell", "settings", "get", "system", "user_rotation; id"},
+	{"shell", "settings", "get", "system", "user_rotation && id"},
+	{"shell", "settings", "get", "system", "user_rotation|id"},
+	{"shell", "settings", "get", "system", "$(id)"},
+}
+
 // transportArrays are the device transport-mode admissions. They are kept apart from
 // the host arrays deliberately: `tcpip` acts on a device and is reached only through
 // the serial-bound entry point, so it must not be admitted where no serial is named.
@@ -101,13 +157,41 @@ func transportArrays(t *testing.T) [][]string {
 	return [][]string{tcpip}
 }
 
-// foreignTokens are drawn from both admissions' vocabularies, so mutating any
+// admissionFamily is one admission the adapter serves, with the recogniser a test
+// can ask independently and the arrays that admission is expected to recognise.
+// The counts are part of the expectation: an admission that stopped recognising
+// one of its own shapes would otherwise leave the corpus assertion passing while
+// proving less.
+type admissionFamily struct {
+	name      string
+	recognise func([]string) (string, bool)
+	arrays    [][]string
+	wantNames int
+}
+
+// admissionFamilies is every admission, in the order matchesAllowlist asks them.
+// The separation between them is a safety property, so it is asserted over the
+// whole set rather than over the pairs someone remembered to enumerate.
+func admissionFamilies(t *testing.T) []admissionFamily {
+	t.Helper()
+	return []admissionFamily{
+		{"input", matchesDeviceInputAllowlist, inputArrays(), 6},
+		{"settings", matchesDeviceSettingsAllowlist, settingsArrays(), 9},
+		{"read-only", matchesReadOnlyAllowlist, readOnlyArrays(t), 8},
+		{"host", matchesHostAllowlist, hostArrays(t), 3},
+		{"transport", matchesTransportAllowlist, transportArrays(t), 1},
+	}
+}
+
+// foreignTokens are drawn from all admissions' vocabularies, so mutating any
 // position of any admitted array with one of them is the cheapest way to land on
-// an array that both recognisers might claim.
+// an array that two recognisers might claim.
 var foreignTokens = []string{
 	"input", "tap", "text", "keyevent", "monkey", "am",
 	"wm", "size", "getprop", "uiautomator", "rm", "-f", "cat", "screencap",
 	"shell", "exec-out", "get-state", "--compressed", "540", "com.example.app",
+	"settings", "put", "get", "delete", "system", "secure", "accelerometer_rotation",
+	"user_rotation", "autofill_service", "cmd", "autofill", "reset", "default-augmented-service-enabled",
 }
 
 // classificationCorpus is everything this file reasons over: the admitted
@@ -115,15 +199,19 @@ var foreignTokens = []string{
 // of an admitted array (plus a truncated and an extended shape).
 func classificationCorpus(t *testing.T) [][]string {
 	t.Helper()
-	corpus := make([][]string, 0, 512)
-	admitted := append(readOnlyArrays(t), inputArrays()...)
-	admitted = append(admitted, hostArrays(t)...)
-	admitted = append(admitted, transportArrays(t)...)
+	corpus := make([][]string, 0, 1024)
+	admitted := make([][]string, 0, 64)
+	for _, family := range admissionFamilies(t) {
+		admitted = append(admitted, family.arrays...)
+	}
 	for _, args := range admitted {
 		corpus = append(corpus, append([]string(nil), args...))
 	}
 	for _, nearMiss := range renderSizeReadNearMisses {
 		corpus = append(corpus, append([]string(nil), nearMiss.args...))
+	}
+	for _, nearMiss := range settingsNearMisses {
+		corpus = append(corpus, append([]string(nil), nearMiss...))
 	}
 	for _, args := range [][]string{
 		{"shell", "input", "tap", "540"},
@@ -167,43 +255,33 @@ func classificationCorpus(t *testing.T) [][]string {
 }
 
 // TestTheAdmissionsNeverBothMatch is claim 1 and claim 4. Every array in the
-// corpus is put to all three recognisers directly: an array two of them admit
-// would make the classification of that array depend on which recogniser happened
-// to be asked first, which is exactly the surface this refinement is asked to make
-// non-collidable.
+// corpus is put to every recogniser directly: an array two of them admit would
+// make the classification of that array depend on which recogniser happened to be
+// asked first, which is exactly the surface this refinement is asked to make
+// non-collidable. Because the families are disjoint, the name the combined entry
+// point reports is also asserted to be the admitting family's own name, which is
+// an order-independent statement rather than a restatement of the pinned order.
 func TestTheAdmissionsNeverBothMatch(t *testing.T) {
+	families := admissionFamilies(t)
 	corpus := classificationCorpus(t)
-	inputNames := map[string]string{}
-	readOnlyNames := map[string]string{}
-	hostNames := map[string]string{}
-	transportNames := map[string]string{}
+	names := make([]map[string]string, len(families))
+	for index := range names {
+		names[index] = map[string]string{}
+	}
 
 	for _, args := range corpus {
-		inputName, inputOK := matchesDeviceInputAllowlist(args)
-		readOnlyName, readOnlyOK := matchesReadOnlyAllowlist(args)
-		hostName, hostOK := matchesHostAllowlist(args)
-		transportName, transportOK := matchesTransportAllowlist(args)
-		claims := 0
-		for _, ok := range []bool{inputOK, readOnlyOK, hostOK, transportOK} {
-			if ok {
-				claims++
+		claimed := -1
+		claimedName := ""
+		for index, family := range families {
+			name, ok := family.recognise(args)
+			if !ok {
+				continue
 			}
-		}
-		if claims > 1 {
-			t.Fatalf("more than one recogniser admits %q: input=%q read-only=%q host=%q transport=%q; this array's classification would depend on which recogniser is asked first",
-				args, inputName, readOnlyName, hostName, transportName)
-		}
-		if inputOK {
-			inputNames[inputName] = strings.Join(args, " ")
-		}
-		if readOnlyOK {
-			readOnlyNames[readOnlyName] = strings.Join(args, " ")
-		}
-		if hostOK {
-			hostNames[hostName] = strings.Join(args, " ")
-		}
-		if transportOK {
-			transportNames[transportName] = strings.Join(args, " ")
+			if claimed >= 0 {
+				t.Fatalf("more than one recogniser admits %q: %s as %q and %s as %q; this array's classification would depend on which recogniser is asked first",
+					args, families[claimed].name, claimedName, family.name, name)
+			}
+			claimed, claimedName = index, name
 		}
 
 		first, firstOK := matchesAllowlist(args)
@@ -211,42 +289,23 @@ func TestTheAdmissionsNeverBothMatch(t *testing.T) {
 		if first != second || firstOK != secondOK {
 			t.Fatalf("matchesAllowlist(%q) is not deterministic: %q,%t then %q,%t", args, first, firstOK, second, secondOK)
 		}
-		switch {
-		case inputOK:
-			if !firstOK || first != inputName {
-				t.Fatalf("matchesAllowlist(%q) = %q, %t; want the input classification %q, true: the more specific admission is asked first", args, first, firstOK, inputName)
-			}
-		case readOnlyOK:
-			if !firstOK || first != readOnlyName {
-				t.Fatalf("matchesAllowlist(%q) = %q, %t; want the read-only classification %q, true", args, first, firstOK, readOnlyName)
-			}
-		case hostOK:
-			if !firstOK || first != hostName {
-				t.Fatalf("matchesAllowlist(%q) = %q, %t; want the host classification %q, true", args, first, firstOK, hostName)
-			}
-		case transportOK:
-			if !firstOK || first != transportName {
-				t.Fatalf("matchesAllowlist(%q) = %q, %t; want the transport classification %q, true", args, first, firstOK, transportName)
-			}
-		default:
+		if claimed < 0 {
 			if firstOK {
 				t.Fatalf("matchesAllowlist(%q) = %q, true; no recogniser admits it", args, first)
 			}
+			continue
+		}
+		names[claimed][claimedName] = strings.Join(args, " ")
+		if !firstOK || first != claimedName {
+			t.Fatalf("matchesAllowlist(%q) = %q, %t; want the %s classification %q, true", args, first, firstOK, families[claimed].name, claimedName)
 		}
 	}
 
 	// The corpus must actually exercise every admission, or it proves nothing.
-	if len(inputNames) != 6 {
-		t.Fatalf("the corpus reached %d input operation names (%v), want all 6", len(inputNames), sortedKeys(inputNames))
-	}
-	if len(readOnlyNames) != 8 {
-		t.Fatalf("the corpus reached %d read-only operation names (%v), want all 8", len(readOnlyNames), sortedKeys(readOnlyNames))
-	}
-	if len(hostNames) != 3 {
-		t.Fatalf("the corpus reached %d host operation names (%v), want all 3", len(hostNames), sortedKeys(hostNames))
-	}
-	if len(transportNames) != 1 {
-		t.Fatalf("the corpus reached %d transport operation names (%v), want all 1", len(transportNames), sortedKeys(transportNames))
+	for index, family := range families {
+		if len(names[index]) != family.wantNames {
+			t.Fatalf("the corpus reached %d %s operation names (%v), want all %d", len(names[index]), family.name, sortedKeys(names[index]), family.wantNames)
+		}
 	}
 }
 
@@ -254,98 +313,76 @@ func TestTheAdmissionsNeverBothMatch(t *testing.T) {
 // admission and one only, so a name observed anywhere cannot be misread as
 // another admission's classification.
 func TestNoTwoAdmissionsShareAnOperationName(t *testing.T) {
-	inputNames := map[string]string{}
-	for _, args := range inputArrays() {
-		name, ok := matchesDeviceInputAllowlist(args)
-		if !ok {
-			t.Fatalf("matchesDeviceInputAllowlist(%q) = %q, false; want the input admission", args, name)
+	families := admissionFamilies(t)
+	names := make([]map[string]string, len(families))
+	for index, family := range families {
+		names[index] = map[string]string{}
+		for _, args := range family.arrays {
+			name, ok := family.recognise(args)
+			if !ok {
+				t.Fatalf("the %s admission does not admit its own array %q", family.name, args)
+			}
+			names[index][name] = strings.Join(args, " ")
 		}
-		inputNames[name] = strings.Join(args, " ")
-	}
-	if len(inputNames) != 6 {
-		t.Fatalf("the input admission reports %d operation names (%v), want 6", len(inputNames), sortedKeys(inputNames))
-	}
-
-	readOnlyNames := map[string]string{}
-	for _, args := range readOnlyArrays(t) {
-		name, ok := matchesReadOnlyAllowlist(args)
-		if !ok {
-			t.Fatalf("matchesReadOnlyAllowlist(%q) = %q, false; want the read-only admission", args, name)
+		if len(names[index]) != family.wantNames {
+			t.Fatalf("the %s admission reports %d operation names (%v), want %d", family.name, len(names[index]), sortedKeys(names[index]), family.wantNames)
 		}
-		readOnlyNames[name] = strings.Join(args, " ")
 	}
-	if len(readOnlyNames) != 8 {
-		t.Fatalf("the read-only admission reports %d operation names (%v), want 8", len(readOnlyNames), sortedKeys(readOnlyNames))
-	}
-
-	hostNames := map[string]string{}
-	for _, args := range hostArrays(t) {
-		name, ok := matchesHostAllowlist(args)
-		if !ok {
-			t.Fatalf("matchesHostAllowlist(%q) = %q, false; want the host admission", args, name)
-		}
-		hostNames[name] = strings.Join(args, " ")
-	}
-	if len(hostNames) != 3 {
-		t.Fatalf("the host admission reports %d operation names (%v), want 3", len(hostNames), sortedKeys(hostNames))
-	}
-
-	transportNames := map[string]string{}
-	for _, args := range transportArrays(t) {
-		name, ok := matchesTransportAllowlist(args)
-		if !ok {
-			t.Fatalf("matchesTransportAllowlist(%q) = %q, false; want the transport admission", args, name)
-		}
-		transportNames[name] = strings.Join(args, " ")
-	}
-	if len(transportNames) != 1 {
-		t.Fatalf("the transport admission reports %d operation names (%v), want 1", len(transportNames), sortedKeys(transportNames))
-	}
-
-	for _, group := range []struct {
-		left, right map[string]string
-		leftName    string
-		rightName   string
-	}{
-		{inputNames, readOnlyNames, "input", "read-only"},
-		{inputNames, hostNames, "input", "host"},
-		{inputNames, transportNames, "input", "transport"},
-		{readOnlyNames, hostNames, "read-only", "host"},
-		{readOnlyNames, transportNames, "read-only", "transport"},
-		{hostNames, transportNames, "host", "transport"},
-	} {
-		for name, array := range group.left {
-			if other, clash := group.right[name]; clash {
-				t.Fatalf("operation name %q identifies both the %s array %q and the %s array %q", name, group.leftName, array, group.rightName, other)
+	for left := 0; left < len(families); left++ {
+		for right := left + 1; right < len(families); right++ {
+			for name, array := range names[left] {
+				if other, clash := names[right][name]; clash {
+					t.Fatalf("operation name %q identifies both the %s array %q and the %s array %q", name, families[left].name, array, families[right].name, other)
+				}
 			}
 		}
 	}
 }
 
-// TestTheRenderSizeReadIsNotAnOperatorAction is claim 3. The read's operation
-// name is the allow-list's own vocabulary, never a catalog kind: no operator can
-// select it as an action, and no catalog entry can be dispatched because this
-// array was admitted.
+// TestNoAdmissionOperationNameIsAnOperatorAction is claim 3, asserted over every
+// admission rather than over the read-only one alone. The allow-list's operation
+// names are its own vocabulary, never catalog kinds: no operator can select one
+// as an action, and no catalog entry can be dispatched because an array was
+// admitted.
+func TestNoAdmissionOperationNameIsAnOperatorAction(t *testing.T) {
+	kinds := map[string]bool{}
+	for _, spec := range action.Catalog() {
+		kinds[string(spec.Kind)] = true
+	}
+	// The lookup must be live, or every assertion below would hold for any name
+	// at all and this test would prove nothing.
+	if !kinds[string(action.Tap)] {
+		t.Fatal("the catalog does not declare the tap kind, so the assertions below are vacuous")
+	}
+	for _, family := range admissionFamilies(t) {
+		for _, args := range family.arrays {
+			name, ok := family.recognise(args)
+			if !ok {
+				t.Fatalf("the %s admission does not admit its own array %q", family.name, args)
+			}
+			if kinds[name] {
+				t.Fatalf("the %s operation name %q is also an action-catalog kind, so this array would be dispatchable as an operator action", family.name, name)
+			}
+			if spec, found := action.Lookup(action.Kind(name)); found {
+				t.Fatalf("the %s operation name %q resolves to catalog kind %q", family.name, name, spec.Kind)
+			}
+		}
+	}
+}
+
+// TestTheRenderSizeReadIsNotAnOperatorAction is the original form of claim 3, kept
+// for the render-size read specifically: it asserts the read is not classified as
+// a typed device input either, which the generic loop above cannot express.
 func TestTheRenderSizeReadIsNotAnOperatorAction(t *testing.T) {
 	name, ok := matchesAllowlist(renderSizeReadArgv())
 	if !ok || name != renderSizeReadOperation {
 		t.Fatalf("matchesAllowlist(%q) = %q, %t; want %q, true", renderSizeReadArgv(), name, ok, renderSizeReadOperation)
 	}
-	if spec, found := action.Lookup(action.Kind(name)); found {
-		t.Fatalf("the allow-list operation name %q resolves to catalog kind %q; the render-size read must not be selectable as an operator action", name, spec.Kind)
-	}
-	for _, spec := range action.Catalog() {
-		if string(spec.Kind) == name {
-			t.Fatalf("catalog kind %q collides with the render-size read's operation name %q: this array would be dispatchable as an operator action", spec.Kind, name)
-		}
-	}
-	// The lookup must be live, or both assertions above would hold for any name
-	// at all and this test would prove nothing.
-	if _, found := action.Lookup(action.Tap); !found {
-		t.Fatal("action.Lookup does not resolve an existing catalog kind, so the assertions above are vacuous")
-	}
 	if inputName, inputOK := matchesDeviceInputAllowlist(renderSizeReadArgv()); inputOK {
 		t.Fatalf("the render-size read is classified as the typed device input %q; nothing may map this read to an input kind", inputName)
+	}
+	if settingsName, settingsOK := matchesDeviceSettingsAllowlist(renderSizeReadArgv()); settingsOK {
+		t.Fatalf("the render-size read is classified as the device setting %q; nothing may map this read to a settings operation", settingsName)
 	}
 }
 

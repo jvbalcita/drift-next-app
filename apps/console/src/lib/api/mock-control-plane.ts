@@ -15,6 +15,8 @@ import type {
   ControlPlaneIntent,
   ControlPlaneSnapshot,
   DeviceView,
+  DeviceSettingOutcomeView,
+  DeviceSettingsApplyView,
   EdgeAgentView,
   EndpointView,
   EventKind,
@@ -51,6 +53,13 @@ const workspace = {
   id: "workspace-demo",
   name: "Local Workspace",
 }
+
+/**
+ * mockOperatorId is the operator this mock client acts as. A device lease held by
+ * anyone else is the mock's stand-in for "another controller holds this device",
+ * which is what a real apply reports per device when the lease cannot be taken.
+ */
+const mockOperatorId = "operator-1"
 
 const devices: DeviceView[] = [
   {
@@ -950,6 +959,8 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.connectEndpoint(intent)
       case "activateFleet":
         return this.activateFleet(intent)
+      case "applyFleetDeviceSettings":
+        return this.applyFleetDeviceSettings(intent)
       case "restartTransportServer":
         return this.restartTransportServer(intent)
       case "addDiscoveryRange":
@@ -1866,6 +1877,47 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       return result(intent, `Mock fleet activation on port ${intent.port} found no device in this client's projection. No adbd was restarted and no device was contacted.`)
     }
     return result(intent, `Mock fleet activation on port ${intent.port}: ${sentences.join(". ")}. No adbd was restarted and no device was contacted.`)
+  }
+
+  /**
+   * The mock's fleet settings apply. It reports one row per device per setting,
+   * exactly as the control plane does, and it derives each device's row from this
+   * client's own projection — the endpoint the device was observed on, and whether
+   * another operator holds its lease — so a device that could not be reached is
+   * named rather than folded into a count. Nothing is contacted: this is the mock,
+   * and every sentence says so.
+   */
+  private applyFleetDeviceSettings(intent: Extract<ControlPlaneIntent, { type: "applyFleetDeviceSettings" }>): MutationResult {
+    if (intent.settings.length === 0) {
+      return rejection(intent, "A fleet settings apply needs at least one setting to apply. Nothing was sent.", undefined, "invalid_input")
+    }
+    if (!intent.confirmed) {
+      return rejection(intent, "Applying device settings to the fleet changes device state and needs explicit confirmation. Nothing was sent.", undefined, "precondition_failed")
+    }
+    const outcomes: DeviceSettingOutcomeView[] = []
+    let appliedDevices = 0
+    let failedDevices = 0
+    for (const device of this.snapshot.devices) {
+      const endpoint = this.snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
+      const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === device.id && candidate.state === "active")
+      const refusal = !endpoint
+        ? { reason: "no_transport_serial", claim: "the device has no single current transport endpoint, so nothing was sent" }
+        : lease && lease.holder !== mockOperatorId
+          ? { reason: "lease_unavailable", claim: "another controller holds this device's lease, so nothing was sent" }
+          : null
+      for (const setting of intent.settings) {
+        outcomes.push(refusal
+          ? { deviceId: device.id, setting, applied: false, verified: false, refusal: refusal.reason, failureClass: "transport", message: refusal.claim }
+          : { deviceId: device.id, setting, applied: true, verified: true, refusal: "", failureClass: "", message: "the setting would have been written and read back (mock: no device was contacted)" })
+      }
+      if (refusal) failedDevices += 1
+      else appliedDevices += 1
+    }
+    const view: DeviceSettingsApplyView = { totalDevices: this.snapshot.devices.length, appliedDevices, failedDevices, outcomes }
+    const sentence = view.totalDevices === 0
+      ? "Mock fleet settings apply found no device in this client's projection. No device was contacted."
+      : `Mock fleet settings apply: ${view.appliedDevices} of ${view.totalDevices} device(s) would have applied every requested setting, ${view.failedDevices} would not. No device was contacted.`
+    return { ...result(intent, sentence), deviceSettingsApply: view }
   }
 
   private restartTransportServer(intent: Extract<ControlPlaneIntent, { type: "restartTransportServer" }>): MutationResult {

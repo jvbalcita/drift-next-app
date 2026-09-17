@@ -849,23 +849,36 @@ func TestTransportFailureIsClassifiedAndCarriesNoCommandText(t *testing.T) {
 
 // --- no path to arbitrary command text --------------------------------------
 
-// The only exported entry points on the primitives are the five typed inputs.
-// No exported method accepts a string, a string slice, or an untyped value, so
-// no caller can hand this boundary command text.
+// The only exported entry points on the primitives are the typed device inputs
+// and the two catalogued settings operations. No exported method accepts a
+// string, a string slice, or an untyped value, so no caller can hand this
+// boundary command text.
+//
+// The settings primitives are the strongest form of the rule rather than an
+// exception to it: they take no argument at all beyond the context, so there is
+// no position in which a caller could put anything.
 func TestInputPrimitivesExposeNoCommandTextParameter(t *testing.T) {
 	inputsType := reflect.TypeOf(&execution.Inputs{})
-	want := map[string]bool{"Tap": true, "Swipe": true, "TypeText": true, "KeyEvent": true, "LaunchApp": true}
+	readback := reflect.TypeOf(execution.SettingReadback{})
+	want := map[string]bool{
+		"Tap": true, "Swipe": true, "TypeText": true, "KeyEvent": true, "LaunchApp": true,
+		"ApplyRotationLock": true, "ApplyAutofillOff": true,
+	}
 
 	seen := make(map[string]bool)
 	for index := 0; index < inputsType.NumMethod(); index++ {
 		method := inputsType.Method(index)
 		seen[method.Name] = true
 		if !want[method.Name] {
-			t.Fatalf("the device input boundary exports %q; only the five typed primitives may be reachable", method.Name)
+			t.Fatalf("the device input boundary exports %q; only the reviewed primitives may be reachable", method.Name)
 		}
 		function := method.Func.Type()
-		if function.NumIn() != 3 {
-			t.Fatalf("%s takes %d arguments, want a context and one typed request", method.Name, function.NumIn()-1)
+		// The typed inputs take a context and one typed request; the two
+		// catalogued settings operations take a context and nothing else, which
+		// is the strongest form of this rule: there is no further position at
+		// all.
+		if function.NumIn() < 2 || function.NumIn() > 3 {
+			t.Fatalf("%s takes %d arguments, want a context and at most one typed request", method.Name, function.NumIn()-1)
 		}
 		if !function.In(1).Implements(reflect.TypeOf((*context.Context)(nil)).Elem()) {
 			t.Fatalf("%s does not take a context: cancellation could not be honoured", method.Name)
@@ -876,13 +889,18 @@ func TestInputPrimitivesExposeNoCommandTextParameter(t *testing.T) {
 				t.Fatalf("%s accepts %s, which can carry command text", method.Name, function.In(argument))
 			}
 		}
-		if function.NumOut() != 1 || function.Out(0) != reflect.TypeOf((*error)(nil)).Elem() {
-			t.Fatalf("%s does not return exactly an error", method.Name)
+		// Every primitive reports an error last, and a primitive that reads its
+		// own postcondition back reports that reading before it.
+		if function.NumOut() < 1 || function.NumOut() > 2 || function.Out(function.NumOut()-1) != reflect.TypeOf((*error)(nil)).Elem() {
+			t.Fatalf("%s does not return an error last", method.Name)
+		}
+		if function.NumOut() == 2 && function.Out(0) != readback {
+			t.Fatalf("%s returns %s before its error, which is not a settings read-back", method.Name, function.Out(0))
 		}
 	}
 	for name := range want {
 		if !seen[name] {
-			t.Fatalf("the device input primitive %q is missing", name)
+			t.Fatalf("the reviewed primitive %q is missing", name)
 		}
 	}
 }

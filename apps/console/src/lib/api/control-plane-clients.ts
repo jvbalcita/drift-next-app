@@ -38,6 +38,7 @@ import {
 } from "@/gen/drift/v1/account_pb"
 import { GetHaltRequestSchema, GetHaltResponseSchema, HaltState, SetHaltRequestSchema, SetHaltResponseSchema, SubmitActionRequestSchema, SubmitActionResponseSchema } from "@/gen/drift/v1/action_pb"
 import { KeyEventRequestSchema, KeyEventResponseSchema, SwipeRequestSchema, SwipeResponseSchema, TapRequestSchema, TapResponseSchema } from "@/gen/drift/v1/device_input_pb"
+import { ApplyDeviceSettingsRequestSchema, ApplyDeviceSettingsResponseSchema, DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
 import {
   DeleteArtifactRequestSchema,
   DeleteArtifactResponseSchema,
@@ -519,6 +520,29 @@ export class DeviceInputClient {
   keyEvent(requestId: string, init: MessageInitShape<typeof KeyEventRequestSchema>) { return this.rpc.call("KeyEvent", KeyEventRequestSchema, KeyEventResponseSchema, { ...init, context: requestContext({ requestId }) }) }
 }
 
+export class DeviceSettingsClient {
+  private readonly rpc: TypedConnectClient
+  constructor(json: ConnectJsonClient) { this.rpc = new TypedConnectClient(json, "drift.v1.DeviceSettingsService") }
+  /**
+   * applyDeviceSettings applies the named settings to every device in the
+   * registry that has a current transport endpoint. The request names no device
+   * list: the control plane reads the fleet, because an operator action cannot
+   * assert which devices are attached.
+   *
+   * `approvalGranted` is the operator's explicit approval. The control plane
+   * requires it for a high-risk setting — autofill off rewrites a secure setting
+   * — and that refusal is reported per device and per setting.
+   */
+  applyDeviceSettings(requestId: string, workspaceId: string, settings: readonly DeviceSetting[], approvalGranted: boolean) {
+    return this.rpc.call("ApplyDeviceSettings", ApplyDeviceSettingsRequestSchema, ApplyDeviceSettingsResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      settings: [...settings],
+      approvalGranted,
+    })
+  }
+}
+
 export class AccountClient {
   private readonly rpc: TypedConnectClient
   constructor(json: ConnectJsonClient) {
@@ -988,6 +1012,7 @@ export interface ControlPlaneServices {
   lease: LeaseClient
   action: ActionClient
   deviceInput: DeviceInputClient
+  deviceSettings: DeviceSettingsClient
   account: AccountClient
   settings: SettingsClient
   policy: PolicyClient
@@ -1016,6 +1041,7 @@ export function createControlPlaneServices(json: ConnectJsonClient): ControlPlan
     lease: new LeaseClient(json),
     action: new ActionClient(json),
     deviceInput: new DeviceInputClient(json),
+    deviceSettings: new DeviceSettingsClient(json),
     account: new AccountClient(json),
     settings: new SettingsClient(json),
     policy: new PolicyClient(json),
