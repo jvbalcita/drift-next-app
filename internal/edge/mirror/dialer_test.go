@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -172,13 +171,15 @@ func newHarness(t *testing.T, session *fakeSession, mutate func(*mirror.DialerCo
 
 type noopRunner struct{}
 
-func (noopRunner) Run(context.Context, string, []string) (adb.Result, error) {
+func (noopRunner) RunAllowlisted(context.Context, string, []string) (adb.Result, error) {
 	return adb.Result{}, nil
 }
 
 type noopStarter struct{}
 
-func (noopStarter) Start(string, []string, io.Writer) (scrcpy.Process, error) { return nil, nil }
+func (noopStarter) StartAllowlisted(context.Context, string, []string) (adb.LongRunning, error) {
+	return nil, nil
+}
 
 // TestNewDialerRefusesEachMissingDependency asserts the refusals directly,
 // because NewDialer is the boundary a deployment crosses and each dependency is a

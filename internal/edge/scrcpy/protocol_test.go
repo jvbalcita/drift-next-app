@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"slices"
 	"testing"
 	"time"
+
+	"drift.local/drift-next/internal/edge/adb"
 )
 
 // headFromDevice is the 16-byte stream head this client's own configuration
@@ -265,11 +268,26 @@ func TestSessionIDSourcesAreBoundedAndNamedAlike(t *testing.T) {
 	if id != 0x01234567 {
 		t.Fatalf("id = %#08x, want the top bit cleared", id)
 	}
-	if sessionIDHex(id) != "01234567" {
-		t.Fatalf("hex = %q, want 01234567", sessionIDHex(id))
+	if got := sessionSocketName(id); got != "scrcpy_01234567" {
+		t.Fatalf("socket name = %q, want scrcpy_01234567", got)
 	}
-	if sessionSocketName(id) != "scrcpy_01234567" {
-		t.Fatalf("socket name = %q", sessionSocketName(id))
+	// The name the tunnel registers and the id the server is launched with are
+	// both built from this one value, and the device names its socket after the
+	// id it was given: a disagreement between them is a handshake that never
+	// completes, with the device waiting on a socket nobody registered.
+	tunnel, err := adb.MirrorAbstractSocketName(id)
+	if err != nil {
+		t.Fatalf("MirrorAbstractSocketName: %v", err)
+	}
+	if tunnel != "localabstract:scrcpy_01234567" {
+		t.Fatalf("tunnel target = %q, want the session's own socket", tunnel)
+	}
+	launch, err := adb.MirrorServerLaunchArgv(id, "info", false)
+	if err != nil {
+		t.Fatalf("MirrorServerLaunchArgv: %v", err)
+	}
+	if !slices.Contains(launch, "scid=01234567") {
+		t.Fatalf("launch %q does not carry the same session id the tunnel registered", launch)
 	}
 	if _, err := sessionID(func() (uint32, error) { return 0, nil }); err == nil {
 		t.Fatal("a zero session id was accepted")

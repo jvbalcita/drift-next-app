@@ -31,17 +31,6 @@ import (
 )
 
 const (
-	// Version is the client version this package speaks. The device-side server
-	// refuses any client whose version differs, so it is a constant rather than
-	// configuration: a version this package has not measured must not be used.
-	Version = "4.1"
-
-	// ServerDevicePath is where the server is pushed. scrcpy's own documentation
-	// names /data/local/tmp as the right place: readable and writable by the
-	// shell user, and not world-writable, so another application cannot replace
-	// the server between the push and the launch.
-	ServerDevicePath = "/data/local/tmp/scrcpy-server.jar"
-
 	// PacketHeaderSize is the 12-byte header every frame packet carries when
 	// frame metadata is requested: a big-endian u64 of flags and PTS, then a
 	// big-endian u32 size.

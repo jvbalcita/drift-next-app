@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
+
 	"net"
 	"os"
 	"path/filepath"
@@ -31,16 +31,23 @@ func fakeADBPath(t *testing.T) string {
 	return path
 }
 
+// allowlistedCall is one bounded command the session issued, as the allow-listed
+// runner received it: the serial it was bound to and the serial-free array.
+type allowlistedCall struct {
+	serial string
+	args   []string
+}
+
 type fakeRunner struct {
 	mu    sync.Mutex
-	calls [][]string
+	calls []allowlistedCall
 	err   error
 }
 
-func (r *fakeRunner) Run(_ context.Context, _ string, args []string) (adb.Result, error) {
+func (r *fakeRunner) RunAllowlisted(_ context.Context, serial string, args []string) (adb.Result, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.calls = append(r.calls, append([]string(nil), args...))
+	r.calls = append(r.calls, allowlistedCall{serial: serial, args: append([]string(nil), args...)})
 	return adb.Result{}, r.err
 }
 
@@ -50,16 +57,24 @@ func (r *fakeRunner) argvMatching(marker string) [][]string {
 	defer r.mu.Unlock()
 	var matched [][]string
 	for _, call := range r.calls {
-		if strings.Contains(strings.Join(call, " "), marker) {
-			matched = append(matched, call)
+		if strings.Contains(strings.Join(call.args, " "), marker) {
+			matched = append(matched, call.args)
 		}
 	}
 	return matched
 }
 
+// recorded returns every recorded call in order.
+func (r *fakeRunner) recorded() []allowlistedCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]allowlistedCall(nil), r.calls...)
+}
+
 type fakeProcess struct {
 	mu     sync.Mutex
 	killed bool
+	stderr string
 	exited chan struct{}
 }
 
@@ -81,6 +96,14 @@ func (p *fakeProcess) Wait() error {
 	return nil
 }
 
+// Stderr reports what this fake server said. A fake is a server that said
+// nothing unless a test makes it say something.
+func (p *fakeProcess) Stderr() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.stderr
+}
+
 func (p *fakeProcess) wasKilled() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -88,20 +111,26 @@ func (p *fakeProcess) wasKilled() bool {
 }
 
 type fakeStarter struct {
-	mu    sync.Mutex
-	argv  []string
-	proc  *fakeProcess
-	stder *boundedWriter
+	mu     sync.Mutex
+	serial string
+	argv   []string
+	proc   *fakeProcess
+	err    error
+	// stderr is what the process this starter hands back will report as its own
+	// last words, for the tests that cover a server refusing to start.
+	stderr string
 }
 
-func (s *fakeStarter) Start(executable string, args []string, stderr io.Writer) (Process, error) {
+func (s *fakeStarter) StartAllowlisted(_ context.Context, serial string, args []string) (adb.LongRunning, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.argv = append([]string{executable}, args...)
-	if writer, ok := stderr.(*boundedWriter); ok {
-		s.stder = writer
-	}
+	s.serial = serial
+	s.argv = append([]string(nil), args...)
 	s.proc = newFakeProcess()
+	s.proc.stderr = s.stderr
+	if s.err != nil {
+		return nil, s.err
+	}
 	return s.proc, nil
 }
 
@@ -109,6 +138,12 @@ func (s *fakeStarter) launchArgv() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.argv...)
+}
+
+func (s *fakeStarter) launchSerial() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.serial
 }
 
 // device is a stand-in for the scrcpy server: it connects to the handshake
@@ -349,8 +384,10 @@ func TestStartDerivesTheTunnelAndTheLaunchFromOneSessionID(t *testing.T) {
 	if len(launch) == 0 {
 		t.Fatal("the device server was never started")
 	}
-	if launch[0] != fakeADBPath(t) {
-		t.Fatalf("launch binary = %q, want the configured adb path", launch[0])
+	// The serial is bound by the entry point, never carried inside the shape:
+	// the array is the shape the allow-list admits and nothing else.
+	if serial := h.starter.launchSerial(); serial != "192.168.1.104:5555" {
+		t.Fatalf("the launch was bound to serial %q, want the configured device", serial)
 	}
 	joined := strings.Join(launch, " ")
 	for _, want := range []string{
@@ -364,7 +401,7 @@ func TestStartDerivesTheTunnelAndTheLaunchFromOneSessionID(t *testing.T) {
 		"audio=false",
 		"cleanup=true",
 		"video_codec_options=i-frame-interval:int=2",
-		"CLASSPATH=" + ServerDevicePath,
+		"CLASSPATH=" + adb.MirrorServerDevicePath,
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("launch %q does not carry %q", joined, want)
@@ -377,9 +414,55 @@ func TestStartDerivesTheTunnelAndTheLaunchFromOneSessionID(t *testing.T) {
 		if token == "" || strings.TrimSpace(token) != token {
 			t.Fatalf("launch token %q is not a single bounded token", token)
 		}
-		if strings.ContainsAny(token, " \t\r\n;|&$`\\\"'<>(){}[]*?!~^") {
+		if strings.ContainsAny(token, " 	\r\n;|&$`\\\"'<>(){}[]*?!~^") {
 			t.Fatalf("launch token %q carries shell meaning", token)
 		}
+	}
+}
+
+// TestEveryCommandTheSessionIssuesIsAdmittedByTheRealAllowList closes the loop
+// between this client and the transport it goes through: the arrays a session
+// actually put on the wire are exactly the arrays the real ADB allow-list
+// admits, and nothing the session issued is refused as unbuilt.
+//
+// It is the assertion that makes the admission worth having. A shape the client
+// builds and the allow-list does not admit is a mirror that dials a device and
+// shows nothing, and a shape the allow-list admits that the client no longer
+// builds is a permission nobody needs.
+func TestEveryCommandTheSessionIssuesIsAdmittedByTheRealAllowList(t *testing.T) {
+	h := newHarness(t, headFromDevice, nil, nil)
+	if err := h.session.Close(context.Background()); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	transport := adb.NewFakeRunner().RespondDefault(adb.FakeResponse{})
+	adapter, err := adb.NewAdapter("/opt/android/platform-tools/adb", transport, adb.WithOperationTimeout(time.Second))
+	if err != nil {
+		t.Fatalf("new adapter: %v", err)
+	}
+
+	const serial = "192.168.1.104:5555"
+	arrays := make([][]string, 0, 8)
+	for _, call := range h.runner.recorded() {
+		if call.serial != serial {
+			t.Fatalf("a command was bound to serial %q, want the device's own %q", call.serial, serial)
+		}
+		arrays = append(arrays, call.args)
+	}
+	arrays = append(arrays, h.starter.launchArgv())
+	// The push and the tunnel are issued once, and the tunnel is removed when
+	// the session closes: four arrays in total, and the sweep below is only
+	// meaningful if the session actually issued them.
+	if len(arrays) < 4 {
+		t.Fatalf("the session issued %d argument arrays, want the push, the tunnel, the removal and the launch: %v", len(arrays), arrays)
+	}
+	for _, args := range arrays {
+		if _, err := adapter.RunAllowlisted(context.Background(), serial, args); errors.Is(err, adb.ErrArgvNotAllowlisted) {
+			t.Fatalf("the real allow-list refuses %q, which this client issued: the mirror would dial a device and show nothing", args)
+		}
+	}
+	if invocations := transport.Invocations(); len(invocations) != len(arrays) {
+		t.Fatalf("the adapter executed %d arrays, want the %d the session issued", len(invocations), len(arrays))
 	}
 }
 
@@ -459,6 +542,49 @@ func TestStartRefusesOptionsThatWouldTouchADeviceUnbuilt(t *testing.T) {
 				t.Fatal("an option set that would reach a device was accepted")
 			}
 		})
+	}
+}
+
+// TestStartReportsWhyTheDeviceServerRefused is the honest-failure half of a
+// launch that goes wrong: a server that never opens its sockets says why on its
+// own stderr and nowhere else, so a session that reported only its own timeout
+// would name the caller's clock instead of the device's reason. The failure
+// still leaves nothing behind: the process is killed and the tunnel removed.
+func TestStartReportsWhyTheDeviceServerRefused(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+	serverPath := filepath.Join(t.TempDir(), "scrcpy-server")
+	if err := os.WriteFile(serverPath, []byte("server"), 0o600); err != nil {
+		t.Fatalf("write server: %v", err)
+	}
+	runner := &fakeRunner{}
+	starter := &fakeStarter{stderr: "ERROR: the server refused to start: stack corruption detected"}
+
+	session, err := Start(context.Background(), Options{
+		ADB:        fakeADBPath(t),
+		Serial:     "192.168.1.104:5555",
+		ServerPath: serverPath,
+		Runner:     runner,
+		Starter:    starter,
+		Listen:     func() (net.Listener, error) { return listener, nil },
+		IDSource:   func() (uint32, error) { return 0x2abc1234, nil },
+		AcceptWait: 200 * time.Millisecond,
+	})
+	if err == nil {
+		_ = session.Close(context.Background())
+		t.Fatal("a device that never connected produced a live session")
+	}
+	if !strings.Contains(err.Error(), "stack corruption detected") {
+		t.Fatalf("error = %v, want the device server's own reason", err)
+	}
+	if !starter.proc.wasKilled() {
+		t.Fatal("a failed handshake left the device server running")
+	}
+	if len(runner.argvMatching("--remove")) == 0 {
+		t.Fatal("a failed handshake left the reverse tunnel registered")
 	}
 }
 

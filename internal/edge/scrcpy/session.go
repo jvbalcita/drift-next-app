@@ -9,9 +9,7 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -35,28 +33,26 @@ var (
 	ErrServerMissing = errors.New("scrcpy: the server file is not a readable file")
 )
 
-// Runner executes one bounded adb command and returns its outcome. It is the
-// same narrow port the rest of the edge adapters use, so the scrcpy client
-// reaches adb exactly the way the allow-listed runner does: an executable and an
-// argument array, never a shell.
+// Runner is the device's own allow-listed runner: one bounded adb command over
+// an argument array one of this package's builders produced, which the adapter
+// underneath re-derives against its allow-list before anything reaches a device.
+//
+// The array is serial-free and the serial is bound by the runner, so a shape can
+// never carry a serial other than the one it is executed against.
 type Runner interface {
-	Run(ctx context.Context, executable string, args []string) (adb.Result, error)
+	RunAllowlisted(ctx context.Context, serial string, args []string) (adb.Result, error)
 }
 
-// Process is one long-lived device-side process this session owns.
-type Process interface {
-	// Kill asks the process to stop. It is called once per session.
-	Kill() error
-	// Wait blocks until the process has exited and reports its outcome.
-	Wait() error
-}
-
-// Starter starts the device-side server. It is separate from Runner because the
-// server outlives any bounded command: it runs for the whole mirror session and
-// exits when the session closes, so it cannot be started through a runner that
-// waits for its exit.
+// Starter starts the device-side server through the same allow-list, as a
+// long-lived process rather than a bounded command.
+//
+// It is separate from Runner because the server outlives any bounded command: it
+// runs for the whole mirror session and exits when the session closes, so it
+// cannot be started through a runner that waits for its exit. It is not separate
+// from the admission - the starter refuses any array that is not the launch, and
+// binds the serial itself.
 type Starter interface {
-	Start(executable string, args []string, stderr io.Writer) (Process, error)
+	StartAllowlisted(ctx context.Context, serial string, args []string) (adb.LongRunning, error)
 }
 
 // Options configure one live session against one device.
@@ -114,7 +110,7 @@ type Session struct {
 	port  int
 	video net.Conn
 	ctrl  net.Conn
-	proc  Process
+	proc  adb.LongRunning
 
 	// writeMu serializes control-socket writes: two half-written messages
 	// interleaved would be one corrupt message, and the device would act on it.
@@ -171,7 +167,11 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 	// one. The device-side server removes the pushed file when it exits, and a
 	// stale copy is exactly the hazard the push exists to remove: a file from an
 	// unknown build left behind by an interrupted session.
-	if _, err := opts.Runner.Run(ctx, opts.ADB, []string{"-s", opts.Serial, "push", opts.ServerPath, ServerDevicePath}); err != nil {
+	push, err := adb.MirrorServerPushArgv(opts.ServerPath)
+	if err != nil {
+		return nil, fmt.Errorf("scrcpy: pushing the server to %s: %w", opts.Serial, err)
+	}
+	if _, err := opts.Runner.RunAllowlisted(ctx, opts.Serial, push); err != nil {
 		return nil, fmt.Errorf("scrcpy: pushing the server to %s: %w", opts.Serial, err)
 	}
 
@@ -203,8 +203,11 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 		}
 	}()
 
-	argv := session.serverArgv()
-	proc, err := opts.Starter.Start(opts.ADB, argv, &boundedWriter{limit: 8 << 10})
+	argv, err := adb.MirrorServerLaunchArgv(session.scid, opts.LogLevel, opts.KeepAwake)
+	if err != nil {
+		return nil, fmt.Errorf("scrcpy: building the device server launch: %w", err)
+	}
+	proc, err := opts.Starter.StartAllowlisted(ctx, opts.Serial, argv)
 	if err != nil {
 		return nil, fmt.Errorf("scrcpy: starting the device server: %w", err)
 	}
@@ -212,18 +215,18 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 
 	if session.video, err = session.accept(listener); err != nil {
 		_ = proc.Kill()
-		return nil, err
+		return nil, session.explain(err)
 	}
 	deadline := time.Now().Add(opts.AcceptWait)
 	if err := session.readStreamMeta(deadline); err != nil {
 		session.video.Close()
 		_ = proc.Kill()
-		return nil, err
+		return nil, session.explain(err)
 	}
 	if session.ctrl, err = session.accept(listener); err != nil {
 		session.video.Close()
 		_ = proc.Kill()
-		return nil, err
+		return nil, session.explain(err)
 	}
 
 	cleanupTunnel = false
@@ -508,40 +511,23 @@ func (s *Session) Close(ctx context.Context) error {
 // a stray tunnel can be traced back to the session that opened it.
 func (s *Session) SessionID() uint32 { return s.scid }
 
-// serverArgv builds the device-side launch. It is a fixed builder shape: a fixed
-// binary and fixed tokens, with exactly two derived values — the abstract socket
-// name's session id (eight hex digits) and the bounded option values below.
-func (s *Session) serverArgv() []string {
-	return []string{
-		"-s", s.opts.Serial, "shell",
-		"CLASSPATH=" + ServerDevicePath, "app_process", "/",
-		"com.genymobile.scrcpy.Server", Version,
-		"scid=" + sessionIDHex(s.scid),
-		"log_level=" + s.opts.LogLevel,
-		"audio=false",
-		"control=true",
-		"tunnel_forward=false",
-		"send_device_meta=false",
-		"send_stream_meta=true",
-		"send_frame_meta=true",
-		// The server is removed from the device when it exits, so a device never
-		// keeps a capture server of an unknown revision.
-		"cleanup=true",
-		"stay_awake=" + strconv.FormatBool(s.opts.KeepAwake),
-		// The one encoder setting this client asks for: a periodic IDR. This
-		// fleet's screen encoder emits exactly one IDR per session unasked, so a
-		// receiver that missed the first frame decodes nothing for the rest of
-		// the session - with no error anywhere. Asking for an IDR every two
-		// seconds bounds how long that state can last.
-		"video_codec_options=" + idrIntervalOption,
+// explain adds the device-side server's own last words to a handshake failure.
+//
+// A server that refuses to start, or that exits the moment it is launched, says
+// why on its own stderr and nowhere else: the sockets simply never open. Without
+// this, that failure reads as "the device did not connect", which names the
+// caller's timeout rather than the device's reason. The text is the starter's,
+// already bounded and redacted.
+func (s *Session) explain(err error) error {
+	if s.proc == nil {
+		return err
 	}
+	text := s.proc.Stderr()
+	if text == "" {
+		return err
+	}
+	return fmt.Errorf("%w: the device server said: %s", err, text)
 }
-
-// idrIntervalOption asks MediaCodec's encoder for an IDR every two seconds.
-// scrcpy retires the server it is talking to, and the device refuses a client
-// of a different version, so both ends of this string are pinned: the key is
-// MediaCodec's own KEY_I_FRAME_INTERVAL spelled as scrcpy passes it through.
-const idrIntervalOption = "i-frame-interval:int=2"
 
 // reverse adds or removes the adb reverse tunnel that carries the device's two
 // sockets back to this process's loopback listener.
@@ -550,12 +536,11 @@ const idrIntervalOption = "i-frame-interval:int=2"
 // reachable off-host, while the address registered here is the process's own
 // loopback listener, which is the only thing a reader could ever reach.
 func (s *Session) reverse(ctx context.Context, action string) error {
-	args := []string{"-s", s.opts.Serial, "reverse"}
-	if action == "remove" {
-		args = append(args, "--remove")
+	args, err := adb.MirrorReverseArgv(s.scid, s.port, action == "remove")
+	if err != nil {
+		return fmt.Errorf("scrcpy: %s reverse tunnel %s: %w", action, sessionSocketName(s.scid), err)
 	}
-	args = append(args, "localabstract:"+sessionSocketName(s.scid), "tcp:"+strconv.Itoa(s.port))
-	if _, err := s.opts.Runner.Run(ctx, s.opts.ADB, args); err != nil {
+	if _, err := s.opts.Runner.RunAllowlisted(ctx, s.opts.Serial, args); err != nil {
 		return fmt.Errorf("scrcpy: %s reverse tunnel %s: %w", action, sessionSocketName(s.scid), err)
 	}
 	return nil
@@ -663,16 +648,13 @@ func sessionID(source func() (uint32, error)) (uint32, error) {
 	return id & 0x7fffffff, nil
 }
 
-// sessionIDHex renders a session id the way the device expects and the way it
-// names the socket: the device reads `scid` as a hexadecimal integer, so the
-// option and the abstract socket name must be the same eight hex digits.
-func sessionIDHex(scid uint32) string { return fmt.Sprintf("%08x", scid) }
-
-// sessionSocketName is the device-side abstract socket name for a session id.
-func sessionSocketName(scid uint32) string { return abstractSocketPrefix + sessionIDHex(scid) }
-
-// abstractSocketPrefix is scrcpy's own socket name prefix.
-const abstractSocketPrefix = "scrcpy_"
+// sessionSocketName is the device-side abstract socket name for a session id,
+// for diagnostics. The name the tunnel registers and the option the server is
+// launched with are both built from the same value by the ADB builders, which is
+// what makes the handshake work at all.
+func sessionSocketName(scid uint32) string {
+	return adb.MirrorAbstractSocketPrefix + fmt.Sprintf("%08x", scid)
+}
 
 // validateOptions fails closed on anything that would produce a command this
 // client did not build, before a device is touched at all.
@@ -755,33 +737,3 @@ func (w *boundedWriter) String() string {
 	defer w.mu.Unlock()
 	return string(w.buf)
 }
-
-// CommandStarter starts the device-side server as a child process.
-type CommandStarter struct{}
-
-// Start implements Starter with os/exec. The child's stderr is retained by the
-// caller's writer, bounded, so a server that refuses to start can be explained
-// without keeping its whole output.
-func (CommandStarter) Start(executable string, args []string, stderr io.Writer) (Process, error) {
-	cmd := exec.Command(executable, args...)
-	cmd.Stderr = stderr
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	return &commandProcess{cmd: cmd}, nil
-}
-
-type commandProcess struct{ cmd *exec.Cmd }
-
-func (p *commandProcess) Kill() error {
-	if p.cmd.Process == nil {
-		return nil
-	}
-	err := p.cmd.Process.Kill()
-	if errors.Is(err, os.ErrProcessDone) {
-		return nil
-	}
-	return err
-}
-
-func (p *commandProcess) Wait() error { return p.cmd.Wait() }
