@@ -17,6 +17,7 @@ import {
   SidebarTrigger,
 } from "./components/ui/sidebar"
 import { TooltipProvider } from "./components/ui/tooltip"
+import { Toaster } from "./components/ui/sonner"
 import { Skeleton } from "./components/ui/skeleton"
 import { useControlPlane } from "./lib/api/use-control-plane"
 import { hashForRoute, routeFromHash, viewLabel, type Route, type Section } from "./lib/navigation"
@@ -85,6 +86,7 @@ function App() {
           </main>
         </SidebarInset>
       </SidebarProvider>
+      <Toaster position="bottom-right" />
     </TooltipProvider>
   )
 }

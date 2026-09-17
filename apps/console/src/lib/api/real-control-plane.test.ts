@@ -867,10 +867,13 @@ describe("RealControlPlaneClient reload", () => {
     const result = await client.dispatch({ type: "reloadDevices" })
 
     expect(result.ok).toBe(true)
-    // The reload says what it holds, per device, rather than that it succeeded.
-    expect(result.message).toContain("R5CT42GS94Z")
-    expect(result.message).toContain("192.0.2.10:5555")
+    // The transient result is a concise summary; detailed device and endpoint
+    // state remains in the refreshed projection rather than the toast.
+    expect(result.message).toContain("1 known device re-read")
+    expect(result.message).not.toContain("R5CT42GS94Z")
+    expect(result.message).not.toContain("192.0.2.10:5555")
     expect(result.message).toContain("No adb server was restarted")
+    expect(called.filter((url) => url.includes("/drift.v1.DeviceService/ListDevices"))).toHaveLength(1)
     // It is not the host-wide operation: no restart was even attempted.
     expect(called.filter((url) => url.includes("ConnectionService"))).toEqual([])
   })

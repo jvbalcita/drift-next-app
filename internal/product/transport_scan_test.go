@@ -29,6 +29,13 @@ const adbDevicesOutput = "List of devices attached\n" +
 	"192.168.1.106:5556   device product:b0q model:SM_S908E device:b0q transport_id:2\n" +
 	"\n"
 
+const adbDevicesWithOutOfRangeOutput = "List of devices attached\n" +
+	"R5CT30ABCD           device usb:1-1 product:b0q model:SM_S908E device:b0q transport_id:1\n" +
+	"192.168.1.106:5556   device product:b0q model:SM_S908E device:b0q transport_id:2\n" +
+	"192.168.1.107:5557   device product:b0q model:SM_S908E device:b0q transport_id:3\n" +
+	"198.51.100.10:5555   device product:b0q model:SM_S908E device:b0q transport_id:4\n" +
+	"\n"
+
 const (
 	transportWorkspace = organizations.WorkspaceID("w-transport")
 	transportProfile   = networkprofiles.NetworkProfileID("profile-transport")
@@ -39,7 +46,16 @@ const (
 // hand-built: the transport the scan records has to come from here.
 func enumeratesRealADBOutput(t *testing.T) []adb.DiscoveredDevice {
 	t.Helper()
-	runner := adb.NewFakeRunner().RespondDefault(adb.FakeResponse{Result: adb.Result{Stdout: []byte(adbDevicesOutput)}})
+	enumerated := enumerateADBOutput(t, adbDevicesOutput)
+	if len(enumerated) != 2 {
+		t.Fatalf("Enumerate() = %#v, want the USB and the TCP transport", enumerated)
+	}
+	return enumerated
+}
+
+func enumerateADBOutput(t *testing.T, output string) []adb.DiscoveredDevice {
+	t.Helper()
+	runner := adb.NewFakeRunner().RespondDefault(adb.FakeResponse{Result: adb.Result{Stdout: []byte(output)}})
 	adapter, err := adb.NewAdapter("/opt/android/platform-tools/adb", runner)
 	if err != nil {
 		t.Fatalf("NewAdapter() = %v", err)
@@ -47,9 +63,6 @@ func enumeratesRealADBOutput(t *testing.T) []adb.DiscoveredDevice {
 	enumerated, err := adapter.Enumerate(context.Background())
 	if err != nil {
 		t.Fatalf("Enumerate() = %v", err)
-	}
-	if len(enumerated) != 2 {
-		t.Fatalf("Enumerate() = %#v, want the USB and the TCP transport", enumerated)
 	}
 	return enumerated
 }
@@ -155,5 +168,65 @@ func TestScanRecordsTheTransportEachDeviceWasObservedOver(t *testing.T) {
 	// ARC-119 hand-off for the divergence this currently reports.
 	for _, observation := range observed {
 		t.Logf("observation device=%s serial=%q evidence=%v", observation.DeviceID, observation.Serial, observation.Evidence)
+	}
+}
+
+func TestScanBoundsEveryEnumeratedNetworkTransportByTheProfileHostRange(t *testing.T) {
+	ctx := context.Background()
+	db := openTransportDB(t)
+
+	labService, err := lab.NewService(lab.WithMockCandidates(enumerateADBOutput(t, adbDevicesWithOutOfRangeOutput)...))
+	if err != nil {
+		t.Fatalf("lab.NewService() = %v", err)
+	}
+	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{
+		Authorized: true,
+		LabMode:    true,
+		Enumerator: product.NewLabRuntimeEnumerator(labService),
+	})
+	_, observed, err := discovery.NewService(db, scanner).StartScan(ctx, transportWorkspace, transportProfile, "scan-bounded-transports", "operator", "op-1")
+	if err != nil {
+		t.Fatalf("StartScan() = %v", err)
+	}
+
+	// The USB transport and both TCP transports inside 192.168.1.0/24 are
+	// observed. The address outside the profile is not, even though adb listed
+	// it in the same enumeration. The second TCP device also proves that the
+	// profile's host range is the bound, not a single hard-coded port.
+	if len(observed) != 3 {
+		t.Fatalf("scan observed %d devices: %#v, want the USB transport and two in-range TCP transports", len(observed), observed)
+	}
+	for _, device := range observed {
+		if device.Host == "198.51.100.10" {
+			t.Fatalf("scan admitted the out-of-range transport: %#v", device)
+		}
+	}
+
+	recorded, err := db.ListEndpoints(ctx, transportWorkspace, "", false)
+	if err != nil {
+		t.Fatalf("ListEndpoints() = %v", err)
+	}
+	for _, endpoint := range recorded {
+		if endpoint.Host == "198.51.100.10" {
+			t.Fatalf("out-of-range transport was persisted: %#v", endpoint)
+		}
+	}
+	for _, want := range []struct {
+		host string
+		port uint16
+	}{
+		{host: "192.168.1.106", port: 5556},
+		{host: "192.168.1.107", port: 5557},
+	} {
+		found := false
+		for _, endpoint := range recorded {
+			if endpoint.Host == want.host && endpoint.Port == want.port {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("recorded endpoints = %#v, want %s:%d", recorded, want.host, want.port)
+		}
 	}
 }

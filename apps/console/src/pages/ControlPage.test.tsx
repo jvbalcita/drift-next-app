@@ -3,10 +3,15 @@
 import "@testing-library/jest-dom/vitest"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
-import type { ControlPlaneIntent } from "@/lib/domain/control-plane"
+import { Toaster } from "@/components/ui/sonner"
+import type { ControlPlaneIntent, MutationResult } from "@/lib/domain/control-plane"
 import { ControlPage } from "./ControlPage"
+
+beforeEach(() => {
+  render(<Toaster />)
+})
 
 describe("ControlPage screenshot", () => {
   it("does not authorize capture when the device has no current transport endpoint", async () => {
@@ -296,20 +301,20 @@ describe("ControlPage OTG Setup tab", () => {
     expect(client.getSnapshot().scanRuns).toHaveLength(2)
   })
 
-  it("reloads known devices one answer per device without restarting anything", async () => {
+  it("reports a concise reload summary without dumping every device", async () => {
     const user = userEvent.setup()
     const { client, intents, dispatch } = harness()
     const snapshot = client.getSnapshot()
-    const serials = snapshot.endpoints.filter((endpoint) => endpoint.state === "current").map((endpoint) => endpoint.serial)
-    expect(serials.length).toBeGreaterThan(0)
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
     await openOtgTab(user)
 
     await user.click(screen.getByRole("button", { name: "Reload Devices" }))
 
     await waitFor(() => {
-      const report = screen.getByText(/Mock reload re-read/)
-      for (const serial of serials) expect(report).toHaveTextContent(serial)
+      const report = screen.getByText(/known devices? re-read/)
+      expect(report).toHaveTextContent(`${snapshot.devices.length} known devices re-read`)
+      expect(report).toHaveTextContent(/No adb server was restarted and no device was contacted/)
+      expect(report).not.toHaveTextContent("MOCK-DEVICE-")
     })
     // A reload is not the host-wide operation: nothing was restarted, and it is
     // not a scan either.
@@ -318,24 +323,64 @@ describe("ControlPage OTG Setup tab", () => {
     expect(intents.some((intent) => intent.type === "startScan")).toBe(false)
   })
 
-  it("explains an input-bearing control in a tooltip that keyboard focus opens", async () => {
+  it("keeps guidance in visible labels with focused info icons", async () => {
     const user = userEvent.setup()
     const { client, dispatch } = harness()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
     await openOtgTab(user)
 
-    // No paragraph-length description is left in the tab.
+    // Guidance is not repeated as paragraphs beneath every control.
     expect(screen.queryByText(/Activate moves every discovered device/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Add saves the range above/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Restarts this host's adb server, then re-establishes/)).not.toBeInTheDocument()
-    // The explanation is not simply always on screen either: it is on the
-    // control, and it opens when the control is reached.
+    // Explanations remain on the controls that need them, while self-labeled
+    // actions and compact range rows do not repeat redundant labels.
+    expect(screen.getByRole("button", { name: "About Set Port" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "About Saved Network" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "About Device Maintenance" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Activate" })).toHaveClass("h-7")
+    expect(screen.getByRole("textbox", { name: "Set Port" })).not.toHaveAttribute("data-slot", "tooltip-trigger")
+    expect(screen.getByRole("textbox", { name: "Set Port" })).toHaveClass("h-7")
+    expect(screen.queryByRole("button", { name: "About Activate" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "About Scan Saved Network" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "About Reload Devices" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "About Restart ADB Server" })).not.toBeInTheDocument()
     expect(screen.queryByText(/The port every discovered device is moved to/)).not.toBeInTheDocument()
 
-    screen.getByRole("textbox", { name: "Set Port" }).focus()
+    screen.getByRole("button", { name: "About Set Port" }).focus()
 
     await waitFor(() => {
       expect(screen.getByText(/The port every discovered device is moved to/)).toBeInTheDocument()
+    })
+  })
+
+  it("shows a loader while reloading and reports completion in a toast", async () => {
+    const user = userEvent.setup()
+    const client = new MockControlPlaneClient()
+    let resolveReload: ((result: MutationResult) => void) | undefined
+    const dispatch = async (intent: ControlPlaneIntent) => {
+      if (intent.type === "reloadDevices") {
+        return new Promise<MutationResult>((resolve) => { resolveReload = resolve })
+      }
+      return client.dispatch(intent)
+    }
+    render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
+    await openOtgTab(user)
+
+    const reload = screen.getByRole("button", { name: "Reload Devices" })
+    await user.click(reload)
+
+    expect(reload).toBeDisabled()
+    expect(reload).toHaveAttribute("aria-busy", "true")
+    expect(reload.querySelector(".animate-spin")).not.toBeNull()
+    expect(resolveReload).toBeDefined()
+
+    resolveReload?.({ ok: true, kind: "reloadDevices", message: "Mock reload complete" })
+
+    await waitFor(() => {
+      expect(reload).toBeEnabled()
+      expect(screen.getByText("Devices reloaded")).toBeInTheDocument()
+      expect(screen.getByText("Mock reload complete")).toBeInTheDocument()
     })
   })
 
@@ -376,7 +421,10 @@ describe("ControlPage connection filters", () => {
     const client = new MockControlPlaneClient()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={async (intent) => client.dispatch(intent)} />)
 
-    expect(screen.getByLabelText("Device connection filters")).toHaveTextContent("6 / 6 devices shown")
+    const filterBar = screen.getByLabelText("Device connection filters")
+    expect(filterBar).toHaveTextContent("6 / 6 devices shown")
+    expect(filterBar).not.toHaveClass("border-y")
+    expect(filterBar).not.toHaveClass("mt-4")
     expect(screen.getByRole("button", { name: "USB" })).toHaveAttribute("aria-pressed", "false")
 
     await user.click(screen.getByRole("button", { name: "USB" }))
@@ -388,14 +436,17 @@ describe("ControlPage connection filters", () => {
     expect(screen.getByRole("button", { name: "USB" })).toHaveAttribute("aria-pressed", "true")
   })
 
-  it("renders an empty state when a connection filter has no matching devices", async () => {
+  it("filters OTG-eligible devices separately from their transport", async () => {
     const user = userEvent.setup()
     const client = new MockControlPlaneClient()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={async (intent) => client.dispatch(intent)} />)
 
     await user.click(screen.getByRole("button", { name: "OTG" }))
 
-    expect(screen.getByLabelText("Device connection filters")).toHaveTextContent("0 / 6 devices shown")
-    expect(screen.getByText("No Devices for This Connection")).toBeInTheDocument()
+    expect(screen.getByLabelText("Device connection filters")).toHaveTextContent("3 / 6 devices shown")
+    expect(screen.getByRole("button", { name: /Atlas 04/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Atlas 07/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Orion 03/i })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Nova 02/i })).not.toBeInTheDocument()
   })
 })

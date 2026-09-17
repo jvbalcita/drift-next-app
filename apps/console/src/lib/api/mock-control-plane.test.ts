@@ -83,18 +83,15 @@ describe("MockControlPlaneClient", () => {
     expect(client.getSnapshot().scanRuns).toHaveLength(runsBefore)
   })
 
-  it("reloads known devices one answer per device and restarts no adb server", () => {
+  it("reports a concise reload summary and restarts no adb server", () => {
     const client = new MockControlPlaneClient()
     const snapshot = client.getSnapshot()
-    const serials = snapshot.endpoints.filter((endpoint) => endpoint.state === "current").map((endpoint) => endpoint.serial)
-    expect(serials.length).toBeGreaterThan(0)
 
     const reload = client.dispatch({ type: "reloadDevices" })
 
     expect(reload.ok).toBe(true)
-    // A count is not an answer an operator can act on, so every device the
-    // client knows is named in its own sentence.
-    for (const serial of serials) expect(reload.message).toContain(serial)
+    expect(reload.message).toContain(`${snapshot.devices.length} known devices re-read`)
+    expect(reload.message).not.toContain("MOCK-DEVICE-")
     // A reload is not the host-wide operation: nothing was restarted, and the
     // client's transports are still the ones it held.
     expect(reload.message).toContain("No adb server was restarted")
