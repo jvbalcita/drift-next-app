@@ -43,6 +43,7 @@ React/Vite operator UI
 - Use typed identifiers internally. Never make a mutable serial, IP/port, display name, account label, or UI row number the primary identity.
 - Keep every action-catalog entry complete: a typed identity, at least one allow-listed capability, a risk and retry class, the mutating/read-only classification with the reason for it, and an explicit postcondition stating what must be true after a successful dispatch. Refuse an incomplete entry at lookup rather than authorizing it on a zero value.
 - A kind that a documented deferral previously refused carries the recorded reason it is dispatchable now: name the deferral's precondition and the record that lifted it, beside the entry, so a reviewer can tell a newly permitted kind from one that was never deferred.
+- Discover a transport that attaches after launch by polling the adapter enumeration on a bounded interval, with every poll on its own bounded context, and report what changed as a transport event rather than as a device identity: the adapter's allow-list admits fixed builder shapes only, so a device tracking command would have to be admitted to that allow-list before it could exist at all. Polling is also the resolution — an attachment and a detachment between two polls is not observable — so a watcher says that plainly rather than implying event fidelity.
 
 ## 3. Control, workflow, and concurrency design
 
