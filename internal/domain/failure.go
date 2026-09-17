@@ -31,6 +31,9 @@ const (
 	// an operator reading it looks at the reference they named rather than at the
 	// device connection.
 	FailureReferenceUnreleased FailureClass = "reference_unreleased"
+	// FailureLeaseReleased identifies a lease ended by its control session or
+	// an explicit release, rather than one whose expiry time elapsed.
+	FailureLeaseReleased FailureClass = "lease_released"
 )
 
 // Valid reports whether the failure class is part of the shared vocabulary.
@@ -42,7 +45,7 @@ func (f FailureClass) Valid() bool {
 		FailureTransport, FailureObservation, FailureInfrastructure,
 		FailureIndeterminate, FailureInvalidTransition, FailureAmbiguousTarget,
 		FailureStaleObservation, FailureCapabilityMismatch,
-		FailureReferenceUnreleased:
+		FailureReferenceUnreleased, FailureLeaseReleased:
 		return true
 	default:
 		return false

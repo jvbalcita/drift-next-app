@@ -56,14 +56,8 @@ func TestTheProductionProbeRefusesEachControlConditionDistinctly(t *testing.T) {
 			},
 		},
 		{
-			name: "a control session that has closed, which ends its own lease",
-			// Closing a session releases its leases in the same transaction, so a
-			// dispatch after that moment never reaches the probe's session check:
-			// the lease gate refuses first. This asserts the cascade rather than
-			// the reason's name, because the reason for a lease that is no longer
-			// active is the lease's, and the lease really did leave the active
-			// state.
-			want:     execution.RefusalLeaseExpired,
+			name:     "a control session that has closed, which releases its lease",
+			want:     execution.RefusalLeaseReleased,
 			wantCode: platformerrors.CodeLeaseConflict,
 			mutate: func(t *testing.T, fixture *sqliteInputFixture, _ *execution.InputRequest) {
 				t.Helper()
@@ -83,6 +77,15 @@ func TestTheProductionProbeRefusesEachControlConditionDistinctly(t *testing.T) {
 				if after.State == leases.LeaseActive {
 					t.Fatalf("closing the control session left its lease in state %q: the session check is only unreachable while a session's end also ends its leases", after.State)
 				}
+			},
+		},
+		{
+			name:     "a lease whose expiry time has elapsed",
+			want:     execution.RefusalLeaseExpired,
+			wantCode: platformerrors.CodeLeaseConflict,
+			mutate: func(t *testing.T, fixture *sqliteInputFixture, _ *execution.InputRequest) {
+				t.Helper()
+				fixture.clock.Advance(2 * time.Hour)
 			},
 		},
 	}
@@ -106,9 +109,12 @@ func TestTheProductionProbeRefusesEachControlConditionDistinctly(t *testing.T) {
 				t.Fatalf("refusal code = %q, want %q", refusal.Code, test.wantCode)
 			}
 			// The lease refusals deliberately share one platform code, so the
-			// reason is what distinguishes them; the failure class is shared for
-			// the same recorded reason.
-			if refusal.FailureClass != domain.FailureLeaseConflict {
+			// reason and failure class distinguish them.
+			if test.want == execution.RefusalLeaseReleased {
+				if refusal.FailureClass != domain.FailureLeaseReleased {
+					t.Fatalf("refusal failure class = %q, want %q", refusal.FailureClass, domain.FailureLeaseReleased)
+				}
+			} else if refusal.FailureClass != domain.FailureLeaseConflict {
 				t.Fatalf("refusal failure class = %q, want %q", refusal.FailureClass, domain.FailureLeaseConflict)
 			}
 			if platformerrors.CodeOf(err) == platformerrors.CodeInternal {
