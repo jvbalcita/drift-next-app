@@ -89,6 +89,18 @@ func hostArrays(t *testing.T) [][]string {
 	return [][]string{connect, KillServerArgv(), StartServerArgv()}
 }
 
+// transportArrays are the device transport-mode admissions. They are kept apart from
+// the host arrays deliberately: `tcpip` acts on a device and is reached only through
+// the serial-bound entry point, so it must not be admitted where no serial is named.
+func transportArrays(t *testing.T) [][]string {
+	t.Helper()
+	tcpip, err := TcpipArgv(5556)
+	if err != nil {
+		t.Fatalf("TcpipArgv() = %v", err)
+	}
+	return [][]string{tcpip}
+}
+
 // foreignTokens are drawn from both admissions' vocabularies, so mutating any
 // position of any admitted array with one of them is the cheapest way to land on
 // an array that both recognisers might claim.
@@ -106,6 +118,7 @@ func classificationCorpus(t *testing.T) [][]string {
 	corpus := make([][]string, 0, 512)
 	admitted := append(readOnlyArrays(t), inputArrays()...)
 	admitted = append(admitted, hostArrays(t)...)
+	admitted = append(admitted, transportArrays(t)...)
 	for _, args := range admitted {
 		corpus = append(corpus, append([]string(nil), args...))
 	}
@@ -163,14 +176,22 @@ func TestTheAdmissionsNeverBothMatch(t *testing.T) {
 	inputNames := map[string]string{}
 	readOnlyNames := map[string]string{}
 	hostNames := map[string]string{}
+	transportNames := map[string]string{}
 
 	for _, args := range corpus {
 		inputName, inputOK := matchesDeviceInputAllowlist(args)
 		readOnlyName, readOnlyOK := matchesReadOnlyAllowlist(args)
 		hostName, hostOK := matchesHostAllowlist(args)
-		if inputOK && readOnlyOK || inputOK && hostOK || readOnlyOK && hostOK {
-			t.Fatalf("more than one recogniser admits %q: input=%q read-only=%q host=%q; this array's classification would depend on which recogniser is asked first",
-				args, inputName, readOnlyName, hostName)
+		transportName, transportOK := matchesTransportAllowlist(args)
+		claims := 0
+		for _, ok := range []bool{inputOK, readOnlyOK, hostOK, transportOK} {
+			if ok {
+				claims++
+			}
+		}
+		if claims > 1 {
+			t.Fatalf("more than one recogniser admits %q: input=%q read-only=%q host=%q transport=%q; this array's classification would depend on which recogniser is asked first",
+				args, inputName, readOnlyName, hostName, transportName)
 		}
 		if inputOK {
 			inputNames[inputName] = strings.Join(args, " ")
@@ -180,6 +201,9 @@ func TestTheAdmissionsNeverBothMatch(t *testing.T) {
 		}
 		if hostOK {
 			hostNames[hostName] = strings.Join(args, " ")
+		}
+		if transportOK {
+			transportNames[transportName] = strings.Join(args, " ")
 		}
 
 		first, firstOK := matchesAllowlist(args)
@@ -200,6 +224,10 @@ func TestTheAdmissionsNeverBothMatch(t *testing.T) {
 			if !firstOK || first != hostName {
 				t.Fatalf("matchesAllowlist(%q) = %q, %t; want the host classification %q, true", args, first, firstOK, hostName)
 			}
+		case transportOK:
+			if !firstOK || first != transportName {
+				t.Fatalf("matchesAllowlist(%q) = %q, %t; want the transport classification %q, true", args, first, firstOK, transportName)
+			}
 		default:
 			if firstOK {
 				t.Fatalf("matchesAllowlist(%q) = %q, true; no recogniser admits it", args, first)
@@ -216,6 +244,9 @@ func TestTheAdmissionsNeverBothMatch(t *testing.T) {
 	}
 	if len(hostNames) != 3 {
 		t.Fatalf("the corpus reached %d host operation names (%v), want all 3", len(hostNames), sortedKeys(hostNames))
+	}
+	if len(transportNames) != 1 {
+		t.Fatalf("the corpus reached %d transport operation names (%v), want all 1", len(transportNames), sortedKeys(transportNames))
 	}
 }
 
@@ -259,6 +290,18 @@ func TestNoTwoAdmissionsShareAnOperationName(t *testing.T) {
 		t.Fatalf("the host admission reports %d operation names (%v), want 3", len(hostNames), sortedKeys(hostNames))
 	}
 
+	transportNames := map[string]string{}
+	for _, args := range transportArrays(t) {
+		name, ok := matchesTransportAllowlist(args)
+		if !ok {
+			t.Fatalf("matchesTransportAllowlist(%q) = %q, false; want the transport admission", args, name)
+		}
+		transportNames[name] = strings.Join(args, " ")
+	}
+	if len(transportNames) != 1 {
+		t.Fatalf("the transport admission reports %d operation names (%v), want 1", len(transportNames), sortedKeys(transportNames))
+	}
+
 	for _, group := range []struct {
 		left, right map[string]string
 		leftName    string
@@ -266,7 +309,10 @@ func TestNoTwoAdmissionsShareAnOperationName(t *testing.T) {
 	}{
 		{inputNames, readOnlyNames, "input", "read-only"},
 		{inputNames, hostNames, "input", "host"},
+		{inputNames, transportNames, "input", "transport"},
 		{readOnlyNames, hostNames, "read-only", "host"},
+		{readOnlyNames, transportNames, "read-only", "transport"},
+		{hostNames, transportNames, "host", "transport"},
 	} {
 		for name, array := range group.left {
 			if other, clash := group.right[name]; clash {
