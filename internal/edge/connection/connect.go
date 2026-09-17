@@ -2,6 +2,8 @@ package connection
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"drift.local/drift-next/internal/edge/adb"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
@@ -17,18 +19,28 @@ type HostCommandRunner interface {
 type ConnectorConfig struct {
 	Runner HostCommandRunner
 	Policy PortPolicy
+	// Activations carries the operator's per-device port decisions. A connector built
+	// without one refuses every off-port endpoint, which is the fail-closed default:
+	// activation is something an operator does, not something that happens because a
+	// field was left empty.
+	Activations *PortActivations
 }
 
 type Connector struct {
-	runner HostCommandRunner
-	policy PortPolicy
+	runner      HostCommandRunner
+	policy      PortPolicy
+	activations *PortActivations
 }
 
 func NewConnector(cfg ConnectorConfig) (*Connector, error) {
 	if cfg.Runner == nil {
 		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "a connection runner is required")
 	}
-	return &Connector{runner: cfg.Runner, policy: cfg.Policy}, nil
+	activations := cfg.Activations
+	if activations == nil {
+		activations = NewPortActivations()
+	}
+	return &Connector{runner: cfg.Runner, policy: cfg.Policy, activations: activations}, nil
 }
 
 // ConnectOutcome is what a connect actually did for one endpoint: the operation
@@ -46,13 +58,70 @@ type ConnectOutcome struct {
 // runner is the adapter's own builder, so the caller cannot express a command the
 // allow-list would have to filter.
 func (c *Connector) Connect(ctx context.Context, endpoint string) (ConnectOutcome, error) {
-	if err := ctx.Err(); err != nil {
-		return ConnectOutcome{}, err
-	}
-	port, err := c.policy.CheckEndpoint(endpoint)
+	port, err := c.admittedPort(ctx, endpoint, "", false)
 	if err != nil {
 		return ConnectOutcome{}, err
 	}
+	return c.connectTo(ctx, endpoint, port)
+}
+
+// ConnectFor opens a transport on behalf of a NAMED device, so the port decision can
+// honour an activation the operator made for that device and for no other. An endpoint
+// on its own cannot carry that meaning, which is why this is a separate entry point
+// rather than an extra argument on Connect: the serial is the identity, and the endpoint
+// is the mutable fact being decided about.
+func (c *Connector) ConnectFor(ctx context.Context, serial, endpoint string) (ConnectOutcome, error) {
+	port, err := c.admittedPort(ctx, endpoint, serial, true)
+	if err != nil {
+		return ConnectOutcome{}, err
+	}
+	return c.connectTo(ctx, endpoint, port)
+}
+
+// ActivatePort records the operator's decision to accept this device's endpoint on a
+// port the profile does not accept. It reports whether anything CHANGED, because
+// "activated" and "already accepted" are different things to tell an operator and
+// reporting the second as the first claims credit for something that did not happen.
+func (c *Connector) ActivatePort(ctx context.Context, serial, endpoint string, at time.Time) (PortActivation, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return PortActivation{}, false, err
+	}
+	port, err := adb.EndpointPort(endpoint)
+	if err != nil {
+		return PortActivation{}, false, err
+	}
+	if c.policy.Accepts(port) {
+		return PortActivation{Serial: serial, Endpoint: endpoint, Port: port, ActivatedAt: at.UTC()}, false, nil
+	}
+	if existing, ok := c.activations.For(serial); ok && existing.Covers(serial, endpoint, port) {
+		return existing, false, nil
+	}
+	return c.activations.Activate(serial, endpoint, port, at), true, nil
+}
+
+// admittedPort validates the endpoint's shape and decides its port: the profile's
+// accepted set always, and — only for a named device, only when the operator has
+// activated exactly this endpoint and port for it — the activation.
+func (c *Connector) admittedPort(ctx context.Context, endpoint, serial string, allowActivation bool) (uint16, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	port, err := c.policy.CheckEndpoint(endpoint)
+	if err == nil {
+		return port, nil
+	}
+	if allowActivation {
+		var refusal *PortNotAcceptedError
+		if errors.As(err, &refusal) && c.activations.Covers(serial, endpoint, refusal.Port) {
+			return refusal.Port, nil
+		}
+	}
+	return 0, err
+}
+
+// connectTo is the single path both entries share, so a policy decision and the array
+// that follows it cannot drift between them.
+func (c *Connector) connectTo(ctx context.Context, endpoint string, port uint16) (ConnectOutcome, error) {
 	argv, err := adb.ConnectArgv(endpoint)
 	if err != nil {
 		return ConnectOutcome{}, err
