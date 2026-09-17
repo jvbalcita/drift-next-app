@@ -43,6 +43,20 @@ const (
 // anything the watcher cannot cancel.
 type ArrivalSink func(ctx context.Context, arrivals []discovery.ObservedDevice) error
 
+// DepartureSink records the transports a watcher has just observed leaving. It is
+// the absence fact the registry has never had: a transport the watcher had in
+// view and no longer sees is a fact about that transport, and counting it is not
+// the same as recording it. The watcher still holds no registry of its own - it
+// hands the departed transports to this seam, which records them against the
+// endpoint observation they end.
+//
+// It is called from inside a poll, on that poll's bounded context, so the caller
+// supplies a bounded write - it must honor the context and must not block on
+// anything the watcher cannot cancel. A nil sink leaves the watcher counting
+// departures only, which is the state this watcher shipped in: a departure is
+// counted, reported, and discarded.
+type DepartureSink func(ctx context.Context, departures []discovery.ObservedDevice) error
+
 // TransportWatchState is how a watch ended. Both states are normal process
 // outcomes: a watcher never aborts startup and never fails the process.
 type TransportWatchState string
@@ -104,6 +118,17 @@ type TransportWatchOutcome struct {
 	LastError error
 	// LastRecordError is the most recent refused arrival batch.
 	LastRecordError error
+	// DeparturesRecorded is how many transports this watch recorded leaving. A
+	// departure is not re-offered the way an arrival is: the next poll can see an
+	// arrival again because it is still attached, and a departed transport is
+	// precisely what the next poll cannot see, so a refused departure is counted
+	// and explained rather than retried.
+	DeparturesRecorded int
+	// DepartureErrors is how many departure batches the sink refused, kept apart
+	// from arrival refusals because they are different writes.
+	DepartureErrors int
+	// LastDepartureError is the most recent refused departure batch.
+	LastDepartureError error
 	// Err is why the watch ended: the cancellation that stopped it, or the
 	// reason it could not poll at all.
 	Err error
@@ -125,6 +150,12 @@ func (o TransportWatchOutcome) Report() string {
 	if o.RecordErrors > 0 {
 		report += fmt.Sprintf(", %d arrival batch(es) NOT recorded", o.RecordErrors)
 	}
+	if o.DeparturesRecorded > 0 {
+		report += fmt.Sprintf(", %d departure(s) recorded", o.DeparturesRecorded)
+	}
+	if o.DepartureErrors > 0 {
+		report += fmt.Sprintf(", %d departure batch(es) NOT recorded", o.DepartureErrors)
+	}
 	if o.Polls > 0 {
 		report += fmt.Sprintf("; %d transport(s) attached at the last poll", o.Attached)
 	}
@@ -133,6 +164,9 @@ func (o TransportWatchOutcome) Report() string {
 	}
 	if o.LastRecordError != nil {
 		report += fmt.Sprintf("; last arrival record error: %v", o.LastRecordError)
+	}
+	if o.LastDepartureError != nil {
+		report += fmt.Sprintf("; last departure record error: %v", o.LastDepartureError)
 	}
 	return report
 }
@@ -149,6 +183,11 @@ type TransportWatcherConfig struct {
 	// state the wave's first slice shipped in, not a supported configuration once
 	// the console is meant to surface arrivals without a scan.
 	Sink ArrivalSink
+	// DepartureSink records each departure. A nil sink leaves the watcher
+	// detecting only: a departure is reported and counted, and nothing is
+	// recorded, so a device that left is still reported as present by every
+	// reader of the registry.
+	DepartureSink DepartureSink
 	// Interval is the poll cadence; a zero value uses
 	// defaultTransportWatchInterval.
 	Interval time.Duration
@@ -183,12 +222,13 @@ type TransportWatcherConfig struct {
 // composition root starts it on the process's shutdown context and waits for it
 // before the process returns.
 type TransportWatcher struct {
-	enumerator  discovery.RuntimeEnumerator
-	sink        ArrivalSink
-	interval    time.Duration
-	pollTimeout time.Duration
-	logf        func(string, ...any)
-	now         func() time.Time
+	enumerator    discovery.RuntimeEnumerator
+	sink          ArrivalSink
+	departureSink DepartureSink
+	interval      time.Duration
+	pollTimeout   time.Duration
+	logf          func(string, ...any)
+	now           func() time.Time
 
 	// unrecorded holds the arrivals the sink has not accepted yet, keyed the same
 	// way change detection is. It is written only from the watch goroutine, and
@@ -218,13 +258,14 @@ func NewTransportWatcher(cfg TransportWatcherConfig) *TransportWatcher {
 		now = time.Now
 	}
 	return &TransportWatcher{
-		enumerator:  cfg.Enumerator,
-		sink:        cfg.Sink,
-		interval:    interval,
-		pollTimeout: pollTimeout,
-		logf:        logf,
-		now:         now,
-		unrecorded:  make(map[string]discovery.RuntimeDevice),
+		enumerator:    cfg.Enumerator,
+		sink:          cfg.Sink,
+		departureSink: cfg.DepartureSink,
+		interval:      interval,
+		pollTimeout:   pollTimeout,
+		logf:          logf,
+		now:           now,
+		unrecorded:    make(map[string]discovery.RuntimeDevice),
 	}
 }
 
@@ -323,6 +364,11 @@ func (w *TransportWatcher) poll(ctx context.Context, previous attachmentSnapshot
 		})
 		pending[key] = device
 	}
+	// departed is what this poll observed leave. It is keyed like change
+	// detection, so one transport leaving once is handed over once, and it is
+	// collected before the hand-over for the same reason arrivals are: a batch
+	// recorded in the order it was observed is reproducible.
+	departed := make(map[string]discovery.RuntimeDevice)
 	for key, device := range previous {
 		if _, present := current[key]; present {
 			continue
@@ -331,6 +377,7 @@ func (w *TransportWatcher) poll(ctx context.Context, previous attachmentSnapshot
 		// An arrival that departed before it could be recorded is no longer an
 		// arrival: there is nothing attached to hand over.
 		delete(w.unrecorded, key)
+		departed[key] = device
 		w.report(TransportChange{
 			Kind:        TransportDeparted,
 			Serial:      device.Serial,
@@ -339,6 +386,7 @@ func (w *TransportWatcher) poll(ctx context.Context, previous attachmentSnapshot
 		})
 	}
 	w.recordArrivals(pollCtx, pending, outcome)
+	w.recordDepartures(pollCtx, departed, outcome)
 	return current
 }
 
@@ -375,15 +423,55 @@ func (w *TransportWatcher) recordArrivals(ctx context.Context, pending map[strin
 		delete(w.unrecorded, key)
 	}
 	outcome.Recorded += len(arrivals)
-	w.logf("discovery watcher recorded %d arrival(s): %s", len(arrivals), strings.Join(arrivalSerials(arrivals), ", "))
+	w.logf("discovery watcher recorded %d arrival(s): %s", len(arrivals), strings.Join(batchSerials(arrivals), ", "))
 }
 
-// arrivalSerials renders the serials in a recorded batch: what was written, never
+// recordDepartures hands the transports this poll observed leaving to the
+// departure sink, in a stable order. The observations it hands over carry the
+// transport that left and the fact that it is no longer reachable - never a
+// device identity, which is the serial-keyed registry's decision rather than this
+// watcher's.
+//
+// A refused batch is counted and explained rather than retried: the arrival
+// retry exists because the next poll can still see an arrival that is attached,
+// while the transport this batch names is exactly what the next poll can no
+// longer see, so there is nothing a later poll could re-observe.
+func (w *TransportWatcher) recordDepartures(ctx context.Context, departed map[string]discovery.RuntimeDevice, outcome *TransportWatchOutcome) {
+	if w.departureSink == nil || len(departed) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(departed))
+	for key := range departed {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	departures := make([]discovery.ObservedDevice, 0, len(keys))
+	for _, key := range keys {
+		observation := discovery.ObservedDeviceFromRuntime(departed[key])
+		// The transport is no longer reachable, and the observation says so
+		// rather than repeating the link state it carried while it was attached.
+		// A departure is recorded against the endpoint record it ends, never by
+		// refreshing a device's last positive observation: recording a departure
+		// as a sighting would revive the very device it reports leaving.
+		observation.State = discovery.LinkOffline
+		departures = append(departures, observation)
+	}
+	if err := w.departureSink(ctx, departures); err != nil {
+		outcome.DepartureErrors++
+		outcome.LastDepartureError = err
+		w.logf("discovery watcher could not record %d departure(s): %v", len(departures), err)
+		return
+	}
+	outcome.DeparturesRecorded += len(departures)
+	w.logf("discovery watcher recorded %d departure(s): %s", len(departures), strings.Join(batchSerials(departures), ", "))
+}
+
+// batchSerials renders the serials in a recorded batch: what was written, never
 // an address or device evidence.
-func arrivalSerials(arrivals []discovery.ObservedDevice) []string {
-	serials := make([]string, 0, len(arrivals))
-	for _, arrival := range arrivals {
-		serials = append(serials, arrival.Serial)
+func batchSerials(batch []discovery.ObservedDevice) []string {
+	serials := make([]string, 0, len(batch))
+	for _, observation := range batch {
+		serials = append(serials, observation.Serial)
 	}
 	return serials
 }

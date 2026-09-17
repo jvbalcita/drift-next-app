@@ -184,6 +184,13 @@ func main() {
 			_, recordErr := discoveryService.RecordArrivals(ctx, workspaceID, arrivals, product.WatcherActorType, product.WatcherActorID)
 			return recordErr
 		},
+		// A departure is recorded the same way an arrival is: on the poll that
+		// observed it, on that poll's bounded context. Without this the watcher
+		// counts a departure and discards it, and a device unplugged an hour ago
+		// still answers as present to every reader of the registry.
+		DepartureSink: func(ctx context.Context, departures []discovery.ObservedDevice) error {
+			return discoveryService.RecordDepartures(ctx, workspaceID, departures, product.WatcherActorType, product.WatcherActorID)
+		},
 	})
 	transportWatchDone := make(chan struct{})
 	go func() {

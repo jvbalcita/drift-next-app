@@ -193,6 +193,61 @@ func (d *DB) RecordArrivals(ctx context.Context, workspace organizations.Workspa
 	return observed, nil
 }
 
+// RecordDepartures records transports a watcher observed leaving. A departure is
+// an observation fact about a TRANSPORT, not a device lifecycle: it supersedes the
+// current endpoint record of the transport that left, so every reader of the
+// registry sees that the device was observed before and is not observed now,
+// while its row, its identity and its last positive observation survive intact
+// (ARC-116: a device has no lifecycle beyond its identity and its observation
+// history, and the departure write is the observation-history half of that).
+//
+// It deliberately does not touch devices.last_seen_at, does not write
+// devices.state, and does not delete the device: recording a departure as a
+// sighting would revive the device it reports leaving, and deleting the row would
+// lose the identity a returning device must resolve to. A transport it can no
+// longer find current writes nothing, which is what makes observing the same
+// departure twice record one fact. The whole batch commits or nothing does.
+func (d *DB) RecordDepartures(ctx context.Context, workspace organizations.WorkspaceID, departures []discovery.ObservedDevice, actorType, actorID string) error {
+	if err := validateWorkspace(string(workspace)); err != nil {
+		return err
+	}
+	if strings.TrimSpace(actorType) == "" || strings.TrimSpace(actorID) == "" {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "departure actor type and ID are required")
+	}
+	at := d.clock.Now().UTC().Format(time.RFC3339Nano)
+	return WithTx(ctx, d.db, func(tx *sql.Tx) error {
+		for _, departure := range departures {
+			host, port := observedTransportAddress(departure)
+			// The transport is matched exactly as the upsert would have written
+			// it, transport token included, so a departure ends the endpoint of
+			// the transport that left rather than the same device's other one.
+			token := transportToken(endpoints.TransportOf(departure.Serial, departure.Host, departure.Port))
+			var endpointID, deviceID string
+			err := tx.QueryRowContext(ctx, `SELECT id, device_id FROM device_endpoints WHERE workspace_id=? AND state='current' AND endpoint_type=? AND COALESCE(serial,'')=? AND COALESCE(host,'')=? AND COALESCE(port,0)=?`, workspace, token, departure.Serial, host, port).Scan(&endpointID, &deviceID)
+			if err == sql.ErrNoRows {
+				// Nothing current matches this transport: it was never observed,
+				// or its departure is already recorded. Either way there is no new
+				// fact, and the departure stays idempotent.
+				continue
+			}
+			if err != nil {
+				return classifyContext(err)
+			}
+			result, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET state='superseded', superseded_at=? WHERE workspace_id=? AND id=? AND state='current'`, at, workspace, endpointID)
+			if err != nil {
+				return err
+			}
+			if err := RequireAffected(result, "device endpoint"); err != nil {
+				return err
+			}
+			if err := d.recordMutation(ctx, tx, string(workspace), "device", deviceID, "device.departed", actorType, actorID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // persistObservation is THE serial-keyed upsert path. Every observation the
 // registry persists - one a scan completes with, and one an arrival watcher
 // reports - lands here, so a device observed on a second transport can only
@@ -277,6 +332,22 @@ func deviceIDForObservation(ctx context.Context, tx *sql.Tx, workspace organizat
 	}
 }
 
+// observedTransportAddress is the address an observation's transport is
+// identified by. It is resolved in one place so the upsert that records an
+// endpoint and the departure that supersedes it cannot disagree about which
+// transport they mean: a device reached over TCP is named by the address it
+// answers on, which is the observation's own reading rather than the absence of
+// one, and a USB serial carries no address at all.
+func observedTransportAddress(observation discovery.ObservedDevice) (string, uint16) {
+	host, port := observation.Host, observation.Port
+	if host == "" && port == 0 {
+		if observedHost, observedPort, ok := endpoints.SplitAddress(observation.Serial); ok {
+			host, port = observedHost, observedPort
+		}
+	}
+	return host, port
+}
+
 // upsertEndpoint keeps one current endpoint per device. An unchanged transport
 // only refreshes its observation time; a changed transport supersedes the
 // previous endpoint and records a new one, so endpoint identity stays mutable
@@ -289,16 +360,7 @@ func deviceIDForObservation(ctx context.Context, tx *sql.Tx, workspace organizat
 // USB, so comparing the address compares the transport it belongs to.
 func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, deviceID devices.DeviceID, observation discovery.ObservedDevice, at string) (string, error) {
 	transport := endpoints.TransportOf(observation.Serial, observation.Host, observation.Port)
-	host, port := observation.Host, observation.Port
-	if host == "" && port == 0 {
-		// A device reached over TCP is named by the address it answers on, so
-		// the address is the observation's own reading rather than the absence
-		// of one. Recording it is what keeps this endpoint distinguishable from
-		// the same device's USB transport.
-		if observedHost, observedPort, ok := endpoints.SplitAddress(observation.Serial); ok {
-			host, port = observedHost, observedPort
-		}
-	}
+	host, port := observedTransportAddress(observation)
 	endpointType := transportToken(transport)
 	var currentID, currentHost string
 	var currentPort int64
