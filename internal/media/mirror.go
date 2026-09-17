@@ -127,6 +127,11 @@ type MirrorViewer interface {
 	// Send offers one frame to this viewer. It never blocks: a viewer that cannot
 	// keep up loses the frame, because a delayed live frame is not a live frame.
 	Send(frame StreamFrame) bool
+	// Frames is the queue this viewer is fed from. A consumer drains it until it
+	// closes, which happens when the viewer detaches or its session ends - so a
+	// reader learns the stream is over instead of waiting on a queue nothing
+	// will fill again.
+	Frames() <-chan StreamFrame
 	// Done is closed when this viewer has detached or its session ended, so a
 	// consumer that is not reading a queue still learns the stream is over
 	// instead of waiting on one that will never deliver again.
