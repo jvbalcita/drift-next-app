@@ -142,6 +142,7 @@ import type {
   WorkflowState as WorkflowViewState,
   WorkflowView,
 } from "@/lib/domain/control-plane"
+import { notObserved } from "@/lib/device-status"
 
 const operatorId = defaultOperatorId
 
@@ -279,6 +280,13 @@ function redact(value: string): string {
   return value.length > 120 ? `${value.slice(0, 117)}…` : value
 }
 
+/**
+ * mapDeviceStatus reads the status the control plane derived from observation
+ * facts. UNSPECIFIED and OFFLINE stay apart: the wire reports a device nobody
+ * has observed as UNSPECIFIED, and a device that was observed and has since
+ * left as OFFLINE, and collapsing them here would tell an operator that a device
+ * which has never answered was seen and then lost.
+ */
 function mapDeviceStatus(status: DeviceStatus): DeviceStatusView {
   switch (status) {
     case DeviceStatus.ONLINE:
@@ -286,8 +294,9 @@ function mapDeviceStatus(status: DeviceStatus): DeviceStatusView {
     case DeviceStatus.ATTENTION:
       return "attention"
     case DeviceStatus.OFFLINE:
-    case DeviceStatus.UNSPECIFIED:
       return "offline"
+    case DeviceStatus.UNSPECIFIED:
+      return "unobserved"
     default: {
       const _exhaustive: never = status
       return _exhaustive
@@ -302,6 +311,10 @@ function eligibilityFor(status: DeviceStatusView): ControlEligibility {
     case "attention":
       return "incompatible"
     case "offline":
+    case "unobserved":
+      // Neither an absent device nor one that has never been observed is
+      // eligible: the status fails closed for both, and the two are told apart
+      // by their own label rather than by what control they permit.
       return "offline"
     default: {
       const _exhaustive: never = status
@@ -311,7 +324,10 @@ function eligibilityFor(status: DeviceStatusView): ControlEligibility {
 }
 
 function lifecycleFor(status: DeviceStatusView): DeviceLifecycleState {
-  return status === "offline" ? "unavailable" : "active"
+  // The lifecycle is DERIVED from the observation status rather than read from a
+  // stored lifecycle, and an absent device is not available to control whether it
+  // was observed and left or has never been observed.
+  return notObserved(status) ? "unavailable" : "active"
 }
 
 /**

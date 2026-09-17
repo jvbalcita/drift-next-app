@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import type { DeviceView } from "@/lib/domain/control-plane"
+import { deviceStatusLabels } from "@/lib/device-status"
 
 export type StatusTone = "healthy" | "attention" | "neutral" | "danger" | "info"
 
@@ -148,8 +149,7 @@ export function DeviceIdentity({ device }: { device: DeviceView }) {
 
 export function DeviceStatus({ device }: { device: DeviceView }) {
   const tone: StatusTone = device.status === "online" ? "healthy" : device.status === "attention" ? "attention" : "neutral"
-  const label = device.status === "online" ? "Online" : device.status === "attention" ? "Attention" : "Offline"
-  return <StatusBadge label={label} tone={tone} />
+  return <StatusBadge label={deviceStatusLabels[device.status]} tone={tone} />
 }
 
 export function OutcomeIcon({ ok }: { ok: boolean }) {

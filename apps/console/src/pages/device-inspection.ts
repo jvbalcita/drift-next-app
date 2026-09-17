@@ -6,6 +6,7 @@ import type {
   EndpointView,
   EventView,
 } from "@/lib/domain/control-plane"
+import { deviceStatusLabels, deviceStatusMeanings } from "@/lib/device-status"
 
 /**
  * device-inspection builds the operator-facing inspection surface for one
@@ -49,10 +50,16 @@ export interface DeviceName {
   readonly mono: boolean
 }
 
-const statusLabels: Record<DeviceStatus, string> = {
-  online: "Online",
-  attention: "Needs attention",
-  offline: "Offline",
+/**
+ * The Health tab's Status row states the status AND what it means, so the row
+ * reports which observation it is: the last successful scan, never a live
+ * connection. "Offline" and "Not Observed" stay distinct, because a device that
+ * was observed and has since left is not a device no scan has ever seen.
+ */
+function statusReading(status: DeviceStatus): string {
+  // The separator is the codebase's ·, never the — this surface reserves for a
+  // value it does not have: this row always has a reading to report.
+  return `${deviceStatusLabels[status]} · ${deviceStatusMeanings[status]}`
 }
 
 /**
@@ -206,7 +213,7 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
       {
         title: "Reported Telemetry",
         rows: rows([
-          row("Status", statusLabels[device.status]),
+          row("Status", statusReading(device.status)),
           row("Battery", `${device.batteryPercent}%`),
           row("Latency", `${device.latencyMs} ms`),
           row("Last Seen", device.lastSeen),

@@ -1,4 +1,21 @@
-export type DeviceStatus = "online" | "attention" | "offline"
+/**
+ * What the control plane's last observation says about a device.
+ *
+ * It is derived from observation facts — never from a stored lifecycle column —
+ * and it is not a claim that the device answers right now:
+ * - "online" is the wire's ONLINE: the transport it was last observed at is
+ *   still current.
+ * - "attention" is the wire's ATTENTION: it was observed with a condition to
+ *   review.
+ * - "offline" is the wire's OFFLINE: it was observed, and it is not observed
+ *   now, so the operator can still see when it was last seen.
+ * - "unobserved" is the wire's UNSPECIFIED: no successful scan has observed
+ *   this device yet. It is deliberately NOT folded into "offline" — a device
+ *   that has never answered and a device that answered and then left are
+ *   different facts an operator acts on differently — and it fails closed:
+ *   neither state is ever eligible for control.
+ */
+export type DeviceStatus = "online" | "attention" | "offline" | "unobserved"
 export type DeviceLifecycleState = "registered" | "active" | "unavailable" | "retired"
 export type ControlEligibility = "eligible" | "offline" | "incompatible" | "policy_denied"
 

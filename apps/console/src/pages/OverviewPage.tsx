@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/tabs"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { DataTablePagination } from "./shared"
+import { deviceStatusLabels } from "@/lib/device-status"
 import type {
   ControlPlaneSnapshot,
   DeviceStatus,
@@ -166,13 +167,13 @@ function DeviceCard({ device, selected, onSelect }: { device: DeviceView; select
 }
 
 function DeviceStatusBadge({ status }: { status: DeviceStatus }) {
-  const label = status === "online" ? "Online" : status === "attention" ? "Attention" : "Offline"
+  const label = deviceStatusLabels[status]
   const classes = status === "online" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : status === "attention" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-300 bg-slate-100 text-slate-700"
   return <Badge variant="outline" className={`shrink-0 rounded-none text-[10px] ${classes}`}><span className={`mr-1.5 size-1.5 rounded-full ${statusDotClass(status)}`} />{label}</Badge>
 }
 
 function statusDotClass(status: DeviceStatus) {
-  return status === "online" ? "bg-emerald-600" : status === "attention" ? "bg-amber-600" : "bg-slate-500"
+  return status === "online" ? "bg-emerald-600" : status === "attention" ? "bg-amber-600" : status === "unobserved" ? "bg-slate-300" : "bg-slate-500"
 }
 
 function InspectorMetric({ icon: Icon, label, value }: { icon: typeof Cpu; label: string; value: string }) {
