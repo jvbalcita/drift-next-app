@@ -13,6 +13,9 @@ import (
 // deterministic in-memory adapter without reimplementing scan policy.
 type RegistryStore interface {
 	GetNetworkProfile(context.Context, organizations.WorkspaceID, networkprofiles.NetworkProfileID) (networkprofiles.NetworkProfile, error)
+	// BeginScan opens a scan run for a saved profile, or — with an absent profile
+	// ID — for a range an operator entered, which is not saved policy and so has
+	// no profile reference for the run to record.
 	BeginScan(context.Context, organizations.WorkspaceID, networkprofiles.NetworkProfileID, string, string, string) (ScanRun, bool, error)
 	MarkScanRunning(context.Context, organizations.WorkspaceID, ScanRunID, string, string) error
 	// FinishScan completes a running scan, upserting the observed devices and
@@ -52,7 +55,41 @@ func (s *Service) StartScan(ctx context.Context, workspace organizations.Workspa
 	if err := profile.Validate(); err != nil {
 		return zero, nil, err
 	}
+	return s.runScan(ctx, workspace, profile, profileID, key, actorType, actorID)
+}
 
+// StartRangeScan runs one bounded scan of a range an operator ENTERED in the
+// console's OTG Setup tab. Its target is the entered range rather than a saved
+// Network Profile, which is why this is a path of its own instead of a lookup:
+// resolving an entered range to whichever saved profile happens to bound the same
+// addresses would make the scan's target a saved resource and report a scan of
+// policy nobody entered.
+//
+// The target is not saved policy, so the run it opens records no profile
+// reference — the same nullable historical column a run keeps after its profile
+// is deleted. Everything else is the scan path a saved profile takes, because an
+// observation is an observation: the same scanner bounds it and the same
+// serial-keyed upsert persists it.
+func (s *Service) StartRangeScan(ctx context.Context, workspace organizations.WorkspaceID, addressPolicy string, port uint16, key, actorType, actorID string) (ScanRun, []ObservedDevice, error) {
+	var zero ScanRun
+	if s == nil || s.store == nil || s.scanner == nil {
+		return zero, nil, fmt.Errorf("discovery service dependencies are required")
+	}
+	if err := ctx.Err(); err != nil {
+		return zero, nil, err
+	}
+	target, err := networkprofiles.EnteredRange(workspace, addressPolicy, port)
+	if err != nil {
+		return zero, nil, err
+	}
+	return s.runScan(ctx, workspace, target, "", key, actorType, actorID)
+}
+
+// runScan is the one scan path. profileID names the saved profile the run
+// scanned, and is absent for a run against a range an operator entered; the
+// profile value carries the bounds the scanner applies either way.
+func (s *Service) runScan(ctx context.Context, workspace organizations.WorkspaceID, profile networkprofiles.NetworkProfile, profileID networkprofiles.NetworkProfileID, key, actorType, actorID string) (ScanRun, []ObservedDevice, error) {
+	var zero ScanRun
 	run, created, err := s.store.BeginScan(ctx, workspace, profileID, key, actorType, actorID)
 	if err != nil || !created {
 		return run, nil, err

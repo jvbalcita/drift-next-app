@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"drift.local/drift-next/internal/organizations"
+	platformerrors "drift.local/drift-next/internal/platform/errors"
 )
 
 type NetworkProfileID string
@@ -58,6 +59,35 @@ func (p NetworkProfile) Validate() error {
 	}
 	return nil
 }
+
+// EnteredRange builds the scan target for an inclusive IPv4 range the operator
+// ENTERED in the console. It is a scan target, not saved policy: nothing
+// persists it, and it carries no Network Profile row. It is spelled as the value
+// the scan adapter already reads, so an entered range and a saved range profile
+// are bounded by the same check and scanned by the same code rather than by a
+// second implementation of the range rule.
+//
+// Its identity and name exist only so the value satisfies Validate, which is the
+// check the adapter applies. A malformed entry is refused as invalid input with a
+// named reason rather than reaching a scan.
+func EnteredRange(workspace organizations.WorkspaceID, addressPolicy string, port uint16) (NetworkProfile, error) {
+	target := NetworkProfile{
+		ID:            enteredRangeProfileID,
+		Workspace:     workspace,
+		Name:          "Entered range",
+		AddressPolicy: strings.TrimSpace(addressPolicy),
+		Ports:         []uint16{port},
+	}
+	if err := target.Validate(); err != nil {
+		return NetworkProfile{}, platformerrors.New(platformerrors.CodeInvalidInput, "the entered range must be an IPv4 range of four octets each 0 through 255 whose start is at or before its end, scanned on a port between 1 and 65535")
+	}
+	return target, nil
+}
+
+// enteredRangeProfileID is the identity an entered range carries in memory. It is
+// deliberately not a UUID: a value that could be mistaken for a stored profile id
+// is the wrong thing to hand a scan run that records no profile reference.
+const enteredRangeProfileID NetworkProfileID = "entered-range"
 
 func validAddressPolicy(policy string) bool {
 	if ip, network, err := net.ParseCIDR(policy); err == nil {

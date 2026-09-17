@@ -441,6 +441,134 @@ func (x *StartScanResponse) GetDevices() []*ObservedDevice {
 	return nil
 }
 
+// StartRangeScanRequest names a range the operator ENTERED, and nothing saved:
+// the OTG Setup tab's Scan scans what was typed into its IP Range inputs, so its
+// target is the entered range rather than the Saved network control's profile.
+// address_policy carries the same inclusive `start-end` spelling a saved profile
+// with a range policy stores, so one entered range has one spelling whichever
+// control names it.
+type StartRangeScanRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Context   *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	// The entered inclusive IPv4 range, spelled `start-end`.
+	AddressPolicy string `protobuf:"bytes,3,opt,name=address_policy,json=addressPolicy,proto3" json:"address_policy,omitempty"`
+	// The single port the entered range is observed for.
+	Port          uint32 `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartRangeScanRequest) Reset() {
+	*x = StartRangeScanRequest{}
+	mi := &file_drift_v1_discovery_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartRangeScanRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartRangeScanRequest) ProtoMessage() {}
+
+func (x *StartRangeScanRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_discovery_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartRangeScanRequest.ProtoReflect.Descriptor instead.
+func (*StartRangeScanRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *StartRangeScanRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *StartRangeScanRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *StartRangeScanRequest) GetAddressPolicy() string {
+	if x != nil {
+		return x.AddressPolicy
+	}
+	return ""
+}
+
+func (x *StartRangeScanRequest) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+type StartRangeScanResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ScanRun       *ScanRun               `protobuf:"bytes,1,opt,name=scan_run,json=scanRun,proto3" json:"scan_run,omitempty"`
+	Devices       []*ObservedDevice      `protobuf:"bytes,2,rep,name=devices,proto3" json:"devices,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartRangeScanResponse) Reset() {
+	*x = StartRangeScanResponse{}
+	mi := &file_drift_v1_discovery_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartRangeScanResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartRangeScanResponse) ProtoMessage() {}
+
+func (x *StartRangeScanResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_discovery_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartRangeScanResponse.ProtoReflect.Descriptor instead.
+func (*StartRangeScanResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *StartRangeScanResponse) GetScanRun() *ScanRun {
+	if x != nil {
+		return x.ScanRun
+	}
+	return nil
+}
+
+func (x *StartRangeScanResponse) GetDevices() []*ObservedDevice {
+	if x != nil {
+		return x.Devices
+	}
+	return nil
+}
+
 type ListScanRunsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
@@ -451,7 +579,7 @@ type ListScanRunsRequest struct {
 
 func (x *ListScanRunsRequest) Reset() {
 	*x = ListScanRunsRequest{}
-	mi := &file_drift_v1_discovery_proto_msgTypes[4]
+	mi := &file_drift_v1_discovery_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -463,7 +591,7 @@ func (x *ListScanRunsRequest) String() string {
 func (*ListScanRunsRequest) ProtoMessage() {}
 
 func (x *ListScanRunsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_discovery_proto_msgTypes[4]
+	mi := &file_drift_v1_discovery_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -476,7 +604,7 @@ func (x *ListScanRunsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListScanRunsRequest.ProtoReflect.Descriptor instead.
 func (*ListScanRunsRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{4}
+	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListScanRunsRequest) GetWorkspace() *WorkspaceRef {
@@ -503,7 +631,7 @@ type ListScanRunsResponse struct {
 
 func (x *ListScanRunsResponse) Reset() {
 	*x = ListScanRunsResponse{}
-	mi := &file_drift_v1_discovery_proto_msgTypes[5]
+	mi := &file_drift_v1_discovery_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -515,7 +643,7 @@ func (x *ListScanRunsResponse) String() string {
 func (*ListScanRunsResponse) ProtoMessage() {}
 
 func (x *ListScanRunsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_discovery_proto_msgTypes[5]
+	mi := &file_drift_v1_discovery_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -528,7 +656,7 @@ func (x *ListScanRunsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListScanRunsResponse.ProtoReflect.Descriptor instead.
 func (*ListScanRunsResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{5}
+	return file_drift_v1_discovery_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListScanRunsResponse) GetScanRuns() []*ScanRun {
@@ -575,6 +703,14 @@ const file_drift_v1_discovery_proto_rawDesc = "" +
 	"\x12network_profile_id\x18\x03 \x01(\tR\x10networkProfileId\"u\n" +
 	"\x11StartScanResponse\x12,\n" +
 	"\bscan_run\x18\x01 \x01(\v2\x11.drift.v1.ScanRunR\ascanRun\x122\n" +
+	"\adevices\x18\x02 \x03(\v2\x18.drift.v1.ObservedDeviceR\adevices\"\xbc\x01\n" +
+	"\x15StartRangeScanRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12%\n" +
+	"\x0eaddress_policy\x18\x03 \x01(\tR\raddressPolicy\x12\x12\n" +
+	"\x04port\x18\x04 \x01(\rR\x04port\"z\n" +
+	"\x16StartRangeScanResponse\x12,\n" +
+	"\bscan_run\x18\x01 \x01(\v2\x11.drift.v1.ScanRunR\ascanRun\x122\n" +
 	"\adevices\x18\x02 \x03(\v2\x18.drift.v1.ObservedDeviceR\adevices\"v\n" +
 	"\x13ListScanRunsRequest\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
@@ -593,9 +729,10 @@ const file_drift_v1_discovery_proto_rawDesc = "" +
 	"\x1dDEVICE_LINK_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18DEVICE_LINK_STATE_ONLINE\x10\x01\x12\x1d\n" +
 	"\x19DEVICE_LINK_STATE_OFFLINE\x10\x02\x12\"\n" +
-	"\x1eDEVICE_LINK_STATE_UNAUTHORIZED\x10\x032\xa7\x01\n" +
+	"\x1eDEVICE_LINK_STATE_UNAUTHORIZED\x10\x032\xfc\x01\n" +
 	"\x10DiscoveryService\x12D\n" +
-	"\tStartScan\x12\x1a.drift.v1.StartScanRequest\x1a\x1b.drift.v1.StartScanResponse\x12M\n" +
+	"\tStartScan\x12\x1a.drift.v1.StartScanRequest\x1a\x1b.drift.v1.StartScanResponse\x12S\n" +
+	"\x0eStartRangeScan\x12\x1f.drift.v1.StartRangeScanRequest\x1a .drift.v1.StartRangeScanResponse\x12M\n" +
 	"\fListScanRuns\x12\x1d.drift.v1.ListScanRunsRequest\x1a\x1e.drift.v1.ListScanRunsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
@@ -611,44 +748,52 @@ func file_drift_v1_discovery_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_discovery_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_drift_v1_discovery_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_drift_v1_discovery_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_drift_v1_discovery_proto_goTypes = []any{
-	(ScanRunState)(0),            // 0: drift.v1.ScanRunState
-	(DeviceLinkState)(0),         // 1: drift.v1.DeviceLinkState
-	(*ScanRun)(nil),              // 2: drift.v1.ScanRun
-	(*ObservedDevice)(nil),       // 3: drift.v1.ObservedDevice
-	(*StartScanRequest)(nil),     // 4: drift.v1.StartScanRequest
-	(*StartScanResponse)(nil),    // 5: drift.v1.StartScanResponse
-	(*ListScanRunsRequest)(nil),  // 6: drift.v1.ListScanRunsRequest
-	(*ListScanRunsResponse)(nil), // 7: drift.v1.ListScanRunsResponse
-	(*WorkspaceRef)(nil),         // 8: drift.v1.WorkspaceRef
-	(*Failure)(nil),              // 9: drift.v1.Failure
-	(*RequestContext)(nil),       // 10: drift.v1.RequestContext
-	(*PageRequest)(nil),          // 11: drift.v1.PageRequest
-	(*PageResponse)(nil),         // 12: drift.v1.PageResponse
+	(ScanRunState)(0),              // 0: drift.v1.ScanRunState
+	(DeviceLinkState)(0),           // 1: drift.v1.DeviceLinkState
+	(*ScanRun)(nil),                // 2: drift.v1.ScanRun
+	(*ObservedDevice)(nil),         // 3: drift.v1.ObservedDevice
+	(*StartScanRequest)(nil),       // 4: drift.v1.StartScanRequest
+	(*StartScanResponse)(nil),      // 5: drift.v1.StartScanResponse
+	(*StartRangeScanRequest)(nil),  // 6: drift.v1.StartRangeScanRequest
+	(*StartRangeScanResponse)(nil), // 7: drift.v1.StartRangeScanResponse
+	(*ListScanRunsRequest)(nil),    // 8: drift.v1.ListScanRunsRequest
+	(*ListScanRunsResponse)(nil),   // 9: drift.v1.ListScanRunsResponse
+	(*WorkspaceRef)(nil),           // 10: drift.v1.WorkspaceRef
+	(*Failure)(nil),                // 11: drift.v1.Failure
+	(*RequestContext)(nil),         // 12: drift.v1.RequestContext
+	(*PageRequest)(nil),            // 13: drift.v1.PageRequest
+	(*PageResponse)(nil),           // 14: drift.v1.PageResponse
 }
 var file_drift_v1_discovery_proto_depIdxs = []int32{
-	8,  // 0: drift.v1.ScanRun.workspace:type_name -> drift.v1.WorkspaceRef
+	10, // 0: drift.v1.ScanRun.workspace:type_name -> drift.v1.WorkspaceRef
 	0,  // 1: drift.v1.ScanRun.state:type_name -> drift.v1.ScanRunState
-	9,  // 2: drift.v1.ScanRun.failure:type_name -> drift.v1.Failure
+	11, // 2: drift.v1.ScanRun.failure:type_name -> drift.v1.Failure
 	1,  // 3: drift.v1.ObservedDevice.state:type_name -> drift.v1.DeviceLinkState
-	10, // 4: drift.v1.StartScanRequest.context:type_name -> drift.v1.RequestContext
-	8,  // 5: drift.v1.StartScanRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	12, // 4: drift.v1.StartScanRequest.context:type_name -> drift.v1.RequestContext
+	10, // 5: drift.v1.StartScanRequest.workspace:type_name -> drift.v1.WorkspaceRef
 	2,  // 6: drift.v1.StartScanResponse.scan_run:type_name -> drift.v1.ScanRun
 	3,  // 7: drift.v1.StartScanResponse.devices:type_name -> drift.v1.ObservedDevice
-	8,  // 8: drift.v1.ListScanRunsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	11, // 9: drift.v1.ListScanRunsRequest.page:type_name -> drift.v1.PageRequest
-	2,  // 10: drift.v1.ListScanRunsResponse.scan_runs:type_name -> drift.v1.ScanRun
-	12, // 11: drift.v1.ListScanRunsResponse.page:type_name -> drift.v1.PageResponse
-	4,  // 12: drift.v1.DiscoveryService.StartScan:input_type -> drift.v1.StartScanRequest
-	6,  // 13: drift.v1.DiscoveryService.ListScanRuns:input_type -> drift.v1.ListScanRunsRequest
-	5,  // 14: drift.v1.DiscoveryService.StartScan:output_type -> drift.v1.StartScanResponse
-	7,  // 15: drift.v1.DiscoveryService.ListScanRuns:output_type -> drift.v1.ListScanRunsResponse
-	14, // [14:16] is the sub-list for method output_type
-	12, // [12:14] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	12, // 8: drift.v1.StartRangeScanRequest.context:type_name -> drift.v1.RequestContext
+	10, // 9: drift.v1.StartRangeScanRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	2,  // 10: drift.v1.StartRangeScanResponse.scan_run:type_name -> drift.v1.ScanRun
+	3,  // 11: drift.v1.StartRangeScanResponse.devices:type_name -> drift.v1.ObservedDevice
+	10, // 12: drift.v1.ListScanRunsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	13, // 13: drift.v1.ListScanRunsRequest.page:type_name -> drift.v1.PageRequest
+	2,  // 14: drift.v1.ListScanRunsResponse.scan_runs:type_name -> drift.v1.ScanRun
+	14, // 15: drift.v1.ListScanRunsResponse.page:type_name -> drift.v1.PageResponse
+	4,  // 16: drift.v1.DiscoveryService.StartScan:input_type -> drift.v1.StartScanRequest
+	6,  // 17: drift.v1.DiscoveryService.StartRangeScan:input_type -> drift.v1.StartRangeScanRequest
+	8,  // 18: drift.v1.DiscoveryService.ListScanRuns:input_type -> drift.v1.ListScanRunsRequest
+	5,  // 19: drift.v1.DiscoveryService.StartScan:output_type -> drift.v1.StartScanResponse
+	7,  // 20: drift.v1.DiscoveryService.StartRangeScan:output_type -> drift.v1.StartRangeScanResponse
+	9,  // 21: drift.v1.DiscoveryService.ListScanRuns:output_type -> drift.v1.ListScanRunsResponse
+	19, // [19:22] is the sub-list for method output_type
+	16, // [16:19] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_discovery_proto_init() }
@@ -663,7 +808,7 @@ func file_drift_v1_discovery_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_discovery_proto_rawDesc), len(file_drift_v1_discovery_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

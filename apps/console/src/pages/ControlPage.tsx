@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent } from "react"
+import { useRef, useState, type PointerEvent, type ReactElement } from "react"
 import { createPortal } from "react-dom"
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardCopy, Crosshair, Download, Grid3X3, Image, Keyboard, MousePointer2, Network, Pin, Power, RotateCw, ScanLine, Settings2, SlidersHorizontal, Smartphone, Upload, Volume1, Volume2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
@@ -47,7 +48,11 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
   // never chose.
   const [port, setPort] = useState("5555")
   const [startIp, setStartIp] = useState("192.168.1.1")
-  const [endIp, setEndIp] = useState("192.168.1.255")
+  // The second range differs from the first only in its FINAL octet, so only that
+  // octet is state. The first three are derived from the first range, which is
+  // what makes them impossible to edit: an operator types a subnet once.
+  const [endIpLastOctet, setEndIpLastOctet] = useState("255")
+  const endIp = rangeEndIp(startIp, endIpLastOctet)
   const [profileId, setProfileId] = useState(snapshot.networkProfiles.find((profile) => profile.isDefault)?.id ?? snapshot.networkProfiles[0]?.id ?? "")
   const drag = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
   const source = snapshot.devices.find((device) => device.id === sourceId)
@@ -114,9 +119,29 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
     if (!source) return
     void reportDispatch(dispatch, { type: "startMirrorPreview", sourceDeviceId: source.id, followerDeviceIds: followerIds }, setFeedback)
   }
-  function scan() {
+  /**
+   * The saved network's own scan. It names the profile the operator selected, so
+   * this control's target is the saved network and nothing else.
+   */
+  function scanSavedNetwork() {
     if (!selectedProfile) { setFeedback("Choose a saved network profile before starting a scan."); return }
     void reportDispatch(dispatch, { type: "startScan", profileId: selectedProfile.id }, setFeedback)
+  }
+  /**
+   * The entered range's own scan. Its target is what the operator typed into the
+   * IP Range inputs, read from those inputs and never from the saved network
+   * control, so the two Scans in this tab cannot scan the same thing.
+   */
+  function scanEnteredRange() {
+    void reportDispatch(dispatch, { type: "scanRange", startIp, endIp, port: Number(port.trim()) }, setFeedback)
+  }
+  /**
+   * Reload re-observes the devices this workspace already knows. It restarts
+   * nothing, so a device that is already discoverable is re-read rather than
+   * having the transport it answers on dropped.
+   */
+  function reloadDevices() {
+    void reportDispatch(dispatch, { type: "reloadDevices" }, setFeedback)
   }
   /**
    * Activate moves every discovered device that is not already answering on the
@@ -133,6 +158,15 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
   }
   function addDiscoveryRange() {
     void reportDispatch(dispatch, { type: "addDiscoveryRange", startIp, endIp, port: Number(port.trim()) }, setFeedback)
+  }
+  /**
+   * The second range's only editable octet. The field hands back the whole
+   * address it now holds and this stores the fourth octet alone, so an edit that
+   * reaches the first three octets — which the field disables anyway — cannot
+   * change them here either.
+   */
+  function setRangeEndLastOctet(next: string) {
+    setEndIpLastOctet(next.split(".")[3] ?? "")
   }
 
   const deviceModal = source ? <FloatingDevice device={source} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, setFeedback); setSourceId(null); setFollowerIds([]) }} onPreview={startPreview} onAction={handleDeviceAction} /> : null
@@ -160,7 +194,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
       <Button size="sm" variant="outline" disabled={!source || modalPinned} onClick={() => setPosition(initialPosition)}><Crosshair className="size-3.5" aria-hidden="true" />Reset Position</Button>
     </div>
     <div className={`mt-4 grid items-start gap-4 ${workspaceOpen ? settings.workspaceSide === "right" ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
-      {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setEndIp} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} endpoints={snapshot.endpoints} onActivate={activateFleet} onRestartServer={restartAdbServer} onAddRange={addDiscoveryRange} onScan={scan} /></div> : null}
+      {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setRangeEndLastOctet} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} endpoints={snapshot.endpoints} onActivate={activateFleet} onRestartServer={restartAdbServer} onAddRange={addDiscoveryRange} onScanRange={scanEnteredRange} onScanSavedNetwork={scanSavedNetwork} onReloadDevices={reloadDevices} /></div> : null}
       <section className={`min-w-0 ${workspaceOpen && settings.workspaceSide === "left" ? "xl:order-2" : ""}`} aria-label="Phone control workspace">
         <LabObservationFrame adapter={snapshot.labAdapter} height={workspace.largeHeight} />
         <ConnectionFilterBar filter={connectionFilter} onChange={setConnectionFilter} shown={visibleDevices.length} total={snapshot.devices.length} />
@@ -193,7 +227,7 @@ function WorkspaceToggle({ side, onToggle }: { side: "left" | "right"; onToggle:
   return <div className="group absolute left-0 top-1/2 z-20 flex h-24 w-10 -translate-y-1/2 items-center justify-start"><Button size="icon-sm" variant="outline" className="bg-card/95 opacity-80 transition-opacity group-hover:opacity-100 focus-visible:opacity-100" aria-label="Open Workspace Settings" onClick={onToggle}>{side === "left" ? <ChevronLeft className="size-3.5" aria-hidden="true" /> : <ChevronRight className="size-3.5" aria-hidden="true" />}</Button></div>
 }
 
-function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, side, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, profiles, endpoints, onActivate, onRestartServer, onAddRange, onScan }: { workspace: Workspace; onWorkspaceChange: (value: Workspace) => void; pinned: boolean; onPinnedChange: (value: boolean) => void; side: "left" | "right"; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; profiles: ControlPlaneSnapshot["networkProfiles"]; endpoints: ControlPlaneSnapshot["endpoints"]; onActivate: () => void; onRestartServer: () => void; onAddRange: () => void; onScan: () => void }) {
+function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, side, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, profiles, endpoints, onActivate, onRestartServer, onAddRange, onScanRange, onScanSavedNetwork, onReloadDevices }: { workspace: Workspace; onWorkspaceChange: (value: Workspace) => void; pinned: boolean; onPinnedChange: (value: boolean) => void; side: "left" | "right"; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; profiles: ControlPlaneSnapshot["networkProfiles"]; endpoints: ControlPlaneSnapshot["endpoints"]; onActivate: () => void; onRestartServer: () => void; onAddRange: () => void; onScanRange: () => void; onScanSavedNetwork: () => void; onReloadDevices: () => void }) {
   return <aside className="border border-border bg-card" aria-label="Workspace Settings">
     <div className="flex items-start gap-3 border-b border-border p-4">
       <span className="grid size-8 shrink-0 place-items-center border border-primary/40 bg-secondary text-primary"><SlidersHorizontal className="size-4" aria-hidden="true" /></span>
@@ -213,40 +247,73 @@ function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, 
         <Button variant="outline" className="w-full rounded-none" onClick={() => onWorkspaceChange(workspaceDefaults)}>Reset Workspace</Button>
       </TabsContent>
       <TabsContent value="otg" className="space-y-5 p-4">
-        <OtgSetupPanel endpoints={endpoints} profiles={profiles} port={port} onPortChange={onPortChange} startIp={startIp} onStartIpChange={onStartIpChange} endIp={endIp} onEndIpChange={onEndIpChange} profileId={profileId} onProfileIdChange={onProfileIdChange} onActivate={onActivate} onRestartServer={onRestartServer} onAddRange={onAddRange} onScan={onScan} />
+        <OtgSetupPanel endpoints={endpoints} profiles={profiles} port={port} onPortChange={onPortChange} startIp={startIp} onStartIpChange={onStartIpChange} endIp={endIp} onEndIpChange={onEndIpChange} profileId={profileId} onProfileIdChange={onProfileIdChange} onActivate={onActivate} onRestartServer={onRestartServer} onAddRange={onAddRange} onScanRange={onScanRange} onScanSavedNetwork={onScanSavedNetwork} onReloadDevices={onReloadDevices} />
       </TabsContent>
     </Tabs>
   </aside>
 }
 
-function OtgSetupPanel({ endpoints, profiles, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, onActivate, onRestartServer, onAddRange, onScan }: { endpoints: ControlPlaneSnapshot["endpoints"]; profiles: ControlPlaneSnapshot["networkProfiles"]; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; onActivate: () => void; onRestartServer: () => void; onAddRange: () => void; onScan: () => void }) {
+/**
+ * The OTG Setup tab. Every explanation sits on the control it explains, in the
+ * console's own Tooltip, rather than in a paragraph beneath the control: the tab
+ * reads as controls, and the copy beside a control is part of the control.
+ *
+ * The tab holds TWO scans with two targets, each labelled with what it scans.
+ * The IP Range section's Scan observes the range the operator entered; the Saved
+ * Network control keeps its own Scan, which observes the selected saved profile.
+ * Neither reads the other's target.
+ */
+function OtgSetupPanel({ endpoints, profiles, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, onActivate, onRestartServer, onAddRange, onScanRange, onScanSavedNetwork, onReloadDevices }: { endpoints: ControlPlaneSnapshot["endpoints"]; profiles: ControlPlaneSnapshot["networkProfiles"]; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; onActivate: () => void; onRestartServer: () => void; onAddRange: () => void; onScanRange: () => void; onScanSavedNetwork: () => void; onReloadDevices: () => void }) {
   // The transports a restart can re-establish: the endpoints the registry
   // currently holds, deduplicated and in a stable order rather than list order.
   const reestablishable = Array.from(new Set(endpoints.filter((endpoint) => endpoint.state === "current" && endpoint.host.trim() !== "").map((endpoint) => `${endpoint.host}:${endpoint.port}`))).sort()
   return <>
     <div>
       <p className="text-xs font-semibold">Quick OTG Setup</p>
-      <p className="mt-1 text-[11px] leading-5 text-muted-foreground">Scan observes every ADB-enabled device in the saved profile's range, whatever port it answers on — after Activate, the scan is what sees a moved device on the Set Port port. Activate is performed by the control plane over the discovered fleet, and Restart ADB Server against this host. Each one reports what it did below — including a refusal that reached no device.</p>
+      <p className="mt-1 text-[11px] text-muted-foreground">Every control explains itself on focus or hover.</p>
     </div>
     <div>
       <p className="text-xs font-medium">Set Port</p>
-      <div className="mt-2 flex gap-2"><Input aria-label="Set Port" inputMode="numeric" value={port} onChange={(event) => onPortChange(event.target.value)} className="font-mono text-xs" /><Button size="sm" onClick={onActivate}>Activate</Button></div>
-      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Activate moves every discovered device that is not already answering on this port onto it, one at a time. A device that is not attached and authorized over USB is refused with its own message, and every device's result is reported separately.</p>
+      <div className="mt-2 flex gap-2">
+        <ControlExplanation explanation="The port every discovered device is moved to. Activate names this port and nothing else: the control plane reads the fleet from the devices.">
+          <Input aria-label="Set Port" inputMode="numeric" value={port} onChange={(event) => onPortChange(event.target.value)} className="font-mono text-xs" />
+        </ControlExplanation>
+        <ControlExplanation explanation="Moves every discovered device that is not already answering on this port onto it, one at a time. A device that is not attached and authorized over USB is refused with its own message, and every device's result is reported separately.">
+          <Button size="sm" onClick={onActivate}>Activate</Button>
+        </ControlExplanation>
+      </div>
     </div>
     <div>
       <p className="text-xs font-medium">IP Range</p>
-      <div className="mt-2 space-y-2"><IpAddressInput label="IP Range Start" value={startIp} onChange={onStartIpChange} /><IpAddressInput label="IP Range End" value={endIp} onChange={onEndIpChange} /></div>
+      <div className="mt-2 space-y-2">
+        <IpAddressInput label="IP Range Start" explanation="The first address of the range this section's Scan observes. Type the subnet here once: the second range's first three octets mirror this address." value={startIp} onChange={onStartIpChange} />
+        <IpAddressInput label="IP Range End" explanation="The last address of the entered range, and the only octet here you can change: the first three mirror the first range. An octet outside 0 through 255 is refused, and nothing is scanned." value={endIp} lockedOctets={3} onChange={onEndIpChange} />
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <ControlExplanation explanation="Saves the entered range above as a Network Profile for the Set Port port, only when no saved profile already holds an equivalent range. Created and already-exists are different answers.">
+          <Button variant="outline" size="sm" onClick={onAddRange}><Network className="size-3.5" aria-hidden="true" />Add</Button>
+        </ControlExplanation>
+        <ControlExplanation explanation="Observes ADB-enabled devices inside the entered range above, whatever port they answer on, and reports what it observed. It saves nothing: Add is the control that writes saved policy.">
+          <Button size="sm" onClick={onScanRange}><ScanLine className="size-3.5" aria-hidden="true" />Scan Range</Button>
+        </ControlExplanation>
+      </div>
     </div>
-    <Choice label="Saved Network" value={profileId} options={profiles.map((profile) => profile.id)} labels={Object.fromEntries(profiles.map((profile) => [profile.id, profile.isDefault ? `${profile.name} · Default` : profile.name]))} onChange={onProfileIdChange} />
-    <div>
-      <div className="grid grid-cols-2 gap-2"><Button variant="outline" size="sm" onClick={onAddRange}><Network className="size-3.5" aria-hidden="true" />Add</Button><Button size="sm" onClick={onScan} disabled={!profileId}><ScanLine className="size-3.5" aria-hidden="true" />Scan</Button></div>
-      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Add saves the range above as a Network Profile at the Set Port port, only when no saved profile already holds an equivalent range. Created and already-exists are different answers.</p>
+    <div className="space-y-3 border-t border-border pt-4">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <Choice label="Saved Network" value={profileId} options={profiles.map((profile) => profile.id)} labels={Object.fromEntries(profiles.map((profile) => [profile.id, profile.isDefault ? `${profile.name} · Default` : profile.name]))} explanation="The saved Network Profile that this control's own Scan observes. It is not what the IP Range section's Scan observes." onChange={onProfileIdChange} />
+        </div>
+        <ControlExplanation explanation="Observes the devices inside the selected saved Network Profile's range. It reads the Saved Network control beside it and never the entered range above.">
+          <Button variant="outline" size="sm" onClick={onScanSavedNetwork} disabled={!profileId}><ScanLine className="size-3.5" aria-hidden="true" />Scan Saved Network</Button>
+        </ControlExplanation>
+      </div>
+      <ControlExplanation explanation="Re-reads the devices this workspace already knows, one answer per device, so a device that is already discoverable is reloaded without restarting anything. It restarts no adb server, so the transports a device answers on are not dropped to answer it.">
+        <Button variant="outline" size="sm" className="w-full rounded-none" onClick={onReloadDevices}><RotateCw className="size-3.5" aria-hidden="true" />Reload Devices</Button>
+      </ControlExplanation>
+      {reestablishable.length > 0 ? <ControlExplanation explanation={`Restarts this host's adb server, then re-establishes the ${reestablishable.length} observed endpoint(s) in order. It is a host operation: every transport the server holds drops, including devices outside this workspace, and each endpoint's result is reported separately.`}>
+        <Button className="w-full rounded-none" size="sm" variant="outline" onClick={onRestartServer}><Power className="size-3.5" aria-hidden="true" />Restart ADB Server</Button>
+      </ControlExplanation> : null}
     </div>
-    {reestablishable.length > 0 ? <div className="border-t border-border pt-4">
-      <p className="text-xs font-medium">ADB Server</p>
-      <Button className="mt-2 w-full rounded-none" size="sm" variant="outline" onClick={onRestartServer}><Power className="size-3.5" aria-hidden="true" />Restart ADB Server</Button>
-      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Restarts this host's adb server, then re-establishes the {reestablishable.length} observed endpoint(s) in order. It is a host operation: every transport the server holds drops, including devices outside this workspace, and each endpoint's result is reported separately.</p>
-    </div> : null}
   </>
 }
 
@@ -298,7 +365,26 @@ function FloatingDevice({ device, followers, workspace, settings, position, pinn
 }
 function ControlButton({ icon: Icon, label, onClick }: { icon: typeof Smartphone; label: string; onClick: () => void }) { return <Button variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={onClick}><Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />{label}</Button> }
 function SettingToggle({ label, description, checked, onChange, onLabel = "On", offLabel = "Off" }: { label: string; description: string; checked: boolean; onChange: (value: boolean) => void; onLabel?: string; offLabel?: string }) { const id = label.toLowerCase().replaceAll(" ", "-"); return <div className="flex items-start gap-3 border-t border-border pt-4"><input id={id} type="checkbox" role="switch" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 size-4 accent-primary focus-visible:ring-2 focus-visible:ring-primary" /><label htmlFor={id} className="min-w-0 flex-1 cursor-pointer"><span className="flex justify-between gap-2 text-xs font-medium"><span>{label}</span><span className="text-muted-foreground">{checked ? onLabel : offLabel}</span></span><span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{description}</span></label></div> }
-function Choice({ label, value, options, labels, onChange }: { label: string; value: string; options: readonly string[]; labels?: Record<string, string>; onChange: (value: string) => void }) { const display = (option: string) => labels?.[option] ?? option.charAt(0).toUpperCase() + option.slice(1); return <div className="block text-xs font-medium"><span>{label}</span><DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" aria-label={label} className="mt-2 h-9 w-full justify-between rounded-none px-2 text-xs font-normal" />}><span className="truncate">{display(value)}</span><ChevronDown className="size-3.5" aria-hidden="true" /></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[var(--anchor-width)]">{options.map((option) => <DropdownMenuItem key={option} onClick={() => onChange(option)}>{display(option)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu></div> }
+/**
+ * rangeEndIp is the second range: its first three octets are the first range's,
+ * so they follow it, and only the final octet is the operator's own. The locked
+ * octets are DERIVED rather than stored, which is what makes an edit to one of
+ * them impossible rather than merely discouraged.
+ */
+function rangeEndIp(startIp: string, lastOctet: string): string {
+  return [...startIp.split(".").slice(0, 3), lastOctet].join(".")
+}
+
+/**
+ * ControlExplanation carries the explanation a control would otherwise have as a
+ * paragraph beneath it, on the control itself. The trigger is the control, so the
+ * explanation opens on keyboard focus as well as on hover — it is reachable
+ * without a pointer — and it costs the tab no vertical space.
+ */
+function ControlExplanation({ explanation, children }: { explanation: string; children: ReactElement }) {
+  return <TooltipProvider delay={0}><Tooltip><TooltipTrigger render={children} /><TooltipContent>{explanation}</TooltipContent></Tooltip></TooltipProvider>
+}
+function Choice({ label, value, options, labels, explanation, onChange }: { label: string; value: string; options: readonly string[]; labels?: Record<string, string>; explanation?: string; onChange: (value: string) => void }) { const display = (option: string) => labels?.[option] ?? option.charAt(0).toUpperCase() + option.slice(1); const trigger = <DropdownMenuTrigger render={<Button type="button" variant="outline" aria-label={label} className="mt-2 h-9 w-full justify-between rounded-none px-2 text-xs font-normal" />}><span className="truncate">{display(value)}</span><ChevronDown className="size-3.5" aria-hidden="true" /></DropdownMenuTrigger>; return <div className="block text-xs font-medium"><span>{label}</span><DropdownMenu>{explanation ? <ControlExplanation explanation={explanation}>{trigger}</ControlExplanation> : trigger}<DropdownMenuContent align="start" className="min-w-[var(--anchor-width)]">{options.map((option) => <DropdownMenuItem key={option} onClick={() => onChange(option)}>{display(option)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu></div> }
 function PositionToggle({ label, value, onChange }: { label: string; value: "left" | "right"; onChange: (value: "left" | "right") => void }) { return <div className="block text-xs font-medium"><span>{label}</span><div role="group" aria-label={label} className="mt-2 grid grid-cols-2 border border-input p-1"><Button type="button" size="sm" variant={value === "left" ? "default" : "ghost"} aria-pressed={value === "left"} onClick={() => onChange("left")} className="rounded-none">Left</Button><Button type="button" size="sm" variant={value === "right" ? "default" : "ghost"} aria-pressed={value === "right"} onClick={() => onChange("right")} className="rounded-none">Right</Button></div></div> }
-function IpAddressInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { const octets = value.split("."); return <fieldset><legend className="sr-only">{label}</legend><div className="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-1">{octets.map((octet, index) => <span key={`${label}-${index}`} className="contents"><Input aria-label={`${label} octet ${index + 1}`} inputMode="numeric" maxLength={3} value={octet} onChange={(event) => { const next = [...octets]; next[index] = event.target.value.replace(/\D/g, "").slice(0, 3); onChange(next.join(".")) }} className="h-9 min-w-0 px-1 text-center font-mono text-xs" />{index < 3 ? <span aria-hidden="true" className="text-muted-foreground">.</span> : null}</span>)}</div></fieldset> }
+function IpAddressInput({ label, value, onChange, explanation, lockedOctets = 0 }: { label: string; value: string; onChange: (value: string) => void; explanation?: string; lockedOctets?: number }) { const octets = value.split("."); return <fieldset><legend className="sr-only">{label}</legend><div className="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-1">{octets.map((octet, index) => { const locked = index < lockedOctets; const field = <Input aria-label={`${label} octet ${index + 1}`} inputMode="numeric" maxLength={3} value={octet} disabled={locked} onChange={(event) => { const next = [...octets]; next[index] = event.target.value.replace(/\D/g, "").slice(0, 3); onChange(next.join(".")) }} className="h-9 min-w-0 px-1 text-center font-mono text-xs" />; return <span key={`${label}-${index}`} className="contents">{explanation && index === Math.min(lockedOctets, octets.length - 1) ? <ControlExplanation explanation={explanation}>{field}</ControlExplanation> : field}{index < 3 ? <span aria-hidden="true" className="text-muted-foreground">.</span> : null}</span> })}</div></fieldset> }
 function Slider({ label, value, min, max, unit, step = 1, onChange }: { label: string; value: number; min: number; max: number; step?: number; unit: string; onChange: (value: number) => void }) { const id = label.toLowerCase().replaceAll(" ", "-"); return <label htmlFor={id} className="block text-xs font-medium">{label}<span className="float-right font-mono text-muted-foreground">{value} {unit}</span><input id={id} type="range" min={min} max={max} value={value} step={step} onChange={(event) => onChange(Number(event.target.value))} className="mt-3 w-full accent-primary" /><span className="mt-1 flex justify-between text-[10px] text-muted-foreground"><span>{min} {unit}</span><span>{max} {unit}</span></span></label> }

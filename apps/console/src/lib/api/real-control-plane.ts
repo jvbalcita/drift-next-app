@@ -1430,6 +1430,27 @@ function restartReport(response: RestartServerResponse): string {
   return `adb server restart: ${parts.join("; ")}.`
 }
 
+/**
+ * reloadReport states what a reload re-read, per device, because "reloaded" is
+ * not an answer an operator can act on: the device that is reachable over TCP,
+ * the one whose transport is USB and so has no address, and the one the registry
+ * holds no current endpoint for each need a different thing done. It says what
+ * was re-read and that nothing was restarted, so a reload is never mistaken for
+ * the host-wide operation that drops every transport.
+ */
+function reloadReport(snapshot: ControlPlaneSnapshot): string {
+  const sentences = snapshot.devices.map((device) => {
+    const endpoint = snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
+    if (!endpoint) return `${device.displayName} has no current endpoint in the registry, so where it is reachable was not re-read`
+    const address = endpoint.host.trim() === "" ? `no TCP address (${endpoint.port === 0 ? "USB transport" : `unobserved port ${endpoint.port}`})` : `${endpoint.host}:${endpoint.port}`
+    return `${endpoint.serial || device.displayName} is observed at ${address}, last seen ${device.lastSeen}`
+  })
+  if (sentences.length === 0) {
+    return "Reload found no device this workspace already knows about. No adb server was restarted and nothing was connected."
+  }
+  return `Reload re-read ${sentences.length} known device(s): ${sentences.join(". ")}. No adb server was restarted and no device was contacted.`
+}
+
 export class RealControlPlaneClient implements ControlPlaneClient {
   private snapshot: ControlPlaneSnapshot
   private readonly services: ControlPlaneServices
@@ -1771,6 +1792,35 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         return mutation(intent, response.devices.length === 0
           ? "Discovery scan completed; no device responded."
           : `Discovery scan completed; ${response.devices.length} device(s) observed.`, { resourceId: response.scanRun?.id })
+      }
+      case "scanRange": {
+        const parsed = parseDiscoveryRange(intent.startIp, intent.endIp)
+        if (!parsed.ok) return failure(intent, parsed.reason, { errorCode: "invalid_input" })
+        if (!isTransportPort(intent.port)) {
+          return failure(intent, `Port ${intent.port} is outside the ports a scan may name (1-65535). ${parsed.range.addressPolicy} was not scanned and no scan run was opened.`, { errorCode: "invalid_input" })
+        }
+        // The entered range is the target: no profile is looked up, none is
+        // created, and the run the control plane opens records no profile
+        // reference. Add is the control that writes saved policy.
+        const rangeResponse = await this.services.discovery.startRangeScan(requestId, workspaceId, parsed.range.addressPolicy, intent.port)
+        if (rangeResponse.scanRun) {
+          const run = mapScanRun(rangeResponse.scanRun)
+          this.snapshot = {
+            ...this.snapshot,
+            scanRuns: [run, ...this.snapshot.scanRuns],
+            scanObservations: [...rangeResponse.devices.map((device) => mapObservedDevice(run.id, device)), ...this.snapshot.scanObservations],
+          }
+        }
+        return mutation(intent, rangeResponse.devices.length === 0
+          ? `Scan of the entered range ${parsed.range.addressPolicy} on port ${intent.port} completed; no device responded. No Network Profile was written.`
+          : `Scan of the entered range ${parsed.range.addressPolicy} on port ${intent.port} completed; ${rangeResponse.devices.length} device(s) observed. No Network Profile was written.`, { resourceId: rangeResponse.scanRun?.id })
+      }
+      case "reloadDevices": {
+        // A reload re-reads what the control plane holds and says what it holds
+        // per device. It restarts nothing: the transports the host's adb server
+        // holds are what a device already answering on them is reachable over.
+        await this.refresh()
+        return mutation(intent, reloadReport(this.snapshot))
       }
       case "connectEndpoint": {
         const response = await this.services.connection.connectEndpoint(requestId, intent.serial, intent.endpoint)

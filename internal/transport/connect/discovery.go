@@ -2,6 +2,7 @@ package transportconnect
 
 import (
 	"context"
+	"strings"
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
@@ -51,6 +52,46 @@ func (h *DiscoveryHandler) StartScan(ctx context.Context, request *connectrpc.Re
 		out = append(out, observedDeviceProto(device))
 	}
 	return connectrpc.NewResponse(&driftv1.StartScanResponse{ScanRun: scanRunProto(run), Devices: out}), nil
+}
+
+// StartRangeScan runs one scan whose target is the range an operator entered in
+// the console's OTG Setup tab. The entered range is not saved policy: nothing is
+// looked up and nothing is written but the run and the devices it observed. A
+// malformed range or port is refused as invalid input before any scan run is
+// opened, so a refused entry reaches no enumeration.
+func (h *DiscoveryHandler) StartRangeScan(ctx context.Context, request *connectrpc.Request[driftv1.StartRangeScanRequest]) (*connectrpc.Response[driftv1.StartRangeScanResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("start range scan request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	addressPolicy := strings.TrimSpace(request.Msg.GetAddressPolicy())
+	if addressPolicy == "" {
+		return nil, invalidArgument("the entered IP range is required")
+	}
+	port := request.Msg.GetPort()
+	if port == 0 || port > 65535 {
+		return nil, invalidArgument("the port the entered IP range is scanned on must be between 1 and 65535")
+	}
+	key := request.Msg.GetContext().GetIdempotencyKey()
+	if key == "" {
+		key = request.Msg.GetContext().GetRequestId()
+	}
+	run, devices, scanErr := h.service.StartRangeScan(ctx, workspace, addressPolicy, uint16(port), key, actorType, actorID)
+	if scanErr != nil {
+		return nil, MapError(scanErr)
+	}
+	out := make([]*driftv1.ObservedDevice, 0, len(devices))
+	for _, device := range devices {
+		out = append(out, observedDeviceProto(device))
+	}
+	return connectrpc.NewResponse(&driftv1.StartRangeScanResponse{ScanRun: scanRunProto(run), Devices: out}), nil
 }
 
 func (h *DiscoveryHandler) ListScanRuns(ctx context.Context, request *connectrpc.Request[driftv1.ListScanRunsRequest]) (*connectrpc.Response[driftv1.ListScanRunsResponse], error) {

@@ -41,13 +41,18 @@ func (d *DB) GetNetworkProfile(ctx context.Context, workspace organizations.Work
 	return profile, nil
 }
 
+// BeginScan opens a scan run. profileID names the saved profile the run scans,
+// and is deliberately allowed to be absent: a scan of a range the operator
+// entered targets policy that was never saved, and the run records no profile
+// reference rather than naming a profile nobody chose. The column is already
+// nullable history, so the absent case needs no new shape.
 func (d *DB) BeginScan(ctx context.Context, workspace organizations.WorkspaceID, profileID networkprofiles.NetworkProfileID, key, actorType, actorID string) (discovery.ScanRun, bool, error) {
 	var run discovery.ScanRun
 	if err := validateWorkspace(string(workspace)); err != nil {
 		return run, false, err
 	}
-	if strings.TrimSpace(string(profileID)) == "" || strings.TrimSpace(key) == "" || strings.TrimSpace(actorType) == "" || strings.TrimSpace(actorID) == "" {
-		return run, false, platformerrors.New(platformerrors.CodeInvalidInput, "scan profile, idempotency, and actor fields are required")
+	if strings.TrimSpace(key) == "" || strings.TrimSpace(actorType) == "" || strings.TrimSpace(actorID) == "" {
+		return run, false, platformerrors.New(platformerrors.CodeInvalidInput, "scan idempotency and actor fields are required")
 	}
 	now := d.clock.Now().UTC()
 	created := false
@@ -63,7 +68,14 @@ func (d *DB) BeginScan(ctx context.Context, workspace organizations.WorkspaceID,
 		if err != nil {
 			return platformerrors.Wrap(platformerrors.CodeInternal, "generate scan run ID", err)
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO scan_runs (id, workspace_id, network_profile_id, state, requested_at, idempotency_key) VALUES (?, ?, ?, 'requested', ?, ?)`, id, workspace, profileID, now.Format(time.RFC3339Nano), key); err != nil {
+		// An absent profile reference is stored as NULL rather than as an empty
+		// string, so "this run scanned an entered range" and "this run's profile
+		// was deleted" are the same absence a reader already handles.
+		var profileRef any
+		if strings.TrimSpace(string(profileID)) != "" {
+			profileRef = string(profileID)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO scan_runs (id, workspace_id, network_profile_id, state, requested_at, idempotency_key) VALUES (?, ?, ?, 'requested', ?, ?)`, id, workspace, profileRef, now.Format(time.RFC3339Nano), key); err != nil {
 			return mapConstraint(err)
 		}
 		run = discovery.ScanRun{ID: discovery.ScanRunID(id), Workspace: workspace, NetworkProfileID: profileID, State: discovery.ScanRequested, RequestedAt: now, IdempotencyKey: key}

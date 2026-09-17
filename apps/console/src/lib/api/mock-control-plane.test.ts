@@ -50,6 +50,57 @@ describe("MockControlPlaneClient", () => {
     expect(snapshot.scanRuns).toHaveLength(2)
   })
 
+  it("scans the range the operator entered, saves no profile for it, and opens a run with no profile reference", () => {
+    const client = new MockControlPlaneClient()
+    const profilesBefore = client.getSnapshot().networkProfiles.length
+
+    const scan = client.dispatch({ type: "scanRange", startIp: "192.0.2.1", endIp: "192.0.2.20", port: 5555 })
+    const snapshot = client.getSnapshot()
+
+    expect(scan.ok).toBe(true)
+    // The bound is the ENTERED range: this client holds three transports, and
+    // the one outside the range was not observed by it.
+    expect(snapshot.scanObservations.filter((device) => device.scanRunId === scan.resourceId).map((device) => device.host)).toEqual(["192.0.2.10", "192.0.2.12"])
+    // An entered range is not saved policy, so the run holds no profile
+    // reference and scanning it wrote no profile.
+    expect(snapshot.scanRuns.find((run) => run.id === scan.resourceId)?.networkProfileId).toBe("")
+    expect(snapshot.networkProfiles).toHaveLength(profilesBefore)
+  })
+
+  it("refuses a malformed entered range as invalid input without opening a scan run", () => {
+    const client = new MockControlPlaneClient()
+    const runsBefore = client.getSnapshot().scanRuns.length
+
+    for (const [startIp, endIp] of [["192.0.2.1", "192.0.2.999"], ["192.0.2.20", "192.0.2.10"], ["", ""]] as const) {
+      const refused = client.dispatch({ type: "scanRange", startIp, endIp, port: 5555 })
+      expect(refused.ok).toBe(false)
+      expect(refused.errorCode).toBe("invalid_input")
+    }
+    // The refusal names the reason and scans nothing.
+    const refusal = client.dispatch({ type: "scanRange", startIp: "192.0.2.1", endIp: "192.0.2.999", port: 5555 })
+    expect(refusal.message).toContain("four octets of 0 through 255")
+    expect(refusal.message).toContain("Nothing was written")
+    expect(client.getSnapshot().scanRuns).toHaveLength(runsBefore)
+  })
+
+  it("reloads known devices one answer per device and restarts no adb server", () => {
+    const client = new MockControlPlaneClient()
+    const snapshot = client.getSnapshot()
+    const serials = snapshot.endpoints.filter((endpoint) => endpoint.state === "current").map((endpoint) => endpoint.serial)
+    expect(serials.length).toBeGreaterThan(0)
+
+    const reload = client.dispatch({ type: "reloadDevices" })
+
+    expect(reload.ok).toBe(true)
+    // A count is not an answer an operator can act on, so every device the
+    // client knows is named in its own sentence.
+    for (const serial of serials) expect(reload.message).toContain(serial)
+    // A reload is not the host-wide operation: nothing was restarted, and the
+    // client's transports are still the ones it held.
+    expect(reload.message).toContain("No adb server was restarted")
+    expect(client.getSnapshot().endpoints).toEqual(snapshot.endpoints)
+  })
+
   it("moves membership history without persisting an Ungrouped group", () => {
     const client = new MockControlPlaneClient()
 

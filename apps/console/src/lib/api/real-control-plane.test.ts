@@ -753,6 +753,105 @@ describe("RealControlPlaneClient", () => {
   })
 })
 
+describe("RealControlPlaneClient entered-range scan", () => {
+  const jsonResponse = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } })
+
+  it("names the entered range as the scan's target and carries no saved profile with it", async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.DiscoveryService/StartRangeScan")) {
+        bodies.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>)
+        return jsonResponse({
+          scanRun: { id: "scan-11", state: "SCAN_RUN_STATE_COMPLETED", requestedAt: "2026-09-16T01:00:00Z", finishedAt: "2026-09-16T01:00:05Z" },
+          devices: [{
+            host: "192.168.1.20", port: 5555, serial: "mock-serial-9", model: "Mock Nine",
+            state: "DEVICE_LINK_STATE_ONLINE", known: false,
+          }],
+        })
+      }
+      return jsonResponse({})
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "scanRange", startIp: "192.168.1.1", endIp: "192.168.1.254", port: 5555 })
+
+    expect(result.ok).toBe(true)
+    // The entered range is the target, spelled once: no profile id travels with
+    // it, because the run this opens records no profile reference.
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0]).toMatchObject({ addressPolicy: "192.168.1.1-192.168.1.254", port: 5555 })
+    expect(bodies[0]).not.toHaveProperty("networkProfileId")
+    expect(client.getSnapshot().scanObservations).toEqual([
+      expect.objectContaining({ scanRunId: "scan-11", host: "192.168.1.20", port: 5555, serial: "mock-serial-9", state: "online", known: false }),
+    ])
+  })
+
+  it("refuses a malformed entered range before any scan is dispatched", async () => {
+    const called: string[] = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      called.push(String(input))
+      return jsonResponse({})
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const inverted = await client.dispatch({ type: "scanRange", startIp: "192.168.1.254", endIp: "192.168.1.1", port: 5555 })
+    const outOfRange = await client.dispatch({ type: "scanRange", startIp: "192.168.1.1", endIp: "192.168.1.999", port: 5555 })
+
+    expect(inverted.ok).toBe(false)
+    expect(inverted.errorCode).toBe("invalid_input")
+    expect(inverted.message).toContain("Nothing was written")
+    expect(outOfRange.ok).toBe(false)
+    expect(outOfRange.message).toContain("four octets of 0 through 255")
+    expect(called.filter((url) => url.includes("StartRangeScan"))).toEqual([])
+  })
+})
+
+describe("RealControlPlaneClient reload", () => {
+  it("reports each known device's own observation and restarts nothing", async () => {
+    const called: string[] = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      called.push(url)
+      if (url.includes("/drift.v1.DeviceService/ListDevices")) {
+        return new Response(JSON.stringify({
+          devices: [{
+            id: "device-1",
+            displayName: "Atlas 04",
+            agentId: "agent-1",
+            status: "DEVICE_STATUS_ONLINE",
+            platformVersion: "14",
+            batteryPercent: 86,
+            latencyMs: 12,
+            lastSeenAt: "10:00:00",
+            endpointId: "endpoint-1",
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.EndpointService/ListDeviceEndpoints")) {
+        return new Response(JSON.stringify({
+          endpoints: [{
+            id: "endpoint-1", deviceId: "device-1", endpointType: "adb_tcp", serial: "R5CT42GS94Z",
+            host: "192.0.2.10", port: 5555, state: "ENDPOINT_STATE_CURRENT", observedAt: "2026-09-16T01:00:00Z",
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "reloadDevices" })
+
+    expect(result.ok).toBe(true)
+    // The reload says what it holds, per device, rather than that it succeeded.
+    expect(result.message).toContain("R5CT42GS94Z")
+    expect(result.message).toContain("192.0.2.10:5555")
+    expect(result.message).toContain("No adb server was restarted")
+    // It is not the host-wide operation: no restart was even attempted.
+    expect(called.filter((url) => url.includes("ConnectionService"))).toEqual([])
+  })
+})
+
 describe("RealControlPlaneClient transport surface", () => {
   const connectionCalls = (url: string, method: string) => url.endsWith(`/drift.v1.ConnectionService/${method}`)
   const jsonResponse = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } })
