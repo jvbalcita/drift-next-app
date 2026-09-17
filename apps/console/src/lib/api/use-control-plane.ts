@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { createLabAdapterClient, toLabAdapterView, type LabAdapterClient } from "@/lib/api/lab-adapter-client"
 import {
   applyLabIntent,
@@ -61,10 +61,42 @@ export interface ControlPlaneViewModel {
   reload: () => Promise<void>
 }
 
-export function useControlPlane(): ControlPlaneViewModel {
+/**
+ * defaultProjectionRefreshMs is how often the console re-reads the control
+ * plane's projection while it is open. Polling is what surfaces a device that
+ * arrived after launch: the watcher records the arrival in the registry, and the
+ * console shows it on its next read with nobody pressing Reload or starting a
+ * scan. A refresh is therefore a read of state the service already holds, never a
+ * reason to raise the loading state or to report an outage that is not there.
+ */
+export const defaultProjectionRefreshMs = 5000
+
+export interface ControlPlaneOptions {
+  /**
+   * client is the seam a test supplies to drive the console against a control
+   * plane it controls - one whose projection changes the way the real one does
+   * once a watcher has recorded an arrival. Supplying it also makes the console
+   * live, so the refresh path runs without a running control plane behind it.
+   */
+  client?: ControlPlaneClient
+  /**
+   * refreshIntervalMs is the projection refresh cadence in milliseconds; 0
+   * disables the refresh, which is how a static fixture (the mock control plane)
+   * is left alone. Defaults to defaultProjectionRefreshMs.
+   */
+  refreshIntervalMs?: number
+}
+
+export function useControlPlane(options: ControlPlaneOptions = {}): ControlPlaneViewModel {
+  const injectedClient = options.client
+  // A console with a live control plane behind it refreshes its projection on its
+  // own; the mock client is a fixed fixture, so nothing about it can change and
+  // there is nothing to poll for.
+  const live = Boolean(injectedClient) || !usesMockControlPlane()
+  const refreshIntervalMs = options.refreshIntervalMs ?? defaultProjectionRefreshMs
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig | undefined>()
   const [client, setClient] = useState<ControlPlaneClient>(() => (
-    usesMockControlPlane() ? createMockControlPlaneClient() : createRealControlPlaneClient()
+    injectedClient ?? (usesMockControlPlane() ? createMockControlPlaneClient() : createRealControlPlaneClient())
   ))
   const [labClient, setLabClient] = useState<LabAdapterClient | undefined>(() => createLabAdapterClient())
   const operatorId = runtimeConfig?.operatorId ?? defaultOperatorId
@@ -72,9 +104,12 @@ export function useControlPlane(): ControlPlaneViewModel {
   const [labNotice, setLabNotice] = useState("")
   const [loading, setLoading] = useState(!usesMockControlPlane())
   const [connectionError, setConnectionError] = useState("")
+  // One refresh at a time: a read that is slower than the interval must not stack
+  // up behind the next one.
+  const refreshInFlight = useRef(false)
 
   useEffect(() => {
-    if (usesMockControlPlane()) return
+    if (injectedClient || usesMockControlPlane()) return
     let active = true
     void loadRuntimeConfig().then((config) => {
       if (!active || !config) return
@@ -83,16 +118,22 @@ export function useControlPlane(): ControlPlaneViewModel {
       setLabClient(createLabAdapterClient(config.controlPlaneUrl, config.serviceToken))
     })
     return () => { active = false }
-  }, [])
+  }, [injectedClient])
 
-  const reload = useCallback(async () => {
-    setLoading(true)
+  /**
+   * load reads the control plane's projection once. quiet marks a refresh the
+   * operator did not ask for: it must not raise the loading state, because a
+   * console that announces itself as loading every few seconds is telling the
+   * operator the surface is unavailable when it is not.
+   */
+  const load = useCallback(async (quiet: boolean) => {
+    if (!quiet) setLoading(true)
     setConnectionError("")
     try {
       const next = await client.refresh()
       const overlay = await overlayAdapterStatus(next, labClient, operatorId)
       setSnapshot((current) => mergeAdapterProjection(overlay, current))
-      if (overlay.runtimeConnection.disconnectedReason === "Control plane unreachable." || overlay.runtimeConnection.disconnectedReason === "Control plane authorization failed.") {
+      if (isControlPlaneOutage(overlay)) {
         setConnectionError(overlay.runtimeConnection.disconnectedReason)
       }
     } catch (cause: unknown) {
@@ -100,14 +141,31 @@ export function useControlPlane(): ControlPlaneViewModel {
       setConnectionError(message)
       setSnapshot((current) => mergeAdapterProjection(client.getSnapshot(), current))
     } finally {
-      setLoading(false)
+      if (!quiet) setLoading(false)
     }
   }, [client, labClient, operatorId])
 
+  const reload = useCallback(async () => {
+    await load(false)
+  }, [load])
+
   useEffect(() => {
-    if (usesMockControlPlane()) return
+    if (!live) return
     void reload()
-  }, [reload])
+  }, [live, reload])
+
+  // The scheduled refresh, owned by this effect: it is cancelled when the console
+  // unmounts and when the client it reads changes, so a projection is never read
+  // on behalf of a console that is gone.
+  useEffect(() => {
+    if (!live || refreshIntervalMs <= 0) return
+    const timer = setInterval(() => {
+      if (refreshInFlight.current) return
+      refreshInFlight.current = true
+      void load(true).finally(() => { refreshInFlight.current = false })
+    }, refreshIntervalMs)
+    return () => clearInterval(timer)
+  }, [live, refreshIntervalMs, load])
 
   const commitProductSnapshot = useCallback(async () => {
     try {

@@ -142,6 +142,12 @@ func main() {
 	productHandlers.Action.SetExecutor(actionRuntime)
 	defer func() { _ = actionRuntime.Close() }()
 
+	// One discovery service, and therefore one serial-keyed upsert: the startup
+	// scan and the post-launch watcher below both record through this instance,
+	// so a device that attaches after launch resolves to the identity it already
+	// has instead of minting a second one (AGENTS.md section 2).
+	discoveryService := discovery.NewService(db, scanner)
+
 	// One bounded auto-scan of the default network profile per process start.
 	// It reuses the manual scan machinery, is cancelled by the same shutdown
 	// context as the listener, is owned by main (see the wait below), and never
@@ -149,7 +155,7 @@ func main() {
 	autoScan := product.NewStartupAutoScanner(product.StartupAutoScanConfig{
 		Workspaces: store.NewWorkspaceRepository(db),
 		Profiles:   store.NewNetworkProfileRepository(db),
-		Runner:     discovery.NewService(db, scanner),
+		Runner:     discoveryService,
 		Recorder:   db,
 		StartedAt:  time.Now().UTC(),
 	})
@@ -166,11 +172,18 @@ func main() {
 	// and never aborts startup: every arrival, departure, and failed poll is
 	// reported as it happens rather than held back to shutdown.
 	//
-	// It detects only. Routing an arrival through the serial-keyed registry path
-	// is the next slice of this wave, so the watcher deliberately owns no
-	// registration, no scan, and no device execution of its own.
+	// Every arrival it observes is recorded through the same serial-keyed upsert
+	// the startup scan writes with, on the poll's own bounded context, so the
+	// device is in the registry the console reads by the time the next poll runs -
+	// no operator action, no scan. The watcher still owns no scan, no device
+	// execution, and no worker of its own: recording an arrival is that one
+	// bounded write, and it happens on the poll that observed it.
 	transportWatch := product.NewTransportWatcher(product.TransportWatcherConfig{
 		Enumerator: enumerator,
+		Sink: func(ctx context.Context, arrivals []discovery.ObservedDevice) error {
+			_, recordErr := discoveryService.RecordArrivals(ctx, workspaceID, arrivals, product.WatcherActorType, product.WatcherActorID)
+			return recordErr
+		},
 	})
 	transportWatchDone := make(chan struct{})
 	go func() {
