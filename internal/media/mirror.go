@@ -66,6 +66,17 @@ const (
 	DefaultMirrorCloseTimeout = 5 * time.Second
 )
 
+// ErrCoordinateFrameRefused reports a coordinate that was refused because the
+// device's stream is not encoded at the frame it was measured in.
+//
+// It is a typed error rather than a sentence because two very different
+// operators' outcomes depend on telling it apart from a transport failure: the
+// coordinate never reached the device at all, and the frame the console is
+// measuring in is stale against the stream. A caller that reads only the message
+// cannot classify it, and the failure class an operator surface renders would be
+// the transport's rather than this gate's.
+var ErrCoordinateFrameRefused = errors.New("media: the coordinate is refused because the stream is not encoded at the frame it was measured in")
+
 // MirrorSession is one device's live mirror, as the engine holds it.
 //
 // A session is live while it has a viewer. It is stopped by its owning worker
@@ -691,8 +702,8 @@ func (s *mirrorSession) sendInput(ctx context.Context, input MirrorInput) error 
 	if input.carriesCoordinate() {
 		if input.FrameWidth != width || input.FrameHeight != height {
 			return fmt.Errorf(
-				"media: the input was measured in a %dx%d frame and %s streams at %dx%d, so the coordinate is refused rather than scaled",
-				input.FrameWidth, input.FrameHeight, s.deviceID, width, height)
+				"media: the input was measured in a %dx%d frame and %s streams at %dx%d, so the coordinate is refused rather than scaled: %w",
+				input.FrameWidth, input.FrameHeight, s.deviceID, width, height, ErrCoordinateFrameRefused)
 		}
 		// A point outside the frame is refused here as well as at the transport.
 		// Clamping it would send a tap at a different place from the one the
