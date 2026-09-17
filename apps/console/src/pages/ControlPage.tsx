@@ -11,11 +11,18 @@ import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, DispatchInte
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import { captureSerialForDevice } from "./page-utils"
-import { OperatorNotice, StatusBadge } from "./shared"
+import { EmptyState, OperatorNotice, StatusBadge } from "./shared"
 
 type Workspace = { largeHeight: number; smallHeight: number; quality: "Low" | "Medium" | "High" | "Extra"; frameRate: number; orientation: "portrait" | "landscape" }
 type ConsoleSettings = { gap: number; opacity: number; autoScreenOff: boolean; controlSmall: boolean; connection: "WebRTC" | "TCP"; priority: "Speed" | "Quality"; controlsSide: "left" | "right"; workspaceSide: "left" | "right"; showTag: boolean; showIndex: boolean; showName: boolean; showIp: boolean }
 type FloatingPosition = { x: number; y: number }
+type ConnectionFilter = "all" | "usb" | "wifi" | "otg"
+const connectionFilters: { value: ConnectionFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "usb", label: "USB" },
+  { value: "wifi", label: "WiFi" },
+  { value: "otg", label: "OTG" },
+]
 
 const workspaceDefaults: Workspace = { largeHeight: 480, smallHeight: 192, quality: "High", frameRate: 15, orientation: "portrait" }
 const settingsDefaults: ConsoleSettings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, connection: "WebRTC", priority: "Quality", controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showIp: true }
@@ -32,6 +39,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
   const [workspacePinned, setWorkspacePinned] = useState(false)
   const [modalPinned, setModalPinned] = useState(false)
   const [feedback, setFeedback] = useState("")
+  const [connectionFilter, setConnectionFilter] = useState<ConnectionFilter>("all")
   // Set Port is where every device is moved to, and it starts at 5555. It is not
   // preselected from a device's observation: Activate acts over the whole
   // discovered fleet, so there is no single device whose port it could be read
@@ -49,6 +57,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
   // currently holds, deduplicated and in a stable order rather than in list
   // order, and never a claim about which devices are attached.
   const observedEndpoints = Array.from(new Set(snapshot.endpoints.filter((endpoint) => endpoint.state === "current" && endpoint.host.trim() !== "").map((endpoint) => `${endpoint.host}:${endpoint.port}`))).sort()
+  const visibleDevices = snapshot.devices.filter((device) => matchesConnectionFilter(device, connectionFilter))
 
   function choosePhone(device: DeviceView) {
     if (settings.controlSmall) { setFeedback(`${device.displayName} received a compact-frame control selection. No device command was sent.`); return }
@@ -154,8 +163,9 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
       {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setEndIp} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} endpoints={snapshot.endpoints} onActivate={activateFleet} onRestartServer={restartAdbServer} onAddRange={addDiscoveryRange} onScan={scan} /></div> : null}
       <section className={`min-w-0 ${workspaceOpen && settings.workspaceSide === "left" ? "xl:order-2" : ""}`} aria-label="Phone control workspace">
         <LabObservationFrame adapter={snapshot.labAdapter} height={workspace.largeHeight} />
+        <ConnectionFilterBar filter={connectionFilter} onChange={setConnectionFilter} shown={visibleDevices.length} total={snapshot.devices.length} />
         <div className={`grid items-start gap-4 ${modalPinned && source ? "xl:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
-          <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${workspace.orientation === "portrait" ? Math.round(workspace.smallHeight * 9 / 16) : workspace.smallHeight}px)`, gap: settings.gap }} aria-label="Compact phone frames">{snapshot.devices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} onClick={() => choosePhone(device)} />)}</div></ScrollArea>
+          {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail="No device in the current view has an observed transport matching this filter." /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${workspace.orientation === "portrait" ? Math.round(workspace.smallHeight * 9 / 16) : workspace.smallHeight}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
           {modalPinned ? deviceModal : null}
         </div>
         <p aria-live="polite" className="mt-4 border-l-2 border-primary bg-secondary/60 p-3 text-xs leading-5 text-muted-foreground">{feedback || "Open a compact phone frame to begin. Follower selection is available only while a large frame is open."}</p>
@@ -163,6 +173,21 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
     </div>
     {!modalPinned && deviceModal && typeof document !== "undefined" ? createPortal(deviceModal, document.body) : null}
   </div>
+}
+function ConnectionFilterBar({ filter, onChange, shown, total }: { filter: ConnectionFilter; onChange: (value: ConnectionFilter) => void; shown: number; total: number }) {
+  return <div className="mt-4 flex flex-wrap items-center gap-2 border-y border-border py-3" aria-label="Device connection filters">
+    <span className="mr-2 text-xs font-semibold">Connection type</span>
+    <div className="flex flex-wrap gap-1" role="group" aria-label="Filter devices by connection type">
+      {connectionFilters.map((item) => <Button key={item.value} type="button" size="sm" variant={filter === item.value ? "default" : "outline"} aria-pressed={filter === item.value} onClick={() => onChange(item.value)}>{item.label}</Button>)}
+    </div>
+    <span className="ml-auto text-xs text-muted-foreground" aria-live="polite"><span className="drift-data font-semibold">{shown} / {total}</span> devices shown</span>
+  </div>
+}
+function matchesConnectionFilter(device: DeviceView, filter: ConnectionFilter) {
+  if (filter === "all") return true
+  if (filter === "usb") return device.transport === "usb"
+  if (filter === "wifi") return device.transport === "tcp"
+  return false
 }
 function WorkspaceToggle({ side, onToggle }: { side: "left" | "right"; onToggle: () => void }) {
   return <div className="group absolute left-0 top-1/2 z-20 flex h-24 w-10 -translate-y-1/2 items-center justify-start"><Button size="icon-sm" variant="outline" className="bg-card/95 opacity-80 transition-opacity group-hover:opacity-100 focus-visible:opacity-100" aria-label="Open Workspace Settings" onClick={onToggle}>{side === "left" ? <ChevronLeft className="size-3.5" aria-hidden="true" /> : <ChevronRight className="size-3.5" aria-hidden="true" />}</Button></div>
