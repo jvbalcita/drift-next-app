@@ -1,4 +1,5 @@
 import { cleanup } from "@testing-library/react"
+import { toast } from "sonner"
 import { afterEach } from "vitest"
 
 if (!window.matchMedia) {
@@ -19,4 +20,5 @@ if (!window.matchMedia) {
 
 afterEach(() => {
   cleanup()
+  toast.dismiss()
 })

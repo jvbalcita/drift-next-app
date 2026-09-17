@@ -1817,22 +1817,15 @@ export class MockControlPlaneClient implements ControlPlaneClient {
   }
 
   /**
-   * A reload is reported as what it is in this client: the devices this
-   * projection already knows, each with its own current observation. It re-reads
-   * and contacts nothing, and it restarts no adb server, so the transports a
-   * device already answers on are not dropped to answer it.
+   * Keep the mock's reload feedback aligned with the real client: the transient
+   * toast summarizes the scope, while the projection remains available for
+   * detailed inspection elsewhere in the console.
    */
   private reloadDevices(intent: Extract<ControlPlaneIntent, { type: "reloadDevices" }>): MutationResult {
-    const sentences = this.snapshot.devices.map((device) => {
-      const endpoint = this.snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
-      if (!endpoint) return `${device.displayName} has no current endpoint in this projection, so where it is reachable was not re-read`
-      const address = endpoint.host.trim() === "" ? `no TCP address (${endpoint.port === 0 ? "USB transport" : `unobserved port ${endpoint.port}`})` : `${endpoint.host}:${endpoint.port}`
-      return `${endpoint.serial || device.displayName} is observed at ${address}, last seen ${device.lastSeen}`
-    })
-    if (sentences.length === 0) {
-      return result(intent, "Mock reload found no device in this client's projection. No adb server was restarted and no device was contacted.")
-    }
-    return result(intent, `Mock reload re-read ${sentences.length} known device(s): ${sentences.join(". ")}. No adb server was restarted and no device was contacted.`)
+    const deviceSummary = this.snapshot.devices.length === 0
+      ? "No known devices were re-read."
+      : `${this.snapshot.devices.length} known device${this.snapshot.devices.length === 1 ? "" : "s"} re-read.`
+    return result(intent, `${deviceSummary} No adb server was restarted and no device was contacted.`)
   }
 
   /**

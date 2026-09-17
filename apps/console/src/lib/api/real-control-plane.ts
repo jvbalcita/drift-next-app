@@ -1431,24 +1431,16 @@ function restartReport(response: RestartServerResponse): string {
 }
 
 /**
- * reloadReport states what a reload re-read, per device, because "reloaded" is
- * not an answer an operator can act on: the device that is reachable over TCP,
- * the one whose transport is USB and so has no address, and the one the registry
- * holds no current endpoint for each need a different thing done. It says what
- * was re-read and that nothing was restarted, so a reload is never mistaken for
- * the host-wide operation that drops every transport.
+ * A reload result is deliberately a summary. The device list and endpoint
+ * projection remain available for inspection, while the transient toast only
+ * confirms the scope and the fact that no host-wide restart or device contact
+ * occurred.
  */
 function reloadReport(snapshot: ControlPlaneSnapshot): string {
-  const sentences = snapshot.devices.map((device) => {
-    const endpoint = snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
-    if (!endpoint) return `${device.displayName} has no current endpoint in the registry, so where it is reachable was not re-read`
-    const address = endpoint.host.trim() === "" ? `no TCP address (${endpoint.port === 0 ? "USB transport" : `unobserved port ${endpoint.port}`})` : `${endpoint.host}:${endpoint.port}`
-    return `${endpoint.serial || device.displayName} is observed at ${address}, last seen ${device.lastSeen}`
-  })
-  if (sentences.length === 0) {
-    return "Reload found no device this workspace already knows about. No adb server was restarted and nothing was connected."
-  }
-  return `Reload re-read ${sentences.length} known device(s): ${sentences.join(". ")}. No adb server was restarted and no device was contacted.`
+  const deviceSummary = snapshot.devices.length === 0
+    ? "No known devices were re-read."
+    : `${snapshot.devices.length} known device${snapshot.devices.length === 1 ? "" : "s"} re-read.`
+  return `${deviceSummary} No adb server was restarted and no device was contacted.`
 }
 
 export class RealControlPlaneClient implements ControlPlaneClient {
@@ -1724,7 +1716,11 @@ export class RealControlPlaneClient implements ControlPlaneClient {
     const workspaceId = this.workspaceId
     try {
       const result = await this.execute(intent, requestId, workspaceId)
-      if (result.ok && intent.type !== "refresh") {
+      // reloadDevices already refreshes the projection while constructing its
+      // per-device report. Reading it again here can replace a good reload with
+      // a transiently incomplete second projection, so keep that action to one
+      // bounded read just like the explicit refresh path below.
+      if (result.ok && intent.type !== "refresh" && intent.type !== "reloadDevices") {
         await this.refresh()
       }
       if (intent.type === "refresh") {
@@ -1816,8 +1812,8 @@ export class RealControlPlaneClient implements ControlPlaneClient {
           : `Scan of the entered range ${parsed.range.addressPolicy} on port ${intent.port} completed; ${rangeResponse.devices.length} device(s) observed. No Network Profile was written.`, { resourceId: rangeResponse.scanRun?.id })
       }
       case "reloadDevices": {
-        // A reload re-reads what the control plane holds and says what it holds
-        // per device. It restarts nothing: the transports the host's adb server
+        // A reload re-reads what the control plane holds and returns a concise
+        // summary. It restarts nothing: the transports the host's adb server
         // holds are what a device already answering on them is reachable over.
         await this.refresh()
         return mutation(intent, reloadReport(this.snapshot))
