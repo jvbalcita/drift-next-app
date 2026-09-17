@@ -17,6 +17,7 @@ import (
 	"drift.local/drift-next/internal/edge/connection"
 	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/edge/lab"
+	"drift.local/drift-next/internal/edge/mirror"
 	"drift.local/drift-next/internal/media"
 	"drift.local/drift-next/internal/organizations"
 	"drift.local/drift-next/internal/platform/clock"
@@ -218,6 +219,28 @@ func main() {
 		log.Printf("%s", frameEngine.Run(ctx).Report())
 	}()
 
+	// The live mirror: one scrcpy session per device, carrying the device's own
+	// encoded screen to a viewer and typed input back to it. The engine is built
+	// ONCE here and owned by this process: it is cancelled by the same shutdown
+	// context as the listener, stopped under a bounded timeout, awaited below
+	// before the process returns, and audited at that point, so "no capture
+	// outlived this process" is reported from the engine's own numbers rather
+	// than assumed. Nothing is subscribed at startup, so no device is captured
+	// until an operator opens a mirror on one.
+	//
+	// A deployment that cannot arm the mirror - no adb path, no scrcpy server,
+	// no allow-listed runner - says so in the startup line instead of leaving an
+	// operator with a frame that shows nothing and no diagnosis: the same rule
+	// that made "no default network profile" a one-look answer.
+	mirrorEngine, mirrorErr := mirrorEngineFrom(labService)
+	mirrorHost := media.NewMirrorHost(media.MirrorHostConfig{Engine: mirrorEngine, Reason: mirrorErr})
+	log.Printf("%s", mirrorHost.State())
+	mirrorDone := make(chan struct{})
+	go func() {
+		defer close(mirrorDone)
+		log.Printf("%s", mirrorHost.Run(ctx).Report())
+	}()
+
 	routes := []service.Route{
 		service.LabAdapterRoute(labService, labToken),
 	}
@@ -287,15 +310,41 @@ func main() {
 	server := service.NewHTTPServer("control-plane", address, routes...)
 	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, device settings surface %s, text reference surface %s, transport surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), mountState(settingsMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted))
 	serveErr := service.Serve(ctx, server)
-	// The startup scan, the post-launch watcher and the frame engine are owned
-	// work, not detached workers: wait for all three to obey cancellation before
-	// the process returns.
+	// The startup scan, the post-launch watcher, the frame engine and the live
+	// mirror are owned work, not detached workers: wait for all four to obey
+	// cancellation before the process returns. The mirror's own line reports what
+	// it started and stopped, so this wait is also where "no capture outlived
+	// this process" is answered.
 	<-autoScanDone
 	<-transportWatchDone
 	<-frameEngineDone
+	<-mirrorDone
 	if serveErr != nil {
 		log.Fatal(serveErr)
 	}
+}
+
+// mirrorEngineFrom builds the live mirror engine over the device's own
+// allow-listed runner, or reports why it cannot be built.
+//
+// It is the deployment seam for the mirror. Its inputs are the deployment's own
+// configuration - the same adb the lab service reaches devices through, plus the
+// host path of the scrcpy server that is pushed to each device - and the engine
+// is constructed here, once, rather than lazily on the first viewer's request,
+// so a deployment that cannot mirror says why at startup instead of showing an
+// operator a frame with nothing in it.
+//
+// The runner handed to the dialer is the lab service's own device transport, not
+// a second adapter: the mirror's push, tunnel and launch therefore pass the same
+// allow-list admission every other device command in this process passes. The
+// engine it returns is owned by the caller - the process - and the composition's
+// MirrorHost is what stops it.
+func mirrorEngineFrom(labService *lab.Service) (*media.MirrorEngine, error) {
+	dialer, err := mirror.NewDialerFromEnv(os.LookupEnv, labService.DeviceTransport())
+	if err != nil {
+		return nil, err
+	}
+	return media.NewMirrorEngine(media.MirrorEngineConfig{Dialer: dialer})
 }
 
 // tokenState reports whether the lab route is guarded without ever rendering

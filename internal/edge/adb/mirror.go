@@ -108,7 +108,7 @@ var mirrorLogLevels = map[string]struct{}{
 // validated here, and none of them accepts a caller string that becomes a
 // command: the host path below is the one position in this family that names a
 // file, and it is bounded to a server binary's own name (see
-// isMirrorHostServerPath).
+// IsMirrorHostServerPath).
 
 // MirrorServerPushArgv builds the push of the device-side server onto the
 // device. It is pushed on every session rather than reused: the device-side
@@ -116,7 +116,7 @@ var mirrorLogLevels = map[string]struct{}{
 // hazard the push exists to remove - a file from an unknown build left behind by
 // an interrupted session.
 func MirrorServerPushArgv(hostServerPath string) ([]string, error) {
-	if !isMirrorHostServerPath(hostServerPath) {
+	if !IsMirrorHostServerPath(hostServerPath) {
 		return nil, fmt.Errorf("%w: the server is pushed from an absolute path whose name is the scrcpy server's", ErrMirrorShapeInvalid)
 	}
 	return []string{"push", hostServerPath, MirrorServerDevicePath}, nil
@@ -220,7 +220,7 @@ func mirrorSessionIDHex(sessionID uint32) (string, error) {
 //  2. Every variable position is a canonical bounded decimal (the tunnel port),
 //     a bounded hexadecimal session id, a value from a fixed vocabulary (the log
 //     level, the screen-awake flag), or - for the push alone - an absolute host
-//     path whose base name is the scrcpy server's own (isMirrorHostServerPath).
+//     path whose base name is the scrcpy server's own (IsMirrorHostServerPath).
 //     Nothing accepts whitespace, a quote, a shell metacharacter or a flag.
 //  3. The tokens that identify what is being driven - the device path, the
 //     server version, the main class and the IDR option - are spelled here as
@@ -229,7 +229,7 @@ func mirrorSessionIDHex(sessionID uint32) (string, error) {
 //     gate: a defect in one must not reach a device through the other.
 func matchesMirrorAllowlist(args []string) (string, bool) {
 	switch {
-	case len(args) == 3 && args[0] == "push" && isMirrorHostServerPath(args[1]) && args[2] == "/data/local/tmp/scrcpy-server.jar":
+	case len(args) == 3 && args[0] == "push" && IsMirrorHostServerPath(args[1]) && args[2] == "/data/local/tmp/scrcpy-server.jar":
 		return MirrorServerPushOperation, true
 	case len(args) == 3 && args[0] == "reverse" && isMirrorAbstractSocket(args[1]) && isMirrorTunnelTarget(args[2]):
 		return MirrorReverseAddOperation, true
@@ -283,7 +283,7 @@ func matchesMirrorServerLaunch(args []string) bool {
 	return isMirrorSessionIDToken(args[6]) && isMirrorLogLevelToken(args[7]) && isMirrorStayAwakeToken(args[15])
 }
 
-// isMirrorHostServerPath reports a host path a server push could have named: an
+// IsMirrorHostServerPath reports a host path a server push could have named: an
 // absolute path, arg-safe, without a traversal, whose base name is the scrcpy
 // server's own file name.
 //
@@ -292,7 +292,7 @@ func matchesMirrorServerLaunch(args []string) bool {
 // installation keeps the server, and this refuses to push anything that is not
 // named like the server onto a device. The device-side path is not a variable
 // position at all, so a push can only ever write one file, at one path.
-func isMirrorHostServerPath(token string) bool {
+func IsMirrorHostServerPath(token string) bool {
 	if token == "" || len(token) > maxMirrorHostPathLength {
 		return false
 	}
