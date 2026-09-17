@@ -242,7 +242,12 @@ describe("Drift command center", () => {
 
     expect(screen.getByRole("textbox", { name: /IP range start octet 1/i })).toBeInTheDocument()
     expect(screen.getByRole("textbox", { name: /IP range end octet 4/i })).toBeInTheDocument()
+    expect(screen.getByRole("textbox", { name: /Set Port/i })).toHaveValue("5555")
     expect(screen.getByRole("button", { name: /^Activate$/i })).toBeEnabled()
+    // The per-device target picker and the second transport-mode control are
+    // gone: Activate is the fleet operation, and it needs no target.
+    expect(screen.queryByRole("button", { name: /Target Device/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Change$/i })).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /Unpin workspace settings/i }))
     expect(screen.getByRole("button", { name: /Open workspace settings/i })).toBeInTheDocument()
     expect(screen.queryByRole("slider", { name: /Floating frame size/i })).not.toBeInTheDocument()

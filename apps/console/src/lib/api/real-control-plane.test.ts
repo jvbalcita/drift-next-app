@@ -850,52 +850,64 @@ describe("RealControlPlaneClient transport surface", () => {
     expect(urls).toEqual([])
   })
 
-  it("separates an activation from a port the profile already accepts", async () => {
-    let calls = 0
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+  it("carries every serial's own answer for a fleet activation, and never only a count", async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input)
-      if (connectionCalls(url, "ActivatePort")) {
-        calls += 1
-        return jsonResponse({ serial: "R5CT42GS94Z", endpoint: "192.168.1.106:5556", port: 5556, changed: calls === 1, activatedAt: "2026-09-17T08:05:26Z" })
-      }
-      return emptyResponse()
-    })
-
-    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
-    const activated = await client.dispatch({ type: "activatePort", serial: "R5CT42GS94Z", endpoint: "192.168.1.106:5556" })
-    const unchanged = await client.dispatch({ type: "activatePort", serial: "R5CT42GS94Z", endpoint: "192.168.1.106:5556" })
-
-    expect(activated.message).toBe("Port 5556 activated for R5CT42GS94Z at 192.168.1.106:5556.")
-    expect(unchanged.message).toContain("already accepted")
-    expect(unchanged.message).not.toBe(activated.message)
-  })
-
-  it("carries a device that needs the operator's prompt as an outcome, not an error", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      const url = String(input)
-      if (connectionCalls(url, "ChangeTransportMode")) {
+      if (connectionCalls(url, "ActivateFleet")) {
+        bodies.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>)
         return jsonResponse({
-          serial: "R5CT42GS94Z",
-          port: 5556,
-          stateBefore: "device",
-          connectionBefore: "usb",
-          stateAfter: "unauthorized",
-          needsOperatorAuthorization: true,
-          message: "R5CT42GS94Z is now listening on port 5556, but it is UNAUTHORIZED for this host: accept the \"Allow USB debugging?\" prompt on the device's screen.",
-          exitCode: 0,
+          port: 5555,
+          activated: 1,
+          needsOperatorAuthorization: 1,
+          refused: 1,
+          failed: 0,
+          alreadyOnPort: 1,
+          devices: [
+            { serial: "R5CT42GS94Z", port: 5555, activated: true, message: "R5CT42GS94Z is listening on port 5555 and is device" },
+            { serial: "ZY223UNAUTH", port: 5555, needsOperatorAuthorization: true, message: "ZY223UNAUTH is now listening on port 5555, but it is UNAUTHORIZED for this host: accept the prompt on its screen." },
+            { serial: "192.168.1.9:5556", port: 5555, refusal: "not_usb", message: "refusing to change the transport mode of 192.168.1.9:5556: its transport is not USB" },
+            { serial: "192.168.1.7:5555", port: 5555, alreadyOnPort: true, message: "192.168.1.7:5555 was already answering on port 5555, so nothing was sent for it." },
+          ],
         })
       }
       return emptyResponse()
     })
 
     const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
-    const result = await client.dispatch({ type: "changeTransportMode", serial: "R5CT42GS94Z", port: 5556 })
+    const result = await client.dispatch({ type: "activateFleet", port: 5555 })
 
     expect(result.ok).toBe(true)
+    // The port and NOTHING else: an operator action cannot assert which devices
+    // are attached, so it cannot name them.
+    expect(bodies[0]).toMatchObject({ port: 5555 })
+    expect(Object.keys(bodies[0])).not.toEqual(expect.arrayContaining(["serial", "devices", "endpoints"]))
+    for (const serial of ["R5CT42GS94Z", "ZY223UNAUTH", "192.168.1.9:5556", "192.168.1.7:5555"]) {
+      expect(result.message).toContain(serial)
+    }
     expect(result.message).toContain("UNAUTHORIZED for this host")
+    expect(result.message).toContain("already answering on port 5555")
+    expect(result.message).toContain("1 activated, 1 needing the operator's prompt, 1 refused, 0 failed, 1 already on port 5555")
   })
 
-  it("refuses a transport-mode port outside 1-65535 without contacting the control plane", async () => {
+  it("says so when a fleet activation had no device to report", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (connectionCalls(url, "ActivateFleet")) {
+        return jsonResponse({ port: 5555, devices: [] })
+      }
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "activateFleet", port: 5555 })
+
+    expect(result.ok).toBe(true)
+    expect(result.message).toContain("found no device to report")
+    expect(result.message).not.toContain("0 activated")
+  })
+
+  it("refuses a fleet activation port outside 1-65535 without contacting the control plane", async () => {
     const urls: string[] = []
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       urls.push(String(input))
@@ -903,7 +915,7 @@ describe("RealControlPlaneClient transport surface", () => {
     })
 
     const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
-    const result = await client.dispatch({ type: "changeTransportMode", serial: "R5CT42GS94Z", port: 70000 })
+    const result = await client.dispatch({ type: "activateFleet", port: 70000 })
 
     expect(result.ok).toBe(false)
     expect(result.message).toContain("70000")

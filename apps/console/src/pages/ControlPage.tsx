@@ -32,26 +32,22 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
   const [workspacePinned, setWorkspacePinned] = useState(false)
   const [modalPinned, setModalPinned] = useState(false)
   const [feedback, setFeedback] = useState("")
-  // The activation port starts at the port the first listed device was OBSERVED
-  // on, so the field is never wrong about the device it applies to.
-  const [port, setPort] = useState(() => {
-    const first = snapshot.devices[0]
-    const observed = snapshot.endpoints.find((endpoint) => endpoint.deviceId === first?.id && endpoint.state === "current")
-    return observed ? String(observed.port) : "5555"
-  })
+  // Set Port is where every device is moved to, and it starts at 5555. It is not
+  // preselected from a device's observation: Activate acts over the whole
+  // discovered fleet, so there is no single device whose port it could be read
+  // from, and a field that changed with the fleet would be a port an operator
+  // never chose.
+  const [port, setPort] = useState("5555")
   const [startIp, setStartIp] = useState("192.168.1.1")
   const [endIp, setEndIp] = useState("192.168.1.255")
   const [profileId, setProfileId] = useState(snapshot.networkProfiles.find((profile) => profile.isDefault)?.id ?? snapshot.networkProfiles[0]?.id ?? "")
-  const [otgDeviceId, setOtgDeviceId] = useState(snapshot.devices[0]?.id ?? "")
-  const [transportPort, setTransportPort] = useState("5555")
   const drag = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
   const source = snapshot.devices.find((device) => device.id === sourceId)
   const followers = snapshot.devices.filter((device) => followerIds.includes(device.id))
   const selectedProfile = snapshot.networkProfiles.find((profile) => profile.id === profileId)
-  const otgDevice = snapshot.devices.find((device) => device.id === otgDeviceId)
-  const otgEndpoint = snapshot.endpoints.find((endpoint) => endpoint.deviceId === otgDeviceId && endpoint.state === "current")
-  // The endpoints a restart can re-establish: the transports the registry
-  // currently holds, in a stable order rather than in list order.
+  // The endpoints the discovered fleet is currently observed on. Activate reads
+  // its own fleet from the devices, so this list is what Connect opens and what
+  // a restart re-establishes — never a claim about which devices are attached.
   const observedEndpoints = Array.from(new Set(snapshot.endpoints.filter((endpoint) => endpoint.state === "current" && endpoint.host.trim() !== "").map((endpoint) => `${endpoint.host}:${endpoint.port}`))).sort()
 
   function choosePhone(device: DeviceView) {
@@ -113,34 +109,37 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
     if (!selectedProfile) { setFeedback("Choose a saved network profile before starting a scan."); return }
     void reportDispatch(dispatch, { type: "startScan", profileId: selectedProfile.id }, setFeedback)
   }
-  function chooseOtgDevice(deviceId: string) {
-    setOtgDeviceId(deviceId)
-    const observed = snapshot.endpoints.find((endpoint) => endpoint.deviceId === deviceId && endpoint.state === "current")
-    // The activation port is the port the device was OBSERVED on, so it is
-    // preselected from the observation rather than invented by the operator.
-    if (observed) setPort(String(observed.port))
+  /**
+   * Activate moves every discovered device that is not already answering on the
+   * Set Port port onto it. It names the port and NOTHING else: the control plane
+   * reads the fleet from the devices, so this panel cannot assert which devices
+   * are attached, and each device's own result comes back separately.
+   */
+  function activateFleet() {
+    void reportDispatch(dispatch, { type: "activateFleet", port: Number(port.trim()) }, setFeedback)
   }
-  function connectSelectedDevice() {
-    if (!otgDevice || !otgEndpoint) { setFeedback("Select a device with a current transport endpoint before connecting."); return }
-    if (!otgEndpoint.serial.trim()) { setFeedback(`${otgDevice.displayName}'s current endpoint carries no serial, so its port decision cannot be made for it. The connect was not sent.`); return }
-    void reportDispatch(dispatch, { type: "connectEndpoint", serial: otgEndpoint.serial, endpoint: `${otgEndpoint.host}:${otgEndpoint.port}` }, setFeedback)
-  }
-  function activateSelectedPort() {
-    if (!otgDevice || !otgEndpoint) { setFeedback("Select a device with a current transport endpoint before activating a port."); return }
-    if (port.trim() !== String(otgEndpoint.port)) {
-      // An activation is a statement about a port the device was OBSERVED on.
-      // An invented one is refused here rather than sent as a harmless no-op.
-      setFeedback(`Activate applies to the port ${otgDevice.displayName} was observed on, ${otgEndpoint.host}:${otgEndpoint.port}. Port ${port.trim() === "" ? "(empty)" : port.trim()} was not activated and nothing was sent. Move a device to another port with Change Transport Mode.`)
-      return
-    }
-    void reportDispatch(dispatch, { type: "activatePort", serial: otgEndpoint.serial, endpoint: `${otgEndpoint.host}:${otgEndpoint.port}` }, setFeedback)
-  }
-  function changeSelectedTransportMode() {
-    if (!otgDevice || !otgEndpoint) { setFeedback("Select a device with a current transport endpoint before changing its transport mode."); return }
-    if (!otgEndpoint.serial.trim()) { setFeedback(`${otgDevice.displayName}'s current endpoint carries no serial, so its transport mode cannot be changed by name.`); return }
-    const requested = /^\d+$/.test(transportPort.trim()) ? Number(transportPort.trim()) : Number.NaN
-    if (!Number.isInteger(requested)) { setFeedback("Enter a whole TCP port between 1 and 65535 for the transport mode change. Nothing was sent."); return }
-    void reportDispatch(dispatch, { type: "changeTransportMode", serial: otgEndpoint.serial, port: requested }, setFeedback)
+  /**
+   * Connect opens a transport to each endpoint the fleet is observed on, one at
+   * a time. It names one endpoint per call because that is what the operation
+   * takes, and each answer is reported on its own rather than the last one
+   * standing in for all of them.
+   */
+  function connectObservedEndpoints() {
+    const targets = snapshot.devices.flatMap((device) => {
+      const endpoint = snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
+      return endpoint && endpoint.host.trim() !== "" ? [endpoint] : []
+    })
+    if (targets.length === 0) { setFeedback("Connect needs at least one observed device endpoint to open a transport to. Nothing was sent."); return }
+    const unnamed = targets.find((endpoint) => !endpoint.serial.trim())
+    if (unnamed) { setFeedback(`The endpoint ${unnamed.host}:${unnamed.port} carries no serial, so its port decision cannot be made for it. Nothing was sent.`); return }
+    void (async () => {
+      const answers: string[] = []
+      for (const endpoint of targets) {
+        const result = await dispatch({ type: "connectEndpoint", serial: endpoint.serial, endpoint: `${endpoint.host}:${endpoint.port}` })
+        answers.push(result.message)
+      }
+      setFeedback(answers.join(" "))
+    })()
   }
   function restartAdbServer() {
     if (observedEndpoints.length === 0) { setFeedback("Restarting the adb server needs at least one observed endpoint to re-establish. Nothing was sent."); return }
@@ -175,7 +174,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
       <Button size="sm" variant="outline" disabled={!source || modalPinned} onClick={() => setPosition(initialPosition)}><Crosshair className="size-3.5" aria-hidden="true" />Reset Position</Button>
     </div>
     <div className={`mt-4 grid items-start gap-4 ${workspaceOpen ? settings.workspaceSide === "right" ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
-      {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setEndIp} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} devices={snapshot.devices} endpoints={snapshot.endpoints} otgDeviceId={otgDeviceId} onOtgDeviceIdChange={chooseOtgDevice} transportPort={transportPort} onTransportPortChange={setTransportPort} onActivate={activateSelectedPort} onConnect={connectSelectedDevice} onChangeTransportMode={changeSelectedTransportMode} onRestartServer={restartAdbServer} onAddRange={addDiscoveryRange} onScan={scan} /></div> : null}
+      {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setEndIp} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} endpoints={snapshot.endpoints} onActivate={activateFleet} onConnect={connectObservedEndpoints} onRestartServer={restartAdbServer} onAddRange={addDiscoveryRange} onScan={scan} /></div> : null}
       <section className={`min-w-0 ${workspaceOpen && settings.workspaceSide === "left" ? "xl:order-2" : ""}`} aria-label="Phone control workspace">
         <LabObservationFrame adapter={snapshot.labAdapter} height={workspace.largeHeight} />
         <div className={`grid items-start gap-4 ${modalPinned && source ? "xl:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
@@ -192,7 +191,7 @@ function WorkspaceToggle({ side, onToggle }: { side: "left" | "right"; onToggle:
   return <div className="group absolute left-0 top-1/2 z-20 flex h-24 w-10 -translate-y-1/2 items-center justify-start"><Button size="icon-sm" variant="outline" className="bg-card/95 opacity-80 transition-opacity group-hover:opacity-100 focus-visible:opacity-100" aria-label="Open Workspace Settings" onClick={onToggle}>{side === "left" ? <ChevronLeft className="size-3.5" aria-hidden="true" /> : <ChevronRight className="size-3.5" aria-hidden="true" />}</Button></div>
 }
 
-function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, side, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, profiles, devices, endpoints, otgDeviceId, onOtgDeviceIdChange, transportPort, onTransportPortChange, onActivate, onConnect, onChangeTransportMode, onRestartServer, onAddRange, onScan }: { workspace: Workspace; onWorkspaceChange: (value: Workspace) => void; pinned: boolean; onPinnedChange: (value: boolean) => void; side: "left" | "right"; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; profiles: ControlPlaneSnapshot["networkProfiles"]; devices: readonly DeviceView[]; endpoints: ControlPlaneSnapshot["endpoints"]; otgDeviceId: string; onOtgDeviceIdChange: (value: string) => void; transportPort: string; onTransportPortChange: (value: string) => void; onActivate: () => void; onConnect: () => void; onChangeTransportMode: () => void; onRestartServer: () => void; onAddRange: () => void; onScan: () => void }) {
+function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, side, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, profiles, endpoints, onActivate, onConnect, onRestartServer, onAddRange, onScan }: { workspace: Workspace; onWorkspaceChange: (value: Workspace) => void; pinned: boolean; onPinnedChange: (value: boolean) => void; side: "left" | "right"; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; profiles: ControlPlaneSnapshot["networkProfiles"]; endpoints: ControlPlaneSnapshot["endpoints"]; onActivate: () => void; onConnect: () => void; onRestartServer: () => void; onAddRange: () => void; onScan: () => void }) {
   return <aside className="border border-border bg-card" aria-label="Workspace Settings">
     <div className="flex items-start gap-3 border-b border-border p-4">
       <span className="grid size-8 shrink-0 place-items-center border border-primary/40 bg-secondary text-primary"><SlidersHorizontal className="size-4" aria-hidden="true" /></span>
@@ -212,44 +211,30 @@ function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, 
         <Button variant="outline" className="w-full rounded-none" onClick={() => onWorkspaceChange(workspaceDefaults)}>Reset Workspace</Button>
       </TabsContent>
       <TabsContent value="otg" className="space-y-5 p-4">
-        <OtgSetupPanel devices={devices} endpoints={endpoints} profiles={profiles} targetDeviceId={otgDeviceId} onTargetDeviceChange={onOtgDeviceIdChange} port={port} onPortChange={onPortChange} transportPort={transportPort} onTransportPortChange={onTransportPortChange} startIp={startIp} onStartIpChange={onStartIpChange} endIp={endIp} onEndIpChange={onEndIpChange} profileId={profileId} onProfileIdChange={onProfileIdChange} onActivate={onActivate} onConnect={onConnect} onChangeTransportMode={onChangeTransportMode} onRestartServer={onRestartServer} onAddRange={onAddRange} onScan={onScan} />
+        <OtgSetupPanel endpoints={endpoints} profiles={profiles} port={port} onPortChange={onPortChange} startIp={startIp} onStartIpChange={onStartIpChange} endIp={endIp} onEndIpChange={onEndIpChange} profileId={profileId} onProfileIdChange={onProfileIdChange} onActivate={onActivate} onConnect={onConnect} onRestartServer={onRestartServer} onAddRange={onAddRange} onScan={onScan} />
       </TabsContent>
     </Tabs>
   </aside>
 }
 
-function OtgSetupPanel({ devices, endpoints, profiles, targetDeviceId, onTargetDeviceChange, port, onPortChange, transportPort, onTransportPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, onActivate, onConnect, onChangeTransportMode, onRestartServer, onAddRange, onScan }: { devices: readonly DeviceView[]; endpoints: ControlPlaneSnapshot["endpoints"]; profiles: ControlPlaneSnapshot["networkProfiles"]; targetDeviceId: string; onTargetDeviceChange: (value: string) => void; port: string; onPortChange: (value: string) => void; transportPort: string; onTransportPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; onActivate: () => void; onConnect: () => void; onChangeTransportMode: () => void; onRestartServer: () => void; onAddRange: () => void; onScan: () => void }) {
-  const target = devices.find((device) => device.id === targetDeviceId)
-  const observed = endpoints.find((endpoint) => endpoint.deviceId === targetDeviceId && endpoint.state === "current")
-  const observedEndpoint = observed ? `${observed.host}:${observed.port}` : "none observed"
-  const serial = observed?.serial.trim() ?? ""
+function OtgSetupPanel({ endpoints, profiles, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, onActivate, onConnect, onRestartServer, onAddRange, onScan }: { endpoints: ControlPlaneSnapshot["endpoints"]; profiles: ControlPlaneSnapshot["networkProfiles"]; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; onActivate: () => void; onConnect: () => void; onRestartServer: () => void; onAddRange: () => void; onScan: () => void }) {
   // The transports a restart can re-establish: the endpoints the registry
   // currently holds, deduplicated and in a stable order rather than list order.
   const reestablishable = Array.from(new Set(endpoints.filter((endpoint) => endpoint.state === "current" && endpoint.host.trim() !== "").map((endpoint) => `${endpoint.host}:${endpoint.port}`))).sort()
   return <>
     <div>
       <p className="text-xs font-semibold">Quick OTG Setup</p>
-      <p className="mt-1 text-[11px] leading-5 text-muted-foreground">Scan observes every ADB-enabled device in the saved profile's range, whatever port it answers on. Connect, Activate, Change Transport Mode and Restart ADB Server are performed by the control plane against the device selected here, and each one reports its own outcome below — including a refusal that reached no device.</p>
-    </div>
-    <div className="space-y-2">
-      <Choice label="Target Device" value={targetDeviceId} options={devices.map((device) => device.id)} labels={{ "": "No device observed", ...Object.fromEntries(devices.map((device) => [device.id, device.displayName])) }} onChange={onTargetDeviceChange} />
-      <dl className="border border-border/70 p-2 text-[11px]">
-        <div className="flex justify-between gap-2"><dt className="text-muted-foreground">Observed endpoint</dt><dd className="font-mono">{observedEndpoint}</dd></div>
-        <div className="mt-1 flex justify-between gap-2"><dt className="text-muted-foreground">Serial</dt><dd className="font-mono">{serial === "" ? "—" : serial}</dd></div>
-        <div className="mt-1 flex justify-between gap-2"><dt className="text-muted-foreground">Observed state</dt><dd>{target ? target.status : "no device selected"}</dd></div>
-      </dl>
-      <Button className="w-full rounded-none" size="sm" onClick={onConnect}><RotateCw className="size-3.5" aria-hidden="true" />Connect</Button>
-      <p className="text-[10px] leading-4 text-muted-foreground">Connect opens a transport to the selected device's observed endpoint. A port the profile does not accept is refused at connect time, naming the port, and reaches no device.</p>
+      <p className="mt-1 text-[11px] leading-5 text-muted-foreground">Scan observes every ADB-enabled device in the saved profile's range, whatever port it answers on. Activate and Connect are performed by the control plane over the discovered fleet, and Restart ADB Server is performed by the control plane against this host. Each one reports what it did below — including a refusal that reached no device.</p>
     </div>
     <div>
       <p className="text-xs font-medium">Set Port</p>
       <div className="mt-2 flex gap-2"><Input aria-label="Set Port" inputMode="numeric" value={port} onChange={(event) => onPortChange(event.target.value)} className="font-mono text-xs" /><Button size="sm" onClick={onActivate}>Activate</Button></div>
-      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Activate enables the port the selected device was OBSERVED on ({observedEndpoint}). An invented port is refused and nothing is sent.</p>
+      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Activate moves every discovered device that is not already answering on this port onto it, one at a time. A device that is not attached and authorized over USB is refused with its own message, and every device's result is reported separately.</p>
     </div>
     <div>
-      <p className="text-xs font-medium">Change Transport Mode</p>
-      <div className="mt-2 flex gap-2"><Input aria-label="Transport Mode Port" inputMode="numeric" value={transportPort} onChange={(event) => onTransportPortChange(event.target.value)} className="font-mono text-xs" /><Button size="sm" onClick={onChangeTransportMode}>Change</Button></div>
-      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Restarts the selected device's adbd in TCP mode on this port. It is refused unless that device is attached and authorized; a device that comes back unauthorized needs the debugging prompt accepted on its screen.</p>
+      <p className="text-xs font-medium">Connect</p>
+      <Button className="mt-2 w-full rounded-none" size="sm" onClick={onConnect}><RotateCw className="size-3.5" aria-hidden="true" />Connect</Button>
+      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Connect opens a transport to each observed device endpoint in turn. A port the profile does not accept is refused at connect time, naming the port, and reaches no device.</p>
     </div>
     <div>
       <p className="text-xs font-medium">IP Range</p>
