@@ -264,19 +264,32 @@ func (s *Session) Stats() Stats {
 }
 
 // ReadAccessUnit reads the next packet from the video socket. It is called from
-// one goroutine only.
+// one goroutine only, and a read that fails ends the session: a caller that
+// reads without a context has nothing else to bound the wait by.
 func (s *Session) ReadAccessUnit() (AccessUnit, error) {
-	header := make([]byte, PacketHeaderSize)
-	if _, err := io.ReadFull(s.video, header); err != nil {
-		return AccessUnit{}, s.end(fmt.Errorf("scrcpy: reading a frame header: %w", err))
-	}
-	config, key, pts, size, err := parseFrameHeader(header)
+	unit, err := s.readAccessUnit()
 	if err != nil {
 		return AccessUnit{}, s.end(err)
 	}
+	return unit, nil
+}
+
+// readAccessUnit reads one packet and reports a failure without deciding what it
+// means for the session. A bounded read that reaches its deadline is not a
+// failure - it is how a reader waits for a frame that has not arrived - so the
+// decision to end the session belongs to the caller of this function.
+func (s *Session) readAccessUnit() (AccessUnit, error) {
+	header := make([]byte, PacketHeaderSize)
+	if _, err := io.ReadFull(s.video, header); err != nil {
+		return AccessUnit{}, fmt.Errorf("scrcpy: reading a frame header: %w", err)
+	}
+	config, key, pts, size, err := parseFrameHeader(header)
+	if err != nil {
+		return AccessUnit{}, err
+	}
 	data := make([]byte, size)
 	if _, err := io.ReadFull(s.video, data); err != nil {
-		return AccessUnit{}, s.end(fmt.Errorf("scrcpy: reading a frame payload of %d bytes: %w", size, err))
+		return AccessUnit{}, fmt.Errorf("scrcpy: reading a frame payload of %d bytes: %w", size, err)
 	}
 	s.statsMu.Lock()
 	s.stats.Packets++
@@ -289,6 +302,49 @@ func (s *Session) ReadAccessUnit() (AccessUnit, error) {
 	}
 	s.statsMu.Unlock()
 	return AccessUnit{Config: config, Key: key, PTSUS: pts, Data: data}, nil
+}
+
+// readPollInterval bounds one attempt in the loop below when the caller's
+// context carries no deadline of its own.
+//
+// A read on a socket cannot be cancelled, so the loop re-checks the context
+// between bounded attempts. Without a bound, a mirror whose stream went quiet
+// would keep its reader - and therefore its worker, and therefore its capture on
+// the device - alive until the device closed the socket, which is precisely the
+// state this package exists to make impossible.
+const readPollInterval = 250 * time.Millisecond
+
+// ReadAccessUnitContext reads the next packet, returning as soon as the context
+// ends.
+//
+// It is what a mirror's worker reads: the worker must stop when its session
+// ends, and a session that has ended must not go on being captured.
+func (s *Session) ReadAccessUnitContext(ctx context.Context) (AccessUnit, error) {
+	for {
+		if err := ctx.Err(); err != nil {
+			return AccessUnit{}, err
+		}
+		deadline := time.Now().Add(readPollInterval)
+		if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+			deadline = ctxDeadline
+		}
+		_ = s.video.SetReadDeadline(deadline)
+		unit, err := s.readAccessUnit()
+		if err == nil {
+			return unit, nil
+		}
+		if ctx.Err() != nil {
+			// The wait was cut short by the caller, not by the device.
+			return AccessUnit{}, ctx.Err()
+		}
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			// Nothing arrived within the bounded attempt. That is not a failure:
+			// this fleet's encoder sends nothing at all while the screen is
+			// static, so a quiet poll is a device with nothing new to show.
+			continue
+		}
+		return AccessUnit{}, s.end(err)
+	}
 }
 
 // Touch sends one touch action at a point inside the stream's own frame.

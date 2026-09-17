@@ -576,3 +576,71 @@ func TestAServerThatExitsEndsTheSession(t *testing.T) {
 		t.Fatal("a session whose server exited accepted input")
 	}
 }
+
+// TestReadAccessUnitContextStopsWhenTheCallerStops is the behaviour a mirror's
+// worker depends on: a device with a static screen sends nothing at all, so a
+// reader that waited on the socket alone would keep the session - and therefore
+// the capture on the device - alive indefinitely. The context is what bounds it,
+// and a quiet poll is not a failure.
+func TestReadAccessUnitContextStopsWhenTheCallerStops(t *testing.T) {
+	h := newHarness(t, headFromDevice, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	type result struct {
+		unit AccessUnit
+		err  error
+	}
+	answers := make(chan result, 1)
+	go func() {
+		unit, err := h.session.ReadAccessUnitContext(ctx)
+		answers <- result{unit: unit, err: err}
+	}()
+
+	// Nothing has been sent by the device, so the read is waiting.
+	select {
+	case answer := <-answers:
+		t.Fatalf("a read with no data returned on its own: unit %+v, err %v", answer.unit, answer.err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	cancel()
+	select {
+	case answer := <-answers:
+		if !errors.Is(answer.err, context.Canceled) {
+			t.Fatalf("the cancelled read returned %v, want the caller's own cancellation", answer.err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the read did not stop when its caller cancelled")
+	}
+	// The wait was cut short by the caller, not by the device: the session is
+	// still live, and only the caller's own decision closes it.
+	select {
+	case <-h.session.Done():
+		t.Fatalf("a cancelled read ended the session: %v", h.session.Err())
+	default:
+	}
+}
+
+// TestReadAccessUnitContextReturnsTheDevicesPackets is the other half: the
+// bounded waiting above must not lose a packet that does arrive, or the mirror
+// would be quiet rather than live.
+func TestReadAccessUnitContextReturnsTheDevicesPackets(t *testing.T) {
+	idr := []byte{0, 0, 0, 1, 0x65, 0xb8, 0x48}
+	h := newHarness(t, headFromDevice, [][]byte{frame(idr, true, 22265830649)}, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	unit, err := h.session.ReadAccessUnitContext(ctx)
+	if err != nil {
+		t.Fatalf("ReadAccessUnitContext: %v", err)
+	}
+	if !unit.Key || unit.Config {
+		t.Fatalf("the packet was read as key=%v config=%v, want the device's key frame", unit.Key, unit.Config)
+	}
+	if !bytes.Equal(unit.Data, idr) {
+		t.Fatalf("the packet data is % x, want % x", unit.Data, idr)
+	}
+	if unit.PTSUS != 22265830649 {
+		t.Fatalf("the packet's timestamp is %d, want the device's own %d", unit.PTSUS, 22265830649)
+	}
+}
