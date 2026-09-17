@@ -96,18 +96,34 @@ type MirrorViewer interface {
 	// ID is the viewer's own identity, for logging and for counting.
 	ID() string
 	// Keyframe reports the most recent cached key frame and the parameter sets
-	// that must accompany it, or false when nothing has been cached yet. A viewer
-	// that attaches mid-stream is primed from here rather than from the next IDR.
+	// that belong to it, or false when nothing has been cached yet. A viewer
+	// that attaches mid-stream is primed from here rather than from the next
+	// IDR.
+	//
+	// The frame already carries the parameter sets in Annex-B form, so a caller
+	// that forwards it has nothing to attach. The sets are reported separately
+	// as well because a container that describes the codec out of band - an
+	// fMP4 initialisation segment, for one - needs them as their own value.
 	Keyframe() (frame []byte, params []byte, ok bool)
 	// Send offers one frame to this viewer. It never blocks: a viewer that cannot
 	// keep up loses the frame, because a delayed live frame is not a live frame.
 	Send(frame StreamFrame) bool
+	// Done is closed when this viewer has detached or its session ended, so a
+	// consumer that is not reading a queue still learns the stream is over
+	// instead of waiting on one that will never deliver again.
+	Done() <-chan struct{}
 	// Close detaches the viewer.
 	Close()
 }
 
 // StreamFrame is one access unit offered to a viewer.
 type StreamFrame struct {
+	// Config reports a codec configuration packet: it carries the parameter sets
+	// and NO picture. Such a packet is never offered to a viewer, because a
+	// receiver that decodes one as a frame shows nothing and reports no error -
+	// the silent failure this hop exists to prevent. It is tracked so the sets it
+	// carries can be re-attached to every later key frame.
+	Config bool
 	// Key reports a key frame (an IDR).
 	Key bool
 	// PTSUS is the device encoder's own timestamp, in microseconds.
@@ -262,11 +278,17 @@ func (e *MirrorEngine) Start(ctx context.Context, deviceID, serial string) (Mirr
 			return nil, nil, fmt.Errorf("media: %d devices are already being mirrored, which is the configured bound", e.max)
 		}
 		session = newMirrorSession(deviceID, serial, e)
+		// The session takes its lifetime from this call's context, and ends
+		// earlier than that when it ends for a reason of its own. Binding it
+		// here, before the worker starts, is what keeps a session ended by its
+		// idle bound from leaving a reader blocked on a stream nothing will
+		// close.
+		session.bind(ctx)
 		e.sessions[deviceID] = session
 		e.wg.Add(1)
 		go func() {
 			defer e.wg.Done()
-			session.run(ctx)
+			session.run()
 		}()
 	}
 	e.mu.Unlock()
@@ -389,19 +411,50 @@ type mirrorSession struct {
 	scid       uint32
 	closed     bool
 	stream     MirrorStream
+
+	// ctx is the session's own lifetime: it ends when the starter's context
+	// does, or when the session itself ends. cancel is what makes an ended
+	// session's reader stop, so the stream it owns is always closed.
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func newMirrorSession(deviceID, serial string, engine *MirrorEngine) *mirrorSession {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &mirrorSession{
 		deviceID:  deviceID,
 		serial:    serial,
 		engine:    engine,
+		ctx:       ctx,
+		cancel:    cancel,
 		frames:    make(chan StreamFrame),
 		viewers:   make(map[string]*mirrorViewer),
 		done:      make(chan struct{}),
 		startedAt: time.Now(),
 		scid:      uint32(time.Now().UnixNano()) & 0x7fffffff,
 	}
+}
+
+// bind attaches the session to the context its starter passed. The session's own
+// context ends when that one does, or earlier - when the session ends for a
+// reason of its own, such as the last viewer detaching.
+//
+// It is what makes an ended session's reader stop: without it a session ended by
+// its idle bound would leave its worker blocked on a read for as long as the
+// caller's context lived, and the device's stream would never be closed. That is
+// exactly the orphaned capture this engine exists to prevent.
+func (s *mirrorSession) bind(ctx context.Context) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ctx, s.cancel = context.WithCancel(ctx)
+}
+
+// context reports the session's own cancellation, which every blocking call this
+// session makes is bounded by.
+func (s *mirrorSession) context() context.Context {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ctx
 }
 
 func (s *mirrorSession) DeviceID() string { return s.deviceID }
@@ -435,10 +488,11 @@ func (s *mirrorSession) Fails() error {
 // viewer on a dead stream.
 func (s *mirrorSession) Subscribe() (MirrorViewer, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.closed {
-		if s.failed != nil {
-			return nil, fmt.Errorf("media: the mirror for %s has ended: %w", s.deviceID, s.failed)
+		failed := s.failed
+		s.mu.Unlock()
+		if failed != nil {
+			return nil, fmt.Errorf("media: the mirror for %s has ended: %w", s.deviceID, failed)
 		}
 		return nil, fmt.Errorf("media: the mirror for %s has ended", s.deviceID)
 	}
@@ -454,7 +508,38 @@ func (s *mirrorSession) Subscribe() (MirrorViewer, error) {
 		done:    make(chan struct{}),
 	}
 	s.viewers[viewer.id] = viewer
+	// A viewer can only decode from a key frame. A viewer attaching mid-stream
+	// is primed from the cached one; this is the case that cache cannot cover -
+	// a viewer attaching to a live stream that has produced no key frame yet -
+	// and there the device is asked for one rather than left to its own periodic
+	// cadence. The request is taken outside the lock and awaited, because it
+	// writes to the session's control socket.
+	stream, primed := s.stream, len(s.lastIDR) > 0
+	s.mu.Unlock()
+
+	if stream != nil && !primed {
+		s.askForKeyFrame(stream)
+	}
 	return viewer, nil
+}
+
+// keyframeRequestTimeout bounds the ask below. It is short because it sits in
+// front of a viewer that is already waiting for a picture.
+const keyframeRequestTimeout = 2 * time.Second
+
+// askForKeyFrame asks the device's encoder for a key frame now.
+//
+// It is the on-demand form of the periodic IDR the session is configured for,
+// and the two are not redundant: the interval bounds how long a viewer waits
+// once the device is encoding, while this covers a live stream that has not
+// encoded anything decodable yet. A refusal is logged, never fatal: the stream
+// itself is still live, and the periodic IDR may still arrive.
+func (s *mirrorSession) askForKeyFrame(stream MirrorStream) {
+	ctx, cancel := context.WithTimeout(context.Background(), keyframeRequestTimeout)
+	defer cancel()
+	if err := stream.RequestKeyframe(ctx); err != nil {
+		log.Printf("live mirror for %s could not ask for a key frame: %v", s.deviceID, err)
+	}
 }
 
 // detach removes a viewer and, when it was the last one, schedules the end of a
@@ -499,9 +584,17 @@ func (s *mirrorSession) end(reason error) {
 			viewers = append(viewers, viewer)
 		}
 		s.viewers = make(map[string]*mirrorViewer)
+		cancel := s.cancel
 		s.mu.Unlock()
 		for _, viewer := range viewers {
 			viewer.Close()
+		}
+		// The session's own lifetime ends here too, which is what unblocks its
+		// reader and lets the worker close the device's stream. Without this an
+		// ended session would keep its capture running until the caller's
+		// context expired.
+		if cancel != nil {
+			cancel()
 		}
 		close(s.frames)
 		close(s.done)
@@ -529,7 +622,12 @@ func (s *mirrorSession) sendInput(ctx context.Context, input MirrorInput) error 
 // run owns one session's whole lifetime: it opens the stream, publishes frames
 // until it ends, and closes everything it started before returning. Every path
 // out of it goes through end, so a session that returns has reported why.
-func (s *mirrorSession) run(ctx context.Context) {
+//
+// It reads the session's own context rather than a caller's, so a session that
+// ends for a reason of its own - its last viewer leaving, its stream failing -
+// unblocks this worker and closes the device's stream immediately.
+func (s *mirrorSession) run() {
+	ctx := s.context()
 	stream, err := s.engine.dialer.Dial(ctx, s.deviceID, s.serial)
 	if err != nil {
 		s.end(fmt.Errorf("media: opening the mirror for %s: %w", s.deviceID, err))
@@ -569,38 +667,52 @@ func (s *mirrorSession) run(ctx context.Context) {
 // publish records the frame, keeps the parameter sets and the last key frame, and
 // offers the frame to every viewer.
 func (s *mirrorSession) publish(frame StreamFrame) {
+	if frame.Config {
+		// A configuration packet carries the parameter sets and no picture, and
+		// it is tracked rather than forwarded. Forwarding it would hand a
+		// receiver a unit it decodes as a frame: nothing is drawn, and nothing
+		// reports an error. The sets it carries reach a viewer attached to the
+		// next key frame, which is the earliest frame a decoder can start from
+		// in any case. It deliberately does not count as the device having
+		// delivered a frame, so a stream that sends configuration and then
+		// stalls does not look alive.
+		s.trackParameterSets(frame.Data)
+		return
+	}
+
 	s.mu.Lock()
 	s.lastFrame = time.Now()
-	if frame.Key {
-		// The last key frame is kept WITH the parameter sets it belongs to: a
-		// key frame and the parameter sets of a different encoder state are not a
-		// decodable pair, and a viewer primed with that pair would be exactly as
-		// black as one primed with nothing.
-		s.lastIDR = frame.Data
-		s.lastIDRPTS = frame.PTSUS
-	}
 	params := s.spsPPS
-	viewers := make([]*mirrorViewer, 0, len(s.viewers))
-	for _, viewer := range s.viewers {
-		viewers = append(viewers, viewer)
-	}
 	s.mu.Unlock()
 
 	out := frame
 	if frame.Key && len(params) > 0 && !carriesParameterSets(frame.Data) {
 		out.Data = attachParameterSets(params, frame.Data)
 	}
-	if !frame.Key {
-		// A non-key frame is only useful to a viewer that has a key frame. The
-		// parameter sets are tracked from every frame, including this one: the
-		// device sends them once, and this is where that once is noticed.
-		s.trackParameterSets(frame.Data)
-	} else if !carriesParameterSets(frame.Data) {
-		// A key frame without its own parameter sets is decodable only because
-		// the cached sets above are attached to it.
-	} else {
-		s.trackParameterSets(frame.Data)
+	// The parameter sets are tracked from every frame, including this one: the
+	// device sends them once, and this is where that once is noticed.
+	s.trackParameterSets(frame.Data)
+
+	if frame.Key {
+		// The key frame is cached WITH the parameter sets attached, not beside
+		// them. A key frame and the parameter sets of a different encoder state
+		// are not a decodable pair, and a viewer primed with that pair - or with
+		// a bare key frame and no sets - would be exactly as black as one primed
+		// with nothing. Caching the two as one value is what makes it impossible
+		// for a late viewer's primer to forget half of it.
+		s.mu.Lock()
+		s.lastIDR = out.Data
+		s.lastIDRPTS = frame.PTSUS
+		s.mu.Unlock()
 	}
+
+	s.mu.Lock()
+	viewers := make([]*mirrorViewer, 0, len(s.viewers))
+	for _, viewer := range s.viewers {
+		viewers = append(viewers, viewer)
+	}
+	s.mu.Unlock()
+
 	for _, viewer := range viewers {
 		viewer.offer(out)
 	}
@@ -625,6 +737,18 @@ type mirrorViewer struct {
 	queue   chan StreamFrame
 	done    chan struct{}
 	once    sync.Once
+
+	// mu guards the queue against the one race that would make a viewer's end
+	// unobservable or fatal: a frame being offered at the moment the viewer
+	// closes. Holding it across both means a closed viewer is never offered a
+	// frame and its queue is closed exactly once, so a reader that pulls the
+	// queue learns the stream has ended instead of waiting on it forever.
+	mu     sync.Mutex
+	closed bool
+
+	// dropped counts the frames this viewer lost to its own backlog. It is
+	// guarded by the session's mutex, which is the lock that same field's
+	// readers hold.
 	dropped int
 }
 
@@ -644,10 +768,10 @@ func (v *mirrorViewer) Keyframe() ([]byte, []byte, bool) {
 
 // offer queues one frame, dropping the oldest when the viewer has fallen behind.
 func (v *mirrorViewer) offer(frame StreamFrame) {
-	select {
-	case <-v.done:
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.closed {
 		return
-	default:
 	}
 	select {
 	case v.queue <- frame:
@@ -672,22 +796,29 @@ func (v *mirrorViewer) offer(frame StreamFrame) {
 // Send implements the viewer's delivery handle for a caller that frames its own
 // stream.
 func (v *mirrorViewer) Send(frame StreamFrame) bool {
-	select {
-	case <-v.done:
+	v.mu.Lock()
+	closed := v.closed
+	v.mu.Unlock()
+	if closed {
 		return false
-	default:
 	}
 	v.offer(frame)
 	return true
 }
 
 // Frames reports the viewer's own queue. A caller that drains it receives every
-// frame the viewer kept.
+// frame the viewer kept, and the channel is closed when the viewer detaches or
+// its session ends, so a reader learns the stream has ended rather than waiting
+// on it.
 func (v *mirrorViewer) Frames() <-chan StreamFrame { return v.queue }
 
 // Close detaches the viewer exactly once.
 func (v *mirrorViewer) Close() {
 	v.once.Do(func() {
+		v.mu.Lock()
+		v.closed = true
+		close(v.queue)
+		v.mu.Unlock()
 		close(v.done)
 		v.session.detach(v.id)
 	})
