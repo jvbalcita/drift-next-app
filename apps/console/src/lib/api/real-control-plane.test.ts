@@ -34,6 +34,30 @@ describe("mapDevice", () => {
     })
   })
 
+  it("fails closed on a device the control plane has not observed", () => {
+    // The wire status carries no lifecycle reading. UNSPECIFIED is what the
+    // control plane reports for a device nobody has observed, and it is also what
+    // a device that is no longer observed reports when it holds no last positive
+    // observation. Either way the console must not offer control: an absent device
+    // is the one thing eligibilityFor must never call eligible.
+    const neverObserved = create(DeviceSchema, {
+      id: "device-never-observed",
+      status: DeviceStatus.UNSPECIFIED,
+      lastSeenAt: "",
+    })
+    expect(mapDevice(neverObserved)).toMatchObject({ status: "offline", controlEligibility: "offline", lastSeen: "" })
+
+    // A device that was observed and has since left arrives as OFFLINE with the
+    // last observation it did have, so the operator can still see when it was last
+    // seen while control stays closed.
+    const departed = create(DeviceSchema, {
+      id: "device-departed",
+      status: DeviceStatus.OFFLINE,
+      lastSeenAt: "10:00:00",
+    })
+    expect(mapDevice(departed)).toMatchObject({ status: "offline", controlEligibility: "offline", lastSeen: "10:00:00" })
+  })
+
   it("reads the transport the control plane recorded instead of deriving it from the endpoint", () => {
     const tcp = create(DeviceSchema, {
       id: "device-tcp",
