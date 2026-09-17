@@ -356,6 +356,55 @@ func (ActionOutcome) EnumDescriptor() ([]byte, []int) {
 	return file_drift_v1_action_proto_rawDescGZIP(), []int{4}
 }
 
+type HaltState int32
+
+const (
+	HaltState_HALT_STATE_UNSPECIFIED    HaltState = 0
+	HaltState_HALT_STATE_CLEAR          HaltState = 1
+	HaltState_HALT_STATE_EMERGENCY_STOP HaltState = 2
+)
+
+// Enum value maps for HaltState.
+var (
+	HaltState_name = map[int32]string{
+		0: "HALT_STATE_UNSPECIFIED",
+		1: "HALT_STATE_CLEAR",
+		2: "HALT_STATE_EMERGENCY_STOP",
+	}
+	HaltState_value = map[string]int32{
+		"HALT_STATE_UNSPECIFIED":    0,
+		"HALT_STATE_CLEAR":          1,
+		"HALT_STATE_EMERGENCY_STOP": 2,
+	}
+)
+
+func (x HaltState) Enum() *HaltState {
+	p := new(HaltState)
+	*p = x
+	return p
+}
+
+func (x HaltState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (HaltState) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_action_proto_enumTypes[5].Descriptor()
+}
+
+func (HaltState) Type() protoreflect.EnumType {
+	return &file_drift_v1_action_proto_enumTypes[5]
+}
+
+func (x HaltState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use HaltState.Descriptor instead.
+func (HaltState) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{5}
+}
+
 type SemanticTarget struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	ResourceId         string                 `protobuf:"bytes,1,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
@@ -1429,6 +1478,298 @@ func (x *SubmitActionResponse) GetResult() *ActionResult {
 	return nil
 }
 
+type HaltStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Halt          *ResourceRef           `protobuf:"bytes,1,opt,name=halt,proto3" json:"halt,omitempty"`
+	State         HaltState              `protobuf:"varint,2,opt,name=state,proto3,enum=drift.v1.HaltState" json:"state,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	UpdatedAt     string                 `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	RowVersion    uint64                 `protobuf:"varint,5,opt,name=row_version,json=rowVersion,proto3" json:"row_version,omitempty"`
+	LastActorType string                 `protobuf:"bytes,6,opt,name=last_actor_type,json=lastActorType,proto3" json:"last_actor_type,omitempty"`
+	LastActorId   string                 `protobuf:"bytes,7,opt,name=last_actor_id,json=lastActorId,proto3" json:"last_actor_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HaltStatus) Reset() {
+	*x = HaltStatus{}
+	mi := &file_drift_v1_action_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HaltStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HaltStatus) ProtoMessage() {}
+
+func (x *HaltStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HaltStatus.ProtoReflect.Descriptor instead.
+func (*HaltStatus) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *HaltStatus) GetHalt() *ResourceRef {
+	if x != nil {
+		return x.Halt
+	}
+	return nil
+}
+
+func (x *HaltStatus) GetState() HaltState {
+	if x != nil {
+		return x.State
+	}
+	return HaltState_HALT_STATE_UNSPECIFIED
+}
+
+func (x *HaltStatus) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *HaltStatus) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+func (x *HaltStatus) GetRowVersion() uint64 {
+	if x != nil {
+		return x.RowVersion
+	}
+	return 0
+}
+
+func (x *HaltStatus) GetLastActorType() string {
+	if x != nil {
+		return x.LastActorType
+	}
+	return ""
+}
+
+func (x *HaltStatus) GetLastActorId() string {
+	if x != nil {
+		return x.LastActorId
+	}
+	return ""
+}
+
+type GetHaltRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHaltRequest) Reset() {
+	*x = GetHaltRequest{}
+	mi := &file_drift_v1_action_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHaltRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHaltRequest) ProtoMessage() {}
+
+func (x *GetHaltRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHaltRequest.ProtoReflect.Descriptor instead.
+func (*GetHaltRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *GetHaltRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+type GetHaltResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Halt          *HaltStatus            `protobuf:"bytes,1,opt,name=halt,proto3" json:"halt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHaltResponse) Reset() {
+	*x = GetHaltResponse{}
+	mi := &file_drift_v1_action_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHaltResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHaltResponse) ProtoMessage() {}
+
+func (x *GetHaltResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHaltResponse.ProtoReflect.Descriptor instead.
+func (*GetHaltResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *GetHaltResponse) GetHalt() *HaltStatus {
+	if x != nil {
+		return x.Halt
+	}
+	return nil
+}
+
+type SetHaltRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	State         HaltState              `protobuf:"varint,3,opt,name=state,proto3,enum=drift.v1.HaltState" json:"state,omitempty"`
+	Reason        string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetHaltRequest) Reset() {
+	*x = SetHaltRequest{}
+	mi := &file_drift_v1_action_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetHaltRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetHaltRequest) ProtoMessage() {}
+
+func (x *SetHaltRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetHaltRequest.ProtoReflect.Descriptor instead.
+func (*SetHaltRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *SetHaltRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *SetHaltRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *SetHaltRequest) GetState() HaltState {
+	if x != nil {
+		return x.State
+	}
+	return HaltState_HALT_STATE_UNSPECIFIED
+}
+
+func (x *SetHaltRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type SetHaltResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Halt          *HaltStatus            `protobuf:"bytes,1,opt,name=halt,proto3" json:"halt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetHaltResponse) Reset() {
+	*x = SetHaltResponse{}
+	mi := &file_drift_v1_action_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetHaltResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetHaltResponse) ProtoMessage() {}
+
+func (x *SetHaltResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_action_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetHaltResponse.ProtoReflect.Descriptor instead.
+func (*SetHaltResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_action_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *SetHaltResponse) GetHalt() *HaltStatus {
+	if x != nil {
+		return x.Halt
+	}
+	return nil
+}
+
 var File_drift_v1_action_proto protoreflect.FileDescriptor
 
 const file_drift_v1_action_proto_rawDesc = "" +
@@ -1510,7 +1851,29 @@ const file_drift_v1_action_proto_rawDesc = "" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12.\n" +
 	"\x06intent\x18\x02 \x01(\v2\x16.drift.v1.ActionIntentR\x06intent\"F\n" +
 	"\x14SubmitActionResponse\x12.\n" +
-	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result*\x8e\x04\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result\"\x86\x02\n" +
+	"\n" +
+	"HaltStatus\x12)\n" +
+	"\x04halt\x18\x01 \x01(\v2\x15.drift.v1.ResourceRefR\x04halt\x12)\n" +
+	"\x05state\x18\x02 \x01(\x0e2\x13.drift.v1.HaltStateR\x05state\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x04 \x01(\tR\tupdatedAt\x12\x1f\n" +
+	"\vrow_version\x18\x05 \x01(\x04R\n" +
+	"rowVersion\x12&\n" +
+	"\x0flast_actor_type\x18\x06 \x01(\tR\rlastActorType\x12\"\n" +
+	"\rlast_actor_id\x18\a \x01(\tR\vlastActorId\"F\n" +
+	"\x0eGetHaltRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\";\n" +
+	"\x0fGetHaltResponse\x12(\n" +
+	"\x04halt\x18\x01 \x01(\v2\x14.drift.v1.HaltStatusR\x04halt\"\xbd\x01\n" +
+	"\x0eSetHaltRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
+	"\x05state\x18\x03 \x01(\x0e2\x13.drift.v1.HaltStateR\x05state\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\";\n" +
+	"\x0fSetHaltResponse\x12(\n" +
+	"\x04halt\x18\x01 \x01(\v2\x14.drift.v1.HaltStatusR\x04halt*\x8e\x04\n" +
 	"\n" +
 	"ActionKind\x12\x1b\n" +
 	"\x17ACTION_KIND_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -1562,9 +1925,15 @@ const file_drift_v1_action_proto_rawDesc = "" +
 	"\x18ACTION_OUTCOME_CANCELLED\x10\x04\x12\x1c\n" +
 	"\x18ACTION_OUTCOME_TIMED_OUT\x10\x05\x12\x1a\n" +
 	"\x16ACTION_OUTCOME_UNKNOWN\x10\x06\x12 \n" +
-	"\x1cACTION_OUTCOME_INDETERMINATE\x10\a2^\n" +
+	"\x1cACTION_OUTCOME_INDETERMINATE\x10\a*\\\n" +
+	"\tHaltState\x12\x1a\n" +
+	"\x16HALT_STATE_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10HALT_STATE_CLEAR\x10\x01\x12\x1d\n" +
+	"\x19HALT_STATE_EMERGENCY_STOP\x10\x022\xde\x01\n" +
 	"\rActionService\x12M\n" +
-	"\fSubmitAction\x12\x1d.drift.v1.SubmitActionRequest\x1a\x1e.drift.v1.SubmitActionResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\fSubmitAction\x12\x1d.drift.v1.SubmitActionRequest\x1a\x1e.drift.v1.SubmitActionResponse\x12>\n" +
+	"\aGetHalt\x12\x18.drift.v1.GetHaltRequest\x1a\x19.drift.v1.GetHaltResponse\x12>\n" +
+	"\aSetHalt\x12\x18.drift.v1.SetHaltRequest\x1a\x19.drift.v1.SetHaltResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_action_proto_rawDescOnce sync.Once
@@ -1578,65 +1947,84 @@ func file_drift_v1_action_proto_rawDescGZIP() []byte {
 	return file_drift_v1_action_proto_rawDescData
 }
 
-var file_drift_v1_action_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_drift_v1_action_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_drift_v1_action_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_drift_v1_action_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_drift_v1_action_proto_goTypes = []any{
 	(ActionKind)(0),                // 0: drift.v1.ActionKind
 	(ActionRiskClass)(0),           // 1: drift.v1.ActionRiskClass
 	(ActionRetryClass)(0),          // 2: drift.v1.ActionRetryClass
 	(ActionCapability)(0),          // 3: drift.v1.ActionCapability
 	(ActionOutcome)(0),             // 4: drift.v1.ActionOutcome
-	(*SemanticTarget)(nil),         // 5: drift.v1.SemanticTarget
-	(*ActionCoordinate)(nil),       // 6: drift.v1.ActionCoordinate
-	(*ActionGesturePath)(nil),      // 7: drift.v1.ActionGesturePath
-	(*DeviceRenderSpace)(nil),      // 8: drift.v1.DeviceRenderSpace
-	(*DevicePoint)(nil),            // 9: drift.v1.DevicePoint
-	(*SensitiveTextReference)(nil), // 10: drift.v1.SensitiveTextReference
-	(*TapInput)(nil),               // 11: drift.v1.TapInput
-	(*SwipeInput)(nil),             // 12: drift.v1.SwipeInput
-	(*TypeTextInput)(nil),          // 13: drift.v1.TypeTextInput
-	(*KeyEventInput)(nil),          // 14: drift.v1.KeyEventInput
-	(*LaunchAppInput)(nil),         // 15: drift.v1.LaunchAppInput
-	(*ActionIntent)(nil),           // 16: drift.v1.ActionIntent
-	(*ActionResult)(nil),           // 17: drift.v1.ActionResult
-	(*SubmitActionRequest)(nil),    // 18: drift.v1.SubmitActionRequest
-	(*SubmitActionResponse)(nil),   // 19: drift.v1.SubmitActionResponse
-	(*WorkspaceRef)(nil),           // 20: drift.v1.WorkspaceRef
-	(*Failure)(nil),                // 21: drift.v1.Failure
-	(*ArtifactReference)(nil),      // 22: drift.v1.ArtifactReference
-	(*RequestContext)(nil),         // 23: drift.v1.RequestContext
+	(HaltState)(0),                 // 5: drift.v1.HaltState
+	(*SemanticTarget)(nil),         // 6: drift.v1.SemanticTarget
+	(*ActionCoordinate)(nil),       // 7: drift.v1.ActionCoordinate
+	(*ActionGesturePath)(nil),      // 8: drift.v1.ActionGesturePath
+	(*DeviceRenderSpace)(nil),      // 9: drift.v1.DeviceRenderSpace
+	(*DevicePoint)(nil),            // 10: drift.v1.DevicePoint
+	(*SensitiveTextReference)(nil), // 11: drift.v1.SensitiveTextReference
+	(*TapInput)(nil),               // 12: drift.v1.TapInput
+	(*SwipeInput)(nil),             // 13: drift.v1.SwipeInput
+	(*TypeTextInput)(nil),          // 14: drift.v1.TypeTextInput
+	(*KeyEventInput)(nil),          // 15: drift.v1.KeyEventInput
+	(*LaunchAppInput)(nil),         // 16: drift.v1.LaunchAppInput
+	(*ActionIntent)(nil),           // 17: drift.v1.ActionIntent
+	(*ActionResult)(nil),           // 18: drift.v1.ActionResult
+	(*SubmitActionRequest)(nil),    // 19: drift.v1.SubmitActionRequest
+	(*SubmitActionResponse)(nil),   // 20: drift.v1.SubmitActionResponse
+	(*HaltStatus)(nil),             // 21: drift.v1.HaltStatus
+	(*GetHaltRequest)(nil),         // 22: drift.v1.GetHaltRequest
+	(*GetHaltResponse)(nil),        // 23: drift.v1.GetHaltResponse
+	(*SetHaltRequest)(nil),         // 24: drift.v1.SetHaltRequest
+	(*SetHaltResponse)(nil),        // 25: drift.v1.SetHaltResponse
+	(*WorkspaceRef)(nil),           // 26: drift.v1.WorkspaceRef
+	(*Failure)(nil),                // 27: drift.v1.Failure
+	(*ArtifactReference)(nil),      // 28: drift.v1.ArtifactReference
+	(*RequestContext)(nil),         // 29: drift.v1.RequestContext
+	(*ResourceRef)(nil),            // 30: drift.v1.ResourceRef
 }
 var file_drift_v1_action_proto_depIdxs = []int32{
-	6,  // 0: drift.v1.ActionGesturePath.points:type_name -> drift.v1.ActionCoordinate
-	5,  // 1: drift.v1.TapInput.target:type_name -> drift.v1.SemanticTarget
-	9,  // 2: drift.v1.TapInput.point:type_name -> drift.v1.DevicePoint
-	8,  // 3: drift.v1.TapInput.render_space:type_name -> drift.v1.DeviceRenderSpace
-	9,  // 4: drift.v1.SwipeInput.start:type_name -> drift.v1.DevicePoint
-	9,  // 5: drift.v1.SwipeInput.end:type_name -> drift.v1.DevicePoint
-	8,  // 6: drift.v1.SwipeInput.render_space:type_name -> drift.v1.DeviceRenderSpace
-	10, // 7: drift.v1.TypeTextInput.text:type_name -> drift.v1.SensitiveTextReference
-	20, // 8: drift.v1.ActionIntent.workspace:type_name -> drift.v1.WorkspaceRef
+	7,  // 0: drift.v1.ActionGesturePath.points:type_name -> drift.v1.ActionCoordinate
+	6,  // 1: drift.v1.TapInput.target:type_name -> drift.v1.SemanticTarget
+	10, // 2: drift.v1.TapInput.point:type_name -> drift.v1.DevicePoint
+	9,  // 3: drift.v1.TapInput.render_space:type_name -> drift.v1.DeviceRenderSpace
+	10, // 4: drift.v1.SwipeInput.start:type_name -> drift.v1.DevicePoint
+	10, // 5: drift.v1.SwipeInput.end:type_name -> drift.v1.DevicePoint
+	9,  // 6: drift.v1.SwipeInput.render_space:type_name -> drift.v1.DeviceRenderSpace
+	11, // 7: drift.v1.TypeTextInput.text:type_name -> drift.v1.SensitiveTextReference
+	26, // 8: drift.v1.ActionIntent.workspace:type_name -> drift.v1.WorkspaceRef
 	0,  // 9: drift.v1.ActionIntent.kind:type_name -> drift.v1.ActionKind
-	5,  // 10: drift.v1.ActionIntent.target:type_name -> drift.v1.SemanticTarget
-	7,  // 11: drift.v1.ActionIntent.gesture:type_name -> drift.v1.ActionGesturePath
-	11, // 12: drift.v1.ActionIntent.tap:type_name -> drift.v1.TapInput
-	12, // 13: drift.v1.ActionIntent.swipe:type_name -> drift.v1.SwipeInput
-	13, // 14: drift.v1.ActionIntent.type_text:type_name -> drift.v1.TypeTextInput
-	14, // 15: drift.v1.ActionIntent.key_event:type_name -> drift.v1.KeyEventInput
-	15, // 16: drift.v1.ActionIntent.launch_app:type_name -> drift.v1.LaunchAppInput
+	6,  // 10: drift.v1.ActionIntent.target:type_name -> drift.v1.SemanticTarget
+	8,  // 11: drift.v1.ActionIntent.gesture:type_name -> drift.v1.ActionGesturePath
+	12, // 12: drift.v1.ActionIntent.tap:type_name -> drift.v1.TapInput
+	13, // 13: drift.v1.ActionIntent.swipe:type_name -> drift.v1.SwipeInput
+	14, // 14: drift.v1.ActionIntent.type_text:type_name -> drift.v1.TypeTextInput
+	15, // 15: drift.v1.ActionIntent.key_event:type_name -> drift.v1.KeyEventInput
+	16, // 16: drift.v1.ActionIntent.launch_app:type_name -> drift.v1.LaunchAppInput
 	4,  // 17: drift.v1.ActionResult.outcome:type_name -> drift.v1.ActionOutcome
-	21, // 18: drift.v1.ActionResult.failure:type_name -> drift.v1.Failure
-	22, // 19: drift.v1.ActionResult.evidence:type_name -> drift.v1.ArtifactReference
-	23, // 20: drift.v1.SubmitActionRequest.context:type_name -> drift.v1.RequestContext
-	16, // 21: drift.v1.SubmitActionRequest.intent:type_name -> drift.v1.ActionIntent
-	17, // 22: drift.v1.SubmitActionResponse.result:type_name -> drift.v1.ActionResult
-	18, // 23: drift.v1.ActionService.SubmitAction:input_type -> drift.v1.SubmitActionRequest
-	19, // 24: drift.v1.ActionService.SubmitAction:output_type -> drift.v1.SubmitActionResponse
-	24, // [24:25] is the sub-list for method output_type
-	23, // [23:24] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	27, // 18: drift.v1.ActionResult.failure:type_name -> drift.v1.Failure
+	28, // 19: drift.v1.ActionResult.evidence:type_name -> drift.v1.ArtifactReference
+	29, // 20: drift.v1.SubmitActionRequest.context:type_name -> drift.v1.RequestContext
+	17, // 21: drift.v1.SubmitActionRequest.intent:type_name -> drift.v1.ActionIntent
+	18, // 22: drift.v1.SubmitActionResponse.result:type_name -> drift.v1.ActionResult
+	30, // 23: drift.v1.HaltStatus.halt:type_name -> drift.v1.ResourceRef
+	5,  // 24: drift.v1.HaltStatus.state:type_name -> drift.v1.HaltState
+	26, // 25: drift.v1.GetHaltRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	21, // 26: drift.v1.GetHaltResponse.halt:type_name -> drift.v1.HaltStatus
+	29, // 27: drift.v1.SetHaltRequest.context:type_name -> drift.v1.RequestContext
+	26, // 28: drift.v1.SetHaltRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	5,  // 29: drift.v1.SetHaltRequest.state:type_name -> drift.v1.HaltState
+	21, // 30: drift.v1.SetHaltResponse.halt:type_name -> drift.v1.HaltStatus
+	19, // 31: drift.v1.ActionService.SubmitAction:input_type -> drift.v1.SubmitActionRequest
+	22, // 32: drift.v1.ActionService.GetHalt:input_type -> drift.v1.GetHaltRequest
+	24, // 33: drift.v1.ActionService.SetHalt:input_type -> drift.v1.SetHaltRequest
+	20, // 34: drift.v1.ActionService.SubmitAction:output_type -> drift.v1.SubmitActionResponse
+	23, // 35: drift.v1.ActionService.GetHalt:output_type -> drift.v1.GetHaltResponse
+	25, // 36: drift.v1.ActionService.SetHalt:output_type -> drift.v1.SetHaltResponse
+	34, // [34:37] is the sub-list for method output_type
+	31, // [31:34] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_action_proto_init() }
@@ -1657,8 +2045,8 @@ func file_drift_v1_action_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_action_proto_rawDesc), len(file_drift_v1_action_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   15,
+			NumEnums:      6,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

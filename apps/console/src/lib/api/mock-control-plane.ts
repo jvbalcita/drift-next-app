@@ -780,6 +780,7 @@ export function buildMockSnapshot(): ControlPlaneSnapshot {
     recordingMedia,
     storageHealth,
     artifactAudits,
+    halt: { state: "clear", reason: "", updatedAt: "", rowVersion: 0, lastActorId: "" },
   }
 }
 
@@ -911,6 +912,11 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     switch (intent.type) {
       case "refresh":
         return result(intent, "Mock projection refreshed; no external service was contacted.")
+      case "setHalt":
+        if (!intent.confirmed) return rejection(intent, `${intent.state === "emergency_stop" ? "Engaging" : "Releasing"} the emergency stop requires confirmation.`, undefined, "precondition_failed")
+        if (!intent.reason.trim()) return rejection(intent, "A reason is required for the emergency stop change.", undefined, "invalid_input")
+        this.snapshot = { ...this.snapshot, halt: { ...this.snapshot.halt, state: intent.state, reason: intent.reason.trim(), updatedAt: "just now", rowVersion: this.snapshot.halt.rowVersion + 1, lastActorId: "operator-demo" }, events: addEvent(this.snapshot, { id: `event-halt-${this.nextSequence++}`, kind: "audit", name: intent.state === "emergency_stop" ? "Emergency Stop Engaged" : "Emergency Stop Released", actor: "operator-demo", resourceType: "control_halt", resourceId: "halt-demo", correlationId: "corr-halt", occurredAt: "just now", payloadSummary: intent.reason.trim() }) }
+        return result(intent, intent.state === "emergency_stop" ? "Emergency stop engaged and audited." : "Emergency stop released and audited.")
       case "startMirrorPreview":
         return this.startMirrorPreview(intent)
       case "stopMirrorPreview":

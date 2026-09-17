@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { ArtifactReference, Failure, RequestContext, WorkspaceRef } from "./common_pb";
+import type { ArtifactReference, Failure, RequestContext, ResourceRef, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/action.proto.
  */
 export const file_drift_v1_action: GenFile = /*@__PURE__*/
-  fileDesc("ChVkcmlmdC92MS9hY3Rpb24ucHJvdG8SCGRyaWZ0LnYxInQKDlNlbWFudGljVGFyZ2V0EhMKC3Jlc291cmNlX2lkGAEgASgJEhsKE2FjY2Vzc2liaWxpdHlfbGFiZWwYAiABKAkSEwoLc3RhYmxlX3RleHQYAyABKAkSGwoTY29udGV4dF9maW5nZXJwcmludBgEIAEoCSI3ChBBY3Rpb25Db29yZGluYXRlEg0KBXNwYWNlGAEgASgJEgkKAXgYAiABKA0SCQoBeRgDIAEoDSJUChFBY3Rpb25HZXN0dXJlUGF0aBIqCgZwb2ludHMYASADKAsyGi5kcmlmdC52MS5BY3Rpb25Db29yZGluYXRlEhMKC2R1cmF0aW9uX21zGAIgASgEIlsKEURldmljZVJlbmRlclNwYWNlEhQKDHJlbmRlcl93aWR0aBgBIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAIgASgNEhkKEW9ic2VydmF0aW9uX3Rva2VuGAMgASgJIiMKC0RldmljZVBvaW50EgkKAXgYASABKA0SCQoBeRgCIAEoDSI+ChZTZW5zaXRpdmVUZXh0UmVmZXJlbmNlEg4KBmhhbmRsZRgBIAEoCRIUCgx2YWx1ZV9sZW5ndGgYAiABKA0ijQEKCFRhcElucHV0EigKBnRhcmdldBgBIAEoCzIYLmRyaWZ0LnYxLlNlbWFudGljVGFyZ2V0EiQKBXBvaW50GAIgASgLMhUuZHJpZnQudjEuRGV2aWNlUG9pbnQSMQoMcmVuZGVyX3NwYWNlGAMgASgLMhsuZHJpZnQudjEuRGV2aWNlUmVuZGVyU3BhY2UingEKClN3aXBlSW5wdXQSJAoFc3RhcnQYASABKAsyFS5kcmlmdC52MS5EZXZpY2VQb2ludBIiCgNlbmQYAiABKAsyFS5kcmlmdC52MS5EZXZpY2VQb2ludBITCgtkdXJhdGlvbl9tcxgDIAEoDRIxCgxyZW5kZXJfc3BhY2UYBCABKAsyGy5kcmlmdC52MS5EZXZpY2VSZW5kZXJTcGFjZSI/Cg1UeXBlVGV4dElucHV0Ei4KBHRleHQYASABKAsyIC5kcmlmdC52MS5TZW5zaXRpdmVUZXh0UmVmZXJlbmNlIiEKDUtleUV2ZW50SW5wdXQSEAoIa2V5X2NvZGUYASABKA0iPQoOTGF1bmNoQXBwSW5wdXQSFAoMcGFja2FnZV9uYW1lGAEgASgJEhUKDWFjdGl2aXR5X25hbWUYAiABKAki8QQKDEFjdGlvbkludGVudBIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEiIKBGtpbmQYBCABKA4yFC5kcmlmdC52MS5BY3Rpb25LaW5kEigKBnRhcmdldBgFIAEoCzIYLmRyaWZ0LnYxLlNlbWFudGljVGFyZ2V0EhcKD2lkZW1wb3RlbmN5X2tleRgGIAEoCRIWCgp0ZXh0X3ZhbHVlGAcgASgJQgIYARIsCgdnZXN0dXJlGAggASgLMhsuZHJpZnQudjEuQWN0aW9uR2VzdHVyZVBhdGgSEAoIa2V5X2NvZGUYCSABKA0SFAoMdmFsdWVfbGVuZ3RoGAogASgNEhAKCGxlYXNlX2lkGAsgASgJEhUKDWZlbmNpbmdfdG9rZW4YDCABKAQSGQoRb2JzZXJ2YXRpb25fdG9rZW4YDSABKAkSGAoQYXBwcm92YWxfZ3JhbnRlZBgOIAEoCBIhCgN0YXAYDyABKAsyEi5kcmlmdC52MS5UYXBJbnB1dEgAEiUKBXN3aXBlGBAgASgLMhQuZHJpZnQudjEuU3dpcGVJbnB1dEgAEiwKCXR5cGVfdGV4dBgRIAEoCzIXLmRyaWZ0LnYxLlR5cGVUZXh0SW5wdXRIABIsCglrZXlfZXZlbnQYEiABKAsyFy5kcmlmdC52MS5LZXlFdmVudElucHV0SAASLgoKbGF1bmNoX2FwcBgTIAEoCzIYLmRyaWZ0LnYxLkxhdW5jaEFwcElucHV0SABCDgoMZGV2aWNlX2lucHV0Ip4BCgxBY3Rpb25SZXN1bHQSEQoJYWN0aW9uX2lkGAEgASgJEigKB291dGNvbWUYAiABKA4yFy5kcmlmdC52MS5BY3Rpb25PdXRjb21lEiIKB2ZhaWx1cmUYAyABKAsyES5kcmlmdC52MS5GYWlsdXJlEi0KCGV2aWRlbmNlGAQgASgLMhsuZHJpZnQudjEuQXJ0aWZhY3RSZWZlcmVuY2UiaAoTU3VibWl0QWN0aW9uUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSJgoGaW50ZW50GAIgASgLMhYuZHJpZnQudjEuQWN0aW9uSW50ZW50Ij4KFFN1Ym1pdEFjdGlvblJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCqOBAoKQWN0aW9uS2luZBIbChdBQ1RJT05fS0lORF9VTlNQRUNJRklFRBAAEhcKE0FDVElPTl9LSU5EX09CU0VSVkUQARIcChhBQ1RJT05fS0lORF9IRUFMVEhfQ0hFQ0sQAhIXChNBQ1RJT05fS0lORF9DQVBUVVJFEAMSEwoPQUNUSU9OX0tJTkRfVEFQEAQSGgoWQUNUSU9OX0tJTkRfVEVYVF9JTlBVVBAFEhQKEEFDVElPTl9LSU5EX0JBQ0sQBhIaChZBQ1RJT05fS0lORF9ET1VCTEVfVEFQEAcSGgoWQUNUSU9OX0tJTkRfTE9OR19QUkVTUxAIEhsKF0FDVElPTl9LSU5EX1RFWFRfREVMRVRFEAkSFQoRQUNUSU9OX0tJTkRfQ0xFQVIQChIVChFBQ1RJT05fS0lORF9TV0lQRRALEhYKEkFDVElPTl9LSU5EX1NDUk9MTBAMEhQKEEFDVElPTl9LSU5EX0RSQUcQDRIUChBBQ1RJT05fS0lORF9IT01FEA4SFQoRQUNUSU9OX0tJTkRfRU5URVIQDxIZChVBQ1RJT05fS0lORF9LRVlfRVZFTlQQEBIZChVBQ1RJT05fS0lORF9VSV9DSEFOR0UQERIcChhBQ1RJT05fS0lORF9TVEFURV9DSEFOR0UQEhIaChZBQ1RJT05fS0lORF9MQVVOQ0hfQVBQEBMqrQEKD0FjdGlvblJpc2tDbGFzcxIhCh1BQ1RJT05fUklTS19DTEFTU19VTlNQRUNJRklFRBAAEhkKFUFDVElPTl9SSVNLX0NMQVNTX0xPVxABEhwKGEFDVElPTl9SSVNLX0NMQVNTX01FRElVTRACEhoKFkFDVElPTl9SSVNLX0NMQVNTX0hJR0gQAxIiCh5BQ1RJT05fUklTS19DTEFTU19JUlJFVkVSU0lCTEUQBCqhAQoQQWN0aW9uUmV0cnlDbGFzcxIiCh5BQ1RJT05fUkVUUllfQ0xBU1NfVU5TUEVDSUZJRUQQABIbChdBQ1RJT05fUkVUUllfQ0xBU1NfU0FGRRABEigKJEFDVElPTl9SRVRSWV9DTEFTU19BRlRFUl9PQlNFUlZBVElPThACEiIKHkFDVElPTl9SRVRSWV9DTEFTU19ORVZFUl9CTElORBADKs4CChBBY3Rpb25DYXBhYmlsaXR5EiEKHUFDVElPTl9DQVBBQklMSVRZX1VOU1BFQ0lGSUVEEAASJAogQUNUSU9OX0NBUEFCSUxJVFlfREVWSUNFX09CU0VSVkUQARIjCh9BQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfSEVBTFRIEAISJAogQUNUSU9OX0NBUEFCSUxJVFlfREVWSUNFX0NBUFRVUkUQAxImCiJBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfSU5QVVRfVEFQEAQSKgomQUNUSU9OX0NBUEFCSUxJVFlfREVWSUNFX0lOUFVUX0dFU1RVUkUQBRInCiNBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfSU5QVVRfVEVYVBAGEikKJUFDVElPTl9DQVBBQklMSVRZX0RFVklDRV9JTlBVVF9TWVNURU0QByr9AQoNQWN0aW9uT3V0Y29tZRIeChpBQ1RJT05fT1VUQ09NRV9VTlNQRUNJRklFRBAAEhoKFkFDVElPTl9PVVRDT01FX1BFTkRJTkcQARIbChdBQ1RJT05fT1VUQ09NRV9WRVJJRklFRBACEhkKFUFDVElPTl9PVVRDT01FX0ZBSUxFRBADEhwKGEFDVElPTl9PVVRDT01FX0NBTkNFTExFRBAEEhwKGEFDVElPTl9PVVRDT01FX1RJTUVEX09VVBAFEhoKFkFDVElPTl9PVVRDT01FX1VOS05PV04QBhIgChxBQ1RJT05fT1VUQ09NRV9JTkRFVEVSTUlOQVRFEAcyXgoNQWN0aW9uU2VydmljZRJNCgxTdWJtaXRBY3Rpb24SHS5kcmlmdC52MS5TdWJtaXRBY3Rpb25SZXF1ZXN0Gh4uZHJpZnQudjEuU3VibWl0QWN0aW9uUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChVkcmlmdC92MS9hY3Rpb24ucHJvdG8SCGRyaWZ0LnYxInQKDlNlbWFudGljVGFyZ2V0EhMKC3Jlc291cmNlX2lkGAEgASgJEhsKE2FjY2Vzc2liaWxpdHlfbGFiZWwYAiABKAkSEwoLc3RhYmxlX3RleHQYAyABKAkSGwoTY29udGV4dF9maW5nZXJwcmludBgEIAEoCSI3ChBBY3Rpb25Db29yZGluYXRlEg0KBXNwYWNlGAEgASgJEgkKAXgYAiABKA0SCQoBeRgDIAEoDSJUChFBY3Rpb25HZXN0dXJlUGF0aBIqCgZwb2ludHMYASADKAsyGi5kcmlmdC52MS5BY3Rpb25Db29yZGluYXRlEhMKC2R1cmF0aW9uX21zGAIgASgEIlsKEURldmljZVJlbmRlclNwYWNlEhQKDHJlbmRlcl93aWR0aBgBIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAIgASgNEhkKEW9ic2VydmF0aW9uX3Rva2VuGAMgASgJIiMKC0RldmljZVBvaW50EgkKAXgYASABKA0SCQoBeRgCIAEoDSI+ChZTZW5zaXRpdmVUZXh0UmVmZXJlbmNlEg4KBmhhbmRsZRgBIAEoCRIUCgx2YWx1ZV9sZW5ndGgYAiABKA0ijQEKCFRhcElucHV0EigKBnRhcmdldBgBIAEoCzIYLmRyaWZ0LnYxLlNlbWFudGljVGFyZ2V0EiQKBXBvaW50GAIgASgLMhUuZHJpZnQudjEuRGV2aWNlUG9pbnQSMQoMcmVuZGVyX3NwYWNlGAMgASgLMhsuZHJpZnQudjEuRGV2aWNlUmVuZGVyU3BhY2UingEKClN3aXBlSW5wdXQSJAoFc3RhcnQYASABKAsyFS5kcmlmdC52MS5EZXZpY2VQb2ludBIiCgNlbmQYAiABKAsyFS5kcmlmdC52MS5EZXZpY2VQb2ludBITCgtkdXJhdGlvbl9tcxgDIAEoDRIxCgxyZW5kZXJfc3BhY2UYBCABKAsyGy5kcmlmdC52MS5EZXZpY2VSZW5kZXJTcGFjZSI/Cg1UeXBlVGV4dElucHV0Ei4KBHRleHQYASABKAsyIC5kcmlmdC52MS5TZW5zaXRpdmVUZXh0UmVmZXJlbmNlIiEKDUtleUV2ZW50SW5wdXQSEAoIa2V5X2NvZGUYASABKA0iPQoOTGF1bmNoQXBwSW5wdXQSFAoMcGFja2FnZV9uYW1lGAEgASgJEhUKDWFjdGl2aXR5X25hbWUYAiABKAki8QQKDEFjdGlvbkludGVudBIKCgJpZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEiIKBGtpbmQYBCABKA4yFC5kcmlmdC52MS5BY3Rpb25LaW5kEigKBnRhcmdldBgFIAEoCzIYLmRyaWZ0LnYxLlNlbWFudGljVGFyZ2V0EhcKD2lkZW1wb3RlbmN5X2tleRgGIAEoCRIWCgp0ZXh0X3ZhbHVlGAcgASgJQgIYARIsCgdnZXN0dXJlGAggASgLMhsuZHJpZnQudjEuQWN0aW9uR2VzdHVyZVBhdGgSEAoIa2V5X2NvZGUYCSABKA0SFAoMdmFsdWVfbGVuZ3RoGAogASgNEhAKCGxlYXNlX2lkGAsgASgJEhUKDWZlbmNpbmdfdG9rZW4YDCABKAQSGQoRb2JzZXJ2YXRpb25fdG9rZW4YDSABKAkSGAoQYXBwcm92YWxfZ3JhbnRlZBgOIAEoCBIhCgN0YXAYDyABKAsyEi5kcmlmdC52MS5UYXBJbnB1dEgAEiUKBXN3aXBlGBAgASgLMhQuZHJpZnQudjEuU3dpcGVJbnB1dEgAEiwKCXR5cGVfdGV4dBgRIAEoCzIXLmRyaWZ0LnYxLlR5cGVUZXh0SW5wdXRIABIsCglrZXlfZXZlbnQYEiABKAsyFy5kcmlmdC52MS5LZXlFdmVudElucHV0SAASLgoKbGF1bmNoX2FwcBgTIAEoCzIYLmRyaWZ0LnYxLkxhdW5jaEFwcElucHV0SABCDgoMZGV2aWNlX2lucHV0Ip4BCgxBY3Rpb25SZXN1bHQSEQoJYWN0aW9uX2lkGAEgASgJEigKB291dGNvbWUYAiABKA4yFy5kcmlmdC52MS5BY3Rpb25PdXRjb21lEiIKB2ZhaWx1cmUYAyABKAsyES5kcmlmdC52MS5GYWlsdXJlEi0KCGV2aWRlbmNlGAQgASgLMhsuZHJpZnQudjEuQXJ0aWZhY3RSZWZlcmVuY2UiaAoTU3VibWl0QWN0aW9uUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSJgoGaW50ZW50GAIgASgLMhYuZHJpZnQudjEuQWN0aW9uSW50ZW50Ij4KFFN1Ym1pdEFjdGlvblJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCK+AQoKSGFsdFN0YXR1cxIjCgRoYWx0GAEgASgLMhUuZHJpZnQudjEuUmVzb3VyY2VSZWYSIgoFc3RhdGUYAiABKA4yEy5kcmlmdC52MS5IYWx0U3RhdGUSDgoGcmVhc29uGAMgASgJEhIKCnVwZGF0ZWRfYXQYBCABKAkSEwoLcm93X3ZlcnNpb24YBSABKAQSFwoPbGFzdF9hY3Rvcl90eXBlGAYgASgJEhUKDWxhc3RfYWN0b3JfaWQYByABKAkiOwoOR2V0SGFsdFJlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmIjUKD0dldEhhbHRSZXNwb25zZRIiCgRoYWx0GAEgASgLMhQuZHJpZnQudjEuSGFsdFN0YXR1cyKaAQoOU2V0SGFsdFJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIiCgVzdGF0ZRgDIAEoDjITLmRyaWZ0LnYxLkhhbHRTdGF0ZRIOCgZyZWFzb24YBCABKAkiNQoPU2V0SGFsdFJlc3BvbnNlEiIKBGhhbHQYASABKAsyFC5kcmlmdC52MS5IYWx0U3RhdHVzKo4ECgpBY3Rpb25LaW5kEhsKF0FDVElPTl9LSU5EX1VOU1BFQ0lGSUVEEAASFwoTQUNUSU9OX0tJTkRfT0JTRVJWRRABEhwKGEFDVElPTl9LSU5EX0hFQUxUSF9DSEVDSxACEhcKE0FDVElPTl9LSU5EX0NBUFRVUkUQAxITCg9BQ1RJT05fS0lORF9UQVAQBBIaChZBQ1RJT05fS0lORF9URVhUX0lOUFVUEAUSFAoQQUNUSU9OX0tJTkRfQkFDSxAGEhoKFkFDVElPTl9LSU5EX0RPVUJMRV9UQVAQBxIaChZBQ1RJT05fS0lORF9MT05HX1BSRVNTEAgSGwoXQUNUSU9OX0tJTkRfVEVYVF9ERUxFVEUQCRIVChFBQ1RJT05fS0lORF9DTEVBUhAKEhUKEUFDVElPTl9LSU5EX1NXSVBFEAsSFgoSQUNUSU9OX0tJTkRfU0NST0xMEAwSFAoQQUNUSU9OX0tJTkRfRFJBRxANEhQKEEFDVElPTl9LSU5EX0hPTUUQDhIVChFBQ1RJT05fS0lORF9FTlRFUhAPEhkKFUFDVElPTl9LSU5EX0tFWV9FVkVOVBAQEhkKFUFDVElPTl9LSU5EX1VJX0NIQU5HRRAREhwKGEFDVElPTl9LSU5EX1NUQVRFX0NIQU5HRRASEhoKFkFDVElPTl9LSU5EX0xBVU5DSF9BUFAQEyqtAQoPQWN0aW9uUmlza0NsYXNzEiEKHUFDVElPTl9SSVNLX0NMQVNTX1VOU1BFQ0lGSUVEEAASGQoVQUNUSU9OX1JJU0tfQ0xBU1NfTE9XEAESHAoYQUNUSU9OX1JJU0tfQ0xBU1NfTUVESVVNEAISGgoWQUNUSU9OX1JJU0tfQ0xBU1NfSElHSBADEiIKHkFDVElPTl9SSVNLX0NMQVNTX0lSUkVWRVJTSUJMRRAEKqEBChBBY3Rpb25SZXRyeUNsYXNzEiIKHkFDVElPTl9SRVRSWV9DTEFTU19VTlNQRUNJRklFRBAAEhsKF0FDVElPTl9SRVRSWV9DTEFTU19TQUZFEAESKAokQUNUSU9OX1JFVFJZX0NMQVNTX0FGVEVSX09CU0VSVkFUSU9OEAISIgoeQUNUSU9OX1JFVFJZX0NMQVNTX05FVkVSX0JMSU5EEAMqzgIKEEFjdGlvbkNhcGFiaWxpdHkSIQodQUNUSU9OX0NBUEFCSUxJVFlfVU5TUEVDSUZJRUQQABIkCiBBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfT0JTRVJWRRABEiMKH0FDVElPTl9DQVBBQklMSVRZX0RFVklDRV9IRUFMVEgQAhIkCiBBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfQ0FQVFVSRRADEiYKIkFDVElPTl9DQVBBQklMSVRZX0RFVklDRV9JTlBVVF9UQVAQBBIqCiZBQ1RJT05fQ0FQQUJJTElUWV9ERVZJQ0VfSU5QVVRfR0VTVFVSRRAFEicKI0FDVElPTl9DQVBBQklMSVRZX0RFVklDRV9JTlBVVF9URVhUEAYSKQolQUNUSU9OX0NBUEFCSUxJVFlfREVWSUNFX0lOUFVUX1NZU1RFTRAHKv0BCg1BY3Rpb25PdXRjb21lEh4KGkFDVElPTl9PVVRDT01FX1VOU1BFQ0lGSUVEEAASGgoWQUNUSU9OX09VVENPTUVfUEVORElORxABEhsKF0FDVElPTl9PVVRDT01FX1ZFUklGSUVEEAISGQoVQUNUSU9OX09VVENPTUVfRkFJTEVEEAMSHAoYQUNUSU9OX09VVENPTUVfQ0FOQ0VMTEVEEAQSHAoYQUNUSU9OX09VVENPTUVfVElNRURfT1VUEAUSGgoWQUNUSU9OX09VVENPTUVfVU5LTk9XThAGEiAKHEFDVElPTl9PVVRDT01FX0lOREVURVJNSU5BVEUQBypcCglIYWx0U3RhdGUSGgoWSEFMVF9TVEFURV9VTlNQRUNJRklFRBAAEhQKEEhBTFRfU1RBVEVfQ0xFQVIQARIdChlIQUxUX1NUQVRFX0VNRVJHRU5DWV9TVE9QEAIy3gEKDUFjdGlvblNlcnZpY2USTQoMU3VibWl0QWN0aW9uEh0uZHJpZnQudjEuU3VibWl0QWN0aW9uUmVxdWVzdBoeLmRyaWZ0LnYxLlN1Ym1pdEFjdGlvblJlc3BvbnNlEj4KB0dldEhhbHQSGC5kcmlmdC52MS5HZXRIYWx0UmVxdWVzdBoZLmRyaWZ0LnYxLkdldEhhbHRSZXNwb25zZRI+CgdTZXRIYWx0EhguZHJpZnQudjEuU2V0SGFsdFJlcXVlc3QaGS5kcmlmdC52MS5TZXRIYWx0UmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.SemanticTarget
@@ -538,6 +538,136 @@ export const SubmitActionResponseSchema: GenMessage<SubmitActionResponse> = /*@_
   messageDesc(file_drift_v1_action, 14);
 
 /**
+ * @generated from message drift.v1.HaltStatus
+ */
+export type HaltStatus = Message<"drift.v1.HaltStatus"> & {
+  /**
+   * @generated from field: drift.v1.ResourceRef halt = 1;
+   */
+  halt?: ResourceRef;
+
+  /**
+   * @generated from field: drift.v1.HaltState state = 2;
+   */
+  state: HaltState;
+
+  /**
+   * @generated from field: string reason = 3;
+   */
+  reason: string;
+
+  /**
+   * @generated from field: string updated_at = 4;
+   */
+  updatedAt: string;
+
+  /**
+   * @generated from field: uint64 row_version = 5;
+   */
+  rowVersion: bigint;
+
+  /**
+   * @generated from field: string last_actor_type = 6;
+   */
+  lastActorType: string;
+
+  /**
+   * @generated from field: string last_actor_id = 7;
+   */
+  lastActorId: string;
+};
+
+/**
+ * Describes the message drift.v1.HaltStatus.
+ * Use `create(HaltStatusSchema)` to create a new message.
+ */
+export const HaltStatusSchema: GenMessage<HaltStatus> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 15);
+
+/**
+ * @generated from message drift.v1.GetHaltRequest
+ */
+export type GetHaltRequest = Message<"drift.v1.GetHaltRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+};
+
+/**
+ * Describes the message drift.v1.GetHaltRequest.
+ * Use `create(GetHaltRequestSchema)` to create a new message.
+ */
+export const GetHaltRequestSchema: GenMessage<GetHaltRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 16);
+
+/**
+ * @generated from message drift.v1.GetHaltResponse
+ */
+export type GetHaltResponse = Message<"drift.v1.GetHaltResponse"> & {
+  /**
+   * @generated from field: drift.v1.HaltStatus halt = 1;
+   */
+  halt?: HaltStatus;
+};
+
+/**
+ * Describes the message drift.v1.GetHaltResponse.
+ * Use `create(GetHaltResponseSchema)` to create a new message.
+ */
+export const GetHaltResponseSchema: GenMessage<GetHaltResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 17);
+
+/**
+ * @generated from message drift.v1.SetHaltRequest
+ */
+export type SetHaltRequest = Message<"drift.v1.SetHaltRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: drift.v1.HaltState state = 3;
+   */
+  state: HaltState;
+
+  /**
+   * @generated from field: string reason = 4;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message drift.v1.SetHaltRequest.
+ * Use `create(SetHaltRequestSchema)` to create a new message.
+ */
+export const SetHaltRequestSchema: GenMessage<SetHaltRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 18);
+
+/**
+ * @generated from message drift.v1.SetHaltResponse
+ */
+export type SetHaltResponse = Message<"drift.v1.SetHaltResponse"> & {
+  /**
+   * @generated from field: drift.v1.HaltStatus halt = 1;
+   */
+  halt?: HaltStatus;
+};
+
+/**
+ * Describes the message drift.v1.SetHaltResponse.
+ * Use `create(SetHaltResponseSchema)` to create a new message.
+ */
+export const SetHaltResponseSchema: GenMessage<SetHaltResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_action, 19);
+
+/**
  * @generated from enum drift.v1.ActionKind
  */
 export enum ActionKind {
@@ -818,6 +948,32 @@ export const ActionOutcomeSchema: GenEnum<ActionOutcome> = /*@__PURE__*/
   enumDesc(file_drift_v1_action, 4);
 
 /**
+ * @generated from enum drift.v1.HaltState
+ */
+export enum HaltState {
+  /**
+   * @generated from enum value: HALT_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: HALT_STATE_CLEAR = 1;
+   */
+  CLEAR = 1,
+
+  /**
+   * @generated from enum value: HALT_STATE_EMERGENCY_STOP = 2;
+   */
+  EMERGENCY_STOP = 2,
+}
+
+/**
+ * Describes the enum drift.v1.HaltState.
+ */
+export const HaltStateSchema: GenEnum<HaltState> = /*@__PURE__*/
+  enumDesc(file_drift_v1_action, 5);
+
+/**
  * @generated from service drift.v1.ActionService
  */
 export const ActionService: GenService<{
@@ -828,6 +984,22 @@ export const ActionService: GenService<{
     methodKind: "unary";
     input: typeof SubmitActionRequestSchema;
     output: typeof SubmitActionResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.ActionService.GetHalt
+   */
+  getHalt: {
+    methodKind: "unary";
+    input: typeof GetHaltRequestSchema;
+    output: typeof GetHaltResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.ActionService.SetHalt
+   */
+  setHalt: {
+    methodKind: "unary";
+    input: typeof SetHaltRequestSchema;
+    output: typeof SetHaltResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_action, 0);

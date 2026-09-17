@@ -21,12 +21,14 @@ const (
 )
 
 type Halt struct {
-	ID         string
-	Workspace  organizations.WorkspaceID
-	State      HaltState
-	Reason     string
-	UpdatedAt  time.Time
-	RowVersion uint64
+	ID            string
+	Workspace     organizations.WorkspaceID
+	State         HaltState
+	Reason        string
+	UpdatedAt     time.Time
+	RowVersion    uint64
+	LastActorType string
+	LastActorID   string
 }
 
 type HaltService struct{ store *DB }
@@ -56,13 +58,13 @@ func (s *HaltService) Set(ctx context.Context, workspace organizations.Workspace
 			if err != nil {
 				return platformerrors.Wrap(platformerrors.CodeInternal, "generate halt ID", err)
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO control_halts (id, workspace_id, state, reason, updated_at, row_version) VALUES (?, ?, ?, ?, ?, 1)`, id, workspace, state, reason, now.Format(time.RFC3339Nano)); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO control_halts (id, workspace_id, state, reason, updated_at, row_version, last_actor_type, last_actor_id) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`, id, workspace, state, reason, now.Format(time.RFC3339Nano), actorType, actorID); err != nil {
 				return mapConstraint(err)
 			}
 		} else if err != nil {
 			return err
 		} else {
-			result, updateErr := tx.ExecContext(ctx, `UPDATE control_halts SET state=?, reason=?, updated_at=?, row_version=row_version+1 WHERE workspace_id=? AND id=?`, state, reason, now.Format(time.RFC3339Nano), workspace, id)
+			result, updateErr := tx.ExecContext(ctx, `UPDATE control_halts SET state=?, reason=?, updated_at=?, row_version=row_version+1, last_actor_type=?, last_actor_id=? WHERE workspace_id=? AND id=?`, state, reason, now.Format(time.RFC3339Nano), actorType, actorID, workspace, id)
 			if updateErr != nil {
 				return updateErr
 			}
@@ -94,7 +96,7 @@ func (s *HaltService) Get(ctx context.Context, workspace organizations.Workspace
 	}
 	var updated string
 	var rowVersion int64
-	err := s.store.db.QueryRowContext(ctx, `SELECT id, workspace_id, state, reason, updated_at, row_version FROM control_halts WHERE workspace_id=?`, workspace).Scan(&halt.ID, &halt.Workspace, &halt.State, &halt.Reason, &updated, &rowVersion)
+	err := s.store.db.QueryRowContext(ctx, `SELECT id, workspace_id, state, reason, updated_at, row_version, last_actor_type, last_actor_id FROM control_halts WHERE workspace_id=?`, workspace).Scan(&halt.ID, &halt.Workspace, &halt.State, &halt.Reason, &updated, &rowVersion, &halt.LastActorType, &halt.LastActorID)
 	if err == sql.ErrNoRows {
 		halt = Halt{Workspace: workspace, State: HaltClear}
 		return halt, nil

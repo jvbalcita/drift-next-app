@@ -615,6 +615,15 @@ export interface ControlPlaneSnapshot {
   recordingMedia: readonly RecordingMediaView[]
   storageHealth: StorageHealthView
   artifactAudits: readonly ArtifactAuditView[]
+  halt: HaltView
+}
+
+export interface HaltView {
+  state: "clear" | "emergency_stop"
+  reason: string
+  updatedAt: string
+  rowVersion: number
+  lastActorId: string
 }
 
 export interface SettingHistoryView {
@@ -693,6 +702,7 @@ export type ControlPlaneIntent =
   | { type: "deleteRecording"; sessionId: string; confirmed: boolean }
   | { type: "reviewSkillVersion"; versionId: string; reason: string }
   | { type: "publishSkillVersion"; versionId: string; reason: string; confirmed: boolean }
+  | { type: "setHalt"; state: "clear" | "emergency_stop"; reason: string; confirmed: boolean }
 
 export interface MutationResult {
   ok: boolean

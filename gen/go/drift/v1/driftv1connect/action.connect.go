@@ -36,11 +36,17 @@ const (
 	// ActionServiceSubmitActionProcedure is the fully-qualified name of the ActionService's
 	// SubmitAction RPC.
 	ActionServiceSubmitActionProcedure = "/drift.v1.ActionService/SubmitAction"
+	// ActionServiceGetHaltProcedure is the fully-qualified name of the ActionService's GetHalt RPC.
+	ActionServiceGetHaltProcedure = "/drift.v1.ActionService/GetHalt"
+	// ActionServiceSetHaltProcedure is the fully-qualified name of the ActionService's SetHalt RPC.
+	ActionServiceSetHaltProcedure = "/drift.v1.ActionService/SetHalt"
 )
 
 // ActionServiceClient is a client for the drift.v1.ActionService service.
 type ActionServiceClient interface {
 	SubmitAction(context.Context, *connect.Request[v1.SubmitActionRequest]) (*connect.Response[v1.SubmitActionResponse], error)
+	GetHalt(context.Context, *connect.Request[v1.GetHaltRequest]) (*connect.Response[v1.GetHaltResponse], error)
+	SetHalt(context.Context, *connect.Request[v1.SetHaltRequest]) (*connect.Response[v1.SetHaltResponse], error)
 }
 
 // NewActionServiceClient constructs a client for the drift.v1.ActionService service. By default, it
@@ -60,12 +66,26 @@ func NewActionServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(actionServiceMethods.ByName("SubmitAction")),
 			connect.WithClientOptions(opts...),
 		),
+		getHalt: connect.NewClient[v1.GetHaltRequest, v1.GetHaltResponse](
+			httpClient,
+			baseURL+ActionServiceGetHaltProcedure,
+			connect.WithSchema(actionServiceMethods.ByName("GetHalt")),
+			connect.WithClientOptions(opts...),
+		),
+		setHalt: connect.NewClient[v1.SetHaltRequest, v1.SetHaltResponse](
+			httpClient,
+			baseURL+ActionServiceSetHaltProcedure,
+			connect.WithSchema(actionServiceMethods.ByName("SetHalt")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // actionServiceClient implements ActionServiceClient.
 type actionServiceClient struct {
 	submitAction *connect.Client[v1.SubmitActionRequest, v1.SubmitActionResponse]
+	getHalt      *connect.Client[v1.GetHaltRequest, v1.GetHaltResponse]
+	setHalt      *connect.Client[v1.SetHaltRequest, v1.SetHaltResponse]
 }
 
 // SubmitAction calls drift.v1.ActionService.SubmitAction.
@@ -73,9 +93,21 @@ func (c *actionServiceClient) SubmitAction(ctx context.Context, req *connect.Req
 	return c.submitAction.CallUnary(ctx, req)
 }
 
+// GetHalt calls drift.v1.ActionService.GetHalt.
+func (c *actionServiceClient) GetHalt(ctx context.Context, req *connect.Request[v1.GetHaltRequest]) (*connect.Response[v1.GetHaltResponse], error) {
+	return c.getHalt.CallUnary(ctx, req)
+}
+
+// SetHalt calls drift.v1.ActionService.SetHalt.
+func (c *actionServiceClient) SetHalt(ctx context.Context, req *connect.Request[v1.SetHaltRequest]) (*connect.Response[v1.SetHaltResponse], error) {
+	return c.setHalt.CallUnary(ctx, req)
+}
+
 // ActionServiceHandler is an implementation of the drift.v1.ActionService service.
 type ActionServiceHandler interface {
 	SubmitAction(context.Context, *connect.Request[v1.SubmitActionRequest]) (*connect.Response[v1.SubmitActionResponse], error)
+	GetHalt(context.Context, *connect.Request[v1.GetHaltRequest]) (*connect.Response[v1.GetHaltResponse], error)
+	SetHalt(context.Context, *connect.Request[v1.SetHaltRequest]) (*connect.Response[v1.SetHaltResponse], error)
 }
 
 // NewActionServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -91,10 +123,26 @@ func NewActionServiceHandler(svc ActionServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(actionServiceMethods.ByName("SubmitAction")),
 		connect.WithHandlerOptions(opts...),
 	)
+	actionServiceGetHaltHandler := connect.NewUnaryHandler(
+		ActionServiceGetHaltProcedure,
+		svc.GetHalt,
+		connect.WithSchema(actionServiceMethods.ByName("GetHalt")),
+		connect.WithHandlerOptions(opts...),
+	)
+	actionServiceSetHaltHandler := connect.NewUnaryHandler(
+		ActionServiceSetHaltProcedure,
+		svc.SetHalt,
+		connect.WithSchema(actionServiceMethods.ByName("SetHalt")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.ActionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ActionServiceSubmitActionProcedure:
 			actionServiceSubmitActionHandler.ServeHTTP(w, r)
+		case ActionServiceGetHaltProcedure:
+			actionServiceGetHaltHandler.ServeHTTP(w, r)
+		case ActionServiceSetHaltProcedure:
+			actionServiceSetHaltHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -106,4 +154,12 @@ type UnimplementedActionServiceHandler struct{}
 
 func (UnimplementedActionServiceHandler) SubmitAction(context.Context, *connect.Request[v1.SubmitActionRequest]) (*connect.Response[v1.SubmitActionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.ActionService.SubmitAction is not implemented"))
+}
+
+func (UnimplementedActionServiceHandler) GetHalt(context.Context, *connect.Request[v1.GetHaltRequest]) (*connect.Response[v1.GetHaltResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.ActionService.GetHalt is not implemented"))
+}
+
+func (UnimplementedActionServiceHandler) SetHalt(context.Context, *connect.Request[v1.SetHaltRequest]) (*connect.Response[v1.SetHaltResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.ActionService.SetHalt is not implemented"))
 }

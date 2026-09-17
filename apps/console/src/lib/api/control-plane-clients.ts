@@ -36,7 +36,7 @@ import {
   type AccountSourceState,
   type AccountState,
 } from "@/gen/drift/v1/account_pb"
-import { SubmitActionRequestSchema, SubmitActionResponseSchema } from "@/gen/drift/v1/action_pb"
+import { GetHaltRequestSchema, GetHaltResponseSchema, HaltState, SetHaltRequestSchema, SetHaltResponseSchema, SubmitActionRequestSchema, SubmitActionResponseSchema } from "@/gen/drift/v1/action_pb"
 import { KeyEventRequestSchema, KeyEventResponseSchema, SwipeRequestSchema, SwipeResponseSchema, TapRequestSchema, TapResponseSchema } from "@/gen/drift/v1/device_input_pb"
 import {
   DeleteArtifactRequestSchema,
@@ -489,6 +489,8 @@ export class ActionClient {
       context: requestContext({ requestId }),
     })
   }
+  getHalt(workspaceId: string) { return this.rpc.call("GetHalt", GetHaltRequestSchema, GetHaltResponseSchema, { workspace: workspaceRef(workspaceId) }) }
+  setHalt(requestId: string, workspaceId: string, state: HaltState, reason: string) { return this.rpc.call("SetHalt", SetHaltRequestSchema, SetHaltResponseSchema, { context: requestContext({ requestId }), workspace: workspaceRef(workspaceId), state, reason }) }
 }
 
 export class DeviceInputClient {

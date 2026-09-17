@@ -228,6 +228,31 @@ message SubmitActionRequest {
 message SubmitActionResponse {
   ActionResult result = 1;
 }
+enum HaltState {
+  HALT_STATE_UNSPECIFIED = 0;
+  HALT_STATE_CLEAR = 1;
+  HALT_STATE_EMERGENCY_STOP = 2;
+}
+message HaltStatus {
+  ResourceRef halt = 1;
+  HaltState state = 2;
+  string reason = 3;
+  string updated_at = 4;
+  uint64 row_version = 5;
+  string last_actor_type = 6;
+  string last_actor_id = 7;
+}
+message GetHaltRequest { WorkspaceRef workspace = 1; }
+message GetHaltResponse { HaltStatus halt = 1; }
+message SetHaltRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  HaltState state = 3;
+  string reason = 4;
+}
+message SetHaltResponse { HaltStatus halt = 1; }
 service ActionService {
   rpc SubmitAction(SubmitActionRequest) returns (SubmitActionResponse);
+  rpc GetHalt(GetHaltRequest) returns (GetHaltResponse);
+  rpc SetHalt(SetHaltRequest) returns (SetHaltResponse);
 }
