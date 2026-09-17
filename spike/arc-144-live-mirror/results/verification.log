@@ -1,0 +1,38 @@
+ARC-144 Part A — instrument and media verification
+generated: 2026-09-17T16:25:57Z
+
+== environments ==
+go:      go version go1.27.1 darwin/arm64
+ffmpeg:  ffmpeg version 9.0.1 Copyright (c) 2000-2026 the FFmpeg developers
+chrome:  Google Chrome 152.0.7977.84 
+node:    v26.8.2
+uname:   Darwin 25.6.0 arm64
+
+== host load at verification time ==
+ 0:25  up 5 days,  5:12, 4 users, load averages: 12.52 10.45 10.23
+
+== access units and barcode round-trip (600-frame source, x264 -> Annex-B -> ffmpeg decode -> barcode) ==
+access units: 600 (expected 600)
+VCL NAL units: 600 (one slice per picture -> 600)
+barcode round-trip: 600/600 frames decoded to their own index (survives x264 + decode)
+
+== ffprobe cross-check of the source ==
+codec_name=h264
+profile=Constrained Baseline
+width=1280
+height=720
+level=31
+nb_read_frames=600
+
+== fragmented MP4 muxed from the same access units with -c copy ==
+init segment: 753 bytes, timescale 15360, fragments 200
+covered frames: 600 (0..599), expected 600
+fragment 0: frames [0,3) 4592 bytes
+fragment 1: frames [3,6) 1168 bytes
+source Annex-B: 600 access units, 326046 bytes
+
+init segment: 753 bytes, timescale 15360, fragments 600
+covered frames: 600 (0..599), expected 600
+fragment 0: frames [0,1) 3989 bytes
+fragment 1: frames [1,2) 386 bytes
+source Annex-B: 600 access units, 326046 bytes

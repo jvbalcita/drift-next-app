@@ -1,0 +1,659 @@
+{
+  "mse": {
+    "browserCapabilities": {
+      "decodingInfoMediaSource": {
+        "keySystemAccess": null,
+        "powerEfficient": true,
+        "smooth": true,
+        "supported": true
+      },
+      "decodingInfoWebRTC": {
+        "keySystemAccess": null,
+        "powerEfficient": true,
+        "smooth": true,
+        "supported": true
+      },
+      "mseIsTypeSupported": true,
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+      "videoDecoder": {
+        "config": {
+          "codec": "avc1.42c01f",
+          "codedHeight": 720,
+          "codedWidth": 1280,
+          "flip": false,
+          "hardwareAcceleration": "no-preference",
+          "rotation": 0
+        },
+        "supported": true
+      },
+      "videoDecoderPreferHardware": {
+        "config": {
+          "codec": "avc1.42c01f",
+          "codedHeight": 720,
+          "codedWidth": 1280,
+          "flip": false,
+          "hardwareAcceleration": "prefer-hardware",
+          "rotation": 0
+        },
+        "supported": true
+      },
+      "videoElementDimensions": [
+        0,
+        0
+      ]
+    },
+    "droppedFrames": 0,
+    "duplicates": 27,
+    "errors": [],
+    "fragmentArrivals": 200,
+    "fragmentCadenceMS": {
+      "max": 115.39,
+      "mean": 100.03,
+      "min": 84.26,
+      "n": 199,
+      "p50": 100.06,
+      "p90": 101.37,
+      "p95": 103.19,
+      "p99": 108.39
+    },
+    "fragmentToArrivalMS": {
+      "max": 9.61,
+      "mean": -1.01,
+      "min": -5.64,
+      "n": 200,
+      "p50": 0.19,
+      "p90": 0.7,
+      "p95": 1.12,
+      "p99": 4.89
+    },
+    "latencyByFragmentPosition": {
+      "0": {
+        "max": 109.84,
+        "mean": 101.7,
+        "min": 65.79,
+        "n": 166,
+        "p50": 106.4,
+        "p90": 108.98,
+        "p95": 109.31,
+        "p99": 109.4
+      },
+      "1": {
+        "max": 109.76,
+        "mean": 102.53,
+        "min": 58.96,
+        "n": 157,
+        "p50": 106.71,
+        "p90": 108.97,
+        "p95": 109.09,
+        "p99": 109.62
+      },
+      "2": {
+        "max": 109.87,
+        "mean": 102.2,
+        "min": 68.23,
+        "n": 161,
+        "p50": 106.99,
+        "p90": 109.03,
+        "p95": 109.38,
+        "p99": 109.77
+      }
+    },
+    "latencyMS": {
+      "max": 109.87,
+      "mean": 102.14,
+      "min": 58.96,
+      "n": 484,
+      "p50": 106.71,
+      "p90": 108.99,
+      "p95": 109.3,
+      "p99": 109.76
+    },
+    "missingFirst": [
+      0,
+      1,
+      6,
+      10,
+      12,
+      16,
+      20,
+      23,
+      33,
+      40
+    ],
+    "missingFrames": 116,
+    "observed": 511,
+    "outOfOrder": 0,
+    "perFrame": null,
+    "perFrameNote": "per-frame series omitted; re-run cmd/analyze with -per-frame for it",
+    "playbackQuality": {
+      "corruptedVideoFrames": 0,
+      "currentTime": 19.971873,
+      "droppedVideoFrames": 0,
+      "readyState": 2,
+      "totalVideoFrames": 600,
+      "videoHeight": 720,
+      "videoWidth": 1280
+    },
+    "readMS": {
+      "max": 15.2,
+      "mean": 4.16,
+      "min": 2,
+      "n": 511,
+      "p50": 3.1,
+      "p90": 6.9,
+      "p95": 7.8,
+      "p99": 11.3
+    },
+    "readMSMax": 15.199999988079071,
+    "readMSMean": 3.1,
+    "sentFrames": 600,
+    "sourceBuffer": {
+      "mode": "segments",
+      "type": "video/mp4; codecs=\"avc1.42c01f\""
+    },
+    "steadyMS": {
+      "max": 109.87,
+      "mean": 102.4,
+      "min": 58.96,
+      "n": 462,
+      "p50": 106.71,
+      "p90": 108.98,
+      "p95": 109.3,
+      "p99": 109.76
+    },
+    "transport": "mse",
+    "unreadable": 0,
+    "validReads": 484,
+    "warmup": 30
+  },
+  "rtp": {
+    "browserCapabilities": {
+      "decodingInfoMediaSource": {
+        "keySystemAccess": null,
+        "powerEfficient": true,
+        "smooth": true,
+        "supported": true
+      },
+      "decodingInfoWebRTC": {
+        "keySystemAccess": null,
+        "powerEfficient": true,
+        "smooth": true,
+        "supported": true
+      },
+      "mseIsTypeSupported": true,
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+      "videoDecoder": {
+        "config": {
+          "codec": "avc1.42c01f",
+          "codedHeight": 720,
+          "codedWidth": 1280,
+          "flip": false,
+          "hardwareAcceleration": "no-preference",
+          "rotation": 0
+        },
+        "supported": true
+      },
+      "videoDecoderPreferHardware": {
+        "config": {
+          "codec": "avc1.42c01f",
+          "codedHeight": 720,
+          "codedWidth": 1280,
+          "flip": false,
+          "hardwareAcceleration": "prefer-hardware",
+          "rotation": 0
+        },
+        "supported": true
+      },
+      "videoElementDimensions": [
+        0,
+        0
+      ]
+    },
+    "decodeMS": 2.2608516666666665,
+    "droppedFrames": 15,
+    "duplicates": 0,
+    "errors": [],
+    "fragmentCadenceMS": {
+      "max": 115.39,
+      "mean": 100.03,
+      "min": 84.26,
+      "n": 199,
+      "p50": 100.06,
+      "p90": 101.37,
+      "p95": 103.19,
+      "p99": 108.39
+    },
+    "jitterBufferMS": 7.380141666666665,
+    "latencyByFragmentPosition": {
+      "0": {
+        "max": 43.22,
+        "mean": 37.47,
+        "min": 5.27,
+        "n": 173,
+        "p50": 40.12,
+        "p90": 42.39,
+        "p95": 42.65,
+        "p99": 43.11
+      },
+      "1": {
+        "max": 43.18,
+        "mean": 36.86,
+        "min": 8.43,
+        "n": 161,
+        "p50": 39.59,
+        "p90": 42.29,
+        "p95": 42.38,
+        "p99": 42.95
+      },
+      "2": {
+        "max": 43.15,
+        "mean": 37.33,
+        "min": 6.39,
+        "n": 176,
+        "p50": 40.47,
+        "p90": 42.38,
+        "p95": 42.66,
+        "p99": 42.94
+      }
+    },
+    "latencyMS": {
+      "max": 43.22,
+      "mean": 37.23,
+      "min": 5.27,
+      "n": 510,
+      "p50": 40.1,
+      "p90": 42.32,
+      "p95": 42.65,
+      "p99": 43.08
+    },
+    "missingFirst": [
+      0,
+      1,
+      2,
+      10,
+      17,
+      23,
+      25,
+      27,
+      32,
+      40
+    ],
+    "missingFrames": 90,
+    "observed": 510,
+    "outOfOrder": 0,
+    "perFrame": null,
+    "perFrameNote": "per-frame series omitted; re-run cmd/analyze with -per-frame for it",
+    "playbackQuality": {
+      "corruptedVideoFrames": 0,
+      "currentTime": 19.994,
+      "droppedVideoFrames": 15,
+      "readyState": 4,
+      "totalVideoFrames": 600,
+      "videoHeight": 720,
+      "videoWidth": 1280
+    },
+    "processingMS": 9.903249999999998,
+    "readMS": {
+      "max": 31.8,
+      "mean": 2.96,
+      "min": 2.1,
+      "n": 510,
+      "p50": 2.6,
+      "p90": 3.7,
+      "p95": 4.5,
+      "p99": 7.7
+    },
+    "readMSMax": 31.80000001192093,
+    "readMSMean": 2.6,
+    "receiver": {
+      "codecs": [
+        {
+          "clockRate": 90000,
+          "mimeType": "video/VP8",
+          "payloadType": 96
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 97,
+          "sdpFmtpLine": "apt=96"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/VP9",
+          "payloadType": 98,
+          "sdpFmtpLine": "profile-id=0"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 99,
+          "sdpFmtpLine": "apt=98"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/VP9",
+          "payloadType": 100,
+          "sdpFmtpLine": "profile-id=2"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 101,
+          "sdpFmtpLine": "apt=100"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/VP9",
+          "payloadType": 35,
+          "sdpFmtpLine": "profile-id=1"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 36,
+          "sdpFmtpLine": "apt=35"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/VP9",
+          "payloadType": 37,
+          "sdpFmtpLine": "profile-id=3"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 38,
+          "sdpFmtpLine": "apt=37"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 102,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 103,
+          "sdpFmtpLine": "apt=102"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 104,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=0;profile-level-id=42001f"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 107,
+          "sdpFmtpLine": "apt=104"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 108,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 109,
+          "sdpFmtpLine": "apt=108"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 114,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=0;profile-level-id=42e01f"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 115,
+          "sdpFmtpLine": "apt=114"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 116,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4d001f"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 117,
+          "sdpFmtpLine": "apt=116"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 39,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=0;profile-level-id=4d001f"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 40,
+          "sdpFmtpLine": "apt=39"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 41,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=f4001f"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 42,
+          "sdpFmtpLine": "apt=41"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 43,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=0;profile-level-id=f4001f"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 44,
+          "sdpFmtpLine": "apt=43"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/AV1",
+          "payloadType": 45,
+          "sdpFmtpLine": "level-idx=5;profile=0;tier=0"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 46,
+          "sdpFmtpLine": "apt=45"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/AV1",
+          "payloadType": 47,
+          "sdpFmtpLine": "level-idx=5;profile=1;tier=0"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 48,
+          "sdpFmtpLine": "apt=47"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 118,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=64001f"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 119,
+          "sdpFmtpLine": "apt=118"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 120,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=0;profile-level-id=64001f"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 121,
+          "sdpFmtpLine": "apt=120"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H265",
+          "payloadType": 49,
+          "sdpFmtpLine": "level-id=180;profile-id=1;tier-flag=0;tx-mode=SRST"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 50,
+          "sdpFmtpLine": "apt=49"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/H265",
+          "payloadType": 51,
+          "sdpFmtpLine": "level-id=180;profile-id=2;tier-flag=0;tx-mode=SRST"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 52,
+          "sdpFmtpLine": "apt=51"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/red",
+          "payloadType": 122
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/rtx",
+          "payloadType": 123,
+          "sdpFmtpLine": "apt=122"
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/ulpfec",
+          "payloadType": 124
+        },
+        {
+          "clockRate": 90000,
+          "mimeType": "video/flexfec-03",
+          "payloadType": 53,
+          "sdpFmtpLine": "repair-window=10000000"
+        }
+      ],
+      "encodings": [
+        {}
+      ],
+      "headerExtensions": [
+        {
+          "encrypted": false,
+          "id": 4,
+          "uri": "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01"
+        },
+        {
+          "encrypted": false,
+          "id": 9,
+          "uri": "urn:ietf:params:rtp-hdrext:sdes:mid"
+        },
+        {
+          "encrypted": false,
+          "id": 11,
+          "uri": "urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id"
+        },
+        {
+          "encrypted": false,
+          "id": 10,
+          "uri": "urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id"
+        }
+      ],
+      "rtcp": {
+        "reducedSize": false
+      }
+    },
+    "rtpStats": {
+      "bytesReceived": 323787,
+      "codec": "CIT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+      "framesDecoded": 600,
+      "framesDropped": 0,
+      "framesReceived": 600,
+      "freezeCount": 0,
+      "jitter": 0.001,
+      "jitterBufferDelay": 4.428084999999999,
+      "jitterBufferEmittedCount": 600,
+      "keyFramesDecoded": 20,
+      "lastPacketReceivedTimestamp": 1789662290478.243,
+      "packetsLost": 0,
+      "packetsReceived": 689,
+      "timestamp": 1789662293109.617,
+      "totalAssemblyTime": 0.009928,
+      "totalDecodeTime": 1.356511,
+      "totalFreezesDuration": 0,
+      "totalInterFrameDelay": 19.895,
+      "totalProcessingDelay": 5.941949999999999
+    },
+    "sentFrames": 600,
+    "steadyMS": {
+      "max": 43.22,
+      "mean": 37.93,
+      "min": 6.39,
+      "n": 488,
+      "p50": 40.17,
+      "p90": 42.3,
+      "p95": 42.65,
+      "p99": 42.96
+    },
+    "transport": "rtp",
+    "unreadable": 0,
+    "validReads": 510,
+    "warmup": 30
+  },
+  "source": {
+    "fps": 30,
+    "fragments": 200,
+    "frames": 600,
+    "label": "on4",
+    "notes": [
+      "access units 600, idr every 30 frames, one slice per picture"
+    ],
+    "profileLevelID": "42c01f",
+    "runSeconds": 20,
+    "send": {
+      "accessUnitBytes": 326046,
+      "fragmentPushToFlushMS": {
+        "max": 13.06,
+        "mean": 0.58,
+        "min": 0.02,
+        "n": 200,
+        "p50": 0.05,
+        "p90": 0.9,
+        "p95": 2.79,
+        "p99": 10.62
+      },
+      "fragmentsDropped": 0,
+      "fragmentsPushed": 200,
+      "frames": 600,
+      "kbps": 130.6,
+      "noSubscriber": 0,
+      "rtpPackets": 689,
+      "runSeconds": 19.979253,
+      "worstLateMS": 13.887206
+    },
+    "timescale": 15360
+  }
+}
