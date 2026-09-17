@@ -641,6 +641,30 @@ export type ControlPlaneIntent =
   | { type: "updateNetworkProfile"; profileId: string; name: string; addressPolicy: string; ports: readonly number[]; isDefault: boolean }
   | { type: "deleteNetworkProfile"; profileId: string; confirmed: boolean }
   | { type: "startScan"; profileId: string }
+  /**
+   * The OTG Setup tab's transport operations. The first three name ONE device by
+   * its serial, which is its stable identity: an endpoint on its own does not
+   * say whose port decision is being made. restartTransportServer names a list
+   * of endpoints instead, and deliberately carries no device: `adb kill-server`
+   * and `adb start-server` are process-global, so a restart's blast radius is
+   * every transport the host's server holds, including devices outside this
+   * workspace. Naming a device on it would let an operator read a host
+   * operation as a per-device one.
+   */
+  | { type: "connectEndpoint"; serial: string; endpoint: string }
+  | { type: "changeTransportMode"; serial: string; port: number }
+  | { type: "activatePort"; serial: string; endpoint: string }
+  | { type: "restartTransportServer"; endpoints: readonly string[] }
+  /**
+   * addDiscoveryRange creates the entered IPv4 range as saved discovery policy
+   * only when no saved profile already holds an equivalent range. It is a
+   * separate intent from createNetworkProfile because the equivalence decision
+   * is part of the operation: "created" and "already exists" are different
+   * outcomes and must stay different answers to the operator. The created
+   * profile goes through the same NetworkProfileService create path the Network
+   * Profiles page uses, so the two surfaces cannot drift.
+   */
+  | { type: "addDiscoveryRange"; startIp: string; endIp: string; port: number }
   | { type: "moveDeviceToGroup"; deviceId: string; groupId: string; position: number }
   | { type: "removeDeviceFromGroup"; deviceId: string }
   | { type: "createDeviceGroup"; name: string }

@@ -70,21 +70,22 @@ func (s *AuthorizedLabScanner) Scan(ctx context.Context, profile networkprofiles
 		return nil, err
 	}
 
-	allowed := make(map[uint16]struct{}, len(profile.Ports))
-	for _, port := range profile.Ports {
-		allowed[port] = struct{}{}
-	}
-
 	out := make([]ObservedDevice, 0, len(found))
 	for _, device := range found {
 		usb := device.Port == 0 && strings.TrimSpace(device.Host) == "" && strings.TrimSpace(device.Serial) != ""
 		if !usb {
+			// A port of 0 with no host is not an addressable transport, so there is
+			// nothing here to observe.
 			if device.Port == 0 {
 				continue
 			}
-			if _, ok := allowed[device.Port]; !ok {
-				continue
-			}
+			// The HOST RANGE is the bound. The PORT is not a filter: it is a discovered
+			// fact, and the decision about it belongs at connect time, where the port
+			// policy names it and refuses it. Dropping an off-port device here hides the
+			// very device port activation exists for and makes Activate unreachable for
+			// it — which is a correction to this function's previous behaviour, not a
+			// loosening of it. The profile's Ports remain the accepted set the connect
+			// policy reads; they are simply not consulted while observing.
 			if !profile.ContainsHost(device.Host) {
 				continue
 			}

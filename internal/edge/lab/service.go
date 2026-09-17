@@ -137,7 +137,16 @@ type Service struct {
 	// explicit WithLabTransport opt-in and exposed to the composition root
 	// through DeviceTransport. It is nil unless that option bound one, so a
 	// service that was not asked to expose a transport cannot expose one.
-	transport      DeviceTransport
+	transport DeviceTransport
+	// hostTransport is the host-level allow-listed runner, bound only by the
+	// explicit WithLabHostTransport opt-in and exposed to the composition root
+	// through HostTransport. It is nil unless that option bound one, so a service
+	// that was not asked to expose a host runner cannot expose one.
+	hostTransport HostTransport
+	// enumerator is the attached-transport reader, bound only by the explicit
+	// WithLabEnumerator opt-in. Nil unless bound, so a surface that must compare
+	// the fleet before and after is not mounted over a service that cannot read it.
+	enumerator     TransportEnumerator
 	authorizer     Authorizer
 	clock          clock.Clock
 	ids            ids.IDGenerator

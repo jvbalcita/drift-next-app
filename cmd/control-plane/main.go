@@ -14,6 +14,7 @@ import (
 	"drift.local/drift-next/internal/artifacts"
 	"drift.local/drift-next/internal/artifacts/cas"
 	"drift.local/drift-next/internal/discovery"
+	"drift.local/drift-next/internal/edge/connection"
 	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/organizations"
@@ -188,8 +189,25 @@ func main() {
 		routes = append(routes, referenceRoute)
 		referenceMounted = true
 	}
+	// The transport surface the OTG Setup tab performs: connect, change a
+	// device's transport mode, activate an observed port, restart the adb server.
+	// It is mounted only when the whole path was constructed. An empty Route
+	// mounts nothing, and a route whose connector cannot reach the adb server is
+	// worse than no route at all, because it advertises a surface that cannot
+	// work (AGENTS.md section 6). Each reason is logged rather than swallowed, so
+	// a deployment that expected the surface can see which dependency was missing.
+	connectionMounted := false
+	acceptedPorts, acceptedErr := acceptedProfilePorts(context.Background(), store.NewNetworkProfileRepository(db), workspaceID)
+	if acceptedErr != nil {
+		log.Printf("transport surface not mounted: %v", acceptedErr)
+	} else if operations, operationsErr := connectionOperations(labService, acceptedPorts); operationsErr != nil {
+		log.Printf("transport surface not mounted: %v", operationsErr)
+	} else if connectionRoute := service.ConnectionRoute(operations, labToken); connectionRoute.Path != "" {
+		routes = append(routes, connectionRoute)
+		connectionMounted = true
+	}
 	server := service.NewHTTPServer("control-plane", address, routes...)
-	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, text reference surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), referenceMountState(referenceMounted))
+	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, text reference surface %s, transport surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted))
 	serveErr := service.Serve(ctx, server)
 	// The startup scan is owned work, not a detached worker: wait for it to
 	// obey cancellation before the process returns.
@@ -300,4 +318,77 @@ func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, tex
 		return service.Route{}
 	}
 	return service.DeviceInputRoute(boundary, token)
+}
+
+// acceptedProfilePorts reads the workspace's DEFAULT network profile's declared
+// ports: the set a transport may be opened on without an activation. The profile
+// is the operator's own declaration, validated when it was written, so the policy
+// comes from what the operator said rather than from a constant in this binary,
+// and it is the same declaration the scan is bounded by.
+//
+// A workspace with no default profile yields an error and the transport surface is
+// not mounted, because a policy with no accepted set refuses every endpoint and
+// would advertise a surface that can only refuse (AGENTS.md section 7).
+func acceptedProfilePorts(ctx context.Context, profiles *store.NetworkProfileRepository, workspace organizations.WorkspaceID) ([]uint16, error) {
+	listed, err := profiles.List(ctx, workspace)
+	if err != nil {
+		return nil, err
+	}
+	for _, profile := range listed {
+		if profile.IsDefault {
+			return profile.Ports, nil
+		}
+	}
+	return nil, platformerrors.New(platformerrors.CodeInvalidInput, "no default network profile is configured, so no port is accepted for a transport")
+}
+
+// connectionOperations builds the transport boundary over the lab service's own
+// runners. It is the composition root's job: the service exposes the host and
+// device runners it was constructed with, and this assembles them into the single
+// boundary the transport surface depends on. Nothing here is derived by type
+// assertion on a stored field, because the service's own rule is that exposing a
+// runner is an explicit opt-in and never an implicit one.
+//
+// The enumerator is the lab service itself: it already enumerates attached
+// transports as adb-discovered devices, so a restart re-establishes endpoints from
+// the same view the rest of the product sees rather than from a second one.
+//
+// The activator is given no Wait: NewActivator fills the production default, which
+// bounds the settle after tcpip against the caller's context rather than sleeping
+// through a cancellation. Only a test injects one.
+func connectionOperations(labService *lab.Service, acceptedPorts []uint16) (transportconnect.ConnectionOperations, error) {
+	host := labService.HostTransport()
+	device := labService.DeviceTransport()
+	enumerator := labService.Enumerator()
+	if host == nil || device == nil || enumerator == nil {
+		return transportconnect.ConnectionOperations{}, platformerrors.New(platformerrors.CodeUnavailable, "the lab service exposes no transport runner, so no transport operation can reach a device")
+	}
+	policy := connection.NewPortPolicy(acceptedPorts)
+	// Activation is the operator's decision, recorded per device. It lives in
+	// process memory because nothing durable is required for it yet: a restart
+	// forgets it, which is fail-closed rather than permissive.
+	activations := connection.NewPortActivations()
+	connector, connectorErr := connection.NewConnector(connection.ConnectorConfig{Runner: host, Policy: policy, Activations: activations})
+	if connectorErr != nil {
+		return transportconnect.ConnectionOperations{}, connectorErr
+	}
+	restarter, restarterErr := connection.NewRestarter(connection.RestarterConfig{Runner: host, Enumerator: enumerator, Policy: policy})
+	if restarterErr != nil {
+		return transportconnect.ConnectionOperations{}, restarterErr
+	}
+	activator, activatorErr := connection.NewActivator(connection.ActivatorConfig{Runner: device, Enumerator: enumerator})
+	if activatorErr != nil {
+		return transportconnect.ConnectionOperations{}, activatorErr
+	}
+	return transportconnect.ConnectionOperations{Connector: connector, Restarter: restarter, Activator: activator}, nil
+}
+
+// connectionMountState reports whether the transport surface was mounted. Like the
+// other state reporters it says nothing about whether a mounted surface will accept
+// an action: the port policy and the kernel still decide every operation.
+func connectionMountState(mounted bool) string {
+	if mounted {
+		return "mounted"
+	}
+	return "not mounted; the transport path was not constructed"
 }

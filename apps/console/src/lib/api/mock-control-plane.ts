@@ -45,6 +45,7 @@ import type {
   StorageHealthView,
   WorkflowView,
 } from "@/lib/domain/control-plane"
+import { addressPoliciesAreEquivalent, isTransportPort, parseDiscoveryRange } from "@/lib/api/address-range"
 
 const workspace = {
   id: "workspace-demo",
@@ -923,6 +924,16 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.deleteNetworkProfile(intent)
       case "startScan":
         return this.startScan(intent)
+      case "connectEndpoint":
+        return this.connectEndpoint(intent)
+      case "changeTransportMode":
+        return this.changeTransportMode(intent)
+      case "activatePort":
+        return this.activatePort(intent)
+      case "restartTransportServer":
+        return this.restartTransportServer(intent)
+      case "addDiscoveryRange":
+        return this.addDiscoveryRange(intent)
       case "moveDeviceToGroup":
         return this.moveDeviceToGroup(intent)
       case "removeDeviceFromGroup":
@@ -1754,6 +1765,62 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       scanObservations: [...observed, ...this.snapshot.scanObservations],
     }
     return result(intent, `Mock scan completed; observed ${observed.length} device(s). No network sockets were opened.`, id)
+  }
+
+  /**
+   * The transport operations are reported as what they are IN THIS CLIENT: a
+   * recorded intent with no device contact. The mock holds no adb server and no
+   * transport, so a message claiming an endpoint was opened would be a lie about
+   * the only thing this client can actually do.
+   */
+  private connectEndpoint(intent: Extract<ControlPlaneIntent, { type: "connectEndpoint" }>): MutationResult {
+    if (intent.endpoint.trim() === "") return rejection(intent, "An endpoint is required before a transport can be opened.", undefined, "invalid_input")
+    if (intent.serial.trim() === "") return rejection(intent, "A serial is required: the port decision is the named device's.", undefined, "invalid_input")
+    return result(intent, `Mock connect recorded for ${intent.serial} at ${intent.endpoint}; no transport was opened and no device was contacted.`, intent.serial)
+  }
+
+  private changeTransportMode(intent: Extract<ControlPlaneIntent, { type: "changeTransportMode" }>): MutationResult {
+    if (intent.serial.trim() === "") return rejection(intent, "A serial is required: the change restarts that device's adbd and must name it.", undefined, "invalid_input")
+    if (!isTransportPort(intent.port)) return rejection(intent, `Port ${intent.port} is outside the ports a transport may name (1-65535).`, undefined, "invalid_input")
+    return result(intent, `Mock transport mode change recorded for ${intent.serial} on port ${intent.port}; no adbd was restarted.`, intent.serial)
+  }
+
+  private activatePort(intent: Extract<ControlPlaneIntent, { type: "activatePort" }>): MutationResult {
+    if (intent.serial.trim() === "") return rejection(intent, "A serial is required: an activation is a statement about one device.", undefined, "invalid_input")
+    const parsed = /^(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})$/.exec(intent.endpoint.trim())
+    if (!parsed) return rejection(intent, `The device's observed endpoint must be a canonical IPv4:port; ${intent.endpoint} was not activated.`, undefined, "invalid_input")
+    const port = Number(parsed[2])
+    if (!isTransportPort(port)) return rejection(intent, `Port ${parsed[2]} is outside the ports a transport may name (1-65535).`, undefined, "invalid_input")
+    // The mock projection's profiles are the accepted set, exactly as the
+    // profile is on the real path: "activated" and "already accepted" stay
+    // different answers here too.
+    const accepted = this.snapshot.networkProfiles.some((profile) => profile.ports.includes(port))
+    return result(intent, accepted
+      ? `Port ${port} for ${intent.serial} at ${parsed[0]} is already accepted by a saved profile, so no activation was recorded and nothing changed.`
+      : `Mock port activation recorded for ${intent.serial} at ${parsed[0]}; no device policy was changed.`, intent.serial)
+  }
+
+  private restartTransportServer(intent: Extract<ControlPlaneIntent, { type: "restartTransportServer" }>): MutationResult {
+    if (intent.endpoints.length === 0) {
+      return rejection(intent, "Restarting the adb server needs at least one observed endpoint to re-establish. Nothing was sent: a restart with nothing to restore would strand every device the server holds.", undefined, "invalid_input")
+    }
+    return result(intent, `Mock adb server restart recorded for ${intent.endpoints.length} endpoint(s); no adb process was touched and no transport was opened.`)
+  }
+
+  private addDiscoveryRange(intent: Extract<ControlPlaneIntent, { type: "addDiscoveryRange" }>): MutationResult {
+    const parsed = parseDiscoveryRange(intent.startIp, intent.endIp)
+    if (!parsed.ok) return rejection(intent, parsed.reason, undefined, "invalid_input")
+    if (!isTransportPort(intent.port)) {
+      return rejection(intent, `Port ${intent.port} is outside the ports a profile may accept (1-65535). ${parsed.range.addressPolicy} was not added and nothing was written.`, undefined, "invalid_input")
+    }
+    const existing = this.snapshot.networkProfiles.find((profile) => addressPoliciesAreEquivalent(profile.addressPolicy, parsed.range.addressPolicy))
+    if (existing) {
+      return result(intent, `Range ${parsed.range.addressPolicy} already exists as the Network Profile "${existing.name}". Nothing was written.`, existing.id)
+    }
+    const id = `profile-mock-${this.nextSequence++}`
+    const profile: NetworkProfileView = { id, name: parsed.range.name, addressPolicy: parsed.range.addressPolicy, ports: [intent.port], isDefault: false }
+    this.snapshot = { ...this.snapshot, networkProfiles: [profile, ...this.snapshot.networkProfiles] }
+    return result(intent, `Range ${parsed.range.addressPolicy} created as a saved Network Profile for port ${intent.port}.`, id)
   }
 
   private moveDeviceToGroup(intent: Extract<ControlPlaneIntent, { type: "moveDeviceToGroup" }>): MutationResult {

@@ -596,6 +596,26 @@ func (a *Adapter) RunAllowlisted(ctx context.Context, serial string, args []stri
 	return a.run(ctx, name, serial, args)
 }
 
+// RunHostAllowlisted executes a host-scoped argument array produced by one of the
+// connection builders: `connect`, `disconnect`, `kill-server` and `start-server`.
+//
+// It asks the host recogniser alone, never the combined one. A device-scoped
+// array reaching this path would run without a serial and mean something
+// different from what its builder intended, so the two admissions are kept apart
+// at the entry point as well as in the table, and the separation is asserted
+// rather than assumed.
+func (a *Adapter) RunHostAllowlisted(ctx context.Context, args []string) (Result, error) {
+	name, ok := matchesHostAllowlist(args)
+	if !ok {
+		return Result{}, &OperationError{
+			Op:           "host-allowlisted",
+			FailureClass: domain.FailureInfrastructure,
+			Cause:        ErrArgvNotAllowlisted,
+		}
+	}
+	return a.run(ctx, name, "", args)
+}
+
 // run validates, bounds, and executes one invocation. A serial, when present,
 // is always supplied as its own argv token immediately after -s.
 func (a *Adapter) run(ctx context.Context, op string, serial string, args []string) (Result, error) {

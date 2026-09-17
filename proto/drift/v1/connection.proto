@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+// ConnectionService exposes the four transport operations the console's OTG Setup
+// tab performs, so each one is reachable from the operator surface instead of
+// existing only as tested Go code.
+//
+// NONE OF THESE REQUESTS CARRIES A WorkspaceRef, and that is deliberate rather
+// than an omission. `adb kill-server` and `adb start-server` are process-global:
+// a restart's blast radius is every transport the server holds, including
+// devices outside any one workspace's fleet. It is a HOST operation, and scoping
+// it to a workspace would let an operator read it as a fleet operation — which
+// is exactly the misreading that produced this card's measured finding that a
+// restart de-authorized a device nobody had selected. The operations that do
+// touch one device name it by serial, which is the device's stable identity,
+// rather than by any workspace ambient to the request.
+//
+// Every request carries a RequestContext, and one without a request_id is
+// refused before anything is run: the request id is the correlation identity of
+// the call, and by this repository's convention at the product boundary it is
+// also the actor of record when no actor_id is supplied.
+
+// EndpointOutcome is one endpoint's result inside a restart report. It is
+// reported PER ENDPOINT because an aggregate verdict hides which device was left
+// unreachable: if fourteen endpoints recover and one does not, the one has to be
+// named, with its reason.
+message EndpointOutcome {
+  string endpoint = 1;
+  uint32 port = 2;
+  bool reestablished = 3;
+  int32 exit_code = 4;
+  // reason is the refusal or failure that kept this endpoint down, and is empty
+  // when it came back. It is a safe classified sentence, never raw command text.
+  string reason = 5;
+}
+
+message ConnectEndpointRequest {
+  RequestContext context = 1;
+  // serial names the device the transport is opened for. It is what lets the
+  // port decision honour a port activation the operator made for THAT device:
+  // the same endpoint carries no such meaning on its own.
+  string serial = 2;
+  // endpoint is a canonical IPv4:port. Its port is a discovered fact that the
+  // profile's port policy decides on at connect time, so an off-port endpoint is
+  // refused here and named in the refusal.
+  string endpoint = 3;
+}
+
+message ConnectEndpointResponse {
+  string endpoint = 1;
+  uint32 port = 2;
+  int32 exit_code = 3;
+  // output is the adapter's own redacted, bounded report of what it did.
+  string output = 4;
+}
+
+message ChangeTransportModeRequest {
+  RequestContext context = 1;
+  // serial is the device whose transport mode is changed. It is required: the
+  // change restarts that device's adbd, and a device command whose subject is
+  // whoever happens to be attached is worse than no command at all.
+  string serial = 2;
+  // port is where adbd will listen. It is a TCP port, not a profile bound: the
+  // profile's accepted ports decide at connect time, not here.
+  uint32 port = 3;
+}
+
+// ChangeTransportModeResponse reports the state read BEFORE the change and the
+// state read AFTER it, because restarting adbd does not leave a device as it
+// found it.
+message ChangeTransportModeResponse {
+  string serial = 1;
+  uint32 port = 2;
+  string state_before = 3;
+  string connection_before = 4;
+  string state_after = 5;
+  // needs_operator_authorization is true when the device came back unauthorized
+  // for this host. It is an OUTCOME and not an error: the change happened, and
+  // what it needs next is a person accepting the debugging prompt on the
+  // device's screen, not a retry.
+  bool needs_operator_authorization = 6;
+  // message is the sentence an operator is meant to read, naming the device and
+  // what it needs.
+  string message = 7;
+  int32 exit_code = 8;
+}
+
+message ActivatePortRequest {
+  RequestContext context = 1;
+  string serial = 2;
+  // endpoint is the OBSERVED IPv4:port of the device being enabled. Activating a
+  // port the device does not answer on is not this operation: use
+  // ChangeTransportMode to move a device to a port.
+  string endpoint = 3;
+}
+
+message ActivatePortResponse {
+  string serial = 1;
+  string endpoint = 2;
+  uint32 port = 3;
+  // changed separates "activated" from "already accepted". Reporting the second
+  // as the first claims credit for something that did not happen.
+  bool changed = 4;
+  string activated_at = 5;
+}
+
+message RestartServerRequest {
+  RequestContext context = 1;
+  // endpoints are the transports to re-establish after the server comes back,
+  // in the order they are given: operator order is carried rather than left to
+  // timing. At least one is required, because dropping the server with nothing
+  // to restore strands every device it holds.
+  repeated string endpoints = 2;
+}
+
+message RestartServerResponse {
+  uint32 transports_before = 1;
+  // transports_after_start_known distinguishes "the server holds nothing" from
+  // "the count could not be read": a restart that could not measure its result
+  // must not report zero, which is a claim about the fleet rather than about the
+  // reading.
+  bool transports_after_start_known = 2;
+  uint32 transports_after_start = 3;
+  int32 kill_exit_code = 4;
+  bool kill_failed = 5;
+  int32 start_exit_code = 6;
+  bool start_failed = 7;
+  uint32 reestablished = 8;
+  uint32 failed = 9;
+  repeated EndpointOutcome endpoints = 10;
+}
+
+service ConnectionService {
+  rpc ConnectEndpoint(ConnectEndpointRequest) returns (ConnectEndpointResponse);
+  rpc ChangeTransportMode(ChangeTransportModeRequest) returns (ChangeTransportModeResponse);
+  rpc ActivatePort(ActivatePortRequest) returns (ActivatePortResponse);
+  rpc RestartServer(RestartServerRequest) returns (RestartServerResponse);
+}

@@ -62,6 +62,9 @@ func NewServiceFromEnv(lookup EnvLookup, opts ...Option) (*Service, error) {
 	// The adapter is bound to the input path as well as to the observation path:
 	// it is the device's own transport, so the render-size cross-check and the
 	// input primitives reach the device through one adapter with no wrapper
-	// between them (ARC-76).
-	return NewService(append([]Option{WithLabAdapters(devices, hierarchy), WithLabTransport(devices)}, opts...)...)
+	// between them (ARC-76). It is bound as the HOST runner too, through its own
+	// opt-in: opening an endpoint and restarting the adb server act on the server
+	// rather than on one device, and the transport surface the OTG Setup tab
+	// performs needs those operations over this same adapter (ARC-67).
+	return NewService(append([]Option{WithLabAdapters(devices, hierarchy), WithLabTransport(devices), WithLabHostTransport(devices), WithLabEnumerator(devices)}, opts...)...)
 }

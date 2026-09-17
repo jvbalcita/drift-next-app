@@ -76,6 +76,31 @@ func inputArrays() [][]string {
 	}
 }
 
+// hostArrays are the connection-management admissions. They are part of the same
+// corpus as every other admitted array, so a mutation of any of their positions
+// is exercised by the same near-miss loop and a collision with another admission
+// is caught by the same disjointness assertion.
+func hostArrays(t *testing.T) [][]string {
+	t.Helper()
+	connect, err := ConnectArgv("192.168.1.109:5555")
+	if err != nil {
+		t.Fatalf("ConnectArgv() = %v", err)
+	}
+	return [][]string{connect, KillServerArgv(), StartServerArgv()}
+}
+
+// transportArrays are the device transport-mode admissions. They are kept apart from
+// the host arrays deliberately: `tcpip` acts on a device and is reached only through
+// the serial-bound entry point, so it must not be admitted where no serial is named.
+func transportArrays(t *testing.T) [][]string {
+	t.Helper()
+	tcpip, err := TcpipArgv(5556)
+	if err != nil {
+		t.Fatalf("TcpipArgv() = %v", err)
+	}
+	return [][]string{tcpip}
+}
+
 // foreignTokens are drawn from both admissions' vocabularies, so mutating any
 // position of any admitted array with one of them is the cheapest way to land on
 // an array that both recognisers might claim.
@@ -92,6 +117,8 @@ func classificationCorpus(t *testing.T) [][]string {
 	t.Helper()
 	corpus := make([][]string, 0, 512)
 	admitted := append(readOnlyArrays(t), inputArrays()...)
+	admitted = append(admitted, hostArrays(t)...)
+	admitted = append(admitted, transportArrays(t)...)
 	for _, args := range admitted {
 		corpus = append(corpus, append([]string(nil), args...))
 	}
@@ -139,28 +166,44 @@ func classificationCorpus(t *testing.T) [][]string {
 	return corpus
 }
 
-// TestTheInputAndReadOnlyRecognisersNeverBothMatch is claim 1 and claim 4. Every
-// array in the corpus is put to both recognisers directly: an array both of them
-// admit would make the classification of that array depend on which recogniser
-// happened to be asked first, which is exactly the surface this refinement is
-// asked to make non-collidable.
-func TestTheInputAndReadOnlyRecognisersNeverBothMatch(t *testing.T) {
+// TestTheAdmissionsNeverBothMatch is claim 1 and claim 4. Every array in the
+// corpus is put to all three recognisers directly: an array two of them admit
+// would make the classification of that array depend on which recogniser happened
+// to be asked first, which is exactly the surface this refinement is asked to make
+// non-collidable.
+func TestTheAdmissionsNeverBothMatch(t *testing.T) {
 	corpus := classificationCorpus(t)
 	inputNames := map[string]string{}
 	readOnlyNames := map[string]string{}
+	hostNames := map[string]string{}
+	transportNames := map[string]string{}
 
 	for _, args := range corpus {
 		inputName, inputOK := matchesDeviceInputAllowlist(args)
 		readOnlyName, readOnlyOK := matchesReadOnlyAllowlist(args)
-		if inputOK && readOnlyOK {
-			t.Fatalf("both recognisers admit %q: input=%q read-only=%q; this array's classification would depend on which recogniser is asked first",
-				args, inputName, readOnlyName)
+		hostName, hostOK := matchesHostAllowlist(args)
+		transportName, transportOK := matchesTransportAllowlist(args)
+		claims := 0
+		for _, ok := range []bool{inputOK, readOnlyOK, hostOK, transportOK} {
+			if ok {
+				claims++
+			}
+		}
+		if claims > 1 {
+			t.Fatalf("more than one recogniser admits %q: input=%q read-only=%q host=%q transport=%q; this array's classification would depend on which recogniser is asked first",
+				args, inputName, readOnlyName, hostName, transportName)
 		}
 		if inputOK {
 			inputNames[inputName] = strings.Join(args, " ")
 		}
 		if readOnlyOK {
 			readOnlyNames[readOnlyName] = strings.Join(args, " ")
+		}
+		if hostOK {
+			hostNames[hostName] = strings.Join(args, " ")
+		}
+		if transportOK {
+			transportNames[transportName] = strings.Join(args, " ")
 		}
 
 		first, firstOK := matchesAllowlist(args)
@@ -177,26 +220,40 @@ func TestTheInputAndReadOnlyRecognisersNeverBothMatch(t *testing.T) {
 			if !firstOK || first != readOnlyName {
 				t.Fatalf("matchesAllowlist(%q) = %q, %t; want the read-only classification %q, true", args, first, firstOK, readOnlyName)
 			}
+		case hostOK:
+			if !firstOK || first != hostName {
+				t.Fatalf("matchesAllowlist(%q) = %q, %t; want the host classification %q, true", args, first, firstOK, hostName)
+			}
+		case transportOK:
+			if !firstOK || first != transportName {
+				t.Fatalf("matchesAllowlist(%q) = %q, %t; want the transport classification %q, true", args, first, firstOK, transportName)
+			}
 		default:
 			if firstOK {
-				t.Fatalf("matchesAllowlist(%q) = %q, true; neither recogniser admits it", args, first)
+				t.Fatalf("matchesAllowlist(%q) = %q, true; no recogniser admits it", args, first)
 			}
 		}
 	}
 
-	// The corpus must actually exercise both admissions, or it proves nothing.
+	// The corpus must actually exercise every admission, or it proves nothing.
 	if len(inputNames) != 6 {
 		t.Fatalf("the corpus reached %d input operation names (%v), want all 6", len(inputNames), sortedKeys(inputNames))
 	}
 	if len(readOnlyNames) != 8 {
 		t.Fatalf("the corpus reached %d read-only operation names (%v), want all 8", len(readOnlyNames), sortedKeys(readOnlyNames))
 	}
+	if len(hostNames) != 3 {
+		t.Fatalf("the corpus reached %d host operation names (%v), want all 3", len(hostNames), sortedKeys(hostNames))
+	}
+	if len(transportNames) != 1 {
+		t.Fatalf("the corpus reached %d transport operation names (%v), want all 1", len(transportNames), sortedKeys(transportNames))
+	}
 }
 
-// TestTheTwoAdmissionsNeverShareAnOperationName is claim 2: a name identifies one
-// admission and one only, so a name observed anywhere cannot be misread as the
-// other admission's classification.
-func TestTheTwoAdmissionsNeverShareAnOperationName(t *testing.T) {
+// TestNoTwoAdmissionsShareAnOperationName is claim 2: a name identifies one
+// admission and one only, so a name observed anywhere cannot be misread as
+// another admission's classification.
+func TestNoTwoAdmissionsShareAnOperationName(t *testing.T) {
 	inputNames := map[string]string{}
 	for _, args := range inputArrays() {
 		name, ok := matchesDeviceInputAllowlist(args)
@@ -221,9 +278,46 @@ func TestTheTwoAdmissionsNeverShareAnOperationName(t *testing.T) {
 		t.Fatalf("the read-only admission reports %d operation names (%v), want 8", len(readOnlyNames), sortedKeys(readOnlyNames))
 	}
 
-	for name, array := range inputNames {
-		if other, clash := readOnlyNames[name]; clash {
-			t.Fatalf("operation name %q identifies both the input array %q and the read-only array %q", name, array, other)
+	hostNames := map[string]string{}
+	for _, args := range hostArrays(t) {
+		name, ok := matchesHostAllowlist(args)
+		if !ok {
+			t.Fatalf("matchesHostAllowlist(%q) = %q, false; want the host admission", args, name)
+		}
+		hostNames[name] = strings.Join(args, " ")
+	}
+	if len(hostNames) != 3 {
+		t.Fatalf("the host admission reports %d operation names (%v), want 3", len(hostNames), sortedKeys(hostNames))
+	}
+
+	transportNames := map[string]string{}
+	for _, args := range transportArrays(t) {
+		name, ok := matchesTransportAllowlist(args)
+		if !ok {
+			t.Fatalf("matchesTransportAllowlist(%q) = %q, false; want the transport admission", args, name)
+		}
+		transportNames[name] = strings.Join(args, " ")
+	}
+	if len(transportNames) != 1 {
+		t.Fatalf("the transport admission reports %d operation names (%v), want 1", len(transportNames), sortedKeys(transportNames))
+	}
+
+	for _, group := range []struct {
+		left, right map[string]string
+		leftName    string
+		rightName   string
+	}{
+		{inputNames, readOnlyNames, "input", "read-only"},
+		{inputNames, hostNames, "input", "host"},
+		{inputNames, transportNames, "input", "transport"},
+		{readOnlyNames, hostNames, "read-only", "host"},
+		{readOnlyNames, transportNames, "read-only", "transport"},
+		{hostNames, transportNames, "host", "transport"},
+	} {
+		for name, array := range group.left {
+			if other, clash := group.right[name]; clash {
+				t.Fatalf("operation name %q identifies both the %s array %q and the %s array %q", name, group.leftName, array, group.rightName, other)
+			}
 		}
 	}
 }

@@ -728,3 +728,237 @@ describe("RealControlPlaneClient", () => {
     ])
   })
 })
+
+describe("RealControlPlaneClient transport surface", () => {
+  const connectionCalls = (url: string, method: string) => url.endsWith(`/drift.v1.ConnectionService/${method}`)
+  const jsonResponse = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } })
+  const emptyResponse = () => new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+
+  it("opens a transport for the named device and reports the adapter's own output", async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (connectionCalls(url, "ConnectEndpoint")) {
+        bodies.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>)
+        return jsonResponse({ endpoint: "192.168.1.106:5556", port: 5556, exitCode: 0, output: "already connected to 192.168.1.106:5556" })
+      }
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "connectEndpoint", serial: "R5CT42GS94Z", endpoint: "192.168.1.106:5556" })
+
+    expect(result.ok).toBe(true)
+    expect(result.message).toBe("192.168.1.106:5556 for R5CT42GS94Z on port 5556: already connected to 192.168.1.106:5556")
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0]).toMatchObject({ serial: "R5CT42GS94Z", endpoint: "192.168.1.106:5556" })
+  })
+
+  it("reports an off-port refusal at connect time without claiming a transport was opened", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (connectionCalls(url, "ConnectEndpoint")) {
+        // The refusal the transport actually returns: Connect carries the
+        // service's own sentence, which names the port and the accepted set.
+        return new Response(JSON.stringify({
+          code: "permission_denied",
+          message: "refusing to open a transport to 192.168.1.106:5556: port 5556 is not in the profile's accepted ports [5555], so no device was contacted",
+        }), { status: 403, headers: { "content-type": "application/json" } })
+      }
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "connectEndpoint", serial: "R5CT42GS94Z", endpoint: "192.168.1.106:5556" })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toContain("5556 is not in the profile's accepted ports")
+    expect(result.message).toContain("no device was contacted")
+    expect(result.errorCode).toBe("unauthorized")
+  })
+
+  it("reports a restart per endpoint and names the one that did not come back", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (connectionCalls(url, "RestartServer")) {
+        return jsonResponse({
+          transportsBefore: 2,
+          transportsAfterStartKnown: true,
+          transportsAfterStart: 0,
+          killExitCode: 0,
+          killFailed: false,
+          startExitCode: 0,
+          startFailed: false,
+          reestablished: 1,
+          failed: 1,
+          endpoints: [
+            { endpoint: "192.168.1.106:5556", port: 5556, reestablished: true, exitCode: 0, reason: "" },
+            { endpoint: "192.168.1.111:5555", port: 5555, reestablished: false, exitCode: 1, reason: "failed to connect to 192.168.1.111:5555" },
+          ],
+        })
+      }
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "restartTransportServer", endpoints: ["192.168.1.106:5556", "192.168.1.111:5555"] })
+
+    expect(result.ok).toBe(true)
+    expect(result.message).toContain("2 transport(s) before the restart")
+    expect(result.message).toContain("1 of 2 endpoint(s) re-established")
+    expect(result.message).toContain("not restored: 192.168.1.111:5555 (failed to connect to 192.168.1.111:5555)")
+    expect(result.message).not.toContain("not restored: 192.168.1.106:5556")
+  })
+
+  it("says a restart could not read the server's transports instead of reporting zero", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (connectionCalls(url, "RestartServer")) {
+        return jsonResponse({
+          transportsBefore: 2,
+          transportsAfterStartKnown: false,
+          transportsAfterStart: 0,
+          killExitCode: 0,
+          startExitCode: 0,
+          reestablished: 2,
+          failed: 0,
+          endpoints: [],
+        })
+      }
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "restartTransportServer", endpoints: ["192.168.1.106:5556"] })
+
+    expect(result.message).toContain("the transports held after start-server could not be read")
+    expect(result.message).not.toContain("0 transport(s) after start-server")
+  })
+
+  it("refuses a restart with nothing to re-establish without contacting the control plane", async () => {
+    const urls: string[] = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      urls.push(String(input))
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "restartTransportServer", endpoints: [] })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toContain("at least one observed endpoint")
+    expect(urls).toEqual([])
+  })
+
+  it("separates an activation from a port the profile already accepts", async () => {
+    let calls = 0
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (connectionCalls(url, "ActivatePort")) {
+        calls += 1
+        return jsonResponse({ serial: "R5CT42GS94Z", endpoint: "192.168.1.106:5556", port: 5556, changed: calls === 1, activatedAt: "2026-09-17T08:05:26Z" })
+      }
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const activated = await client.dispatch({ type: "activatePort", serial: "R5CT42GS94Z", endpoint: "192.168.1.106:5556" })
+    const unchanged = await client.dispatch({ type: "activatePort", serial: "R5CT42GS94Z", endpoint: "192.168.1.106:5556" })
+
+    expect(activated.message).toBe("Port 5556 activated for R5CT42GS94Z at 192.168.1.106:5556.")
+    expect(unchanged.message).toContain("already accepted")
+    expect(unchanged.message).not.toBe(activated.message)
+  })
+
+  it("carries a device that needs the operator's prompt as an outcome, not an error", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (connectionCalls(url, "ChangeTransportMode")) {
+        return jsonResponse({
+          serial: "R5CT42GS94Z",
+          port: 5556,
+          stateBefore: "device",
+          connectionBefore: "usb",
+          stateAfter: "unauthorized",
+          needsOperatorAuthorization: true,
+          message: "R5CT42GS94Z is now listening on port 5556, but it is UNAUTHORIZED for this host: accept the \"Allow USB debugging?\" prompt on the device's screen.",
+          exitCode: 0,
+        })
+      }
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "changeTransportMode", serial: "R5CT42GS94Z", port: 5556 })
+
+    expect(result.ok).toBe(true)
+    expect(result.message).toContain("UNAUTHORIZED for this host")
+  })
+
+  it("refuses a transport-mode port outside 1-65535 without contacting the control plane", async () => {
+    const urls: string[] = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      urls.push(String(input))
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const result = await client.dispatch({ type: "changeTransportMode", serial: "R5CT42GS94Z", port: 70000 })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toContain("70000")
+    expect(urls).toEqual([])
+  })
+
+  it("creates a discovery range only when no saved profile holds an equivalent one", async () => {
+    const created: Array<Record<string, unknown>> = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.endsWith("/drift.v1.NetworkProfileService/ListNetworkProfiles")) {
+        return jsonResponse({
+          profiles: [{ id: "profile-lab", displayName: "Lab A", addressPolicy: "192.0.2.0-192.0.2.255", allowedPorts: [5555], isDefault: true }],
+        })
+      }
+      if (url.endsWith("/drift.v1.NetworkProfileService/CreateNetworkProfile")) {
+        created.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>)
+        return jsonResponse({ profile: { id: "profile-new" } })
+      }
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+
+    // The same bounded range, written the other way: an equivalent range.
+    const equivalent = await client.dispatch({ type: "addDiscoveryRange", startIp: "192.0.2.0", endIp: "192.0.2.255", port: 5555 })
+    expect(equivalent.ok).toBe(true)
+    expect(equivalent.message).toContain("already exists")
+    expect(created).toHaveLength(0)
+
+    const fresh = await client.dispatch({ type: "addDiscoveryRange", startIp: "192.168.1.1", endIp: "192.168.1.255", port: 5555 })
+    expect(fresh.ok).toBe(true)
+    expect(fresh.message).toContain("created as a saved Network Profile")
+    expect(created).toHaveLength(1)
+    expect(created[0]).toMatchObject({
+      profile: expect.objectContaining({ addressPolicy: "192.168.1.1-192.168.1.255", allowedPorts: [5555] }),
+    })
+  })
+
+  it("refuses an inverted range and a bad port without contacting the control plane", async () => {
+    const urls: string[] = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      urls.push(String(input))
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const inverted = await client.dispatch({ type: "addDiscoveryRange", startIp: "192.168.1.20", endIp: "192.168.1.10", port: 5555 })
+    const badPort = await client.dispatch({ type: "addDiscoveryRange", startIp: "192.168.1.1", endIp: "192.168.1.255", port: 70000 })
+
+    expect(inverted.ok).toBe(false)
+    expect(inverted.message).toContain("after its end address")
+    expect(badPort.ok).toBe(false)
+    expect(badPort.message).toContain("70000")
+    expect(urls).toEqual([])
+  })
+})

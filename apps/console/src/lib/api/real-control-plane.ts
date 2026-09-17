@@ -14,6 +14,7 @@ import type { AutomationAgent, AutomationAgentProfile } from "@/gen/drift/v1/aut
 import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
 import { DeviceStatus } from "@/gen/drift/v1/device_pb"
+import type { RestartServerResponse } from "@/gen/drift/v1/connection_pb"
 import type { ObservedDevice, ScanRun } from "@/gen/drift/v1/discovery_pb"
 import { DeviceLinkState as ProtoDeviceLinkState, ScanRunState } from "@/gen/drift/v1/discovery_pb"
 import type { EdgeAgent } from "@/gen/drift/v1/edge_agent_pb"
@@ -59,6 +60,7 @@ import {
   workspaceRef,
 } from "@/lib/api/connect-json"
 import { createControlPlaneServices, type ControlPlaneServices } from "@/lib/api/control-plane-clients"
+import { addressPoliciesAreEquivalent, isTransportPort, parseDiscoveryRange } from "@/lib/api/address-range"
 import type {
   AccountAssignmentState as AccountAssignmentViewState,
   AccountDeviceAssignmentView,
@@ -1351,6 +1353,33 @@ function failure(intent: ControlPlaneIntent, message: string, extra?: Partial<Mu
   return { ok: false, kind: intent.type, message, errorCode: extra?.errorCode ?? "precondition_failed", ...extra }
 }
 
+/**
+ * restartReport states what a restart actually did, per endpoint, and names the
+ * ones that did not come back. An aggregate "ok" would hide which device was
+ * left unreachable, and a count of zero is only reported when it was READ: a
+ * restart that could not measure the server's transports says so instead.
+ */
+function restartReport(response: RestartServerResponse): string {
+  const parts = [
+    `${response.transportsBefore} transport(s) before the restart`,
+    response.killFailed
+      ? `kill-server failed with exit code ${response.killExitCode}`
+      : `kill-server exited ${response.killExitCode}`,
+    response.startFailed
+      ? `start-server failed with exit code ${response.startExitCode}`
+      : `start-server exited ${response.startExitCode}`,
+    response.transportsAfterStartKnown
+      ? `${response.transportsAfterStart} transport(s) after start-server`
+      : "the transports held after start-server could not be read",
+    `${response.reestablished} of ${response.endpoints.length} endpoint(s) re-established`,
+  ]
+  const unrecovered = response.endpoints.filter((endpoint) => !endpoint.reestablished)
+  if (unrecovered.length > 0) {
+    parts.push(`not restored: ${unrecovered.map((endpoint) => endpoint.reason ? `${endpoint.endpoint} (${endpoint.reason})` : endpoint.endpoint).join("; ")}`)
+  }
+  return `adb server restart: ${parts.join("; ")}.`
+}
+
 export class RealControlPlaneClient implements ControlPlaneClient {
   private snapshot: ControlPlaneSnapshot
   private readonly services: ControlPlaneServices
@@ -1683,6 +1712,59 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         return mutation(intent, response.devices.length === 0
           ? "Discovery scan completed; no device responded."
           : `Discovery scan completed; ${response.devices.length} device(s) observed.`, { resourceId: response.scanRun?.id })
+      }
+      case "connectEndpoint": {
+        const response = await this.services.connection.connectEndpoint(requestId, intent.serial, intent.endpoint)
+        const output = response.output.trim()
+        return mutation(intent, output === ""
+          ? `The control plane opened ${response.endpoint} for ${intent.serial} on port ${response.port} and the adapter reported no output (exit code ${response.exitCode}).`
+          : `${response.endpoint} for ${intent.serial} on port ${response.port}: ${output}`, { resourceId: intent.serial })
+      }
+      case "changeTransportMode": {
+        if (!isTransportPort(intent.port)) {
+          return failure(intent, `Port ${intent.port} is outside the ports a transport may name (1-65535). ${intent.serial}'s transport mode was not changed and nothing was sent.`, { errorCode: "invalid_input" })
+        }
+        const response = await this.services.connection.changeTransportMode(requestId, intent.serial, intent.port)
+        // The service's sentence already names the device, the port and whether
+        // it came back needing the operator to accept the debugging prompt on
+        // the device's screen. That is an OUTCOME, not an error: the change
+        // happened, so it is reported as one rather than as a failed action.
+        return mutation(intent, response.message, { resourceId: intent.serial })
+      }
+      case "activatePort": {
+        const response = await this.services.connection.activatePort(requestId, intent.serial, intent.endpoint)
+        return mutation(intent, response.changed
+          ? `Port ${response.port} activated for ${intent.serial} at ${response.endpoint}.`
+          : `Port ${response.port} for ${intent.serial} at ${response.endpoint} is already accepted, so no activation was recorded and nothing changed.`, { resourceId: intent.serial })
+      }
+      case "restartTransportServer": {
+        if (intent.endpoints.length === 0) {
+          return failure(intent, "Restarting the adb server needs at least one observed endpoint to re-establish. Nothing was sent: a restart with nothing to restore would strand every device the server holds.", { errorCode: "invalid_input" })
+        }
+        const response = await this.services.connection.restartServer(requestId, intent.endpoints)
+        return mutation(intent, restartReport(response))
+      }
+      case "addDiscoveryRange": {
+        const parsed = parseDiscoveryRange(intent.startIp, intent.endIp)
+        if (!parsed.ok) return failure(intent, parsed.reason, { errorCode: "invalid_input" })
+        if (!isTransportPort(intent.port)) {
+          return failure(intent, `Port ${intent.port} is outside the ports a profile may accept (1-65535). ${parsed.range.addressPolicy} was not added and nothing was written.`, { errorCode: "invalid_input" })
+        }
+        const existing = this.snapshot.networkProfiles.find((profile) => addressPoliciesAreEquivalent(profile.addressPolicy, parsed.range.addressPolicy))
+        if (existing) {
+          return mutation(intent, `Range ${parsed.range.addressPolicy} already exists as the Network Profile "${existing.name}". Nothing was written.`, { resourceId: existing.id })
+        }
+        // The same NetworkProfileService create path the Network Profiles page
+        // uses, so the two surfaces cannot drift apart.
+        await this.services.networkProfile.createNetworkProfile(requestId, create(NetworkProfileSchema, {
+          id: "",
+          workspace: workspaceRef(workspaceId),
+          displayName: parsed.range.name,
+          addressPolicy: parsed.range.addressPolicy,
+          allowedPorts: [intent.port],
+          isDefault: false,
+        }))
+        return mutation(intent, `Range ${parsed.range.addressPolicy} created as a saved Network Profile for port ${intent.port}.`)
       }
       case "moveDeviceToGroup": {
         await this.services.group.moveDeviceToGroup(requestId, workspaceId, intent.deviceId, intent.groupId, intent.position)

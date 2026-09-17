@@ -291,7 +291,13 @@ func matchesAllowlist(args []string) (string, bool) {
 	if name, ok := matchesDeviceInputAllowlist(args); ok {
 		return name, true
 	}
-	return matchesReadOnlyAllowlist(args)
+	if name, ok := matchesReadOnlyAllowlist(args); ok {
+		return name, true
+	}
+	if name, ok := matchesTransportAllowlist(args); ok {
+		return name, true
+	}
+	return matchesHostAllowlist(args)
 }
 
 // matchesReadOnlyAllowlist recognises the read-only builders this adapter issues

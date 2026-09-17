@@ -40,7 +40,7 @@ func TestAuthorizedLabScannerRequiresLabRuntime(t *testing.T) {
 	}
 }
 
-func TestAuthorizedLabScannerMapsRuntimeDevicesInsidePortAndAddressPolicy(t *testing.T) {
+func TestAuthorizedLabScannerMapsRuntimeDevicesInsideTheHostRange(t *testing.T) {
 	profile := networkprofiles.NetworkProfile{
 		ID: "profile-1", Workspace: "ws", Name: "Lab", AddressPolicy: "192.0.2.0/28",
 		Ports: []uint16{5555},
@@ -62,15 +62,23 @@ func TestAuthorizedLabScannerMapsRuntimeDevicesInsidePortAndAddressPolicy(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(observations) != 2 {
-		t.Fatalf("observations = %#v, want tcp in-policy + usb", observations)
+	// D2: the port is not a filter. BAD-PORT is inside the host range and answers on a
+	// port the profile does not accept, so it IS observed — the decision about its port
+	// belongs at connect time, where the policy names the port and the reason. Its
+	// inclusion here is the correction; OUT-OF-CIDR stays out, because the host range is
+	// a legitimate bound and removing the port filter must not remove that with it.
+	if len(observations) != 3 {
+		t.Fatalf("observations = %#v, want the two in-policy devices plus the off-port one: a port is a discovered fact, not a filter", observations)
 	}
 	seen := map[string]bool{}
 	for _, observation := range observations {
 		seen[observation.Serial] = true
 	}
-	if !seen["LABSERIAL001"] || !seen["USB-LAB"] {
-		t.Fatalf("observations = %#v, want LABSERIAL001 and USB-LAB", observations)
+	if !seen["LABSERIAL001"] || !seen["USB-LAB"] || !seen["BAD-PORT"] {
+		t.Fatalf("observations = %#v, want LABSERIAL001, USB-LAB and BAD-PORT", observations)
+	}
+	if seen["OUT-OF-CIDR"] {
+		t.Fatalf("observations = %#v; a device outside the profile's host range must not be observed", observations)
 	}
 }
 

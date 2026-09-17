@@ -231,6 +231,16 @@ import {
   GetRuntimeStatusResponseSchema,
 } from "@/gen/drift/v1/runtime_pb"
 import { ConnectJsonClient, requestContext, workspaceRef } from "@/lib/api/connect-json"
+import {
+  ActivatePortRequestSchema,
+  ActivatePortResponseSchema,
+  ChangeTransportModeRequestSchema,
+  ChangeTransportModeResponseSchema,
+  ConnectEndpointRequestSchema,
+  ConnectEndpointResponseSchema,
+  RestartServerRequestSchema,
+  RestartServerResponseSchema,
+} from "@/gen/drift/v1/connection_pb"
 
 const listPage = create(PageRequestSchema, { pageSize: 200 })
 
@@ -922,8 +932,46 @@ export class WorkspaceClient {
   }
 }
 
+export class ConnectionClient {
+  private readonly rpc: TypedConnectClient
+  constructor(json: ConnectJsonClient) {
+    this.rpc = new TypedConnectClient(json, "drift.v1.ConnectionService")
+  }
+  // connectEndpoint opens one transport. The serial travels with the endpoint
+  // because it is what lets the service honour a port activation the operator
+  // made for THAT device; without it the profile's accepted ports decide alone.
+  connectEndpoint(requestId: string, serial: string, endpoint: string) {
+    return this.rpc.call("ConnectEndpoint", ConnectEndpointRequestSchema, ConnectEndpointResponseSchema, {
+      context: requestContext({ requestId }),
+      serial,
+      endpoint,
+    })
+  }
+  changeTransportMode(requestId: string, serial: string, port: number) {
+    return this.rpc.call("ChangeTransportMode", ChangeTransportModeRequestSchema, ChangeTransportModeResponseSchema, {
+      context: requestContext({ requestId }),
+      serial,
+      port,
+    })
+  }
+  activatePort(requestId: string, serial: string, endpoint: string) {
+    return this.rpc.call("ActivatePort", ActivatePortRequestSchema, ActivatePortResponseSchema, {
+      context: requestContext({ requestId }),
+      serial,
+      endpoint,
+    })
+  }
+  restartServer(requestId: string, endpoints: readonly string[]) {
+    return this.rpc.call("RestartServer", RestartServerRequestSchema, RestartServerResponseSchema, {
+      context: requestContext({ requestId }),
+      endpoints: [...endpoints],
+    })
+  }
+}
+
 export interface ControlPlaneServices {
   device: DeviceClient
+  connection: ConnectionClient
   networkProfile: NetworkProfileClient
   discovery: DiscoveryClient
   group: GroupClient
@@ -951,6 +999,7 @@ export interface ControlPlaneServices {
 export function createControlPlaneServices(json: ConnectJsonClient): ControlPlaneServices {
   return {
     device: new DeviceClient(json),
+    connection: new ConnectionClient(json),
     networkProfile: new NetworkProfileClient(json),
     discovery: new DiscoveryClient(json),
     group: new GroupClient(json),
