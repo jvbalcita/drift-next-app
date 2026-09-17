@@ -79,6 +79,37 @@ func KillServerArgv() []string { return []string{"kill-server"} }
 // StartServerArgv builds `adb start-server`. It has no variable position at all.
 func StartServerArgv() []string { return []string{"start-server"} }
 
+// TcpipArgv builds `adb -s <serial> tcpip <port>`. The port is a uint16, so the
+// token is canonical by construction: there is no way to ask this builder for a port
+// that is not one, and no string is parsed. A device address of 0 is refused rather
+// than passed through, because adbd listening on port 0 is not a thing an operator
+// means.
+func TcpipArgv(port uint16) ([]string, error) {
+	if port == 0 {
+		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "a tcpip port must be between 1 and 65535")
+	}
+	return []string{"tcpip", strconv.FormatUint(uint64(port), 10)}, nil
+}
+
+// matchesTransportAllowlist recognises the device transport-mode change: exactly
+// `tcpip <port>` with a canonical bounded port.
+//
+// It is deliberately NOT part of matchesHostAllowlist. `adb tcpip` acts on a DEVICE —
+// it restarts that device's adbd in TCP mode — so the array is only meaningful with a
+// serial attached, and the adapter supplies one through RunAllowlisted, which validates
+// it. A host-level admission is reached through RunHostAllowlisted, which is
+// serial-free by construction: admitting tcpip there would create a path that changes a
+// device's transport mode without ever naming a device, and the one thing worse than a
+// device command is a device command whose subject is whoever happens to be attached.
+// Keeping the two recognisers separate makes that unreachable rather than merely
+// unintended, and the tests assert it from both directions.
+func matchesTransportAllowlist(args []string) (string, bool) {
+	if len(args) == 2 && args[0] == "tcpip" && isBoundedDecimalBetween(args[1], 1, maxEndpointPort) {
+		return "tcpip", true
+	}
+	return "", false
+}
+
 // matchesHostAllowlist recognises exactly the three connection-management arrays
 // this adapter issues: `connect`, `kill-server` and `start-server`. It is a
 // recogniser of its own, like the device-input and read-only ones, because a safety

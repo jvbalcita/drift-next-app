@@ -294,6 +294,9 @@ func matchesAllowlist(args []string) (string, bool) {
 	if name, ok := matchesReadOnlyAllowlist(args); ok {
 		return name, true
 	}
+	if name, ok := matchesTransportAllowlist(args); ok {
+		return name, true
+	}
 	return matchesHostAllowlist(args)
 }
 
