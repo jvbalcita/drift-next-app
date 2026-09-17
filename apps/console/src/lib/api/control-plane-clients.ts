@@ -68,6 +68,8 @@ import {
   ListScanRunsResponseSchema,
   StartScanRequestSchema,
   StartScanResponseSchema,
+  StartRangeScanRequestSchema,
+  StartRangeScanResponseSchema,
 } from "@/gen/drift/v1/discovery_pb"
 import {
   GetEdgeAgentRequestSchema,
@@ -315,6 +317,14 @@ export class DiscoveryClient {
       context: requestContext({ requestId }),
       workspace: workspaceRef(workspaceId),
       networkProfileId,
+    })
+  }
+  startRangeScan(requestId: string, workspaceId: string, addressPolicy: string, port: number) {
+    return this.rpc.call("StartRangeScan", StartRangeScanRequestSchema, StartRangeScanResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      addressPolicy,
+      port,
     })
   }
   listScanRuns(workspaceId: string) {

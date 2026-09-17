@@ -45,7 +45,7 @@ import type {
   StorageHealthView,
   WorkflowView,
 } from "@/lib/domain/control-plane"
-import { addressPoliciesAreEquivalent, isTransportPort, parseDiscoveryRange } from "@/lib/api/address-range"
+import { addressPoliciesAreEquivalent, addressRangeContainsHost, isTransportPort, parseDiscoveryRange } from "@/lib/api/address-range"
 
 const workspace = {
   id: "workspace-demo",
@@ -252,13 +252,19 @@ const scanRuns: ScanRunView[] = [
 // responder, with the link state it answered in. The seeded run below is
 // narrower than a fresh scan, and profile-lab-b answers with nothing, so the
 // operator-facing empty scan stays exercised.
+//
+// mockObservedTransports are the transports this client's projection holds. A
+// scan reports whichever of them its target covers; nothing here is a socket,
+// so a scan never claims a responder this client did not already hold.
+const mockObservedTransports: readonly Omit<ObservedDeviceView, "scanRunId">[] = [
+  { host: "192.0.2.10", port: 5555, serial: "MOCK-DEVICE-101", model: "Mock Pixel 8", state: "online", known: true, deviceId: "atlas-04", endpointId: "endpoint-atlas-04-current" },
+  { host: "192.0.2.12", port: 5555, serial: "MOCK-DEVICE-104", model: "Mock Pixel 7", state: "offline", known: true, deviceId: "nova-05", endpointId: "endpoint-nova-05-current" },
+  { host: "192.0.2.31", port: 5555, serial: "MOCK-DEVICE-207", model: "Unknown Android", state: "unauthorized", known: false, deviceId: "", endpointId: "" },
+]
+
 function mockScanObservations(scanRunId: string, profileId: string): ObservedDeviceView[] {
   if (profileId !== "profile-lab-a") return []
-  return [
-    { scanRunId, host: "192.0.2.10", port: 5555, serial: "MOCK-DEVICE-101", model: "Mock Pixel 8", state: "online", known: true, deviceId: "atlas-04", endpointId: "endpoint-atlas-04-current" },
-    { scanRunId, host: "192.0.2.12", port: 5555, serial: "MOCK-DEVICE-104", model: "Mock Pixel 7", state: "offline", known: true, deviceId: "nova-05", endpointId: "endpoint-nova-05-current" },
-    { scanRunId, host: "192.0.2.31", port: 5555, serial: "MOCK-DEVICE-207", model: "Unknown Android", state: "unauthorized", known: false, deviceId: "", endpointId: "" },
-  ]
+  return mockObservedTransports.map((device) => ({ ...device, scanRunId }))
 }
 
 const scanObservations: ObservedDeviceView[] = [
@@ -936,6 +942,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.deleteNetworkProfile(intent)
       case "startScan":
         return this.startScan(intent)
+      case "scanRange":
+        return this.scanRange(intent)
+      case "reloadDevices":
+        return this.reloadDevices(intent)
       case "connectEndpoint":
         return this.connectEndpoint(intent)
       case "activateFleet":
@@ -1775,6 +1785,54 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       scanObservations: [...observed, ...this.snapshot.scanObservations],
     }
     return result(intent, `Mock scan completed; observed ${observed.length} device(s). No network sockets were opened.`, id)
+  }
+
+  /**
+   * The entered-range scan is reported as what it is IN THIS CLIENT: the
+   * transports this projection holds, bounded by the range the operator typed.
+   * The entered range is the bound — no saved profile's range has any part in
+   * the answer — because the console's IP Range Scan targets the range inputs.
+   * A range that covers nothing this client holds observes nothing, which is the
+   * honest answer rather than a set borrowed from a profile.
+   */
+  private scanRange(intent: Extract<ControlPlaneIntent, { type: "scanRange" }>): MutationResult {
+    const parsed = parseDiscoveryRange(intent.startIp, intent.endIp)
+    if (!parsed.ok) return rejection(intent, parsed.reason, undefined, "invalid_input")
+    if (!isTransportPort(intent.port)) {
+      return rejection(intent, `Port ${intent.port} is outside the ports a scan may name (1-65535). ${parsed.range.addressPolicy} was not scanned and no scan run was opened.`, undefined, "invalid_input")
+    }
+    const id = `scan-run-${String(this.nextSequence++).padStart(3, "0")}`
+    // An entered range is not saved policy, so the run holds no profile
+    // reference: nothing was written to saved discovery policy by scanning it.
+    const scan: ScanRunView = { id, networkProfileId: "", state: "completed", requestedAt: "just now", finishedAt: "just now" }
+    const observed = mockObservedTransports
+      .filter((device) => addressRangeContainsHost(parsed.range.addressPolicy, device.host))
+      .map((device) => ({ ...device, scanRunId: id }))
+    this.snapshot = {
+      ...this.snapshot,
+      scanRuns: [scan, ...this.snapshot.scanRuns],
+      scanObservations: [...observed, ...this.snapshot.scanObservations],
+    }
+    return result(intent, `Mock range scan of ${parsed.range.addressPolicy} on port ${intent.port} completed; observed ${observed.length} of the ${mockObservedTransports.length} transport(s) this client holds. No network sockets were opened and no Network Profile was written.`, id)
+  }
+
+  /**
+   * A reload is reported as what it is in this client: the devices this
+   * projection already knows, each with its own current observation. It re-reads
+   * and contacts nothing, and it restarts no adb server, so the transports a
+   * device already answers on are not dropped to answer it.
+   */
+  private reloadDevices(intent: Extract<ControlPlaneIntent, { type: "reloadDevices" }>): MutationResult {
+    const sentences = this.snapshot.devices.map((device) => {
+      const endpoint = this.snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
+      if (!endpoint) return `${device.displayName} has no current endpoint in this projection, so where it is reachable was not re-read`
+      const address = endpoint.host.trim() === "" ? `no TCP address (${endpoint.port === 0 ? "USB transport" : `unobserved port ${endpoint.port}`})` : `${endpoint.host}:${endpoint.port}`
+      return `${endpoint.serial || device.displayName} is observed at ${address}, last seen ${device.lastSeen}`
+    })
+    if (sentences.length === 0) {
+      return result(intent, "Mock reload found no device in this client's projection. No adb server was restarted and no device was contacted.")
+    }
+    return result(intent, `Mock reload re-read ${sentences.length} known device(s): ${sentences.join(". ")}. No adb server was restarted and no device was contacted.`)
   }
 
   /**

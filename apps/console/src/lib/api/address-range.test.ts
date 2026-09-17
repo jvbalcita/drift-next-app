@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { addressPoliciesAreEquivalent, isTransportPort, parseDiscoveryRange } from "./address-range"
+import { addressPoliciesAreEquivalent, addressRangeContainsHost, isTransportPort, parseDiscoveryRange } from "./address-range"
 
 describe("parseDiscoveryRange", () => {
   it("accepts an inclusive IPv4 range and describes what would be written", () => {
@@ -57,6 +57,27 @@ describe("addressPoliciesAreEquivalent", () => {
     expect(addressPoliciesAreEquivalent("not a policy", "192.0.2.0/24")).toBe(false)
     expect(addressPoliciesAreEquivalent("", "")).toBe(false)
     expect(addressPoliciesAreEquivalent("192.0.2.0/33", "192.0.2.0/24")).toBe(false)
+  })
+})
+
+describe("addressRangeContainsHost", () => {
+  it("bounds a host by the range's own endpoints, inclusively", () => {
+    expect(addressRangeContainsHost("192.0.2.1-192.0.2.20", "192.0.2.1")).toBe(true)
+    expect(addressRangeContainsHost("192.0.2.1-192.0.2.20", "192.0.2.20")).toBe(true)
+    expect(addressRangeContainsHost("192.0.2.1-192.0.2.20", "192.0.2.21")).toBe(false)
+    expect(addressRangeContainsHost("192.0.2.1-192.0.2.20", "192.0.1.255")).toBe(false)
+  })
+
+  it("reads a CIDR policy as the bounded set it masks into", () => {
+    expect(addressRangeContainsHost("192.0.2.0/24", "192.0.2.31")).toBe(true)
+    expect(addressRangeContainsHost("192.0.2.0/24", "192.0.3.1")).toBe(false)
+  })
+
+  it("contains nothing it cannot read, so a policy it cannot parse bounds nothing", () => {
+    expect(addressRangeContainsHost("not a policy", "192.0.2.1")).toBe(false)
+    expect(addressRangeContainsHost("192.0.2.0/33", "192.0.2.1")).toBe(false)
+    expect(addressRangeContainsHost("192.0.2.1-192.0.2.20", "not-an-address")).toBe(false)
+    expect(addressRangeContainsHost("", "")).toBe(false)
   })
 })
 

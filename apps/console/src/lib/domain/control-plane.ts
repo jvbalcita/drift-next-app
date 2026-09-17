@@ -664,6 +664,24 @@ export type ControlPlaneIntent =
   | { type: "deleteNetworkProfile"; profileId: string; confirmed: boolean }
   | { type: "startScan"; profileId: string }
   /**
+   * scanRange scans the IP range the operator ENTERED in the OTG Setup tab. It
+   * is a second scan with a second target rather than startScan with another
+   * argument: startScan names a saved Network Profile, and this names the range
+   * itself and the port it is observed for. It saves nothing — Add is the control
+   * that writes saved policy — so a scan of a range nobody saved reports on the
+   * range the operator typed rather than on a profile that happens to bound the
+   * same addresses.
+   */
+  | { type: "scanRange"; startIp: string; endIp: string; port: number }
+  /**
+   * reloadDevices re-observes the devices this workspace already knows about and
+   * reports each one's own current observation. It opens no scan run and it is
+   * not a transport operation: nothing is restarted, so a device that is already
+   * discoverable can be re-read without dropping the transports the host's adb
+   * server holds.
+   */
+  | { type: "reloadDevices" }
+  /**
    * The OTG Setup tab's transport operations. connectEndpoint names ONE device by
    * its serial, which is its stable identity: an endpoint on its own does not
    * say whose port decision is being made. activateFleet names a port and

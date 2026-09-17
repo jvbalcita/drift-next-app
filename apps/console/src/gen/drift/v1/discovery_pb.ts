@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/discovery.proto.
  */
 export const file_drift_v1_discovery: GenFile = /*@__PURE__*/
-  fileDesc("ChhkcmlmdC92MS9kaXNjb3ZlcnkucHJvdG8SCGRyaWZ0LnYxItIBCgdTY2FuUnVuEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIaChJuZXR3b3JrX3Byb2ZpbGVfaWQYAyABKAkSJQoFc3RhdGUYBCABKA4yFi5kcmlmdC52MS5TY2FuUnVuU3RhdGUSFAoMcmVxdWVzdGVkX2F0GAUgASgJEhMKC2ZpbmlzaGVkX2F0GAYgASgJEiIKB2ZhaWx1cmUYByABKAsyES5kcmlmdC52MS5GYWlsdXJlIqwBCg5PYnNlcnZlZERldmljZRIMCgRob3N0GAEgASgJEgwKBHBvcnQYAiABKA0SDgoGc2VyaWFsGAMgASgJEg0KBW1vZGVsGAQgASgJEigKBXN0YXRlGAUgASgOMhkuZHJpZnQudjEuRGV2aWNlTGlua1N0YXRlEg0KBWtub3duGAYgASgIEhEKCWRldmljZV9pZBgHIAEoCRITCgtlbmRwb2ludF9pZBgIIAEoCSKEAQoQU3RhcnRTY2FuUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhoKEm5ldHdvcmtfcHJvZmlsZV9pZBgDIAEoCSJjChFTdGFydFNjYW5SZXNwb25zZRIjCghzY2FuX3J1bhgBIAEoCzIRLmRyaWZ0LnYxLlNjYW5SdW4SKQoHZGV2aWNlcxgCIAMoCzIYLmRyaWZ0LnYxLk9ic2VydmVkRGV2aWNlImUKE0xpc3RTY2FuUnVuc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAiABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJiChRMaXN0U2NhblJ1bnNSZXNwb25zZRIkCglzY2FuX3J1bnMYASADKAsyES5kcmlmdC52MS5TY2FuUnVuEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UqvwEKDFNjYW5SdW5TdGF0ZRIeChpTQ0FOX1JVTl9TVEFURV9VTlNQRUNJRklFRBAAEhwKGFNDQU5fUlVOX1NUQVRFX1JFUVVFU1RFRBABEhoKFlNDQU5fUlVOX1NUQVRFX1JVTk5JTkcQAhIcChhTQ0FOX1JVTl9TVEFURV9DT01QTEVURUQQAxIZChVTQ0FOX1JVTl9TVEFURV9GQUlMRUQQBBIcChhTQ0FOX1JVTl9TVEFURV9DQU5DRUxMRUQQBSqVAQoPRGV2aWNlTGlua1N0YXRlEiEKHURFVklDRV9MSU5LX1NUQVRFX1VOU1BFQ0lGSUVEEAASHAoYREVWSUNFX0xJTktfU1RBVEVfT05MSU5FEAESHQoZREVWSUNFX0xJTktfU1RBVEVfT0ZGTElORRACEiIKHkRFVklDRV9MSU5LX1NUQVRFX1VOQVVUSE9SSVpFRBADMqcBChBEaXNjb3ZlcnlTZXJ2aWNlEkQKCVN0YXJ0U2NhbhIaLmRyaWZ0LnYxLlN0YXJ0U2NhblJlcXVlc3QaGy5kcmlmdC52MS5TdGFydFNjYW5SZXNwb25zZRJNCgxMaXN0U2NhblJ1bnMSHS5kcmlmdC52MS5MaXN0U2NhblJ1bnNSZXF1ZXN0Gh4uZHJpZnQudjEuTGlzdFNjYW5SdW5zUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChhkcmlmdC92MS9kaXNjb3ZlcnkucHJvdG8SCGRyaWZ0LnYxItIBCgdTY2FuUnVuEgoKAmlkGAEgASgJEikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIaChJuZXR3b3JrX3Byb2ZpbGVfaWQYAyABKAkSJQoFc3RhdGUYBCABKA4yFi5kcmlmdC52MS5TY2FuUnVuU3RhdGUSFAoMcmVxdWVzdGVkX2F0GAUgASgJEhMKC2ZpbmlzaGVkX2F0GAYgASgJEiIKB2ZhaWx1cmUYByABKAsyES5kcmlmdC52MS5GYWlsdXJlIqwBCg5PYnNlcnZlZERldmljZRIMCgRob3N0GAEgASgJEgwKBHBvcnQYAiABKA0SDgoGc2VyaWFsGAMgASgJEg0KBW1vZGVsGAQgASgJEigKBXN0YXRlGAUgASgOMhkuZHJpZnQudjEuRGV2aWNlTGlua1N0YXRlEg0KBWtub3duGAYgASgIEhEKCWRldmljZV9pZBgHIAEoCRITCgtlbmRwb2ludF9pZBgIIAEoCSKEAQoQU3RhcnRTY2FuUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhoKEm5ldHdvcmtfcHJvZmlsZV9pZBgDIAEoCSJjChFTdGFydFNjYW5SZXNwb25zZRIjCghzY2FuX3J1bhgBIAEoCzIRLmRyaWZ0LnYxLlNjYW5SdW4SKQoHZGV2aWNlcxgCIAMoCzIYLmRyaWZ0LnYxLk9ic2VydmVkRGV2aWNlIpMBChVTdGFydFJhbmdlU2NhblJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIWCg5hZGRyZXNzX3BvbGljeRgDIAEoCRIMCgRwb3J0GAQgASgNImgKFlN0YXJ0UmFuZ2VTY2FuUmVzcG9uc2USIwoIc2Nhbl9ydW4YASABKAsyES5kcmlmdC52MS5TY2FuUnVuEikKB2RldmljZXMYAiADKAsyGC5kcmlmdC52MS5PYnNlcnZlZERldmljZSJlChNMaXN0U2NhblJ1bnNSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIjCgRwYWdlGAIgASgLMhUuZHJpZnQudjEuUGFnZVJlcXVlc3QiYgoUTGlzdFNjYW5SdW5zUmVzcG9uc2USJAoJc2Nhbl9ydW5zGAEgAygLMhEuZHJpZnQudjEuU2NhblJ1bhIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlKr8BCgxTY2FuUnVuU3RhdGUSHgoaU0NBTl9SVU5fU1RBVEVfVU5TUEVDSUZJRUQQABIcChhTQ0FOX1JVTl9TVEFURV9SRVFVRVNURUQQARIaChZTQ0FOX1JVTl9TVEFURV9SVU5OSU5HEAISHAoYU0NBTl9SVU5fU1RBVEVfQ09NUExFVEVEEAMSGQoVU0NBTl9SVU5fU1RBVEVfRkFJTEVEEAQSHAoYU0NBTl9SVU5fU1RBVEVfQ0FOQ0VMTEVEEAUqlQEKD0RldmljZUxpbmtTdGF0ZRIhCh1ERVZJQ0VfTElOS19TVEFURV9VTlNQRUNJRklFRBAAEhwKGERFVklDRV9MSU5LX1NUQVRFX09OTElORRABEh0KGURFVklDRV9MSU5LX1NUQVRFX09GRkxJTkUQAhIiCh5ERVZJQ0VfTElOS19TVEFURV9VTkFVVEhPUklaRUQQAzL8AQoQRGlzY292ZXJ5U2VydmljZRJECglTdGFydFNjYW4SGi5kcmlmdC52MS5TdGFydFNjYW5SZXF1ZXN0GhsuZHJpZnQudjEuU3RhcnRTY2FuUmVzcG9uc2USUwoOU3RhcnRSYW5nZVNjYW4SHy5kcmlmdC52MS5TdGFydFJhbmdlU2NhblJlcXVlc3QaIC5kcmlmdC52MS5TdGFydFJhbmdlU2NhblJlc3BvbnNlEk0KDExpc3RTY2FuUnVucxIdLmRyaWZ0LnYxLkxpc3RTY2FuUnVuc1JlcXVlc3QaHi5kcmlmdC52MS5MaXN0U2NhblJ1bnNSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
 
 /**
  * @generated from message drift.v1.ScanRun
@@ -167,6 +167,71 @@ export const StartScanResponseSchema: GenMessage<StartScanResponse> = /*@__PURE_
   messageDesc(file_drift_v1_discovery, 3);
 
 /**
+ * StartRangeScanRequest names a range the operator ENTERED, and nothing saved:
+ * the OTG Setup tab's Scan scans what was typed into its IP Range inputs, so its
+ * target is the entered range rather than the Saved network control's profile.
+ * address_policy carries the same inclusive `start-end` spelling a saved profile
+ * with a range policy stores, so one entered range has one spelling whichever
+ * control names it.
+ *
+ * @generated from message drift.v1.StartRangeScanRequest
+ */
+export type StartRangeScanRequest = Message<"drift.v1.StartRangeScanRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * The entered inclusive IPv4 range, spelled `start-end`.
+   *
+   * @generated from field: string address_policy = 3;
+   */
+  addressPolicy: string;
+
+  /**
+   * The single port the entered range is observed for.
+   *
+   * @generated from field: uint32 port = 4;
+   */
+  port: number;
+};
+
+/**
+ * Describes the message drift.v1.StartRangeScanRequest.
+ * Use `create(StartRangeScanRequestSchema)` to create a new message.
+ */
+export const StartRangeScanRequestSchema: GenMessage<StartRangeScanRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_discovery, 4);
+
+/**
+ * @generated from message drift.v1.StartRangeScanResponse
+ */
+export type StartRangeScanResponse = Message<"drift.v1.StartRangeScanResponse"> & {
+  /**
+   * @generated from field: drift.v1.ScanRun scan_run = 1;
+   */
+  scanRun?: ScanRun;
+
+  /**
+   * @generated from field: repeated drift.v1.ObservedDevice devices = 2;
+   */
+  devices: ObservedDevice[];
+};
+
+/**
+ * Describes the message drift.v1.StartRangeScanResponse.
+ * Use `create(StartRangeScanResponseSchema)` to create a new message.
+ */
+export const StartRangeScanResponseSchema: GenMessage<StartRangeScanResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_discovery, 5);
+
+/**
  * @generated from message drift.v1.ListScanRunsRequest
  */
 export type ListScanRunsRequest = Message<"drift.v1.ListScanRunsRequest"> & {
@@ -186,7 +251,7 @@ export type ListScanRunsRequest = Message<"drift.v1.ListScanRunsRequest"> & {
  * Use `create(ListScanRunsRequestSchema)` to create a new message.
  */
 export const ListScanRunsRequestSchema: GenMessage<ListScanRunsRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_discovery, 4);
+  messageDesc(file_drift_v1_discovery, 6);
 
 /**
  * @generated from message drift.v1.ListScanRunsResponse
@@ -208,7 +273,7 @@ export type ListScanRunsResponse = Message<"drift.v1.ListScanRunsResponse"> & {
  * Use `create(ListScanRunsResponseSchema)` to create a new message.
  */
 export const ListScanRunsResponseSchema: GenMessage<ListScanRunsResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_discovery, 5);
+  messageDesc(file_drift_v1_discovery, 7);
 
 /**
  * @generated from enum drift.v1.ScanRunState
@@ -297,6 +362,18 @@ export const DiscoveryService: GenService<{
     methodKind: "unary";
     input: typeof StartScanRequestSchema;
     output: typeof StartScanResponseSchema;
+  },
+  /**
+   * StartRangeScan runs one scan of the range an operator entered. It is a
+   * second target, not a second way to scan a saved profile: the run records no
+   * profile reference, because the range it scanned is not saved policy.
+   *
+   * @generated from rpc drift.v1.DiscoveryService.StartRangeScan
+   */
+  startRangeScan: {
+    methodKind: "unary";
+    input: typeof StartRangeScanRequestSchema;
+    output: typeof StartRangeScanResponseSchema;
   },
   /**
    * @generated from rpc drift.v1.DiscoveryService.ListScanRuns

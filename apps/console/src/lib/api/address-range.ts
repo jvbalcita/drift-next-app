@@ -112,6 +112,20 @@ function ipv4ToValue(value: string): number | null {
   return result
 }
 
+/**
+ * addressRangeContainsHost reports whether a host falls inside an inclusive
+ * `start-end` address policy. It answers for the bounded SET the policy denotes,
+ * so a caller bounding an observation by an entered range uses the same reading
+ * of the range the service applies rather than its own string comparison. A
+ * policy this console cannot parse contains nothing.
+ */
+export function addressRangeContainsHost(addressPolicy: string, host: string): boolean {
+  const bounds = addressPolicyBounds(addressPolicy)
+  const value = ipv4ToValue(host)
+  if (!bounds || value === null) return false
+  return value >= bounds.first && value <= bounds.last
+}
+
 /** isPortInAcceptedSet reports whether a port is one a transport may name. */
 export function isTransportPort(value: number): boolean {
   return Number.isInteger(value) && value >= 1 && value <= 65535
