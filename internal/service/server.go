@@ -81,6 +81,27 @@ func TextReferenceRoute(registry *execution.TextReferenceRegistry, token string)
 	return Route{Path: TextReferencePath, Handler: RequireLabToken(token, handler)}
 }
 
+// ConnectionRoute mounts the transport surface the OTG Setup tab performs:
+// connect, change transport mode, activate port, and restart the adb server.
+//
+// It is a route only when a transport boundary was constructed. A nil boundary
+// yields an empty route, so a deployment without a connector, restarter or
+// activator exposes no transport control at all rather than a control that can
+// only refuse — the same rule the device input and text reference routes
+// already apply.
+//
+// The route carries the same constant-time token check as the other local
+// surfaces. It reaches devices, so loopback reachability alone is not authority
+// for a hostile local caller.
+func ConnectionRoute(operations transportconnect.Connections, token string) Route {
+	handler := transportconnect.NewConnectionHandler(operations)
+	if handler == nil {
+		return Route{}
+	}
+	path, connectHandler := driftv1connect.NewConnectionServiceHandler(handler)
+	return Route{Path: path, Handler: RequireLabToken(token, connectHandler)}
+}
+
 // ProductRoutes mounts the local product Connect surfaces when handlers were
 // constructed against an open SQLite store. Empty handlers are skipped.
 func ProductRoutes(handlers *transportconnect.ProductHandlers, token string) []Route {
