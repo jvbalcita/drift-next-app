@@ -364,16 +364,48 @@ describe("MockControlPlaneClient", () => {
     const connected = client.dispatch({ type: "connectEndpoint", serial: "MOCK-DEVICE-101", endpoint: "192.0.2.10:5555" })
     const restarted = client.dispatch({ type: "restartTransportServer", endpoints: ["192.0.2.10:5555"] })
     const refusedRestart = client.dispatch({ type: "restartTransportServer", endpoints: [] })
-    const changed = client.dispatch({ type: "changeTransportMode", serial: "MOCK-DEVICE-101", port: 5556 })
-    const activated = client.dispatch({ type: "activatePort", serial: "MOCK-DEVICE-101", endpoint: "192.0.2.10:5555" })
+    const activated = client.dispatch({ type: "activateFleet", port: 5555 })
 
     expect(connected.message).toMatch(/no transport was opened/i)
     expect(restarted.message).toMatch(/no adb process was touched/i)
-    expect(changed.message).toMatch(/no adbd was restarted/i)
-    // 5555 is in the mock profiles' accepted set, so it is NOT an activation.
-    expect(activated.message).toMatch(/already accepted/i)
+    expect(activated.message).toMatch(/no adbd was restarted/i)
+    expect(activated.ok).toBe(true)
     expect(refusedRestart.ok).toBe(false)
     expect(refusedRestart.message).toMatch(/at least one observed endpoint/i)
+  })
+
+  it("reports a fleet activation per serial, and keeps already-there apart from moved", () => {
+    const client = new MockControlPlaneClient()
+    const snapshot = client.getSnapshot()
+    const serials = snapshot.devices.map((device) => snapshot.endpoints.find((endpoint) => endpoint.deviceId === device.id && endpoint.state === "current")?.serial ?? "")
+    expect(serials.every((serial) => serial !== "")).toBe(true)
+
+    // 5556 is not the port these devices were observed on, so every one of them
+    // is a device the client would have sent the change to — named on its own.
+    const moved = client.dispatch({ type: "activateFleet", port: 5556 })
+    expect(moved.ok).toBe(true)
+    for (const serial of serials) {
+      expect(moved.message).toContain(`${serial} would have been moved to port 5556`)
+    }
+    expect(moved.message).toMatch(/no adbd was restarted and no device was contacted/i)
+
+    // The port every endpoint was observed on is a different answer for every
+    // one of them, and reporting it as a move would claim credit for nothing.
+    const unchanged = client.dispatch({ type: "activateFleet", port: 5555 })
+    expect(unchanged.message).not.toBe(moved.message)
+    for (const serial of serials) {
+      expect(unchanged.message).toContain(`${serial} already answers on port 5555`)
+    }
+  })
+
+  it("refuses a fleet activation on a port that is not a port", () => {
+    const client = new MockControlPlaneClient()
+
+    const result = client.dispatch({ type: "activateFleet", port: 70000 })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toContain("70000")
+    expect(result.message).toMatch(/No device was moved and nothing was sent/i)
   })
 
   it("creates a discovery range only when no saved profile holds an equivalent one", () => {

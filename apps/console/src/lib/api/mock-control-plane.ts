@@ -932,10 +932,8 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.startScan(intent)
       case "connectEndpoint":
         return this.connectEndpoint(intent)
-      case "changeTransportMode":
-        return this.changeTransportMode(intent)
-      case "activatePort":
-        return this.activatePort(intent)
+      case "activateFleet":
+        return this.activateFleet(intent)
       case "restartTransportServer":
         return this.restartTransportServer(intent)
       case "addDiscoveryRange":
@@ -1785,25 +1783,32 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     return result(intent, `Mock connect recorded for ${intent.serial} at ${intent.endpoint}; no transport was opened and no device was contacted.`, intent.serial)
   }
 
-  private changeTransportMode(intent: Extract<ControlPlaneIntent, { type: "changeTransportMode" }>): MutationResult {
-    if (intent.serial.trim() === "") return rejection(intent, "A serial is required: the change restarts that device's adbd and must name it.", undefined, "invalid_input")
-    if (!isTransportPort(intent.port)) return rejection(intent, `Port ${intent.port} is outside the ports a transport may name (1-65535).`, undefined, "invalid_input")
-    return result(intent, `Mock transport mode change recorded for ${intent.serial} on port ${intent.port}; no adbd was restarted.`, intent.serial)
-  }
-
-  private activatePort(intent: Extract<ControlPlaneIntent, { type: "activatePort" }>): MutationResult {
-    if (intent.serial.trim() === "") return rejection(intent, "A serial is required: an activation is a statement about one device.", undefined, "invalid_input")
-    const parsed = /^(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})$/.exec(intent.endpoint.trim())
-    if (!parsed) return rejection(intent, `The device's observed endpoint must be a canonical IPv4:port; ${intent.endpoint} was not activated.`, undefined, "invalid_input")
-    const port = Number(parsed[2])
-    if (!isTransportPort(port)) return rejection(intent, `Port ${parsed[2]} is outside the ports a transport may name (1-65535).`, undefined, "invalid_input")
-    // The mock projection's profiles are the accepted set, exactly as the
-    // profile is on the real path: "activated" and "already accepted" stay
-    // different answers here too.
-    const accepted = this.snapshot.networkProfiles.some((profile) => profile.ports.includes(port))
-    return result(intent, accepted
-      ? `Port ${port} for ${intent.serial} at ${parsed[0]} is already accepted by a saved profile, so no activation was recorded and nothing changed.`
-      : `Mock port activation recorded for ${intent.serial} at ${parsed[0]}; no device policy was changed.`, intent.serial)
+  /**
+   * The fleet activation is reported as what it is IN THIS CLIENT, and per
+   * serial. The mock holds no adb server and no device, so a message claiming a
+   * device was moved would be a lie about the only thing this client can do.
+   * What it does hold is its own projection, so it says which of its devices
+   * already answer on the port and which would have been sent the change.
+   */
+  private activateFleet(intent: Extract<ControlPlaneIntent, { type: "activateFleet" }>): MutationResult {
+    if (!isTransportPort(intent.port)) return rejection(intent, `Port ${intent.port} is outside the ports a transport may name (1-65535). No device was moved and nothing was sent.`, undefined, "invalid_input")
+    // One sentence per device, because a count of devices is not an answer an
+    // operator can act on: which device is which is the whole point of reporting
+    // per serial.
+    const sentences = this.snapshot.devices.map((device) => {
+      const endpoint = this.snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
+      if (!endpoint) return `${device.displayName} has no current observed endpoint in this projection, so which port it answers on is unknown`
+      // An endpoint's port is the port this device was OBSERVED on, so "already
+      // answers" here is a fact about the projection rather than a guess about a
+      // device this client cannot reach.
+      return endpoint.port === intent.port
+        ? `${endpoint.serial} already answers on port ${intent.port}, so nothing was sent for it`
+        : `${endpoint.serial} would have been moved to port ${intent.port}`
+    })
+    if (sentences.length === 0) {
+      return result(intent, `Mock fleet activation on port ${intent.port} found no device in this client's projection. No adbd was restarted and no device was contacted.`)
+    }
+    return result(intent, `Mock fleet activation on port ${intent.port}: ${sentences.join(". ")}. No adbd was restarted and no device was contacted.`)
   }
 
   private restartTransportServer(intent: Extract<ControlPlaneIntent, { type: "restartTransportServer" }>): MutationResult {

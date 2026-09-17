@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/connection.proto.
  */
 export const file_drift_v1_connection: GenFile = /*@__PURE__*/
-  fileDesc("ChlkcmlmdC92MS9jb25uZWN0aW9uLnByb3RvEghkcmlmdC52MSJrCg9FbmRwb2ludE91dGNvbWUSEAoIZW5kcG9pbnQYASABKAkSDAoEcG9ydBgCIAEoDRIVCg1yZWVzdGFibGlzaGVkGAMgASgIEhEKCWV4aXRfY29kZRgEIAEoBRIOCgZyZWFzb24YBSABKAkiZQoWQ29ubmVjdEVuZHBvaW50UmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSDgoGc2VyaWFsGAIgASgJEhAKCGVuZHBvaW50GAMgASgJIlwKF0Nvbm5lY3RFbmRwb2ludFJlc3BvbnNlEhAKCGVuZHBvaW50GAEgASgJEgwKBHBvcnQYAiABKA0SEQoJZXhpdF9jb2RlGAMgASgFEg4KBm91dHB1dBgEIAEoCSJlChpDaGFuZ2VUcmFuc3BvcnRNb2RlUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSDgoGc2VyaWFsGAIgASgJEgwKBHBvcnQYAyABKA0iywEKG0NoYW5nZVRyYW5zcG9ydE1vZGVSZXNwb25zZRIOCgZzZXJpYWwYASABKAkSDAoEcG9ydBgCIAEoDRIUCgxzdGF0ZV9iZWZvcmUYAyABKAkSGQoRY29ubmVjdGlvbl9iZWZvcmUYBCABKAkSEwoLc3RhdGVfYWZ0ZXIYBSABKAkSJAocbmVlZHNfb3BlcmF0b3JfYXV0aG9yaXphdGlvbhgGIAEoCBIPCgdtZXNzYWdlGAcgASgJEhEKCWV4aXRfY29kZRgIIAEoBSJiChNBY3RpdmF0ZVBvcnRSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIOCgZzZXJpYWwYAiABKAkSEAoIZW5kcG9pbnQYAyABKAkibQoUQWN0aXZhdGVQb3J0UmVzcG9uc2USDgoGc2VyaWFsGAEgASgJEhAKCGVuZHBvaW50GAIgASgJEgwKBHBvcnQYAyABKA0SDwoHY2hhbmdlZBgEIAEoCBIUCgxhY3RpdmF0ZWRfYXQYBSABKAkiVAoUUmVzdGFydFNlcnZlclJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EhEKCWVuZHBvaW50cxgCIAMoCSKpAgoVUmVzdGFydFNlcnZlclJlc3BvbnNlEhkKEXRyYW5zcG9ydHNfYmVmb3JlGAEgASgNEiQKHHRyYW5zcG9ydHNfYWZ0ZXJfc3RhcnRfa25vd24YAiABKAgSHgoWdHJhbnNwb3J0c19hZnRlcl9zdGFydBgDIAEoDRIWCg5raWxsX2V4aXRfY29kZRgEIAEoBRITCgtraWxsX2ZhaWxlZBgFIAEoCBIXCg9zdGFydF9leGl0X2NvZGUYBiABKAUSFAoMc3RhcnRfZmFpbGVkGAcgASgIEhUKDXJlZXN0YWJsaXNoZWQYCCABKA0SDgoGZmFpbGVkGAkgASgNEiwKCWVuZHBvaW50cxgKIAMoCzIZLmRyaWZ0LnYxLkVuZHBvaW50T3V0Y29tZTLwAgoRQ29ubmVjdGlvblNlcnZpY2USVgoPQ29ubmVjdEVuZHBvaW50EiAuZHJpZnQudjEuQ29ubmVjdEVuZHBvaW50UmVxdWVzdBohLmRyaWZ0LnYxLkNvbm5lY3RFbmRwb2ludFJlc3BvbnNlEmIKE0NoYW5nZVRyYW5zcG9ydE1vZGUSJC5kcmlmdC52MS5DaGFuZ2VUcmFuc3BvcnRNb2RlUmVxdWVzdBolLmRyaWZ0LnYxLkNoYW5nZVRyYW5zcG9ydE1vZGVSZXNwb25zZRJNCgxBY3RpdmF0ZVBvcnQSHS5kcmlmdC52MS5BY3RpdmF0ZVBvcnRSZXF1ZXN0Gh4uZHJpZnQudjEuQWN0aXZhdGVQb3J0UmVzcG9uc2USUAoNUmVzdGFydFNlcnZlchIeLmRyaWZ0LnYxLlJlc3RhcnRTZXJ2ZXJSZXF1ZXN0Gh8uZHJpZnQudjEuUmVzdGFydFNlcnZlclJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChlkcmlmdC92MS9jb25uZWN0aW9uLnByb3RvEghkcmlmdC52MSJrCg9FbmRwb2ludE91dGNvbWUSEAoIZW5kcG9pbnQYASABKAkSDAoEcG9ydBgCIAEoDRIVCg1yZWVzdGFibGlzaGVkGAMgASgIEhEKCWV4aXRfY29kZRgEIAEoBRIOCgZyZWFzb24YBSABKAkiZQoWQ29ubmVjdEVuZHBvaW50UmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSDgoGc2VyaWFsGAIgASgJEhAKCGVuZHBvaW50GAMgASgJIlwKF0Nvbm5lY3RFbmRwb2ludFJlc3BvbnNlEhAKCGVuZHBvaW50GAEgASgJEgwKBHBvcnQYAiABKA0SEQoJZXhpdF9jb2RlGAMgASgFEg4KBm91dHB1dBgEIAEoCSJlChpDaGFuZ2VUcmFuc3BvcnRNb2RlUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSDgoGc2VyaWFsGAIgASgJEgwKBHBvcnQYAyABKA0iywEKG0NoYW5nZVRyYW5zcG9ydE1vZGVSZXNwb25zZRIOCgZzZXJpYWwYASABKAkSDAoEcG9ydBgCIAEoDRIUCgxzdGF0ZV9iZWZvcmUYAyABKAkSGQoRY29ubmVjdGlvbl9iZWZvcmUYBCABKAkSEwoLc3RhdGVfYWZ0ZXIYBSABKAkSJAocbmVlZHNfb3BlcmF0b3JfYXV0aG9yaXphdGlvbhgGIAEoCBIPCgdtZXNzYWdlGAcgASgJEhEKCWV4aXRfY29kZRgIIAEoBSJiChNBY3RpdmF0ZVBvcnRSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIOCgZzZXJpYWwYAiABKAkSEAoIZW5kcG9pbnQYAyABKAkibQoUQWN0aXZhdGVQb3J0UmVzcG9uc2USDgoGc2VyaWFsGAEgASgJEhAKCGVuZHBvaW50GAIgASgJEgwKBHBvcnQYAyABKA0SDwoHY2hhbmdlZBgEIAEoCBIUCgxhY3RpdmF0ZWRfYXQYBSABKAkiVAoUUmVzdGFydFNlcnZlclJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EhEKCWVuZHBvaW50cxgCIAMoCSKpAgoVUmVzdGFydFNlcnZlclJlc3BvbnNlEhkKEXRyYW5zcG9ydHNfYmVmb3JlGAEgASgNEiQKHHRyYW5zcG9ydHNfYWZ0ZXJfc3RhcnRfa25vd24YAiABKAgSHgoWdHJhbnNwb3J0c19hZnRlcl9zdGFydBgDIAEoDRIWCg5raWxsX2V4aXRfY29kZRgEIAEoBRITCgtraWxsX2ZhaWxlZBgFIAEoCBIXCg9zdGFydF9leGl0X2NvZGUYBiABKAUSFAoMc3RhcnRfZmFpbGVkGAcgASgIEhUKDXJlZXN0YWJsaXNoZWQYCCABKA0SDgoGZmFpbGVkGAkgASgNEiwKCWVuZHBvaW50cxgKIAMoCzIZLmRyaWZ0LnYxLkVuZHBvaW50T3V0Y29tZSL4AQoWRmxlZXRBY3RpdmF0aW9uT3V0Y29tZRIOCgZzZXJpYWwYASABKAkSDAoEcG9ydBgCIAEoDRIRCglhY3RpdmF0ZWQYAyABKAgSFwoPYWxyZWFkeV9vbl9wb3J0GAQgASgIEg8KB3JlZnVzYWwYBSABKAkSDwoHbWVzc2FnZRgGIAEoCRIkChxuZWVkc19vcGVyYXRvcl9hdXRob3JpemF0aW9uGAcgASgIEhQKDHN0YXRlX2JlZm9yZRgIIAEoCRITCgtzdGF0ZV9hZnRlchgJIAEoCRIRCglleGl0X2NvZGUYCiABKAUSDgoGZmFpbGVkGAsgASgIIk8KFEFjdGl2YXRlRmxlZXRSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIMCgRwb3J0GAIgASgNIssBChVBY3RpdmF0ZUZsZWV0UmVzcG9uc2USDAoEcG9ydBgBIAEoDRIRCglhY3RpdmF0ZWQYAiABKA0SJAocbmVlZHNfb3BlcmF0b3JfYXV0aG9yaXphdGlvbhgDIAEoDRIPCgdyZWZ1c2VkGAQgASgNEg4KBmZhaWxlZBgFIAEoDRIXCg9hbHJlYWR5X29uX3BvcnQYBiABKA0SMQoHZGV2aWNlcxgHIAMoCzIgLmRyaWZ0LnYxLkZsZWV0QWN0aXZhdGlvbk91dGNvbWUywgMKEUNvbm5lY3Rpb25TZXJ2aWNlElYKD0Nvbm5lY3RFbmRwb2ludBIgLmRyaWZ0LnYxLkNvbm5lY3RFbmRwb2ludFJlcXVlc3QaIS5kcmlmdC52MS5Db25uZWN0RW5kcG9pbnRSZXNwb25zZRJiChNDaGFuZ2VUcmFuc3BvcnRNb2RlEiQuZHJpZnQudjEuQ2hhbmdlVHJhbnNwb3J0TW9kZVJlcXVlc3QaJS5kcmlmdC52MS5DaGFuZ2VUcmFuc3BvcnRNb2RlUmVzcG9uc2USTQoMQWN0aXZhdGVQb3J0Eh0uZHJpZnQudjEuQWN0aXZhdGVQb3J0UmVxdWVzdBoeLmRyaWZ0LnYxLkFjdGl2YXRlUG9ydFJlc3BvbnNlElAKDVJlc3RhcnRTZXJ2ZXISHi5kcmlmdC52MS5SZXN0YXJ0U2VydmVyUmVxdWVzdBofLmRyaWZ0LnYxLlJlc3RhcnRTZXJ2ZXJSZXNwb25zZRJQCg1BY3RpdmF0ZUZsZWV0Eh4uZHJpZnQudjEuQWN0aXZhdGVGbGVldFJlcXVlc3QaHy5kcmlmdC52MS5BY3RpdmF0ZUZsZWV0UmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
 
 /**
  * EndpointOutcome is one endpoint's result inside a restart report. It is
@@ -392,6 +392,201 @@ export const RestartServerResponseSchema: GenMessage<RestartServerResponse> = /*
   messageDesc(file_drift_v1_connection, 8);
 
 /**
+ * FleetActivationOutcome is ONE device's result inside a fleet activation. It is
+ * reported per serial because an aggregate verdict hides which device was left
+ * without a transport: if thirteen devices come up and one is refused, the one
+ * has to be named, with its own reason and its own sentence.
+ *
+ * @generated from message drift.v1.FleetActivationOutcome
+ */
+export type FleetActivationOutcome = Message<"drift.v1.FleetActivationOutcome"> & {
+  /**
+   * @generated from field: string serial = 1;
+   */
+  serial: string;
+
+  /**
+   * @generated from field: uint32 port = 2;
+   */
+  port: number;
+
+  /**
+   * activated is true only when this device's transport mode was changed AND it
+   * came back able to accept this host.
+   *
+   * @generated from field: bool activated = 3;
+   */
+  activated: boolean;
+
+  /**
+   * already_on_port is true when the device was already answering on the target
+   * port, so nothing was sent for it. Nothing is activated by reporting it as
+   * activated.
+   *
+   * @generated from field: bool already_on_port = 4;
+   */
+  alreadyOnPort: boolean;
+
+  /**
+   * refusal names the precondition that failed, and is empty when none did:
+   * not_attached | not_authorized | not_usb. It is a stable classified reason,
+   * not prose, so a client can branch on it.
+   *
+   * @generated from field: string refusal = 5;
+   */
+  refusal: string;
+
+  /**
+   * message is the sentence an operator reads for THIS serial, naming the device
+   * and what it needs. It is a safe classified sentence, never raw command text.
+   *
+   * @generated from field: string message = 6;
+   */
+  message: string;
+
+  /**
+   * needs_operator_authorization is true when the change happened and the device
+   * came back unauthorized for this host. It is an OUTCOME and not an error: what
+   * it needs next is a person accepting the debugging prompt on the device's
+   * screen, not a retry.
+   *
+   * @generated from field: bool needs_operator_authorization = 7;
+   */
+  needsOperatorAuthorization: boolean;
+
+  /**
+   * @generated from field: string state_before = 8;
+   */
+  stateBefore: string;
+
+  /**
+   * state_after is empty for a device whose transport mode was never changed.
+   *
+   * @generated from field: string state_after = 9;
+   */
+  stateAfter: string;
+
+  /**
+   * @generated from field: int32 exit_code = 10;
+   */
+  exitCode: number;
+
+  /**
+   * failed is true when the change ran for this device and failed. It is its own
+   * answer because a client reading only activated/refusal/already_on_port would
+   * have to infer a failure from the absence of them, and a device whose state is
+   * unknown must not read as one that was simply not mentioned.
+   *
+   * @generated from field: bool failed = 11;
+   */
+  failed: boolean;
+};
+
+/**
+ * Describes the message drift.v1.FleetActivationOutcome.
+ * Use `create(FleetActivationOutcomeSchema)` to create a new message.
+ */
+export const FleetActivationOutcomeSchema: GenMessage<FleetActivationOutcome> = /*@__PURE__*/
+  messageDesc(file_drift_v1_connection, 9);
+
+/**
+ * ActivateFleetRequest names one port and nothing else. It deliberately carries
+ * NO device list: the fleet is read from the devices by the control plane, so an
+ * operator action cannot assert which devices are attached, and a client cannot
+ * pick a subject for a command it does not own.
+ *
+ * @generated from message drift.v1.ActivateFleetRequest
+ */
+export type ActivateFleetRequest = Message<"drift.v1.ActivateFleetRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * port is where each device's adbd will listen. It is a TCP port, not a
+   * profile bound: the profile's accepted ports decide at connect time, not
+   * here. The operator surface defaults it to 5555.
+   *
+   * @generated from field: uint32 port = 2;
+   */
+  port: number;
+};
+
+/**
+ * Describes the message drift.v1.ActivateFleetRequest.
+ * Use `create(ActivateFleetRequestSchema)` to create a new message.
+ */
+export const ActivateFleetRequestSchema: GenMessage<ActivateFleetRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_connection, 10);
+
+/**
+ * ActivateFleetResponse reports the fleet per device and, separately, the counts
+ * that make a bare "ok" impossible. The counts never stand in for the per-device
+ * outcomes: a client renders both.
+ *
+ * @generated from message drift.v1.ActivateFleetResponse
+ */
+export type ActivateFleetResponse = Message<"drift.v1.ActivateFleetResponse"> & {
+  /**
+   * @generated from field: uint32 port = 1;
+   */
+  port: number;
+
+  /**
+   * activated counts the devices that were moved onto the port and are usable.
+   *
+   * @generated from field: uint32 activated = 2;
+   */
+  activated: number;
+
+  /**
+   * needs_operator_authorization counts the devices that were moved onto the
+   * port and are waiting for a person.
+   *
+   * @generated from field: uint32 needs_operator_authorization = 3;
+   */
+  needsOperatorAuthorization: number;
+
+  /**
+   * refused counts the devices the transport-mode gate refused before anything
+   * ran for them.
+   *
+   * @generated from field: uint32 refused = 4;
+   */
+  refused: number;
+
+  /**
+   * failed counts the devices whose change ran and failed.
+   *
+   * @generated from field: uint32 failed = 5;
+   */
+  failed: number;
+
+  /**
+   * already_on_port counts the devices that were not touched because they
+   * already answer on the port.
+   *
+   * @generated from field: uint32 already_on_port = 6;
+   */
+  alreadyOnPort: number;
+
+  /**
+   * devices carries every outcome, in the order the devices reported themselves.
+   *
+   * @generated from field: repeated drift.v1.FleetActivationOutcome devices = 7;
+   */
+  devices: FleetActivationOutcome[];
+};
+
+/**
+ * Describes the message drift.v1.ActivateFleetResponse.
+ * Use `create(ActivateFleetResponseSchema)` to create a new message.
+ */
+export const ActivateFleetResponseSchema: GenMessage<ActivateFleetResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_connection, 11);
+
+/**
  * @generated from service drift.v1.ConnectionService
  */
 export const ConnectionService: GenService<{
@@ -426,6 +621,18 @@ export const ConnectionService: GenService<{
     methodKind: "unary";
     input: typeof RestartServerRequestSchema;
     output: typeof RestartServerResponseSchema;
+  },
+  /**
+   * ActivateFleet moves every discovered device that is not already answering on
+   * the port onto it. It is the OTG Setup tab's Activate control: one operator
+   * action over the fleet, one result per serial.
+   *
+   * @generated from rpc drift.v1.ConnectionService.ActivateFleet
+   */
+  activateFleet: {
+    methodKind: "unary";
+    input: typeof ActivateFleetRequestSchema;
+    output: typeof ActivateFleetResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_connection, 0);

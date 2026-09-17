@@ -651,18 +651,20 @@ export type ControlPlaneIntent =
   | { type: "deleteNetworkProfile"; profileId: string; confirmed: boolean }
   | { type: "startScan"; profileId: string }
   /**
-   * The OTG Setup tab's transport operations. The first three name ONE device by
+   * The OTG Setup tab's transport operations. connectEndpoint names ONE device by
    * its serial, which is its stable identity: an endpoint on its own does not
-   * say whose port decision is being made. restartTransportServer names a list
-   * of endpoints instead, and deliberately carries no device: `adb kill-server`
-   * and `adb start-server` are process-global, so a restart's blast radius is
-   * every transport the host's server holds, including devices outside this
-   * workspace. Naming a device on it would let an operator read a host
-   * operation as a per-device one.
+   * say whose port decision is being made. activateFleet names a port and
+   * NOTHING else — the fleet is read from the devices by the control plane, so
+   * an operator action cannot assert which devices are attached, and every
+   * device is answered for on its own rather than folded into one verdict.
+   * restartTransportServer names a list of endpoints instead, and deliberately
+   * carries no device: `adb kill-server` and `adb start-server` are
+   * process-global, so a restart's blast radius is every transport the host's
+   * server holds, including devices outside this workspace. Naming a device on
+   * it would let an operator read a host operation as a per-device one.
    */
   | { type: "connectEndpoint"; serial: string; endpoint: string }
-  | { type: "changeTransportMode"; serial: string; port: number }
-  | { type: "activatePort"; serial: string; endpoint: string }
+  | { type: "activateFleet"; port: number }
   | { type: "restartTransportServer"; endpoints: readonly string[] }
   /**
    * addDiscoveryRange creates the entered IPv4 range as saved discovery policy

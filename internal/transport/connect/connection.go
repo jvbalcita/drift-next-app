@@ -40,6 +40,11 @@ type Connections interface {
 	// whether anything changed, so "activated" and "already accepted" stay
 	// different answers.
 	ActivatePort(ctx context.Context, serial, endpoint string, at time.Time) (connection.PortActivation, bool, error)
+	// ActivateFleet moves every discovered device that is not already answering
+	// on the port onto it, one at a time, and reports each serial on its own.
+	// The fleet is read from the devices, so nothing about it comes from the
+	// caller.
+	ActivateFleet(ctx context.Context, port uint16) (connection.FleetActivationReport, error)
 	// Restart drops the adb server's transports and re-establishes the endpoints
 	// it was given, in the order it was given them.
 	Restart(ctx context.Context, endpoints []string) (connection.RestartOutcome, error)
@@ -85,6 +90,16 @@ func (o ConnectionOperations) ActivatePort(ctx context.Context, serial, endpoint
 		return connection.PortActivation{}, false, errNotWired("activate port")
 	}
 	return o.Connector.ActivatePort(ctx, serial, endpoint, at)
+}
+
+// ActivateFleet refuses when the activator was not constructed, for the same
+// reason the other methods do: a deployment without one must answer that the
+// operation is not available here rather than panic or appear to succeed.
+func (o ConnectionOperations) ActivateFleet(ctx context.Context, port uint16) (connection.FleetActivationReport, error) {
+	if o.Activator == nil {
+		return connection.FleetActivationReport{}, errNotWired("activate fleet")
+	}
+	return o.Activator.ActivateFleet(ctx, port)
 }
 
 func (o ConnectionOperations) Restart(ctx context.Context, endpoints []string) (connection.RestartOutcome, error) {
@@ -320,6 +335,74 @@ func (h *ConnectionHandler) RestartServer(ctx context.Context, request *connectr
 		response.TransportsAfterStart = uint32(outcome.TransportsAfterStart)
 	}
 	return connectrpc.NewResponse(response), nil
+}
+
+// ActivateFleet moves every discovered device that is not already answering on
+// the port onto it, and reports each serial on its own.
+//
+// The request names a port and nothing else, because the fleet is read from the
+// devices rather than taken from the caller: an operator action cannot assert
+// which devices are attached, and a refusal or a failure is reported against the
+// serial it happened to instead of ending the run.
+func (h *ConnectionHandler) ActivateFleet(ctx context.Context, request *connectrpc.Request[driftv1.ActivateFleetRequest]) (*connectrpc.Response[driftv1.ActivateFleetResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("fleet activation request is required")
+	}
+	if _, _, err := requireActor(request.Msg.GetContext()); err != nil {
+		return nil, err
+	}
+	service, err := h.connections()
+	if err != nil {
+		return nil, err
+	}
+	port, err := transportPort(request.Msg.GetPort())
+	if err != nil {
+		return nil, err
+	}
+
+	report, err := service.ActivateFleet(ctx, port)
+	if err != nil {
+		return nil, mapConnectionError(err)
+	}
+	devices := make([]*driftv1.FleetActivationOutcome, 0, len(report.Devices))
+	for _, entry := range report.Devices {
+		devices = append(devices, fleetActivationOutcomeProto(entry))
+	}
+	return connectrpc.NewResponse(&driftv1.ActivateFleetResponse{
+		Port:                       uint32(report.Port),
+		Activated:                  uint32(report.Activated()),
+		NeedsOperatorAuthorization: uint32(report.NeedsOperatorAuthorization()),
+		Refused:                    uint32(report.Refused()),
+		Failed:                     uint32(report.Failed()),
+		AlreadyOnPort:              uint32(report.AlreadyOnPort()),
+		Devices:                    devices,
+	}), nil
+}
+
+// fleetActivationOutcomeProto maps one per-serial result.
+//
+// The sentence and the failure detail are kept apart on purpose. The sentence is
+// the domain's, and states what happened to that device; the detail of a failed
+// change is redacted and bounded here, so a device's own error text cannot carry
+// raw command output into the response field an operator reads.
+func fleetActivationOutcomeProto(entry connection.FleetActivation) *driftv1.FleetActivationOutcome {
+	message := entry.Message()
+	if entry.Err != nil {
+		message = message + ": " + boundedDiagnostic(entry.Err)
+	}
+	return &driftv1.FleetActivationOutcome{
+		Serial:                     entry.Serial,
+		Port:                       uint32(entry.Port),
+		Activated:                  entry.Activated,
+		AlreadyOnPort:              entry.AlreadyOnPort,
+		Refusal:                    string(entry.Refusal),
+		Message:                    message,
+		NeedsOperatorAuthorization: entry.NeedsOperatorAuthorization,
+		StateBefore:                entry.StateBefore,
+		StateAfter:                 entry.StateAfter,
+		ExitCode:                   int32(entry.ExitCode),
+		Failed:                     entry.Err != nil,
+	}
 }
 
 func endpointOutcomeProto(entry connection.EndpointOutcome) *driftv1.EndpointOutcome {

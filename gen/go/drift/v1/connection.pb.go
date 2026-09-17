@@ -729,6 +729,316 @@ func (x *RestartServerResponse) GetEndpoints() []*EndpointOutcome {
 	return nil
 }
 
+// FleetActivationOutcome is ONE device's result inside a fleet activation. It is
+// reported per serial because an aggregate verdict hides which device was left
+// without a transport: if thirteen devices come up and one is refused, the one
+// has to be named, with its own reason and its own sentence.
+type FleetActivationOutcome struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Serial string                 `protobuf:"bytes,1,opt,name=serial,proto3" json:"serial,omitempty"`
+	Port   uint32                 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	// activated is true only when this device's transport mode was changed AND it
+	// came back able to accept this host.
+	Activated bool `protobuf:"varint,3,opt,name=activated,proto3" json:"activated,omitempty"`
+	// already_on_port is true when the device was already answering on the target
+	// port, so nothing was sent for it. Nothing is activated by reporting it as
+	// activated.
+	AlreadyOnPort bool `protobuf:"varint,4,opt,name=already_on_port,json=alreadyOnPort,proto3" json:"already_on_port,omitempty"`
+	// refusal names the precondition that failed, and is empty when none did:
+	// not_attached | not_authorized | not_usb. It is a stable classified reason,
+	// not prose, so a client can branch on it.
+	Refusal string `protobuf:"bytes,5,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	// message is the sentence an operator reads for THIS serial, naming the device
+	// and what it needs. It is a safe classified sentence, never raw command text.
+	Message string `protobuf:"bytes,6,opt,name=message,proto3" json:"message,omitempty"`
+	// needs_operator_authorization is true when the change happened and the device
+	// came back unauthorized for this host. It is an OUTCOME and not an error: what
+	// it needs next is a person accepting the debugging prompt on the device's
+	// screen, not a retry.
+	NeedsOperatorAuthorization bool   `protobuf:"varint,7,opt,name=needs_operator_authorization,json=needsOperatorAuthorization,proto3" json:"needs_operator_authorization,omitempty"`
+	StateBefore                string `protobuf:"bytes,8,opt,name=state_before,json=stateBefore,proto3" json:"state_before,omitempty"`
+	// state_after is empty for a device whose transport mode was never changed.
+	StateAfter string `protobuf:"bytes,9,opt,name=state_after,json=stateAfter,proto3" json:"state_after,omitempty"`
+	ExitCode   int32  `protobuf:"varint,10,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	// failed is true when the change ran for this device and failed. It is its own
+	// answer because a client reading only activated/refusal/already_on_port would
+	// have to infer a failure from the absence of them, and a device whose state is
+	// unknown must not read as one that was simply not mentioned.
+	Failed        bool `protobuf:"varint,11,opt,name=failed,proto3" json:"failed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FleetActivationOutcome) Reset() {
+	*x = FleetActivationOutcome{}
+	mi := &file_drift_v1_connection_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FleetActivationOutcome) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FleetActivationOutcome) ProtoMessage() {}
+
+func (x *FleetActivationOutcome) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_connection_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FleetActivationOutcome.ProtoReflect.Descriptor instead.
+func (*FleetActivationOutcome) Descriptor() ([]byte, []int) {
+	return file_drift_v1_connection_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *FleetActivationOutcome) GetSerial() string {
+	if x != nil {
+		return x.Serial
+	}
+	return ""
+}
+
+func (x *FleetActivationOutcome) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *FleetActivationOutcome) GetActivated() bool {
+	if x != nil {
+		return x.Activated
+	}
+	return false
+}
+
+func (x *FleetActivationOutcome) GetAlreadyOnPort() bool {
+	if x != nil {
+		return x.AlreadyOnPort
+	}
+	return false
+}
+
+func (x *FleetActivationOutcome) GetRefusal() string {
+	if x != nil {
+		return x.Refusal
+	}
+	return ""
+}
+
+func (x *FleetActivationOutcome) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *FleetActivationOutcome) GetNeedsOperatorAuthorization() bool {
+	if x != nil {
+		return x.NeedsOperatorAuthorization
+	}
+	return false
+}
+
+func (x *FleetActivationOutcome) GetStateBefore() string {
+	if x != nil {
+		return x.StateBefore
+	}
+	return ""
+}
+
+func (x *FleetActivationOutcome) GetStateAfter() string {
+	if x != nil {
+		return x.StateAfter
+	}
+	return ""
+}
+
+func (x *FleetActivationOutcome) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *FleetActivationOutcome) GetFailed() bool {
+	if x != nil {
+		return x.Failed
+	}
+	return false
+}
+
+// ActivateFleetRequest names one port and nothing else. It deliberately carries
+// NO device list: the fleet is read from the devices by the control plane, so an
+// operator action cannot assert which devices are attached, and a client cannot
+// pick a subject for a command it does not own.
+type ActivateFleetRequest struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Context *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	// port is where each device's adbd will listen. It is a TCP port, not a
+	// profile bound: the profile's accepted ports decide at connect time, not
+	// here. The operator surface defaults it to 5555.
+	Port          uint32 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivateFleetRequest) Reset() {
+	*x = ActivateFleetRequest{}
+	mi := &file_drift_v1_connection_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivateFleetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivateFleetRequest) ProtoMessage() {}
+
+func (x *ActivateFleetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_connection_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivateFleetRequest.ProtoReflect.Descriptor instead.
+func (*ActivateFleetRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_connection_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ActivateFleetRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *ActivateFleetRequest) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+// ActivateFleetResponse reports the fleet per device and, separately, the counts
+// that make a bare "ok" impossible. The counts never stand in for the per-device
+// outcomes: a client renders both.
+type ActivateFleetResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Port  uint32                 `protobuf:"varint,1,opt,name=port,proto3" json:"port,omitempty"`
+	// activated counts the devices that were moved onto the port and are usable.
+	Activated uint32 `protobuf:"varint,2,opt,name=activated,proto3" json:"activated,omitempty"`
+	// needs_operator_authorization counts the devices that were moved onto the
+	// port and are waiting for a person.
+	NeedsOperatorAuthorization uint32 `protobuf:"varint,3,opt,name=needs_operator_authorization,json=needsOperatorAuthorization,proto3" json:"needs_operator_authorization,omitempty"`
+	// refused counts the devices the transport-mode gate refused before anything
+	// ran for them.
+	Refused uint32 `protobuf:"varint,4,opt,name=refused,proto3" json:"refused,omitempty"`
+	// failed counts the devices whose change ran and failed.
+	Failed uint32 `protobuf:"varint,5,opt,name=failed,proto3" json:"failed,omitempty"`
+	// already_on_port counts the devices that were not touched because they
+	// already answer on the port.
+	AlreadyOnPort uint32 `protobuf:"varint,6,opt,name=already_on_port,json=alreadyOnPort,proto3" json:"already_on_port,omitempty"`
+	// devices carries every outcome, in the order the devices reported themselves.
+	Devices       []*FleetActivationOutcome `protobuf:"bytes,7,rep,name=devices,proto3" json:"devices,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivateFleetResponse) Reset() {
+	*x = ActivateFleetResponse{}
+	mi := &file_drift_v1_connection_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivateFleetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivateFleetResponse) ProtoMessage() {}
+
+func (x *ActivateFleetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_connection_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivateFleetResponse.ProtoReflect.Descriptor instead.
+func (*ActivateFleetResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_connection_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ActivateFleetResponse) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *ActivateFleetResponse) GetActivated() uint32 {
+	if x != nil {
+		return x.Activated
+	}
+	return 0
+}
+
+func (x *ActivateFleetResponse) GetNeedsOperatorAuthorization() uint32 {
+	if x != nil {
+		return x.NeedsOperatorAuthorization
+	}
+	return 0
+}
+
+func (x *ActivateFleetResponse) GetRefused() uint32 {
+	if x != nil {
+		return x.Refused
+	}
+	return 0
+}
+
+func (x *ActivateFleetResponse) GetFailed() uint32 {
+	if x != nil {
+		return x.Failed
+	}
+	return 0
+}
+
+func (x *ActivateFleetResponse) GetAlreadyOnPort() uint32 {
+	if x != nil {
+		return x.AlreadyOnPort
+	}
+	return 0
+}
+
+func (x *ActivateFleetResponse) GetDevices() []*FleetActivationOutcome {
+	if x != nil {
+		return x.Devices
+	}
+	return nil
+}
+
 var File_drift_v1_connection_proto protoreflect.FileDescriptor
 
 const file_drift_v1_connection_proto_rawDesc = "" +
@@ -788,12 +1098,38 @@ const file_drift_v1_connection_proto_rawDesc = "" +
 	"\rreestablished\x18\b \x01(\rR\rreestablished\x12\x16\n" +
 	"\x06failed\x18\t \x01(\rR\x06failed\x127\n" +
 	"\tendpoints\x18\n" +
-	" \x03(\v2\x19.drift.v1.EndpointOutcomeR\tendpoints2\xf0\x02\n" +
+	" \x03(\v2\x19.drift.v1.EndpointOutcomeR\tendpoints\"\xf9\x02\n" +
+	"\x16FleetActivationOutcome\x12\x16\n" +
+	"\x06serial\x18\x01 \x01(\tR\x06serial\x12\x12\n" +
+	"\x04port\x18\x02 \x01(\rR\x04port\x12\x1c\n" +
+	"\tactivated\x18\x03 \x01(\bR\tactivated\x12&\n" +
+	"\x0falready_on_port\x18\x04 \x01(\bR\ralreadyOnPort\x12\x18\n" +
+	"\arefusal\x18\x05 \x01(\tR\arefusal\x12\x18\n" +
+	"\amessage\x18\x06 \x01(\tR\amessage\x12@\n" +
+	"\x1cneeds_operator_authorization\x18\a \x01(\bR\x1aneedsOperatorAuthorization\x12!\n" +
+	"\fstate_before\x18\b \x01(\tR\vstateBefore\x12\x1f\n" +
+	"\vstate_after\x18\t \x01(\tR\n" +
+	"stateAfter\x12\x1b\n" +
+	"\texit_code\x18\n" +
+	" \x01(\x05R\bexitCode\x12\x16\n" +
+	"\x06failed\x18\v \x01(\bR\x06failed\"^\n" +
+	"\x14ActivateFleetRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12\x12\n" +
+	"\x04port\x18\x02 \x01(\rR\x04port\"\xa1\x02\n" +
+	"\x15ActivateFleetResponse\x12\x12\n" +
+	"\x04port\x18\x01 \x01(\rR\x04port\x12\x1c\n" +
+	"\tactivated\x18\x02 \x01(\rR\tactivated\x12@\n" +
+	"\x1cneeds_operator_authorization\x18\x03 \x01(\rR\x1aneedsOperatorAuthorization\x12\x18\n" +
+	"\arefused\x18\x04 \x01(\rR\arefused\x12\x16\n" +
+	"\x06failed\x18\x05 \x01(\rR\x06failed\x12&\n" +
+	"\x0falready_on_port\x18\x06 \x01(\rR\ralreadyOnPort\x12:\n" +
+	"\adevices\x18\a \x03(\v2 .drift.v1.FleetActivationOutcomeR\adevices2\xc2\x03\n" +
 	"\x11ConnectionService\x12V\n" +
 	"\x0fConnectEndpoint\x12 .drift.v1.ConnectEndpointRequest\x1a!.drift.v1.ConnectEndpointResponse\x12b\n" +
 	"\x13ChangeTransportMode\x12$.drift.v1.ChangeTransportModeRequest\x1a%.drift.v1.ChangeTransportModeResponse\x12M\n" +
 	"\fActivatePort\x12\x1d.drift.v1.ActivatePortRequest\x1a\x1e.drift.v1.ActivatePortResponse\x12P\n" +
-	"\rRestartServer\x12\x1e.drift.v1.RestartServerRequest\x1a\x1f.drift.v1.RestartServerResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\rRestartServer\x12\x1e.drift.v1.RestartServerRequest\x1a\x1f.drift.v1.RestartServerResponse\x12P\n" +
+	"\rActivateFleet\x12\x1e.drift.v1.ActivateFleetRequest\x1a\x1f.drift.v1.ActivateFleetResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_connection_proto_rawDescOnce sync.Once
@@ -807,7 +1143,7 @@ func file_drift_v1_connection_proto_rawDescGZIP() []byte {
 	return file_drift_v1_connection_proto_rawDescData
 }
 
-var file_drift_v1_connection_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_drift_v1_connection_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_drift_v1_connection_proto_goTypes = []any{
 	(*EndpointOutcome)(nil),             // 0: drift.v1.EndpointOutcome
 	(*ConnectEndpointRequest)(nil),      // 1: drift.v1.ConnectEndpointRequest
@@ -818,27 +1154,34 @@ var file_drift_v1_connection_proto_goTypes = []any{
 	(*ActivatePortResponse)(nil),        // 6: drift.v1.ActivatePortResponse
 	(*RestartServerRequest)(nil),        // 7: drift.v1.RestartServerRequest
 	(*RestartServerResponse)(nil),       // 8: drift.v1.RestartServerResponse
-	(*RequestContext)(nil),              // 9: drift.v1.RequestContext
+	(*FleetActivationOutcome)(nil),      // 9: drift.v1.FleetActivationOutcome
+	(*ActivateFleetRequest)(nil),        // 10: drift.v1.ActivateFleetRequest
+	(*ActivateFleetResponse)(nil),       // 11: drift.v1.ActivateFleetResponse
+	(*RequestContext)(nil),              // 12: drift.v1.RequestContext
 }
 var file_drift_v1_connection_proto_depIdxs = []int32{
-	9, // 0: drift.v1.ConnectEndpointRequest.context:type_name -> drift.v1.RequestContext
-	9, // 1: drift.v1.ChangeTransportModeRequest.context:type_name -> drift.v1.RequestContext
-	9, // 2: drift.v1.ActivatePortRequest.context:type_name -> drift.v1.RequestContext
-	9, // 3: drift.v1.RestartServerRequest.context:type_name -> drift.v1.RequestContext
-	0, // 4: drift.v1.RestartServerResponse.endpoints:type_name -> drift.v1.EndpointOutcome
-	1, // 5: drift.v1.ConnectionService.ConnectEndpoint:input_type -> drift.v1.ConnectEndpointRequest
-	3, // 6: drift.v1.ConnectionService.ChangeTransportMode:input_type -> drift.v1.ChangeTransportModeRequest
-	5, // 7: drift.v1.ConnectionService.ActivatePort:input_type -> drift.v1.ActivatePortRequest
-	7, // 8: drift.v1.ConnectionService.RestartServer:input_type -> drift.v1.RestartServerRequest
-	2, // 9: drift.v1.ConnectionService.ConnectEndpoint:output_type -> drift.v1.ConnectEndpointResponse
-	4, // 10: drift.v1.ConnectionService.ChangeTransportMode:output_type -> drift.v1.ChangeTransportModeResponse
-	6, // 11: drift.v1.ConnectionService.ActivatePort:output_type -> drift.v1.ActivatePortResponse
-	8, // 12: drift.v1.ConnectionService.RestartServer:output_type -> drift.v1.RestartServerResponse
-	9, // [9:13] is the sub-list for method output_type
-	5, // [5:9] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	12, // 0: drift.v1.ConnectEndpointRequest.context:type_name -> drift.v1.RequestContext
+	12, // 1: drift.v1.ChangeTransportModeRequest.context:type_name -> drift.v1.RequestContext
+	12, // 2: drift.v1.ActivatePortRequest.context:type_name -> drift.v1.RequestContext
+	12, // 3: drift.v1.RestartServerRequest.context:type_name -> drift.v1.RequestContext
+	0,  // 4: drift.v1.RestartServerResponse.endpoints:type_name -> drift.v1.EndpointOutcome
+	12, // 5: drift.v1.ActivateFleetRequest.context:type_name -> drift.v1.RequestContext
+	9,  // 6: drift.v1.ActivateFleetResponse.devices:type_name -> drift.v1.FleetActivationOutcome
+	1,  // 7: drift.v1.ConnectionService.ConnectEndpoint:input_type -> drift.v1.ConnectEndpointRequest
+	3,  // 8: drift.v1.ConnectionService.ChangeTransportMode:input_type -> drift.v1.ChangeTransportModeRequest
+	5,  // 9: drift.v1.ConnectionService.ActivatePort:input_type -> drift.v1.ActivatePortRequest
+	7,  // 10: drift.v1.ConnectionService.RestartServer:input_type -> drift.v1.RestartServerRequest
+	10, // 11: drift.v1.ConnectionService.ActivateFleet:input_type -> drift.v1.ActivateFleetRequest
+	2,  // 12: drift.v1.ConnectionService.ConnectEndpoint:output_type -> drift.v1.ConnectEndpointResponse
+	4,  // 13: drift.v1.ConnectionService.ChangeTransportMode:output_type -> drift.v1.ChangeTransportModeResponse
+	6,  // 14: drift.v1.ConnectionService.ActivatePort:output_type -> drift.v1.ActivatePortResponse
+	8,  // 15: drift.v1.ConnectionService.RestartServer:output_type -> drift.v1.RestartServerResponse
+	11, // 16: drift.v1.ConnectionService.ActivateFleet:output_type -> drift.v1.ActivateFleetResponse
+	12, // [12:17] is the sub-list for method output_type
+	7,  // [7:12] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_connection_proto_init() }
@@ -853,7 +1196,7 @@ func file_drift_v1_connection_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_connection_proto_rawDesc), len(file_drift_v1_connection_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -26,6 +26,7 @@ type stubConnections struct {
 	outcome    connection.ConnectOutcome
 	activation connection.PortActivation
 	restart    connection.RestartOutcome
+	fleet      connection.FleetActivationReport
 }
 
 func (s *stubConnections) Connect(_ context.Context, _ string) (connection.ConnectOutcome, error) {
@@ -46,6 +47,11 @@ func (s *stubConnections) ChangeTransportMode(_ context.Context, _ string, _ uin
 func (s *stubConnections) ActivatePort(_ context.Context, _, _ string, _ time.Time) (connection.PortActivation, bool, error) {
 	s.calls++
 	return s.activation, true, s.refusal
+}
+
+func (s *stubConnections) ActivateFleet(_ context.Context, _ uint16) (connection.FleetActivationReport, error) {
+	s.calls++
+	return s.fleet, s.refusal
 }
 
 func (s *stubConnections) Restart(_ context.Context, _ []string) (connection.RestartOutcome, error) {
@@ -119,6 +125,46 @@ func TestTheMountedConnectionRouteCarriesTheRefusalAndIsGuardedByItsToken(t *tes
 	}
 	if connections.calls != 1 {
 		t.Fatalf("transport calls = %d, want exactly one", connections.calls)
+	}
+}
+
+// The fleet activation is mounted on the same guarded route, and what it answers
+// with is the per-serial report rather than a verdict: the operator's Activate
+// control reads this body, so a body that carried only a count would be a control
+// that cannot say which device was left without a transport.
+func TestTheMountedFleetActivationRouteCarriesEverySerial(t *testing.T) {
+	const token = "lab-token-value"
+	connections := &stubConnections{fleet: connection.FleetActivationReport{
+		Port: 5555,
+		Devices: []connection.FleetActivation{
+			{Serial: "R5CT42GS94Z", Port: 5555, Activated: true, StateBefore: "device", StateAfter: "device"},
+			{Serial: "ZY223UNAUTH", Port: 5555, Refusal: connection.ActivationRefusalNotAuthorized, StateBefore: "unauthorized"},
+		},
+	}}
+	route := service.ConnectionRoute(connections, token)
+	if route.Path == "" {
+		t.Fatal("ConnectionRoute() mounted nothing for a constructed boundary")
+	}
+	server := service.NewHTTPServer("control-plane", "127.0.0.1:0", route)
+
+	body := `{"context":{"requestId":"req-3","actorId":"op-1"},"port":5555}`
+	request := httptest.NewRequest(http.MethodPost, route.Path+"ActivateFleet", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(service.LabTokenHeader, token)
+	record := httptest.NewRecorder()
+	server.Handler.ServeHTTP(record, request)
+
+	if record.Code != http.StatusOK {
+		t.Fatalf("ActivateFleet = %d body=%s, want 200", record.Code, record.Body.String())
+	}
+	responseBody := record.Body.String()
+	for _, want := range []string{"R5CT42GS94Z", "ZY223UNAUTH", "not_authorized", "activated", "refused"} {
+		if !strings.Contains(responseBody, want) {
+			t.Fatalf("the fleet response = %s, want it to carry %q", responseBody, want)
+		}
+	}
+	if connections.calls != 1 {
+		t.Fatalf("fleet activation calls = %d, want exactly one", connections.calls)
 	}
 }
 

@@ -14,7 +14,7 @@ import type { AutomationAgent, AutomationAgentProfile } from "@/gen/drift/v1/aut
 import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
 import { DeviceStatus } from "@/gen/drift/v1/device_pb"
-import type { RestartServerResponse } from "@/gen/drift/v1/connection_pb"
+import type { ActivateFleetResponse, FleetActivationOutcome, RestartServerResponse } from "@/gen/drift/v1/connection_pb"
 import type { ObservedDevice, ScanRun } from "@/gen/drift/v1/discovery_pb"
 import { DeviceLinkState as ProtoDeviceLinkState, ScanRunState } from "@/gen/drift/v1/discovery_pb"
 import type { EdgeAgent } from "@/gen/drift/v1/edge_agent_pb"
@@ -1356,6 +1356,31 @@ function failure(intent: ControlPlaneIntent, message: string, extra?: Partial<Mu
 }
 
 /**
+ * fleetActivationReport states what Activate did, per serial, because a count is
+ * not something an operator can act on: the device that was refused, the one
+ * that came back needing a tap on its screen, and the one whose change failed
+ * each need a different thing done, and an aggregate "moved 12 of 14" would name
+ * none of them.
+ *
+ * Every device's own sentence is carried, so the report is complete rather than
+ * summarised, and the counts that precede them make a bare "ok" impossible.
+ */
+function fleetActivationReport(response: ActivateFleetResponse): string {
+  const devices: readonly FleetActivationOutcome[] = response.devices
+  if (devices.length === 0) {
+    return `Activate on port ${response.port} found no device to report: the control plane reads the fleet from the devices, and it read none. No device was contacted for a change.`
+  }
+  const counts = [
+    `${response.activated} activated`,
+    `${response.needsOperatorAuthorization} needing the operator's prompt`,
+    `${response.refused} refused`,
+    `${response.failed} failed`,
+    `${response.alreadyOnPort} already on port ${response.port}`,
+  ]
+  return `Activate on port ${response.port}: ${counts.join(", ")}. ${devices.map((device) => device.message).join(" ")}`
+}
+
+/**
  * restartReport states what a restart actually did, per endpoint, and names the
  * ones that did not come back. An aggregate "ok" would hide which device was
  * left unreachable, and a count of zero is only reported when it was READ: a
@@ -1731,22 +1756,12 @@ export class RealControlPlaneClient implements ControlPlaneClient {
           ? `The control plane opened ${response.endpoint} for ${intent.serial} on port ${response.port} and the adapter reported no output (exit code ${response.exitCode}).`
           : `${response.endpoint} for ${intent.serial} on port ${response.port}: ${output}`, { resourceId: intent.serial })
       }
-      case "changeTransportMode": {
+      case "activateFleet": {
         if (!isTransportPort(intent.port)) {
-          return failure(intent, `Port ${intent.port} is outside the ports a transport may name (1-65535). ${intent.serial}'s transport mode was not changed and nothing was sent.`, { errorCode: "invalid_input" })
+          return failure(intent, `Port ${intent.port} is outside the ports a transport may name (1-65535). No device was moved and nothing was sent.`, { errorCode: "invalid_input" })
         }
-        const response = await this.services.connection.changeTransportMode(requestId, intent.serial, intent.port)
-        // The service's sentence already names the device, the port and whether
-        // it came back needing the operator to accept the debugging prompt on
-        // the device's screen. That is an OUTCOME, not an error: the change
-        // happened, so it is reported as one rather than as a failed action.
-        return mutation(intent, response.message, { resourceId: intent.serial })
-      }
-      case "activatePort": {
-        const response = await this.services.connection.activatePort(requestId, intent.serial, intent.endpoint)
-        return mutation(intent, response.changed
-          ? `Port ${response.port} activated for ${intent.serial} at ${response.endpoint}.`
-          : `Port ${response.port} for ${intent.serial} at ${response.endpoint} is already accepted, so no activation was recorded and nothing changed.`, { resourceId: intent.serial })
+        const response = await this.services.connection.activateFleet(requestId, intent.port)
+        return mutation(intent, fleetActivationReport(response))
       }
       case "restartTransportServer": {
         if (intent.endpoints.length === 0) {

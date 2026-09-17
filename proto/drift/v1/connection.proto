@@ -6,9 +6,18 @@ import "drift/v1/common.proto";
 
 option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
 
-// ConnectionService exposes the four transport operations the console's OTG Setup
-// tab performs, so each one is reachable from the operator surface instead of
+// ConnectionService exposes the transport operations the console's OTG Setup tab
+// performs, so each one is reachable from the operator surface instead of
 // existing only as tested Go code.
+//
+// ConnectEndpoint, ActivateFleet and RestartServer are the operations that
+// surface offers. ChangeTransportMode and ActivatePort remain published here as
+// the per-device forms: ActivateFleet is exactly ChangeTransportMode applied
+// over the discovered fleet — it is not a second way to move a device to a port,
+// and a client that names one device by serial still uses the single-device form.
+// They are kept rather than retired because removing a published RPC is a
+// breaking change that needs a compatibility strategy, and no client is entitled
+// to less than it was published.
 //
 // NONE OF THESE REQUESTS CARRIES A WorkspaceRef, and that is deliberate rather
 // than an omission. `adb kill-server` and `adb start-server` are process-global:
@@ -135,9 +144,84 @@ message RestartServerResponse {
   repeated EndpointOutcome endpoints = 10;
 }
 
+// FleetActivationOutcome is ONE device's result inside a fleet activation. It is
+// reported per serial because an aggregate verdict hides which device was left
+// without a transport: if thirteen devices come up and one is refused, the one
+// has to be named, with its own reason and its own sentence.
+message FleetActivationOutcome {
+  string serial = 1;
+  uint32 port = 2;
+  // activated is true only when this device's transport mode was changed AND it
+  // came back able to accept this host.
+  bool activated = 3;
+  // already_on_port is true when the device was already answering on the target
+  // port, so nothing was sent for it. Nothing is activated by reporting it as
+  // activated.
+  bool already_on_port = 4;
+  // refusal names the precondition that failed, and is empty when none did:
+  // not_attached | not_authorized | not_usb. It is a stable classified reason,
+  // not prose, so a client can branch on it.
+  string refusal = 5;
+  // message is the sentence an operator reads for THIS serial, naming the device
+  // and what it needs. It is a safe classified sentence, never raw command text.
+  string message = 6;
+  // needs_operator_authorization is true when the change happened and the device
+  // came back unauthorized for this host. It is an OUTCOME and not an error: what
+  // it needs next is a person accepting the debugging prompt on the device's
+  // screen, not a retry.
+  bool needs_operator_authorization = 7;
+  string state_before = 8;
+  // state_after is empty for a device whose transport mode was never changed.
+  string state_after = 9;
+  int32 exit_code = 10;
+  // failed is true when the change ran for this device and failed. It is its own
+  // answer because a client reading only activated/refusal/already_on_port would
+  // have to infer a failure from the absence of them, and a device whose state is
+  // unknown must not read as one that was simply not mentioned.
+  bool failed = 11;
+}
+
+// ActivateFleetRequest names one port and nothing else. It deliberately carries
+// NO device list: the fleet is read from the devices by the control plane, so an
+// operator action cannot assert which devices are attached, and a client cannot
+// pick a subject for a command it does not own.
+message ActivateFleetRequest {
+  RequestContext context = 1;
+  // port is where each device's adbd will listen. It is a TCP port, not a
+  // profile bound: the profile's accepted ports decide at connect time, not
+  // here. The operator surface defaults it to 5555.
+  uint32 port = 2;
+}
+
+// ActivateFleetResponse reports the fleet per device and, separately, the counts
+// that make a bare "ok" impossible. The counts never stand in for the per-device
+// outcomes: a client renders both.
+message ActivateFleetResponse {
+  uint32 port = 1;
+  // activated counts the devices that were moved onto the port and are usable.
+  uint32 activated = 2;
+  // needs_operator_authorization counts the devices that were moved onto the
+  // port and are waiting for a person.
+  uint32 needs_operator_authorization = 3;
+  // refused counts the devices the transport-mode gate refused before anything
+  // ran for them.
+  uint32 refused = 4;
+  // failed counts the devices whose change ran and failed.
+  uint32 failed = 5;
+  // already_on_port counts the devices that were not touched because they
+  // already answer on the port.
+  uint32 already_on_port = 6;
+  // devices carries every outcome, in the order the devices reported themselves.
+  repeated FleetActivationOutcome devices = 7;
+}
+
 service ConnectionService {
   rpc ConnectEndpoint(ConnectEndpointRequest) returns (ConnectEndpointResponse);
   rpc ChangeTransportMode(ChangeTransportModeRequest) returns (ChangeTransportModeResponse);
   rpc ActivatePort(ActivatePortRequest) returns (ActivatePortResponse);
   rpc RestartServer(RestartServerRequest) returns (RestartServerResponse);
+  // ActivateFleet moves every discovered device that is not already answering on
+  // the port onto it. It is the OTG Setup tab's Activate control: one operator
+  // action over the fleet, one result per serial.
+  rpc ActivateFleet(ActivateFleetRequest) returns (ActivateFleetResponse);
 }

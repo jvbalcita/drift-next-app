@@ -232,10 +232,8 @@ import {
 } from "@/gen/drift/v1/runtime_pb"
 import { ConnectJsonClient, requestContext, workspaceRef } from "@/lib/api/connect-json"
 import {
-  ActivatePortRequestSchema,
-  ActivatePortResponseSchema,
-  ChangeTransportModeRequestSchema,
-  ChangeTransportModeResponseSchema,
+  ActivateFleetRequestSchema,
+  ActivateFleetResponseSchema,
   ConnectEndpointRequestSchema,
   ConnectEndpointResponseSchema,
   RestartServerRequestSchema,
@@ -949,18 +947,14 @@ export class ConnectionClient {
       endpoint,
     })
   }
-  changeTransportMode(requestId: string, serial: string, port: number) {
-    return this.rpc.call("ChangeTransportMode", ChangeTransportModeRequestSchema, ChangeTransportModeResponseSchema, {
+  // activateFleet moves every discovered device that is not already answering on
+  // this port onto it. It carries the port and NOTHING else: the fleet is read
+  // from the devices by the control plane, so a client cannot assert which
+  // devices are attached, and the response answers for each serial on its own.
+  activateFleet(requestId: string, port: number) {
+    return this.rpc.call("ActivateFleet", ActivateFleetRequestSchema, ActivateFleetResponseSchema, {
       context: requestContext({ requestId }),
-      serial,
       port,
-    })
-  }
-  activatePort(requestId: string, serial: string, endpoint: string) {
-    return this.rpc.call("ActivatePort", ActivatePortRequestSchema, ActivatePortResponseSchema, {
-      context: requestContext({ requestId }),
-      serial,
-      endpoint,
     })
   }
   restartServer(requestId: string, endpoints: readonly string[]) {
