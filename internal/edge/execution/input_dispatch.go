@@ -44,17 +44,24 @@ import (
 
 // --- the typed payload ------------------------------------------------------
 
-// InputPayload is the typed payload of exactly one device input kind. Exactly
-// one member must be present, and the member must match the kind being
-// authorized: a payload that is absent, that names two kinds, or that is
-// incomplete is refused, so no mutating input can ever be authorized on a zero
-// value.
+// InputPayload is the typed payload of exactly one device operation this
+// boundary dispatches: one of the five typed device inputs, or one of the two
+// catalogued device settings. Exactly one member must be present, and the member
+// must match the kind being authorized: a payload that is absent, that names two
+// kinds, or that is incomplete is refused, so no mutating operation can ever be
+// authorized on a zero value.
+//
+// The two settings members carry no parameter at all. That is the point of
+// them: the operation a caller selected is the whole payload, so there is no
+// caller-supplied value anywhere in this type that could reach a device.
 type InputPayload struct {
 	Tap      *TapRequest
 	Swipe    *SwipeRequest
 	Text     *TextReference
 	KeyEvent *KeyEventRequest
 	Launch   *LaunchAppRequest
+	Rotation *RotationLockRequest
+	Autofill *AutofillOffRequest
 }
 
 // Kind reports the single kind this payload addresses, after refusing an
@@ -76,6 +83,12 @@ func (p InputPayload) Kind() (action.Kind, error) {
 	}
 	if p.Launch != nil {
 		kind, members = action.LaunchApp, members+1
+	}
+	if p.Rotation != nil {
+		kind, members = action.RotationLock, members+1
+	}
+	if p.Autofill != nil {
+		kind, members = action.AutofillOff, members+1
 	}
 	switch {
 	case members == 0:
@@ -146,6 +159,11 @@ func (p InputPayload) validate() error {
 			return nil
 		}
 		return validateActivityName(p.Launch.ActivityName)
+	case p.Rotation != nil, p.Autofill != nil:
+		// A catalogued settings operation has no typed parameter to validate:
+		// the operation names its own fixed argument array, and there is nothing
+		// in the payload a caller could have supplied.
+		return nil
 	default:
 		return platformerrors.New(platformerrors.CodeInvalidInput, "a device input requires exactly one typed payload")
 	}
@@ -347,6 +365,13 @@ type PostconditionObservation struct {
 	// a kind whose postcondition names a referenced field. It is a count, never
 	// the value.
 	FieldLength int
+	// SettingReadback is the setting a catalogued settings operation read back
+	// off the device after it changed it, for the two kinds whose postcondition
+	// names a device setting instead of a device observation. It is nil for
+	// every kind that observes through the observation port, and a settings kind
+	// with no read-back has not satisfied anything: its postcondition fails
+	// rather than passing on a command that merely exited zero.
+	SettingReadback *SettingReadback
 	// FailureClass is the classification of a failed observation.
 	FailureClass domain.FailureClass
 	// Partial reports an observation that could not be completed.
@@ -890,6 +915,38 @@ func evaluatePostcondition(spec action.Specification, intent action.Intent, payl
 	}
 	if observation.FailureClass != "" || observation.Partial {
 		return action.PostconditionUnknown, domain.FailureIndeterminate, action.OutcomeIndeterminate
+	}
+	// A catalogued settings operation declares its postcondition as a device
+	// SETTING, and it is evaluated against the device's own read-back rather than
+	// against a device observation. It is routed first because the freshness
+	// rule below is about the observation a UI action was resolved against, and a
+	// settings write is not resolved against an observation at all.
+	switch intent.Kind {
+	case action.RotationLock:
+		if payload.Rotation == nil {
+			return action.PostconditionFailed, domain.FailureInvalidTransition, action.OutcomeFailed
+		}
+		if observation.SettingReadback == nil {
+			// No read-back was taken, so nothing about this setting is known.
+			// It is never reported as applied on the strength of the write
+			// alone.
+			return action.PostconditionUnknown, domain.FailureIndeterminate, action.OutcomeIndeterminate
+		}
+		if !observation.SettingReadback.RotationLocked() {
+			return action.PostconditionFailed, domain.FailurePostcondition, action.OutcomeFailed
+		}
+		return action.PostconditionPassed, "", action.OutcomeVerified
+	case action.AutofillOff:
+		if payload.Autofill == nil {
+			return action.PostconditionFailed, domain.FailureInvalidTransition, action.OutcomeFailed
+		}
+		if observation.SettingReadback == nil {
+			return action.PostconditionUnknown, domain.FailureIndeterminate, action.OutcomeIndeterminate
+		}
+		if !observation.SettingReadback.AutofillDisabled() {
+			return action.PostconditionFailed, domain.FailurePostcondition, action.OutcomeFailed
+		}
+		return action.PostconditionPassed, "", action.OutcomeVerified
 	}
 	if observation.Token == "" || observation.Token == intent.ObservationToken {
 		// Nothing observable changed, or nothing was observed: the entry's

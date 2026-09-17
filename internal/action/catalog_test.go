@@ -6,8 +6,9 @@ import (
 )
 
 func TestCatalogDeclaresEveryFoundationActionWithSafetyMetadata(t *testing.T) {
-	if len(Catalog()) != 19 {
-		t.Fatalf("catalog size = %d, want 19 typed actions", len(Catalog()))
+	// 19 foundation kinds plus the two catalogued device settings (ARC-137).
+	if len(Catalog()) != 21 {
+		t.Fatalf("catalog size = %d, want 21 typed actions", len(Catalog()))
 	}
 	for _, spec := range Catalog() {
 		if spec.Kind == "" || spec.Risk == "" || spec.Retry == "" || len(spec.AllowedSurfaces) == 0 {

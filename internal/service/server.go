@@ -64,6 +64,27 @@ func DeviceInputRoute(inputs transportconnect.DeviceInputs, token string) Route 
 	return Route{Path: path, Handler: RequireLabToken(token, connectHandler)}
 }
 
+// DeviceSettingsRoute mounts the fleet device-settings surface, and only when an
+// applier was actually constructed.
+//
+// A nil applier yields an empty route, so a deployment that has not wired one
+// exposes no settings surface at all — rather than a surface that can only
+// answer with a refusal, which an operator surface would render as a control and
+// then find dead. The gate is on the handler the constructor actually returned,
+// not on the caller's argument, so a typed-nil applier cannot slip past it.
+//
+// The route carries the same constant-time token check as the other local
+// surfaces. It reaches devices and changes their settings, so loopback
+// reachability alone is not authority for a hostile local caller.
+func DeviceSettingsRoute(settings transportconnect.DeviceSettings, token string) Route {
+	handler := transportconnect.NewDeviceSettingsHandler(settings)
+	if handler == nil {
+		return Route{}
+	}
+	path, connectHandler := driftv1connect.NewDeviceSettingsServiceHandler(handler)
+	return Route{Path: path, Handler: RequireLabToken(token, connectHandler)}
+}
+
 // TextReferenceRoute mounts the local surface that registers a typed-text value
 // with the reference registry, and only when a registry was actually
 // constructed: a nil registry yields an empty route, so a deployment without one

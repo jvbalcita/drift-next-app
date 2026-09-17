@@ -33,6 +33,12 @@ const (
 	LaunchApp   Kind = "launch_app"
 	UIChange    Kind = "ui_change"
 	StateChange Kind = "state_change"
+	// RotationLock and AutofillOff are the two device settings the fleet
+	// actually requires, as CATALOGUED general commands: each is a named
+	// operation with a fixed argument array and no caller-supplied parameter,
+	// so nothing an operator types can reach the device through either kind.
+	RotationLock Kind = "rotation_lock"
+	AutofillOff  Kind = "autofill_off"
 )
 
 type RiskClass string
@@ -90,11 +96,18 @@ const (
 	CapabilityGesture     Capability = "device.input.gesture"
 	CapabilityTextInput   Capability = "device.input.text"
 	CapabilitySystemInput Capability = "device.input.system"
+	// CapabilityDeviceSettings is what a device must be able to do for a
+	// catalogued settings operation to run on it: change its own system and
+	// secure settings and read them back. It is a capability of its own rather
+	// than a reuse of device.input.system, because an operator granting input
+	// authority is not thereby granting authority to rewrite the device's
+	// settings.
+	CapabilityDeviceSettings Capability = "device.settings"
 )
 
 func (c Capability) Valid() bool {
 	switch c {
-	case CapabilityObserve, CapabilityHealth, CapabilityCapture, CapabilityTap, CapabilityGesture, CapabilityTextInput, CapabilitySystemInput:
+	case CapabilityObserve, CapabilityHealth, CapabilityCapture, CapabilityTap, CapabilityGesture, CapabilityTextInput, CapabilitySystemInput, CapabilityDeviceSettings:
 		return true
 	default:
 		return false
@@ -310,6 +323,14 @@ const (
 	// A kind that a deferral previously refused carries both on its entry.
 	deviceInputLiftRecord   = "docs/adr/0009-device-input-catalog-registration.md"
 	liftedInputPrecondition = "a per-device lease with a fencing token, idempotency, a policy and capability decision, control-session authority and an emergency stop are wired and enforced before dispatch"
+	// retiredCommandBanRecord is the accepted record that retired the blanket
+	// ban on a general device command, and liftedCommandPrecondition is the
+	// precondition that retirement named before a catalogued operation could be
+	// dispatchable. The two settings kinds below are CATALOGUED general
+	// commands, so each carries both: a reviewer can tell a newly permitted
+	// kind from one that was never deferred.
+	retiredCommandBanRecord   = "docs/adr/0016-catalogued-device-settings.md"
+	liftedCommandPrecondition = "the operation is a CATALOGUED named operation with a bounded typed parameter set, its argument array is a fixed builder shape the device adapter admits by its own recogniser, and the lease, fencing, policy, control-session and emergency-stop kernel authorizes and dispatches it as an argv array spawned without a shell"
 )
 
 var catalog = map[Kind]Specification{
@@ -565,6 +586,44 @@ var catalog = map[Kind]Specification{
 		RequiresObservation:  true,
 		EvidenceRequired:     true,
 		AllowedSurfaces:      []InvocationSurface{SurfaceManual},
+	},
+	RotationLock: {
+		Kind:                 RotationLock,
+		RequiredCapabilities: []Capability{CapabilityDeviceSettings},
+		Risk:                 RiskMedium,
+		Retry:                RetrySafe,
+		Mutating:             true,
+		MutationReason:       "dispatch writes the device's own rotation settings (accelerometer_rotation and user_rotation), so the orientation the device presents at after the action may differ from the observation the action was resolved against",
+		Postcondition:        "the device's own read-back shows accelerometer_rotation at 0 and user_rotation at 0, so auto-rotate is off and the device is held in its natural orientation",
+		// No observation token is required: the action is a settings write whose
+		// effect is confirmed by reading the setting back, not resolved against
+		// a device observation it would have to be measured from.
+		EvidenceRequired: true,
+		AllowedSurfaces:  []InvocationSurface{SurfaceManual},
+		Lifted: &DeferralLift{
+			Record:       retiredCommandBanRecord,
+			Precondition: liftedCommandPrecondition,
+			Reason:       "the retired ban on a general device command is what previously refused this kind; it is dispatchable now as a CATALOGUED operation with no caller-supplied parameter at all, so the argument array is a fixed builder shape and cannot express command text",
+		},
+	},
+	AutofillOff: {
+		Kind:                 AutofillOff,
+		RequiredCapabilities: []Capability{CapabilityDeviceSettings},
+		Risk:                 RiskHigh,
+		Retry:                RetrySafe,
+		Mutating:             true,
+		MutationReason:       "dispatch removes the device's selected autofill service and disables the augmented autofill service, so the device's own secure settings differ from the observation the action was resolved against",
+		Postcondition:        "the device's own read-back shows no autofill service selected (secure autofill_service is empty or null) and the augmented autofill service disabled, so no autofill popup can land on a form this fleet drives",
+		EvidenceRequired:     true,
+		// A high-risk kind, so the policy evaluator requires explicit operator
+		// approval before the kernel authorizes it. It is deliberately not a
+		// low-risk preference: it rewrites a secure setting.
+		AllowedSurfaces: []InvocationSurface{SurfaceManual},
+		Lifted: &DeferralLift{
+			Record:       retiredCommandBanRecord,
+			Precondition: liftedCommandPrecondition,
+			Reason:       "the retired ban on a general device command is what previously refused this kind; it is dispatchable now as a CATALOGUED operation whose three device commands are fixed admissions with no caller-supplied token, and whose own read-back is what reports it applied",
+		},
 	},
 }
 

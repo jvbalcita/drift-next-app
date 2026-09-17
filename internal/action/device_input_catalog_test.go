@@ -139,7 +139,20 @@ func TestEveryCatalogEntryDeclaresItsSafetyMetadata(t *testing.T) {
 	}
 }
 
-func TestOnlyTheDeviceInputsCarryARecordedDeferralLift(t *testing.T) {
+// cataloguedDeviceSettings are the two device settings registered in the
+// CATALOGUED form of the general-command rule (ARC-137, ADR-0016).
+var cataloguedDeviceSettings = []Kind{RotationLock, AutofillOff}
+
+// TestOnlyTheReviewedKindsCarryARecordedDeferralLift pins who may claim a lift.
+//
+// A lift is the record that a kind a deferral previously refused is dispatchable
+// now. Two deferrals were lifted here - the device-command deferral for the typed
+// device inputs (ADR-0008), and the retired blanket ban on a general device
+// command for the two catalogued settings (ADR-0016) - and the set is asserted
+// exactly rather than bounded, so a kind that quietly acquired a lift, or one
+// that became dispatchable without recording why, fails here.
+func TestOnlyTheReviewedKindsCarryARecordedDeferralLift(t *testing.T) {
+	want := append(append([]Kind{}, typedDeviceInputs...), cataloguedDeviceSettings...)
 	lifted := map[Kind]bool{}
 	for _, spec := range Catalog() {
 		if spec.Lifted == nil {
@@ -150,12 +163,12 @@ func TestOnlyTheDeviceInputsCarryARecordedDeferralLift(t *testing.T) {
 			t.Fatalf("kind %q carries an incomplete deferral lift record: %#v", spec.Kind, spec.Lifted)
 		}
 	}
-	if len(lifted) != len(typedDeviceInputs) {
-		t.Fatalf("recorded deferral lifts = %v, want exactly the %d typed device inputs", lifted, len(typedDeviceInputs))
+	if len(lifted) != len(want) {
+		t.Fatalf("recorded deferral lifts = %v, want exactly the %d reviewed kinds %v", lifted, len(want), want)
 	}
-	for _, kind := range typedDeviceInputs {
+	for _, kind := range want {
 		if !lifted[kind] {
-			t.Fatalf("input %q is dispatchable with no recorded reason for the lift", kind)
+			t.Fatalf("kind %q is dispatchable with no recorded reason for the lift", kind)
 		}
 	}
 }

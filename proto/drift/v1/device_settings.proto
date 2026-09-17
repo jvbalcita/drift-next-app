@@ -1,0 +1,186 @@
+syntax = "proto3";
+
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+// The fleet device-settings surface.
+//
+// Two device settings are load-bearing for this product rather than ported by
+// reflex, and an operator has to be able to apply them across the fleet from one
+// control:
+//
+//   - ROTATION LOCK. The recorded skills are COORDINATE-based, and a coordinate
+//     recorded in one orientation is invalid in any other, so the device has to
+//     be held in the orientation the recording was made in. The old product
+//     enforced this from its runner; here it is a typed action like any other.
+//   - AUTOFILL OFF. The Android autofill popup lands on top of the login forms
+//     this fleet drives, so the autofill service is removed and the augmented
+//     service disabled.
+//
+// Neither is a caller-composed command. `DeviceSetting` is a CLOSED enum naming a
+// reviewed operation whose argument array is a fixed builder shape the device
+// adapter admits by its own recogniser, so this contract has no field, and no
+// combination of fields, in which command text could travel. There is no generic
+// settings key here on purpose: an operation is what the fleet requires, and a
+// free key would be exactly the escape hatch the action-safety kernel exists to
+// close.
+//
+// The apply runs through the same P7 control kernel as every other state-changing
+// device action. One control session is opened for the caller, each device gets
+// its OWN lease and fencing token, and each setting on each device is its own
+// attempt with its own idempotency key, timeout, declared postcondition, audit
+// record and cleanup. The device is then read back: a setting that was written
+// and could not be confirmed is reported as not applied.
+
+// DeviceSetting names one device setting this surface can apply. It is a
+// reviewed operation, not a settings key: each member has one fixed argument
+// array on the device side, and the set is closed because a caller that could
+// name another key could name any key.
+enum DeviceSetting {
+  DEVICE_SETTING_UNSPECIFIED = 0;
+  // Rotation lock: `accelerometer_rotation=0` (auto-rotate off) and
+  // `user_rotation=0` (the device held in its natural orientation). Required
+  // because a coordinate-recorded skill is invalid in any other orientation.
+  DEVICE_SETTING_ROTATION_LOCK = 1;
+  // Autofill off: the selected autofill service is removed from
+  // `secure autofill_service`, the augmented autofill service is disabled, and
+  // the autofill manager is reset. Required because the autofill popup lands on
+  // top of the login forms this fleet drives.
+  DEVICE_SETTING_AUTOFILL_OFF = 2;
+}
+
+// DeviceSettingRefusalReason is this boundary's stable vocabulary for a setting
+// that was NOT applied to one device.
+//
+// Each value is a distinct operator situation with its own remediation, so the
+// set is deliberately not collapsed into one failure: "the device is under
+// another operator's control" and "the device accepted the command and the
+// setting did not change" send an operator to two different places. A new reason
+// is added as a new value and never by reusing or renaming an existing one,
+// because a client's handling of a reason is part of the contract.
+enum DeviceSettingRefusalReason {
+  DEVICE_SETTING_REFUSAL_REASON_UNSPECIFIED = 0;
+  // The device has no single current transport endpoint, so there is no serial
+  // to reach it at. Nothing was sent.
+  DEVICE_SETTING_REFUSAL_REASON_NO_TRANSPORT_SERIAL = 1;
+  // The device's own lease could not be acquired: another controller holds it.
+  DEVICE_SETTING_REFUSAL_REASON_LEASE_UNAVAILABLE = 2;
+  // The lease existed but its expiry had passed.
+  DEVICE_SETTING_REFUSAL_REASON_LEASE_EXPIRED = 3;
+  // The supplied fencing token was stale or revoked.
+  DEVICE_SETTING_REFUSAL_REASON_FENCE_STALE = 4;
+  // The control session that carried the lease has ended.
+  DEVICE_SETTING_REFUSAL_REASON_NO_CONTROL_SESSION = 5;
+  // A lease or fence conflict the finer reasons above do not name.
+  DEVICE_SETTING_REFUSAL_REASON_LEASE_CONFLICT = 6;
+  // The device's transport is not attached.
+  DEVICE_SETTING_REFUSAL_REASON_DEVICE_OFFLINE = 7;
+  // The device is attached but the host is not authorized to control it.
+  DEVICE_SETTING_REFUSAL_REASON_DEVICE_UNAUTHORIZED = 8;
+  // The transport is reachable but unusable.
+  DEVICE_SETTING_REFUSAL_REASON_DEVICE_UNAVAILABLE = 9;
+  // Policy denies this setting for this actor, device or surface.
+  DEVICE_SETTING_REFUSAL_REASON_POLICY_DENIED = 10;
+  // The device cannot execute the capability this setting requires.
+  DEVICE_SETTING_REFUSAL_REASON_CAPABILITY_MISMATCH = 11;
+  // The emergency stop is engaged: no further action is dispatched.
+  DEVICE_SETTING_REFUSAL_REASON_EMERGENCY_STOP = 12;
+  // The idempotency key was already used for a different request.
+  DEVICE_SETTING_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY = 13;
+  // The device ran the command and refused it. Whether the setting changed is
+  // UNKNOWN, and it is not reported as applied.
+  DEVICE_SETTING_REFUSAL_REASON_COMMAND_FAILED = 14;
+  // The device accepted the command and its own read-back does not show the
+  // setting holding the required value. This is a failure even though the
+  // command succeeded, and it is the reason the read-back exists.
+  DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED = 15;
+  // The attempt reached the device and its outcome could not be observed, so it
+  // is reported as indeterminate rather than as either answer.
+  DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE = 16;
+}
+
+// DeviceSettingResult is ONE setting's outcome for ONE device.
+//
+// There is a row per device per requested setting, and never a single verdict
+// for the fleet: when fourteen devices are prepared and one is left unlocked,
+// an operator has to be able to read WHICH one, and for which setting. That is
+// why `device_id` and `setting` are on every row rather than being inferred from
+// a position or summarised into a count.
+message DeviceSettingResult {
+  // The device this row is about, as the registry names it. It is the typed
+  // device identity, not the transport serial.
+  string device_id = 1;
+  DeviceSetting setting = 2;
+  // applied is true only when the setting was dispatched, the device ran the
+  // command, AND the device's own read-back shows the setting holding the
+  // required value. A setting that was written but not confirmed is not applied.
+  bool applied = 3;
+  // verified reports that the device's own read-back was taken, so this row's
+  // answer is a fact read off the device rather than a report that a command
+  // exited zero. It is true for a setting that is applied and for a setting the
+  // device answered about and does NOT hold
+  // (DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED), and false when nothing
+  // was read back at all: a refusal before dispatch, a command the device
+  // refused, or a read it did not answer.
+  bool verified = 4;
+  // refusal names why this row is not applied, and is UNSPECIFIED when it is.
+  DeviceSettingRefusalReason refusal = 5;
+  // failure_class is the shared failure vocabulary's classification of this row,
+  // and is empty when the row is applied. A client branches on it rather than
+  // parsing the sentence.
+  string failure_class = 6;
+  // message is this boundary's fixed operator-facing sentence for this row. It
+  // is never a device, transport, database or stack-trace diagnostic, and it
+  // never quotes command text or a device-side value.
+  string message = 7;
+}
+
+// ApplyDeviceSettingsRequest asks for the named settings to be applied to every
+// device in the workspace's registry that has a current transport endpoint.
+//
+// It names NO device list. The fleet is read from the registry by the control
+// plane, so an operator action cannot assert which devices are attached, and a
+// caller cannot pick a subject for an action it does not own.
+message ApplyDeviceSettingsRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  // settings names the settings to apply, one entry each. An empty list, a
+  // repeated entry, or UNSPECIFIED is refused before anything runs: a request
+  // that names nothing cannot be reported on per setting, and a doubled entry
+  // would be two rows for one operation with no way to tell them apart.
+  repeated DeviceSetting settings = 3;
+  // approval_granted is the operator's explicit approval of the change. A
+  // high-risk setting — autofill off rewrites a secure setting — is refused by
+  // the policy evaluator without it, and that refusal is reported per device and
+  // per setting rather than as a whole-request failure. It is the same approval
+  // the typed device inputs carry, and it is required rather than defaulted so a
+  // client has to have asked.
+  bool approval_granted = 4;
+}
+
+// ApplyDeviceSettingsResponse reports every setting on every device, plus the
+// counts that make a bare "ok" impossible.
+//
+// The counts NEVER stand in for the rows: `results` carries every outcome, in
+// the order the registry reported the devices and the request named the
+// settings. A device that failed is named there. A client that rendered only
+// `applied_devices` would hide exactly the device this surface exists to expose.
+message ApplyDeviceSettingsResponse {
+  repeated DeviceSettingResult results = 1;
+  // total_devices counts the devices this apply ran for: every device in the
+  // workspace's registry that is not retired.
+  uint32 total_devices = 2;
+  // applied_devices counts the devices on which EVERY requested setting is
+  // applied and verified.
+  uint32 applied_devices = 3;
+  // failed_devices counts the devices with at least one setting that is not
+  // applied. It is a device count, not a row count.
+  uint32 failed_devices = 4;
+}
+
+service DeviceSettingsService {
+  rpc ApplyDeviceSettings(ApplyDeviceSettingsRequest) returns (ApplyDeviceSettingsResponse);
+}

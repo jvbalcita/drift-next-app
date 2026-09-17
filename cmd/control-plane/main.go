@@ -236,14 +236,29 @@ func main() {
 		log.Printf("text reference surface not mounted: %v", referenceErr)
 	}
 
-	// The typed device input surface. It is mounted only when the whole path was
+	// The typed device input dispatch path, built ONCE and shared by the input
+	// surface and the fleet device-settings surface: one dispatcher owns one
+	// serialized actor per device, so a settings apply and a tap for the same
+	// device cannot interleave. A surface is mounted only when its whole path was
 	// constructed: an empty Route mounts nothing, so a missing dependency degrades
-	// to "no input surface" rather than to a route that cannot dispatch anything
+	// to "no surface" rather than to a route that cannot dispatch anything
 	// (AGENTS.md section 6).
+	dispatcher, dispatcherErr := deviceInputDispatcher(labService, actionRuntime, textReferences, db)
+	if dispatcherErr != nil {
+		log.Printf("device dispatch path not constructed: %v", dispatcherErr)
+	}
 	inputMounted := false
-	if inputRoute := deviceInputRoute(labService, actionRuntime, textReferences, db, labToken); inputRoute.Path != "" {
+	if inputRoute := deviceInputRoute(dispatcher, actionRuntime, labToken); inputRoute.Path != "" {
 		routes = append(routes, inputRoute)
 		inputMounted = true
+	}
+	// The fleet device-settings surface the Console Settings dialog applies
+	// from: rotation lock and autofill off, applied across the registry's fleet
+	// through the same kernel, one lease per device.
+	settingsMounted := false
+	if settingsRoute := deviceSettingsRoute(dispatcher, db, labToken); settingsRoute.Path != "" {
+		routes = append(routes, settingsRoute)
+		settingsMounted = true
 	}
 	// The one boundary that admits operator-supplied content into this process,
 	// mounted only when a registry was constructed to hold what it admits.
@@ -270,7 +285,7 @@ func main() {
 		connectionMounted = true
 	}
 	server := service.NewHTTPServer("control-plane", address, routes...)
-	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, text reference surface %s, transport surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted))
+	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, device settings surface %s, text reference surface %s, transport surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), mountState(settingsMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted))
 	serveErr := service.Serve(ctx, server)
 	// The startup scan, the post-launch watcher and the frame engine are owned
 	// work, not detached workers: wait for all three to obey cancellation before
@@ -329,40 +344,27 @@ func observationSource(labService *lab.Service) execution.ObservationSourceFacto
 	}
 }
 
-// deviceInputRoute builds the typed device input route, or an empty Route when the
-// path cannot be constructed.
+// deviceInputDispatcher builds the typed device input dispatcher, or reports why
+// it cannot be built.
 //
-// Every dependency is checked, and every absence returns an empty Route, which
-// mounts nothing at all. That is deliberate rather than defensive: a route whose
-// dispatcher cannot dispatch is worse than no route, because it advertises a
-// surface that cannot work (AGENTS.md section 6). Each reason is logged rather
-// than swallowed, so a deployment that expected the surface can see which
-// dependency was missing instead of finding no route and no explanation.
-//
-// The composed path, in the order a request travels it: the transport is the
-// device's own allow-listed runner (4a); the readiness probe judges the device from
-// the lab boundary's attached set (4b); the postcondition observer reads the
-// device's current observation (slice 3); the dispatcher carries the whole P7
-// contract with the evidence recorder bound; and the application boundary resolves
-// the device to its serial and assigns the attempt identity (4c), which is what
-// satisfies the port this route serves.
-func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, textReferences *execution.TextReferenceRegistry, db *store.DB, token string) service.Route {
+// It is built ONCE and shared by every surface that dispatches a device action,
+// because the dispatcher owns one serialized actor per device: two dispatchers
+// would be two actors for one device, and the per-device serialization the actor
+// exists to provide would be defeated by having two of them.
+func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry, textReferences *execution.TextReferenceRegistry, db *store.DB) (*execution.InputDispatcher, error) {
 	transport, err := execution.NewInputTransportFromAllowlisted(labService.DeviceTransport())
 	if err != nil {
-		log.Printf("device input surface not mounted: %v", err)
-		return service.Route{}
+		return nil, err
 	}
 	observer, err := execution.NewObservationPostconditionObserver(resolver, observationSource(labService))
 	if err != nil {
-		log.Printf("device input surface not mounted: %v", err)
-		return service.Route{}
+		return nil, err
 	}
 	deviceState, err := execution.NewTransportObserverFromAttached(labService)
 	if err != nil {
-		log.Printf("device input surface not mounted: %v", err)
-		return service.Route{}
+		return nil, err
 	}
-	dispatcher, err := execution.NewInputDispatcher(
+	return execution.NewInputDispatcher(
 		store.NewActionService(db),
 		execution.NewStoreControlProbe(db, deviceState),
 		observer,
@@ -374,8 +376,21 @@ func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, tex
 		textReferences,
 		execution.WithEvidenceRecorder(store.NewActionEvidenceService(db)),
 	)
-	if err != nil {
-		log.Printf("device input surface not mounted: %v", err)
+}
+
+// deviceInputRoute builds the typed device input route, or an empty Route when the
+// path cannot be constructed.
+//
+// The composed path, in the order a request travels it: the transport is the
+// device's own allow-listed runner (4a); the readiness probe judges the device from
+// the lab boundary's attached set (4b); the postcondition observer reads the
+// device's current observation (slice 3); the dispatcher carries the whole P7
+// contract with the evidence recorder bound; and the application boundary resolves
+// the device to its serial and assigns the attempt identity (4c), which is what
+// satisfies the port this route serves.
+func deviceInputRoute(dispatcher *execution.InputDispatcher, resolver *execution.Registry, token string) service.Route {
+	if dispatcher == nil {
+		log.Print("device input surface not mounted: the dispatcher was not constructed")
 		return service.Route{}
 	}
 	boundary, err := transportconnect.NewDeviceInputBoundary(dispatcher, resolver, ids.NewRandom())
@@ -384,6 +399,28 @@ func deviceInputRoute(labService *lab.Service, resolver *execution.Registry, tex
 		return service.Route{}
 	}
 	return service.DeviceInputRoute(boundary, token)
+}
+
+// deviceSettingsRoute builds the fleet device-settings route, or an empty Route
+// when the path cannot be constructed.
+//
+// It shares the ONE dispatcher the input surface dispatches through, so a
+// settings apply and a tap for the same device reach that device through the same
+// serialized actor and cannot interleave. Every dependency is checked and every
+// absence returns an empty Route, which mounts nothing at all: a route whose
+// applier cannot apply is worse than no route, because it advertises a surface
+// that cannot work (AGENTS.md section 6).
+func deviceSettingsRoute(dispatcher *execution.InputDispatcher, db *store.DB, token string) service.Route {
+	if dispatcher == nil {
+		log.Print("device settings surface not mounted: the dispatcher was not constructed")
+		return service.Route{}
+	}
+	applier, err := execution.NewDeviceSettingsApplier(execution.NewStoreFleetReader(db), db, dispatcher, ids.NewRandom())
+	if err != nil {
+		log.Printf("device settings surface not mounted: %v", err)
+		return service.Route{}
+	}
+	return service.DeviceSettingsRoute(applier, token)
 }
 
 // acceptedProfilePorts reads the workspace's DEFAULT network profile's declared

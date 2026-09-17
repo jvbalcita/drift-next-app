@@ -280,15 +280,26 @@ func RemoveArgv(devicePath string) ([]string, error) {
 // than with the typed inputs, and it is spelled out here in literal tokens
 // rather than imported from the builder that emits it.
 //
-// The two admissions are recognisers of their own — `matchesDeviceInputAllowlist`
-// and `matchesReadOnlyAllowlist` — and the input recogniser is asked first. That
-// order is not load-bearing: the two are provably disjoint, so no array is
-// admitted by both, and `allowlist_classification_test.go` asserts that over
-// every admitted array, every near miss and a token-mutation cross-product. The
-// order is pinned anyway, so a future admission that made them overlap fails a
-// test instead of silently changing an array's classification.
+// The catalogued device settings are the third admission (ARC-137). Each is a
+// fixed argument array with zero variable positions — every token is a literal
+// spelled out below, not imported from the builder that emits it — so there is
+// nothing to parameterise and no bound to derive. They are CATALOGUED general
+// commands in the sense of AGENTS.md section 3: named operations with a bounded
+// (here empty) parameter set, dispatched as an argv array without a shell.
+//
+// The three admissions are recognisers of their own — `matchesDeviceInputAllowlist`,
+// `matchesDeviceSettingsAllowlist` and `matchesReadOnlyAllowlist` — and they are
+// asked in that order. That order is not load-bearing: the three are provably
+// disjoint, so no array is admitted by more than one, and
+// `allowlist_classification_test.go` asserts that over every admitted array,
+// every near miss and a token-mutation cross-product. The order is pinned
+// anyway, so a future admission that made them overlap fails a test instead of
+// silently changing an array's classification.
 func matchesAllowlist(args []string) (string, bool) {
 	if name, ok := matchesDeviceInputAllowlist(args); ok {
+		return name, true
+	}
+	if name, ok := matchesDeviceSettingsAllowlist(args); ok {
 		return name, true
 	}
 	if name, ok := matchesReadOnlyAllowlist(args); ok {
@@ -298,6 +309,51 @@ func matchesAllowlist(args []string) (string, bool) {
 		return name, true
 	}
 	return matchesHostAllowlist(args)
+}
+
+// matchesDeviceSettingsAllowlist recognises exactly the nine argument arrays the
+// two catalogued device settings issue: the five writes that change rotation
+// lock and autofill, and the four reads each operation uses to verify its own
+// postcondition by reading the setting back off the device.
+//
+// Every array is arity-fixed and literal. There is no decimal, no name, no flag,
+// no path and no second command in any position, so this admission cannot
+// express command text even in principle; the reads are listed with the writes
+// because both are this family's own shapes, and the read operation names are
+// not action-catalog kinds, so no read can be selected as an operator action.
+func matchesDeviceSettingsAllowlist(args []string) (string, bool) {
+	switch {
+	// Rotation lock, the two writes: auto-rotate off, then the device held in
+	// its natural orientation. Both are required; either alone leaves the
+	// device presenting at an orientation the recording was not taken in.
+	case equalArgv(args, []string{"shell", "settings", "put", "system", "accelerometer_rotation", "0"}):
+		return "settings-rotation-auto-off", true
+	case equalArgv(args, []string{"shell", "settings", "put", "system", "user_rotation", "0"}):
+		return "settings-rotation-zero", true
+	// Autofill off, the three writes: remove the selected service, disable the
+	// augmented service for user 0, then reset the autofill manager so the
+	// change takes effect. The order is load-bearing and is the order the
+	// primitive issues them in.
+	case equalArgv(args, []string{"shell", "settings", "delete", "secure", "autofill_service"}):
+		return "settings-autofill-service-delete", true
+	case equalArgv(args, []string{"shell", "cmd", "autofill", "set", "default-augmented-service-enabled", "0", "false"}):
+		return "settings-autofill-augmented-off", true
+	case equalArgv(args, []string{"shell", "cmd", "autofill", "reset"}):
+		return "settings-autofill-reset", true
+	// The read-backs. Each is the read half of the setting the write above it
+	// changes, and it is what makes "applied" a fact read off the device rather
+	// than a report that a command exited zero.
+	case equalArgv(args, []string{"shell", "settings", "get", "system", "accelerometer_rotation"}):
+		return "settings-rotation-auto-read", true
+	case equalArgv(args, []string{"shell", "settings", "get", "system", "user_rotation"}):
+		return "settings-rotation-zero-read", true
+	case equalArgv(args, []string{"shell", "settings", "get", "secure", "autofill_service"}):
+		return "settings-autofill-service-read", true
+	case equalArgv(args, []string{"shell", "cmd", "autofill", "get", "default-augmented-service-enabled"}):
+		return "settings-autofill-augmented-read", true
+	default:
+		return "", false
+	}
 }
 
 // matchesReadOnlyAllowlist recognises the read-only builders this adapter issues
