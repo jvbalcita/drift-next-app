@@ -128,10 +128,14 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// One adapter enumeration over the lab runtime, read by both the startup
+	// scan and the post-launch watcher below: a device that attaches after
+	// launch is seen through the same view the scan observes, not a second one.
+	enumerator := product.NewLabRuntimeEnumerator(labService)
 	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{
 		Authorized: true,
 		LabMode:    lab.LabModeRequested(os.LookupEnv),
-		Enumerator: product.NewLabRuntimeEnumerator(labService),
+		Enumerator: enumerator,
 	})
 	productHandlers = transportconnect.NewProductHandlers(db, scanner)
 	actionRuntime := execution.NewRegistry(labService, db)
@@ -153,6 +157,25 @@ func main() {
 	go func() {
 		defer close(autoScanDone)
 		log.Printf("%s", autoScan.Run(ctx).Report())
+	}()
+
+	// Post-launch arrivals: the startup scan covers what is attached when the
+	// process starts, and this covers what attaches after it. The watcher polls
+	// the same adapter enumeration the scan reads, is cancelled by the same
+	// shutdown context as the listener, is owned by main (see the wait below),
+	// and never aborts startup: every arrival, departure, and failed poll is
+	// reported as it happens rather than held back to shutdown.
+	//
+	// It detects only. Routing an arrival through the serial-keyed registry path
+	// is the next slice of this wave, so the watcher deliberately owns no
+	// registration, no scan, and no device execution of its own.
+	transportWatch := product.NewTransportWatcher(product.TransportWatcherConfig{
+		Enumerator: enumerator,
+	})
+	transportWatchDone := make(chan struct{})
+	go func() {
+		defer close(transportWatchDone)
+		log.Printf("%s", transportWatch.Run(ctx).Report())
 	}()
 
 	routes := []service.Route{
@@ -209,9 +232,10 @@ func main() {
 	server := service.NewHTTPServer("control-plane", address, routes...)
 	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, text reference surface %s, transport surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted))
 	serveErr := service.Serve(ctx, server)
-	// The startup scan is owned work, not a detached worker: wait for it to
-	// obey cancellation before the process returns.
+	// The startup scan and the post-launch watcher are owned work, not detached
+	// workers: wait for both to obey cancellation before the process returns.
 	<-autoScanDone
+	<-transportWatchDone
 	if serveErr != nil {
 		log.Fatal(serveErr)
 	}
