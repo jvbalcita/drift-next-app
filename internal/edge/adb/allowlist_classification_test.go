@@ -162,6 +162,22 @@ func transportArrays(t *testing.T) [][]string {
 	return [][]string{tcpip}
 }
 
+// mirrorArrays is every array the live mirror's admission recognises (ARC-143):
+// the device-side server push, the two reverse-tunnel forms and the server
+// launch. They are built by the mirror's own builders rather than spelled here,
+// because the property this corpus asserts about them is that the arrays the
+// client actually issues are admitted - a literal here would prove the
+// recogniser agrees with this file instead.
+func mirrorArrays(t *testing.T) [][]string {
+	t.Helper()
+	return [][]string{
+		mirrorTestPush(t),
+		mirrorTestReverse(t, false),
+		mirrorTestReverse(t, true),
+		mirrorTestLaunch(t),
+	}
+}
+
 // admissionFamily is one admission the adapter serves, with the recogniser a test
 // can ask independently and the arrays that admission is expected to recognise.
 // The counts are part of the expectation: an admission that stopped recognising
@@ -185,6 +201,7 @@ func admissionFamilies(t *testing.T) []admissionFamily {
 		{"read-only", matchesReadOnlyAllowlist, readOnlyArrays(t), 8},
 		{"host", matchesHostAllowlist, hostArrays(t), 3},
 		{"transport", matchesTransportAllowlist, transportArrays(t), 1},
+		{"mirror", matchesMirrorAllowlist, mirrorArrays(t), 4},
 	}
 }
 
@@ -197,6 +214,8 @@ var foreignTokens = []string{
 	"shell", "exec-out", "get-state", "--compressed", "540", "com.example.app",
 	"settings", "put", "get", "delete", "system", "secure", "accelerometer_rotation",
 	"user_rotation", "autofill_service", "cmd", "autofill", "reset", "default-augmented-service-enabled",
+	"push", "reverse", "--remove", "app_process", "log_level=info", "info",
+	"localabstract:scrcpy_2abc1234", "tcp:27183", "scrcpy-server",
 }
 
 // classificationCorpus is everything this file reasons over: the admitted

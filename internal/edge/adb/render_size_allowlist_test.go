@@ -170,7 +170,8 @@ func TestTheRenderSizeAdmissionDoesNotWidenTheAllowlistSurface(t *testing.T) {
 
 	// Every array the adapter admits, with the operation name it must resolve
 	// to: the read-only builders (ADR-0004), the six typed device input arrays
-	// (ADR-0010) and the render-size read (ARC-75).
+	// (ADR-0010), the render-size read (ARC-75) and the live mirror's four
+	// device-side shapes (ARC-143).
 	admitted := []struct {
 		operation string
 		args      []string
@@ -189,6 +190,10 @@ func TestTheRenderSizeAdmissionDoesNotWidenTheAllowlistSurface(t *testing.T) {
 		{"input-text", []string{"shell", "input", "text", "hello%sworld"}},
 		{"launch-app-package", []string{"shell", "monkey", "-p", "com.example.app", "-c", "android.intent.category.LAUNCHER", "1"}},
 		{"launch-app-activity", []string{"shell", "am", "start", "-n", "com.example.app/.MainActivity"}},
+		{MirrorServerPushOperation, mirrorTestPush(t)},
+		{MirrorReverseAddOperation, mirrorTestReverse(t, false)},
+		{MirrorReverseRemoveOperation, mirrorTestReverse(t, true)},
+		{MirrorServerLaunchOperation, mirrorTestLaunch(t)},
 	}
 
 	operations := make(map[string]struct{}, len(admitted))
@@ -215,6 +220,10 @@ func TestTheRenderSizeAdmissionDoesNotWidenTheAllowlistSurface(t *testing.T) {
 		"input-text",
 		"launch-app-activity",
 		"launch-app-package",
+		MirrorServerPushOperation,
+		MirrorReverseAddOperation,
+		MirrorReverseRemoveOperation,
+		MirrorServerLaunchOperation,
 		"rm",
 		"screencap",
 		"uiautomator-dump-file",
