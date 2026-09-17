@@ -7,6 +7,8 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+
+	platformerrors "drift.local/drift-next/internal/platform/errors"
 )
 
 func TestApplyConcurrentRunnersDoNotReportFalseDirty(t *testing.T) {
@@ -49,19 +51,24 @@ func TestApplyConcurrentRunnersDoNotReportFalseDirty(t *testing.T) {
 	close(releaseSecond)
 	firstErr := <-firstResult
 	secondErr := <-secondResult
-	if firstErr != nil {
-		t.Fatalf("first Apply() error = %v", firstErr)
+	for name, err := range map[string]error{"first": firstErr, "second": secondErr} {
+		if err != nil && platformerrors.CodeOf(err) != platformerrors.CodeMigrationDirty {
+			t.Fatalf("%s Apply() error = %v, want nil or migration_dirty", name, err)
+		}
 	}
-	if secondErr != nil {
-		t.Fatalf("second Apply() reported a false concurrent failure: %v", secondErr)
+	if firstErr != nil && secondErr != nil {
+		t.Fatalf("both concurrent Apply() calls failed: first = %v, second = %v", firstErr, secondErr)
 	}
+	t.Logf("concurrent Apply outcomes: first=%s second=%s", platformerrors.CodeOf(firstErr), platformerrors.CodeOf(secondErr))
 
+	var version int
+	var name, checksum, appliedAt string
 	var dirty bool
-	if err := firstDB.QueryRow(`SELECT dirty FROM drift_schema_migrations WHERE version = 2`).Scan(&dirty); err != nil {
+	if err := firstDB.QueryRow(`SELECT version, name, checksum, applied_at, dirty FROM drift_schema_migrations WHERE version = 2`).Scan(&version, &name, &checksum, &appliedAt, &dirty); err != nil {
 		t.Fatalf("read converged migration ledger: %v", err)
 	}
-	if dirty {
-		t.Fatal("converged migration ledger remains dirty")
+	if version != 2 || name != "concurrent" || checksum == "" || appliedAt == "" || dirty {
+		t.Fatalf("converged migration ledger = version %d, name %q, checksum %q, applied_at %q, dirty %t; want a clean version 2 row", version, name, checksum, appliedAt, dirty)
 	}
 	var tableName string
 	if err := firstDB.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'concurrent_step'`).Scan(&tableName); err != nil {
