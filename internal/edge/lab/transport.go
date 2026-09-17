@@ -47,6 +47,55 @@ func WithLabTransport(transport DeviceTransport) Option {
 	}
 }
 
+// ErrHostTransportRequired reports a host-transport opt-in that binds nothing.
+var ErrHostTransportRequired = errors.New("a lab host transport is required to expose one")
+
+// HostTransport is the HOST-level allow-listed runner: the operations that act
+// on the adb server itself rather than on one named device (opening an endpoint,
+// dropping and restarting the server). It is exposed so the composition root can
+// build the transport surface over the same adapter this service already reaches
+// devices through, rather than constructing a second adapter that behaves
+// differently.
+//
+// It is a separate interface, and a separate opt-in, from DeviceTransport on
+// purpose: a device-scoped runner and a host-scoped one are different powers
+// (ARC-67 D3 admitted exactly three host arrays and kept them disjoint from the
+// device inputs), and a service that was not asked for the host runner must not
+// expose one. (*adb.Adapter).RunHostAllowlisted satisfies it.
+type HostTransport interface {
+	RunHostAllowlisted(ctx context.Context, args []string) (adb.Result, error)
+}
+
+// WithLabHostTransport binds the host-level allow-listed runner for a transport
+// surface the composition root builds.
+//
+// Like WithLabTransport it refuses a nil transport rather than binding one, so a
+// missing transport is a construction failure at the composition root instead of
+// a nil that every later caller has to remember to check.
+func WithLabHostTransport(transport HostTransport) Option {
+	return func(s *Service) error {
+		if transport == nil {
+			return ErrHostTransportRequired
+		}
+		s.hostTransport = transport
+		return nil
+	}
+}
+
+// HostTransport returns the host-level allow-listed runner this service was
+// built with, or nil when it was built without one.
+//
+// Nil is not an error here for the same reason it is not on DeviceTransport: it
+// means no host runner was bound, and the caller must build no transport surface
+// and mount no route from this service. That keeps "nothing was constructed, so
+// nothing is mounted" the visible rule rather than an implicit one.
+func (s *Service) HostTransport() HostTransport {
+	if s == nil {
+		return nil
+	}
+	return s.hostTransport
+}
+
 // DeviceTransport returns the device's own allow-listed runner this service was
 // built with, or nil when it was built without one.
 //
