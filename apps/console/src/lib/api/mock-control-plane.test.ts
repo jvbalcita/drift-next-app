@@ -357,4 +357,37 @@ describe("MockControlPlaneClient", () => {
     expect(published.ok).toBe(true)
     expect(client.getSnapshot().workflows.find((workflow) => workflow.name === "Observe Device")?.state).toBe("published")
   })
+
+  it("reports transport operations as recorded intents without claiming device contact", () => {
+    const client = new MockControlPlaneClient()
+
+    const connected = client.dispatch({ type: "connectEndpoint", serial: "MOCK-DEVICE-101", endpoint: "192.0.2.10:5555" })
+    const restarted = client.dispatch({ type: "restartTransportServer", endpoints: ["192.0.2.10:5555"] })
+    const refusedRestart = client.dispatch({ type: "restartTransportServer", endpoints: [] })
+    const changed = client.dispatch({ type: "changeTransportMode", serial: "MOCK-DEVICE-101", port: 5556 })
+    const activated = client.dispatch({ type: "activatePort", serial: "MOCK-DEVICE-101", endpoint: "192.0.2.10:5555" })
+
+    expect(connected.message).toMatch(/no transport was opened/i)
+    expect(restarted.message).toMatch(/no adb process was touched/i)
+    expect(changed.message).toMatch(/no adbd was restarted/i)
+    // 5555 is in the mock profiles' accepted set, so it is NOT an activation.
+    expect(activated.message).toMatch(/already accepted/i)
+    expect(refusedRestart.ok).toBe(false)
+    expect(refusedRestart.message).toMatch(/at least one observed endpoint/i)
+  })
+
+  it("creates a discovery range only when no saved profile holds an equivalent one", () => {
+    const client = new MockControlPlaneClient()
+    // The mock's default profile is 192.0.2.0/24, so this range is equivalent.
+    const equivalent = client.dispatch({ type: "addDiscoveryRange", startIp: "192.0.2.0", endIp: "192.0.2.255", port: 5555 })
+    const fresh = client.dispatch({ type: "addDiscoveryRange", startIp: "192.168.1.1", endIp: "192.168.1.255", port: 5556 })
+    const inverted = client.dispatch({ type: "addDiscoveryRange", startIp: "192.168.1.20", endIp: "192.168.1.10", port: 5555 })
+
+    expect(equivalent.message).toMatch(/already exists/i)
+    expect(fresh.message).toMatch(/created as a saved Network Profile/i)
+    expect(inverted.ok).toBe(false)
+    const added = client.getSnapshot().networkProfiles.filter((profile) => profile.addressPolicy === "192.168.1.1-192.168.1.255")
+    expect(added).toHaveLength(1)
+    expect(added[0]?.ports).toEqual([5556])
+  })
 })
