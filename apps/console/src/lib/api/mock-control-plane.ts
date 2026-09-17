@@ -1901,13 +1901,13 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       const endpoint = this.snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
       const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === device.id && candidate.state === "active")
       const refusal = !endpoint
-        ? { token: "no_transport_serial", claim: "the device has no single current transport endpoint, so nothing was sent" }
+        ? { reason: "no_transport_serial", claim: "the device has no single current transport endpoint, so nothing was sent" }
         : lease && lease.holder !== mockOperatorId
-          ? { token: "lease_unavailable", claim: "another controller holds this device's lease, so nothing was sent" }
+          ? { reason: "lease_unavailable", claim: "another controller holds this device's lease, so nothing was sent" }
           : null
       for (const setting of intent.settings) {
         outcomes.push(refusal
-          ? { deviceId: device.id, setting, applied: false, verified: false, refusal: refusal.token, failureClass: "transport", message: refusal.claim }
+          ? { deviceId: device.id, setting, applied: false, verified: false, refusal: refusal.reason, failureClass: "transport", message: refusal.claim }
           : { deviceId: device.id, setting, applied: true, verified: true, refusal: "", failureClass: "", message: "the setting would have been written and read back (mock: no device was contacted)" })
       }
       if (refusal) failedDevices += 1
