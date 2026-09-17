@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+
+	"drift.local/drift-next/internal/runtime"
 )
 
 // The readability contract, asserted against the rendered frame rather than
@@ -131,6 +134,37 @@ func TestNumberedActionsAscendInFrameReadingOrder(t *testing.T) {
 					t.Fatalf("column %d of a grid does not ascend: %s then %s", column[0].col, column[index-1].key, column[index].key)
 				}
 			}
+		}
+	}
+}
+
+func TestNumberedActionsAscendWithResolutionsAndDispatchFromTheSameList(t *testing.T) {
+	for _, count := range []int{1, 2, 3} {
+		external := make([]runtime.ExternalComponent, count)
+		for index := range external {
+			external[index] = runtime.ExternalComponent{
+				Name:    fmt.Sprintf("Component %d", index+1),
+				Address: fmt.Sprintf("127.0.0.1:%d", 8000+index),
+				Holder:  fmt.Sprintf("process (pid %d)", 100+index),
+			}
+		}
+		items := actionItems(viewState{actions: append(menu(), resolutionItems(external)...)})
+		state := viewState{actions: items}
+		cells := frameActionCells(renderFrame(state, 120, false))
+		if len(cells) != 16+count*2 {
+			t.Fatalf("%d resolutions: frame drew %d numbered actions, want %d", count, len(cells), 16+count*2)
+		}
+		for index, cell := range cells {
+			if want := strconv.Itoa(index + 1); cell.key != want {
+				t.Fatalf("%d resolutions: reading order %d is key %q, want %q", count, index, cell.key, want)
+			}
+			_, found := lookupItem(items, cell.key)
+			if !found {
+				t.Fatalf("%d resolutions: advertised key %q does not resolve to a drawn item %q", count, cell.key, cell.label)
+			}
+		}
+		if !strings.Contains(cells[len(cells)-1].label, "Exit") {
+			t.Fatalf("%d resolutions: last numbered action is %q, want Exit", count, cells[len(cells)-1].label)
 		}
 	}
 }

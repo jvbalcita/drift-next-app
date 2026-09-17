@@ -94,6 +94,35 @@ func menu() []menuItem {
 	}
 }
 
+// numberedActionItems is the single numbering source for both the frame and
+// dispatch. The renderer groups items by these same groups, so build the list
+// in that drawn order before assigning positions. Resolution actions therefore
+// deliberately shift the keys of the troubleshooting actions and Exit.
+func numberedActionItems(items []menuItem) []menuItem {
+	ordered := make([]menuItem, 0, len(items))
+	for _, group := range []itemGroup{groupActions, groupResolution, groupTroubleshooting, groupExit} {
+		for _, item := range items {
+			if !item.Shortcut && item.Group == group {
+				ordered = append(ordered, item)
+			}
+		}
+	}
+	for _, item := range items {
+		if item.Shortcut {
+			ordered = append(ordered, item)
+		}
+	}
+	number := 1
+	for index := range ordered {
+		if ordered[index].Shortcut {
+			continue
+		}
+		ordered[index].Key = strconv.Itoa(number)
+		number++
+	}
+	return ordered
+}
+
 // lookupItem resolves an operator key, including shortcut aliases, to its item.
 func lookupItem(items []menuItem, key string) (menuItem, bool) {
 	for _, item := range items {
