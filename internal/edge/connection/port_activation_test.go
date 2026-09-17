@@ -149,6 +149,18 @@ func TestAnEndpointOnlyConnectDoesNotUseAnActivation(t *testing.T) {
 	if _, err := connector.Connect(context.Background(), offPortEndpoint); err == nil {
 		t.Fatal("an endpoint-only connect used a device's activation; permission granted for a device must not become permission without one")
 	}
+	// The mechanism, asserted rather than assumed. An activation is keyed by the
+	// device's serial, so a caller naming no device can never be covered by one. Without
+	// this assertion the property above holds only because of how Covers happens to be
+	// written, and a safety property held by accident is not held.
+	if _, err := connector.ConnectFor(context.Background(), "", offPortEndpoint); err == nil {
+		t.Fatal("an unnamed device inherited an activation; an activation must only cover the serial it was made for")
+	}
+	// And the named path with activation switched off must refuse as well, so that the
+	// switch is observable rather than merely intended.
+	if _, err := connector.admittedPort(context.Background(), offPortEndpoint, labSerial, false); err == nil {
+		t.Fatal("an activation was honoured on a path that was told not to use one")
+	}
 	if len(runner.calls) != 0 {
 		t.Fatalf("an endpoint-only connect reached the device: %v", runner.calls)
 	}
