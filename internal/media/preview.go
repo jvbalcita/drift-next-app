@@ -68,8 +68,22 @@ func (s *PreviewService) SnapshotPreview(ctx context.Context, workspace organiza
 	if limit <= 0 {
 		limit = DefaultPreviewLimit
 	}
-	if len(payload) > limit {
-		return "", true, nil
+	preview, truncated := boundedPreview(payload, limit)
+	return preview, truncated, nil
+}
+
+// boundedPreview returns a bounded base64 preview of payload. A payload larger
+// than the bound yields no preview and a truncation flag rather than a prefix: a
+// partial image delivered silently is the wrong image, so the caller is told the
+// bound was exceeded instead. It is the one place this package applies the bound,
+// so the one-shot snapshot preview and the frame engine's per-tick preview
+// truncate - or not - by the same rule.
+func boundedPreview(payload []byte, limit int) (string, bool) {
+	if limit <= 0 || len(payload) == 0 {
+		return "", false
 	}
-	return base64.StdEncoding.EncodeToString(payload), false, nil
+	if len(payload) > limit {
+		return "", true
+	}
+	return base64.StdEncoding.EncodeToString(payload), false
 }

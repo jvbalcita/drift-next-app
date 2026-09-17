@@ -17,6 +17,7 @@ import (
 	"drift.local/drift-next/internal/edge/connection"
 	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/edge/lab"
+	"drift.local/drift-next/internal/media"
 	"drift.local/drift-next/internal/organizations"
 	"drift.local/drift-next/internal/platform/clock"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
@@ -198,6 +199,25 @@ func main() {
 		log.Printf("%s", transportWatch.Run(ctx).Report())
 	}()
 
+	// The frame engine: one owned worker that captures a bounded still frame per
+	// subscribed device on a bounded interval, through the same allow-listed
+	// capture path the one-shot observation uses. It starts on the process's
+	// shutdown context, is cancelled by it, and is awaited below before the
+	// process returns. Nothing is subscribed at startup, so it captures nothing
+	// until something subscribes: a subscription is what starts the work, and an
+	// unsubscribed device is not captured at all. This is a bounded snapshot
+	// engine, not a video transport - it holds the most recent still frame per
+	// subscribed device and never claims to be continuous.
+	frameEngine, frameEngineErr := media.NewFrameEngine(media.FrameEngineConfig{Capturer: labService.FrameTransport()})
+	if frameEngineErr != nil {
+		log.Printf("frame engine not started: %v", frameEngineErr)
+	}
+	frameEngineDone := make(chan struct{})
+	go func() {
+		defer close(frameEngineDone)
+		log.Printf("%s", frameEngine.Run(ctx).Report())
+	}()
+
 	routes := []service.Route{
 		service.LabAdapterRoute(labService, labToken),
 	}
@@ -252,10 +272,12 @@ func main() {
 	server := service.NewHTTPServer("control-plane", address, routes...)
 	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, text reference surface %s, transport surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted))
 	serveErr := service.Serve(ctx, server)
-	// The startup scan and the post-launch watcher are owned work, not detached
-	// workers: wait for both to obey cancellation before the process returns.
+	// The startup scan, the post-launch watcher and the frame engine are owned
+	// work, not detached workers: wait for all three to obey cancellation before
+	// the process returns.
 	<-autoScanDone
 	<-transportWatchDone
+	<-frameEngineDone
 	if serveErr != nil {
 		log.Fatal(serveErr)
 	}
