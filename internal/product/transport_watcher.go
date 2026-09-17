@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,7 +23,25 @@ const (
 	// answering must not hold the worker open, and no poll may outlive the
 	// shutdown that cancelled the watch.
 	defaultTransportWatchPollTimeout = 5 * time.Second
+
+	// WatcherActorType and WatcherActorID name post-launch arrival work in the
+	// same audit trail an operator-initiated scan writes. An arrival is recorded
+	// with no operator present, so it has to be attributable to the watcher
+	// rather than to nobody.
+	WatcherActorType = "system"
+	WatcherActorID   = "discovery-watcher"
 )
+
+// ArrivalSink records the transports a watcher has just observed arriving. The
+// watcher holds no registry of its own: it hands the arrivals to this seam,
+// which routes them through the serial-keyed registry path a scan uses, so a
+// device seen on a second transport resolves to its existing identity instead of
+// minting a second one (AGENTS.md section 2).
+//
+// It is called from inside a poll, on that poll's bounded context, so the caller
+// supplies a bounded write - it must honor the context and must not block on
+// anything the watcher cannot cancel.
+type ArrivalSink func(ctx context.Context, arrivals []discovery.ObservedDevice) error
 
 // TransportWatchState is how a watch ended. Both states are normal process
 // outcomes: a watcher never aborts startup and never fails the process.
@@ -68,6 +87,14 @@ type TransportWatchOutcome struct {
 	Arrivals   int
 	Departures int
 	PollErrors int
+	// Recorded is how many arrivals the sink accepted. An arrival the sink could
+	// not record is offered again on the next poll rather than dropped, so a
+	// count below Arrivals is work still owed to the registry.
+	Recorded int
+	// RecordErrors is how many arrival batches the sink refused, kept apart from
+	// poll errors because a watcher that polled fine and recorded nothing is a
+	// different condition from one that could not read the enumeration at all.
+	RecordErrors int
 	// Attached is how many transports the last successful poll saw, so a
 	// closing record with no changes can be told apart from one where nothing
 	// was ever enumerable.
@@ -75,6 +102,8 @@ type TransportWatchOutcome struct {
 	// LastError is the most recent failed poll, kept so the count can be
 	// explained rather than only totalled.
 	LastError error
+	// LastRecordError is the most recent refused arrival batch.
+	LastRecordError error
 	// Err is why the watch ended: the cancellation that stopped it, or the
 	// reason it could not poll at all.
 	Err error
@@ -90,11 +119,20 @@ func (o TransportWatchOutcome) Report() string {
 		"discovery watcher stopped after %d poll(s): %d arrival(s), %d departure(s), %d failed poll(s)",
 		o.Polls, o.Arrivals, o.Departures, o.PollErrors,
 	)
+	if o.Recorded > 0 {
+		report += fmt.Sprintf(", %d recorded", o.Recorded)
+	}
+	if o.RecordErrors > 0 {
+		report += fmt.Sprintf(", %d arrival batch(es) NOT recorded", o.RecordErrors)
+	}
 	if o.Polls > 0 {
 		report += fmt.Sprintf("; %d transport(s) attached at the last poll", o.Attached)
 	}
 	if o.LastError != nil {
 		report += fmt.Sprintf("; last poll error: %v", o.LastError)
+	}
+	if o.LastRecordError != nil {
+		report += fmt.Sprintf("; last arrival record error: %v", o.LastRecordError)
 	}
 	return report
 }
@@ -106,6 +144,11 @@ type TransportWatcherConfig struct {
 	// Profile scan reads. The watcher only polls it - it never scans, never
 	// upserts a device, and reaches no device of its own.
 	Enumerator discovery.RuntimeEnumerator
+	// Sink records each arrival. A nil sink leaves the watcher detecting only:
+	// arrivals are reported and counted, and nothing is persisted - which is the
+	// state the wave's first slice shipped in, not a supported configuration once
+	// the console is meant to surface arrivals without a scan.
+	Sink ArrivalSink
 	// Interval is the poll cadence; a zero value uses
 	// defaultTransportWatchInterval.
 	Interval time.Duration
@@ -127,7 +170,10 @@ type TransportWatcherConfig struct {
 // attaches after it.
 //
 // Bounded work: one enumeration per interval, each on a context bounded by
-// PollTimeout, over a view no larger than the enumeration returned. Polling is
+// PollTimeout, over a view no larger than the enumeration returned. Every arrival
+// it observes is handed to its ArrivalSink on that same bounded context, which is
+// how a device that attaches after launch reaches the registry the console reads
+// without anyone opening a scan. Polling is
 // also the resolution: a transport that attaches and detaches between two polls
 // is not observable, and the watcher states that rather than pretending to an
 // event stream - the device adapter's allow-list admits fixed builder shapes
@@ -138,10 +184,17 @@ type TransportWatcherConfig struct {
 // before the process returns.
 type TransportWatcher struct {
 	enumerator  discovery.RuntimeEnumerator
+	sink        ArrivalSink
 	interval    time.Duration
 	pollTimeout time.Duration
 	logf        func(string, ...any)
 	now         func() time.Time
+
+	// unrecorded holds the arrivals the sink has not accepted yet, keyed the same
+	// way change detection is. It is written only from the watch goroutine, and
+	// it is what stops a transient write failure from losing a device: an arrival
+	// left only in the view would never be offered to the sink again.
+	unrecorded map[string]discovery.RuntimeDevice
 
 	once    sync.Once
 	outcome TransportWatchOutcome
@@ -166,10 +219,12 @@ func NewTransportWatcher(cfg TransportWatcherConfig) *TransportWatcher {
 	}
 	return &TransportWatcher{
 		enumerator:  cfg.Enumerator,
+		sink:        cfg.Sink,
 		interval:    interval,
 		pollTimeout: pollTimeout,
 		logf:        logf,
 		now:         now,
+		unrecorded:  make(map[string]discovery.RuntimeDevice),
 	}
 }
 
@@ -245,6 +300,16 @@ func (w *TransportWatcher) poll(ctx context.Context, previous attachmentSnapshot
 		return current
 	}
 	observedAt := w.now()
+	// pending is what this poll owes the registry: the transports it just saw
+	// arrive, plus the arrivals an earlier poll could not record while they are
+	// still attached. Keyed like change detection, so a transport that departed
+	// and returned is handed over once rather than twice.
+	pending := make(map[string]discovery.RuntimeDevice, len(current))
+	for key := range w.unrecorded {
+		if device, attached := current[key]; attached {
+			pending[key] = device
+		}
+	}
 	for key, device := range current {
 		if _, seen := previous[key]; seen {
 			continue
@@ -256,12 +321,16 @@ func (w *TransportWatcher) poll(ctx context.Context, previous attachmentSnapshot
 			TransportID: device.TransportID,
 			ObservedAt:  observedAt,
 		})
+		pending[key] = device
 	}
 	for key, device := range previous {
 		if _, present := current[key]; present {
 			continue
 		}
 		outcome.Departures++
+		// An arrival that departed before it could be recorded is no longer an
+		// arrival: there is nothing attached to hand over.
+		delete(w.unrecorded, key)
 		w.report(TransportChange{
 			Kind:        TransportDeparted,
 			Serial:      device.Serial,
@@ -269,7 +338,54 @@ func (w *TransportWatcher) poll(ctx context.Context, previous attachmentSnapshot
 			ObservedAt:  observedAt,
 		})
 	}
+	w.recordArrivals(pollCtx, pending, outcome)
 	return current
+}
+
+// recordArrivals hands the transports this poll owes the registry to the sink,
+// and remembers the ones it could not hand over. An arrival the sink refuses is
+// held for the next poll rather than counted as done: a device that arrived and
+// was never recorded is exactly the device the console cannot show, and the
+// watcher has no second chance to notice it once it is in the view.
+func (w *TransportWatcher) recordArrivals(ctx context.Context, pending map[string]discovery.RuntimeDevice, outcome *TransportWatchOutcome) {
+	if w.sink == nil || len(pending) == 0 {
+		return
+	}
+	// Handed over in a stable order: a batch that is recorded in the order it
+	// was observed is reproducible, and a map is not.
+	keys := make([]string, 0, len(pending))
+	for key := range pending {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	arrivals := make([]discovery.ObservedDevice, 0, len(keys))
+	for _, key := range keys {
+		arrivals = append(arrivals, discovery.ObservedDeviceFromRuntime(pending[key]))
+	}
+	if err := w.sink(ctx, arrivals); err != nil {
+		outcome.RecordErrors++
+		outcome.LastRecordError = err
+		for _, key := range keys {
+			w.unrecorded[key] = pending[key]
+		}
+		w.logf("discovery watcher could not record %d arrival(s): %v", len(arrivals), err)
+		return
+	}
+	for _, key := range keys {
+		delete(w.unrecorded, key)
+	}
+	outcome.Recorded += len(arrivals)
+	w.logf("discovery watcher recorded %d arrival(s): %s", len(arrivals), strings.Join(arrivalSerials(arrivals), ", "))
+}
+
+// arrivalSerials renders the serials in a recorded batch: what was written, never
+// an address or device evidence.
+func arrivalSerials(arrivals []discovery.ObservedDevice) []string {
+	serials := make([]string, 0, len(arrivals))
+	for _, arrival := range arrivals {
+		serials = append(serials, arrival.Serial)
+	}
+	return serials
 }
 
 // report writes one observed change. It carries transport facts only - the

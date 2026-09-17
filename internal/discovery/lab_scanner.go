@@ -72,8 +72,7 @@ func (s *AuthorizedLabScanner) Scan(ctx context.Context, profile networkprofiles
 
 	out := make([]ObservedDevice, 0, len(found))
 	for _, device := range found {
-		usb := device.Port == 0 && strings.TrimSpace(device.Host) == "" && strings.TrimSpace(device.Serial) != ""
-		if !usb {
+		if !RuntimeTransportIsUSB(device) {
 			// A port of 0 with no host is not an addressable transport, so there is
 			// nothing here to observe.
 			if device.Port == 0 {
@@ -90,21 +89,38 @@ func (s *AuthorizedLabScanner) Scan(ctx context.Context, profile networkprofiles
 				continue
 			}
 		}
-		evidence := map[string]string{
+		out = append(out, ObservedDeviceFromRuntime(device))
+	}
+	return out, nil
+}
+
+// RuntimeTransportIsUSB reports whether an enumerated transport is a USB
+// attachment: the adapter named a serial and no address at all. This is decided
+// in one place so the scan's filter and the observation the registry persists
+// cannot disagree about the transport they are looking at.
+func RuntimeTransportIsUSB(device RuntimeDevice) bool {
+	return device.Port == 0 && strings.TrimSpace(device.Host) == "" && strings.TrimSpace(device.Serial) != ""
+}
+
+// ObservedDeviceFromRuntime builds the observation the registry persists from one
+// enumerated runtime transport. A scan and the post-launch arrival watcher both
+// build their observations here, so one enumerated transport becomes the same
+// observation whichever path hands it to the registry - including the transport
+// fact read from the observation's own address rather than guessed by a reader
+// (AGENTS.md section 2).
+func ObservedDeviceFromRuntime(device RuntimeDevice) ObservedDevice {
+	return ObservedDevice{
+		Host:        device.Host,
+		Port:        device.Port,
+		Serial:      device.Serial,
+		Model:       device.Model,
+		Fingerprint: device.Fingerprint,
+		State:       device.State,
+		Evidence: map[string]string{
 			"source":       "authorized_lab_runtime",
 			"transport_id": device.TransportID,
 			"port":         strconv.FormatUint(uint64(device.Port), 10),
-			"connection":   map[bool]string{true: "usb", false: "tcp"}[usb],
-		}
-		out = append(out, ObservedDevice{
-			Host:        device.Host,
-			Port:        device.Port,
-			Serial:      device.Serial,
-			Model:       device.Model,
-			Fingerprint: device.Fingerprint,
-			State:       device.State,
-			Evidence:    evidence,
-		})
+			"connection":   map[bool]string{true: "usb", false: "tcp"}[RuntimeTransportIsUSB(device)],
+		},
 	}
-	return out, nil
 }
