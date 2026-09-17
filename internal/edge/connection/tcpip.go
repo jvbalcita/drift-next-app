@@ -83,14 +83,20 @@ type ActivationRefusalError struct {
 	State  string
 }
 
-func (e *ActivationRefusalError) Error() string {
-	switch e.Reason {
+func (e *ActivationRefusalError) Error() string { return e.Reason.Sentence(e.Serial) }
+
+// Sentence is the instruction an operator reads for this refusal. It is one
+// function so that a single activation, a fleet activation and the refusal error
+// itself cannot describe the same condition in three different ways: the reason
+// is classified, and the words that go with it live here.
+func (r ActivationRefusalReason) Sentence(serial string) string {
+	switch r {
 	case ActivationRefusalNotAttached:
-		return fmt.Sprintf("refusing to change the transport mode of %s: no such transport is attached to this host", e.Serial)
+		return fmt.Sprintf("refusing to change the transport mode of %s: no such transport is attached to this host", serial)
 	case ActivationRefusalNotAuthorized:
-		return fmt.Sprintf("refusing to change the transport mode of %s: it is present but unauthorized, so accept the USB debugging prompt on the device's screen and try again", e.Serial)
+		return fmt.Sprintf("refusing to change the transport mode of %s: it is present but unauthorized, so accept the USB debugging prompt on the device's screen and try again", serial)
 	default:
-		return fmt.Sprintf("refusing to change the transport mode of %s: it is present and authorized but its transport is not USB, and a device that is not physically attached cannot be recovered if the change strands it", e.Serial)
+		return fmt.Sprintf("refusing to change the transport mode of %s: it is present and authorized but its transport is not USB, and a device that is not physically attached cannot be recovered if the change strands it", serial)
 	}
 }
 
@@ -116,10 +122,17 @@ type ActivationOutcome struct {
 // Message is the sentence an operator is meant to read. It names the device and what it
 // needs, because "activation failed" is not an instruction.
 func (o ActivationOutcome) Message() string {
-	if o.NeedsOperatorAuthorization {
-		return fmt.Sprintf("%s is now listening on port %d, but it is UNAUTHORIZED for this host: accept the \"Allow USB debugging?\" prompt on the device's screen. It cannot be used until that is done, and no action will be dispatched to it.", o.Serial, o.Port)
+	return activationMessage(o.Serial, o.Port, o.NeedsOperatorAuthorization, o.StateAfter)
+}
+
+// activationMessage is the single place that says what one device's transport-mode
+// change did, so a single activation and a fleet activation cannot describe the same
+// outcome differently.
+func activationMessage(serial string, port uint16, needsOperatorAuthorization bool, stateAfter string) string {
+	if needsOperatorAuthorization {
+		return fmt.Sprintf("%s is now listening on port %d, but it is UNAUTHORIZED for this host: accept the \"Allow USB debugging?\" prompt on the device's screen. It cannot be used until that is done, and no action will be dispatched to it.", serial, port)
 	}
-	return fmt.Sprintf("%s is listening on port %d and is %s", o.Serial, o.Port, o.StateAfter)
+	return fmt.Sprintf("%s is listening on port %d and is %s", serial, port, stateAfter)
 }
 
 // Activate changes one device's transport mode to TCP on a port.

@@ -34,10 +34,14 @@ type recordingConnections struct {
 	restartOutcome connection.RestartOutcome
 	restartErr     error
 
+	fleetOutcome connection.FleetActivationReport
+	fleetErr     error
+
 	connects  []string
 	forwards  []string
 	modes     []string
 	activates []string
+	fleets    []uint16
 	restarts  [][]string
 }
 
@@ -62,13 +66,18 @@ func (c *recordingConnections) ActivatePort(_ context.Context, serial, endpoint 
 	return c.activation, c.activationNew, c.activationErr
 }
 
+func (c *recordingConnections) ActivateFleet(_ context.Context, port uint16) (connection.FleetActivationReport, error) {
+	c.fleets = append(c.fleets, port)
+	return c.fleetOutcome, c.fleetErr
+}
+
 func (c *recordingConnections) Restart(_ context.Context, endpoints []string) (connection.RestartOutcome, error) {
 	c.restarts = append(c.restarts, append([]string(nil), endpoints...))
 	return c.restartOutcome, c.restartErr
 }
 
 func (c *recordingConnections) calls() int {
-	return len(c.connects) + len(c.forwards) + len(c.modes) + len(c.activates) + len(c.restarts)
+	return len(c.connects) + len(c.forwards) + len(c.modes) + len(c.activates) + len(c.fleets) + len(c.restarts)
 }
 
 func connectionCode(t *testing.T, err error) connectrpc.Code {
@@ -430,6 +439,12 @@ func TestAnUnconstructedCollaboratorRefusesWithItsOwnCode(t *testing.T) {
 			}))
 			return err
 		},
+		"activate fleet": func() error {
+			_, err := handler.ActivateFleet(context.Background(), connectrpc.NewRequest(&driftv1.ActivateFleetRequest{
+				Context: requestContext("activate-fleet-unwired"), Port: 5555,
+			}))
+			return err
+		},
 		"restart": func() error {
 			_, err := handler.RestartServer(context.Background(), connectrpc.NewRequest(&driftv1.RestartServerRequest{
 				Context: requestContext("restart-unwired"), Endpoints: []string{"192.168.1.109:5555"},
@@ -440,6 +455,128 @@ func TestAnUnconstructedCollaboratorRefusesWithItsOwnCode(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if code := connectionCode(t, call()); code != connectrpc.CodeUnavailable {
 				t.Fatalf("%s on an unconstructed boundary = %v, want unavailable", name, code)
+			}
+		})
+	}
+}
+
+// ONE OPERATOR ACTION, EVERY SERIAL'S OWN ANSWER. The counts make a bare "ok"
+// impossible, and the per-serial entries are what the operator acts on: a device
+// that came back unauthorized is an outcome rather than an error, a refusal
+// names its own precondition, and a device already on the port is neither.
+func TestAFleetActivationReportsEverySerialAndNeverOnlyACount(t *testing.T) {
+	service := &recordingConnections{fleetOutcome: connection.FleetActivationReport{
+		Port: 5555,
+		Devices: []connection.FleetActivation{
+			{Serial: "R5CT42GS94Z", Port: 5555, Activated: true, StateBefore: "device", StateAfter: "device"},
+			{Serial: "ZY223UNAUTH", Port: 5555, NeedsOperatorAuthorization: true, StateBefore: "device", StateAfter: "unauthorized"},
+			{Serial: "192.168.1.9:5556", Port: 5555, Refusal: connection.ActivationRefusalNotUSB, StateBefore: "device"},
+			{Serial: "192.168.1.7:5555", Port: 5555, AlreadyOnPort: true, StateBefore: "device", StateAfter: "device"},
+		},
+	}}
+	handler := transportconnect.NewConnectionHandler(service)
+
+	response, err := handler.ActivateFleet(context.Background(), connectrpc.NewRequest(&driftv1.ActivateFleetRequest{
+		Context: requestContext("activate-fleet"),
+		Port:    5555,
+	}))
+	if err != nil {
+		t.Fatalf("ActivateFleet = %v", err)
+	}
+	if len(service.fleets) != 1 || service.fleets[0] != 5555 {
+		t.Fatalf("fleet calls = %v, want exactly one for port 5555", service.fleets)
+	}
+	body := response.Msg
+	if body.GetPort() != 5555 {
+		t.Fatalf("port = %d, want the port that was asked for", body.GetPort())
+	}
+	if body.GetActivated() != 1 || body.GetNeedsOperatorAuthorization() != 1 || body.GetRefused() != 1 || body.GetAlreadyOnPort() != 1 || body.GetFailed() != 0 {
+		t.Fatalf("counts = activated %d, needs-authorization %d, refused %d, already-on-port %d, failed %d; want 1/1/1/1/0",
+			body.GetActivated(), body.GetNeedsOperatorAuthorization(), body.GetRefused(), body.GetAlreadyOnPort(), body.GetFailed())
+	}
+	if len(body.GetDevices()) != 4 {
+		t.Fatalf("devices = %d, want every serial the run reported", len(body.GetDevices()))
+	}
+	for _, device := range body.GetDevices() {
+		if !strings.Contains(device.GetMessage(), device.GetSerial()) {
+			t.Fatalf("the sentence for %s does not name it: %q", device.GetSerial(), device.GetMessage())
+		}
+	}
+	if refusal := body.GetDevices()[2].GetRefusal(); refusal != "not_usb" {
+		t.Fatalf("refusal = %q, want the classified reason rather than prose", refusal)
+	}
+	if body.GetDevices()[0].GetRefusal() != "" {
+		t.Fatalf("an activated device carried a refusal: %q", body.GetDevices()[0].GetRefusal())
+	}
+	if !body.GetDevices()[1].GetNeedsOperatorAuthorization() {
+		t.Fatal("a device that came back unauthorized was not reported as needing the operator")
+	}
+	if !body.GetDevices()[3].GetAlreadyOnPort() {
+		t.Fatal("a device already on the port was not reported as such")
+	}
+}
+
+// A change that ran and failed is reported with a BOUNDED, redacted diagnostic
+// beside its own sentence, and it is reported as a failure rather than as a
+// refusal: the two are different facts about a device, and conflating them would
+// tell an operator to fix a precondition that was never the problem.
+func TestAFleetActivationReportsAFailureWithABoundedDiagnostic(t *testing.T) {
+	service := &recordingConnections{fleetOutcome: connection.FleetActivationReport{
+		Port: 5555,
+		Devices: []connection.FleetActivation{{
+			Serial: "R5CT42GS94Z",
+			Port:   5555,
+			Err:    errors.New("adb tcpip exited 1: " + strings.Repeat("x", 4000)),
+		}},
+	}}
+	handler := transportconnect.NewConnectionHandler(service)
+
+	response, err := handler.ActivateFleet(context.Background(), connectrpc.NewRequest(&driftv1.ActivateFleetRequest{
+		Context: requestContext("activate-fleet-failure"),
+		Port:    5555,
+	}))
+	if err != nil {
+		t.Fatalf("ActivateFleet = %v", err)
+	}
+	device := response.Msg.GetDevices()[0]
+	if !device.GetFailed() {
+		t.Fatal("a failed change was not reported as failed against its own serial")
+	}
+	if response.Msg.GetFailed() != 1 || response.Msg.GetActivated() != 0 {
+		t.Fatalf("counts = failed %d, activated %d; want 1 failed and none activated", response.Msg.GetFailed(), response.Msg.GetActivated())
+	}
+	if device.GetRefusal() != "" {
+		t.Fatalf("a failed change carried a refusal: %q", device.GetRefusal())
+	}
+	if !strings.Contains(device.GetMessage(), "UNKNOWN") {
+		t.Fatalf("the sentence = %q, want it to say the device's state is unknown", device.GetMessage())
+	}
+	if len(device.GetMessage()) > 2000 {
+		t.Fatalf("the sentence is %d bytes; a diagnostic has to be bounded", len(device.GetMessage()))
+	}
+	if !strings.Contains(device.GetMessage(), "adb tcpip exited 1") {
+		t.Fatalf("the sentence = %q, want the bounded diagnostic beside it", device.GetMessage())
+	}
+}
+
+// A port that is not a port is refused at the boundary, before the fleet is read
+// at all: the caller cannot make the control plane read the fleet for a request
+// it will never run.
+func TestAFleetActivationRefusesAPortThatIsNotAPort(t *testing.T) {
+	for name, port := range map[string]uint32{"zero": 0, "above the range": 70000} {
+		t.Run(name, func(t *testing.T) {
+			service := &recordingConnections{}
+			handler := transportconnect.NewConnectionHandler(service)
+
+			_, err := handler.ActivateFleet(context.Background(), connectrpc.NewRequest(&driftv1.ActivateFleetRequest{
+				Context: requestContext("activate-fleet-invalid"),
+				Port:    port,
+			}))
+			if code := connectionCode(t, err); code != connectrpc.CodeInvalidArgument {
+				t.Fatalf("a fleet activation on port %d = %v, want invalid_argument", port, code)
+			}
+			if service.calls() != 0 {
+				t.Fatalf("a refused fleet activation reached the fleet: %v", service.fleets)
 			}
 		})
 	}

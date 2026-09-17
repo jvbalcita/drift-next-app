@@ -45,6 +45,9 @@ const (
 	// ConnectionServiceRestartServerProcedure is the fully-qualified name of the ConnectionService's
 	// RestartServer RPC.
 	ConnectionServiceRestartServerProcedure = "/drift.v1.ConnectionService/RestartServer"
+	// ConnectionServiceActivateFleetProcedure is the fully-qualified name of the ConnectionService's
+	// ActivateFleet RPC.
+	ConnectionServiceActivateFleetProcedure = "/drift.v1.ConnectionService/ActivateFleet"
 )
 
 // ConnectionServiceClient is a client for the drift.v1.ConnectionService service.
@@ -53,6 +56,10 @@ type ConnectionServiceClient interface {
 	ChangeTransportMode(context.Context, *connect.Request[v1.ChangeTransportModeRequest]) (*connect.Response[v1.ChangeTransportModeResponse], error)
 	ActivatePort(context.Context, *connect.Request[v1.ActivatePortRequest]) (*connect.Response[v1.ActivatePortResponse], error)
 	RestartServer(context.Context, *connect.Request[v1.RestartServerRequest]) (*connect.Response[v1.RestartServerResponse], error)
+	// ActivateFleet moves every discovered device that is not already answering on
+	// the port onto it. It is the OTG Setup tab's Activate control: one operator
+	// action over the fleet, one result per serial.
+	ActivateFleet(context.Context, *connect.Request[v1.ActivateFleetRequest]) (*connect.Response[v1.ActivateFleetResponse], error)
 }
 
 // NewConnectionServiceClient constructs a client for the drift.v1.ConnectionService service. By
@@ -90,6 +97,12 @@ func NewConnectionServiceClient(httpClient connect.HTTPClient, baseURL string, o
 			connect.WithSchema(connectionServiceMethods.ByName("RestartServer")),
 			connect.WithClientOptions(opts...),
 		),
+		activateFleet: connect.NewClient[v1.ActivateFleetRequest, v1.ActivateFleetResponse](
+			httpClient,
+			baseURL+ConnectionServiceActivateFleetProcedure,
+			connect.WithSchema(connectionServiceMethods.ByName("ActivateFleet")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -99,6 +112,7 @@ type connectionServiceClient struct {
 	changeTransportMode *connect.Client[v1.ChangeTransportModeRequest, v1.ChangeTransportModeResponse]
 	activatePort        *connect.Client[v1.ActivatePortRequest, v1.ActivatePortResponse]
 	restartServer       *connect.Client[v1.RestartServerRequest, v1.RestartServerResponse]
+	activateFleet       *connect.Client[v1.ActivateFleetRequest, v1.ActivateFleetResponse]
 }
 
 // ConnectEndpoint calls drift.v1.ConnectionService.ConnectEndpoint.
@@ -121,12 +135,21 @@ func (c *connectionServiceClient) RestartServer(ctx context.Context, req *connec
 	return c.restartServer.CallUnary(ctx, req)
 }
 
+// ActivateFleet calls drift.v1.ConnectionService.ActivateFleet.
+func (c *connectionServiceClient) ActivateFleet(ctx context.Context, req *connect.Request[v1.ActivateFleetRequest]) (*connect.Response[v1.ActivateFleetResponse], error) {
+	return c.activateFleet.CallUnary(ctx, req)
+}
+
 // ConnectionServiceHandler is an implementation of the drift.v1.ConnectionService service.
 type ConnectionServiceHandler interface {
 	ConnectEndpoint(context.Context, *connect.Request[v1.ConnectEndpointRequest]) (*connect.Response[v1.ConnectEndpointResponse], error)
 	ChangeTransportMode(context.Context, *connect.Request[v1.ChangeTransportModeRequest]) (*connect.Response[v1.ChangeTransportModeResponse], error)
 	ActivatePort(context.Context, *connect.Request[v1.ActivatePortRequest]) (*connect.Response[v1.ActivatePortResponse], error)
 	RestartServer(context.Context, *connect.Request[v1.RestartServerRequest]) (*connect.Response[v1.RestartServerResponse], error)
+	// ActivateFleet moves every discovered device that is not already answering on
+	// the port onto it. It is the OTG Setup tab's Activate control: one operator
+	// action over the fleet, one result per serial.
+	ActivateFleet(context.Context, *connect.Request[v1.ActivateFleetRequest]) (*connect.Response[v1.ActivateFleetResponse], error)
 }
 
 // NewConnectionServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -160,6 +183,12 @@ func NewConnectionServiceHandler(svc ConnectionServiceHandler, opts ...connect.H
 		connect.WithSchema(connectionServiceMethods.ByName("RestartServer")),
 		connect.WithHandlerOptions(opts...),
 	)
+	connectionServiceActivateFleetHandler := connect.NewUnaryHandler(
+		ConnectionServiceActivateFleetProcedure,
+		svc.ActivateFleet,
+		connect.WithSchema(connectionServiceMethods.ByName("ActivateFleet")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.ConnectionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ConnectionServiceConnectEndpointProcedure:
@@ -170,6 +199,8 @@ func NewConnectionServiceHandler(svc ConnectionServiceHandler, opts ...connect.H
 			connectionServiceActivatePortHandler.ServeHTTP(w, r)
 		case ConnectionServiceRestartServerProcedure:
 			connectionServiceRestartServerHandler.ServeHTTP(w, r)
+		case ConnectionServiceActivateFleetProcedure:
+			connectionServiceActivateFleetHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -193,4 +224,8 @@ func (UnimplementedConnectionServiceHandler) ActivatePort(context.Context, *conn
 
 func (UnimplementedConnectionServiceHandler) RestartServer(context.Context, *connect.Request[v1.RestartServerRequest]) (*connect.Response[v1.RestartServerResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.ConnectionService.RestartServer is not implemented"))
+}
+
+func (UnimplementedConnectionServiceHandler) ActivateFleet(context.Context, *connect.Request[v1.ActivateFleetRequest]) (*connect.Response[v1.ActivateFleetResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.ConnectionService.ActivateFleet is not implemented"))
 }
