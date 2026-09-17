@@ -58,6 +58,7 @@ message ObservedDevice {
   bool known = 6;
   string device_id = 7;
   string endpoint_id = 8;
+  string device_name = 9;
 }
 
 message StartScanRequest {

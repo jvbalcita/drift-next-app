@@ -173,3 +173,30 @@ func TestTheDeviceListReportsAStatusDerivedFromTheObservationsItCarries(t *testi
 		t.Fatal("the departed device lost its last positive observation")
 	}
 }
+
+// The adapter can enumerate a transport while ADB still refuses it. That
+// observation belongs in history, but it must not create a current endpoint
+// that the console would project as ONLINE.
+func TestAnUnauthorizedObservationDoesNotProjectAsOnline(t *testing.T) {
+	db := openProductDB(t)
+	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
+	observed, err := svc.RecordArrivals(context.Background(), statusWorkspace, []discovery.ObservedDevice{{
+		Serial: "SER-UNAUTHORIZED-LIST",
+		Host:   "192.0.2.20",
+		Port:   5555,
+		State:  discovery.LinkUnauthorized,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("RecordArrivals() error = %v", err)
+	}
+	projected := statusOf(t, db, observed[0].DeviceID)
+	if got := projected.GetStatus(); got != driftv1.DeviceStatus_DEVICE_STATUS_OFFLINE {
+		t.Fatalf("unauthorized device status = %v, want OFFLINE: an unauthorized transport is observed but not reachable", got)
+	}
+	if projected.GetEndpointId() != "" {
+		t.Fatalf("unauthorized device endpoint = %q, want none", projected.GetEndpointId())
+	}
+	if projected.GetLastSeenAt() == "" {
+		t.Fatal("unauthorized observation lost last_seen_at, so the console cannot distinguish it from never observed")
+	}
+}

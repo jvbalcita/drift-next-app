@@ -58,6 +58,7 @@ message LabDiscoveredDevice {
   string model = 5;
   string product = 6;
   bool usable = 7;
+  string device_name = 8;
 }
 
 // LabStatus is the sanitized projection of the lab adapter boundary. Every

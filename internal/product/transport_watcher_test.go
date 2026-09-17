@@ -29,7 +29,7 @@ func failedPoll(err error) enumerationStep {
 }
 
 func transport(serial, transportID string) discovery.RuntimeDevice {
-	return discovery.RuntimeDevice{Serial: serial, TransportID: transportID}
+	return discovery.RuntimeDevice{Serial: serial, TransportID: transportID, State: discovery.LinkOnline}
 }
 
 // fakeTransportEnumerator is the adapter enumeration seam under the watcher's

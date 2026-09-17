@@ -102,6 +102,8 @@ export type DeviceTransportView = "usb" | "tcp" | "unspecified"
 export interface DeviceView {
   id: string
   displayName: string
+  /** Adapter/registry model when available; absent means the source did not provide one. */
+  phoneModel?: string
   stableIdentity: string
   lifecycle: DeviceLifecycleState
   status: DeviceStatus
@@ -140,6 +142,13 @@ export interface EndpointView {
   port: number
   state: EndpointState
   observedAt: string
+}
+
+export type ProjectionWarningSource = "devices" | "endpoints"
+
+export interface ProjectionWarning {
+  source: ProjectionWarningSource
+  message: string
 }
 
 /**
@@ -607,6 +616,7 @@ export interface ArtifactAuditView {
 export interface ControlPlaneSnapshot {
   workspaceName: string
   workspaceId: string
+  projectionWarnings: readonly ProjectionWarning[]
   devices: readonly DeviceView[]
   edgeAgents: readonly EdgeAgentView[]
   endpoints: readonly EndpointView[]

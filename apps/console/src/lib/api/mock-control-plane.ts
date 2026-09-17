@@ -65,6 +65,7 @@ const devices: DeviceView[] = [
   {
     id: "atlas-04",
     displayName: "Atlas 04",
+    phoneModel: "SM-G9750",
     stableIdentity: "device-101",
     lifecycle: "active",
     status: "online",
@@ -87,6 +88,7 @@ const devices: DeviceView[] = [
   {
     id: "atlas-07",
     displayName: "Atlas 07",
+    phoneModel: "SM-G9750",
     stableIdentity: "device-102",
     lifecycle: "active",
     status: "online",
@@ -109,6 +111,7 @@ const devices: DeviceView[] = [
   {
     id: "nova-02",
     displayName: "Nova 02",
+    phoneModel: "SM-G975F",
     stableIdentity: "device-103",
     lifecycle: "unavailable",
     status: "attention",
@@ -131,6 +134,7 @@ const devices: DeviceView[] = [
   {
     id: "nova-05",
     displayName: "Nova 05",
+    phoneModel: "SM-G975F",
     stableIdentity: "device-104",
     lifecycle: "unavailable",
     status: "offline",
@@ -153,6 +157,7 @@ const devices: DeviceView[] = [
   {
     id: "orion-01",
     displayName: "Orion 01",
+    phoneModel: "Pixel 8",
     stableIdentity: "device-105",
     lifecycle: "active",
     status: "online",
@@ -175,6 +180,7 @@ const devices: DeviceView[] = [
   {
     id: "orion-03",
     displayName: "Orion 03",
+    phoneModel: "Pixel 8",
     stableIdentity: "device-106",
     lifecycle: "active",
     status: "online",
@@ -764,6 +770,7 @@ export function buildMockSnapshot(): ControlPlaneSnapshot {
   return {
     workspaceName: workspace.name,
     workspaceId: workspace.id,
+    projectionWarnings: [],
     devices,
     edgeAgents,
     endpoints,

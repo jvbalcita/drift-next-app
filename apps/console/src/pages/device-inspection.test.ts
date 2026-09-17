@@ -7,6 +7,7 @@ import {
   buildInspection,
   deviceName,
   endpointAddress,
+  humanTimestamp,
   joinParts,
   reportedDeviceName,
   stableIdentityLabel,
@@ -79,7 +80,7 @@ const bareSnapshot: ControlPlaneSnapshot = {
 }
 
 describe("device inspection identity", () => {
-  it("titles a device on its stable identity", () => {
+  it("keeps stable identity available as a separate record", () => {
     expect(stableIdentityLabel(deviceById("atlas-04"))).toBe("device-101")
   })
 
@@ -87,8 +88,8 @@ describe("device inspection identity", () => {
     expect(reportedDeviceName(scannedDevice, scannedEndpoints)).toBeUndefined()
 
     const name = deviceName(scannedDevice, scannedEndpoints)
-    expect(name.primary).toBe("device-777")
-    expect(name.secondary).toBeUndefined()
+    expect(name.primary).toBe("SM-G9750")
+    expect(name.secondary).toBe("stable · device-777")
   })
 
   it("keeps a reported device name that is not a transport address", () => {
@@ -107,6 +108,14 @@ describe("device inspection identity", () => {
   it("renders a transport address only as an endpoint attribute", () => {
     expect(endpointAddress(scannedEndpoints[0])).toBe("192.168.1.123:5555")
     expect(endpointAddress({ ...scannedEndpoints[0], host: "", port: 0 })).toBe("192.168.1.123:5555")
+  })
+
+  it("formats registry timestamps for operators and keeps an exact value for inspection", () => {
+    const now = new Date("2026-09-17T12:00:45Z")
+    expect(humanTimestamp("2026-09-17T12:00:00Z", now)).toEqual({ label: "just now", exact: "2026-09-17T12:00:00.000Z" })
+    expect(humanTimestamp("2026-09-17T11:58:00Z", now).label).toBe("2 min ago")
+    expect(humanTimestamp("2026-09-16T12:00:00Z", now).label).toBe("1 day ago")
+    expect(humanTimestamp("18 sec ago", now)).toEqual({ label: "18 sec ago" })
   })
 
   it("joins projections without producing an unknown placeholder", () => {
@@ -130,6 +139,7 @@ describe("device inspection tabs", () => {
     expect(rendered).toContain("run-1042")
     expect(rendered).toContain("observation-atlas-04")
     expect(rendered).toContain("operator-1")
+    expect(rendered).toContain("First Seen")
   })
 
   it("reads the device transport from the record rather than from an endpoint address", () => {
@@ -154,6 +164,25 @@ describe("device inspection tabs", () => {
     const labels = buildInspection(deviceById("nova-02"), snapshot).map((tab) => tab.label)
     expect(labels).not.toContain("Lifecycle")
     expect(JSON.stringify(buildInspection(deviceById("nova-02"), snapshot))).not.toMatch(/lifecycle history/i)
+  })
+
+  it("uses a captured Android name before the phone model", () => {
+    const captured: DeviceView = { ...scannedDevice, displayName: "ALTA 1", phoneModel: "SM-G9750" }
+    expect(reportedDeviceName(captured, scannedEndpoints)).toBe("ALTA 1")
+    expect(deviceName(captured, scannedEndpoints).primary).toBe("ALTA 1")
+  })
+
+  it("does not label a model fallback as a captured name", () => {
+    const modelNamed: DeviceView = { ...scannedDevice, displayName: "SM-G9750", phoneModel: "SM-G9750" }
+    expect(reportedDeviceName(modelNamed, scannedEndpoints)).toBeUndefined()
+    expect(deviceName(modelNamed, scannedEndpoints).primary).toBe("SM-G9750")
+  })
+
+  it("uses one observation status instead of a duplicate lifecycle signal", () => {
+    const identity = inspectionTab(buildInspection(deviceById("atlas-04"), snapshot), "Identity")
+    const labels = identity.sections.flatMap((section) => section.rows ?? []).map((row) => row.label)
+    expect(labels).toContain("Status")
+    expect(labels).not.toContain("Lifecycle")
   })
 
   it("never renders an empty section", () => {
@@ -182,6 +211,6 @@ describe("device inspection tabs", () => {
     const labels = (identity.sections.flatMap((section) => section.rows ?? [])).map((row) => row.label)
     expect(labels).toContain("Stable Identity")
     expect(labels).not.toContain("Location")
-    expect(labels).not.toContain("Platform")
+    expect(labels).not.toContain("Platform Version")
   })
 })

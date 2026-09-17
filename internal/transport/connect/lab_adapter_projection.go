@@ -39,6 +39,7 @@ func labStatusProto(status lab.Status) *driftv1.LabStatus {
 			ConnectionType:  candidate.ConnectionType,
 			TransportId:     candidate.TransportID,
 			Model:           candidate.Model,
+			DeviceName:      candidate.DeviceName,
 			Product:         candidate.Product,
 			Usable:          candidate.State.Usable(),
 		})

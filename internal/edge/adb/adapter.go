@@ -21,12 +21,16 @@ import (
 // AdapterVersion identifies the observation and transport contract this
 // adapter implements. It is recorded with every capture so historical evidence
 // stays interpretable after the adapter changes.
-const AdapterVersion = "p13.1.0"
+const AdapterVersion = "p13.2.0"
 
 const (
 	// DefaultOperationTimeout bounds a single adb invocation when the caller
 	// supplies no shorter deadline.
 	DefaultOperationTimeout = 15 * time.Second
+
+	// maxDeviceNameLength bounds the one-line Android setting copied into the
+	// registry projection. Names are device-supplied input, not command text.
+	maxDeviceNameLength = 128
 
 	// DefaultMaxScreenshotBytes bounds one screencap payload.
 	DefaultMaxScreenshotBytes = 8 << 20
@@ -89,6 +93,7 @@ type DiscoveredDevice struct {
 	State          DeviceAuthState
 	Product        string
 	Model          string
+	DeviceName     string
 	Device         string
 	TransportID    string
 	ConnectionType string
@@ -182,6 +187,10 @@ type Adapter struct {
 
 	mu       sync.Mutex
 	reattach map[string]reattachState
+
+	nameMu      sync.Mutex
+	nameRead    map[string]bool
+	deviceNames map[string]string
 }
 
 // reattachState records the single read-only reattach permitted per observed
@@ -255,6 +264,8 @@ func NewAdapter(executable string, runner Runner, opts ...Option) (*Adapter, err
 		maxScreenshotBytes: DefaultMaxScreenshotBytes,
 		operationTimeout:   DefaultOperationTimeout,
 		reattach:           make(map[string]reattachState),
+		nameRead:           make(map[string]bool),
+		deviceNames:        make(map[string]string),
 	}
 	for _, opt := range opts {
 		if opt == nil {
@@ -289,7 +300,74 @@ func (a *Adapter) Enumerate(ctx context.Context) ([]DiscoveredDevice, error) {
 			Cause:        parseErr,
 		}
 	}
+	if err := a.enrichDeviceNames(ctx, devices); err != nil {
+		return nil, err
+	}
 	return devices, nil
+}
+
+// enrichDeviceNames reads the Android global device_name setting for usable
+// transports. It is deliberately a fixed, read-only argv and is cached for the
+// adapter lifetime: Enumerate is also the transport watcher's polling path, so
+// repeating a shell read for every known serial would turn a five-second poll
+// into a fleet-wide command storm. A blank successful read is cached too; an
+// error is not, so a temporarily unavailable device can be retried later.
+func (a *Adapter) enrichDeviceNames(ctx context.Context, devices []DiscoveredDevice) error {
+	for index := range devices {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !devices[index].State.Usable() {
+			continue
+		}
+		serial := devices[index].Serial
+		if name, ok := a.cachedDeviceName(serial); ok {
+			devices[index].DeviceName = name
+			continue
+		}
+
+		result, err := a.run(ctx, "settings-device-name", serial, deviceNameArgv())
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			continue
+		}
+		name := normalizeDeviceName(string(result.Stdout))
+		a.rememberDeviceName(serial, name)
+		devices[index].DeviceName = name
+	}
+	return nil
+}
+
+func (a *Adapter) cachedDeviceName(serial string) (string, bool) {
+	a.nameMu.Lock()
+	defer a.nameMu.Unlock()
+	return a.deviceNames[serial], a.nameRead[serial]
+}
+
+func (a *Adapter) rememberDeviceName(serial, name string) {
+	a.nameMu.Lock()
+	defer a.nameMu.Unlock()
+	a.nameRead[serial] = true
+	a.deviceNames[serial] = name
+}
+
+// normalizeDeviceName accepts the single-line setting value and rejects
+// control characters, sentinel values, and overlong input. It never truncates
+// a device-supplied name into a different name.
+func normalizeDeviceName(value string) string {
+	name := strings.TrimSpace(value)
+	if name == "" || strings.EqualFold(name, "null") || strings.EqualFold(name, "unknown") {
+		return ""
+	}
+	if len(name) > maxDeviceNameLength {
+		return ""
+	}
+	if strings.IndexFunc(name, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return ""
+	}
+	return name
 }
 
 // ValidateDevice resolves one serial to its current transport. A device that
@@ -601,7 +679,7 @@ func (a *Adapter) RunAllowlisted(ctx context.Context, serial string, args []stri
 //
 // It asks the host recogniser alone, never the combined one. A device-scoped
 // array reaching this path would run without a serial and mean something
-// different from what its builder intended, so the two admissions are kept apart
+// different from what its builder intended, so the separate admissions are kept apart
 // at the entry point as well as in the table, and the separation is asserted
 // rather than assumed.
 func (a *Adapter) RunHostAllowlisted(ctx context.Context, args []string) (Result, error) {

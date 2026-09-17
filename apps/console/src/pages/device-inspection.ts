@@ -13,8 +13,9 @@ import { deviceStatusLabels, deviceStatusMeanings } from "@/lib/device-status"
  * device from the projections already present in the snapshot.
  *
  * Two rules shape this module:
- *   1. Stable identity names the device. A transport address (serial, host, or
- *      host:port) is a mutable endpoint attribute and is never the device name.
+ *   1. A device name or adapter model names the device. A transport address
+ *      (serial, host, or host:port) is a mutable endpoint attribute and is
+ *      never the device name.
  *   2. A tab or section exists only when a read path backs it. This module
  *      returns no empty tab and no empty section, so the surface never renders a
  *      placeholder shell for data this registry does not expose.
@@ -51,10 +52,10 @@ export interface DeviceName {
 }
 
 /**
- * The Health tab's Status row states the status AND what it means, so the row
- * reports which observation it is: the last successful scan, never a live
- * connection. "Offline" and "Not Observed" stay distinct, because a device that
- * was observed and has since left is not a device no scan has ever seen.
+ * The Health section's Status row states the status AND what it means, so the row
+ * reports the observation fact rather than claiming a live connection.
+ * "Offline" and "Not Observed" stay distinct, because a device that was
+ * observed and has since left is not a device the registry has never seen.
  */
 function statusReading(status: DeviceStatus): string {
   // The separator is the codebase's ·, never the — this surface reserves for a
@@ -75,6 +76,11 @@ const transportLabels: Record<DeviceTransportView, string> = {
 
 const trimmed = (value: string | undefined) => (value ?? "").trim()
 
+function meaningfulProjection(value: string | undefined): string | undefined {
+  const text = trimmed(value)
+  return text.length > 0 && text.toLowerCase() !== "unknown" ? text : undefined
+}
+
 /** Joins projection fragments, dropping blanks instead of emitting a placeholder. */
 export function joinParts(parts: readonly (string | undefined)[]): string {
   return parts.map(trimmed).filter((part) => part.length > 0).join(" · ")
@@ -89,7 +95,44 @@ export function endpointsFor(deviceId: string, endpoints: readonly EndpointView[
 }
 
 export function endpointAddress(endpoint: EndpointView): string {
-  return trimmed(endpoint.host).length > 0 ? `${trimmed(endpoint.host)}:${endpoint.port}` : trimmed(endpoint.serial)
+  const host = trimmed(endpoint.host)
+  if (host.length > 0 && endpoint.port > 0) return `${host}:${endpoint.port}`
+  return host || trimmed(endpoint.serial)
+}
+
+export function endpointHost(endpoint: EndpointView): string {
+  return trimmed(endpoint.host)
+}
+
+export function endpointPort(endpoint: EndpointView): string {
+  return endpoint.port > 0 ? String(endpoint.port) : ""
+}
+
+export interface HumanTimestamp {
+  readonly label: string
+  readonly exact?: string
+}
+
+/** Formats ISO timestamps for operators while preserving already-human fixture values. */
+export function humanTimestamp(value: string, now = new Date()): HumanTimestamp {
+  const raw = trimmed(value)
+  if (raw.length === 0) return { label: "" }
+  const parsed = Date.parse(raw)
+  if (!Number.isFinite(parsed) || !/^\d{4}-\d{2}-\d{2}/.test(raw)) return { label: raw }
+
+  const elapsedSeconds = Math.max(0, Math.floor((now.getTime() - parsed) / 1000))
+  if (elapsedSeconds < 60) return { label: "just now", exact: new Date(parsed).toISOString() }
+  if (elapsedSeconds < 60 * 60) return { label: `${Math.floor(elapsedSeconds / 60)} min ago`, exact: new Date(parsed).toISOString() }
+  if (elapsedSeconds < 24 * 60 * 60) return { label: `${Math.floor(elapsedSeconds / (60 * 60))} hr ago`, exact: new Date(parsed).toISOString() }
+  if (elapsedSeconds < 7 * 24 * 60 * 60) {
+    const days = Math.floor(elapsedSeconds / (24 * 60 * 60))
+    return { label: `${days} day${days === 1 ? "" : "s"} ago`, exact: new Date(parsed).toISOString() }
+  }
+
+  return {
+    label: new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(parsed)),
+    exact: new Date(parsed).toISOString(),
+  }
 }
 
 export function isTransportAddress(deviceId: string, candidate: string, endpoints: readonly EndpointView[]): boolean {
@@ -103,22 +146,35 @@ export function isTransportAddress(deviceId: string, candidate: string, endpoint
  * reportedDeviceName returns the device-supplied name when the projection holds
  * one. A scanned device is registered from a transport observation, so its
  * display name can be the observation serial or host; that is an endpoint
- * attribute, not a device name, and it is reported as unknown here.
+ * attribute, not a device name, and it is omitted here.
  */
 export function reportedDeviceName(device: DeviceView, endpoints: readonly EndpointView[]): string | undefined {
   const name = trimmed(device.displayName)
   if (name.length === 0) return undefined
+  const normalizedName = name.toLowerCase()
+  if (normalizedName === "unknown" || normalizedName === "unnamed device") return undefined
+  if (meaningfulProjection(device.phoneModel)?.toLowerCase() === normalizedName) return undefined
   if (name === trimmed(device.id) || name === trimmed(device.stableIdentity)) return undefined
-  if (isTransportAddress(device.id, name, endpoints)) return undefined
+  if (isTransportAddress(device.id, name, endpoints) || looksLikeTransportAddress(name)) return undefined
   return name
 }
 
-/** deviceName resolves the identity line for a device row or heading. */
+function looksLikeTransportAddress(value: string): boolean {
+  return /^(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$/.test(value)
+}
+
+/** deviceName resolves the human-facing name for a device row or heading. */
 export function deviceName(device: DeviceView, endpoints: readonly EndpointView[]): DeviceName {
   const stable = stableIdentityLabel(device)
   const reported = reportedDeviceName(device, endpoints)
-  if (!reported) return { primary: stable, mono: true }
-  return { primary: reported, secondary: `stable · ${stable}`, mono: false }
+  if (reported) return { primary: reported, secondary: `stable · ${stable}`, mono: false }
+
+  const model = meaningfulProjection(device.phoneModel)
+  if (model && !isTransportAddress(device.id, model, endpoints)) {
+    return { primary: model, secondary: `stable · ${stable}`, mono: false }
+  }
+
+  return { primary: "Unnamed device", secondary: `stable · ${stable}`, mono: false }
 }
 
 function row(label: string, value: string | undefined, mono = false): InspectionRow | undefined {
@@ -151,22 +207,36 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
   const assignments = snapshot.accountDeviceAssignments.filter((item) => item.deviceId === device.id)
   const events = deviceEvents(device, snapshot)
   const agent = snapshot.edgeAgents.find((candidate) => candidate.id === device.agentId)
+  const name = deviceName(device, endpoints)
+  const phoneModel = meaningfulProjection(device.phoneModel)
+  const platformVersion = meaningfulProjection(device.platformVersion)
+  const firstSeen = humanTimestamp(earliestTimestamp(endpoints.map((endpoint) => endpoint.observedAt)) ?? "").label
 
   const identity: InspectionTab = {
     id: "identity",
     label: "Identity",
     sections: [
       {
+        title: "Device Identity",
         rows: rows([
+          row("Device Name", name.primary),
+          row("Captured Name", reportedDeviceName(device, endpoints)),
           row("Stable Identity", stableIdentityLabel(device), true),
-          row("Reported Name", reportedDeviceName(device, endpoints)),
           row("Device Record", device.id, true),
-          row("Lifecycle", device.lifecycle),
+          row("Status", statusReading(device.status)),
           row("Transport", transportLabels[device.transport]),
           row("Control Eligibility", device.controlEligibility),
           row("Location", device.location),
-          row("Platform", device.platformVersion),
+          row("First Seen", firstSeen),
+        ]),
+      },
+      {
+        title: "Hardware & Platform",
+        rows: rows([
+          row("Phone Model", phoneModel),
+          row("Platform Version", platformVersion !== phoneModel ? platformVersion : undefined),
           row("Capabilities", device.capabilities.length > 0 ? device.capabilities.join(" · ") : undefined),
+          row("Agent", agent?.displayName),
         ]),
       },
       {
@@ -189,13 +259,15 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
     id: "endpoint",
     label: "Endpoint",
     sections: [{
-      title: "Transport Endpoints",
+      title: "Connection & Endpoints",
       description: "Transport endpoints are mutable: this device keeps the same stable identity across endpoint changes, and the address below is never the device name.",
       items: endpoints.map((endpoint) => ({
         key: endpoint.id,
         rows: rows([
           row("Address", endpointAddress(endpoint), true),
-          row("Serial", endpoint.serial, true),
+          row("Host", endpointHost(endpoint), true),
+          row("Port", endpointPort(endpoint), true),
+          row("Serial Number", endpoint.serial, true),
           row("Transport Type", endpoint.endpointType),
           row("State", endpoint.state),
           row("Observed At", endpoint.observedAt, true),
@@ -211,15 +283,16 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
     label: "Health",
     sections: [
       {
-        title: "Reported Telemetry",
+        title: "Health & Runtime",
         rows: rows([
-          row("Status", statusReading(device.status)),
-          row("Battery", `${device.batteryPercent}%`),
-          row("Latency", `${device.latencyMs} ms`),
-          row("Last Seen", device.lastSeen),
-          row("Platform", device.platformVersion),
+          row("Battery", device.batteryPercent > 0 ? `${device.batteryPercent}%` : undefined),
+          row("Latency", device.latencyMs > 0 ? `${device.latencyMs} ms` : undefined),
+          row("Last Seen", humanTimestamp(device.lastSeen).label),
           row("Running Package", device.packageName, true),
           row("Foreground Activity", device.activityName, true),
+          row("Workflow", device.workflow),
+          row("Workflow Status", device.workflowStatus),
+          row("Task Progress", device.taskProgress > 0 ? `${device.taskProgress}%` : undefined),
         ]),
       },
       {
@@ -280,7 +353,7 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
         }),
       },
       {
-        title: "Recorded Evidence",
+        title: "Recent Events",
         description: "Append-only events recorded against this device and against the evidence recorded for it.",
         items: events.map((event) => ({
           key: event.id,
@@ -347,4 +420,15 @@ function sectionHasContent(section: InspectionSection): boolean {
 
 function hasContent(tab: InspectionTab): boolean {
   return tab.sections.length > 0
+}
+
+function earliestTimestamp(values: readonly string[]): string | undefined {
+  const available = values.map(trimmed).filter((value) => value.length > 0)
+  return available.reduce<string | undefined>((earliest, candidate) => {
+    if (!earliest) return candidate
+    const earliestTime = Date.parse(earliest)
+    const candidateTime = Date.parse(candidate)
+    if (Number.isFinite(earliestTime) && Number.isFinite(candidateTime)) return candidateTime < earliestTime ? candidate : earliest
+    return candidate.localeCompare(earliest) < 0 ? candidate : earliest
+  }, undefined)
 }

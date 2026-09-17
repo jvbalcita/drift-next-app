@@ -218,6 +218,7 @@ type LabDiscoveredDevice struct {
 	Model           string                 `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"`
 	Product         string                 `protobuf:"bytes,6,opt,name=product,proto3" json:"product,omitempty"`
 	Usable          bool                   `protobuf:"varint,7,opt,name=usable,proto3" json:"usable,omitempty"`
+	DeviceName      string                 `protobuf:"bytes,8,opt,name=device_name,json=deviceName,proto3" json:"device_name,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -299,6 +300,13 @@ func (x *LabDiscoveredDevice) GetUsable() bool {
 		return x.Usable
 	}
 	return false
+}
+
+func (x *LabDiscoveredDevice) GetDeviceName() string {
+	if x != nil {
+		return x.DeviceName
+	}
+	return ""
 }
 
 // LabStatus is the sanitized projection of the lab adapter boundary. Every
@@ -1137,7 +1145,7 @@ var File_drift_v1_lab_adapter_proto protoreflect.FileDescriptor
 
 const file_drift_v1_lab_adapter_proto_rawDesc = "" +
 	"\n" +
-	"\x1adrift/v1/lab_adapter.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xec\x01\n" +
+	"\x1adrift/v1/lab_adapter.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x8d\x02\n" +
 	"\x13LabDiscoveredDevice\x12\x16\n" +
 	"\x06serial\x18\x01 \x01(\tR\x06serial\x12)\n" +
 	"\x10connection_state\x18\x02 \x01(\tR\x0fconnectionState\x12'\n" +
@@ -1145,7 +1153,9 @@ const file_drift_v1_lab_adapter_proto_rawDesc = "" +
 	"\ftransport_id\x18\x04 \x01(\tR\vtransportId\x12\x14\n" +
 	"\x05model\x18\x05 \x01(\tR\x05model\x12\x18\n" +
 	"\aproduct\x18\x06 \x01(\tR\aproduct\x12\x16\n" +
-	"\x06usable\x18\a \x01(\bR\x06usable\"\xa1\x06\n" +
+	"\x06usable\x18\a \x01(\bR\x06usable\x12\x1f\n" +
+	"\vdevice_name\x18\b \x01(\tR\n" +
+	"deviceName\"\xa1\x06\n" +
 	"\tLabStatus\x12%\n" +
 	"\x04mode\x18\x01 \x01(\x0e2\x11.drift.v1.LabModeR\x04mode\x124\n" +
 	"\treadiness\x18\x02 \x01(\x0e2\x16.drift.v1.LabReadinessR\treadiness\x12'\n" +

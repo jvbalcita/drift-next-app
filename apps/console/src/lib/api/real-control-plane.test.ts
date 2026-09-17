@@ -34,6 +34,28 @@ describe("mapDevice", () => {
     })
   })
 
+  it("does not expose the registry's unknown model sentinel as a phone model", () => {
+    const device = create(DeviceSchema, {
+      id: "device-without-model",
+      platformVersion: "unknown",
+      status: DeviceStatus.OFFLINE,
+    })
+
+    expect(mapDevice(device)).toMatchObject({ platformVersion: "unknown" })
+    expect(mapDevice(device)).not.toHaveProperty("phoneModel")
+  })
+
+  it("does not label an Android release as a phone model", () => {
+    const device = create(DeviceSchema, {
+      id: "device-with-platform-version",
+      platformVersion: "Android 14",
+      status: DeviceStatus.ONLINE,
+    })
+
+    expect(mapDevice(device)).toMatchObject({ platformVersion: "Android 14" })
+    expect(mapDevice(device)).not.toHaveProperty("phoneModel")
+  })
+
   it("fails closed on a device the control plane has not observed", () => {
     // The wire status carries no lifecycle reading. UNSPECIFIED is what the
     // control plane reports for a device nobody has observed, and it is also what
@@ -124,6 +146,88 @@ describe("RealControlPlaneClient", () => {
         headers: expect.objectContaining({ "X-Drift-Lab-Token": "lab-token" }),
       }),
     )
+  })
+
+  it("retains the last successful device and endpoint projections when a refresh is partial", async () => {
+    let deviceReads = 0
+    let endpointReads = 0
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.DeviceService/ListDevices")) {
+        deviceReads += 1
+        if (deviceReads > 1) return new Response("device projection unavailable", { status: 503 })
+        return new Response(JSON.stringify({
+          devices: [{
+            id: "device-pixel-1",
+            displayName: "Pixel One",
+            status: "DEVICE_STATUS_ONLINE",
+            platformVersion: "SM-G9750",
+            lastSeenAt: "2026-09-17T12:00:00Z",
+            endpointId: "endpoint-1",
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.EndpointService/ListDeviceEndpoints")) {
+        endpointReads += 1
+        if (endpointReads > 1) return new Response("endpoint projection unavailable", { status: 503 })
+        return new Response(JSON.stringify({
+          endpoints: [{
+            id: "endpoint-1",
+            deviceId: "device-pixel-1",
+            endpointType: "adb_tcp",
+            serial: "R5CT42GS94Z",
+            host: "192.0.2.10",
+            port: 5555,
+            state: "ENDPOINT_STATE_CURRENT",
+            observedAt: "2026-09-17T12:00:00Z",
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+    const refreshed = await client.refresh()
+
+    expect(refreshed.devices).toEqual([expect.objectContaining({ id: "device-pixel-1", phoneModel: "SM-G9750" })])
+    expect(refreshed.endpoints).toEqual([expect.objectContaining({ id: "endpoint-1", state: "current" })])
+    expect(refreshed.projectionWarnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "devices" }),
+      expect.objectContaining({ source: "endpoints" }),
+    ]))
+  })
+
+  it("does not join a device to a different current endpoint", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.DeviceService/ListDevices")) {
+        return new Response(JSON.stringify({
+          devices: [{ id: "device-pixel-1", status: "DEVICE_STATUS_ONLINE", endpointId: "endpoint-1" }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.EndpointService/ListDeviceEndpoints")) {
+        return new Response(JSON.stringify({
+          endpoints: [{
+            id: "endpoint-2",
+            deviceId: "device-pixel-1",
+            endpointType: "adb_tcp",
+            serial: "R5CT42GS94Z",
+            host: "192.0.2.11",
+            port: 5555,
+            state: "ENDPOINT_STATE_CURRENT",
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const snapshot = await client.refresh()
+
+    expect(snapshot.projectionWarnings).toEqual([expect.objectContaining({ source: "endpoints" })])
+    expect(snapshot.devices[0]?.endpointId).toBe("endpoint-1")
+    expect(snapshot.endpoints[0]?.id).toBe("endpoint-2")
   })
 
   it("surfaces a disconnected empty snapshot when the control plane is unreachable", async () => {

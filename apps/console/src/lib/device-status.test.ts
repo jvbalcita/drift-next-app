@@ -22,8 +22,8 @@ describe("device observation status copy", () => {
     }
     // The two absent states say different things: one was seen and left, the
     // other was never seen at all.
-    expect(deviceStatusMeanings.offline).toBe("observed before, not observed in the last successful scan")
-    expect(deviceStatusMeanings.unobserved).toBe("no successful scan has observed this device yet")
+    expect(deviceStatusMeanings.offline).toBe("observed before, but no current transport is recorded")
+    expect(deviceStatusMeanings.unobserved).toBe("no observation has been recorded for this device")
   })
 
   it("names the device, its status and what the status means in one sentence", () => {

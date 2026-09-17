@@ -136,6 +136,7 @@ func observedDeviceProto(device discovery.ObservedDevice) *driftv1.ObservedDevic
 		Port:       uint32(device.Port),
 		Serial:     device.Serial,
 		Model:      device.Model,
+		DeviceName: device.DeviceName,
 		State:      deviceLinkStateProto(device.State),
 		Known:      device.Known,
 		DeviceId:   string(device.DeviceID),

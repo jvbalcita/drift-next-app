@@ -94,14 +94,39 @@ func TestEnumerateParsesEveryTransportState(t *testing.T) {
 	}
 
 	invocations := runner.Invocations()
-	if len(invocations) != 1 {
-		t.Fatalf("len(invocations) = %d, want 1", len(invocations))
+	if len(invocations) != 3 {
+		t.Fatalf("len(invocations) = %d, want enumeration plus one name read per usable transport", len(invocations))
 	}
 	if invocations[0].Executable != testExecutable {
 		t.Fatalf("executable = %q, want %q", invocations[0].Executable, testExecutable)
 	}
 	if strings.Join(invocations[0].Args, " ") != "devices -l" {
 		t.Fatalf("args = %q, want [devices -l]", invocations[0].Args)
+	}
+}
+
+func TestEnumerateCapturesGlobalAndroidDeviceNameForUsableTransport(t *testing.T) {
+	runner := NewFakeRunner().
+		RespondStdout(devicesArgv(), "List of devices attached\nR5CT30ABCD             device usb:1-2 product:b0q model:SM_G9750 device:b0q transport_id:2\n").
+		RespondStdout(append([]string{"-s", testSerial}, deviceNameArgv()...), "ALTA 1\n")
+	adapter := newTestAdapter(t, runner)
+
+	devices, err := adapter.Enumerate(context.Background())
+	if err != nil {
+		t.Fatalf("Enumerate() = %v", err)
+	}
+	if len(devices) != 1 {
+		t.Fatalf("len(devices) = %d, want one", len(devices))
+	}
+	if devices[0].DeviceName != "ALTA 1" {
+		t.Fatalf("DeviceName = %q, want the Android global device_name", devices[0].DeviceName)
+	}
+	invocations := runner.Invocations()
+	if len(invocations) != 2 {
+		t.Fatalf("len(invocations) = %d, want enumeration plus one name read", len(invocations))
+	}
+	if got := strings.Join(invocations[1].Args, " "); got != "-s "+testSerial+" shell settings get global device_name" {
+		t.Fatalf("name read args = %q, want the fixed device_name argv", got)
 	}
 }
 
@@ -432,7 +457,7 @@ func TestReattachIsReadOnlyAndUsedAtMostOncePerChange(t *testing.T) {
 
 	for _, invocation := range runner.Invocations() {
 		joined := strings.Join(invocation.Args, " ")
-		if joined != "devices -l" {
+		if joined != "devices -l" && !strings.HasSuffix(joined, " shell settings get global device_name") {
 			t.Fatalf("reattach issued a non read-only command: %q", joined)
 		}
 	}

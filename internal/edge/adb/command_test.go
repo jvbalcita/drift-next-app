@@ -95,6 +95,7 @@ func TestBuiltArgvContainsNoShellMetacharacters(t *testing.T) {
 		"version":      versionArgv(),
 		"get-state":    getStateArgv(),
 		"screencap":    screencapArgv(),
+		"device-name":  deviceNameArgv(),
 		"getprop":      getProp,
 		"dump-stdout":  UIAutomatorDumpStdoutArgv(),
 		"dump-file":    dumpFile,
@@ -233,6 +234,7 @@ func TestAllowlistRejectsBlindReplayAndArbitraryShell(t *testing.T) {
 	allowed := map[string][]string{
 		"get-state":               getStateArgv(),
 		"screencap":               screencapArgv(),
+		"settings-device-name":    deviceNameArgv(),
 		"getprop":                 getProp,
 		"uiautomator-dump-stdout": UIAutomatorDumpStdoutArgv(),
 		"uiautomator-dump-file":   dumpFile,

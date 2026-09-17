@@ -27,7 +27,7 @@ import (
 // what makes the transport fact worth asserting: a reader that guessed it from
 // the shape of an address could still get this one right by accident.
 func tcpTransport(serial, transportID, host string, port uint16) discovery.RuntimeDevice {
-	return discovery.RuntimeDevice{Serial: serial, TransportID: transportID, Host: host, Port: port}
+	return discovery.RuntimeDevice{Serial: serial, TransportID: transportID, Host: host, Port: port, State: discovery.LinkOnline}
 }
 
 // arrivalSink is the seam under test. It records every batch it is handed, can be
