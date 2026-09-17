@@ -224,10 +224,10 @@ func deviceIDForObservation(ctx context.Context, tx *sql.Tx, workspace organizat
 // while device identity does not.
 //
 // The transport is recorded from the observation here, once, and the record is
-// what every later reader reads. A changed transport is a changed transport even
-// when it shares an address with the one before it, so the comparison is on the
-// transport as well as the address: two transports that happen to carry the same
-// address must not collapse into one record.
+// what every later reader reads. The transport address identifies the transport:
+// TransportOf and the resolution below populate an address exactly when the
+// observation was made over TCP and leave it empty exactly when it was made over
+// USB, so comparing the address compares the transport it belongs to.
 func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, deviceID devices.DeviceID, observation discovery.ObservedDevice, at string) (string, error) {
 	transport := endpoints.TransportOf(observation.Serial, observation.Host, observation.Port)
 	host, port := observation.Host, observation.Port
@@ -241,12 +241,12 @@ func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizat
 		}
 	}
 	endpointType := transportToken(transport)
-	var currentID, currentHost, currentType string
+	var currentID, currentHost string
 	var currentPort int64
-	err := tx.QueryRowContext(ctx, `SELECT id, COALESCE(host, ''), COALESCE(port, 0), endpoint_type FROM device_endpoints WHERE workspace_id=? AND device_id=? AND state='current'`, workspace, deviceID).Scan(&currentID, &currentHost, &currentPort, &currentType)
+	err := tx.QueryRowContext(ctx, `SELECT id, COALESCE(host, ''), COALESCE(port, 0) FROM device_endpoints WHERE workspace_id=? AND device_id=? AND state='current'`, workspace, deviceID).Scan(&currentID, &currentHost, &currentPort)
 	switch err {
 	case nil:
-		if currentHost == host && uint16(currentPort) == port && currentType == endpointType {
+		if currentHost == host && uint16(currentPort) == port {
 			if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET observed_at=?, endpoint_type=? WHERE workspace_id=? AND id=?`, at, endpointType, workspace, currentID); err != nil {
 				return "", err
 			}
