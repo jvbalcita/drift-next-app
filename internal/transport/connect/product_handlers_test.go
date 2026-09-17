@@ -883,3 +883,99 @@ func TestRuntimeReconnectRefusesBlindReplayAndRequiresNewTransport(t *testing.T)
 		t.Fatalf("confirm indeterminate = %#v err=%v", confirmed, err)
 	}
 }
+
+// rangeEnumerator is a deterministic local runtime for the entered-range scan.
+// It reports transports for the scan to bound, and does nothing else.
+type rangeEnumerator struct{ devices []discovery.RuntimeDevice }
+
+func (e rangeEnumerator) Enumerate(ctx context.Context) ([]discovery.RuntimeDevice, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return append([]discovery.RuntimeDevice(nil), e.devices...), nil
+}
+
+// The OTG Setup tab's Scan targets the range the operator entered, so the scan's
+// bound is that range and the run it opens records no profile reference: an
+// entered range is a scan target, not saved policy, and nothing is written to
+// saved discovery policy by scanning one.
+func TestDiscoveryStartRangeScanScansTheEnteredRangeWithoutSavingIt(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{
+		Authorized: true,
+		LabMode:    true,
+		Enumerator: rangeEnumerator{devices: []discovery.RuntimeDevice{
+			{Serial: "IN-RANGE", Host: "192.168.1.20", Port: 5555, TransportID: "tcp:192.168.1.20:5555", Model: "Mock In", State: discovery.LinkOnline},
+			{Serial: "OUT-OF-RANGE", Host: "10.0.0.5", Port: 5555, TransportID: "tcp:10.0.0.5:5555", Model: "Mock Out", State: discovery.LinkOnline},
+		}},
+	})
+	handler := transportconnect.NewDiscoveryHandler(discovery.NewService(db, scanner), db)
+	workspace := &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"}
+
+	run, err := handler.StartRangeScan(ctx, connectrpc.NewRequest(&driftv1.StartRangeScanRequest{
+		Context:       requestContext("range-scan-1"),
+		Workspace:     workspace,
+		AddressPolicy: "192.168.1.1-192.168.1.254",
+		Port:          5555,
+	}))
+	if err != nil || run.Msg.ScanRun.GetState() != driftv1.ScanRunState_SCAN_RUN_STATE_COMPLETED {
+		t.Fatalf("start range scan = %#v err=%v", run, err)
+	}
+	// The entered range is the bound: the device outside it was not observed.
+	if len(run.Msg.Devices) != 1 || run.Msg.Devices[0].GetSerial() != "IN-RANGE" {
+		t.Fatalf("entered-range scan observed %#v, want only the device inside the entered range", run.Msg.Devices)
+	}
+	if run.Msg.Devices[0].GetDeviceId() == "" {
+		t.Fatalf("observed device is missing durable identity: %#v", run.Msg.Devices[0])
+	}
+	// ...and the run records no profile reference, because nothing was saved.
+	if run.Msg.ScanRun.GetNetworkProfileId() != "" {
+		t.Fatalf("entered-range run holds profile %q, want no profile reference", run.Msg.ScanRun.GetNetworkProfileId())
+	}
+	profiles, err := store.NewNetworkProfileRepository(db).List(ctx, "workspace-a")
+	if err != nil || len(profiles) != 0 {
+		t.Fatalf("saved profiles = %#v err=%v, want none: an entered range is not saved policy", profiles, err)
+	}
+	listed, err := handler.ListScanRuns(ctx, connectrpc.NewRequest(&driftv1.ListScanRunsRequest{Workspace: workspace}))
+	if err != nil || len(listed.Msg.ScanRuns) != 1 || listed.Msg.ScanRuns[0].GetNetworkProfileId() != "" {
+		t.Fatalf("list scan runs = %#v err=%v", listed, err)
+	}
+}
+
+// A malformed entry is refused as invalid input, by its own name, before any run
+// is opened: a refusal must reach no enumeration and leave no scan history that
+// reads as an attempt the operator made.
+func TestDiscoveryStartRangeScanRefusesAMalformedEntryBeforeOpeningARun(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	handler := transportconnect.NewDiscoveryHandler(discovery.NewService(db, discovery.NewFakeScanner(nil)), db)
+	workspace := &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"}
+	cases := []struct {
+		name   string
+		policy string
+		port   uint32
+	}{
+		{"no-range", "", 5555},
+		{"not-an-address", "not-an-address", 5555},
+		{"start-after-end", "192.168.1.254-192.168.1.1", 5555},
+		{"unbounded", "0.0.0.0/0", 5555},
+		{"no-port", "192.168.1.1-192.168.1.254", 0},
+		{"port-past-the-accepted-set", "192.168.1.1-192.168.1.254", 65536},
+	}
+	for _, testCase := range cases {
+		_, err := handler.StartRangeScan(ctx, connectrpc.NewRequest(&driftv1.StartRangeScanRequest{
+			Context:       requestContext("range-refused-" + testCase.name),
+			Workspace:     workspace,
+			AddressPolicy: testCase.policy,
+			Port:          testCase.port,
+		}))
+		if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+			t.Fatalf("%s: code = %v, want invalid_argument; err=%v", testCase.name, connectrpc.CodeOf(err), err)
+		}
+	}
+	listed, err := handler.ListScanRuns(ctx, connectrpc.NewRequest(&driftv1.ListScanRunsRequest{Workspace: workspace}))
+	if err != nil || len(listed.Msg.ScanRuns) != 0 {
+		t.Fatalf("a refused entry opened a scan run: %#v err=%v", listed, err)
+	}
+}

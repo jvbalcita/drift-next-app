@@ -36,6 +36,9 @@ const (
 	// DiscoveryServiceStartScanProcedure is the fully-qualified name of the DiscoveryService's
 	// StartScan RPC.
 	DiscoveryServiceStartScanProcedure = "/drift.v1.DiscoveryService/StartScan"
+	// DiscoveryServiceStartRangeScanProcedure is the fully-qualified name of the DiscoveryService's
+	// StartRangeScan RPC.
+	DiscoveryServiceStartRangeScanProcedure = "/drift.v1.DiscoveryService/StartRangeScan"
 	// DiscoveryServiceListScanRunsProcedure is the fully-qualified name of the DiscoveryService's
 	// ListScanRuns RPC.
 	DiscoveryServiceListScanRunsProcedure = "/drift.v1.DiscoveryService/ListScanRuns"
@@ -44,6 +47,10 @@ const (
 // DiscoveryServiceClient is a client for the drift.v1.DiscoveryService service.
 type DiscoveryServiceClient interface {
 	StartScan(context.Context, *connect.Request[v1.StartScanRequest]) (*connect.Response[v1.StartScanResponse], error)
+	// StartRangeScan runs one scan of the range an operator entered. It is a
+	// second target, not a second way to scan a saved profile: the run records no
+	// profile reference, because the range it scanned is not saved policy.
+	StartRangeScan(context.Context, *connect.Request[v1.StartRangeScanRequest]) (*connect.Response[v1.StartRangeScanResponse], error)
 	ListScanRuns(context.Context, *connect.Request[v1.ListScanRunsRequest]) (*connect.Response[v1.ListScanRunsResponse], error)
 }
 
@@ -64,6 +71,12 @@ func NewDiscoveryServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(discoveryServiceMethods.ByName("StartScan")),
 			connect.WithClientOptions(opts...),
 		),
+		startRangeScan: connect.NewClient[v1.StartRangeScanRequest, v1.StartRangeScanResponse](
+			httpClient,
+			baseURL+DiscoveryServiceStartRangeScanProcedure,
+			connect.WithSchema(discoveryServiceMethods.ByName("StartRangeScan")),
+			connect.WithClientOptions(opts...),
+		),
 		listScanRuns: connect.NewClient[v1.ListScanRunsRequest, v1.ListScanRunsResponse](
 			httpClient,
 			baseURL+DiscoveryServiceListScanRunsProcedure,
@@ -75,13 +88,19 @@ func NewDiscoveryServiceClient(httpClient connect.HTTPClient, baseURL string, op
 
 // discoveryServiceClient implements DiscoveryServiceClient.
 type discoveryServiceClient struct {
-	startScan    *connect.Client[v1.StartScanRequest, v1.StartScanResponse]
-	listScanRuns *connect.Client[v1.ListScanRunsRequest, v1.ListScanRunsResponse]
+	startScan      *connect.Client[v1.StartScanRequest, v1.StartScanResponse]
+	startRangeScan *connect.Client[v1.StartRangeScanRequest, v1.StartRangeScanResponse]
+	listScanRuns   *connect.Client[v1.ListScanRunsRequest, v1.ListScanRunsResponse]
 }
 
 // StartScan calls drift.v1.DiscoveryService.StartScan.
 func (c *discoveryServiceClient) StartScan(ctx context.Context, req *connect.Request[v1.StartScanRequest]) (*connect.Response[v1.StartScanResponse], error) {
 	return c.startScan.CallUnary(ctx, req)
+}
+
+// StartRangeScan calls drift.v1.DiscoveryService.StartRangeScan.
+func (c *discoveryServiceClient) StartRangeScan(ctx context.Context, req *connect.Request[v1.StartRangeScanRequest]) (*connect.Response[v1.StartRangeScanResponse], error) {
+	return c.startRangeScan.CallUnary(ctx, req)
 }
 
 // ListScanRuns calls drift.v1.DiscoveryService.ListScanRuns.
@@ -92,6 +111,10 @@ func (c *discoveryServiceClient) ListScanRuns(ctx context.Context, req *connect.
 // DiscoveryServiceHandler is an implementation of the drift.v1.DiscoveryService service.
 type DiscoveryServiceHandler interface {
 	StartScan(context.Context, *connect.Request[v1.StartScanRequest]) (*connect.Response[v1.StartScanResponse], error)
+	// StartRangeScan runs one scan of the range an operator entered. It is a
+	// second target, not a second way to scan a saved profile: the run records no
+	// profile reference, because the range it scanned is not saved policy.
+	StartRangeScan(context.Context, *connect.Request[v1.StartRangeScanRequest]) (*connect.Response[v1.StartRangeScanResponse], error)
 	ListScanRuns(context.Context, *connect.Request[v1.ListScanRunsRequest]) (*connect.Response[v1.ListScanRunsResponse], error)
 }
 
@@ -108,6 +131,12 @@ func NewDiscoveryServiceHandler(svc DiscoveryServiceHandler, opts ...connect.Han
 		connect.WithSchema(discoveryServiceMethods.ByName("StartScan")),
 		connect.WithHandlerOptions(opts...),
 	)
+	discoveryServiceStartRangeScanHandler := connect.NewUnaryHandler(
+		DiscoveryServiceStartRangeScanProcedure,
+		svc.StartRangeScan,
+		connect.WithSchema(discoveryServiceMethods.ByName("StartRangeScan")),
+		connect.WithHandlerOptions(opts...),
+	)
 	discoveryServiceListScanRunsHandler := connect.NewUnaryHandler(
 		DiscoveryServiceListScanRunsProcedure,
 		svc.ListScanRuns,
@@ -118,6 +147,8 @@ func NewDiscoveryServiceHandler(svc DiscoveryServiceHandler, opts ...connect.Han
 		switch r.URL.Path {
 		case DiscoveryServiceStartScanProcedure:
 			discoveryServiceStartScanHandler.ServeHTTP(w, r)
+		case DiscoveryServiceStartRangeScanProcedure:
+			discoveryServiceStartRangeScanHandler.ServeHTTP(w, r)
 		case DiscoveryServiceListScanRunsProcedure:
 			discoveryServiceListScanRunsHandler.ServeHTTP(w, r)
 		default:
@@ -131,6 +162,10 @@ type UnimplementedDiscoveryServiceHandler struct{}
 
 func (UnimplementedDiscoveryServiceHandler) StartScan(context.Context, *connect.Request[v1.StartScanRequest]) (*connect.Response[v1.StartScanResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DiscoveryService.StartScan is not implemented"))
+}
+
+func (UnimplementedDiscoveryServiceHandler) StartRangeScan(context.Context, *connect.Request[v1.StartRangeScanRequest]) (*connect.Response[v1.StartRangeScanResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DiscoveryService.StartRangeScan is not implemented"))
 }
 
 func (UnimplementedDiscoveryServiceHandler) ListScanRuns(context.Context, *connect.Request[v1.ListScanRunsRequest]) (*connect.Response[v1.ListScanRunsResponse], error) {

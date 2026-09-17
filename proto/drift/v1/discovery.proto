@@ -69,6 +69,24 @@ message StartScanResponse {
   ScanRun scan_run = 1;
   repeated ObservedDevice devices = 2;
 }
+// StartRangeScanRequest names a range the operator ENTERED, and nothing saved:
+// the OTG Setup tab's Scan scans what was typed into its IP Range inputs, so its
+// target is the entered range rather than the Saved network control's profile.
+// address_policy carries the same inclusive `start-end` spelling a saved profile
+// with a range policy stores, so one entered range has one spelling whichever
+// control names it.
+message StartRangeScanRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  // The entered inclusive IPv4 range, spelled `start-end`.
+  string address_policy = 3;
+  // The single port the entered range is observed for.
+  uint32 port = 4;
+}
+message StartRangeScanResponse {
+  ScanRun scan_run = 1;
+  repeated ObservedDevice devices = 2;
+}
 message ListScanRunsRequest {
   WorkspaceRef workspace = 1;
   PageRequest page = 2;
@@ -79,5 +97,9 @@ message ListScanRunsResponse {
 }
 service DiscoveryService {
   rpc StartScan(StartScanRequest) returns (StartScanResponse);
+  // StartRangeScan runs one scan of the range an operator entered. It is a
+  // second target, not a second way to scan a saved profile: the run records no
+  // profile reference, because the range it scanned is not saved policy.
+  rpc StartRangeScan(StartRangeScanRequest) returns (StartRangeScanResponse);
   rpc ListScanRuns(ListScanRunsRequest) returns (ListScanRunsResponse);
 }
