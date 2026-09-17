@@ -66,6 +66,63 @@ func (h *ActionHandler) SubmitAction(ctx context.Context, request *connectrpc.Re
 	return connectrpc.NewResponse(&driftv1.SubmitActionResponse{Result: actionResultProto(executed)}), nil
 }
 
+func (h *ActionHandler) GetHalt(ctx context.Context, request *connectrpc.Request[driftv1.GetHaltRequest]) (*connectrpc.Response[driftv1.GetHaltResponse], error) {
+	if request == nil || request.Msg.GetWorkspace() == nil {
+		return nil, invalidArgument("workspace is required")
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	halt, err := store.NewHaltService(h.db).Get(ctx, workspace)
+	if err != nil {
+		return nil, MapError(err)
+	}
+	return connectrpc.NewResponse(&driftv1.GetHaltResponse{Halt: haltStatusProto(halt)}), nil
+}
+
+func (h *ActionHandler) SetHalt(ctx context.Context, request *connectrpc.Request[driftv1.SetHaltRequest]) (*connectrpc.Response[driftv1.SetHaltResponse], error) {
+	if request == nil || request.Msg.GetWorkspace() == nil {
+		return nil, invalidArgument("workspace is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	state, err := haltStateFromProto(request.Msg.GetState())
+	if err != nil {
+		return nil, err
+	}
+	halt, err := store.NewHaltService(h.db).Set(ctx, workspace, state, request.Msg.GetReason(), actorType, actorID)
+	if err != nil {
+		return nil, MapError(err)
+	}
+	return connectrpc.NewResponse(&driftv1.SetHaltResponse{Halt: haltStatusProto(halt)}), nil
+}
+
+func haltStateFromProto(state driftv1.HaltState) (store.HaltState, error) {
+	switch state {
+	case driftv1.HaltState_HALT_STATE_CLEAR:
+		return store.HaltClear, nil
+	case driftv1.HaltState_HALT_STATE_EMERGENCY_STOP:
+		return store.HaltEmergencyStop, nil
+	default:
+		return "", invalidArgument("halt state is required")
+	}
+}
+
+func haltStatusProto(halt store.Halt) *driftv1.HaltStatus {
+	state := driftv1.HaltState_HALT_STATE_CLEAR
+	if halt.State == store.HaltEmergencyStop {
+		state = driftv1.HaltState_HALT_STATE_EMERGENCY_STOP
+	}
+	return &driftv1.HaltStatus{Halt: &driftv1.ResourceRef{Workspace: &driftv1.WorkspaceRef{WorkspaceId: string(halt.Workspace)}, ResourceId: halt.ID}, State: state, Reason: halt.Reason, UpdatedAt: halt.UpdatedAt.UTC().Format(time.RFC3339Nano), RowVersion: halt.RowVersion, LastActorType: halt.LastActorType, LastActorId: halt.LastActorID}
+}
+
 func actionIntentFromProto(msg *driftv1.ActionIntent, requestContext *driftv1.RequestContext, actorID string) (action.Intent, error) {
 	var intent action.Intent
 	if err := ValidateDeviceInputIntent(msg); err != nil {

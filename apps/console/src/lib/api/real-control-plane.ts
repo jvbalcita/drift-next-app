@@ -9,7 +9,7 @@ import {
   AccountSyncOutcome,
 } from "@/gen/drift/v1/account_pb"
 import type { ArtifactRecord } from "@/gen/drift/v1/artifact_pb"
-import { ActionKind } from "@/gen/drift/v1/action_pb"
+import { ActionKind, HaltState as ProtoHaltState } from "@/gen/drift/v1/action_pb"
 import type { AutomationAgent, AutomationAgentProfile } from "@/gen/drift/v1/automation_agent_pb"
 import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
@@ -91,6 +91,7 @@ import type {
   DeviceStatus as DeviceStatusView,
   DeviceView,
   DeviceActionKind,
+  HaltView,
   EdgeAgentState as EdgeAgentViewState,
   EdgeAgentView,
   EndpointState as EndpointViewState,
@@ -264,6 +265,7 @@ export function emptyControlPlaneSnapshot(options?: {
     recordingMedia: [],
     storageHealth: emptyStorage(),
     artifactAudits: [],
+    halt: { state: "clear", reason: "", updatedAt: "", rowVersion: 0, lastActorId: "" },
   }
 }
 
@@ -1409,6 +1411,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
     const previous = this.snapshot
     const results = await Promise.all([
       settle(this.services.workspace.getWorkspace(workspaceId).then((response) => response.workspace), undefined),
+      settle(this.services.action.getHalt(workspaceId).then((response) => ({ state: response.halt?.state === ProtoHaltState.EMERGENCY_STOP ? "emergency_stop" : "clear", reason: response.halt?.reason ?? "", updatedAt: response.halt?.updatedAt ?? "", rowVersion: Number(response.halt?.rowVersion ?? 0), lastActorId: response.halt?.lastActorId ?? "" } satisfies HaltView)), { state: "clear", reason: "", updatedAt: "", rowVersion: 0, lastActorId: "" } satisfies HaltView),
       settle(this.services.device.listDevices(workspaceId).then((response) => response.devices.map(mapDevice)), [] as DeviceView[]),
       settle(this.services.edgeAgent.listEdgeAgents(workspaceId).then((response) => response.edgeAgents.map(mapEdgeAgent)), [] as EdgeAgentView[]),
       settle(this.services.endpoint.listDeviceEndpoints(workspaceId).then((response) => response.endpoints.map(mapEndpoint)), [] as EndpointView[]),
@@ -1557,6 +1560,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
 
     const [
       workspace,
+      halt,
       devices,
       edgeAgents,
       endpoints,
@@ -1597,6 +1601,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
     this.snapshot = {
       ...emptyControlPlaneSnapshot({ workspaceId, connected: true }),
       workspaceName: workspaceRecord?.displayName ?? previous.workspaceName,
+      halt: halt.value,
       workspaceId,
       devices: devices.value,
       edgeAgents: edgeAgents.value,
@@ -1671,6 +1676,12 @@ export class RealControlPlaneClient implements ControlPlaneClient {
     switch (intent.type) {
       case "refresh":
         return mutation(intent, "Control plane projection refreshed.")
+      case "setHalt": {
+        if (!intent.confirmed) return failure(intent, `${intent.state === "emergency_stop" ? "Engaging" : "Releasing"} the emergency stop requires confirmation.`, { errorCode: "precondition_failed" })
+        if (!intent.reason.trim()) return failure(intent, "A reason is required for the emergency stop change.", { errorCode: "invalid_input" })
+        await this.services.action.setHalt(requestId, workspaceId, intent.state === "emergency_stop" ? ProtoHaltState.EMERGENCY_STOP : ProtoHaltState.CLEAR, intent.reason.trim())
+        return mutation(intent, intent.state === "emergency_stop" ? "Emergency stop engaged and audited." : "Emergency stop released and audited.")
+      }
       case "createNetworkProfile": {
         await this.services.networkProfile.createNetworkProfile(requestId, create(NetworkProfileSchema, {
           id: "",

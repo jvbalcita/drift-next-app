@@ -289,8 +289,8 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM drift_schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("ledger count error = %v", err)
 	}
-	if count != 21 {
-		t.Fatalf("ledger count = %d, want 21 SQLite migrations", count)
+	if count != 22 {
+		t.Fatalf("ledger count = %d, want 22 SQLite migrations", count)
 	}
 
 	var foreignKeys string
