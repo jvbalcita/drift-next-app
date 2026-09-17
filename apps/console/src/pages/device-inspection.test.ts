@@ -132,6 +132,20 @@ describe("device inspection tabs", () => {
     expect(rendered).toContain("operator-1")
   })
 
+  it("reads the device transport from the record rather than from an endpoint address", () => {
+    const transportRow = (deviceID: string) => {
+      const identity = inspectionTab(buildInspection(deviceById(deviceID), snapshot), "Identity")
+      return identity.sections.flatMap((section) => section.rows ?? []).find((row) => row.label === "Transport")?.value
+    }
+
+    expect(transportRow("atlas-04")).toBe("USB")
+    expect(transportRow("atlas-07")).toBe("TCP")
+    // A device whose current endpoint recorded no transport states that about the
+    // record. It is never named as one of the transports from its endpoint
+    // address, and it is never a placeholder.
+    expect(transportRow("orion-03")).toBe("Not recorded")
+  })
+
   it("renders no tab without a backing read path", () => {
     expect(buildInspection(bareDevice, bareSnapshot).map((tab) => tab.id)).toEqual(["identity", "health"])
   })

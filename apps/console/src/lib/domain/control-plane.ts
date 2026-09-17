@@ -70,6 +70,18 @@ export type PrerequisiteErrorCode = "precondition_failed" | "policy_denied" | "u
 export type MirrorSessionState = "requested" | "active" | "paused" | "stopping" | "completed" | "failed" | "cancelled"
 export type MirrorTargetOutcome = "preview_admitted" | "simulated_success" | "offline" | "incompatible" | "policy_denied" | "lease_conflict" | "target_resolution_failed" | "cancelled"
 
+/**
+ * How a device is currently reachable. It is a fact the control plane observed
+ * and records, read back from the endpoint registry — never inferred here from
+ * the shape of an endpoint address, because a client that reconstructs it can
+ * disagree with the observation it is reporting on. "unspecified" is a device
+ * whose current endpoint carries no observed transport, and it is reported as
+ * such rather than guessed into one of the two.
+ *
+ * It describes the transport, not a device lifecycle.
+ */
+export type DeviceTransportView = "usb" | "tcp" | "unspecified"
+
 export interface DeviceView {
   id: string
   displayName: string
@@ -82,6 +94,7 @@ export interface DeviceView {
   lastSeen: string
   agentId: string
   endpointId: string
+  transport: DeviceTransportView
   location: string
   packageName: string
   activityName: string

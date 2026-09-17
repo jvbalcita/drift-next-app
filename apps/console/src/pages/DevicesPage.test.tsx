@@ -39,6 +39,7 @@ const scannedDevice: DeviceView = {
   lastSeen: "12 sec ago",
   agentId: "",
   endpointId: "endpoint-777",
+  transport: "tcp",
   location: "",
   packageName: "",
   activityName: "",

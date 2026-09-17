@@ -14,8 +14,12 @@ import (
 type EndpointRepository struct{ store *DB }
 
 func NewEndpointRepository(store *DB) *EndpointRepository { return &EndpointRepository{store: store} }
+
+// ListCurrent reads one device's current endpoint. The transport comes from the
+// stored record, so a caller reporting it reports the observation rather than
+// rebuilding it from the address.
 func (r *EndpointRepository) ListCurrent(ctx context.Context, w organizations.WorkspaceID, d devices.DeviceID) ([]endpoints.Endpoint, error) {
-	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,device_id,serial,host,port,state,observed_at FROM device_endpoints WHERE workspace_id=? AND device_id=? AND state='current' ORDER BY id`, w, d)
+	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,device_id,endpoint_type,serial,host,port,state,observed_at FROM device_endpoints WHERE workspace_id=? AND device_id=? AND state='current' ORDER BY id`, w, d)
 	if err != nil {
 		return nil, classifyContext(err)
 	}
@@ -25,10 +29,11 @@ func (r *EndpointRepository) ListCurrent(ctx context.Context, w organizations.Wo
 		var e endpoints.Endpoint
 		var serial, host sql.NullString
 		var port sql.NullInt64
-		var at string
-		if err := rows.Scan(&e.ID, &e.Workspace, &e.DeviceID, &serial, &host, &port, &e.State, &at); err != nil {
+		var endpointType, at string
+		if err := rows.Scan(&e.ID, &e.Workspace, &e.DeviceID, &endpointType, &serial, &host, &port, &e.State, &at); err != nil {
 			return nil, err
 		}
+		e.Transport = transportFromToken(endpointType)
 		if serial.Valid {
 			e.Serial = serial.String
 		}
@@ -44,12 +49,50 @@ func (r *EndpointRepository) ListCurrent(ctx context.Context, w organizations.Wo
 	return out, rows.Err()
 }
 
+// ListCurrentByDevice reads every device's current endpoint in one query, so a
+// device projection can carry the transport it was observed over without a query
+// per device. A device with no current endpoint is absent from the map rather
+// than present with a zero endpoint: no transport observed is not the same fact
+// as a transport with no address.
+func (r *EndpointRepository) ListCurrentByDevice(ctx context.Context, w organizations.WorkspaceID) (map[devices.DeviceID]endpoints.Endpoint, error) {
+	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,device_id,endpoint_type,serial,host,port,state,observed_at FROM device_endpoints WHERE workspace_id=? AND state='current' ORDER BY id`, w)
+	if err != nil {
+		return nil, classifyContext(err)
+	}
+	defer rows.Close()
+	out := make(map[devices.DeviceID]endpoints.Endpoint)
+	for rows.Next() {
+		var e endpoints.Endpoint
+		var serial, host sql.NullString
+		var port sql.NullInt64
+		var endpointType, at string
+		if err := rows.Scan(&e.ID, &e.Workspace, &e.DeviceID, &endpointType, &serial, &host, &port, &e.State, &at); err != nil {
+			return nil, err
+		}
+		e.Transport = transportFromToken(endpointType)
+		if serial.Valid {
+			e.Serial = serial.String
+		}
+		if host.Valid {
+			e.Host = host.String
+		}
+		if port.Valid {
+			e.Port = uint16(port.Int64)
+		}
+		e.ObservedAt, _ = time.Parse(time.RFC3339Nano, at)
+		out[e.DeviceID] = e
+	}
+	return out, rows.Err()
+}
+
 type EndpointService struct{ store *DB }
 
 func NewEndpointService(store *DB) *EndpointService { return &EndpointService{store: store} }
 
 // BindCurrent preserves endpoint history: existing current rows are superseded,
-// then a new current observation is inserted atomically.
+// then a new current observation is inserted atomically. An endpoint bound with
+// a transport records that transport; one bound without an observation behind it
+// is stored as the record it is rather than being guessed into a transport.
 func (s *EndpointService) BindCurrent(ctx context.Context, e endpoints.Endpoint, actorType, actorID string) error {
 	if ctx == nil || s == nil || s.store == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite store are required")
@@ -63,7 +106,7 @@ func (s *EndpointService) BindCurrent(ctx context.Context, e endpoints.Endpoint,
 		if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET state='superseded', superseded_at=? WHERE workspace_id=? AND device_id=? AND state='current'`, now, e.Workspace, e.DeviceID); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id,workspace_id,device_id,endpoint_type,serial,host,port,state,observed_at) VALUES (?,?,?, 'mock',?,?,?,?,?)`, e.ID, e.Workspace, e.DeviceID, e.Serial, e.Host, e.Port, endpoints.Current, at); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id,workspace_id,device_id,endpoint_type,serial,host,port,state,observed_at) VALUES (?,?,?,?,?,?,?,?,?)`, e.ID, e.Workspace, e.DeviceID, transportToken(e.Transport), e.Serial, e.Host, e.Port, endpoints.Current, at); err != nil {
 			return err
 		}
 		corr := "endpoint:" + string(e.ID)

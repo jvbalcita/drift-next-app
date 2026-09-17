@@ -58,7 +58,7 @@ func endpointProto(endpoint endpoints.Endpoint) *driftv1.DeviceEndpoint {
 		Id:           string(endpoint.ID),
 		Workspace:    workspaceRef(endpoint.Workspace),
 		DeviceId:     string(endpoint.DeviceID),
-		EndpointType: endpointType(endpoint),
+		EndpointType: endpointTypeName(endpoint),
 		Serial:       endpoint.Serial,
 		Host:         endpoint.Host,
 		Port:         uint32(endpoint.Port),
@@ -67,9 +67,17 @@ func endpointProto(endpoint endpoints.Endpoint) *driftv1.DeviceEndpoint {
 	}
 }
 
-func endpointType(endpoint endpoints.Endpoint) string {
-	if endpoint.Host != "" || endpoint.Port > 0 {
-		return "tcp"
+// endpointTypeName renders the transport this endpoint records. The field keeps
+// its published vocabulary: an endpoint observed over USB or TCP names that
+// transport, read from the record rather than rebuilt from the endpoint's
+// address, so this projection cannot disagree with the observation it reports.
+//
+// An endpoint with no observed transport behind it names the record it is. The
+// stored column admits exactly three tokens — adb_usb, adb_tcp and mock — so
+// "mock" is the only remaining name, and it is what the record actually is.
+func endpointTypeName(endpoint endpoints.Endpoint) string {
+	if endpoint.Transport.Valid() {
+		return string(endpoint.Transport)
 	}
-	return "usb"
+	return "mock"
 }

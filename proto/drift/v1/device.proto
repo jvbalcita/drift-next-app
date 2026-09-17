@@ -29,6 +29,12 @@ message Device {
   WorkspaceRef workspace = 9;
   string endpoint_id = 10;
   uint64 row_version = 11;
+  // transport is how this device is currently reachable: over USB, or over TCP
+  // at the endpoint named by endpoint_id. It is a recorded observation, read
+  // back from the endpoint registry, and never derived by a client from the
+  // shape of an endpoint address — a client that reconstructs it can disagree
+  // with the observation it is reporting on.
+  DeviceTransport transport = 12;
 }
 
 enum DeviceStatus {
@@ -36,6 +42,20 @@ enum DeviceStatus {
   DEVICE_STATUS_ONLINE = 1;
   DEVICE_STATUS_ATTENTION = 2;
   DEVICE_STATUS_OFFLINE = 3;
+}
+
+// DeviceTransport is the transport a device was observed over.
+//
+// It is a fact about the transport and not a device lifecycle: a device has no
+// lifecycle beyond its identity and its observation history, so nothing here is
+// a state an operator advances.
+enum DeviceTransport {
+  // A device whose current endpoint carries no observed transport, or a device
+  // with no current endpoint at all. It is reported as unspecified rather than
+  // guessed into one of the transports below.
+  DEVICE_TRANSPORT_UNSPECIFIED = 0;
+  DEVICE_TRANSPORT_USB = 1;
+  DEVICE_TRANSPORT_TCP = 2;
 }
 
 message ListDevicesRequest {
