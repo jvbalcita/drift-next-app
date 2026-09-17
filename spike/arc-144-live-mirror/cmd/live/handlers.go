@@ -98,7 +98,8 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		"readbackEvery": cfg.readbackEvery,
 		"strip": map[string]any{
 			"videoX": strip.VideoX, "videoY": strip.VideoY,
-			"cell": strip.Cell, "found": strip.Found, "error": strip.Error,
+			"cell": strip.Cell, "videoCell": strip.VideoCell,
+			"found": strip.Found, "error": strip.Error,
 		},
 		"video":            map[string]any{"width": s.videoW(), "height": s.videoH()},
 		"screen":           map[string]any{"width": strip.ScreenW, "height": strip.ScreenH},

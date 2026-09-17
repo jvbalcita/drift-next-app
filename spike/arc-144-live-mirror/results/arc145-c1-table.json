@@ -1,0 +1,518 @@
+[
+ {
+  "label": "c1-base",
+  "asked": {
+   "max_size": "device",
+   "max_fps": "device",
+   "bit_rate": "8M (default)",
+   "idr_s": 2,
+   "codec_options": "idr2"
+  },
+  "encoded": {
+   "size": "1080x2280",
+   "kbps": 1414.283,
+   "fps": 56.142,
+   "key_frames": 10,
+   "idr_s": 2,
+   "sps": "420032"
+  },
+  "frames": {
+   "forwarded": 1123,
+   "decoded": 934,
+   "presented": 476,
+   "with_clock": 476
+  },
+  "probe_ms": [
+   7.063235293541636,
+   30.599999964237213
+  ],
+  "skew_ms": 22.94775390625,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   203.4,
+   260.7,
+   282.5,
+   190.00261835691308,
+   9
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 14.08 10.96 9.59 }",
+   "device": "15.92 14.74 15.12 9/3153 10309"
+  },
+  "error": ""
+ },
+ {
+  "label": "c1-base2",
+  "asked": {
+   "max_size": "device",
+   "max_fps": "device",
+   "bit_rate": "8M (default)",
+   "idr_s": 2,
+   "codec_options": "idr2"
+  },
+  "encoded": {
+   "size": "1080x2280",
+   "kbps": 1630.2,
+   "fps": 57.892,
+   "key_frames": 10,
+   "idr_s": 2,
+   "sps": "420032"
+  },
+  "frames": {
+   "forwarded": 1158,
+   "decoded": 771,
+   "presented": 341,
+   "with_clock": 341
+  },
+  "probe_ms": [
+   6.3583577722748,
+   12.800000011920929
+  ],
+  "skew_ms": 36.507080078125,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   120,
+   191.3,
+   264.4,
+   118.24629350142045,
+   28
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 8.43 9.66 9.28 }",
+   "device": "16.74 15.50 15.34 6/3159 11841"
+  },
+  "error": ""
+ },
+ {
+  "label": "c1-base3",
+  "asked": {
+   "max_size": "device",
+   "max_fps": "device",
+   "bit_rate": "8M (default)",
+   "idr_s": 2,
+   "codec_options": "idr2"
+  },
+  "encoded": {
+   "size": "1080x2280",
+   "kbps": 1568.557,
+   "fps": 56.579,
+   "key_frames": 10,
+   "idr_s": 2.001,
+   "sps": "420032"
+  },
+  "frames": {
+   "forwarded": 1132,
+   "decoded": 989,
+   "presented": 488,
+   "with_clock": 488
+  },
+  "probe_ms": [
+   6.983196721335903,
+   18.900000035762787
+  ],
+  "skew_ms": 53.338134765625,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   102.2,
+   189.6,
+   250.3,
+   105.66964721679688,
+   22
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 6.03 7.59 8.55 }",
+   "device": "17.12 16.82 16.22 3/3165 19790"
+  },
+  "error": ""
+ },
+ {
+  "label": "c1-base4",
+  "asked": {
+   "max_size": "device",
+   "max_fps": "device",
+   "bit_rate": "8M (default)",
+   "idr_s": 2,
+   "codec_options": "idr2"
+  },
+  "encoded": {
+   "size": "1080x2280",
+   "kbps": 1769.291,
+   "fps": 64.645,
+   "key_frames": 11,
+   "idr_s": 1.818,
+   "sps": "420032"
+  },
+  "frames": {
+   "forwarded": 1293,
+   "decoded": 1173,
+   "presented": 516,
+   "with_clock": 516
+  },
+  "probe_ms": [
+   7.00639534758967,
+   63.69999998807907
+  ],
+  "skew_ms": 58.18603515625,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   95.5,
+   130.8,
+   163.8,
+   87.65393870745518,
+   38
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 5.68 7.23 8.26 }",
+   "device": "16.27 16.65 16.26 9/3124 21896"
+  },
+  "error": ""
+ },
+ {
+  "label": "c1-base5",
+  "asked": {
+   "max_size": "device",
+   "max_fps": "device",
+   "bit_rate": "8M (default)",
+   "idr_s": 2,
+   "codec_options": "idr2"
+  },
+  "encoded": {
+   "size": "1080x2280",
+   "kbps": 1646.176,
+   "fps": 62.876,
+   "key_frames": 11,
+   "idr_s": 1.819,
+   "sps": "420032"
+  },
+  "frames": {
+   "forwarded": 1258,
+   "decoded": 1138,
+   "presented": 520,
+   "with_clock": 520
+  },
+  "probe_ms": [
+   6.6482692316174505,
+   50.5
+  ],
+  "skew_ms": 59.440185546875,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   83.2,
+   132.3,
+   133.6,
+   85.11668935922476,
+   24
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 10.52 10.35 9.70 }",
+   "device": "16.78 16.86 16.68 4/3122 32017"
+  },
+  "error": ""
+ },
+ {
+  "label": "c1-idr10",
+  "asked": {
+   "max_size": "device",
+   "max_fps": "device",
+   "bit_rate": "8M (default)",
+   "idr_s": 10,
+   "codec_options": "idr10"
+  },
+  "encoded": {
+   "size": "1080x2280",
+   "kbps": 1563.108,
+   "fps": 55.781,
+   "key_frames": 2,
+   "idr_s": 10.003,
+   "sps": "420032"
+  },
+  "frames": {
+   "forwarded": 1116,
+   "decoded": 515,
+   "presented": 202,
+   "with_clock": 202
+  },
+  "probe_ms": [
+   6.794554458101197,
+   18.399999976158142
+  ],
+  "skew_ms": 52.178955078125,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   112.9,
+   142.4,
+   177.6,
+   101.28084511331993,
+   8
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 7.32 7.71 8.54 }",
+   "device": "16.97 16.84 16.26 3/3168 20538"
+  },
+  "error": ""
+ },
+ {
+  "label": "c1-idr0",
+  "asked": {
+   "max_size": "device",
+   "max_fps": "device",
+   "bit_rate": "8M (default)",
+   "idr_s": 0,
+   "codec_options": "\u2014"
+  },
+  "encoded": {
+   "size": "1080x2280",
+   "kbps": 1583.079,
+   "fps": 60.152,
+   "key_frames": 3,
+   "idr_s": 6.666,
+   "sps": "420032"
+  },
+  "frames": {
+   "forwarded": 1203,
+   "decoded": 473,
+   "presented": 142,
+   "with_clock": 142
+  },
+  "probe_ms": [
+   6.2866197232629215,
+   19
+  ],
+  "skew_ms": 53.510986328125,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   85.6,
+   119.3,
+   352.2,
+   66.2721669371699,
+   36
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 8.55 7.87 8.55 }",
+   "device": "16.92 16.85 16.29 6/3123 21265"
+  },
+  "error": ""
+ },
+ {
+  "label": "c1-idr0b",
+  "asked": {
+   "max_size": "device",
+   "max_fps": "device",
+   "bit_rate": "8M (default)",
+   "idr_s": 0,
+   "codec_options": "\u2014"
+  },
+  "encoded": {
+   "size": "1080x2280",
+   "kbps": 1518.558,
+   "fps": 62.012,
+   "key_frames": 3,
+   "idr_s": 6.671,
+   "sps": "420032"
+  },
+  "frames": {
+   "forwarded": 1241,
+   "decoded": 478,
+   "presented": 139,
+   "with_clock": 139
+  },
+  "probe_ms": [
+   6.5007194246319555,
+   21.80000001192093
+  ],
+  "skew_ms": 56.55908203125,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   83,
+   132.8,
+   365.7,
+   72.31074007981115,
+   32
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 11.30 11.17 9.83 }",
+   "device": "16.86 16.89 16.65 3/3120 30255"
+  },
+  "error": ""
+ },
+ {
+  "label": "c1-idr0c",
+  "asked": {
+   "max_size": "device",
+   "max_fps": "device",
+   "bit_rate": "8M (default)",
+   "idr_s": 0,
+   "codec_options": "\u2014"
+  },
+  "encoded": {
+   "size": "1080x2280",
+   "kbps": 1604.133,
+   "fps": 62.502,
+   "key_frames": 3,
+   "idr_s": 6.666,
+   "sps": "420032"
+  },
+  "frames": {
+   "forwarded": 1250,
+   "decoded": 650,
+   "presented": 230,
+   "with_clock": 230
+  },
+  "probe_ms": [
+   6.583478261336037,
+   14.5
+  ],
+  "skew_ms": 59.614990234375,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   95.4,
+   129,
+   146.1,
+   79.70403575067935,
+   39
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 9.69 10.26 9.70 }",
+   "device": "16.61 16.81 16.67 3/3119 32559"
+  },
+  "error": ""
+ },
+ {
+  "label": "c1-a720i0",
+  "asked": {
+   "max_size": 720,
+   "max_fps": "device",
+   "bit_rate": "8M (default)",
+   "idr_s": 0,
+   "codec_options": "\u2014"
+  },
+  "encoded": {
+   "size": "340x720",
+   "kbps": 414.338,
+   "fps": 90.22,
+   "key_frames": 4,
+   "idr_s": 5.002,
+   "sps": "42001f"
+  },
+  "frames": {
+   "forwarded": 1805,
+   "decoded": 605,
+   "presented": 78,
+   "with_clock": 78
+  },
+  "probe_ms": [
+   2.246153846765176,
+   16.80000001192093
+  ],
+  "skew_ms": 56.85595703125,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   82,
+   115.1,
+   148.8,
+   85.0234375,
+   0
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 10.66 11.00 9.69 }",
+   "device": "16.39 16.82 16.61 1/3116 29720"
+  },
+  "error": ""
+ },
+ {
+  "label": "c1-br2m",
+  "asked": {
+   "max_size": "device",
+   "max_fps": "device",
+   "bit_rate": 2000000,
+   "idr_s": 0,
+   "codec_options": "\u2014"
+  },
+  "encoded": {
+   "size": "1080x2280",
+   "kbps": 1191.769,
+   "fps": 67.62,
+   "key_frames": 3,
+   "idr_s": 6.675,
+   "sps": "420032"
+  },
+  "frames": {
+   "forwarded": 1354,
+   "decoded": 652,
+   "presented": 176,
+   "with_clock": 176
+  },
+  "probe_ms": [
+   6.94204545495185,
+   17.600000023841858
+  ],
+  "skew_ms": 54.305908203125,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   81.5,
+   99.1,
+   181.8,
+   56.365638039328836,
+   39
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 13.38 10.32 9.07 }",
+   "device": "17.18 16.90 16.54 9/3128 27711"
+  },
+  "error": ""
+ },
+ {
+  "label": "c1-main2",
+  "asked": {
+   "max_size": "device",
+   "max_fps": "device",
+   "bit_rate": "8M (default)",
+   "idr_s": 0,
+   "codec_options": "profile=int=2,level=int=256"
+  },
+  "encoded": {
+   "size": "1080x2280",
+   "kbps": 1435.689,
+   "fps": 61.54,
+   "key_frames": 3,
+   "idr_s": 6.673,
+   "sps": "4d0032"
+  },
+  "frames": {
+   "forwarded": 1232,
+   "decoded": 556,
+   "presented": 176,
+   "with_clock": 176
+  },
+  "probe_ms": [
+   6.416477274826982,
+   21.100000023841858
+  ],
+  "skew_ms": 57.8779296875,
+  "skew_source": "device_ntp_round_trip",
+  "g2g": [
+   95.9,
+   113.1,
+   145.4,
+   69.17831698330966,
+   40
+  ],
+  "browser": "Macintosh; Intel Mac OS X 10_15_7",
+  "env": {
+   "host": "{ 7.43 10.18 9.57 }",
+   "device": "17.24 16.92 16.67 10/3128 30885"
+  },
+  "error": ""
+ }
+]

@@ -1,0 +1,35 @@
+# ARC-145 C1 — device encoder settings vs measured glass-to-glass
+
+| run | requested | encoded | forwarded / decoded / presented | g2g p50 | p95 | p99 | clock read | probe cost mean/max | skew used | browser |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `c1-base` | device, device fps, 8M (default), idr 2s idr2 | 1080x2280, 1414 kbit/s, 56.1 fps, 10 IDR (every 2.00s), SPS 420032 | 1123 / 934 / 476 | **203.4** | 260.7 | 282.5 | 476/476 | 7.1/30.6 | +22.9 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+| `c1-base2` | device, device fps, 8M (default), idr 2s idr2 | 1080x2280, 1630 kbit/s, 57.9 fps, 10 IDR (every 2.00s), SPS 420032 | 1158 / 771 / 341 | **120.0** | 191.3 | 264.4 | 341/341 | 6.4/12.8 | +36.5 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+| `c1-base3` | device, device fps, 8M (default), idr 2s idr2 | 1080x2280, 1569 kbit/s, 56.6 fps, 10 IDR (every 2.00s), SPS 420032 | 1132 / 989 / 488 | **102.2** | 189.6 | 250.3 | 488/488 | 7.0/18.9 | +53.3 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+| `c1-base4` | device, device fps, 8M (default), idr 2s idr2 | 1080x2280, 1769 kbit/s, 64.6 fps, 11 IDR (every 1.82s), SPS 420032 | 1293 / 1173 / 516 | **95.5** | 130.8 | 163.8 | 516/516 | 7.0/63.7 | +58.2 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+| `c1-base5` | device, device fps, 8M (default), idr 2s idr2 | 1080x2280, 1646 kbit/s, 62.9 fps, 11 IDR (every 1.82s), SPS 420032 | 1258 / 1138 / 520 | **83.2** | 132.3 | 133.6 | 520/520 | 6.6/50.5 | +59.4 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+| `c1-idr10` | device, device fps, 8M (default), idr 10s idr10 | 1080x2280, 1563 kbit/s, 55.8 fps, 2 IDR (every 10.00s), SPS 420032 | 1116 / 515 / 202 | **112.9** | 142.4 | 177.6 | 202/202 | 6.8/18.4 | +52.2 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+| `c1-idr0` | device, device fps, 8M (default), idr 0s — | 1080x2280, 1583 kbit/s, 60.2 fps, 3 IDR (every 6.67s), SPS 420032 | 1203 / 473 / 142 | **85.6** | 119.3 | 352.2 | 142/142 | 6.3/19.0 | +53.5 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+| `c1-idr0b` | device, device fps, 8M (default), idr 0s — | 1080x2280, 1519 kbit/s, 62.0 fps, 3 IDR (every 6.67s), SPS 420032 | 1241 / 478 / 139 | **83.0** | 132.8 | 365.7 | 139/139 | 6.5/21.8 | +56.6 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+| `c1-idr0c` | device, device fps, 8M (default), idr 0s — | 1080x2280, 1604 kbit/s, 62.5 fps, 3 IDR (every 6.67s), SPS 420032 | 1250 / 650 / 230 | **95.4** | 129.0 | 146.1 | 230/230 | 6.6/14.5 | +59.6 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+| `c1-a720i0` | 720, device fps, 8M (default), idr 0s — | 340x720, 414 kbit/s, 90.2 fps, 4 IDR (every 5.00s), SPS 42001f | 1805 / 605 / 78 | **82.0** | 115.1 | 148.8 | 78/78 | 2.2/16.8 | +56.9 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+| `c1-br2m` | device, device fps, 2000000, idr 0s — | 1080x2280, 1192 kbit/s, 67.6 fps, 3 IDR (every 6.67s), SPS 420032 | 1354 / 652 / 176 | **81.5** | 99.1 | 181.8 | 176/176 | 6.9/17.6 | +54.3 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+| `c1-main2` | device, device fps, 8M (default), idr 0s profile=int=2,level=int=256 | 1080x2280, 1436 kbit/s, 61.5 fps, 3 IDR (every 6.67s), SPS 4d0032 | 1232 / 556 / 176 | **95.9** | 113.1 | 145.4 | 176/176 | 6.4/21.1 | +57.9 (device_ntp_round_trip) | Macintosh; Intel Mac OS X 10_15_7 |
+
+## Load at the time of each run
+
+| run | host loadavg | device loadavg | mean | negative samples (join noise) | run error |
+|---|---|---|---|---|---|
+| `c1-base` | { 14.08 10.96 9.59 } | 15.92 14.74 15.12 9/3153 10309 | 190.0 | 9 | — |
+| `c1-base2` | { 8.43 9.66 9.28 } | 16.74 15.50 15.34 6/3159 11841 | 118.2 | 28 | — |
+| `c1-base3` | { 6.03 7.59 8.55 } | 17.12 16.82 16.22 3/3165 19790 | 105.7 | 22 | — |
+| `c1-base4` | { 5.68 7.23 8.26 } | 16.27 16.65 16.26 9/3124 21896 | 87.7 | 38 | — |
+| `c1-base5` | { 10.52 10.35 9.70 } | 16.78 16.86 16.68 4/3122 32017 | 85.1 | 24 | — |
+| `c1-idr10` | { 7.32 7.71 8.54 } | 16.97 16.84 16.26 3/3168 20538 | 101.3 | 8 | — |
+| `c1-idr0` | { 8.55 7.87 8.55 } | 16.92 16.85 16.29 6/3123 21265 | 66.3 | 36 | — |
+| `c1-idr0b` | { 11.30 11.17 9.83 } | 16.86 16.89 16.65 3/3120 30255 | 72.3 | 32 | — |
+| `c1-idr0c` | { 9.69 10.26 9.70 } | 16.61 16.81 16.67 3/3119 32559 | 79.7 | 39 | — |
+| `c1-a720i0` | { 10.66 11.00 9.69 } | 16.39 16.82 16.61 1/3116 29720 | 85.0 | 0 | — |
+| `c1-br2m` | { 13.38 10.32 9.07 } | 17.18 16.90 16.54 9/3128 27711 | 56.4 | 39 | — |
+| `c1-main2` | { 7.43 10.18 9.57 } | 17.24 16.92 16.67 10/3128 30885 | 69.2 | 40 | — |
+
+wrote /Users/artisanclaw/multica_workspaces/artisan-cla-bcf9a4adc3f9/arc-145-5305845209ee/workdir/drift-next-app/spike/arc-144-live-mirror/tools/../results/arc145-c1-table.json

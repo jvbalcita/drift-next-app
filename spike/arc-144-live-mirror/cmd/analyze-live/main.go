@@ -73,6 +73,12 @@ type runLog struct {
 	Serial      string          `json:"serial"`
 	VideoW      int             `json:"video_width"`
 	VideoH      int             `json:"video_height"`
+	MaxSize     int             `json:"max_size"`
+	MaxFPS      int             `json:"max_fps"`
+	BitRate     int             `json:"bit_rate"`
+	KeyframeS   int             `json:"idr_interval_s"`
+	CodecOpts   []string        `json:"codec_options"`
+	SPSProfile  string          `json:"sps_profile_level_id"`
 	DurationS   float64         `json:"duration_s"`
 	TapsPlanned int             `json:"taps_planned"`
 	TapInterval string          `json:"tap_interval"`
@@ -364,6 +370,24 @@ func main() {
 		}
 	}
 
+	// The encoder's own cadence, measured rather than assumed from the settings:
+	// a knob the device ignores shows up here and nowhere else. The rates are
+	// taken over the arrival window (wall clock) because the encoder's PTS is
+	// not always gapless - a stream with a PTS jump would otherwise read as a
+	// slower cadence than it had - and the PTS span is reported beside it rather
+	// than used for the rates.
+	var arrivalSpanS, ptsSpanS float64
+	if len(run.Packets) > 1 {
+		arrivalSpanS = float64(run.Packets[len(run.Packets)-1].RecvNS-run.Packets[0].RecvNS) / 1e9
+		ptsSpanS = float64(run.Packets[len(run.Packets)-1].PTSUS-run.Packets[0].PTSUS) / 1e6
+	}
+	kbps, capturedFPS, idrIntervalS := math.NaN(), math.NaN(), math.NaN()
+	if arrivalSpanS > 0 {
+		kbps = float64(videoBytes) * 8 / arrivalSpanS / 1000
+		capturedFPS = float64(len(run.Packets)) / arrivalSpanS
+		idrIntervalS = arrivalSpanS / float64(keyFrames)
+	}
+
 	in := probe.FinalStats.Inbound
 	jitterBufMS, decodeMS, procMS := math.NaN(), math.NaN(), math.NaN()
 	if in.JitterBufferEmitted > 0 {
@@ -379,6 +403,31 @@ func main() {
 		"generated_at": time.Now().Format(time.RFC3339Nano),
 		"serial":       run.Serial,
 		"video":        map[string]any{"width": run.VideoW, "height": run.VideoH},
+		// The encoder half, both as requested and as measured. The requested
+		// side is what this run asked the device's encoder for; the measured
+		// side is what came out of the socket, so a knob the hardware ignored
+		// is visible as a request with no matching measurement.
+		"encoder": map[string]any{
+			"requested": map[string]any{
+				"max_size":       run.MaxSize,
+				"max_fps":        run.MaxFPS,
+				"bit_rate":       run.BitRate,
+				"idr_interval_s": run.KeyframeS,
+				"codec_options":  run.CodecOpts,
+			},
+			"measured": map[string]any{
+				"width":                run.VideoW,
+				"height":               run.VideoH,
+				"kbps":                 round3(kbps),
+				"frames":               len(run.Packets),
+				"capture_fps":          round3(capturedFPS),
+				"key_frames":           keyFrames,
+				"idr_interval_s":       round3(idrIntervalS),
+				"sps_profile_level_id": run.SPSProfile,
+				"arrival_span_s":       round3(arrivalSpanS),
+				"encoder_pts_span_s":   round3(ptsSpanS),
+			},
+		},
 		"explain": map[string]any{
 			"glass_to_glass": "browser expectedDisplayTime for frame N minus the device clock read out of frame N's own pixels, skew-corrected",
 			"input_handler":  "device clock when the page handled the touch, skew-corrected, minus the host instant the control message was written (excludes the return video path)",
@@ -469,7 +518,13 @@ func main() {
 		"strip":                run.Strip,
 	}
 
-	body, _ := json.MarshalIndent(report, "", "  ")
+	body, err := json.MarshalIndent(finite(report), "", "  ")
+	if err != nil {
+		// A report that cannot be marshalled must not be written as an empty
+		// file: an empty report is indistinguishable from a run that measured
+		// nothing, which is exactly the failure mode this rig exists to avoid.
+		log.Fatalf("analyze-live: marshalling the report: %v", err)
+	}
 	if outPath == "" {
 		outPath = fmt.Sprintf("results/report-live-%s.json", label)
 	}
@@ -555,6 +610,7 @@ func markdown(label string, rep map[string]any) string {
 		dec["frames_received"], dec["frames_decoded"], dec["frames_dropped"], dec["packets_lost"],
 		rep["probe_cost"].(map[string]any)["read_ms_mean"], rep["probe_cost"].(map[string]any)["read_ms_max"])
 	fmt.Fprintf(&b, "\n## Skew reports\n\n```json\n%s\n```\n", pretty(sk))
+	fmt.Fprintf(&b, "\n## Encoder\n\n```json\n%s\n```\n", pretty(rep["encoder"]))
 	fmt.Fprintf(&b, "\n## Taps\n\n```json\n%s\n```\n", pretty(inp["taps"]))
 	return b.String()
 }
@@ -635,10 +691,51 @@ func toInts(v []float64) []int64 {
 	return out
 }
 
+// finite replaces a non-finite float with nil, everywhere in the report's nested
+// maps and slices.
+//
+// encoding/json refuses NaN and +Inf, and the report's own shape is what makes
+// that matter: a measurement that could not be taken (no decoded samples, no key
+// frame to divide by) is a NaN here, and one NaN used to make the whole report
+// fail to marshal - with the error discarded, which wrote a zero-byte file that
+// read exactly like a run that measured nothing. Null says the same thing
+// without lying.
+func finite(v any) any {
+	switch t := v.(type) {
+	case float64:
+		if math.IsNaN(t) || math.IsInf(t, 0) {
+			return nil
+		}
+		return t
+	case map[string]any:
+		for k, x := range t {
+			t[k] = finite(x)
+		}
+		return t
+	case []any:
+		for i, x := range t {
+			t[i] = finite(x)
+		}
+		return t
+	}
+	return v
+}
+
 // round puts a value from clockcode.Percentile (tenths) back into milliseconds.
 func round(v float64) float64 {
 	if math.IsNaN(v) {
 		return math.NaN()
 	}
 	return v / 10
+}
+
+// round3 rounds a plain measurement - a rate, a duration in seconds, a size -
+// to three decimals. It is deliberately not round(), which converts
+// clockcode.Percentile's tenths-of-a-millisecond, and applying that one to a
+// rate would divide it by ten.
+func round3(v float64) float64 {
+	if math.IsNaN(v) {
+		return math.NaN()
+	}
+	return math.Round(v*1000) / 1000
 }

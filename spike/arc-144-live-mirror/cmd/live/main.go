@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -97,6 +98,10 @@ type server struct {
 	notes            []string
 	launchedAt       int64
 	dump             *os.File
+	// devicePLID is the profile-level-id out of the device encoder's own SPS.
+	// It is what the encoder actually did, as opposed to what the run asked it
+	// for: a knob the hardware ignores changes nothing here.
+	devicePLID string
 }
 
 type config struct {
@@ -125,6 +130,9 @@ type config struct {
 	dumpH264         string
 	allowNoProbe     bool
 	keyframeInterval int
+	bitrate          int
+	maxFPS           int
+	codecOptions     string
 }
 
 // stripGeometry is where the clock strip is, in both coordinate frames: the
@@ -145,9 +153,14 @@ type stripGeometry struct {
 	Cell         int     `json:"cell"`
 	ScreenMS     int64   `json:"screen_ms"`
 	ScreenHostMS int64   `json:"screen_host_ms"`
-	Method       string  `json:"method"`
-	Found        bool    `json:"found"`
-	Error        string  `json:"error,omitempty"`
+	// VideoCell is the strip's cell size in the ENCODED VIDEO's pixels, which is
+	// the frame the probe reads. A downscaled stream (scrcpy max_size) makes it
+	// fractional, and a probe that used the screen's 32 would read the wrong cell
+	// on every column - so the probe is given this one.
+	VideoCell float64 `json:"video_cell"`
+	Method    string  `json:"method"`
+	Found     bool    `json:"found"`
+	Error     string  `json:"error,omitempty"`
 }
 
 type livepeerHolder struct {
@@ -178,6 +191,9 @@ func main() {
 	flag.BoolVar(&cfg.resetBrowser, "reset-browser", true, "stop the device browser before launching the page (one tab, one clock)")
 	flag.StringVar(&cfg.dumpH264, "dump-h264", "", "write every forwarded access unit to this Annex-B file (debugging)")
 	flag.IntVar(&cfg.keyframeInterval, "keyframe-interval", 2, "seconds between IDRs the device encoder is asked for (0 leaves the encoder default)")
+	flag.IntVar(&cfg.bitrate, "bitrate", 0, "video bit rate in bits/s the device encoder is asked for (0 leaves scrcpy's own default of 8 Mbit/s)")
+	flag.IntVar(&cfg.maxFPS, "max-fps", 0, "cap the device's capture frame rate (0 leaves the device's own cadence)")
+	flag.StringVar(&cfg.codecOptions, "codec-options", "", "extra MediaCodec video codec options in scrcpy's syntax (key[:type]=value, comma separated)")
 	flag.BoolVar(&cfg.allowNoProbe, "allow-no-probe", false, "run the pump even if no browser probe connects (device-side debugging only; the run then has no latency samples)")
 	flag.Parse()
 
@@ -248,15 +264,11 @@ func (s *server) run(ctx context.Context) error {
 
 	// 3. The scrcpy session: video and control sockets.
 	stopwatch := time.Now()
-	codecOpts := []string{}
-	if s.cfg.keyframeInterval > 0 {
-		// scrcpy's syntax is key[:type]=value: the server rejects a bare
-		// key:value pair outright.
-		codecOpts = append(codecOpts, fmt.Sprintf("i-frame-interval:int=%d", s.cfg.keyframeInterval))
-	}
+	codecOpts := codecOptsOf(s.cfg)
 	sess, err := scrcpy.Start(ctx, scrcpy.Options{
 		ADB: s.cfg.adb, Serial: s.cfg.serial, ServerPath: s.cfg.serverJar,
-		MaxSize: s.cfg.maxSize, LogLevel: "info", CodecOptions: codecOpts,
+		MaxSize: s.cfg.maxSize, MaxFPS: s.cfg.maxFPS, BitRate: s.cfg.bitrate,
+		LogLevel: "info", CodecOptions: codecOpts,
 	})
 	if err != nil {
 		return fmt.Errorf("scrcpy session: %w", err)
@@ -433,6 +445,7 @@ func (s *server) pump() error {
 			if plid, err := livepeer.ProfileLevelID(pkt.Data); err == nil {
 				s.mu.Lock()
 				s.notes = append(s.notes, "device SPS profile-level-id "+plid)
+				s.devicePLID = plid
 				s.mu.Unlock()
 			}
 			first = false
@@ -505,6 +518,27 @@ func portOf(addr string) string {
 		return port
 	}
 	return "8792"
+}
+
+// codecOptsOf renders the encoder options this run asks the device for, in the
+// order they reach scrcpy's server. It is the one place they are built, so what
+// the run reports is what was actually requested.
+func codecOptsOf(cfg config) []string {
+	opts := []string{}
+	if cfg.keyframeInterval > 0 {
+		// scrcpy's syntax is key[:type]=value: the server rejects a bare
+		// key:value pair outright.
+		opts = append(opts, fmt.Sprintf("i-frame-interval:int=%d", cfg.keyframeInterval))
+	}
+	// Extra codec options a run is varying (profile, level, bitrate-mode, ...)
+	// are appended verbatim, so the caller's own spelling is what reaches the
+	// encoder and cannot be silently rewritten here.
+	for _, opt := range strings.Split(cfg.codecOptions, ",") {
+		if opt = strings.TrimSpace(opt); opt != "" {
+			opts = append(opts, opt)
+		}
+	}
+	return opts
 }
 
 func defaultServerJar() string {

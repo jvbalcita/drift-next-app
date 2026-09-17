@@ -201,10 +201,15 @@ async function main() {
   // picture, so the offset is a scale of it. The first frames are used to verify
   // that, and to try small corrections, because a cell-aligned read is the whole
   // precondition for reading bits instead of noise.
+  //
+  // The cell comes from the host in the VIDEO's pixels: a downscaled stream has a
+  // fractional cell there, and using the screen's 32 would sample the wrong cell
+  // on every column.
+  const cell = cfg.strip.videoCell > 0 ? cfg.strip.videoCell : cfg.strip.cell;
   const candidates = [];
   for (const dx of [0, -4, -2, 2, 4]) {
     for (const dy of [0, -4, -2, 2, 4]) {
-      candidates.push({ x: cfg.strip.videoX + dx, y: cfg.strip.videoY + dy, cell: cfg.strip.cell, dx, dy, ok: 0, tried: 0 });
+      candidates.push({ x: cfg.strip.videoX + dx, y: cfg.strip.videoY + dy, cell, dx, dy, ok: 0, tried: 0 });
     }
   }
   let geom = candidates[0];

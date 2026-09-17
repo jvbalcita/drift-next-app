@@ -134,6 +134,11 @@ func (s *server) locateStrip(ctx context.Context) error {
 	s.mu.Unlock()
 	geom.VideoX, geom.VideoY, geom.ScaleX, geom.ScaleY =
 		stripScale(geom.ScreenW, geom.ScreenH, geom.VideoW, geom.VideoH, geom.ScreenX, geom.ScreenY)
+	// The cell is measured from the SCREEN's geometry and restated in the video
+	// frame, like the origin: a downscaled stream has a fractional video cell
+	// (scrcpy's 720-class size makes this device's 32 px cell 10.07 px wide), and
+	// a probe told 32 would misread every column.
+	geom.VideoCell = float64(geom.Cell) * geom.ScaleX
 	geom.Found = true
 	s.mu.Lock()
 	s.strip = geom
@@ -240,6 +245,11 @@ type runReport struct {
 	VideoW       int              `json:"video_width"`
 	VideoH       int              `json:"video_height"`
 	MaxSize      int              `json:"max_size"`
+	MaxFPS       int              `json:"max_fps"`
+	BitRate      int              `json:"bit_rate"`
+	KeyframeS    int              `json:"idr_interval_s"`
+	CodecOptions []string         `json:"codec_options"`
+	SPSProfileID string           `json:"sps_profile_level_id,omitempty"`
 	TapsPlanned  int              `json:"taps_planned"`
 	TapInterval  string           `json:"tap_interval"`
 	Skew         skewReport       `json:"skew_adb"`
@@ -290,26 +300,31 @@ func (s *server) writeReport(runErr error) {
 	allSignals := append(append([]deviceSignal{}, s.heartbeats...), s.deviceTaps...)
 	best, n, spread := signalSkew(allSignals)
 	rep := runReport{
-		Label:       s.cfg.label,
-		Serial:      s.cfg.serial,
-		LabelTime:   time.Now().Format(time.RFC3339Nano),
-		DurationS:   s.cfg.duration.Seconds(),
-		MaxSize:     s.cfg.maxSize,
-		TapsPlanned: s.cfg.tapCount,
-		TapInterval: s.cfg.tapInterval.String(),
-		Skew:        s.skew,
-		SignalSkew:  signalSkewReport{HostMinusDeviceMS: best, Samples: n, SpreadMS: spread},
-		Strip:       s.strip,
-		Notes:       s.notes,
-		PageInfo:    s.pageInfo,
-		Heartbeat:   clockcode.Summarise(devMs),
-		Heartbeats:  s.heartbeats,
-		DeviceTaps:  s.deviceTaps,
-		Taps:        s.taps,
-		Packets:     s.packets,
-		ProbeGeom:   s.probeGeom,
-		Fullscreen:  s.fullscreenSignal,
-		DeviceNTP:   s.ntp,
+		Label:        s.cfg.label,
+		Serial:       s.cfg.serial,
+		LabelTime:    time.Now().Format(time.RFC3339Nano),
+		DurationS:    s.cfg.duration.Seconds(),
+		MaxSize:      s.cfg.maxSize,
+		MaxFPS:       s.cfg.maxFPS,
+		BitRate:      s.cfg.bitrate,
+		KeyframeS:    s.cfg.keyframeInterval,
+		CodecOptions: codecOptsOf(s.cfg),
+		SPSProfileID: s.devicePLID,
+		TapsPlanned:  s.cfg.tapCount,
+		TapInterval:  s.cfg.tapInterval.String(),
+		Skew:         s.skew,
+		SignalSkew:   signalSkewReport{HostMinusDeviceMS: best, Samples: n, SpreadMS: spread},
+		Strip:        s.strip,
+		Notes:        s.notes,
+		PageInfo:     s.pageInfo,
+		Heartbeat:    clockcode.Summarise(devMs),
+		Heartbeats:   s.heartbeats,
+		DeviceTaps:   s.deviceTaps,
+		Taps:         s.taps,
+		Packets:      s.packets,
+		ProbeGeom:    s.probeGeom,
+		Fullscreen:   s.fullscreenSignal,
+		DeviceNTP:    s.ntp,
 	}
 	if s.peer != nil {
 		if counts, err := json.Marshal(s.peer.Counts()); err == nil {

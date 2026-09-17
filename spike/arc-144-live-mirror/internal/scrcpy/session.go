@@ -46,6 +46,8 @@ type Options struct {
 	Serial     string // device serial (host:port for network adb)
 	ServerPath string // local path to the scrcpy-server jar
 	MaxSize    int    // 0 keeps the device's own capture size
+	MaxFPS     int    // 0 keeps the device's own capture cadence
+	BitRate    int    // video bit rate in bits/s; 0 keeps the server's own default
 	LogLevel   string // scrcpy server log level
 	AcceptWait time.Duration
 	// CodecOptions are passed to the device's MediaCodec video encoder as
@@ -143,6 +145,12 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 	}
 	if opts.MaxSize > 0 {
 		args = append(args, "max_size="+strconv.Itoa(opts.MaxSize))
+	}
+	if opts.MaxFPS > 0 {
+		args = append(args, "max_fps="+strconv.Itoa(opts.MaxFPS))
+	}
+	if opts.BitRate > 0 {
+		args = append(args, "video_bit_rate="+strconv.Itoa(opts.BitRate))
 	}
 	if len(opts.CodecOptions) > 0 {
 		args = append(args, "video_codec_options="+strings.Join(opts.CodecOptions, ","))

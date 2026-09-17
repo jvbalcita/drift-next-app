@@ -67,12 +67,30 @@ SERIAL=192.168.1.104:5555 DURATION=30s TAPS=8 tools/run-part-b.sh b1 headless
 SERIAL=192.168.1.104:5555 DURATION=30s TAPS=8 tools/run-part-b.sh b2 headed
 SERIAL=192.168.1.104:5555 DURATION=30s TAPS=8 tools/run-part-b.sh b3 webkit
 
+# ARC-145 C2: the console's own Tauri shell (WKWebView) at this rig's page, instead
+# of Safari as a proxy. Build the app once, outside the run, or the build time falls
+# inside it: (cd apps/console && pnpm exec tauri build --debug --no-bundle)
+SERIAL=192.168.1.104:5555 DURATION=20s TAPS=4 WPROBE=120s tools/run-part-b.sh c2 tauri
+
+# ARC-145 C1: the encoder matrix (one cell per run) and its table
+tools/run-arc145-c1.sh base a720i0 br2m main2 idr10 idr0
+python3 tools/summarise-arc145.py c1-base c1-idr0 c1-a720i0 c1-br2m c1-main2
+
 # replay one captured stream through the same hop, no device attached
 tools/run-replay.sh r1 results/media/live-b1.h264 60 569
 
 # every Part B report in one table
 python3 tools/summarise-part-b.py
 ```
+
+Encoder levers are passed through `run-part-b.sh` as env: `MAXSIZE`, `BITRATE`, `MAXFPS`,
+`IDR` (seconds between IDRs) and `CODECOPTS` (raw MediaCodec options). Each report's
+`encoder` section states the request *beside* what came out of the socket — the encoded
+size, the measured kbit/s and fps, the key frames and the profile-level-id read from the
+device's own SPS — so a lever the hardware ignored is visible as a request with no matching
+measurement. Note that on this fleet a size/bit-rate/frame-rate override together with a
+codec option aborts the scrcpy 4.1 server (`stack corruption detected`); FINDINGS.md,
+"ARC-145", carries the attempts.
 
 There is no camera, so the clock is one the device paints into its own pixels: a
 60-cell black/white strip carrying the millisecond wall clock, plus a tap reaction bit.
