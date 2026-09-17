@@ -18,6 +18,9 @@ type RegistryStore interface {
 	// FinishScan completes a running scan, upserting the observed devices and
 	// their endpoints, and returns the observed devices with their identity.
 	FinishScan(context.Context, organizations.WorkspaceID, ScanRunID, []ObservedDevice, string, string) (ScanRun, []ObservedDevice, error)
+	// RecordArrivals upserts transports observed after launch through the same
+	// serial-keyed upsert FinishScan uses, without opening a scan run.
+	RecordArrivals(context.Context, organizations.WorkspaceID, []ObservedDevice, string, string) ([]ObservedDevice, error)
 	FailScan(context.Context, organizations.WorkspaceID, ScanRunID, string, string, error) (ScanRun, error)
 }
 
@@ -77,4 +80,37 @@ func (s *Service) StartScan(ctx context.Context, workspace organizations.Workspa
 	}
 	completed, devices, err := s.store.FinishScan(ctx, workspace, run.ID, observations, actorType, actorID)
 	return completed, devices, err
+}
+
+// RecordArrivals persists transports an arrival watcher observed after launch.
+// An arrival is an observation, not a scan: the watcher already enumerated the
+// transports, so this path opens no scan run and re-runs no enumeration. It is
+// deliberately the same serial-keyed upsert a scan uses, because routing an
+// arrival anywhere else is what mints a duplicate identity for a device that
+// already has one (the 22-cards-for-21-devices symptom). It mints no candidate
+// queue and no approval transition.
+//
+// Every observation in the batch is validated before anything is persisted, so
+// a batch carrying an unidentifiable transport is refused whole rather than
+// half-applied. An empty batch is a no-op: a poll that found nothing new is not
+// a failure.
+func (s *Service) RecordArrivals(ctx context.Context, workspace organizations.WorkspaceID, observations []ObservedDevice, actorType, actorID string) ([]ObservedDevice, error) {
+	if s == nil || s.store == nil {
+		return nil, fmt.Errorf("discovery service dependencies are required")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if len(observations) == 0 {
+		return nil, nil
+	}
+	for _, observation := range observations {
+		if !observation.Valid() {
+			return nil, fmt.Errorf("arrival observation carries neither a serial nor a host")
+		}
+	}
+	return s.store.RecordArrivals(ctx, workspace, observations, actorType, actorID)
 }

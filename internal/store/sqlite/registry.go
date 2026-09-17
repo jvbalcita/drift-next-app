@@ -126,15 +126,8 @@ func (d *DB) FinishScan(ctx context.Context, workspace organizations.WorkspaceID
 			return platformerrors.New(platformerrors.CodeConflict, "scan run is not running")
 		}
 		for _, observation := range observations {
-			evidence := observation.EvidenceJSON()
-			if redaction.RedactString(evidence) != evidence {
-				return platformerrors.New(platformerrors.CodeInvalidInput, "scan evidence contains sensitive material")
-			}
-			persisted, err := d.upsertObservedDevice(ctx, tx, workspace, observation, now)
+			persisted, err := d.persistObservation(ctx, tx, workspace, observation, now, actorType, actorID)
 			if err != nil {
-				return err
-			}
-			if err := d.recordMutation(ctx, tx, string(workspace), "device", string(persisted.DeviceID), "device.observed", actorType, actorID); err != nil {
 				return err
 			}
 			observed = append(observed, persisted)
@@ -153,6 +146,60 @@ func (d *DB) FinishScan(ctx context.Context, workspace organizations.WorkspaceID
 		return discovery.ScanRun{}, nil, err
 	}
 	return run, observed, nil
+}
+
+// RecordArrivals upserts transports an arrival watcher observed after startup
+// through the same serial-keyed path a completed scan uses, so a device that
+// answers on a newly attached transport resolves to its existing device_id
+// instead of minting a second identity. It writes no scan run: an arrival is an
+// observation, not a scan. It mints no candidate queue, no registration, and no
+// approval transition - a watcher arrival is registered on the same terms the
+// startup scan registered it (AGENTS.md section 2). The whole batch commits or
+// nothing does.
+func (d *DB) RecordArrivals(ctx context.Context, workspace organizations.WorkspaceID, observations []discovery.ObservedDevice, actorType, actorID string) ([]discovery.ObservedDevice, error) {
+	if err := validateWorkspace(string(workspace)); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(actorType) == "" || strings.TrimSpace(actorID) == "" {
+		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "arrival actor type and ID are required")
+	}
+	now := d.clock.Now().UTC()
+	observed := make([]discovery.ObservedDevice, 0, len(observations))
+	err := WithTx(ctx, d.db, func(tx *sql.Tx) error {
+		for _, observation := range observations {
+			persisted, err := d.persistObservation(ctx, tx, workspace, observation, now, actorType, actorID)
+			if err != nil {
+				return err
+			}
+			observed = append(observed, persisted)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return observed, nil
+}
+
+// persistObservation is THE serial-keyed upsert path. Every observation the
+// registry persists - one a scan completes with, and one an arrival watcher
+// reports - lands here, so a device observed on a second transport can only
+// resolve to the identity its serial already has, and the evidence gate is
+// applied on both paths rather than on one of them. It runs inside the caller's
+// transaction.
+func (d *DB) persistObservation(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, observation discovery.ObservedDevice, now time.Time, actorType, actorID string) (discovery.ObservedDevice, error) {
+	evidence := observation.EvidenceJSON()
+	if redaction.RedactString(evidence) != evidence {
+		return observation, platformerrors.New(platformerrors.CodeInvalidInput, "observation evidence contains sensitive material")
+	}
+	persisted, err := d.upsertObservedDevice(ctx, tx, workspace, observation, now)
+	if err != nil {
+		return observation, err
+	}
+	if err := d.recordMutation(ctx, tx, string(workspace), "device", string(persisted.DeviceID), "device.observed", actorType, actorID); err != nil {
+		return observation, err
+	}
+	return persisted, nil
 }
 
 // upsertObservedDevice matches an observation to its canonical device by
