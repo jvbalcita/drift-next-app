@@ -242,15 +242,21 @@ message HaltStatus {
   string last_actor_type = 6;
   string last_actor_id = 7;
 }
-message GetHaltRequest { WorkspaceRef workspace = 1; }
-message GetHaltResponse { HaltStatus halt = 1; }
+message GetHaltRequest {
+  WorkspaceRef workspace = 1;
+}
+message GetHaltResponse {
+  HaltStatus halt = 1;
+}
 message SetHaltRequest {
   RequestContext context = 1;
   WorkspaceRef workspace = 2;
   HaltState state = 3;
   string reason = 4;
 }
-message SetHaltResponse { HaltStatus halt = 1; }
+message SetHaltResponse {
+  HaltStatus halt = 1;
+}
 service ActionService {
   rpc SubmitAction(SubmitActionRequest) returns (SubmitActionResponse);
   rpc GetHalt(GetHaltRequest) returns (GetHaltResponse);

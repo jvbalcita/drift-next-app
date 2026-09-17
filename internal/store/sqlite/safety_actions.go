@@ -80,7 +80,7 @@ func (s *HaltService) Set(ctx context.Context, workspace organizations.Workspace
 		if err := s.store.recordMutation(ctx, tx, string(workspace), "control_halt", id, "control_halt.updated", actorType, actorID); err != nil {
 			return err
 		}
-		halt = Halt{ID: id, Workspace: workspace, State: state, Reason: reason, UpdatedAt: now, RowVersion: 1}
+		halt = Halt{ID: id, Workspace: workspace, State: state, Reason: reason, UpdatedAt: now, RowVersion: 1, LastActorType: actorType, LastActorID: actorID}
 		if err := tx.QueryRowContext(ctx, `SELECT row_version FROM control_halts WHERE workspace_id=? AND id=?`, workspace, id).Scan(&halt.RowVersion); err != nil {
 			return err
 		}

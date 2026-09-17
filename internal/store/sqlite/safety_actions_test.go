@@ -192,3 +192,24 @@ func TestActionServiceExposesTimeoutAndCleanupFailureSeparately(t *testing.T) {
 		t.Fatalf("cleanup result = %#v, want failed cleanup", got)
 	}
 }
+
+func TestHaltReleaseRestoresDispatchAndRecordsOperator(t *testing.T) {
+	f := newControlledActionFixture(t)
+	ctx := context.Background()
+	if _, err := store.NewHaltService(f.db).Set(ctx, f.workspace, store.HaltEmergencyStop, "stop", "operator", "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.Authorize(ctx, f.tap("halted", "halted-key", "obs-before"), "operator", "operator-1"); platformerrors.CodeOf(err) != platformerrors.CodeEmergencyStopped {
+		t.Fatalf("halted authorization = %v, want emergency_stopped", platformerrors.CodeOf(err))
+	}
+	released, err := store.NewHaltService(f.db).Set(ctx, f.workspace, store.HaltClear, "recovered", "operator", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if released.State != store.HaltClear || released.LastActorID != "operator-1" {
+		t.Fatalf("release = %#v, want clear with actor", released)
+	}
+	if _, err := f.service.Authorize(ctx, f.tap("released", "released-key", "obs-before"), "operator", "operator-1"); err != nil {
+		t.Fatalf("authorization after release = %v, want accepted", err)
+	}
+}
