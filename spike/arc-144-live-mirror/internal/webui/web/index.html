@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ARC-144 Part B — live device probe</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 8px; background: #101114; color: #e8e8ea;
+         font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  video { width: 480px; height: 1013px; background: #000; display: block; }
+  h2 { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: #9aa4b2; }
+  #log { margin: 8px 0 0; white-space: pre-wrap; color: #8b93a1; max-height: 320px; overflow: hidden; }
+</style>
+</head>
+<body>
+  <h2>RTP — scrcpy's own H.264 stream over pion/webrtc</h2>
+  <video id="video" playsinline muted autoplay></video>
+  <pre id="log"></pre>
+  <script src="/probe.js"></script>
+</body>
+</html>

@@ -1,0 +1,503 @@
+{
+  "browser_decode": {
+    "codec": "CIT01_108_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+    "decode_ms": 0.2632398653198653,
+    "frames_decoded": 1485,
+    "frames_dropped": 46,
+    "frames_received": 1720,
+    "freeze_count": 4,
+    "jitter_buffer_ms": 0.2057615284128021,
+    "jitter_ms": 0.005,
+    "key_frames_decoded": 15,
+    "packets_lost": 0,
+    "packets_received": 4846,
+    "presented_dropped_frames": 212,
+    "presented_total_video_frames": 1485,
+    "processing_delay_ms": 0.46618154882154883,
+    "video_size": [
+      1080,
+      2280
+    ]
+  },
+  "environment": {
+    "host_loadavg": "{ 10.65 9.66 13.20 }\n",
+    "device_loadavg": "17.62 17.40 16.81 12/3161 26829\n"
+  },
+  "explain": {
+    "glass_to_glass": "browser expectedDisplayTime for frame N minus the device clock read out of frame N's own pixels, skew-corrected",
+    "input_handler": "device clock when the page handled the touch, skew-corrected, minus the host instant the control message was written (excludes the return video path)",
+    "input_video": "first presented frame carrying that tap's counter, minus the same host instant (includes the return video path)",
+    "skew_detail": "page min-delay estimator 0.000 ms over 202 posts (spread 185.000 ms); adb midpoint estimator -72.008 ms (min RTT 61.6 ms, spread 14.522 ms)",
+    "skew_ms": 0,
+    "skew_source": "page_min_delay"
+  },
+  "generated_at": "2026-09-18T02:34:09.855162+08:00",
+  "glass_to_glass": {
+    "device_clock_stats": {
+      "samples": 840,
+      "min_delta_ms": 0,
+      "median_delta_ms": 19,
+      "max_delta_ms": 1560,
+      "unique_values": 833,
+      "non_monotonic": 0,
+      "span_ms": 26862
+    },
+    "frames_presented": 840,
+    "frames_with_clock": 840,
+    "frames_without_clock": 0,
+    "max_ms": 32.2699951171875,
+    "mean_ms": 4.277517409551711,
+    "min_ms": -12.5800048828125,
+    "p50_ms": 43.1,
+    "p50_raw_uncorrected_ms": 43.1,
+    "p95_ms": 77.7,
+    "p99_ms": 115.5
+  },
+  "go_hop": {
+    "encoder_pts_delta_ms_p50": 18.4,
+    "encoder_pts_delta_ms_p95": 23.9,
+    "frames": 1720,
+    "hop_ms_max": 2.9592,
+    "hop_ms_p50": 0.1,
+    "hop_ms_p95": 2,
+    "key_frames": 15,
+    "video_bytes": 5174449,
+    "write_sample_ms_p50": 0.1
+  },
+  "input_round_trip": {
+    "handler_n": 8,
+    "handler_p50_ms": 2564.7,
+    "handler_p95_ms": 17809.2,
+    "taps": [
+      {
+        "seq": 1,
+        "kind": "setup",
+        "host_down_ms": 1789670001304.814,
+        "write_down_up_ms": 0.056,
+        "handler_ms": 17809.18603515625,
+        "video_seen_ms": 17748.086181640625
+      },
+      {
+        "seq": 2,
+        "kind": "measure",
+        "host_down_ms": 1789670019043.9502,
+        "write_down_up_ms": 0.049,
+        "handler_ms": 2562.0498046875,
+        "video_seen_ms": 3175.449951171875
+      },
+      {
+        "seq": 3,
+        "kind": "measure",
+        "host_down_ms": 1789670021544.9138,
+        "write_down_up_ms": 0.034,
+        "handler_ms": 2572.086181640625,
+        "video_seen_ms": 2907.7861328125
+      },
+      {
+        "seq": 4,
+        "kind": "measure",
+        "host_down_ms": 1789670024046.308,
+        "write_down_up_ms": 0.039,
+        "handler_ms": 2564.69189453125,
+        "video_seen_ms": null
+      },
+      {
+        "seq": 5,
+        "kind": "measure",
+        "host_down_ms": 1789670026546.851,
+        "write_down_up_ms": 0.027,
+        "handler_ms": 2568.14892578125,
+        "video_seen_ms": null
+      },
+      {
+        "seq": 6,
+        "kind": "measure",
+        "host_down_ms": 1789670029047.942,
+        "write_down_up_ms": 0.025,
+        "handler_ms": 2566.05810546875,
+        "video_seen_ms": null
+      },
+      {
+        "seq": 7,
+        "kind": "measure",
+        "host_down_ms": 1789670031549.032,
+        "write_down_up_ms": 0.038,
+        "handler_ms": 2562.968017578125,
+        "video_seen_ms": null
+      },
+      {
+        "seq": 8,
+        "kind": "measure",
+        "host_down_ms": 1789670034049.458,
+        "write_down_up_ms": 0.027,
+        "handler_ms": 2563.5419921875,
+        "video_seen_ms": null
+      },
+      {
+        "seq": 9,
+        "kind": "measure",
+        "host_down_ms": 1789670036550.572,
+        "write_down_up_ms": 0.04,
+        "handler_ms": null,
+        "video_seen_ms": null
+      }
+    ],
+    "video_seen_n": 3,
+    "video_seen_p50_ms": 3175.4,
+    "video_seen_p95_ms": 17748.1
+  },
+  "label": "live4",
+  "notes": [
+    "device SPS profile-level-id 420032"
+  ],
+  "page": {
+    "info": {
+      "type": "alive",
+      "dpr": 2.625,
+      "innerWidth": 0,
+      "innerHeight": 0,
+      "screenWidth": 412,
+      "screenHeight": 869,
+      "canvasRect": {
+        "x": 0,
+        "y": 120,
+        "width": 365.71429443359375,
+        "height": 24.380952835083008,
+        "top": 120,
+        "right": 365.71429443359375,
+        "bottom": 144.380952835083,
+        "left": 0
+      },
+      "stripTopCSS": 120,
+      "cellDevicePx": 32,
+      "stripDevicePx": [
+        960,
+        64
+      ],
+      "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36",
+      "devMs": 1789670001139,
+      "run": "dlht2di8crpk"
+    },
+    "max_gap_ms": 128,
+    "missed_raf": 1,
+    "raf_frames": 2645
+  },
+  "probe_cost": {
+    "calibration": [
+      {
+        "x": 0,
+        "y": 569,
+        "cell": 32,
+        "dx": 0,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 0,
+        "y": 567,
+        "cell": 32,
+        "dx": 0,
+        "dy": -2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 0,
+        "y": 571,
+        "cell": 32,
+        "dx": 0,
+        "dy": 2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -2,
+        "y": 569,
+        "cell": 32,
+        "dx": -2,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 2,
+        "y": 569,
+        "cell": 32,
+        "dx": 2,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 0,
+        "y": 565,
+        "cell": 32,
+        "dx": 0,
+        "dy": -4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 0,
+        "y": 573,
+        "cell": 32,
+        "dx": 0,
+        "dy": 4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -4,
+        "y": 569,
+        "cell": 32,
+        "dx": -4,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -2,
+        "y": 567,
+        "cell": 32,
+        "dx": -2,
+        "dy": -2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -2,
+        "y": 571,
+        "cell": 32,
+        "dx": -2,
+        "dy": 2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 2,
+        "y": 567,
+        "cell": 32,
+        "dx": 2,
+        "dy": -2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 2,
+        "y": 571,
+        "cell": 32,
+        "dx": 2,
+        "dy": 2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 4,
+        "y": 569,
+        "cell": 32,
+        "dx": 4,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -4,
+        "y": 567,
+        "cell": 32,
+        "dx": -4,
+        "dy": -2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -4,
+        "y": 571,
+        "cell": 32,
+        "dx": -4,
+        "dy": 2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -2,
+        "y": 565,
+        "cell": 32,
+        "dx": -2,
+        "dy": -4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -2,
+        "y": 573,
+        "cell": 32,
+        "dx": -2,
+        "dy": 4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 2,
+        "y": 565,
+        "cell": 32,
+        "dx": 2,
+        "dy": -4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 2,
+        "y": 573,
+        "cell": 32,
+        "dx": 2,
+        "dy": 4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 4,
+        "y": 567,
+        "cell": 32,
+        "dx": 4,
+        "dy": -2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 4,
+        "y": 571,
+        "cell": 32,
+        "dx": 4,
+        "dy": 2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -4,
+        "y": 565,
+        "cell": 32,
+        "dx": -4,
+        "dy": -4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -4,
+        "y": 573,
+        "cell": 32,
+        "dx": -4,
+        "dy": 4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 4,
+        "y": 565,
+        "cell": 32,
+        "dx": 4,
+        "dy": -4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 4,
+        "y": 573,
+        "cell": 32,
+        "dx": 4,
+        "dy": 4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      }
+    ],
+    "decode_failures_by_reason": {},
+    "decode_rate": 1,
+    "geometry": {
+      "configured": {
+        "cell": 32,
+        "error": "",
+        "found": true,
+        "videoX": 0,
+        "videoY": 569
+      },
+      "chosen": {
+        "x": 0,
+        "y": 569,
+        "cell": 32,
+        "dx": 0,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      "changed": false
+    },
+    "read_ms_max": 75.69999998807907,
+    "read_ms_mean": 7.283690477127121
+  },
+  "probe_user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+  "run_error": "",
+  "scrcpy_server_stderr": "",
+  "serial": "192.168.1.104:5555",
+  "skew": {
+    "adb": {
+      "samples": 25,
+      "ok": 25,
+      "device_minus_host_ms_min_rtt": 72.007568359375,
+      "spread_ms": 14.521728515625,
+      "adb_rtt_min_ms": 61.626,
+      "adb_rtt_p50_ms": 71.788
+    },
+    "page": {
+      "host_minus_device_ms_min_delay": 0,
+      "samples": 202,
+      "spread_ms": 185
+    }
+  },
+  "strip": {
+    "screen_width": 1080,
+    "screen_height": 2280,
+    "video_width": 1080,
+    "video_height": 2280,
+    "screen_x": 0,
+    "screen_y": 569,
+    "video_x": 0,
+    "video_y": 569,
+    "scale_x": 1,
+    "scale_y": 1,
+    "cell": 32,
+    "screen_ms": 1789670013517,
+    "screen_host_ms": 1789670014321,
+    "method": "top-edge",
+    "found": true
+  },
+  "video": {
+    "height": 2280,
+    "width": 1080
+  }
+}

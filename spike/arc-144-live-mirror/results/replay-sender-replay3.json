@@ -1,0 +1,108 @@
+{
+  "packets": 2811,
+  "bytes": 3051600,
+  "markers": 489,
+  "sequence_gaps": 0,
+  "first_seq": 21611,
+  "last_seq": 24421,
+  "ssrc": 2057489369,
+  "payload_type": 102,
+  "head": [
+    {
+      "seq": 21611,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 28
+    },
+    {
+      "seq": 21612,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 1188
+    },
+    {
+      "seq": 21613,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 1188
+    },
+    {
+      "seq": 21614,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 1188
+    },
+    {
+      "seq": 21615,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 1188
+    },
+    {
+      "seq": 21616,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 1188
+    },
+    {
+      "seq": 21617,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 1188
+    },
+    {
+      "seq": 21618,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 1188
+    },
+    {
+      "seq": 21619,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 1188
+    },
+    {
+      "seq": 21620,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 1188
+    },
+    {
+      "seq": 21621,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 1188
+    },
+    {
+      "seq": 21622,
+      "ts": 2667323509,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2057489369,
+      "bytes": 1188
+    }
+  ]
+}

@@ -1,0 +1,625 @@
+{
+  "browser_decode": {
+    "codec": "CIT01_108_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+    "decode_ms": 0.25649183006535947,
+    "frames_decoded": 1530,
+    "frames_dropped": 34,
+    "frames_received": 1679,
+    "freeze_count": 4,
+    "jitter_buffer_ms": 0.2594391943734015,
+    "jitter_ms": 0.003,
+    "key_frames_decoded": 14,
+    "packets_lost": 0,
+    "packets_received": 4577,
+    "presented_dropped_frames": 287,
+    "presented_total_video_frames": 1530,
+    "processing_delay_ms": 0.514827908496732,
+    "video_size": [
+      1080,
+      2280
+    ]
+  },
+  "environment": {
+    "host_loadavg": "{ 11.32 9.15 11.72 }\n",
+    "device_loadavg": "18.01 17.43 16.97 6/3151 29696\n"
+  },
+  "explain": {
+    "glass_to_glass": "browser expectedDisplayTime for frame N minus the device clock read out of frame N's own pixels, skew-corrected",
+    "input_handler": "device clock when the page handled the touch, skew-corrected, minus the host instant the control message was written (excludes the return video path)",
+    "input_video": "first presented frame carrying that tap's counter, minus the same host instant (includes the return video path)",
+    "skew_detail": "ntp round trip (device side) -51.330 ms at 7.000 ms best RTT over 25 exchanges; min-delay estimator -48.000 ms over 200 posts (spread 227.000 ms); adb midpoint -70.969 ms (min RTT 58.6 ms, spread 29.276 ms)",
+    "skew_ms": -51.330078125,
+    "skew_source": "device_ntp_round_trip"
+  },
+  "generated_at": "2026-09-18T02:41:22.642016+08:00",
+  "glass_to_glass": {
+    "below_zero_note": "samples below zero bound the join's own noise: the pixel readback can catch the frame after the one the callback reported, which makes a latency read low by one frame interval (~18 ms). Reported, not hidden.",
+    "device_clock_stats": {
+      "samples": 835,
+      "min_delta_ms": 0,
+      "median_delta_ms": 19,
+      "max_delta_ms": 471,
+      "unique_values": 832,
+      "non_monotonic": 0,
+      "span_ms": 26913
+    },
+    "frames_presented": 835,
+    "frames_with_clock": 835,
+    "frames_without_clock": 0,
+    "max_ms": 490.429931640625,
+    "mean_ms": 98.88440306886227,
+    "min_ms": -137.869873046875,
+    "negative_samples": 29,
+    "p50_ms": 96,
+    "p50_raw_uncorrected_ms": 44.7,
+    "p95_ms": 134.6,
+    "p99_ms": 209.6
+  },
+  "go_hop": {
+    "encoder_pts_delta_ms_p50": 18.1,
+    "encoder_pts_delta_ms_p95": 23.5,
+    "frames": 1679,
+    "hop_ms_max": 9.6742,
+    "hop_ms_p50": 0.1,
+    "hop_ms_p95": 1.1,
+    "key_frames": 14,
+    "video_bytes": 4865926,
+    "write_sample_ms_p50": 0.1
+  },
+  "input_round_trip": {
+    "device_tap_replies": 8,
+    "device_taps_reported": 8,
+    "handler_n": 8,
+    "handler_p50_ms": 10.4,
+    "handler_p95_ms": 36.6,
+    "taps": [
+      {
+        "seq": 1,
+        "kind": "setup",
+        "host_down_ms": 1789670307126.322,
+        "write_down_up_ms": 0.903,
+        "handler_ms": null,
+        "video_seen_ms": null,
+        "matched_device_tap": 0
+      },
+      {
+        "seq": 2,
+        "kind": "measure",
+        "host_down_ms": 1789670324669.102,
+        "write_down_up_ms": 0.031,
+        "handler_ms": 20.56787109375,
+        "video_seen_ms": 109.2978515625,
+        "matched_device_tap": 1
+      },
+      {
+        "seq": 3,
+        "kind": "measure",
+        "host_down_ms": 1789670327169.229,
+        "write_down_up_ms": 0.021,
+        "handler_ms": 10.44091796875,
+        "video_seen_ms": -74.22900390625,
+        "matched_device_tap": 2
+      },
+      {
+        "seq": 4,
+        "kind": "measure",
+        "host_down_ms": 1789670329669.4211,
+        "write_down_up_ms": 0.018,
+        "handler_ms": 11.248779296875,
+        "video_seen_ms": 92.078857421875,
+        "matched_device_tap": 3
+      },
+      {
+        "seq": 5,
+        "kind": "measure",
+        "host_down_ms": 1789670332169.847,
+        "write_down_up_ms": 0.026,
+        "handler_ms": 9.822998046875,
+        "video_seen_ms": null,
+        "matched_device_tap": 4
+      },
+      {
+        "seq": 6,
+        "kind": "measure",
+        "host_down_ms": 1789670334670.0469,
+        "write_down_up_ms": 0.027,
+        "handler_ms": 36.623046875,
+        "video_seen_ms": null,
+        "matched_device_tap": 5
+      },
+      {
+        "seq": 7,
+        "kind": "measure",
+        "host_down_ms": 1789670337170.1172,
+        "write_down_up_ms": 0.012,
+        "handler_ms": 12.552734375,
+        "video_seen_ms": null,
+        "matched_device_tap": 6
+      },
+      {
+        "seq": 8,
+        "kind": "measure",
+        "host_down_ms": 1789670339670.382,
+        "write_down_up_ms": 0.04,
+        "handler_ms": 9.287841796875,
+        "video_seen_ms": null,
+        "matched_device_tap": 7
+      },
+      {
+        "seq": 9,
+        "kind": "measure",
+        "host_down_ms": 1789670342170.797,
+        "write_down_up_ms": 0.035,
+        "handler_ms": 7.872802734375,
+        "video_seen_ms": null,
+        "matched_device_tap": 8
+      }
+    ],
+    "taps_injected": 8,
+    "video_seen_n": 3,
+    "video_seen_p50_ms": 92.1,
+    "video_seen_p95_ms": 109.3
+  },
+  "label": "live6",
+  "notes": [
+    "device SPS profile-level-id 420032"
+  ],
+  "page": {
+    "info": {
+      "type": "alive",
+      "dpr": 2.625,
+      "innerWidth": 0,
+      "innerHeight": 0,
+      "screenWidth": 412,
+      "screenHeight": 869,
+      "canvasRect": {
+        "x": 0,
+        "y": 120,
+        "width": 365.71429443359375,
+        "height": 24.380952835083008,
+        "top": 120,
+        "right": 365.71429443359375,
+        "bottom": 144.380952835083,
+        "left": 0
+      },
+      "stripTopCSS": 120,
+      "cellDevicePx": 32,
+      "stripDevicePx": [
+        960,
+        64
+      ],
+      "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36",
+      "devMs": 1789670307120,
+      "run": "dlht69xlfips"
+    },
+    "max_gap_ms": 178,
+    "missed_raf": 2,
+    "raf_frames": 2656
+  },
+  "probe_cost": {
+    "calibration": [
+      {
+        "x": 0,
+        "y": 569,
+        "cell": 32,
+        "dx": 0,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 0,
+        "y": 567,
+        "cell": 32,
+        "dx": 0,
+        "dy": -2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 0,
+        "y": 571,
+        "cell": 32,
+        "dx": 0,
+        "dy": 2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -2,
+        "y": 569,
+        "cell": 32,
+        "dx": -2,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 2,
+        "y": 569,
+        "cell": 32,
+        "dx": 2,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 0,
+        "y": 565,
+        "cell": 32,
+        "dx": 0,
+        "dy": -4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 0,
+        "y": 573,
+        "cell": 32,
+        "dx": 0,
+        "dy": 4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -4,
+        "y": 569,
+        "cell": 32,
+        "dx": -4,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -2,
+        "y": 567,
+        "cell": 32,
+        "dx": -2,
+        "dy": -2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -2,
+        "y": 571,
+        "cell": 32,
+        "dx": -2,
+        "dy": 2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 2,
+        "y": 567,
+        "cell": 32,
+        "dx": 2,
+        "dy": -2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 2,
+        "y": 571,
+        "cell": 32,
+        "dx": 2,
+        "dy": 2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 4,
+        "y": 569,
+        "cell": 32,
+        "dx": 4,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -4,
+        "y": 567,
+        "cell": 32,
+        "dx": -4,
+        "dy": -2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -4,
+        "y": 571,
+        "cell": 32,
+        "dx": -4,
+        "dy": 2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -2,
+        "y": 565,
+        "cell": 32,
+        "dx": -2,
+        "dy": -4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -2,
+        "y": 573,
+        "cell": 32,
+        "dx": -2,
+        "dy": 4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 2,
+        "y": 565,
+        "cell": 32,
+        "dx": 2,
+        "dy": -4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 2,
+        "y": 573,
+        "cell": 32,
+        "dx": 2,
+        "dy": 4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 4,
+        "y": 567,
+        "cell": 32,
+        "dx": 4,
+        "dy": -2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 4,
+        "y": 571,
+        "cell": 32,
+        "dx": 4,
+        "dy": 2,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -4,
+        "y": 565,
+        "cell": 32,
+        "dx": -4,
+        "dy": -4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": -4,
+        "y": 573,
+        "cell": 32,
+        "dx": -4,
+        "dy": 4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 4,
+        "y": 565,
+        "cell": 32,
+        "dx": 4,
+        "dy": -4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      {
+        "x": 4,
+        "y": 573,
+        "cell": 32,
+        "dx": 4,
+        "dy": 4,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      }
+    ],
+    "decode_failures_by_reason": {},
+    "decode_rate": 1,
+    "geometry": {
+      "configured": {
+        "cell": 32,
+        "error": "",
+        "found": true,
+        "videoX": 0,
+        "videoY": 569
+      },
+      "chosen": {
+        "x": 0,
+        "y": 569,
+        "cell": 32,
+        "dx": 0,
+        "dy": 0,
+        "ok": 40,
+        "tried": 40,
+        "rate": 1
+      },
+      "changed": false
+    },
+    "read_ms_max": 78.80000001192093,
+    "read_ms_mean": 7.39544910228181
+  },
+  "probe_user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+  "run_error": "",
+  "scrcpy_server_stderr": "",
+  "sender_counts": {
+    "packets": 4577,
+    "bytes": 4865651,
+    "markers": 1679,
+    "sequence_gaps": 0,
+    "first_seq": 12722,
+    "last_seq": 17298,
+    "ssrc": 779087429,
+    "payload_type": 108,
+    "head": [
+      {
+        "seq": 12722,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 28
+      },
+      {
+        "seq": 12723,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 1188
+      },
+      {
+        "seq": 12724,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 1188
+      },
+      {
+        "seq": 12725,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 1188
+      },
+      {
+        "seq": 12726,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 1188
+      },
+      {
+        "seq": 12727,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 1188
+      },
+      {
+        "seq": 12728,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 1188
+      },
+      {
+        "seq": 12729,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 1188
+      },
+      {
+        "seq": 12730,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 1188
+      },
+      {
+        "seq": 12731,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 1188
+      },
+      {
+        "seq": 12732,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 1188
+      },
+      {
+        "seq": 12733,
+        "ts": 218365942,
+        "marker": false,
+        "payload_type": 108,
+        "ssrc": 779087429,
+        "bytes": 1188
+      }
+    ]
+  },
+  "serial": "192.168.1.104:5555",
+  "skew": {
+    "adb": {
+      "samples": 25,
+      "ok": 25,
+      "device_minus_host_ms_min_rtt": 70.968994140625,
+      "spread_ms": 29.2763671875,
+      "adb_rtt_min_ms": 58.632,
+      "adb_rtt_p50_ms": 87.15
+    },
+    "page": {
+      "host_minus_device_ms_min_delay": -48,
+      "samples": 200,
+      "spread_ms": 227
+    }
+  },
+  "strip": {
+    "screen_width": 1080,
+    "screen_height": 2280,
+    "video_width": 1080,
+    "video_height": 2280,
+    "screen_x": 0,
+    "screen_y": 569,
+    "video_x": 0,
+    "video_y": 569,
+    "scale_x": 1,
+    "scale_y": 1,
+    "cell": 32,
+    "screen_ms": 1789670319417,
+    "screen_host_ms": 1789670319798,
+    "method": "top-edge",
+    "found": true
+  },
+  "video": {
+    "height": 2280,
+    "width": 1080
+  }
+}

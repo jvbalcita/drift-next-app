@@ -1,15 +1,17 @@
-# ARC-144 Part A — live-mirror media path, measured (throwaway spike)
+# ARC-144 — live-mirror media path and live-device latency, measured (throwaway spike)
 
 This is a measurement rig, not a feature. It is not wired into `cmd/control-plane`,
 it is not in the console, and it lives in its own Go module (`spikelocal/arc144`) so
 the shipped module graph is untouched.
 
-It answers one question, with numbers instead of an assertion: **what does the
-pion/webrtc H.264 path that ARC-143 plans actually cost on this machine, and what
-does the same video cost over MSE?**
+It answers two questions, with numbers instead of assertions: **what does the
+pion/webrtc H.264 path that ARC-143 plans actually cost (Part A), and what does a real
+device cost end to end — glass-to-glass and input round-trip through scrcpy's own
+sockets (Part B)?**
 
 The measurements, their methods, and the exclusions are in [FINDINGS.md](FINDINGS.md).
-Raw per-run aggregates are in `results/report-*.json` and the table in `results/summary.md`.
+Raw per-run aggregates are in `results/report-*.json` and `results/report-live-*.json`;
+the tables are `results/summary.md` and `results/summary-part-b-table.txt`.
 
 ## What it does
 
@@ -49,6 +51,40 @@ instrument, runs one server and one browser, and writes:
 | `results/report-<label>.json` | the joined, aggregated measurement |
 | `results/summary.md` | all runs side by side |
 
+## Part B — the live device
+
+Part B runs against one lab SM-G9750 and measures the thing Part A could not: the
+device's own screen, encoded by scrcpy's hardware encoder, forwarded through the same
+pion hop, decoded and read back in the browser — with input injected through scrcpy's
+control socket.
+
+```bash
+# device-side instrument alone: screenshot -> locate the clock strip -> decode it
+go run ./cmd/clockprobe -serial 192.168.1.104:5555 -samples 5
+
+# one live run: opens the page on the device, streams, taps, analyses
+SERIAL=192.168.1.104:5555 DURATION=30s TAPS=8 tools/run-part-b.sh b1 headless
+SERIAL=192.168.1.104:5555 DURATION=30s TAPS=8 tools/run-part-b.sh b2 headed
+SERIAL=192.168.1.104:5555 DURATION=30s TAPS=8 tools/run-part-b.sh b3 webkit
+
+# replay one captured stream through the same hop, no device attached
+tools/run-replay.sh r1 results/media/live-b1.h264 60 569
+
+# every Part B report in one table
+python3 tools/summarise-part-b.py
+```
+
+There is no camera, so the clock is one the device paints into its own pixels: a
+60-cell black/white strip carrying the millisecond wall clock, plus a tap reaction bit.
+The browser probe reads that strip out of the decoded video (240 bytes per frame) and
+joins it to the browser's own expected display time; the host locates the strip exactly
+once, from a screenshot, with `cmd/clockprobe`. Three independent clock-skew estimators
+are reported with every run, and the input round-trip is measured twice: at the device's
+touch handler and as seen in the returned video.
+
+Part B adds no dependency: it speaks scrcpy's protocol itself (`internal/scrcpy`),
+extends the same pion peer (`internal/livepeer`), and reuses the same nested module.
+
 ## Layout
 
 | path | role |
@@ -63,7 +99,19 @@ instrument, runs one server and one browser, and writes:
 | `internal/annexb` | access-unit splitter (a new picture starts at `first_mb_in_slice == 0`) |
 | `internal/fmp4` | fragmented-MP4 parser: init segment plus one record per moof+mdat |
 | `tools/drive.mjs` | Chrome DevTools driver (Node, no dependencies) |
-| `tools/run-part-a.sh` | one reproducible run end to end |
+| `tools/run-part-a.sh` | one reproducible run end to end (Part A) |
+| `cmd/live` | Part B rig: scrcpy session, LAN page server, pion hop, taps, run log |
+| `cmd/rtpreplay` | replays a captured stream through the same hop, no device |
+| `cmd/clockprobe` | locates and decodes the device's clock strip from a screenshot |
+| `cmd/analyze-live` | joins the run log and the probe into Part B's numbers |
+| `internal/scrcpy` | scrcpy 4.1 client protocol: server launch, video/control sockets |
+| `internal/livepeer` | the pion peer for a live stream, its RTP counter, parameter sets |
+| `internal/clockcode` | the device clock's codec and locator (Go half of the page's JS) |
+| `internal/webui` | the two pages: the browser probe and the device's clock page |
+| `internal/screencap` | screenshot → luma, for locating the strip |
+| `tools/run-part-b.sh` | one live run end to end |
+| `tools/run-replay.sh` | one replay run end to end |
+| `tools/summarise-part-b.py` | every Part B report in one table |
 
 ## The one dependency
 
@@ -74,5 +122,9 @@ is built on. It is required only by this nested module, so `drift.local/drift-ne
 declares: `go mod tidy` alone resolves `pion/ice` to v4.4.3, which pulls
 `pion/transport/v5` and does not compile against webrtc v4.2.20.
 
-Part B (device, scrcpy control socket, glass-to-glass) is deliberately not
-implemented — it needs the owner at the machine.
+Part B was run with the owner at the machine, on the lab fleet's authorized units.
+Its headline: **input round-trip is comfortably inside the bar (p50 10-16 ms) and
+glass-to-glass is not (p50 96-134 ms in Chrome, 236 ms in WebKit) — and the device half
+is the whole cost.** The device's encoder emits a single IDR per session, which is the
+finding that broke the first runs and the first thing ARC-143 must design around; see
+FINDINGS.md, "Surprises that change ARC-143's plan".

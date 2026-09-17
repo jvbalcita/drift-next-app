@@ -1,0 +1,108 @@
+{
+  "packets": 2811,
+  "bytes": 3051600,
+  "markers": 489,
+  "sequence_gaps": 0,
+  "first_seq": 10516,
+  "last_seq": 13326,
+  "ssrc": 2461542417,
+  "payload_type": 102,
+  "head": [
+    {
+      "seq": 10516,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 28
+    },
+    {
+      "seq": 10517,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 1188
+    },
+    {
+      "seq": 10518,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 1188
+    },
+    {
+      "seq": 10519,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 1188
+    },
+    {
+      "seq": 10520,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 1188
+    },
+    {
+      "seq": 10521,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 1188
+    },
+    {
+      "seq": 10522,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 1188
+    },
+    {
+      "seq": 10523,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 1188
+    },
+    {
+      "seq": 10524,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 1188
+    },
+    {
+      "seq": 10525,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 1188
+    },
+    {
+      "seq": 10526,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 1188
+    },
+    {
+      "seq": 10527,
+      "ts": 342310430,
+      "marker": false,
+      "payload_type": 102,
+      "ssrc": 2461542417,
+      "bytes": 1188
+    }
+  ]
+}

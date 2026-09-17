@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>ARC-144 device clock</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #000; color: #fff;
+    overflow: hidden; width: 100%; height: 100%; touch-action: none;
+    -webkit-user-select: none; user-select: none; }
+  #strip { position: fixed; left: 0; top: 120px; z-index: 3;
+    image-rendering: pixelated; }
+  /* The readout and the reaction mark exist for a human looking at the device.
+     They are updated four times a second rather than once per frame, and they
+     never repaint the page background: this page's own rendering cost competes
+     with the encoder for the device's GPU, and a lower frame rate is a worse
+     measurement, not a cheaper one. */
+  #readout { position: fixed; left: 0; top: 160px; z-index: 2;
+    font: 700 7vw/1.1 monospace; letter-spacing: .02em; white-space: pre; }
+  #reaction { position: fixed; left: 0; top: 300px; width: 40vw; height: 60px;
+    background: #202020; z-index: 2; }
+  #note { position: fixed; left: 0; bottom: 0; z-index: 2;
+    font: 700 4vw/1.2 monospace; color: #9aa4b2; padding: 2vw; }
+</style>
+</head>
+<body>
+<canvas id="strip"></canvas>
+<div id="readout">boot</div>
+<div id="reaction"></div>
+<div id="note">tap anywhere = one injected-tap reaction</div>
+<script>
+/*
+ * ARC-144 Part B: the device half of the glass-to-glass measurement.
+ *
+ * There is no camera, so the only clock that can time the device's glass is one
+ * the device paints into its own pixels. This page paints the millisecond wall
+ * clock as a black/white cell strip, which the host reads back out of the
+ * decoded video. The strip format and geometry are shared with the Go decoder in
+ * internal/clockcode.
+ *
+ * Cell size is fixed at 32 *device* pixels (32/dpr CSS px), so the strip is
+ * exactly 960x64 device pixels at device (0, viewport top + 120 CSS px). The host
+ * finds the top edge from a screenshot and then reads the strip out of the video,
+ * where one decoded cell must be one sampled pixel or the bits shift.
+ */
+'use strict';
+
+const CELLS_X = 30, CELLS_Y = 2, CELL = 32, BITS = CELLS_X * CELLS_Y;
+const SYNC = [1, 0, 1, 0, 1, 0, 1, 0];
+const MS_BITS = 48, FLAG_BITS = 3, PARITY_POS = 59;
+
+// The strip is pushed STRIP_TOP_CSS (120 CSS px) down the viewport. Measured,
+// not guessed: Chrome on Android paints its own toolbar over the top of the
+// layout viewport (on this device ~257 device px of status bar and toolbar), so a
+// strip at the very top has its first rows covered and cannot be located
+// exactly. The offset is larger than any browser chrome observed on the fleet's
+// units.
+const STRIP_TOP_CSS = 120;
+
+const runTag = new URLSearchParams(location.search).get('run') || '0';
+const dpr = window.devicePixelRatio || 1;
+const strip = document.getElementById('strip');
+strip.width = CELLS_X * CELL;
+strip.height = CELLS_Y * CELL;
+strip.style.width = (CELLS_X * CELL / dpr) + 'px';
+strip.style.height = (CELLS_Y * CELL / dpr) + 'px';
+strip.style.top = STRIP_TOP_CSS + 'px';
+const ctx = strip.getContext('2d', { alpha: false, willReadFrequently: false });
+
+const readout = document.getElementById('readout');
+const reactionEl = document.getElementById('reaction');
+readout.style.top = (STRIP_TOP_CSS + CELLS_Y * CELL / dpr + 4) + 'px';
+
+let tapCount = 0;
+let reactionUntil = 0;
+let drawn = 0;
+let firstDrawnMs = null;
+let lastDrawnMs = null;
+let maxGapMs = 0;
+let missedRaf = 0;
+let lastReadout = 0;
+
+function bitsFor(ms, reacting) {
+  const bits = new Array(BITS).fill(0);
+  for (let i = 0; i < SYNC.length; i++) bits[i] = SYNC[i];
+  // 48-bit millisecond timestamp, LSB first. Javascript bitwise operators are
+  // 32-bit, so the timestamp is assembled from two halves.
+  const lo = ms % 4294967296;
+  const hi = Math.floor(ms / 4294967296);
+  for (let i = 0; i < 32; i++) bits[8 + i] = (lo >>> i) & 1;
+  for (let i = 0; i < 16; i++) bits[40 + i] = (hi >>> i) & 1;
+  bits[56] = reacting ? 1 : 0;
+  bits[57] = tapCount & 1;
+  bits[58] = (tapCount >> 1) & 1;
+  let parity = 0;
+  for (let i = 0; i < PARITY_POS; i++) parity ^= bits[i];
+  bits[PARITY_POS] = parity;
+  return bits;
+}
+
+function drawStrip(ms, reacting) {
+  const bits = bitsFor(ms, reacting);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, strip.width, strip.height);
+  ctx.fillStyle = '#fff';
+  for (let row = 0; row < CELLS_Y; row++) {
+    for (let col = 0; col < CELLS_X; col++) {
+      if (bits[row * CELLS_X + col]) {
+        ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
+      }
+    }
+  }
+}
+
+function post(payload) {
+  payload.run = runTag;
+  try {
+    fetch('/signal', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(() => {});
+  } catch (e) { /* the page must keep painting even if the host is gone */ }
+}
+
+function frame() {
+  const now = Date.now();
+  drawn++;
+  if (firstDrawnMs === null) firstDrawnMs = now;
+  if (lastDrawnMs !== null) {
+    const gap = now - lastDrawnMs;
+    if (gap > maxGapMs) maxGapMs = gap;
+    if (gap > 40) missedRaf++;
+  }
+  lastDrawnMs = now;
+  const reacting = now < reactionUntil;
+  drawStrip(now, reacting);
+  if (now - lastReadout >= 250) {
+    lastReadout = now;
+    readout.textContent = String(now) + '\n' + (reacting ? 'REACTED' : 'ready');
+    reactionEl.style.background = reacting ? '#ffffff' : '#202020';
+  }
+  requestAnimationFrame(frame);
+}
+
+// A tap is the reaction the input round-trip is measured against: the page
+// records the device clock at the moment the touch was delivered to it, and the
+// host joins that timestamp with the instant it wrote the control message.
+//
+// The FIRST tap also asks for fullscreen. That is setup, not measurement: the
+// browser's own toolbar sits directly above the strip and its transient
+// tooltips overlap it. The request's outcome is reported as it happened, not as
+// hoped for.
+let lastTouch = 0;
+let fullscreenRequested = false;
+function onTouch(ev) {
+  if (ev.cancelable) ev.preventDefault();
+  const now = Date.now();
+  // One physical touch can arrive as more than one event type; the counter that
+  // joins a tap to its reaction must advance once per tap.
+  if (now - lastTouch < 30) return;
+  lastTouch = now;
+  tapCount++;
+  reactionUntil = now + 1000;
+  post({
+    type: 'tap', tapCount, devMs: Date.now(),
+    source: (ev.type || ''), target: (ev.target && ev.target.id) || null,
+  });
+  if (!fullscreenRequested) {
+    fullscreenRequested = true;
+    const el = document.documentElement;
+    const request = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (request) {
+      Promise.resolve(request.call(el)).then(
+        () => post({ type: 'fullscreen', ok: true, devMs: Date.now() }),
+        (e) => post({ type: 'fullscreen', ok: false, error: String(e), devMs: Date.now() }),
+      );
+    } else {
+      post({ type: 'fullscreen', ok: false, error: 'no fullscreen API', devMs: Date.now() });
+    }
+  }
+}
+document.addEventListener('pointerdown', onTouch, { passive: false, capture: true });
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+setInterval(() => {
+  post({
+    type: 'heartbeat', drawn, firstDrawnMs, lastDrawnMs, maxGapMs, missedRaf,
+    tapCount, devMs: Date.now(),
+  });
+}, 250);
+
+// A second, independent clock-skew estimate, made from the device's side.
+//
+// The host also estimates it, by taking the smallest (host receive time minus
+// device timestamp) over every post: that is the min-one-way-delay estimator,
+// and it reads the device's clock directly. This one is the NTP-style
+// round-trip estimate -- the classic midpoint of a request/response -- and the
+// two disagreeing would be the signal that the network path is asymmetric. The
+// adb round trip is reported as well, but it is the weakest of the three: a
+// shell command's execution time on the device is inside the round trip, so the
+// midpoint lands too late and the estimate reads the devices clock as
+// milliseconds ahead of the host when it is not.
+async function ntpExchange(samples) {
+  const out = [];
+  for (let i = 0; i < samples; i++) {
+    const t0 = Date.now();
+    const r = await fetch('/now', { cache: 'no-store' }).then((x) => x.json());
+    const t2 = Date.now();
+    out.push({ rttMS: t2 - t0, hostMinusDeviceMS: r.ns / 1e6 - (t0 + t2) / 2 });
+  }
+  out.sort((a, b) => a.rttMS - b.rttMS);
+  post({
+    type: 'ntp', samples: out.length, bestRTTMS: out[0].rttMS,
+    hostMinusDeviceMS: out[0].hostMinusDeviceMS,
+    medianRTTMS: out[Math.floor(out.length / 2)].rttMS,
+    spreadMS: out[out.length - 1].hostMinusDeviceMS - out[0].hostMinusDeviceMS,
+    devMs: Date.now(),
+  });
+  return out[0];
+}
+ntpExchange(25).then((best) => {
+  console.log('[clock] ntp best rtt ' + best.rttMS + ' ms, host minus device ' + best.hostMinusDeviceMS + ' ms');
+});
+
+requestAnimationFrame(frame);
+post({
+  type: 'alive',
+  dpr,
+  innerWidth: window.innerWidth,
+  innerHeight: window.innerHeight,
+  screenWidth: window.screen && window.screen.width,
+  screenHeight: window.screen && window.screen.height,
+  canvasRect: strip.getBoundingClientRect().toJSON(),
+  stripTopCSS: STRIP_TOP_CSS,
+  cellDevicePx: CELL,
+  stripDevicePx: [CELLS_X * CELL, CELLS_Y * CELL],
+  userAgent: navigator.userAgent,
+  devMs: Date.now(),
+});
+</script>
+</body>
+</html>

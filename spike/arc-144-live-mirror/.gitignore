@@ -10,3 +10,10 @@ results/logs/
 results/send-*.json
 results/client-*.json
 results/page-*.json
+
+# Part B: the raw run log (~1 MB, one entry per encoded frame), the screenshots
+# the strip was located in, and the driver's page dump. The analysed report and
+# summary ARE committed, as the evidence behind FINDINGS.md.
+results/live-*.json
+results/clockprobe-*.json
+results/diag/
