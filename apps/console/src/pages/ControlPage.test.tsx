@@ -94,6 +94,11 @@ describe("ControlPage OTG Setup tab", () => {
     expect(screen.queryByRole("textbox", { name: "Transport Mode Port" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Change" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
+    // Connect is gone with them, and so is the copy that described it: after
+    // Activate, the scan is what sees a moved device on the Set Port port, so a
+    // standalone Connect is the same duplication as the target picker.
+    expect(screen.queryByRole("button", { name: "Connect" })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Connect opens a transport/)).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Activate" })).toBeEnabled()
 
     await user.click(screen.getByRole("button", { name: "Activate" }))
@@ -134,22 +139,44 @@ describe("ControlPage OTG Setup tab", () => {
     })
   })
 
-  it("opens a transport to each observed endpoint when Connect is used", async () => {
+  it("runs the whole flow — Set Port, Activate, Scan — with no Connect control in it", async () => {
     const user = userEvent.setup()
     const { client, intents, dispatch } = harness()
     const snapshot = client.getSnapshot()
-    const observed = snapshot.devices.map((device) => snapshot.endpoints.find((endpoint) => endpoint.deviceId === device.id && endpoint.state === "current"))
-    expect(observed.some((endpoint) => endpoint === undefined)).toBe(false)
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
     await openOtgTab(user)
 
-    await user.click(screen.getByRole("button", { name: "Connect" }))
+    // Set Port: the port every discovered device is moved to. It is 5555
+    // whether or not a device is already answering on it.
+    expect(screen.getByRole("textbox", { name: "Set Port" })).toHaveValue("5555")
 
+    // Activate, over the fleet, with one answer per serial.
+    await user.click(screen.getByRole("button", { name: "Activate" }))
+    const serials = snapshot.devices.map((device) => snapshot.endpoints.find((endpoint) => endpoint.deviceId === device.id && endpoint.state === "current")?.serial ?? "")
+    expect(serials.every((serial) => serial !== "")).toBe(true)
     await waitFor(() => {
-      for (const endpoint of observed) {
-        expect(intents).toEqual(expect.arrayContaining([{ type: "connectEndpoint", serial: endpoint?.serial, endpoint: `${endpoint?.host}:${endpoint?.port}` }]))
-      }
+      const report = screen.getByText(/Mock fleet activation/)
+      for (const serial of serials) expect(report).toHaveTextContent(serial)
     })
+
+    // Then the scan over the saved network. The scan is the step that brings the
+    // moved devices in — which is why nothing in this flow opens a transport by
+    // hand, and why the panel no longer offers a control that would.
+    expect(screen.getByRole("button", { name: "Saved Network" })).toHaveTextContent("Lab A staging · Default")
+    await user.click(screen.getByRole("button", { name: "Scan" }))
+    await waitFor(() => {
+      expect(screen.getByText(/Mock scan completed; observed 3 device\(s\)/)).toBeInTheDocument()
+    })
+
+    // The order IS the flow: Set Port, Activate, then the scan. No Connect
+    // intent is dispatched anywhere in it, and no Connect control is offered.
+    // In this client no device is contacted, so what is proven here is which
+    // operations the panel performs and in what order, not a real transport.
+    expect(intents.filter((intent) => intent.type === "activateFleet")).toEqual([{ type: "activateFleet", port: 5555 }])
+    expect(intents.filter((intent) => intent.type === "startScan")).toEqual([{ type: "startScan", profileId: "profile-lab-a" }])
+    expect(intents.findIndex((intent) => intent.type === "activateFleet")).toBeLessThan(intents.findIndex((intent) => intent.type === "startScan"))
+    expect(intents.some((intent) => intent.type === "connectEndpoint")).toBe(false)
+    expect(screen.queryByRole("button", { name: "Connect" })).not.toBeInTheDocument()
   })
 
   it("reports the transport surface's own answer rather than a claimed success", async () => {
@@ -175,6 +202,7 @@ describe("ControlPage OTG Setup tab", () => {
     await openOtgTab(user)
 
     expect(screen.queryByRole("button", { name: "Restart ADB Server" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Connect" })).toBeInTheDocument()
+    // ...and there is no Connect control to fall back on for it either.
+    expect(screen.queryByRole("button", { name: "Connect" })).not.toBeInTheDocument()
   })
 })

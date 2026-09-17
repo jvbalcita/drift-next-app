@@ -45,9 +45,9 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
   const source = snapshot.devices.find((device) => device.id === sourceId)
   const followers = snapshot.devices.filter((device) => followerIds.includes(device.id))
   const selectedProfile = snapshot.networkProfiles.find((profile) => profile.id === profileId)
-  // The endpoints the discovered fleet is currently observed on. Activate reads
-  // its own fleet from the devices, so this list is what Connect opens and what
-  // a restart re-establishes — never a claim about which devices are attached.
+  // The endpoints a Restart ADB Server re-establishes: what the registry
+  // currently holds, deduplicated and in a stable order rather than in list
+  // order, and never a claim about which devices are attached.
   const observedEndpoints = Array.from(new Set(snapshot.endpoints.filter((endpoint) => endpoint.state === "current" && endpoint.host.trim() !== "").map((endpoint) => `${endpoint.host}:${endpoint.port}`))).sort()
 
   function choosePhone(device: DeviceView) {
@@ -118,29 +118,6 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
   function activateFleet() {
     void reportDispatch(dispatch, { type: "activateFleet", port: Number(port.trim()) }, setFeedback)
   }
-  /**
-   * Connect opens a transport to each endpoint the fleet is observed on, one at
-   * a time. It names one endpoint per call because that is what the operation
-   * takes, and each answer is reported on its own rather than the last one
-   * standing in for all of them.
-   */
-  function connectObservedEndpoints() {
-    const targets = snapshot.devices.flatMap((device) => {
-      const endpoint = snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
-      return endpoint && endpoint.host.trim() !== "" ? [endpoint] : []
-    })
-    if (targets.length === 0) { setFeedback("Connect needs at least one observed device endpoint to open a transport to. Nothing was sent."); return }
-    const unnamed = targets.find((endpoint) => !endpoint.serial.trim())
-    if (unnamed) { setFeedback(`The endpoint ${unnamed.host}:${unnamed.port} carries no serial, so its port decision cannot be made for it. Nothing was sent.`); return }
-    void (async () => {
-      const answers: string[] = []
-      for (const endpoint of targets) {
-        const result = await dispatch({ type: "connectEndpoint", serial: endpoint.serial, endpoint: `${endpoint.host}:${endpoint.port}` })
-        answers.push(result.message)
-      }
-      setFeedback(answers.join(" "))
-    })()
-  }
   function restartAdbServer() {
     if (observedEndpoints.length === 0) { setFeedback("Restarting the adb server needs at least one observed endpoint to re-establish. Nothing was sent."); return }
     void reportDispatch(dispatch, { type: "restartTransportServer", endpoints: observedEndpoints }, setFeedback)
@@ -174,7 +151,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "" }:
       <Button size="sm" variant="outline" disabled={!source || modalPinned} onClick={() => setPosition(initialPosition)}><Crosshair className="size-3.5" aria-hidden="true" />Reset Position</Button>
     </div>
     <div className={`mt-4 grid items-start gap-4 ${workspaceOpen ? settings.workspaceSide === "right" ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
-      {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setEndIp} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} endpoints={snapshot.endpoints} onActivate={activateFleet} onConnect={connectObservedEndpoints} onRestartServer={restartAdbServer} onAddRange={addDiscoveryRange} onScan={scan} /></div> : null}
+      {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setEndIp} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} endpoints={snapshot.endpoints} onActivate={activateFleet} onRestartServer={restartAdbServer} onAddRange={addDiscoveryRange} onScan={scan} /></div> : null}
       <section className={`min-w-0 ${workspaceOpen && settings.workspaceSide === "left" ? "xl:order-2" : ""}`} aria-label="Phone control workspace">
         <LabObservationFrame adapter={snapshot.labAdapter} height={workspace.largeHeight} />
         <div className={`grid items-start gap-4 ${modalPinned && source ? "xl:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
@@ -191,7 +168,7 @@ function WorkspaceToggle({ side, onToggle }: { side: "left" | "right"; onToggle:
   return <div className="group absolute left-0 top-1/2 z-20 flex h-24 w-10 -translate-y-1/2 items-center justify-start"><Button size="icon-sm" variant="outline" className="bg-card/95 opacity-80 transition-opacity group-hover:opacity-100 focus-visible:opacity-100" aria-label="Open Workspace Settings" onClick={onToggle}>{side === "left" ? <ChevronLeft className="size-3.5" aria-hidden="true" /> : <ChevronRight className="size-3.5" aria-hidden="true" />}</Button></div>
 }
 
-function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, side, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, profiles, endpoints, onActivate, onConnect, onRestartServer, onAddRange, onScan }: { workspace: Workspace; onWorkspaceChange: (value: Workspace) => void; pinned: boolean; onPinnedChange: (value: boolean) => void; side: "left" | "right"; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; profiles: ControlPlaneSnapshot["networkProfiles"]; endpoints: ControlPlaneSnapshot["endpoints"]; onActivate: () => void; onConnect: () => void; onRestartServer: () => void; onAddRange: () => void; onScan: () => void }) {
+function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, side, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, profiles, endpoints, onActivate, onRestartServer, onAddRange, onScan }: { workspace: Workspace; onWorkspaceChange: (value: Workspace) => void; pinned: boolean; onPinnedChange: (value: boolean) => void; side: "left" | "right"; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; profiles: ControlPlaneSnapshot["networkProfiles"]; endpoints: ControlPlaneSnapshot["endpoints"]; onActivate: () => void; onRestartServer: () => void; onAddRange: () => void; onScan: () => void }) {
   return <aside className="border border-border bg-card" aria-label="Workspace Settings">
     <div className="flex items-start gap-3 border-b border-border p-4">
       <span className="grid size-8 shrink-0 place-items-center border border-primary/40 bg-secondary text-primary"><SlidersHorizontal className="size-4" aria-hidden="true" /></span>
@@ -211,30 +188,25 @@ function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, 
         <Button variant="outline" className="w-full rounded-none" onClick={() => onWorkspaceChange(workspaceDefaults)}>Reset Workspace</Button>
       </TabsContent>
       <TabsContent value="otg" className="space-y-5 p-4">
-        <OtgSetupPanel endpoints={endpoints} profiles={profiles} port={port} onPortChange={onPortChange} startIp={startIp} onStartIpChange={onStartIpChange} endIp={endIp} onEndIpChange={onEndIpChange} profileId={profileId} onProfileIdChange={onProfileIdChange} onActivate={onActivate} onConnect={onConnect} onRestartServer={onRestartServer} onAddRange={onAddRange} onScan={onScan} />
+        <OtgSetupPanel endpoints={endpoints} profiles={profiles} port={port} onPortChange={onPortChange} startIp={startIp} onStartIpChange={onStartIpChange} endIp={endIp} onEndIpChange={onEndIpChange} profileId={profileId} onProfileIdChange={onProfileIdChange} onActivate={onActivate} onRestartServer={onRestartServer} onAddRange={onAddRange} onScan={onScan} />
       </TabsContent>
     </Tabs>
   </aside>
 }
 
-function OtgSetupPanel({ endpoints, profiles, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, onActivate, onConnect, onRestartServer, onAddRange, onScan }: { endpoints: ControlPlaneSnapshot["endpoints"]; profiles: ControlPlaneSnapshot["networkProfiles"]; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; onActivate: () => void; onConnect: () => void; onRestartServer: () => void; onAddRange: () => void; onScan: () => void }) {
+function OtgSetupPanel({ endpoints, profiles, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, onActivate, onRestartServer, onAddRange, onScan }: { endpoints: ControlPlaneSnapshot["endpoints"]; profiles: ControlPlaneSnapshot["networkProfiles"]; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; onActivate: () => void; onRestartServer: () => void; onAddRange: () => void; onScan: () => void }) {
   // The transports a restart can re-establish: the endpoints the registry
   // currently holds, deduplicated and in a stable order rather than list order.
   const reestablishable = Array.from(new Set(endpoints.filter((endpoint) => endpoint.state === "current" && endpoint.host.trim() !== "").map((endpoint) => `${endpoint.host}:${endpoint.port}`))).sort()
   return <>
     <div>
       <p className="text-xs font-semibold">Quick OTG Setup</p>
-      <p className="mt-1 text-[11px] leading-5 text-muted-foreground">Scan observes every ADB-enabled device in the saved profile's range, whatever port it answers on. Activate and Connect are performed by the control plane over the discovered fleet, and Restart ADB Server is performed by the control plane against this host. Each one reports what it did below — including a refusal that reached no device.</p>
+      <p className="mt-1 text-[11px] leading-5 text-muted-foreground">Scan observes every ADB-enabled device in the saved profile's range, whatever port it answers on — after Activate, the scan is what sees a moved device on the Set Port port. Activate is performed by the control plane over the discovered fleet, and Restart ADB Server against this host. Each one reports what it did below — including a refusal that reached no device.</p>
     </div>
     <div>
       <p className="text-xs font-medium">Set Port</p>
       <div className="mt-2 flex gap-2"><Input aria-label="Set Port" inputMode="numeric" value={port} onChange={(event) => onPortChange(event.target.value)} className="font-mono text-xs" /><Button size="sm" onClick={onActivate}>Activate</Button></div>
       <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Activate moves every discovered device that is not already answering on this port onto it, one at a time. A device that is not attached and authorized over USB is refused with its own message, and every device's result is reported separately.</p>
-    </div>
-    <div>
-      <p className="text-xs font-medium">Connect</p>
-      <Button className="mt-2 w-full rounded-none" size="sm" onClick={onConnect}><RotateCw className="size-3.5" aria-hidden="true" />Connect</Button>
-      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Connect opens a transport to each observed device endpoint in turn. A port the profile does not accept is refused at connect time, naming the port, and reaches no device.</p>
     </div>
     <div>
       <p className="text-xs font-medium">IP Range</p>
