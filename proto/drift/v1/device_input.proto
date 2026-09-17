@@ -68,6 +68,8 @@ enum DeviceInputRefusalReason {
   DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAVAILABLE = 12;
   // The idempotency key was already used for a different request.
   DEVICE_INPUT_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY = 13;
+  // The lease was ended by its control session or an explicit release.
+  DEVICE_INPUT_REFUSAL_REASON_LEASE_RELEASED = 14;
 }
 
 // The device input surface.

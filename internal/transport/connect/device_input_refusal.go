@@ -32,6 +32,7 @@ import (
 var deviceInputRefusalReasons = map[execution.RefusalReason]driftv1.DeviceInputRefusalReason{
 	execution.RefusalLeaseMissing:            driftv1.DeviceInputRefusalReason_DEVICE_INPUT_REFUSAL_REASON_LEASE_MISSING,
 	execution.RefusalLeaseExpired:            driftv1.DeviceInputRefusalReason_DEVICE_INPUT_REFUSAL_REASON_LEASE_EXPIRED,
+	execution.RefusalLeaseReleased:           driftv1.DeviceInputRefusalReason_DEVICE_INPUT_REFUSAL_REASON_LEASE_RELEASED,
 	execution.RefusalLeaseNotHeld:            driftv1.DeviceInputRefusalReason_DEVICE_INPUT_REFUSAL_REASON_LEASE_NOT_HELD,
 	execution.RefusalFenceStale:              driftv1.DeviceInputRefusalReason_DEVICE_INPUT_REFUSAL_REASON_FENCE_STALE,
 	execution.RefusalNoControlSession:        driftv1.DeviceInputRefusalReason_DEVICE_INPUT_REFUSAL_REASON_NO_CONTROL_SESSION,

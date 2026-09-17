@@ -58,6 +58,8 @@ const (
 	DeviceInputRefusalReason_DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAVAILABLE DeviceInputRefusalReason = 12
 	// The idempotency key was already used for a different request.
 	DeviceInputRefusalReason_DEVICE_INPUT_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY DeviceInputRefusalReason = 13
+	// The lease was ended by its control session or an explicit release.
+	DeviceInputRefusalReason_DEVICE_INPUT_REFUSAL_REASON_LEASE_RELEASED DeviceInputRefusalReason = 14
 )
 
 // Enum value maps for DeviceInputRefusalReason.
@@ -77,6 +79,7 @@ var (
 		11: "DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAUTHORIZED",
 		12: "DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAVAILABLE",
 		13: "DEVICE_INPUT_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY",
+		14: "DEVICE_INPUT_REFUSAL_REASON_LEASE_RELEASED",
 	}
 	DeviceInputRefusalReason_value = map[string]int32{
 		"DEVICE_INPUT_REFUSAL_REASON_UNSPECIFIED":               0,
@@ -93,6 +96,7 @@ var (
 		"DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAUTHORIZED":       11,
 		"DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAVAILABLE":        12,
 		"DEVICE_INPUT_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY": 13,
+		"DEVICE_INPUT_REFUSAL_REASON_LEASE_RELEASED":            14,
 	}
 )
 
@@ -719,7 +723,7 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"\tkey_event\x18\b \x01(\v2\x17.drift.v1.KeyEventInputR\bkeyEvent\x12)\n" +
 	"\x10approval_granted\x18\t \x01(\bR\x0fapprovalGranted\"B\n" +
 	"\x10KeyEventResponse\x12.\n" +
-	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result*\xce\x05\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result*\xfe\x05\n" +
 	"\x18DeviceInputRefusalReason\x12+\n" +
 	"'DEVICE_INPUT_REFUSAL_REASON_UNSPECIFIED\x10\x00\x12-\n" +
 	")DEVICE_INPUT_REFUSAL_REASON_LEASE_MISSING\x10\x01\x12-\n" +
@@ -735,7 +739,8 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"\x123\n" +
 	"/DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAUTHORIZED\x10\v\x122\n" +
 	".DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAVAILABLE\x10\f\x129\n" +
-	"5DEVICE_INPUT_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY\x10\r2\xc5\x01\n" +
+	"5DEVICE_INPUT_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY\x10\r\x12.\n" +
+	"*DEVICE_INPUT_REFUSAL_REASON_LEASE_RELEASED\x10\x0e2\xc5\x01\n" +
 	"\x12DeviceInputService\x122\n" +
 	"\x03Tap\x12\x14.drift.v1.TapRequest\x1a\x15.drift.v1.TapResponse\x128\n" +
 	"\x05Swipe\x12\x16.drift.v1.SwipeRequest\x1a\x17.drift.v1.SwipeResponse\x12A\n" +
