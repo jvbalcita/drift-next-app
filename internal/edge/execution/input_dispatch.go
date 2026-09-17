@@ -163,6 +163,7 @@ type RefusalReason string
 const (
 	RefusalLeaseMissing            RefusalReason = "lease_missing"
 	RefusalLeaseExpired            RefusalReason = "lease_expired"
+	RefusalLeaseReleased           RefusalReason = "lease_released"
 	RefusalLeaseNotHeld            RefusalReason = "lease_not_held"
 	RefusalFenceStale              RefusalReason = "fence_stale"
 	RefusalNoControlSession        RefusalReason = "no_control_session"
@@ -189,6 +190,7 @@ type refusalDefinition struct {
 var refusalDefinitions = map[RefusalReason]refusalDefinition{
 	RefusalLeaseMissing:            {platformerrors.CodeLeaseConflict, domain.FailureLeaseConflict, "a device input requires an active device lease"},
 	RefusalLeaseExpired:            {platformerrors.CodeLeaseConflict, domain.FailureLeaseConflict, "the device lease has expired"},
+	RefusalLeaseReleased:           {platformerrors.CodeLeaseConflict, domain.FailureLeaseReleased, "the device lease was released"},
 	RefusalLeaseNotHeld:            {platformerrors.CodeLeaseConflict, domain.FailureLeaseConflict, "the device lease is held by another controller"},
 	RefusalFenceStale:              {platformerrors.CodeLeaseConflict, domain.FailureLeaseConflict, "the fencing token is stale or revoked"},
 	RefusalNoControlSession:        {platformerrors.CodeLeaseConflict, domain.FailureLeaseConflict, "the device input requires an active control session"},
@@ -786,6 +788,9 @@ func (p *StoreControlProbe) ProbeControl(ctx context.Context, request InputReque
 		return RefusalLeaseNotHeld, nil
 	}
 	now := p.clock.Now().UTC()
+	if lease.State == leases.LeaseReleased {
+		return RefusalLeaseReleased, nil
+	}
 	if lease.State != leases.LeaseActive || !now.Before(lease.ExpiresAt) {
 		return RefusalLeaseExpired, nil
 	}
