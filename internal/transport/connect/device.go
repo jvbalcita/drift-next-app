@@ -97,6 +97,9 @@ func currentEndpoint(ctx context.Context, db *store.DB, workspace organizations.
 }
 
 // deviceProto projects a device and the transport it is currently reachable at.
+// The device's status is derived from the same observation this projection reads
+// (see deviceStatusProto), so what a consumer is told about reachability and what
+// it is told about the transport come from one fact rather than two.
 // The endpoint is a separate record from the device by design: device identity is
 // stable while the transport is mutable, so the projection joins them rather than
 // storing the transport on the device row.
@@ -108,7 +111,7 @@ func deviceProto(device devices.Device, endpoint *endpoints.Endpoint) *driftv1.D
 	projected := &driftv1.Device{
 		Id:              string(device.ID),
 		DisplayName:     device.DisplayName,
-		Status:          deviceStatusProto(device.State),
+		Status:          deviceStatusProto(device, endpoint),
 		PlatformVersion: device.PlatformVersion,
 		LastSeenAt:      formatTimePtr(device.LastSeenAt),
 		Workspace:       workspaceRef(device.Workspace),
@@ -135,15 +138,43 @@ func deviceTransportProto(transport endpoints.Transport) driftv1.DeviceTransport
 	}
 }
 
-func deviceStatusProto(state devices.State) driftv1.DeviceStatus {
-	switch state {
-	case devices.Active:
+// deviceStatusProto derives a device's wire status from OBSERVATION FACTS ONLY.
+// It is the single seam every consumer of a device's status reads through, and it
+// reads no lifecycle column: `devices.state` is a state machine this repository
+// ruled out (ARC-116), nothing here consults it, and the projection no longer
+// passes it, so the console is told what was observed rather than what a row was
+// once written as.
+//
+// The facts are the device's current endpoint record - the transport it was last
+// observed answering on - and the time of its last positive observation:
+//
+//   - a current endpoint record means the device has been observed and has not
+//     been observed leaving, so it reads ONLINE;
+//   - no current endpoint and no last observation means the device was NEVER
+//     observed, which reads UNSPECIFIED rather than ONLINE. Fail closed: a device
+//     nobody has seen is not a device anyone can reach, and offering control to it
+//     is the defect this derivation exists to prevent;
+//   - no current endpoint and a last observation means the device was observed
+//     before and is not observed now, so it reads OFFLINE.
+//
+// The last two are deliberately different answers, so "never observed" stays
+// distinguishable from "observed before, not observed now" rather than collapsing
+// into one not-online reading. A device that returns is observed again and resolves
+// to the same identity, so its status returns to ONLINE through this same function.
+//
+// DEVICE_STATUS_ATTENTION is a lifecycle reading and is no longer produced by
+// anything: the enum value stays published and unchanged (device.proto is
+// additive-only), and a consumer that still maps it keeps working. A later absence
+// fact - a recorded departure time rather than the endpoint record a departure
+// supersedes - refines this one function; no second reader of device status is
+// opened for it.
+func deviceStatusProto(device devices.Device, endpoint *endpoints.Endpoint) driftv1.DeviceStatus {
+	switch {
+	case endpoint != nil:
 		return driftv1.DeviceStatus_DEVICE_STATUS_ONLINE
-	case devices.Registered:
-		return driftv1.DeviceStatus_DEVICE_STATUS_ATTENTION
-	case devices.Unavailable, devices.Retired:
-		return driftv1.DeviceStatus_DEVICE_STATUS_OFFLINE
-	default:
+	case device.LastSeenAt == nil:
 		return driftv1.DeviceStatus_DEVICE_STATUS_UNSPECIFIED
+	default:
+		return driftv1.DeviceStatus_DEVICE_STATUS_OFFLINE
 	}
 }

@@ -72,6 +72,11 @@ func (r *DeviceRepository) List(ctx context.Context, workspace organizations.Wor
 			return nil, err
 		}
 		d.State, d.RowVersion = devices.State(state), uint64(version)
+		if last.Valid {
+			if t, e := time.Parse(time.RFC3339Nano, last.String); e == nil {
+				d.LastSeenAt = &t
+			}
+		}
 		result = append(result, d)
 	}
 	if err := rows.Err(); err != nil {
@@ -99,6 +104,22 @@ func (s *DeviceService) Create(ctx context.Context, d devices.Device, actorType,
 		return s.record(ctx, tx, string(d.Workspace), string(d.ID), "device.created", actorType, actorID)
 	})
 }
+
+// Transition moves a device through the lifecycle machine, and NOTHING CALLS IT.
+//
+// It is PARKED AS UNREACHABLE rather than deleted, and the reason is the decision
+// this repository already recorded: a device has no lifecycle beyond its identity
+// and its observation history (ARC-116, closed as a decision with no code). A
+// lifecycle reading is not a weaker version of the truth about a device, it is a
+// different thing that disagrees with it - offering control to a device nobody can
+// reach is exactly what that disagreement produced - so the wire status no longer
+// reads devices.state, and a caller of this method would re-introduce the reading
+// rather than a use for it.
+//
+// It is left in place, reachable by the two tests that exercise it and by nothing
+// else, so that workspace isolation and the domain state-machine contract keep
+// their coverage instead of losing it in the change that removed the last reader.
+// It is not a wiring gap to close: dispatching it needs a decision, not a call.
 func (s *DeviceService) Transition(ctx context.Context, workspace organizations.WorkspaceID, id devices.DeviceID, next devices.State, expected uint64, actorType, actorID string) error {
 	if ctx == nil || s == nil || s.store == nil || s.store.db == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite store are required")
@@ -163,6 +184,11 @@ func (r *EdgeAgentRepository) Get(ctx context.Context, workspace organizations.W
 		return a, classifyContext(err)
 	}
 	a.State, a.RowVersion = edgeagents.State(state), uint64(version)
+	if last.Valid {
+		if t, e := time.Parse(time.RFC3339Nano, last.String); e == nil {
+			a.LastSeenAt = &t
+		}
+	}
 	return a, nil
 }
 func (r *EdgeAgentRepository) List(ctx context.Context, w organizations.WorkspaceID) ([]edgeagents.EdgeAgent, error) {
@@ -181,6 +207,11 @@ func (r *EdgeAgentRepository) List(ctx context.Context, w organizations.Workspac
 			return nil, err
 		}
 		a.State, a.RowVersion = edgeagents.State(state), uint64(v)
+		if last.Valid {
+			if t, e := time.Parse(time.RFC3339Nano, last.String); e == nil {
+				a.LastSeenAt = &t
+			}
+		}
 		out = append(out, a)
 	}
 	return out, rows.Err()

@@ -24,6 +24,11 @@ type RegistryStore interface {
 	// RecordArrivals upserts transports observed after launch through the same
 	// serial-keyed upsert FinishScan uses, without opening a scan run.
 	RecordArrivals(context.Context, organizations.WorkspaceID, []ObservedDevice, string, string) ([]ObservedDevice, error)
+	// RecordDepartures records transports a watcher observed leaving, as an
+	// observation fact about the endpoint each departure ends. It opens no scan
+	// run, writes no lifecycle state, and leaves the device row, its identity and
+	// its last positive observation alone.
+	RecordDepartures(context.Context, organizations.WorkspaceID, []ObservedDevice, string, string) error
 	FailScan(context.Context, organizations.WorkspaceID, ScanRunID, string, string, error) (ScanRun, error)
 }
 
@@ -150,4 +155,42 @@ func (s *Service) RecordArrivals(ctx context.Context, workspace organizations.Wo
 		}
 	}
 	return s.store.RecordArrivals(ctx, workspace, observations, actorType, actorID)
+}
+
+// RecordDepartures persists the transports a watcher observed leaving. It is the
+// absence fact that makes a device read as observed-before-and-not-observed-now
+// rather than as present: the departure supersedes the current endpoint record of
+// the transport that left, so a reader can tell a device that is gone from one
+// that was never observed at all.
+//
+// It is deliberately not the arrival path. A departure must not refresh a
+// device's last positive observation or upsert it as a sighting, because that is
+// exactly what would revive the device it reports leaving; it records the fact
+// about the transport and nothing about the device's identity. The device row
+// survives, so a device that returns resolves to the same identity through the
+// same serial-keyed upsert a scan uses.
+//
+// Every departure in the batch is validated before anything is persisted, so a
+// batch carrying an unidentifiable transport is refused whole rather than
+// half-applied. An empty batch is a no-op: a poll that saw nothing leave is not
+// a failure.
+func (s *Service) RecordDepartures(ctx context.Context, workspace organizations.WorkspaceID, departures []ObservedDevice, actorType, actorID string) error {
+	if s == nil || s.store == nil {
+		return fmt.Errorf("discovery service dependencies are required")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if len(departures) == 0 {
+		return nil
+	}
+	for _, departure := range departures {
+		if !departure.Valid() {
+			return fmt.Errorf("departure observation carries neither a serial nor a host")
+		}
+	}
+	return s.store.RecordDepartures(ctx, workspace, departures, actorType, actorID)
 }
