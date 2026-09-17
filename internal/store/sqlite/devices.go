@@ -72,6 +72,11 @@ func (r *DeviceRepository) List(ctx context.Context, workspace organizations.Wor
 			return nil, err
 		}
 		d.State, d.RowVersion = devices.State(state), uint64(version)
+		if last.Valid {
+			if t, e := time.Parse(time.RFC3339Nano, last.String); e == nil {
+				d.LastSeenAt = &t
+			}
+		}
 		result = append(result, d)
 	}
 	if err := rows.Err(); err != nil {
@@ -163,6 +168,11 @@ func (r *EdgeAgentRepository) Get(ctx context.Context, workspace organizations.W
 		return a, classifyContext(err)
 	}
 	a.State, a.RowVersion = edgeagents.State(state), uint64(version)
+	if last.Valid {
+		if t, e := time.Parse(time.RFC3339Nano, last.String); e == nil {
+			a.LastSeenAt = &t
+		}
+	}
 	return a, nil
 }
 func (r *EdgeAgentRepository) List(ctx context.Context, w organizations.WorkspaceID) ([]edgeagents.EdgeAgent, error) {
@@ -181,6 +191,11 @@ func (r *EdgeAgentRepository) List(ctx context.Context, w organizations.Workspac
 			return nil, err
 		}
 		a.State, a.RowVersion = edgeagents.State(state), uint64(v)
+		if last.Valid {
+			if t, e := time.Parse(time.RFC3339Nano, last.String); e == nil {
+				a.LastSeenAt = &t
+			}
+		}
 		out = append(out, a)
 	}
 	return out, rows.Err()
