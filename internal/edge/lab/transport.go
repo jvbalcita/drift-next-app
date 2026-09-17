@@ -47,6 +47,43 @@ func WithLabTransport(transport DeviceTransport) Option {
 	}
 }
 
+// ErrEnumeratorRequired reports an enumerator opt-in that binds nothing.
+var ErrEnumeratorRequired = errors.New("a lab transport enumerator is required to expose one")
+
+// TransportEnumerator reads the attached transports, so an operation that
+// re-establishes endpoints can compare the fleet before and after against the
+// device's own view rather than against a list it was handed. It is exposed for
+// the same reason the two runners are: the composition root builds the transport
+// surface over this service's own adapter instead of a second one.
+//
+// (*adb.Adapter).Enumerate satisfies it.
+type TransportEnumerator interface {
+	Enumerate(ctx context.Context) ([]adb.DiscoveredDevice, error)
+}
+
+// WithLabEnumerator binds the attached-transport reader for a transport surface
+// the composition root builds. It refuses nil rather than binding one.
+func WithLabEnumerator(enumerator TransportEnumerator) Option {
+	return func(s *Service) error {
+		if enumerator == nil {
+			return ErrEnumeratorRequired
+		}
+		s.enumerator = enumerator
+		return nil
+	}
+}
+
+// Enumerator returns the attached-transport reader this service was built with,
+// or nil when it was built without one. Nil means no enumerator was bound, and a
+// restart or an activation that cannot read the fleet before and after must not be
+// mounted.
+func (s *Service) Enumerator() TransportEnumerator {
+	if s == nil {
+		return nil
+	}
+	return s.enumerator
+}
+
 // ErrHostTransportRequired reports a host-transport opt-in that binds nothing.
 var ErrHostTransportRequired = errors.New("a lab host transport is required to expose one")
 

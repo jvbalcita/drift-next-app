@@ -66,5 +66,5 @@ func NewServiceFromEnv(lookup EnvLookup, opts ...Option) (*Service, error) {
 	// opt-in: opening an endpoint and restarting the adb server act on the server
 	// rather than on one device, and the transport surface the OTG Setup tab
 	// performs needs those operations over this same adapter (ARC-67).
-	return NewService(append([]Option{WithLabAdapters(devices, hierarchy), WithLabTransport(devices), WithLabHostTransport(devices)}, opts...)...)
+	return NewService(append([]Option{WithLabAdapters(devices, hierarchy), WithLabTransport(devices), WithLabHostTransport(devices), WithLabEnumerator(devices)}, opts...)...)
 }
