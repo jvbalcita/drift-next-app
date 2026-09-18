@@ -256,6 +256,49 @@ SELECT 'reconciliation-' || resolved.duplicate_device_id,
        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 FROM resolved;
 
+-- The two rules above are decided independently of each other - the transport
+-- pairing from the transports a unit answered on, the name grouping from the
+-- name it reported - so a pairing can name a canonical row that the other rule
+-- treats as a duplicate. Follow each chain to the row that actually survives, so
+-- the recorded reason names the identity the history lands on and no pairing
+-- points at a row that is itself folded somewhere else. The walk is bounded: a
+-- chain longer than a handful of hops is a data shape this repair does not claim
+-- to fix, and a bounded walk refuses rather than looping.
+WITH RECURSIVE chain (workspace_id, duplicate_device_id, canonical_device_id, hops) AS (
+    SELECT workspace_id, duplicate_device_id, canonical_device_id, 1
+    FROM device_identity_reconciliations
+    UNION ALL
+    SELECT chain.workspace_id, chain.duplicate_device_id, next.canonical_device_id, chain.hops + 1
+    FROM chain
+    JOIN device_identity_reconciliations AS next
+      ON next.workspace_id = chain.workspace_id
+     AND next.duplicate_device_id = chain.canonical_device_id
+    WHERE chain.hops < 8
+),
+root AS (
+    SELECT workspace_id,
+           duplicate_device_id,
+           canonical_device_id,
+           ROW_NUMBER() OVER (
+               PARTITION BY workspace_id, duplicate_device_id
+               ORDER BY hops DESC
+           ) AS depth_rank
+    FROM chain
+)
+UPDATE device_identity_reconciliations
+SET canonical_device_id = (
+        SELECT root.canonical_device_id
+        FROM root
+        WHERE root.workspace_id = device_identity_reconciliations.workspace_id
+          AND root.duplicate_device_id = device_identity_reconciliations.duplicate_device_id
+          AND root.depth_rank = 1
+    )
+WHERE EXISTS (
+    SELECT 1 FROM device_identity_reconciliations AS chained
+    WHERE chained.workspace_id = device_identity_reconciliations.workspace_id
+      AND chained.duplicate_device_id = device_identity_reconciliations.canonical_device_id
+);
+
 -- One current endpoint per unit, before any endpoint moves. The unique index
 -- device_endpoints_one_current_idx allows a device only one current endpoint, so
 -- a unit whose duplicate and canonical rows BOTH hold one must be settled first:

@@ -323,6 +323,9 @@ func TestDeviceIdentityReconciliationFoldsDuplicates(t *testing.T) {
 	if mismatched := scalarCount(t, db, `SELECT COUNT(*) FROM device_identity_reconciliations AS r JOIN devices AS d ON d.id = r.canonical_device_id WHERE d.state = 'retired'`); mismatched != 0 {
 		t.Fatalf("canonical devices that are retired = %d, want 0", mismatched)
 	}
+	if chained := scalarCount(t, db, `SELECT COUNT(*) FROM device_identity_reconciliations AS r JOIN device_identity_reconciliations AS next ON next.workspace_id = r.workspace_id AND next.duplicate_device_id = r.canonical_device_id`); chained != 0 {
+		t.Fatalf("recorded pairings pointing at another duplicate = %d, want 0", chained)
+	}
 	if violations := foreignKeyViolations(t, db); violations != 0 {
 		t.Fatalf("foreign key violations after reconciliation = %d, want 0", violations)
 	}
@@ -386,6 +389,41 @@ func TestDeviceIdentityReconciliationFoldsDuplicates(t *testing.T) {
 	}
 	if current := scalarCount(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE state = 'current'`); current != 22 {
 		t.Fatalf("current endpoints after a second apply = %d, want 22", current)
+	}
+}
+
+// TestDeviceIdentityReconciliationFollowsAChainBetweenTheTwoRules covers the
+// shape where the two rules disagree: the unit's older row is the most recently
+// observed one, so the name grouping would keep it while the transport pairing
+// names the row the unit answers at now. The pairing is then a chain - the
+// unnamed row folds onto a row that is itself folded - and the reconciliation
+// must follow it to the row that actually survives rather than re-pointing one
+// unit's history at a row that is itself a duplicate.
+func TestDeviceIdentityReconciliationFollowsAChainBetweenTheTwoRules(t *testing.T) {
+	db := openUpgradeDB(t, 24)
+	seedDuplicateFleet(t, db)
+	execSQL(t, db, `UPDATE device_endpoints SET observed_at = '2026-09-18T09:00:00.000000Z' WHERE serial = '192.168.1.122:5555'`)
+
+	if err := applyLatestMigrations(t, db); err != nil {
+		t.Fatalf("Apply(0025) with a chain between the two rules error = %v", err)
+	}
+	if live := scalarCount(t, db, `SELECT COUNT(*) FROM devices WHERE state <> 'retired'`); live != 22 {
+		t.Fatalf("real devices = %d, want 22", live)
+	}
+	if chained := scalarCount(t, db, `SELECT COUNT(*) FROM device_identity_reconciliations AS r JOIN device_identity_reconciliations AS next ON next.workspace_id = r.workspace_id AND next.duplicate_device_id = r.canonical_device_id`); chained != 0 {
+		t.Fatalf("recorded pairings pointing at another duplicate = %d, want 0", chained)
+	}
+	// ALTA 8's own rows and the unnamed row the sweep minted for it are one
+	// device again.
+	holders := scalarCount(t, db, `SELECT COUNT(*) FROM (SELECT d.id FROM devices AS d JOIN device_endpoints AS e ON e.device_id = d.id WHERE d.state <> 'retired' AND e.serial IN ('192.168.1.122:5555', '192.168.1.101:5555', '192.168.1.148:5555') GROUP BY d.id)`)
+	if holders != 1 {
+		t.Fatalf("devices holding ALTA 8's transports = %d, want 1", holders)
+	}
+	if over := scalarCount(t, db, `SELECT COUNT(*) FROM (SELECT device_id FROM device_endpoints WHERE state = 'current' GROUP BY workspace_id, device_id HAVING COUNT(*) > 1)`); over != 0 {
+		t.Fatalf("devices with more than one current endpoint = %d, want 0", over)
+	}
+	if recorded := scalarCount(t, db, `SELECT COUNT(*) FROM device_identity_reconciliations`); recorded != 23 {
+		t.Fatalf("recorded reconciliations = %d, want 23", recorded)
 	}
 }
 
