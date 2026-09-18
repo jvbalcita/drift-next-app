@@ -90,15 +90,20 @@ type Supervisor struct {
 	ports       portChecker
 	probe       readyProbe
 	discoverADB func(string) (string, error)
-	runCommand  func(context.Context, string, ...string) error
-	freeWindow  time.Duration
-	poll        time.Duration
-	readyWait   time.Duration
-	mu          sync.Mutex
-	processes   map[string]childProcess
-	statuses    map[string]ComponentStatus
-	logs        []string
-	eventSink   func(string)
+	// discoverScrcpyServer resolves the host path of the scrcpy server the live
+	// mirror pushes to each device, or "" when this host has neither configured
+	// one nor installed scrcpy where the platform keeps it. It is a seam so a
+	// test resolves a path without depending on the machine running it.
+	discoverScrcpyServer func(string) string
+	runCommand           func(context.Context, string, ...string) error
+	freeWindow           time.Duration
+	poll                 time.Duration
+	readyWait            time.Duration
+	mu                   sync.Mutex
+	processes            map[string]childProcess
+	statuses             map[string]ComponentStatus
+	logs                 []string
+	eventSink            func(string)
 	// terminate asks exactly one process to stop, for a listener an operator
 	// explicitly chose to terminate. It is a seam so no test signals a real
 	// process, and it is the only place this runtime signals a process it did
@@ -112,20 +117,21 @@ type Supervisor struct {
 
 func newSupervisor(config Config, dataDir string) *Supervisor {
 	supervisor := &Supervisor{
-		config:      config,
-		dataDir:     dataDir,
-		start:       startCommand,
-		client:      &http.Client{Timeout: 750 * time.Millisecond},
-		ports:       netPortChecker{},
-		discoverADB: DefaultADBDiscovery,
-		runCommand:  runCommand,
-		freeWindow:  defaultFreeWindow,
-		poll:        defaultPollInterval,
-		readyWait:   defaultReadyTimeout,
-		processes:   map[string]childProcess{},
-		statuses:    map[string]ComponentStatus{},
-		terminate:   terminateProcess,
-		adopted:     map[string]adoptedListener{},
+		config:               config,
+		dataDir:              dataDir,
+		start:                startCommand,
+		client:               &http.Client{Timeout: 750 * time.Millisecond},
+		ports:                netPortChecker{},
+		discoverADB:          DefaultADBDiscovery,
+		discoverScrcpyServer: DefaultScrcpyServerDiscovery,
+		runCommand:           runCommand,
+		freeWindow:           defaultFreeWindow,
+		poll:                 defaultPollInterval,
+		readyWait:            defaultReadyTimeout,
+		processes:            map[string]childProcess{},
+		statuses:             map[string]ComponentStatus{},
+		terminate:            terminateProcess,
+		adopted:              map[string]adoptedListener{},
 	}
 	supervisor.probe = supervisor.probeReady
 	return supervisor
@@ -315,12 +321,22 @@ func (s *Supervisor) appendLog(line string) {
 }
 
 // Setup validates local prerequisites and creates the owned storage/configuration.
+//
+// It also resolves the live mirror's scrcpy server, which is the one deployment
+// input the control plane cannot derive from the others: the mirror is armed
+// from the deployment's own configuration, and the TUI is the deployment, so an
+// operator launches this console instead of exporting a variable in the shell
+// that started it. A server that cannot be resolved is NOT an error here - the
+// rest of the product runs without a mirror - and no path is invented for it:
+// the control plane is started without that input, and its own dialer names what
+// is missing. The startup line below carries the same diagnosis into the frame.
 func (s *Supervisor) Setup(ctx context.Context) error {
 	adbPath, err := s.discoverADB(s.config.ADBPath)
 	if err != nil {
 		return err
 	}
 	s.config.ADBPath = adbPath
+	s.config.ScrcpyServerPath = s.discoverScrcpyServer(s.config.ScrcpyServerPath)
 	if err := os.MkdirAll(filepath.Dir(s.config.DatabasePath), 0o700); err != nil {
 		return fmt.Errorf("create database directory: %w", err)
 	}
@@ -331,7 +347,50 @@ func (s *Supervisor) Setup(ctx context.Context) error {
 		return fmt.Errorf("start adb: %w", err)
 	}
 	s.appendLog("ADB discovered and validated")
+	s.appendLog(mirrorServerLine(s.config.ScrcpyServerPath))
 	return nil
+}
+
+// mirrorServerLine is the startup line that reports what this session hands the
+// live mirror, or names the input to set when it hands nothing. A frame whose
+// mirror shows nothing therefore already carries a diagnosis: an operator reads
+// which server was configured, and a deployment with none reads what to set.
+func mirrorServerLine(serverPath string) string {
+	if strings.TrimSpace(serverPath) == "" {
+		return fmt.Sprintf("Live mirror: no scrcpy server resolved; set %s or scrcpy_server_path in runtime.json", mirrorServerPathEnv)
+	}
+	return "Live mirror: scrcpy server " + serverPath
+}
+
+// controlPlaneEnv is the configuration this runtime hands the control plane
+// child. Both start paths build that child from this one list, so an input can
+// never be passed on one path and forgotten on the other.
+func (s *Supervisor) controlPlaneEnv() []string {
+	env := []string{
+		"DRIFT_CONTROL_PLANE_ADDR=" + s.config.ControlPlaneAddress,
+		"DRIFT_CONTROL_PLANE_DB=" + s.config.DatabasePath,
+		"DRIFT_ARTIFACT_CAS_ROOT=" + s.config.ArtifactRoot,
+		"DRIFT_RUNTIME_DEVICE_MODE=connected",
+		"DRIFT_RUNTIME_ADB_PATH=" + s.config.ADBPath,
+		"DRIFT_RUNTIME_SERVICE_TOKEN=" + s.config.ServiceToken,
+	}
+	// The live mirror's server path travels with the configuration the mirror
+	// reads it from, and only when there is one to hand over.
+	//
+	// A path that did not resolve is passed as NOTHING rather than as an empty
+	// value: the dialer refuses an empty one with its own message naming the
+	// input, which is a diagnosis, where an empty value it accepted would be a
+	// mirror that armed and showed nothing.
+	//
+	// DRIFT_MIRROR_KEEP_AWAKE is deliberately not set here. Whether an operator's
+	// device screen is held awake while they watch it is a side effect they
+	// choose explicitly, and the dialer's own contract is that the choice is
+	// never inherited; the default it applies is theirs to override, not one this
+	// runtime makes for them.
+	if path := strings.TrimSpace(s.config.ScrcpyServerPath); path != "" {
+		env = append(env, mirrorServerPathEnv+"="+path)
+	}
+	return env
 }
 
 // StartAll starts the services in dependency order and waits for readiness.
@@ -339,14 +398,7 @@ func (s *Supervisor) StartAll(ctx context.Context, launchDesktop bool) error {
 	if err := s.Setup(ctx); err != nil {
 		return err
 	}
-	if err := s.startComponent(ctx, "Control Plane", s.config.ControlPlaneAddress, "go", []string{"run", "./cmd/control-plane"}, []string{
-		"DRIFT_CONTROL_PLANE_ADDR=" + s.config.ControlPlaneAddress,
-		"DRIFT_CONTROL_PLANE_DB=" + s.config.DatabasePath,
-		"DRIFT_ARTIFACT_CAS_ROOT=" + s.config.ArtifactRoot,
-		"DRIFT_RUNTIME_DEVICE_MODE=connected",
-		"DRIFT_RUNTIME_ADB_PATH=" + s.config.ADBPath,
-		"DRIFT_RUNTIME_SERVICE_TOKEN=" + s.config.ServiceToken,
-	}); err != nil {
+	if err := s.startComponent(ctx, "Control Plane", s.config.ControlPlaneAddress, "go", []string{"run", "./cmd/control-plane"}, s.controlPlaneEnv()); err != nil {
 		return err
 	}
 	if err := s.waitReadyFor(ctx, "Control Plane", s.config.ControlPlaneAddress); err != nil {
@@ -383,7 +435,7 @@ func (s *Supervisor) StartComponent(ctx context.Context, name string) error {
 	}
 	switch name {
 	case "Control Plane":
-		if err := s.startComponent(ctx, name, s.config.ControlPlaneAddress, "go", []string{"run", "./cmd/control-plane"}, []string{"DRIFT_CONTROL_PLANE_ADDR=" + s.config.ControlPlaneAddress, "DRIFT_CONTROL_PLANE_DB=" + s.config.DatabasePath, "DRIFT_ARTIFACT_CAS_ROOT=" + s.config.ArtifactRoot, "DRIFT_RUNTIME_DEVICE_MODE=connected", "DRIFT_RUNTIME_ADB_PATH=" + s.config.ADBPath, "DRIFT_RUNTIME_SERVICE_TOKEN=" + s.config.ServiceToken}); err != nil {
+		if err := s.startComponent(ctx, name, s.config.ControlPlaneAddress, "go", []string{"run", "./cmd/control-plane"}, s.controlPlaneEnv()); err != nil {
 			return err
 		}
 		return s.waitReadyFor(ctx, name, s.config.ControlPlaneAddress)

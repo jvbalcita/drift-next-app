@@ -24,6 +24,19 @@ type Config struct {
 	ADBPath             string `json:"adb_path"`
 	OperatorID          string `json:"operator_id"`
 	ServiceToken        string `json:"service_token"`
+	// ScrcpyServerPath is the absolute host path of the scrcpy server the live
+	// mirror pushes to each device (the mirror's EnvServerPath,
+	// DRIFT_MIRROR_SCRCPY_SERVER). It is a deployment input like ADBPath, and an
+	// empty value is not an error: it means "resolve the platform's own scrcpy
+	// installation", which the runtime does at setup and passes to the control
+	// plane. A path set here is handed over as configured, so a deployment
+	// pointed at the wrong file fails where it is configured rather than being
+	// quietly replaced with a discovered one.
+	//
+	// It is not persisted when resolution leaves it empty, so a discovered path
+	// is never frozen into this file: an operator who upgrades scrcpy gets the
+	// new server without editing their configuration.
+	ScrcpyServerPath string `json:"scrcpy_server_path,omitempty"`
 }
 
 // DataDir returns the application-owned local data directory.
