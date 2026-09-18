@@ -3,6 +3,7 @@ import { MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror
 import { create } from "@bufbuild/protobuf"
 import { MirrorStreamSchema } from "@/gen/drift/v1/device_mirror_pb"
 import {
+  drawnContentRect,
   gestureThresholdFor,
   liveMirrorCopy,
   livePhaseSentence,
@@ -13,12 +14,24 @@ import {
   planGesture,
   streamPoint,
   transportSentence,
+  type DrawnPicture,
   type SurfaceRect,
 } from "./live-mirror"
 
 const frame = { width: 1080, height: 1920 }
-/** A surface that draws the stream at exactly half its encoded size. */
-const halfSurface: SurfaceRect = { left: 0, top: 0, width: 540, height: 960 }
+/**
+ * The picture drawn at exactly half its encoded size: a 1080x1920 stream in a
+ * 540x960 element, so the picture's own box and the element's box coincide.
+ *
+ * This is the one case with NO letterbox, and it is the case the old fixtures
+ * covered: an element-box mapping and a drawn-box mapping agree here, which is
+ * why the defect could not be seen from this file.
+ */
+const halfBox: SurfaceRect = { left: 0, top: 0, width: 540, height: 960 }
+const halfPicture: DrawnPicture = { box: halfBox, content: { width: 1080, height: 1920 } }
+/** The measured defect's own sizes: this console's 9:16 frame, a 19:9 stream. */
+const narrowBox: SurfaceRect = { left: 0, top: 0, width: 314, height: 531 }
+const wideFrame = { width: 1080, height: 2280 }
 
 describe("the console's view of a live stream", () => {
   it("reads the transport and the state off the contract, and never guesses one", () => {
@@ -64,26 +77,100 @@ describe("the console's view of a live stream", () => {
 
 describe("a point on the rendered surface, in the stream's own frame", () => {
   it("maps the middle of the element onto the middle of the encoded frame", () => {
-    expect(streamPoint(halfSurface, frame, 270, 480)).toEqual({ ok: true, x: 540, y: 960 })
+    expect(streamPoint(halfPicture, frame, 270, 480)).toEqual({ ok: true, x: 540, y: 960 })
   })
 
   it("maps a downscaled surface by the stream's scale and never by the element's pixels", () => {
     // A quarter-size surface: the same physical point is twice as far into the
     // frame as it is into the element.
     const quarter: SurfaceRect = { left: 100, top: 50, width: 270, height: 480 }
-    expect(streamPoint(quarter, frame, 100 + 135, 50 + 240)).toEqual({ ok: true, x: 540, y: 960 })
+    expect(streamPoint({ box: quarter, content: frame }, frame, 100 + 135, 50 + 240)).toEqual({ ok: true, x: 540, y: 960 })
   })
 
-  it("absorbs the boundary pixel the mapping can round past, and refuses a point off the element", () => {
-    expect(streamPoint(halfSurface, frame, 540, 960)).toEqual({ ok: true, x: 1079, y: 1919 })
-    expect(streamPoint(halfSurface, frame, -1, 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
-    expect(streamPoint(halfSurface, frame, 10, -1)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
+  it("absorbs the boundary pixel the mapping can round past, and refuses a point off the picture", () => {
+    expect(streamPoint(halfPicture, frame, 540, 960)).toEqual({ ok: true, x: 1079, y: 1919 })
+    expect(streamPoint(halfPicture, frame, -1, 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
+    expect(streamPoint(halfPicture, frame, 10, -1)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
   })
 
-  it("refuses to map anything at all without a frame or a measurable surface", () => {
-    expect(streamPoint(halfSurface, null, 10, 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.noFrame })
+  it("refuses to map anything at all without a frame, a measurable surface or a drawn picture", () => {
+    expect(streamPoint(halfPicture, null, 10, 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.noFrame })
     expect(streamPoint(null, frame, 10, 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.noSurface })
-    expect(streamPoint({ left: 0, top: 0, width: 0, height: 0 }, frame, 10, 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.noSurface })
+    expect(streamPoint({ box: { left: 0, top: 0, width: 0, height: 0 }, content: frame }, frame, 10, 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.noSurface })
+    // A surface the browser has decoded no picture for: the point names nothing,
+    // and that is said in its own words rather than mapped to some default.
+    expect(streamPoint({ box: halfBox, content: { width: 0, height: 0 } }, frame, 10, 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.noPicture })
+  })
+})
+
+describe("the box a letterboxed picture is drawn in", () => {
+  it("fits the picture inside the element at the picture's own shape, centred", () => {
+    const drawn = drawnContentRect(narrowBox, wideFrame)
+    if (!drawn) throw new Error("a 1080x2280 stream in a 314x531 element is drawn somewhere")
+    expect(drawn.height).toBeCloseTo(531, 6)
+    expect(drawn.width).toBeCloseTo((1080 * 531) / 2280, 6)
+    expect(drawn.left).toBeCloseTo((314 - (1080 * 531) / 2280) / 2, 6)
+    expect(drawn.top).toBeCloseTo(0, 6)
+  })
+
+  it("draws the whole element when the picture is the element's own shape", () => {
+    expect(drawnContentRect(halfBox, frame)).toEqual(halfBox)
+  })
+
+  it("leaves a bar above and below a landscape picture in a portrait element", () => {
+    const box: SurfaceRect = { left: 40, top: 60, width: 540, height: 960 }
+    const drawn = drawnContentRect(box, { width: 1920, height: 1080 })
+    if (!drawn) throw new Error("a 1920x1080 stream in a 540x960 element is drawn somewhere")
+    expect(drawn).toEqual({ left: 40, top: 388.125, width: 540, height: 303.75 })
+  })
+
+  it("places nothing when the element or the picture is not measurable", () => {
+    expect(drawnContentRect(narrowBox, { width: 0, height: 2280 })).toBeNull()
+    expect(drawnContentRect(narrowBox, null)).toBeNull()
+    expect(drawnContentRect(null, wideFrame)).toBeNull()
+    expect(drawnContentRect({ left: 0, top: 0, width: 0, height: 531 }, wideFrame)).toBeNull()
+  })
+})
+
+describe("mapping a tap through the picture's drawn box, not the element's", () => {
+  /**
+   * The measured case, reproduced in Chrome 153: a 9:16 element drawing a 19:9
+   * stream, with a pillarbox on each side. The element-box mapping this replaces
+   * read a tap on the picture's own left edge as x=107 and one on its right edge
+   * as x=972 - up to ~107px, about 10% of the frame's width, and silently, since
+   * the console declares the correct frame and both points were inside it.
+   */
+  const picture: DrawnPicture = { box: narrowBox, content: wideFrame }
+  const drawn = drawnContentRect(narrowBox, wideFrame)
+  if (!drawn) throw new Error("the measured fixture draws nothing")
+
+  it("maps the picture's own edges onto the frame's, and never the element's", () => {
+    expect(streamPoint(picture, wideFrame, drawn.left, 200)).toMatchObject({ ok: true, x: 0 })
+    expect(streamPoint(picture, wideFrame, drawn.left + drawn.width, 200)).toMatchObject({ ok: true, x: 1079 })
+    // The same two taps as the element's box would have read them.
+    expect(Math.floor((drawn.left * wideFrame.width) / narrowBox.width)).toBe(107)
+    expect(Math.floor(((drawn.left + drawn.width) * wideFrame.width) / narrowBox.width)).toBe(972)
+  })
+
+  it("refuses a tap in the pillarbox rather than scaling it onto the frame", () => {
+    for (const clientX of [0, 5, drawn.left - 1, drawn.left + drawn.width + 1, narrowBox.width - 1]) {
+      expect(streamPoint(picture, wideFrame, clientX, 200)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
+    }
+  })
+
+  it("refuses a tap in a letterbox bar as well, above and below a landscape picture", () => {
+    const box: SurfaceRect = { left: 40, top: 60, width: 540, height: 960 }
+    const landscape = { width: 1920, height: 1080 }
+    const bars = drawnContentRect(box, landscape)
+    if (!bars) throw new Error("the landscape fixture draws nothing")
+    expect(streamPoint({ box, content: landscape }, landscape, 40 + 270, 60 + 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
+    expect(streamPoint({ box, content: landscape }, landscape, 40 + 270, 60 + 950)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
+    expect(streamPoint({ box, content: landscape }, landscape, 40 + 270, bars.top)).toEqual({ ok: true, x: 960, y: 0 })
+  })
+
+  it("measures a gesture at the picture's scale, not at the element's", () => {
+    expect(gestureThresholdFor(drawn, wideFrame)).toBe(52)
+    expect(gestureThresholdFor(narrowBox, wideFrame)).toBe(41)
   })
 })
 
@@ -109,7 +196,7 @@ describe("one gesture, one action", () => {
   })
 
   it("scales the tap/swipe threshold by the surface's own scale, so a downscaled frame feels the same", () => {
-    expect(gestureThresholdFor(halfSurface, frame)).toBe(24)
+    expect(gestureThresholdFor(halfBox, frame)).toBe(24)
     expect(gestureThresholdFor({ left: 0, top: 0, width: 1080, height: 1920 }, frame)).toBe(12)
   })
 })

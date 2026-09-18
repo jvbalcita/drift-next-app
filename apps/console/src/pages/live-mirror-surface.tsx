@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react"
+import { useCallback, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react"
 import { CornerDownLeft, Keyboard, LoaderCircle, MousePointer2, RotateCw, Smartphone, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
 import type { DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
-import { gestureThresholdFor, liveMirrorCopy, livePhaseSentence, liveStreamFrame, planGesture, streamPoint, transportSentence, type FramePoint, type LiveMirrorPhase, type LiveMirrorTransportChoice, type PointerSample } from "@/lib/live-mirror"
+import { drawnContentRect, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, liveStreamFrame, planGesture, streamPoint, transportSentence, type DrawnPicture, type FramePoint, type LiveMirrorPhase, type LiveMirrorTransportChoice, type PointerSample, type SurfaceRect } from "@/lib/live-mirror"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 
 /**
@@ -29,11 +29,17 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion"
  *    gesture's end point forward and one action is planned at the release, so a
  *    drag across the frame is one swipe on the device rather than the dozens of
  *    points the browser reported;
+ *  - the point is mapped through the box the picture is DRAWN in, read off the
+ *    video element itself, never through the element's box: the frame this
+ *    console pins is 9:16 while a device may stream 19:9, so the browser
+ *    letterboxes the picture and paints nothing in the bars. A tap in a bar
+ *    reaches no device - it is refused and named, not scaled onto the frame;
  *  - input is dispatched through the console's dispatch, which is the
  *    lease/fencing/policy/control-session kernel's path, and the render frame
  *    travels with every coordinate. The surface refuses locally only what it
- *    knows it cannot describe - no lease, no observation, no frame - and never
- *    invents a value the kernel would have to guess about.
+ *    knows it cannot describe - no lease, no observation, no frame, no drawn
+ *    picture, a point beside the picture - and never invents a value the kernel
+ *    would have to guess about.
  */
 export interface LiveMirrorSurfaceProps {
   device: DeviceView
@@ -53,12 +59,17 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
   const reducedMotion = useReducedMotion()
   const { phase, stream, failure, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport })
   const frame = liveStreamFrame(stream)
-  const stage = useRef<HTMLDivElement | null>(null)
+  const video = useRef<HTMLVideoElement | null>(null)
   const gesture = useRef<{ down: PointerSample; last: PointerSample } | null>(null)
   const [notice, setNotice] = useState("")
   const [refusal, setRefusal] = useState("")
   const [dragging, setDragging] = useState(false)
   const [draft, setDraft] = useState("")
+
+  const attachMirrorVideo = useCallback((element: HTMLVideoElement | null) => {
+    video.current = element
+    attachVideo(element)
+  }, [attachVideo])
 
   const inputBlockedReason = !hasLease
     ? liveMirrorCopy.input.noLease
@@ -79,15 +90,33 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
       : liveMirrorCopy.text.noStream
   const textReady = textBlockedReason === ""
 
-  function surfaceRect() {
-    const element = stage.current
+  /**
+   * picture is the two DOM facts the mapping needs, read at the moment a pointer
+   * event is handled rather than held in state.
+   *
+   * The picture's own size changes when the browser decodes its first frame, and
+   * a pointer that arrived before that has no drawn frame to be measured in, so
+   * the value is asked for per event: a state copy would be the size the surface
+   * last re-rendered at, which is one frame behind exactly when it matters.
+   */
+  function picture(): DrawnPicture | null {
+    const element = video.current
     if (!element) return null
-    const rect = element.getBoundingClientRect()
-    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+    const box = element.getBoundingClientRect()
+    return {
+      box: { left: box.left, top: box.top, width: box.width, height: box.height },
+      content: { width: element.videoWidth, height: element.videoHeight },
+    }
+  }
+
+  /** drawnRect is the box the picture is painted in: the scale a gesture is measured at. */
+  function drawnRect(): SurfaceRect | null {
+    const current = picture()
+    return drawnContentRect(current?.box ?? null, current?.content ?? null)
   }
 
   function pointOf(event: ReactPointerEvent<HTMLDivElement>): FramePoint {
-    return streamPoint(surfaceRect(), frame, event.clientX, event.clientY)
+    return streamPoint(picture(), frame, event.clientX, event.clientY)
   }
 
   async function sendTap(x: number, y: number) {
@@ -160,7 +189,7 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
     gesture.current = null
     setDragging(false)
     if (!current || !frame) return
-    const threshold = gestureThresholdFor(surfaceRect(), frame)
+    const threshold = gestureThresholdFor(drawnRect(), frame)
     const plan = planGesture({ down: current.down, last: current.last, releasedAtMs: event.timeStamp }, frame, threshold)
     if (plan.kind === "refused") {
       setRefusal(plan.refusal)
@@ -179,7 +208,6 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-slate-950" aria-label={`${device.displayName} live mirror`}>
       <div
-        ref={stage}
         data-testid="live-mirror-stage"
         className={`relative min-h-0 flex-1 touch-none select-none overflow-hidden ${inputReady ? "cursor-crosshair" : "cursor-not-allowed"}`}
         onPointerDown={beginPointer}
@@ -187,7 +215,7 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
         onPointerUp={endPointer}
         onPointerCancel={cancelPointer}
       >
-        <video ref={attachVideo} muted playsInline autoPlay aria-hidden="true" className="absolute inset-0 size-full max-w-full object-contain" />
+        <video ref={attachMirrorVideo} data-testid="live-mirror-video" muted playsInline autoPlay aria-hidden="true" className="absolute inset-0 size-full max-w-full object-contain" />
         {phase === "live" ? null : <StreamStateOverlay phase={phase} failure={failure} />}
         {dragging ? <span aria-hidden="true" className="pointer-events-none absolute inset-x-6 top-6 h-px bg-primary" /> : null}
       </div>
@@ -204,7 +232,7 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
       <div className="shrink-0 border-t border-white/10 px-3 py-2">
         <p className="text-[10px] leading-4 text-white/70">
           {frame
-            ? `Tap the frame to tap the device, drag it to swipe. Coordinates are measured in the frame the stream is encoded at — ${frame.width}x${frame.height}, not this element's pixels.`
+            ? `Tap the picture to tap the device, drag it to swipe. Coordinates are measured in the frame the stream is encoded at — ${frame.width}x${frame.height}, not this element's pixels. The picture is drawn inside this element at the stream's own shape, so a tap in the bar beside it reaches no device.`
             : "Tap the frame to tap the device once a stream reports the frame its coordinates are measured in."}
         </p>
         <div className="mt-2 flex flex-wrap gap-1" role="group" aria-label="Device key input">

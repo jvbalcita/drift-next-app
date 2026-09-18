@@ -9,7 +9,7 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { ControlPlaneIntent, DispatchIntent, DeviceView } from "@/lib/domain/control-plane"
-import { liveMirrorCopy, liveStreamView, type LiveStreamView } from "@/lib/live-mirror"
+import { liveMirrorCopy, liveStreamView, drawnContentRect, type LiveStreamView } from "@/lib/live-mirror"
 import { LiveMirrorSurface } from "./live-mirror-surface"
 
 const observationToken = "fresh-atlas-04"
@@ -43,7 +43,7 @@ function fakeMirror(initial: LiveStreamView = stream()): { client: LiveMirrorCli
   }
 }
 
-/** stageRect describes a surface that draws the stream at the given size. */
+/** stageRect describes the box the video element occupies on screen. */
 function stageRect(width: number, height: number, left = 0, top = 0): DOMRect {
   return {
     x: left, y: top, width, height, left, top, right: left + width, bottom: top + height,
@@ -57,7 +57,7 @@ function device(): DeviceView {
   return found
 }
 
-function renderSurface(options: { mirror?: LiveMirrorClient; hasLease?: boolean; token?: string; rect?: DOMRect; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
+function renderSurface(options: { mirror?: LiveMirrorClient; hasLease?: boolean; token?: string; rect?: DOMRect; picture?: { width: number; height: number }; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
   const intents: ControlPlaneIntent[] = []
   const dispatch: DispatchIntent = async (intent) => {
     intents.push(intent)
@@ -75,8 +75,16 @@ function renderSurface(options: { mirror?: LiveMirrorClient; hasLease?: boolean;
     />,
   )
   const stage = screen.getByTestId("live-mirror-stage")
-  stage.getBoundingClientRect = () => options.rect ?? stageRect(540, 960)
-  return { intents, stage }
+  const video = screen.getByTestId("live-mirror-video") as HTMLVideoElement
+  // jsdom has no media stack, so the two boxes the mapping reads are supplied the
+  // way a layout is: the element's own box, and the size of the picture the
+  // browser decoded into it. `picture` is the stream's shape unless a test says
+  // otherwise, which is the case with no letterbox.
+  const picture = options.picture ?? { width: 1080, height: 1920 }
+  video.getBoundingClientRect = () => options.rect ?? stageRect(540, 960)
+  Object.defineProperty(video, "videoWidth", { value: picture.width, configurable: true })
+  Object.defineProperty(video, "videoHeight", { value: picture.height, configurable: true })
+  return { intents, stage, video }
 }
 
 async function live(intents: ControlPlaneIntent[]) {
@@ -154,6 +162,48 @@ describe("the big frame as a live mirror", () => {
     })
   })
 
+  it("maps a tap through the picture's drawn box, not through the element's", async () => {
+    // The measured defect, at the sizes it was measured at: this console's 9:16
+    // frame drawing a 19:9 stream, with a pillarbox on each side. Mapping the
+    // element's box read the picture's own left edge as x=107.
+    const rect = stageRect(314, 531)
+    const picture = { width: 1080, height: 2280 }
+    const { intents, stage } = renderSurface({ rect, picture, mirror: fakeMirror(stream({ width: picture.width, height: picture.height })).client })
+    await live(intents)
+
+    const drawn = drawnContentRect({ left: rect.left, top: rect.top, width: rect.width, height: rect.height }, picture)
+    if (!drawn) throw new Error("the fixture draws nothing")
+    fireEvent.pointerDown(stage, { pointerId: 5, clientX: drawn.left, clientY: drawn.top })
+    fireEvent.pointerUp(stage, { pointerId: 5, clientX: drawn.left, clientY: drawn.top })
+
+    await waitFor(() => expect(intents).toHaveLength(1))
+    expect(intents[0]).toMatchObject({ type: "submitDeviceTap", deviceId: "atlas-04", x: 0, y: 0, renderWidth: 1080, renderHeight: 2280 })
+  })
+
+  it("refuses a tap in the pillarbox, and reaches no device with it", async () => {
+    const rect = stageRect(314, 531)
+    const picture = { width: 1080, height: 2280 }
+    const { intents, stage } = renderSurface({ rect, picture, mirror: fakeMirror(stream({ width: 1080, height: 2280 })).client })
+    await live(intents)
+
+    fireEvent.pointerDown(stage, { pointerId: 6, clientX: 5, clientY: 265 })
+    fireEvent.pointerUp(stage, { pointerId: 6, clientX: 5, clientY: 265 })
+
+    expect(screen.getByRole("alert")).toHaveTextContent(liveMirrorCopy.refusal.outsideFrame)
+    expect(intents).toHaveLength(0)
+  })
+
+  it("refuses a tap before the browser has drawn a picture, and says which fact is missing", async () => {
+    const { intents, stage } = renderSurface({ picture: { width: 0, height: 0 } })
+    await live(intents)
+
+    fireEvent.pointerDown(stage, { pointerId: 7, clientX: 200, clientY: 200 })
+    fireEvent.pointerUp(stage, { pointerId: 7, clientX: 200, clientY: 200 })
+
+    expect(screen.getByRole("alert")).toHaveTextContent(liveMirrorCopy.refusal.noPicture)
+    expect(intents).toHaveLength(0)
+  })
+
   it("compresses a drag into exactly one swipe, at the stream's scale and with no tap", async () => {
     const { intents, stage } = renderSurface({ rect: stageRect(270, 480, 20, 40) })
     await live(intents)
@@ -217,7 +267,10 @@ describe("the big frame as a live mirror", () => {
       <LiveMirrorSurface device={device()} mirror={fakeMirror().client} workspaceId="workspace-lab-local" observationToken={observationToken} hasLease dispatch={dispatch} />,
     )
     const stage = screen.getByTestId("live-mirror-stage")
-    stage.getBoundingClientRect = () => stageRect(540, 960)
+    const video = screen.getByTestId("live-mirror-video") as HTMLVideoElement
+    video.getBoundingClientRect = () => stageRect(540, 960)
+    Object.defineProperty(video, "videoWidth", { value: 1080, configurable: true })
+    Object.defineProperty(video, "videoHeight", { value: 1920, configurable: true })
     await live(intents)
 
     fireEvent.pointerDown(stage, { pointerId: 4, clientX: 100, clientY: 100 })

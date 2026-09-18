@@ -182,7 +182,8 @@ export const liveMirrorCopy = {
   refusal: {
     noSurface: "That point is not on the stream surface.",
     noFrame: "The stream has not reported the frame its coordinates are measured in.",
-    outsideFrame: "That point lies outside the frame the stream is encoded at.",
+    noPicture: "The browser has not drawn a picture from this stream yet, so there is no frame on screen to point at.",
+    outsideFrame: "That point is not on the frame the device presents at: the stream is drawn smaller than this element, and a point in the bar beside the picture reaches no device.",
   },
   /**
    * The Console Settings entry. Acceptance criterion 1: the choice exists because
@@ -220,14 +221,23 @@ export function transportSentence(view: LiveStreamView | null): string {
  * device's coordinates are the encoded frame's, and a coordinate from another
  * frame is refused rather than converted (AGENTS.md section 3).
  *
- * Two refusals are explicit rather than silent: a surface with no measurable
- * geometry, and a stream that has reported no frame. Neither falls back to a
- * default, because a default frame is a coordinate nobody measured.
+ * The rectangle this maps through is the one the PICTURE is drawn in, never the
+ * element that holds it (see `drawnContentRect`). The element's box is the
+ * operator's own layout, and this fleet's streams are not that shape: the
+ * browser letterboxes or pillarboxes the picture inside the element and paints
+ * nothing in the bars. A tap in a bar is a point on the element and not on the
+ * device's screen, so it is refused rather than scaled onto the frame - the same
+ * rule that already holds for a coordinate outside the frame.
  *
- * The one adjustment made here is at the boundary: mapping an element-sized
- * point into the encoded frame can land one pixel past the last column, which is
- * the same frame's own rounding, so it is clamped into the frame instead of
- * being refused. A point outside the ELEMENT is not mapped at all.
+ * Three refusals are explicit rather than silent: a surface with no measurable
+ * geometry, a stream that has reported no frame, and a picture the browser has
+ * not drawn. None falls back to a default, because a default frame is a
+ * coordinate nobody measured.
+ *
+ * The one adjustment made here is at the boundary: a point on the picture's own
+ * far edge can map one pixel past the last column, which is the same mapping's
+ * own rounding, so it is clamped into the frame instead of being refused. A
+ * point outside the picture is not mapped at all.
  */
 export type FramePoint =
   | { ok: true; x: number; y: number }
@@ -245,16 +255,62 @@ export interface StreamFrame {
   height: number
 }
 
-export function streamPoint(rect: SurfaceRect | null, frame: StreamFrame | null, clientX: number, clientY: number): FramePoint {
-  if (!frame || frame.width <= 0 || frame.height <= 0) return { ok: false, refusal: liveMirrorCopy.refusal.noFrame }
-  if (!rect || !Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) {
-    return { ok: false, refusal: liveMirrorCopy.refusal.noSurface }
-  }
+/**
+ * An element's box, and the size of the picture drawn inside it.
+ *
+ * Both are DOM facts read at the moment a pointer event is handled, and each is
+ * unusable without the other: a box with no measurable geometry cannot say where
+ * the picture is, and a picture whose own size the browser has not reported
+ * (`videoWidth`/`videoHeight` are zero until it has decoded one) has not been
+ * drawn anywhere.
+ */
+export interface DrawnPicture {
+  box: SurfaceRect
+  content: StreamFrame
+}
+
+/**
+ * The rectangle an `object-fit: contain` picture is actually painted in.
+ *
+ * The big frame is a box this console's own layout pins, and the stream a device
+ * carries need not be that shape, so the browser fits the picture inside the
+ * element - centred, whole, at the content's own aspect ratio - and paints
+ * nothing in the bars left over. Those bars are not part of the device's screen,
+ * so they are not part of any coordinate either: this rectangle is the mapping
+ * origin.
+ *
+ * It returns null when either half is missing or unmeasurable, so a caller
+ * refuses the point rather than placing the picture somewhere nobody observed.
+ */
+export function drawnContentRect(box: SurfaceRect | null, content: StreamFrame | null): SurfaceRect | null {
+  if (!measurable(box) || !sized(content)) return null
+  const scale = Math.min(box.width / content.width, box.height / content.height)
+  const width = content.width * scale
+  const height = content.height * scale
+  return { left: box.left + (box.width - width) / 2, top: box.top + (box.height - height) / 2, width, height }
+}
+
+export function streamPoint(picture: DrawnPicture | null, frame: StreamFrame | null, clientX: number, clientY: number): FramePoint {
+  if (!sized(frame)) return { ok: false, refusal: liveMirrorCopy.refusal.noFrame }
+  if (!picture || !measurable(picture.box)) return { ok: false, refusal: liveMirrorCopy.refusal.noSurface }
   if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return { ok: false, refusal: liveMirrorCopy.refusal.noSurface }
-  const x = Math.floor(((clientX - rect.left) * frame.width) / rect.width)
-  const y = Math.floor(((clientY - rect.top) * frame.height) / rect.height)
-  if (x < 0 || y < 0) return { ok: false, refusal: liveMirrorCopy.refusal.outsideFrame }
+  const drawn = drawnContentRect(picture.box, picture.content)
+  if (!drawn) return { ok: false, refusal: liveMirrorCopy.refusal.noPicture }
+  if (clientX < drawn.left || clientY < drawn.top || clientX > drawn.left + drawn.width || clientY > drawn.top + drawn.height) {
+    return { ok: false, refusal: liveMirrorCopy.refusal.outsideFrame }
+  }
+  const x = Math.floor(((clientX - drawn.left) * frame.width) / drawn.width)
+  const y = Math.floor(((clientY - drawn.top) * frame.height) / drawn.height)
   return { ok: true, x: Math.min(x, frame.width - 1), y: Math.min(y, frame.height - 1) }
+}
+
+function measurable(rect: SurfaceRect | null | undefined): rect is SurfaceRect {
+  return !!rect && Number.isFinite(rect.left) && Number.isFinite(rect.top)
+    && Number.isFinite(rect.width) && Number.isFinite(rect.height) && rect.width > 0 && rect.height > 0
+}
+
+function sized(frame: StreamFrame | null | undefined): frame is StreamFrame {
+  return !!frame && Number.isFinite(frame.width) && Number.isFinite(frame.height) && frame.width > 0 && frame.height > 0
 }
 
 /**
@@ -262,9 +318,10 @@ export function streamPoint(rect: SurfaceRect | null, frame: StreamFrame | null,
  *
  * The threshold is a property of the operator's hand, so it is expressed in the
  * rendered pixels a hand moves across and converted into the frame the stream is
- * encoded at. The conversion is the surface's own scale, not another device's
- * frame: it says how far a finger moved across what is drawn, never what size the
- * device presents at.
+ * encoded at. The rect it is converted against is the picture's own drawn box
+ * (see `drawnContentRect`), which is the scale a finger actually moved at:
+ * converting against the element's box would report a threshold the hand never
+ * crossed, by exactly the letterbox's width.
  */
 export const gestureThresholdPixels = 12
 export const minimumSwipeMs = 16
