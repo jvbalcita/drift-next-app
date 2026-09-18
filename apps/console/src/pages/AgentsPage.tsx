@@ -29,7 +29,7 @@ export function AgentsPage({ snapshot, dispatch, view = "runtimes", onViewChange
     void reportDispatch(dispatch, { type: "assignAutomationAgentDevice", agentId: selectedAssignAgentId, deviceId: selectedAssignDeviceId }, setFeedback)
   }
   return <><PageIntro eyebrow="AUTOMATION / AGENTS" title="Agent Profiles" description="Edge runtime health is separate from logical profiles, their assignments, and declarative capabilities." actions={<StatusBadge label="No Profile Bypass" tone="info" />} /><OperatorNotice>Profiles are declarative metadata. They cannot access device protocols, credentials, arbitrary scripts, or bypass policy and leases.</OperatorNotice>
-    <Tabs value={view} onValueChange={onViewChange}><TabsList className="rounded-none border border-border bg-background p-0" aria-label="Agent views"><TabsTrigger value="runtimes" className="rounded-none">Edge Runtimes</TabsTrigger><TabsTrigger value="profiles" className="rounded-none">Logical Profiles</TabsTrigger><TabsTrigger value="assignments" className="rounded-none">Assignments</TabsTrigger><TabsTrigger value="capabilities" className="rounded-none">Capabilities</TabsTrigger></TabsList>
+    <Tabs value={view} onValueChange={onViewChange}><TabsList aria-label="Agent views"><TabsTrigger value="runtimes">Edge Runtimes</TabsTrigger><TabsTrigger value="profiles">Logical Profiles</TabsTrigger><TabsTrigger value="assignments">Assignments</TabsTrigger><TabsTrigger value="capabilities">Capabilities</TabsTrigger></TabsList>
       <TabsContent value="runtimes"><RuntimeTable snapshot={snapshot} onOpen={setSelectedId} /></TabsContent>
       <TabsContent value="profiles">
         <form onSubmit={createAgent} className="mt-4 flex flex-wrap items-end gap-3 border border-border p-4">

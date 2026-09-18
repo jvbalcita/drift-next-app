@@ -33,7 +33,7 @@ describe("Drift command center", () => {
   it("keeps navigation breadcrumbs in the shell header only", () => {
     render(<App />)
 
-    expect(screen.getAllByText("Workspace", { exact: true })).toHaveLength(2)
+    expect(screen.getAllByText("Workspace", { exact: true })).toHaveLength(1)
     expect(screen.getByRole("banner").querySelector('[data-slot="breadcrumb"]')).toBeInTheDocument()
   })
 
@@ -66,37 +66,32 @@ describe("Drift command center", () => {
     expect(trigger).toBeInTheDocument()
     expect(trigger).toHaveAccessibleName(/toggle sidebar/i)
     expect(sidebar).toHaveAttribute("data-state", "expanded")
-    expect(screen.getByRole("navigation", { name: /primary navigation/i })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Overview/ })).toBeInTheDocument()
+    const primaryNavigation = screen.getByRole("navigation", { name: /primary navigation/i })
+    expect(primaryNavigation).toBeInTheDocument()
+    expect(within(primaryNavigation).getByRole("link", { name: "Overview" })).toBeInTheDocument()
 
     await user.click(trigger!)
 
     expect(sidebar).toHaveAttribute("data-state", "collapsed")
-    expect(screen.getByRole("button", { name: /Overview/ })).toBeInTheDocument()
+    expect(within(primaryNavigation).getByRole("link", { name: "Overview" })).toBeInTheDocument()
   })
 
-  it("uses the Sidebar menu badge structure for counted navigation", () => {
+  it("does not present stale counts or submenu affordances on page links", () => {
     render(<App />)
 
-    const devicesButton = screen.getByRole("button", { name: /Devices/ })
-    const devicesBadge = document.querySelector<HTMLElement>(
-      '[data-sidebar="menu-badge"]',
-    )
-
-    expect(devicesButton).not.toContainElement(devicesBadge)
-    expect(devicesButton.parentElement).toContainElement(devicesBadge)
-    expect(devicesBadge).toHaveTextContent("6")
-    expect(devicesBadge).toHaveClass("right-7")
+    expect(screen.getByRole("link", { name: "Devices" })).toHaveAttribute("href", "#devices/all")
+    expect(document.querySelector('[data-sidebar="menu-badge"]')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-sidebar="menu-sub"]')).not.toBeInTheDocument()
   })
 
   it("routes block navigation selections through the app shell", async () => {
     const user = setupUser()
     render(<App />)
 
-    const devicesButton = screen.getByRole("button", { name: /^Devices/ })
-    await user.click(devicesButton)
+    const devicesLink = screen.getByRole("link", { name: "Devices" })
+    await user.click(devicesLink)
 
-    expect(devicesButton).toHaveAttribute("aria-current", "page")
+    expect(devicesLink).toHaveAttribute("aria-current", "page")
     expect(screen.getByText("Devices", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
   })
 
@@ -104,7 +99,7 @@ describe("Drift command center", () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Devices/ }))
+    await user.click(screen.getByRole("link", { name: "Devices" }))
     expect(window.location.hash).toBe("#devices/all")
     // The destination's module loads on demand and the shell shows its loading state until it
     // resolves, so await the tab instead of querying it synchronously.
@@ -206,7 +201,7 @@ describe("Drift command center", () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("link", { name: "Control" }))
     await user.click(await screen.findByRole("button", { name: /Open workspace settings/i }))
 
     expect(screen.getByText("Control / Device Workspace")).toBeInTheDocument()
@@ -229,7 +224,7 @@ describe("Drift command center", () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("link", { name: "Control" }))
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
     await user.click(screen.getByRole("button", { name: /Atlas 07/i }))
 
@@ -245,7 +240,7 @@ describe("Drift command center", () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("link", { name: "Control" }))
     await user.click(await screen.findByRole("button", { name: /Open workspace settings/i }))
     expect(screen.getByRole("slider", { name: /Floating frame size/i })).toBeInTheDocument()
     await user.click(screen.getByRole("tab", { name: /OTG setup/i }))
@@ -270,7 +265,7 @@ describe("Drift command center", () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("link", { name: "Control" }))
     const consoleSettings = screen.getAllByRole("button", { name: /^Settings$/ }).find(
       (button) => button.getAttribute("aria-haspopup") === "dialog",
     )
@@ -287,7 +282,7 @@ describe("Drift command center", () => {
     expect(screen.getByRole("button", { name: /Live Mirror Transport/i })).toHaveTextContent(/WebRTC \(pion/i)
     expect(screen.getByText(liveMirrorCopy.settings.notice)).toBeInTheDocument()
 
-    await user.click(screen.getByRole("tab", { name: /Device presentation/i }))
+    await user.click(screen.getByRole("tab", { name: "Presentation" }))
     expect(screen.getByRole("group", { name: /Workspace Position/i })).toBeInTheDocument()
     expect(screen.queryByText("Connected mock devices available in this browser workspace.")).not.toBeInTheDocument()
 
@@ -310,7 +305,7 @@ describe("Drift command center", () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("link", { name: "Control" }))
     const strip = screen.getByRole("region", { name: /Device Adapter Status/i })
 
     expect(within(strip).getAllByText("Unavailable").length).toBeGreaterThan(0)
@@ -331,7 +326,7 @@ describe("Drift command center", () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("link", { name: "Control" }))
     await user.click(screen.getByRole("button", { name: /Runtime And Spool/i }))
     const sheet = screen.getByRole("dialog")
     expect(within(sheet).getByText("No Indeterminate Actions")).toBeInTheDocument()
@@ -356,7 +351,7 @@ describe("Drift command center", () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("link", { name: "Control" }))
     const strip = screen.getByRole("region", { name: /Device Adapter Status/i })
     await user.click(within(strip).getByRole("button", { name: /^Capture Observation$/i }))
 
@@ -378,7 +373,7 @@ describe("Drift command center", () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Control/ }))
+    await user.click(screen.getByRole("link", { name: "Control" }))
     const strip = screen.getByRole("region", { name: /Device Adapter Status/i })
     await user.click(within(strip).getByRole("button", { name: /^Capture Observation$/i }))
 
@@ -399,7 +394,7 @@ describe("Drift command center", () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Devices/ }))
+    await user.click(screen.getByRole("link", { name: "Devices" }))
     expect(await screen.findByRole("heading", { name: /Device Registry/i })).toBeInTheDocument()
     // the adapter is a compact on-demand signal, not a permanent header panel
     expect(screen.queryByRole("heading", { name: "Device Adapter Status" })).not.toBeInTheDocument()
@@ -416,7 +411,7 @@ describe("Drift command center", () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /^Events/ }))
+    await user.click(screen.getByRole("link", { name: "Events" }))
     expect(await screen.findByText("Adapter Readiness")).toBeInTheDocument()
     expect(screen.getByText("Read-Only Reattach")).toBeInTheDocument()
 
@@ -450,7 +445,7 @@ describe("Drift command center", () => {
       const user = setupUser()
       render(<App />)
 
-      await user.click(screen.getByRole("button", { name: new RegExp(`^${label}`) }))
+      await user.click(screen.getByRole("link", { name: label }))
       expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument()
     })
   }
@@ -474,17 +469,16 @@ describe("Drift command center", () => {
     expect(header).not.toHaveTextContent("Local session")
   })
 
-  it("uses the sidebar-07 block shell composition", () => {
+  it("uses a grouped page-level sidebar without false affordances", () => {
     render(<App />)
 
-    const workspaceLabel = document.querySelector('[data-slot="sidebar-group-label"]')
-    const footerMenuButton = document.querySelector('[data-slot="sidebar-footer"] [data-sidebar="menu-button"]')
-
-    expect(screen.getByRole("button", { name: /DRIFT.*Local Control Plane/i })).toBeInTheDocument()
-    expect(footerMenuButton).toHaveAttribute("data-size", "lg")
-    expect(footerMenuButton).toHaveClass("h-12", "text-sm")
-    expect(workspaceLabel).toHaveTextContent("Workspace")
-    expect(screen.getByText("Racks")).toBeInTheDocument()
+    expect(screen.getByText("DRIFT")).toBeInTheDocument()
+    expect(screen.getByText("Local Control Plane")).toBeInTheDocument()
+    for (const label of ["Fleet", "Automation", "Records", "System"]) {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    }
+    expect(screen.queryByText("Racks")).not.toBeInTheDocument()
+    expect(screen.queryByText("Upgrade to Pro")).not.toBeInTheDocument()
     expect(screen.getByText("Drift Operator")).toBeInTheDocument()
     expect(screen.queryByText("Transport health")).not.toBeInTheDocument()
   })
@@ -502,33 +496,17 @@ describe("Drift command center", () => {
     expect(document.querySelector('[class*="backdrop-blur"]')).not.toBeInTheDocument()
   })
 
-  it("matches the sidebar-07 profile menu dimensions and typography", async () => {
-    const user = setupUser()
+  it("shows an operator menu trigger without false account affordances", () => {
     render(<App />)
 
     const footer = document.querySelector<HTMLElement>('[data-slot="sidebar-footer"]')
     expect(footer).toBeInTheDocument()
+    expect(within(footer!).getByText("Drift Operator")).toBeInTheDocument()
+    expect(within(footer!).getByText("Operator Session")).toBeInTheDocument()
+    const trigger = within(footer!).getByRole("button", { name: /Drift Operator/ })
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu")
 
-    const profileButton = within(footer!).getByRole("button", { name: /Drift Operator/ })
-    expect(profileButton).toHaveAttribute("data-size", "lg")
-    expect(profileButton).toHaveClass("h-12", "text-sm")
-    expect(profileButton.querySelector('[data-slot="avatar"]')).toHaveClass(
-      "h-8",
-      "w-8",
-      "rounded-lg",
-    )
-    expect(profileButton.querySelector(".font-semibold")).toHaveTextContent("Drift Operator")
-
-    await user.click(profileButton)
-
-    const profileMenu = await screen.findByRole("menu")
-    expect(profileMenu).toHaveClass("w-(--anchor-width)", "min-w-56", "rounded-lg")
-    expect(profileMenu.querySelector('[data-slot="avatar"]')).toHaveClass(
-      "h-8",
-      "w-8",
-      "rounded-lg",
-    )
-    expect(profileMenu.querySelector(".font-semibold")).toHaveTextContent("Drift Operator")
+    expect(screen.queryByText("Upgrade to Pro")).not.toBeInTheDocument()
   })
 
   it("uses an off-canvas navigation sheet on narrow viewports", async () => {
@@ -557,12 +535,12 @@ describe("Drift command center", () => {
       expect(
         document.querySelector('[data-slot="sidebar"][data-mobile="true"]'),
       ).toBeInTheDocument()
-      expect(within(dialog).getByText("Workspace")).toBeInTheDocument()
+      expect(within(dialog).getByText("Fleet")).toBeInTheDocument()
       expect(
         document.querySelector('[class*="backdrop-blur"]'),
       ).not.toBeInTheDocument()
 
-      await user.click(within(dialog).getByRole("button", { name: /close/i }))
+      await user.click(within(dialog).getByRole("link", { name: "Devices" }))
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     } finally {
       Object.defineProperty(window, "innerWidth", {

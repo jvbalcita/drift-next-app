@@ -644,7 +644,7 @@ describe("ControlPage Console Settings fleet device settings", () => {
 
   async function openFleetTab(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByRole("button", { name: "Settings" }))
-    await user.click(await screen.findByRole("tab", { name: "Fleet Device Settings" }))
+    await user.click(await screen.findByRole("tab", { name: "Fleet" }))
   }
 
   it("says in the dialog that this tab changes device state", async () => {
@@ -657,9 +657,9 @@ describe("ControlPage Console Settings fleet device settings", () => {
     // that never alter device state. That sentence is now false of one of its
     // tabs, so it is gone rather than left in place.
     expect(screen.queryByText(/These controls do not alter device policy, transport, or runtime state/)).not.toBeInTheDocument()
-    expect(screen.getByText(/Fleet Device Settings DOES alter device state/i)).toBeInTheDocument()
+    expect(screen.getByText(/Fleet defaults change device state/i)).toBeInTheDocument()
 
-    await user.click(await screen.findByRole("tab", { name: "Fleet Device Settings" }))
+    await user.click(await screen.findByRole("tab", { name: "Fleet" }))
     expect(screen.getByText(/These change the DEVICES, not this view/i)).toBeInTheDocument()
     expect(screen.getByText("Rotation Lock")).toBeInTheDocument()
     expect(screen.getByText("Autofill Off")).toBeInTheDocument()

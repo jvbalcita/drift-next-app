@@ -1,94 +1,68 @@
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
-import { ChevronRightIcon } from "lucide-react"
+import type { MouseEvent } from "react"
 
 export function NavMain({
-  items,
-  label = "Platform",
+  groups,
   onSelect,
 }: {
-  items: {
-    title: string
-    url: string
-    icon?: React.ReactNode
-    isActive?: boolean
-    ariaLabel?: string
-    badge?: string | number
-    items?: {
+  groups: {
+    label: string
+    items: {
       title: string
       url: string
+      view: string
+      icon?: React.ReactNode
       isActive?: boolean
     }[]
   }[]
-  label?: string
   onSelect?: (section: string, view?: string) => void
 }) {
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  function select(event: MouseEvent<HTMLAnchorElement>, section: string, view: string) {
+    if (!onSelect || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    onSelect?.(section, view)
+    if (isMobile) setOpenMobile(false)
+  }
+
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>{label}</SidebarGroupLabel>
-      <SidebarMenu>
-        {items.map((item) => (
-          <Collapsible
-            key={item.title}
-            open={item.isActive}
-            className="group/collapsible"
-            render={<SidebarMenuItem />}
-          >
-            <CollapsibleTrigger
-              render={
+    <>
+      {groups.map((group) => (
+        <SidebarGroup key={group.label} className="py-2">
+          <SidebarGroupLabel className="text-[10px] font-semibold tracking-[0.16em] uppercase">
+            {group.label}
+          </SidebarGroupLabel>
+          <SidebarMenu>
+            {group.items.map((item) => (
+              <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton
+                  className="rounded-none border-l-2 border-transparent data-active:border-sidebar-primary"
                   tooltip={item.title}
                   isActive={item.isActive}
-                  aria-label={item.ariaLabel}
-                  aria-current={item.isActive ? "page" : undefined}
-                  onClick={() => onSelect?.(item.title, item.items?.[0]?.url.split("/")[1])}
-                />
-              }
-            >
-              {item.icon}
-              <span>{item.title}</span>
-              <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-open/collapsible:rotate-90" aria-hidden="true" />
-            </CollapsibleTrigger>
-            {item.badge !== undefined ? <SidebarMenuBadge className="right-7">{item.badge}</SidebarMenuBadge> : null}
-            <CollapsibleContent>
-              <SidebarMenuSub>
-                {item.items?.map((subItem) => (
-                  <SidebarMenuSubItem key={subItem.title}>
-                    <SidebarMenuSubButton
-                      isActive={subItem.isActive}
-                      render={
-                        <a
-                          href={subItem.url}
-                          onClick={(event) => {
-                            event.preventDefault()
-                            onSelect?.(item.title, subItem.url.split("/")[1])
-                          }}
-                        />
-                      }
-                    >
-                      <span>{subItem.title}</span>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                ))}
-              </SidebarMenuSub>
-            </CollapsibleContent>
-          </Collapsible>
-        ))}
-      </SidebarMenu>
-    </SidebarGroup>
+                  render={
+                    <a
+                      href={item.url}
+                      aria-current={item.isActive ? "page" : undefined}
+                      onClick={(event) => select(event, item.title, item.view)}
+                    />
+                  }
+                >
+                  {item.icon}
+                  <span>{item.title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
+      ))}
+    </>
   )
 }
