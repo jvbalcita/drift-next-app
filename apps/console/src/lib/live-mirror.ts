@@ -1,5 +1,7 @@
 import { MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import type { MirrorStream } from "@/gen/drift/v1/device_mirror_pb"
+import { deviceObservationSentence } from "@/lib/device-status"
+import type { DeviceStatus } from "@/lib/domain/control-plane"
 
 /**
  * The console's own view of one device's live mirror.
@@ -53,6 +55,21 @@ export interface LiveStreamView {
  * stream never quietly arrives over the other one.
  */
 export type LiveMirrorTransportChoice = "webrtc" | "tcp"
+
+/**
+ * The two facts a sentence about a device this console cannot mirror is read
+ * from: the device's own name, so a frame that is one of several names the one it
+ * is about, and the observation status the control plane last recorded for it,
+ * which is the fact that decides whether a stream can be carried at all.
+ *
+ * The status is the console's own vocabulary (`@/lib/device-status`), so this
+ * surface cannot call a device nobody has observed the same thing as one that was
+ * observed and is not observed now (AGENTS.md section 2).
+ */
+export interface MirrorDevice {
+  displayName: string
+  status: DeviceStatus
+}
 
 export function transportRequestFor(choice: LiveMirrorTransportChoice): MirrorTransport {
   return choice === "tcp" ? MirrorTransport.TCP : MirrorTransport.WEBRTC
@@ -119,7 +136,30 @@ export const liveMirrorCopy = {
   transport: {
     webrtc: "WebRTC (pion, inside the control plane)",
     tcp: "TCP (MSE over the control plane's stream surface)",
-    unspecified: "a transport this console does not recognise",
+    /**
+     * A stream the control plane carried without naming a transport for it.
+     *
+     * This is NOT "a transport this console does not recognise": this console
+     * carries both transports a device is reached at, so what is missing is the
+     * plane's own record of the transport, not console support for one.
+     */
+    unspecified: "no transport was reported for this stream",
+  },
+  /**
+   * The transport line when this console has no stream for the device.
+   *
+   * There is no stream to state a transport for, and the fact that decides
+   * whether one can be carried is the device's own observation — so the line
+   * states that, in the status module's own words, instead of calling the
+   * transport one this console does not recognise: an operator sent hunting for
+   * console support the console already has never observes the device, and
+   * observing it is the whole of the fix. The two not-observed states keep two
+   * sentences and two actions, because they are two facts.
+   */
+  noStream: {
+    unobserved: "No transport is recorded for it, so no live stream can be carried: observe it first, with a scan, which records the device and the transport it is reached at.",
+    offline: "The transport it was last reached at is no longer current, so no live stream can be carried: observe it again, with a scan, which records the transport it is reached at now.",
+    observed: "This console has no stream open for it, so there is no transport to state.",
   },
   /** The state line, per phase. */
   phase: {
@@ -178,6 +218,20 @@ export const liveMirrorCopy = {
     noCodec: "The stream's initialisation segment declares no H.264 codec, so there is nothing to hand a decoder.",
     sourceNeverOpened: "The browser's media source never opened, so this stream could not be handed to it.",
   },
+  /**
+   * What the console adds to a refusal, when the device it could not open a
+   * stream for has no current observation.
+   *
+   * The control plane's own sentence is kept on the end of it rather than
+   * replaced — a refusal is reported, never softened — and what is added is what
+   * a sentence about a transport endpoint cannot carry: which device this frame
+   * is about, and the action that records the observation it has none of.
+   */
+  openRefusal: {
+    unobserved: "The control plane opened nothing for it: a device nobody has observed has no transport at which to carry a live stream. Observe it first with a scan, which records the device and the transport it is reached at.",
+    offline: "The control plane opened nothing for it: the transport it was last reached at is no longer current, so there is none to carry a live stream to it. Observe it again with a scan, which records the transport it is reached at now.",
+    answered: "The control plane answered:",
+  },
   /** Why a coordinate never left the console. */
   refusal: {
     noSurface: "That point is not on the stream surface.",
@@ -207,10 +261,71 @@ export function livePhaseSentence(phase: LiveMirrorPhase, view: LiveStreamView |
   return liveMirrorCopy.phase[phase]
 }
 
-/** The transport sentence for a stream, or the reason nothing is known about it. */
-export function transportSentence(view: LiveStreamView | null): string {
-  if (!view) return liveMirrorCopy.transport.unspecified
+/**
+ * The transport sentence for a stream, or the reason there is no transport to
+ * state.
+ *
+ * A device this console has no stream for has no transport to state, and saying
+ * the transport is one the console does not recognise sends the operator looking
+ * for console support the console already has: this console carries both
+ * transports a device is reached at, and what is missing is the observation a
+ * transport is recorded from. The device's own status is read for it (see
+ * `absentTransportSentence`), so the line names the device and the action that
+ * changes its answer.
+ */
+export function transportSentence(view: LiveStreamView | null, device: MirrorDevice): string {
+  if (!view) return absentTransportSentence(device)
   return liveMirrorCopy.transport[view.transport]
+}
+
+/**
+ * The transport line for a device this console has no stream for.
+ *
+ * It reads the observation status the control plane recorded, because that is the
+ * fact that decides whether a stream can be carried: a device nobody has observed
+ * has no transport recorded for it, while a device observed before and not
+ * observed now has one that is no longer current. The two are kept apart in the
+ * status module's own words (AGENTS.md section 2), and each names the action that
+ * fixes it: a scan, which is what records an observation and the transport with
+ * it. A device the control plane does observe gets a sentence that does not claim
+ * otherwise, because the console having no stream is then the whole of the fact.
+ */
+export function absentTransportSentence(device: MirrorDevice): string {
+  switch (device.status) {
+    case "online":
+    case "attention":
+      return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.noStream.observed}`
+    case "unobserved":
+      return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.noStream.unobserved}`
+    case "offline":
+      return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.noStream.offline}`
+  }
+}
+
+/**
+ * The refusal an operator reads when the control plane would not carry a stream
+ * for a device with no current observation.
+ *
+ * The control plane answers a sentence about a transport endpoint, which names
+ * its own table and neither the device nor the operator's action; the console
+ * knows which device this frame is about and what the plane last recorded for it,
+ * so it states that in the status module's own words - the two not-observed states
+ * are not one fact - and keeps the plane's answer verbatim on the end. The refusal
+ * is thus reported rather than replaced or softened, and a device the plane does
+ * observe keeps the plane's own sentence, because there is nothing the console
+ * knows about that refusal which the plane's answer does not already say.
+ */
+export function refusedStreamSentence(device: MirrorDevice, planeReason: string): string {
+  const reason = planeReason.trim() === "" ? liveMirrorCopy.failure.openFailed : planeReason.trim()
+  switch (device.status) {
+    case "online":
+    case "attention":
+      return reason
+    case "unobserved":
+      return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.openRefusal.unobserved} ${liveMirrorCopy.openRefusal.answered} ${reason}`
+    case "offline":
+      return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.openRefusal.offline} ${liveMirrorCopy.openRefusal.answered} ${reason}`
+  }
 }
 
 /**
