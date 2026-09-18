@@ -476,6 +476,24 @@ func WithEvidenceRecorder(recorder EvidenceRecorder) DispatcherOption {
 	}
 }
 
+// WithMirrorDelivery binds the live-session delivery this dispatcher uses for a
+// device that is being mirrored.
+//
+// It is a routing decision rather than an authority one: the kernel authorizes
+// every attempt exactly as before, and a device with no live session keeps
+// travelling the allow-listed argv path. A dispatcher built without one is a
+// deployment that has not armed a mirror, which is not an error - it is every
+// device input taking the path it took before the mirror existed.
+func WithMirrorDelivery(delivery MirrorDelivery) DispatcherOption {
+	return func(dispatcher *InputDispatcher) error {
+		if delivery == nil {
+			return errors.New("a live-session delivery is required")
+		}
+		dispatcher.mirror = delivery
+		return nil
+	}
+}
+
 // InputDispatcher runs one typed device input through the whole P7 contract. It
 // owns one serialized actor per device, so two inputs for the same device never
 // run concurrently, and it holds a typed payload only for the duration of the
@@ -490,6 +508,11 @@ type InputDispatcher struct {
 	// evidence is the append-only record of what happened. It is nil until a
 	// caller binds one with WithEvidenceRecorder.
 	evidence EvidenceRecorder
+
+	// mirror is the live session an input travels when the device has one. It
+	// is nil until a caller binds one with WithMirrorDelivery, and a nil mirror
+	// means every input travels the allow-listed argv path.
+	mirror MirrorDelivery
 
 	// renderSizes is how a coordinate-bearing dispatch learns the size the
 	// device actually presents at. It defaults to the real reader over the same
@@ -690,7 +713,7 @@ func (d *InputDispatcher) deviceFor(deviceID, serial string) (*deviceInput, erro
 		_ = bound.actor.Close()
 		delete(d.devices, deviceID)
 	}
-	boundAdapter := newInputAdapter(d.transport, d.resolver, d.observer, serial, d.renderSizes)
+	boundAdapter := newInputAdapter(d.transport, d.resolver, d.observer, deviceID, serial, d.renderSizes, d.mirror)
 	actor, err := actors.New(deviceID, boundAdapter, 8)
 	if err != nil {
 		return nil, platformerrors.Wrap(platformerrors.CodeInternal, "create device input actor", err)

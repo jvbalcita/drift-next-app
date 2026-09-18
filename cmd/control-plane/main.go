@@ -17,6 +17,7 @@ import (
 	"drift.local/drift-next/internal/edge/connection"
 	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/edge/lab"
+	"drift.local/drift-next/internal/edge/mirror"
 	"drift.local/drift-next/internal/media"
 	"drift.local/drift-next/internal/organizations"
 	"drift.local/drift-next/internal/platform/clock"
@@ -218,6 +219,28 @@ func main() {
 		log.Printf("%s", frameEngine.Run(ctx).Report())
 	}()
 
+	// The live mirror: one scrcpy session per device, carrying the device's own
+	// encoded screen to a viewer and typed input back to it. The engine is built
+	// ONCE here and owned by this process: it is cancelled by the same shutdown
+	// context as the listener, stopped under a bounded timeout, awaited below
+	// before the process returns, and audited at that point, so "no capture
+	// outlived this process" is reported from the engine's own numbers rather
+	// than assumed. Nothing is subscribed at startup, so no device is captured
+	// until an operator opens a mirror on one.
+	//
+	// A deployment that cannot arm the mirror - no adb path, no scrcpy server,
+	// no allow-listed runner - says so in the startup line instead of leaving an
+	// operator with a frame that shows nothing and no diagnosis: the same rule
+	// that made "no default network profile" a one-look answer.
+	mirrorEngine, mirrorErr := mirrorEngineFrom(labService)
+	mirrorHost := media.NewMirrorHost(media.MirrorHostConfig{Engine: mirrorEngine, Reason: mirrorErr})
+	log.Printf("%s", mirrorHost.State())
+	mirrorDone := make(chan struct{})
+	go func() {
+		defer close(mirrorDone)
+		log.Printf("%s", mirrorHost.Run(ctx).Report())
+	}()
+
 	routes := []service.Route{
 		service.LabAdapterRoute(labService, labToken),
 	}
@@ -284,18 +307,142 @@ func main() {
 		routes = append(routes, connectionRoute)
 		connectionMounted = true
 	}
+	// The live mirror's transport: one WebRTC peer per browser over the engine
+	// above, built only when the engine was. A transport with nothing to carry
+	// would mount a surface whose first request fails, which is worse than no
+	// surface at all. It is owned by this process and closed below, after the
+	// engine has stopped, so no peer and no capture outlives the process.
+	mirrorStreams, streamsErr := mirrorStreamTransport(mirrorEngine, mirrorErr)
+	if streamsErr != nil {
+		log.Printf("live mirror transport not started: %v", streamsErr)
+	}
+	mirrorMounted := false
+	if mirrorRoute := deviceMirrorRoute(mirrorStreams, actionRuntime, labToken); mirrorRoute.Path != "" {
+		routes = append(routes, mirrorRoute)
+		mirrorMounted = true
+	}
+	// The per-device stream endpoint the TCP transport is fetched from. It is
+	// mounted with the same gate as the surface above and says so in the startup
+	// line, because a transport whose endpoint is missing is a transport that
+	// cannot work: an operator selecting it would get a frame that never fills.
+	streamEndpointMounted := false
+	if streamRoute := service.MirrorStreamRoute(mirrorStreamPort{transport: mirrorStreams}, labToken); streamRoute.Path != "" {
+		routes = append(routes, streamRoute)
+		streamEndpointMounted = true
+	}
+	log.Printf("live mirror stream endpoint %s at %s (a browser is given a per-device path on this service's own guarded surface; the loopback bind and the token check above are what stand in front of it)", mountState(streamEndpointMounted), transportconnect.MirrorStreamPath)
 	server := service.NewHTTPServer("control-plane", address, routes...)
-	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, device settings surface %s, text reference surface %s, transport surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), mountState(settingsMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted))
+	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, device settings surface %s, text reference surface %s, transport surface %s, live mirror surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), mountState(settingsMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted), mirrorMountState(mirrorMounted))
 	serveErr := service.Serve(ctx, server)
-	// The startup scan, the post-launch watcher and the frame engine are owned
-	// work, not detached workers: wait for all three to obey cancellation before
-	// the process returns.
+	// The startup scan, the post-launch watcher, the frame engine and the live
+	// mirror are owned work, not detached workers: wait for all four to obey
+	// cancellation before the process returns. The mirror's own line reports what
+	// it started and stopped, so this wait is also where "no capture outlived
+	// this process" is answered.
 	<-autoScanDone
 	<-transportWatchDone
 	<-frameEngineDone
+	<-mirrorDone
+	// The peers are closed after the engine has stopped, and the wait is bounded:
+	// every browser it was carrying is released, and nothing this process opened
+	// is left running when it returns.
+	if mirrorStreams != nil {
+		peerCtx, peerCancel := context.WithTimeout(context.Background(), media.DefaultMirrorCloseTimeout)
+		if closeErr := mirrorStreams.Close(peerCtx); closeErr != nil {
+			log.Printf("live mirror transport stopped with work outstanding: %v", closeErr)
+		} else {
+			log.Print("live mirror transport stopped: no browser stream outlived this process")
+		}
+		peerCancel()
+	}
 	if serveErr != nil {
 		log.Fatal(serveErr)
 	}
+}
+
+// mirrorStreamTransport builds the live mirror's WebRTC transport over the
+// engine, or reports why it cannot.
+//
+// A transport is only built when the engine was: it carries that engine's
+// sessions, and a transport over an engine that could not be built would mount a
+// surface whose first request fails. Its peers are owned by the caller - the
+// process - which closes them at shutdown.
+func mirrorStreamTransport(engine *media.MirrorEngine, engineErr error) (*media.StreamTransport, error) {
+	if engineErr != nil {
+		return nil, platformerrors.Wrap(platformerrors.CodeUnavailable, "the live mirror has no engine to carry streams from", engineErr)
+	}
+	if engine == nil {
+		return nil, platformerrors.New(platformerrors.CodeUnavailable, "the live mirror has no engine to carry streams from")
+	}
+	return media.NewStreamTransport(media.StreamTransportConfig{Mirror: engine})
+}
+
+// deviceMirrorRoute builds the live mirror route, or an empty Route when the
+// transport or the device-to-serial resolver is missing.
+//
+// The resolver is the same registry the input surface resolves devices through:
+// one vocabulary decides which transport a device is currently reachable at, and
+// the browser never names or receives one.
+func deviceMirrorRoute(streams *media.StreamTransport, resolver transportconnect.DeviceSerialResolver, token string) service.Route {
+	if streams == nil {
+		log.Print("live mirror surface not mounted: no stream transport was constructed")
+		return service.Route{}
+	}
+	return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, token)
+}
+
+// mirrorStreamPort adapts the media transport to the surface's own port: the
+// transport hands back its peer type, and the port takes the narrow shape the
+// handler needs. Nothing is derived here and nothing is wrapped twice.
+type mirrorStreamPort struct{ transport *media.StreamTransport }
+
+func (p mirrorStreamPort) Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind) (transportconnect.DeviceMirrorStream, error) {
+	carrier, err := p.transport.Open(ctx, deviceID, serial, transport)
+	if err != nil {
+		return nil, err
+	}
+	return carrier, nil
+}
+
+func (p mirrorStreamPort) Stream(streamKey string) (transportconnect.DeviceMirrorStream, bool) {
+	carrier, live := p.transport.Stream(streamKey)
+	if !live {
+		return nil, false
+	}
+	return carrier, true
+}
+
+// mirrorMountState reports whether the live mirror surface was mounted. Like the
+// other state reporters it says nothing about whether a mounted surface will
+// carry a stream: opening one is a request, and the engine decides.
+func mirrorMountState(mounted bool) string {
+	if mounted {
+		return "mounted"
+	}
+	return "not mounted; no live mirror transport was constructed"
+}
+
+// mirrorEngineFrom builds the live mirror engine over the device's own
+// allow-listed runner, or reports why it cannot be built.
+//
+// It is the deployment seam for the mirror. Its inputs are the deployment's own
+// configuration - the same adb the lab service reaches devices through, plus the
+// host path of the scrcpy server that is pushed to each device - and the engine
+// is constructed here, once, rather than lazily on the first viewer's request,
+// so a deployment that cannot mirror says why at startup instead of showing an
+// operator a frame with nothing in it.
+//
+// The runner handed to the dialer is the lab service's own device transport, not
+// a second adapter: the mirror's push, tunnel and launch therefore pass the same
+// allow-list admission every other device command in this process passes. The
+// engine it returns is owned by the caller - the process - and the composition's
+// MirrorHost is what stops it.
+func mirrorEngineFrom(labService *lab.Service) (*media.MirrorEngine, error) {
+	dialer, err := mirror.NewDialerFromEnv(os.LookupEnv, labService.DeviceTransport())
+	if err != nil {
+		return nil, err
+	}
+	return media.NewMirrorEngine(media.MirrorEngineConfig{Dialer: dialer})
 }
 
 // tokenState reports whether the lab route is guarded without ever rendering

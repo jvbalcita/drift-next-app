@@ -19,8 +19,23 @@ func LabModeRequested(lookup EnvLookup) bool {
 		lookup = os.LookupEnv
 	}
 	optIn := firstEnv(lookup, EnvRuntimeMode, EnvLabMode)
-	executable := firstEnv(lookup, EnvRuntimeADB, EnvADBPath)
+	executable := ConfiguredADBPath(lookup)
 	return (strings.TrimSpace(optIn) == "connected" || strings.TrimSpace(optIn) == "1") && strings.TrimSpace(executable) != ""
+}
+
+// ConfiguredADBPath returns the absolute adb executable path this deployment
+// configured, or "" when it configured none.
+//
+// It is exported because more than one composition seam needs this exact answer:
+// the lab service reaches devices through this executable, and so does the live
+// mirror, which must drive the same adb rather than a second one that behaves
+// differently. A second copy of the environment vocabulary would be a second
+// thing to keep in step, so there is one.
+func ConfiguredADBPath(lookup EnvLookup) string {
+	if lookup == nil {
+		lookup = os.LookupEnv
+	}
+	return firstEnv(lookup, EnvRuntimeADB, EnvADBPath)
 }
 
 func firstEnv(lookup EnvLookup, keys ...string) string {
@@ -46,7 +61,7 @@ func NewServiceFromEnv(lookup EnvLookup, opts ...Option) (*Service, error) {
 		return NewService(opts...)
 	}
 
-	executable := firstEnv(lookup, EnvRuntimeADB, EnvADBPath)
+	executable := ConfiguredADBPath(lookup)
 	runner, err := adb.NewProcessRunner()
 	if err != nil {
 		return nil, err

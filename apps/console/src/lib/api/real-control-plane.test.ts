@@ -1360,3 +1360,88 @@ describe("real control plane fleet device settings", () => {
     expect(result.deviceSettingsApply?.totalDevices).toBe(0)
   })
 })
+
+describe("RealControlPlaneClient typed text", () => {
+  const jsonResponse = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } })
+  const emptyResponse = () => new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+  const onlineDevice = () => jsonResponse({ devices: [{ id: "device-pixel-1", displayName: "Pixel One", status: "DEVICE_STATUS_ONLINE" }] })
+  const activeLease = () =>
+    jsonResponse({
+      leases: [{
+        id: "lease-1",
+        deviceId: "device-pixel-1",
+        controlSessionId: "session-1",
+        holderId: "console-local-operator",
+        fencingToken: "7",
+        state: "LEASE_STATE_ACTIVE",
+      }],
+    })
+
+  /**
+   * The value an operator types is not a message field, in either direction: it
+   * leaves the console as the BODY of a registration on the control plane's own
+   * content surface, and the RPC that types it names the opaque handle the
+   * registration returned. Both halves are asserted here, because either one
+   * alone would leave the other free to carry content.
+   */
+  it("registers the typed text as a request body and types it by reference", async () => {
+    const value = "correct horse battery staple"
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.DeviceService/ListDevices")) return onlineDevice()
+      if (url.includes("/drift.v1.LeaseService/ListDeviceLeases")) return activeLease()
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+    const result = await client.dispatch({ type: "submitDeviceText", deviceId: "device-pixel-1", text: value, confirmed: true })
+
+    expect(result.ok).toBe(true)
+    const registration = fetchSpy.mock.calls.find((call) => String(call[0]).startsWith("http://127.0.0.1:8080/local/text-references/"))
+    expect(registration).toBeDefined()
+    const [registrationUrl, registrationInit] = registration ?? []
+    expect(registrationInit).toMatchObject({ method: "POST", body: value })
+    expect(registrationInit?.headers).toMatchObject({ "X-Drift-Workspace": "workspace-lab-local", "X-Drift-Lab-Token": "lab-token" })
+
+    const typed = fetchSpy.mock.calls.find((call) => String(call[0]).includes("/drift.v1.DeviceInputService/TypeText"))
+    expect(typed).toBeDefined()
+    const typedBody = JSON.parse(String(typed?.[1]?.body)) as { text?: { handle?: string; valueLength?: number }; deviceId?: string; leaseId?: string; fencingToken?: string }
+    const handle = String(registrationUrl).replace("http://127.0.0.1:8080/local/text-references/", "")
+    expect(typedBody.text).toEqual({ handle, valueLength: value.length })
+    expect(typedBody.deviceId).toBe("device-pixel-1")
+    expect(typedBody.leaseId).toBe("lease-1")
+    expect(typedBody.fencingToken).toBe("7")
+
+    // The value is in exactly one place: the registration body. It is not in the
+    // request that types it, and not in what the console reports back.
+    expect(String(typed?.[1]?.body)).not.toContain(value)
+    expect(JSON.stringify(result)).not.toContain(value)
+  })
+
+  /**
+   * A value the control plane did not register is never dispatched: the handle
+   * would resolve to nothing, and the kernel's own refusal would be reported for
+   * an input that could never have reached a device.
+   */
+  it("does not dispatch a typed text the control plane refused to register", async () => {
+    const value = "correct horse battery staple"
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/local/text-references/")) return new Response("the handle is already held", { status: 409 })
+      if (url.includes("/drift.v1.DeviceService/ListDevices")) return onlineDevice()
+      if (url.includes("/drift.v1.LeaseService/ListDeviceLeases")) return activeLease()
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+    const result = await client.dispatch({ type: "submitDeviceText", deviceId: "device-pixel-1", text: value, confirmed: true })
+
+    expect(result.ok).toBe(false)
+    expect(fetchSpy.mock.calls.map((call) => String(call[0]))).not.toEqual(expect.arrayContaining([
+      expect.stringContaining("/drift.v1.DeviceInputService/TypeText"),
+    ]))
+    expect(JSON.stringify(result)).not.toContain(value)
+  })
+})

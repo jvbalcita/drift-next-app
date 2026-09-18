@@ -11,7 +11,9 @@ package execution
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
+	"time"
 
 	"drift.local/drift-next/internal/action"
 	"drift.local/drift-next/internal/domain"
@@ -102,6 +104,16 @@ type inputAdapter struct {
 	observer  PostconditionObserver
 	serial    string
 
+	// deviceID names the device this adapter is bound to. It is what the live
+	// session delivering an input is looked up by: a session is one device's,
+	// and a serial may be a transport that moved.
+	deviceID string
+
+	// mirror is the live session this device's input travels when one exists.
+	// It is nil until a caller binds one, and a nil mirror means every input
+	// travels the argv path.
+	mirror MirrorDelivery
+
 	// renderSizes builds the source of the size this device actually presents
 	// at. It is consulted for the coordinate-bearing kinds only, and it is given
 	// the device's own transport rather than the counting wrapper above it: a
@@ -120,8 +132,8 @@ type boundAttempt struct {
 	sink    *attemptReportSink
 }
 
-func newInputAdapter(transport InputTransport, resolver TextResolver, observer PostconditionObserver, serial string, renderSizes RenderSizeSourceFactory) *inputAdapter {
-	return &inputAdapter{transport: transport, resolver: resolver, observer: observer, serial: serial, renderSizes: renderSizes, pending: make(map[string]boundAttempt)}
+func newInputAdapter(transport InputTransport, resolver TextResolver, observer PostconditionObserver, deviceID, serial string, renderSizes RenderSizeSourceFactory, delivery MirrorDelivery) *inputAdapter {
+	return &inputAdapter{transport: transport, resolver: resolver, observer: observer, deviceID: deviceID, serial: serial, renderSizes: renderSizes, mirror: delivery, pending: make(map[string]boundAttempt)}
 }
 
 // carriesRenderCoordinate reports whether a kind dispatches a point that is only
@@ -129,6 +141,126 @@ func newInputAdapter(transport InputTransport, resolver TextResolver, observer P
 // nothing else.
 func carriesRenderCoordinate(kind action.Kind) bool {
 	return kind == action.Tap || kind == action.Swipe
+}
+
+// mirrorInputKinds are the kinds a live session can carry. It is deliberately
+// not every kind this boundary executes:
+//
+//   - a catalogue settings operation is a device SETTING with a read-back, and
+//     the session has no way to read a setting back - it stays on the argv path,
+//     where its postcondition is evaluated against the device's own answer;
+//   - an app launch is a package-manager operation rather than pointer input, and
+//     the session's control socket carries no launch.
+//
+// Both remain fully dispatchable; they simply do not travel a mirror.
+func mirrorInputKinds(kind action.Kind) bool {
+	switch kind {
+	case action.Tap, action.Swipe, action.TextInput, action.KeyEvent:
+		return true
+	default:
+		return false
+	}
+}
+
+// carriesThroughMirror reports whether THIS dispatch travels the device's live
+// session: the kind has to be one a session can carry, a delivery has to be
+// bound, and the device has to have a session right now. A device with no live
+// session is not mirrored, and its input travels the argv path as before.
+func (a *inputAdapter) carriesThroughMirror(kind action.Kind) bool {
+	if a == nil || a.mirror == nil || !mirrorInputKinds(kind) {
+		return false
+	}
+	return a.mirror.Mirrored(a.deviceID)
+}
+
+// deliverToMirror carries one authorized typed input to the device's live
+// session. It is reached only after the kernel authorized the attempt and after
+// the render-space cross-check above; the session independently refuses a
+// coordinate whose frame is not the frame it is streaming, so a dispatched input
+// satisfies both gates.
+//
+// A failure here is this boundary's failure, classified from the error's own
+// code and never from its text: the class a render-space refusal keeps is the
+// render-space one, so an operator is not told a tap failed at the transport
+// when in fact no tap ever reached a device.
+func (a *inputAdapter) deliverToMirror(ctx context.Context, intent action.Intent, payload InputPayload, kind action.Kind) error {
+	deviceID := a.deviceID
+	if deviceID == "" {
+		return platformerrors.New(platformerrors.CodeUnavailable, "the live session cannot be addressed: this adapter was bound to no device")
+	}
+	if kind == action.TextInput {
+		return a.deliverTextToMirror(ctx, intent, payload)
+	}
+	delivery := MirrorDeliveryInput{DeviceID: deviceID, Kind: kind}
+	switch kind {
+	case action.Tap:
+		delivery.Point, delivery.Frame = payload.Tap.Point, payload.Tap.Space
+	case action.Swipe:
+		delivery.Point, delivery.End = payload.Swipe.Start, payload.Swipe.End
+		delivery.DurationMS, delivery.Frame = payload.Swipe.DurationMS, payload.Swipe.Space
+	case action.KeyEvent:
+		delivery.KeyCode, delivery.Repeat = payload.KeyEvent.KeyCode, payload.KeyEvent.Repeat
+	default:
+		return platformerrors.New(platformerrors.CodeInvalidInput, "device input kind has no live-session delivery")
+	}
+	callCtx, cancel := context.WithTimeout(ctx, a.inputTimeout(intent))
+	defer cancel()
+	if err := a.mirror.DeliverInput(callCtx, delivery); err != nil {
+		if platformerrors.CodeOf(err) != platformerrors.CodeInternal {
+			return err
+		}
+		return platformerrors.Wrap(platformerrors.CodeUnavailable, "device input did not reach the device's live session", errors.New(string(kind)+" did not reach the live session"))
+	}
+	return nil
+}
+
+// deliverTextToMirror releases a typed-text reference and hands the value
+// straight to the session. The value is never returned, stored, rendered or
+// logged, and every refusal names the opaque handle or a fixed reason instead:
+// the released value exists only as the argument of one call.
+func (a *inputAdapter) deliverTextToMirror(ctx context.Context, intent action.Intent, payload InputPayload) error {
+	if payload.Text == nil {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "a typed text input requires its reference")
+	}
+	if strings.TrimSpace(intent.Workspace) == "" {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "typed text must name the workspace its reference belongs to")
+	}
+	if err := validateTextReference(*payload.Text); err != nil {
+		return err
+	}
+	if a.resolver == nil {
+		return platformerrors.New(platformerrors.CodeUnavailable, "typed text has no reference resolver")
+	}
+	value, err := a.resolver.Resolve(ctx, intent.Workspace, *payload.Text)
+	if err != nil {
+		// The resolver's own error is deliberately dropped: it may quote the
+		// value, and this error is rendered into evidence and logs.
+		return textReferenceFailure(platformerrors.CodeUnavailable, payload.Text.Handle, textReferenceUnreleased)
+	}
+	if ctx.Err() != nil {
+		return inputContextError(ctx)
+	}
+	if uint32(len(value)) != payload.Text.Length {
+		return textReferenceFailure(platformerrors.CodeInvalidInput, payload.Text.Handle, textReferenceLengthMismatch)
+	}
+	callCtx, cancel := context.WithTimeout(ctx, a.inputTimeout(intent))
+	defer cancel()
+	if err := a.mirror.DeliverText(callCtx, a.deviceID, RenderSpace{}, value); err != nil {
+		// The session's own error is dropped for the same reason the resolver's
+		// is: a session that failed to encode a typed value can quote it.
+		return textReferenceFailure(platformerrors.CodeUnavailable, payload.Text.Handle, textReferenceUnreleased)
+	}
+	return nil
+}
+
+// inputTimeout bounds one live-session delivery at the intent's own bound. The
+// default applies to an intent that carries none, so a delivery cannot be held
+// open by a session that stopped answering.
+func (a *inputAdapter) inputTimeout(intent action.Intent) time.Duration {
+	if intent.Timeout > 0 {
+		return intent.Timeout
+	}
+	return DefaultInputTimeout
 }
 
 // inputOptions binds the boundary for one dispatch. A coordinate-bearing kind
@@ -226,8 +358,9 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 	// of the report.
 	var counted *countingTransport
 	report := attemptReport{}
+	reached := false
 	defer func() {
-		if counted != nil && counted.attempted() {
+		if reached || (counted != nil && counted.attempted()) {
 			report.reached = true
 		}
 		bound.sink.publish(report)
@@ -261,14 +394,26 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 			return adapter.Execution{}, &adapter.ExecutionError{Cause: err, FailureClass: renderSpaceFailureClass(err)}
 		}
 	}
-	readback, readBack, err := runInput(ctx, inputs, payload, kind, intent.Workspace)
-	if err != nil {
+	readback, readBack, runErr := SettingReadback{}, false, error(nil)
+	if a.carriesThroughMirror(kind) {
+		// The device has a live session, so this is the delivery. It is chosen
+		// after the render-space cross-check above and after the kernel
+		// authorized the attempt, and it is never fallen back from: an input
+		// the session did not carry is refused rather than re-sent down the
+		// argv path, because sending the same tap twice to a device is worse
+		// than a tap that visibly did not land.
+		runErr = a.deliverToMirror(ctx, intent, payload, kind)
+		reached = runErr == nil
+	} else {
+		readback, readBack, runErr = runInput(ctx, inputs, payload, kind, intent.Workspace)
+	}
+	if runErr != nil {
 		// The typed payload and the transport's own diagnostics are never
 		// echoed: a failing device command can quote what it was given.
 		return adapter.Execution{}, &adapter.ExecutionError{
-			Cause:        err,
+			Cause:        runErr,
 			Dispatched:   counted.attempted(),
-			FailureClass: failureClassFor(err),
+			FailureClass: failureClassFor(runErr),
 		}
 	}
 	if readBack {

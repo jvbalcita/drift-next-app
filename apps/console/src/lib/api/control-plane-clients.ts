@@ -37,7 +37,19 @@ import {
   type AccountState,
 } from "@/gen/drift/v1/account_pb"
 import { GetHaltRequestSchema, GetHaltResponseSchema, HaltState, SetHaltRequestSchema, SetHaltResponseSchema, SubmitActionRequestSchema, SubmitActionResponseSchema } from "@/gen/drift/v1/action_pb"
-import { KeyEventRequestSchema, KeyEventResponseSchema, SwipeRequestSchema, SwipeResponseSchema, TapRequestSchema, TapResponseSchema } from "@/gen/drift/v1/device_input_pb"
+import { KeyEventRequestSchema, KeyEventResponseSchema, SwipeRequestSchema, SwipeResponseSchema, TapRequestSchema, TapResponseSchema, TypeTextRequestSchema, TypeTextResponseSchema } from "@/gen/drift/v1/device_input_pb"
+import {
+  GetMirrorStreamRequestSchema,
+  GetMirrorStreamResponseSchema,
+  NegotiateMirrorStreamRequestSchema,
+  NegotiateMirrorStreamResponseSchema,
+  StartMirrorStreamRequestSchema,
+  StartMirrorStreamResponseSchema,
+  StopMirrorStreamRequestSchema,
+  StopMirrorStreamResponseSchema,
+  type MirrorStream,
+} from "@/gen/drift/v1/device_mirror_pb"
+import { liveMirrorCopy, liveStreamView, transportRequestFor, type LiveMirrorTransportChoice, type LiveStreamView } from "@/lib/live-mirror"
 import { ApplyDeviceSettingsRequestSchema, ApplyDeviceSettingsResponseSchema, DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
 import {
   DeleteArtifactRequestSchema,
@@ -233,7 +245,7 @@ import {
   GetRuntimeStatusRequestSchema,
   GetRuntimeStatusResponseSchema,
 } from "@/gen/drift/v1/runtime_pb"
-import { ConnectJsonClient, requestContext, workspaceRef } from "@/lib/api/connect-json"
+import { ConnectJsonClient, ConnectJsonError, connectCodeForHttpStatus, defaultOperatorId, newRequestId, requestContext, textReferencePath, textReferenceWorkspaceHeader, workspaceRef } from "@/lib/api/connect-json"
 import {
   ActivateFleetRequestSchema,
   ActivateFleetResponseSchema,
@@ -518,7 +530,67 @@ export class DeviceInputClient {
   tap(requestId: string, init: MessageInitShape<typeof TapRequestSchema>) { return this.rpc.call("Tap", TapRequestSchema, TapResponseSchema, { ...init, context: requestContext({ requestId }) }) }
   swipe(requestId: string, init: MessageInitShape<typeof SwipeRequestSchema>) { return this.rpc.call("Swipe", SwipeRequestSchema, SwipeResponseSchema, { ...init, context: requestContext({ requestId }) }) }
   keyEvent(requestId: string, init: MessageInitShape<typeof KeyEventRequestSchema>) { return this.rpc.call("KeyEvent", KeyEventRequestSchema, KeyEventResponseSchema, { ...init, context: requestContext({ requestId }) }) }
+  /**
+   * typeText submits one typed-text entry by REFERENCE. The request names the
+   * handle a registration returned and the length of the value it holds; the
+   * value itself has no field here to travel in, and it never enters this call.
+   */
+  typeText(requestId: string, init: MessageInitShape<typeof TypeTextRequestSchema>) { return this.rpc.call("TypeText", TypeTextRequestSchema, TypeTextResponseSchema, { ...init, context: requestContext({ requestId }) }) }
 }
+
+/**
+ * TextReferenceClient is the port an operator's typed content enters the control
+ * plane through, and the only one that carries content at all.
+ *
+ * The value is the request BODY, never a field of a message: a generated message
+ * renders every populated field in its string, text, JSON and debug forms, and
+ * protobuf-go has no per-field redaction, so a field is a place content is
+ * logged, rendered in an error and persisted the first time anyone formats it. A
+ * value registered here is released at dispatch, at most once, and expires.
+ *
+ * It is deliberately not part of the intent any component re-reads: a handle is
+ * worthless on its own, and the console keeps no copy of the value after the
+ * registration returns.
+ */
+export class TextReferenceClient {
+  constructor(private readonly json: ConnectJsonClient) {}
+
+  /**
+   * register holds one value under one opaque handle, in the workspace that owns
+   * it. The handle must be an opaque reference (letters, digits, and `_.:-`
+   * only) — it is the one string this surface offers, and it must not be able to
+   * carry content.
+   *
+   * A refusal is a refusal, not a partial success: this throws, and a caller that
+   * swallowed it would dispatch a reference to nothing.
+   */
+  async register(handle: string, workspaceId: string, value: string): Promise<void> {
+    const { url, headers } = this.json.endpoint(`${textReferencePath}${encodeURIComponent(handle)}`)
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...headers, [textReferenceWorkspaceHeader]: workspaceId, "content-type": "text/plain; charset=utf-8" },
+      body: value,
+    })
+    if (!response.ok) {
+      throw new ConnectJsonError(connectCodeForHttpStatus(response.status), textReferenceRefusalSentence(response.status))
+    }
+  }
+}
+
+/**
+ * textReferenceRefusalSentence is a fixed sentence per status: the response body
+ * is written by the surface that refuses it, and the console has nothing to add
+ * to it — least of all the value it just failed to register.
+ */
+function textReferenceRefusalSentence(status: number): string {
+  if (status === 409) return "That text reference handle is already held by an unreleased value."
+  if (status === 413) return "That text is larger than the control plane registers."
+  if (status === 400) return "The control plane refused the text reference registration."
+  if (status === 404) return "The control plane did not find the text reference it was asked for."
+  if (status === 503) return "The control plane is not registering text references right now."
+  return "The control plane did not register the text reference."
+}
+
 
 export class DeviceSettingsClient {
   private readonly rpc: TypedConnectClient
@@ -880,6 +952,100 @@ export class SkillClient {
   }
 }
 
+/**
+ * LiveStreamAnswer is one negotiated stream: the control plane's answer to the
+ * browser's offer, and the stream as it stands after the handshake.
+ */
+export interface LiveStreamAnswer {
+  answerSdp: string
+  stream: LiveStreamView
+}
+
+/**
+ * LiveMirrorClient is the port the console's live surface drives: open one
+ * device's stream, negotiate a transport with this browser, read where it stands,
+ * and end it.
+ *
+ * It is deliberately not part of ControlPlaneIntent. A stream is not a snapshot
+ * mutation: it is opened when the big frame opens, ended when it closes, and its
+ * state changes on its own schedule, so it is read on its own cadence rather than
+ * folded into a projection the console re-reads every few seconds.
+ *
+ * The port carries no device address, no serial and no stream path a browser
+ * could reach directly: it names a device in a workspace and receives this
+ * service's own stream identity, which is the whole of what the frames hang off.
+ */
+export interface LiveMirrorClient {
+  /**
+   * startStream opens one device's live stream over the transport the operator
+   * chose. The transport is asked for by name rather than left to the control
+   * plane's default, because this console renders both and the operator picked
+   * one; the control plane carries what was asked for or refuses it.
+   */
+  startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice }): Promise<LiveStreamView>
+  negotiate(streamId: string, offerSdp: string): Promise<LiveStreamAnswer>
+  stopStream(streamId: string): Promise<LiveStreamView>
+  getStream(streamId: string): Promise<LiveStreamView>
+  /**
+   * streamEndpoint resolves the per-device stream endpoint a TCP stream is fetched
+   * from, with the credentials this console reaches the control plane with.
+   */
+  streamEndpoint(path: string): { url: string; headers: Record<string, string> }
+}
+
+export class DeviceMirrorClient implements LiveMirrorClient {
+  private readonly rpc: TypedConnectClient
+  private readonly json: ConnectJsonClient
+  private readonly operatorId: string
+  constructor(json: ConnectJsonClient, operatorId = defaultOperatorId) {
+    this.rpc = new TypedConnectClient(json, "drift.v1.DeviceMirrorService")
+    this.json = json
+    this.operatorId = operatorId
+  }
+  async startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice }): Promise<LiveStreamView> {
+    const requestId = newRequestId()
+    const response = await this.rpc.call("StartMirrorStream", StartMirrorStreamRequestSchema, StartMirrorStreamResponseSchema, {
+      context: requestContext({ requestId, actorId: this.operatorId }),
+      workspace: workspaceRef(request.workspaceId),
+      deviceId: request.deviceId,
+      transport: transportRequestFor(request.transport ?? "webrtc"),
+    })
+    return requireStream(response.stream)
+  }
+  streamEndpoint(path: string): { url: string; headers: Record<string, string> } {
+    return this.json.endpoint(path)
+  }
+  async negotiate(streamId: string, offerSdp: string): Promise<LiveStreamAnswer> {
+    const response = await this.rpc.call("NegotiateMirrorStream", NegotiateMirrorStreamRequestSchema, NegotiateMirrorStreamResponseSchema, {
+      context: requestContext({ requestId: newRequestId(), actorId: this.operatorId }),
+      streamId,
+      offerSdp,
+    })
+    return { answerSdp: response.answerSdp, stream: requireStream(response.stream) }
+  }
+  async stopStream(streamId: string): Promise<LiveStreamView> {
+    const response = await this.rpc.call("StopMirrorStream", StopMirrorStreamRequestSchema, StopMirrorStreamResponseSchema, {
+      context: requestContext({ requestId: newRequestId(), actorId: this.operatorId }),
+      streamId,
+    })
+    return requireStream(response.stream)
+  }
+  async getStream(streamId: string): Promise<LiveStreamView> {
+    const response = await this.rpc.call("GetMirrorStream", GetMirrorStreamRequestSchema, GetMirrorStreamResponseSchema, { streamId })
+    return requireStream(response.stream)
+  }
+}
+
+/**
+ * requireStream refuses a response that carried no stream, rather than reading it
+ * as an empty one: an absent stream is a control plane that did not answer the
+ * question, and it must not render as a stream that is merely not live yet.
+ */
+function requireStream(stream: MirrorStream | undefined): LiveStreamView {
+  if (!stream) throw new ConnectJsonError("internal", liveMirrorCopy.failure.noStream)
+  return liveStreamView(stream)
+}
+
 export class MirrorClient {
   private readonly rpc: TypedConnectClient
   constructor(json: ConnectJsonClient) {
@@ -1012,6 +1178,7 @@ export interface ControlPlaneServices {
   lease: LeaseClient
   action: ActionClient
   deviceInput: DeviceInputClient
+  textReference: TextReferenceClient
   deviceSettings: DeviceSettingsClient
   account: AccountClient
   settings: SettingsClient
@@ -1041,6 +1208,7 @@ export function createControlPlaneServices(json: ConnectJsonClient): ControlPlan
     lease: new LeaseClient(json),
     action: new ActionClient(json),
     deviceInput: new DeviceInputClient(json),
+    textReference: new TextReferenceClient(json),
     deviceSettings: new DeviceSettingsClient(json),
     account: new AccountClient(json),
     settings: new SettingsClient(json),

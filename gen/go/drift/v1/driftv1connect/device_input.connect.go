@@ -41,6 +41,9 @@ const (
 	// DeviceInputServiceKeyEventProcedure is the fully-qualified name of the DeviceInputService's
 	// KeyEvent RPC.
 	DeviceInputServiceKeyEventProcedure = "/drift.v1.DeviceInputService/KeyEvent"
+	// DeviceInputServiceTypeTextProcedure is the fully-qualified name of the DeviceInputService's
+	// TypeText RPC.
+	DeviceInputServiceTypeTextProcedure = "/drift.v1.DeviceInputService/TypeText"
 )
 
 // DeviceInputServiceClient is a client for the drift.v1.DeviceInputService service.
@@ -48,6 +51,7 @@ type DeviceInputServiceClient interface {
 	Tap(context.Context, *connect.Request[v1.TapRequest]) (*connect.Response[v1.TapResponse], error)
 	Swipe(context.Context, *connect.Request[v1.SwipeRequest]) (*connect.Response[v1.SwipeResponse], error)
 	KeyEvent(context.Context, *connect.Request[v1.KeyEventRequest]) (*connect.Response[v1.KeyEventResponse], error)
+	TypeText(context.Context, *connect.Request[v1.TypeTextRequest]) (*connect.Response[v1.TypeTextResponse], error)
 }
 
 // NewDeviceInputServiceClient constructs a client for the drift.v1.DeviceInputService service. By
@@ -79,6 +83,12 @@ func NewDeviceInputServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(deviceInputServiceMethods.ByName("KeyEvent")),
 			connect.WithClientOptions(opts...),
 		),
+		typeText: connect.NewClient[v1.TypeTextRequest, v1.TypeTextResponse](
+			httpClient,
+			baseURL+DeviceInputServiceTypeTextProcedure,
+			connect.WithSchema(deviceInputServiceMethods.ByName("TypeText")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -87,6 +97,7 @@ type deviceInputServiceClient struct {
 	tap      *connect.Client[v1.TapRequest, v1.TapResponse]
 	swipe    *connect.Client[v1.SwipeRequest, v1.SwipeResponse]
 	keyEvent *connect.Client[v1.KeyEventRequest, v1.KeyEventResponse]
+	typeText *connect.Client[v1.TypeTextRequest, v1.TypeTextResponse]
 }
 
 // Tap calls drift.v1.DeviceInputService.Tap.
@@ -104,11 +115,17 @@ func (c *deviceInputServiceClient) KeyEvent(ctx context.Context, req *connect.Re
 	return c.keyEvent.CallUnary(ctx, req)
 }
 
+// TypeText calls drift.v1.DeviceInputService.TypeText.
+func (c *deviceInputServiceClient) TypeText(ctx context.Context, req *connect.Request[v1.TypeTextRequest]) (*connect.Response[v1.TypeTextResponse], error) {
+	return c.typeText.CallUnary(ctx, req)
+}
+
 // DeviceInputServiceHandler is an implementation of the drift.v1.DeviceInputService service.
 type DeviceInputServiceHandler interface {
 	Tap(context.Context, *connect.Request[v1.TapRequest]) (*connect.Response[v1.TapResponse], error)
 	Swipe(context.Context, *connect.Request[v1.SwipeRequest]) (*connect.Response[v1.SwipeResponse], error)
 	KeyEvent(context.Context, *connect.Request[v1.KeyEventRequest]) (*connect.Response[v1.KeyEventResponse], error)
+	TypeText(context.Context, *connect.Request[v1.TypeTextRequest]) (*connect.Response[v1.TypeTextResponse], error)
 }
 
 // NewDeviceInputServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -136,6 +153,12 @@ func NewDeviceInputServiceHandler(svc DeviceInputServiceHandler, opts ...connect
 		connect.WithSchema(deviceInputServiceMethods.ByName("KeyEvent")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceInputServiceTypeTextHandler := connect.NewUnaryHandler(
+		DeviceInputServiceTypeTextProcedure,
+		svc.TypeText,
+		connect.WithSchema(deviceInputServiceMethods.ByName("TypeText")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.DeviceInputService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceInputServiceTapProcedure:
@@ -144,6 +167,8 @@ func NewDeviceInputServiceHandler(svc DeviceInputServiceHandler, opts ...connect
 			deviceInputServiceSwipeHandler.ServeHTTP(w, r)
 		case DeviceInputServiceKeyEventProcedure:
 			deviceInputServiceKeyEventHandler.ServeHTTP(w, r)
+		case DeviceInputServiceTypeTextProcedure:
+			deviceInputServiceTypeTextHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -163,4 +188,8 @@ func (UnimplementedDeviceInputServiceHandler) Swipe(context.Context, *connect.Re
 
 func (UnimplementedDeviceInputServiceHandler) KeyEvent(context.Context, *connect.Request[v1.KeyEventRequest]) (*connect.Response[v1.KeyEventResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceInputService.KeyEvent is not implemented"))
+}
+
+func (UnimplementedDeviceInputServiceHandler) TypeText(context.Context, *connect.Request[v1.TypeTextRequest]) (*connect.Response[v1.TypeTextResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceInputService.TypeText is not implemented"))
 }

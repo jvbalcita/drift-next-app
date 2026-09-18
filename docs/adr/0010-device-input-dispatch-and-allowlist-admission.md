@@ -7,6 +7,7 @@
 - Does not lift: ADR-0004 (the adapter boundary), ADR-0005 (raw ADB shell, arbitrary coordinates, clipboard/global commands, automatic package changes)
 - Amended: 2026-09-16 — the admission grows by one argument array: the render-size declaration read `["shell", "wm", "size"]`, with zero variable positions (card ARC-75). Nothing else in this record changed. See the amendment below.
 - Amended: 2026-09-16 — the separation between the two admissions is made non-collidable and pinned by test, with the read-only recogniser extracted into a function of its own (card ARC-75 refinement). No admission and no gate changed. See the second amendment below.
+- Amended: 2026-09-17 — the live mirror's four device-side shapes are admitted, and a long-lived device process is started through the same admission rather than beside it (card ARC-143). See the third amendment below.
 
 ## Context
 
@@ -220,3 +221,79 @@ The producing side is pinned as well: `TestNoTypedDeviceInputEmitsTheRenderSizeR
 ### What is unchanged
 
 Nothing was admitted, removed or widened. No gate, kernel path, readiness probe, render-space cross-check or transport composition was touched. `wm-size` is still the same single fixed array with zero variable positions, the near misses still stay refused, and the "exactly six input arrays" record above is still literally true. The distinction this amendment draws is between "correct by construction, argued in a comment" and "correct, and asserted by a test that fails when it stops being true".
+
+## Amendment 3: the live mirror's device-side shapes (card ARC-143)
+
+**This amendment adds four argument arrays to the same allow-list and one entry point that starts a long-lived process through it. It weakens no gate: the kernel, the readiness probe, the render-space cross-check, the posture of every existing admission and the "no command text in any position" property are all unchanged.**
+
+### Why it was needed
+
+The big frame becomes the device the operator is working: a live mirror of its screen with the device's own input. The transport decision is recorded elsewhere (scrcpy on the device, H.264 straight into this process, no ffmpeg and no media server); what this amendment records is the ADB half of it. Driving one device session needs three adb commands, and the allow-list recognised none of them:
+
+1. the device-side server is pushed onto the device;
+2. a reverse tunnel is registered so the device's two sockets reach this process's loopback listener, and it is removed when the session ends;
+3. the server is launched through `app_process`.
+
+Until they were admitted, `RunAllowlisted` refused every one with `ErrArgvNotAllowlisted`, so the composition root had no allow-listed runner to hand the mirror and the engine could not be wired at all. The gate was correct; the shapes were missing.
+
+### What was admitted
+
+`matchesMirrorAllowlist` in `internal/edge/adb/mirror.go` recognises exactly four arrays, each built by one of the builders beside it:
+
+| Array | Built by | Operation name |
+|---|---|---|
+| `push <host path> /data/local/tmp/scrcpy-server.jar` | `MirrorServerPushArgv` | `mirror-push-server` |
+| `reverse localabstract:scrcpy_<8 hex> tcp:<port>` | `MirrorReverseArgv` | `mirror-reverse-add` |
+| `reverse --remove localabstract:scrcpy_<8 hex> tcp:<port>` | `MirrorReverseArgv` | `mirror-reverse-remove` |
+| `shell CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.1 scid=<8 hex> log_level=<level> audio=false control=true tunnel_forward=false send_device_meta=false send_stream_meta=true send_frame_meta=true cleanup=true stay_awake=<bool> video_codec_options=i-frame-interval:int=2` | `MirrorServerLaunchArgv` | `mirror-server-launch` |
+
+Four arrays for three commands, because the tunnel has an add form and a remove form.
+
+**Every array is serial-free.** The serial is supplied by the entry point as its own `-s` token, exactly as every other device-scoped shape in this allow-list is. A shape therefore cannot name a device: "the mirror drove device A" is a fact about the execution rather than about the string, and `TestTheMirrorShapesCarryNoSerial` asserts that an array carrying its own serial stays refused.
+
+**Every variable position is bounded, and no position can express command text:**
+
+- the tunnel port is a canonical decimal in `1..65535` (`tcp:0`, `tcp:65536` and `tcp:08108` are all different arrays and all refused);
+- the session id is eight lowercase hex digits, non-zero, bounded to 31 bits because the device parses `scid` as a signed 32-bit integer (`scid=00000000` names the device's default socket, so it is refused);
+- the log level is a value from the device server's own five-word vocabulary;
+- the screen-awake flag is the lowercase boolean the builder emits;
+- the device path, the server version, the main class and the IDR option are **pinned literals**. A different server version is a different array and is refused: this product drives the version it measured, and bumping it is a reviewed change to this allow-list rather than a configuration edit.
+
+### The one position that names a host file, and why it is bounded rather than free
+
+`push` has to name a host path — the server binary is wherever the operator's scrcpy installation keeps it — and this allow-list has no other position that accepts a path. It is admitted with a bound of its own (`isMirrorHostServerPath`): an absolute path, arg-safe, with no traversal, whose base name is the scrcpy server's own (`scrcpy-server`, or `scrcpy-server-v<digits>` as scrcpy names a versioned copy).
+
+The risk this bounds is narrow and specific. The device side of the push is **not** a variable position: it is the pinned `/data/local/tmp/scrcpy-server.jar`. So a caller cannot choose where a push writes, only which well-named file is pushed to one fixed path — and a path that is not named like the server is refused (`/tmp/payload` is refused; `/opt/homebrew/share/scrcpy/scrcpy-server` is admitted). Combined with the `cleanup=true` launch option — the device-side server removes itself when it exits — a device never keeps a capture server of an unknown revision.
+
+### Starting a long-lived process through the same admission
+
+The server launch is not a bounded command: it runs for the life of the mirror session and exits when the session closes. It is therefore started through a second entry point, `ProcessStarter.StartAllowlisted` (`internal/edge/adb/starter.go`), rather than through `RunAllowlisted`, which waits for its command to exit.
+
+That second entry point is not a second admission. It asks the same `matchesAllowlist` and then requires the launch's own operation name, so:
+
+- a push or a tunnel array — both admitted shapes — is **refused** by the starter: a bounded command started as a long-lived process is a different thing from one that is run and awaited, and `TestStartAllowlistedStartsTheLaunchAndNothingElse` asserts a spawn count of zero for each refusal;
+- the child is spawned with no shell, with the same environment allow-list the bounded runner applies (the previous in-package starter inherited the whole host environment), and its stderr is kept bounded and passed through the same redaction every other captured output goes through;
+- the process lifetime belongs to the caller, not to the context: `Kill`/`Wait` are the caller's, and a context that has already ended refuses the start rather than spawning.
+
+The client's two ports are now the allow-list's own entry points — `Runner.RunAllowlisted(ctx, serial, args)` and `Starter.StartAllowlisted(ctx, serial, args)` — which `*adb.Adapter` and `*adb.ProcessStarter` satisfy directly, and the client no longer assembles an argument array of its own. Spawning a device process moved into the adapter, where the environment policy and the bounds already live.
+
+### What stays refused
+
+Every near miss is its own case in `internal/edge/adb/mirror_allowlist_test.go`: a host file that is not the server, a device path that is not the pinned one, a relative path, a traversal, a second command, a shell wrapper, an abstract socket of the wrong width or with an uppercase hex digit, a port outside the range or not in canonical form, `--remove-all`, another server version, another main class, another `CLASSPATH`, a reordered pair of options, an option added or removed, a log level outside the vocabulary, `stay_awake=1`, and a bare `app_process` invocation. `{"push", "/tmp/payload", "/data/local/tmp/payload"}` — refused before this change — is still refused.
+
+The three operations this admission does **not** grant: no shell, no file operation beyond the fixed push target, and no second command in any position.
+
+### Validation
+
+- `internal/edge/adb/mirror_allowlist_test.go`: the four admitted arrays and their names; the serial-free property; every near miss as its own case; the builders' own refusals (`ErrMirrorShapeInvalid`); the host-path bound on its own; the starter's admission, serial binding, environment allow-list, redaction and truncation marking, its refusals with a spawn count of zero, and its context bound.
+- `internal/edge/adb/allowlist_classification_test.go` carries the mirror family in the disjointness corpus with its four operation names, and the foreign-token mutation cross-product was extended with the mirror's own vocabulary, so a collision with another admission fails a test.
+- `internal/edge/adb/render_size_allowlist_test.go`'s surface sweep now records the four new operation names, so an unrecorded admission fails the sweep rather than passing quietly.
+- `internal/edge/scrcpy/session_test.go`: `TestEveryCommandTheSessionIssuesIsAdmittedByTheRealAllowList` takes the arrays a real session put on the wire — the push, the tunnel, the removal and the launch — and sweeps them through the real adapter, asserting each is admitted and executed; `TestStartReportsWhyTheDeviceServerRefused` covers the diagnostic a failed launch now carries.
+- Three fault injections were run against the committed implementation and reverted: pinning the launch's version to another value made both the builder's own array and its near miss fail; removing the starter's launch-name requirement made a push, a tunnel and a tunnel removal startable; putting the serial back inside the client's launch array made the closing sweep fail. Each failure is quoted in the card's report.
+- Gates for this amendment: `gofmt -l` on the changed files, `go vet ./...`, `go build ./...`, `go test ./...`, `go test -race` on the three touched packages, `bash scripts/secret-scan.sh`, `git diff --check`; `go.mod`/`go.sum` unchanged and no dependency added. No device was touched.
+
+### What is deliberately left undone
+
+- **The composition root is not wired.** The engine is not started by the process yet, its owned-and-awaited lifecycle and the unowned-process audit are not in place, and the transport selector, the Connect handlers, the routes and the console half are all still outstanding. This amendment makes them possible; it does not make them exist.
+- **The two transports are still absent.** The selector does not ship until WebRTC and TCP/MSE both work, so the console renders no transport choice.
+- **No latency claim.** Nothing here was measured on a device; ARC-144/145's numbers stand on their own with the host load they were taken at.

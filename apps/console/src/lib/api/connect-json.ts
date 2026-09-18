@@ -4,6 +4,21 @@ import { RequestContextSchema, WorkspaceRefSchema } from "@/gen/drift/v1/common_
 
 export const labTokenHeader = "X-Drift-Lab-Token"
 
+/**
+ * The control plane's local content surface, and the scope header it registers
+ * a value in.
+ *
+ * These mirror `internal/service/text_reference.go`'s `TextReferencePath` and
+ * `TextReferenceWorkspaceHeader`, the way `labTokenHeader` mirrors
+ * `internal/service/security.go`'s `LabTokenHeader`: the console reaches the
+ * surface and the RPCs with one configuration, and the two names have to agree.
+ * The handle is the path's last segment; the value is the request BODY, never a
+ * field of a request, because a generated message renders every populated field
+ * in its string, JSON and debug forms.
+ */
+export const textReferencePath = "/local/text-references/"
+export const textReferenceWorkspaceHeader = "X-Drift-Workspace"
+
 export const defaultWorkspaceId = "workspace-lab-local"
 
 const defaultControlPlaneUrl = "http://127.0.0.1:8080"
@@ -102,7 +117,7 @@ export function isAuthorizationFailure(cause: unknown): boolean {
   return code === "unauthenticated" || code === "permission_denied" || code === "unauthorized" || message.includes("valid local lab token") || message.includes("unauthorized")
 }
 
-function connectCodeForHttpStatus(status: number): string {
+export function connectCodeForHttpStatus(status: number): string {
   if (status === 401) return "unauthenticated"
   if (status === 403) return "permission_denied"
   return "unknown"
@@ -121,6 +136,22 @@ export class ConnectJsonClient {
   constructor(baseUrl: string, token = "") {
     this.baseUrl = baseUrl.replace(/\/+$/, "")
     this.token = token.trim()
+  }
+
+  /**
+   * endpoint resolves a path on this control plane's own surface, with the same
+   * credentials every request to it is made with.
+   *
+   * It exists because a byte surface - a live stream's own stream endpoint - is
+   * reached by the SAME configuration as the RPCs. A second, separately configured
+   * path to the same service is a second thing to get wrong.
+   */
+  endpoint(path: string): { url: string; headers: Record<string, string> } {
+    const suffix = path.startsWith("/") ? path : `/${path}`
+    return {
+      url: `${this.baseUrl}${suffix}`,
+      headers: this.token ? { [labTokenHeader]: this.token } : {},
+    }
   }
 
   async call<Request extends DescMessage, Response extends DescMessage>(

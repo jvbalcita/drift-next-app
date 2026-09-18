@@ -297,6 +297,14 @@ func RemoveArgv(devicePath string) ([]string, error) {
 // every near miss and a token-mutation cross-product. The order is pinned
 // anyway, so a future admission that made them overlap fails a test instead of
 // silently changing an array's classification.
+//
+// The live mirror's shapes are the fifth admission (ARC-143): the server push,
+// the two reverse-tunnel forms and the device-side server launch, each
+// constructed by one of the builders in `mirror.go`. They are device-scoped and
+// serial-free like every other shape here — the serial is supplied by the entry
+// point as its own -s token — and they are admitted in a recogniser of their own
+// for the same reason as the others: their separation from the rest is a safety
+// property, so it has to be askable by a test rather than held in a comment.
 func matchesAllowlist(args []string) (string, bool) {
 	if name, ok := matchesDeviceInputAllowlist(args); ok {
 		return name, true
@@ -308,6 +316,9 @@ func matchesAllowlist(args []string) (string, bool) {
 		return name, true
 	}
 	if name, ok := matchesTransportAllowlist(args); ok {
+		return name, true
+	}
+	if name, ok := matchesMirrorAllowlist(args); ok {
 		return name, true
 	}
 	return matchesHostAllowlist(args)

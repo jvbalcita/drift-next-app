@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+// The live mirror surface: one device's screen carried to the console as it is
+// encoded, with input travelling the same session's control socket.
+//
+// It is deliberately smaller than it looks. Input is NOT here. Tap, swipe, key
+// event and typed text are already first-class typed actions on DeviceInputService,
+// where the lease, fencing, policy, control-session and emergency-stop kernel
+// authorizes them, and a second input contract on this service would be a second
+// representation of a device input with a second authorization story. What this
+// service owns is the one thing that surface cannot express: the stream's own
+// lifecycle - opening a device's live session, negotiating the transport with a
+// browser, and ending it.
+//
+// Where the frames come from is not in this contract at all, and that is
+// deliberate. The browser is given a stream identity, the frame size the stream
+// is encoded at, and a transport to negotiate; it is never given a device
+// address, an adb serial, a media-server URL or a stream path to reach directly.
+// Every byte it receives comes back through this service's own surface.
+//
+// The transport field states the transport a stream IS using, and the request
+// field states the transport the operator asked for. Both transports work: a
+// requested transport this service cannot carry is refused rather than silently
+// replaced, so a caller never believes it is receiving something other than what
+// it asked for.
+
+// MirrorTransport names how a device's live stream reaches a browser.
+enum MirrorTransport {
+  MIRROR_TRANSPORT_UNSPECIFIED = 0;
+  // WebRTC (pion) inside the control plane: the stream is negotiated with a
+  // peer connection and pushed to it. The default when nothing is asked for.
+  MIRROR_TRANSPORT_WEBRTC = 1;
+  // The TCP compatibility path: the stream is pulled from this service's own
+  // stream endpoint (stream_url) as fragmented MP4 and played as MSE. It is
+  // chosen for compatibility - the path a browser without a working WebRTC
+  // stack can still show - and it is slower than the WebRTC path by design.
+  MIRROR_TRANSPORT_TCP = 2;
+}
+
+// MirrorStreamState is the state an operator surface renders.
+//
+// STARTING is a stream whose capture is opening or whose browser has not yet
+// produced a picture. It is deliberately distinct from LIVE: a connection that is
+// up and showing nothing is not a picture, and this fleet's encoder will happily
+// produce a connected-but-black stream with no error anywhere.
+enum MirrorStreamState {
+  MIRROR_STREAM_STATE_UNSPECIFIED = 0;
+  MIRROR_STREAM_STATE_STARTING = 1;
+  MIRROR_STREAM_STATE_LIVE = 2;
+  MIRROR_STREAM_STATE_ENDED = 3;
+  MIRROR_STREAM_STATE_FAILED = 4;
+}
+
+// MirrorStream is one device's live stream as the console sees it.
+//
+// It carries the render size the stream is encoded at, which is the coordinate
+// frame an operator's tap must be measured in - the `wm size` override, never the
+// physical panel size and never a downscaled canvas. A console that renders the
+// stream at another size has to map coordinates back into this frame; a
+// coordinate measured in another frame is refused (AGENTS.md section 3).
+message MirrorStream {
+  // stream_id is the per-device stream identity. It is the only handle the
+  // browser is given for the frames it is about to receive.
+  string stream_id = 1;
+  string device_id = 2;
+  MirrorTransport transport = 3;
+  uint32 render_width = 4;
+  uint32 render_height = 5;
+  MirrorStreamState state = 6;
+  // failure is why a stream ended or why it is not a working stream. It is empty
+  // while the stream is live, and a state of FAILED always carries one.
+  string failure = 7;
+  // frames and key_frames are the pictures this stream has carried to this
+  // browser. They are what "live" is asserted on: never the connection state.
+  uint64 frames = 8;
+  uint64 key_frames = 9;
+  // stream_url is the per-device stream endpoint a browser fetches when the
+  // transport is TCP. It is a path on this service's own guarded surface, and it
+  // is the ONLY thing a browser is given to reach the frames: never a device
+  // address, an adb serial, an RTSP address or a media-server control URL. It is
+  // empty for a stream carried over WebRTC, which is negotiated with
+  // NegotiateMirrorStream instead.
+  string stream_url = 10;
+}
+
+message StartMirrorStreamRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  // transport is the transport the caller asks for. UNSPECIFIED selects the
+  // default, which is WebRTC. A transport this service cannot carry is refused
+  // rather than silently replaced, so a caller never believes it is receiving
+  // something other than what it asked for.
+  MirrorTransport transport = 4;
+}
+
+message StartMirrorStreamResponse {
+  MirrorStream stream = 1;
+}
+
+// NegotiateMirrorStreamRequest carries a browser's SDP offer for one stream.
+message NegotiateMirrorStreamRequest {
+  RequestContext context = 1;
+  string stream_id = 2;
+  string offer_sdp = 3;
+}
+
+message NegotiateMirrorStreamResponse {
+  string answer_sdp = 1;
+  MirrorStream stream = 2;
+}
+
+message StopMirrorStreamRequest {
+  RequestContext context = 1;
+  string stream_id = 2;
+}
+
+message StopMirrorStreamResponse {
+  MirrorStream stream = 1;
+}
+
+// GetMirrorStreamRequest polls one stream's state while the console shows it.
+message GetMirrorStreamRequest {
+  string stream_id = 1;
+}
+
+message GetMirrorStreamResponse {
+  MirrorStream stream = 1;
+}
+
+service DeviceMirrorService {
+  rpc StartMirrorStream(StartMirrorStreamRequest) returns (StartMirrorStreamResponse);
+  rpc NegotiateMirrorStream(NegotiateMirrorStreamRequest) returns (NegotiateMirrorStreamResponse);
+  rpc StopMirrorStream(StopMirrorStreamRequest) returns (StopMirrorStreamResponse);
+  rpc GetMirrorStream(GetMirrorStreamRequest) returns (GetMirrorStreamResponse);
+}

@@ -677,6 +677,164 @@ func (x *KeyEventResponse) GetResult() *ActionResult {
 	return nil
 }
 
+// TypeTextRequest submits one typed-text entry. Its value is NOT here: it names
+// the opaque handle a registration returned, and the length of the value that
+// handle holds, so a caller can bound what it is about to type without either
+// boundary reading the content. `SensitiveTextReference` has no field for
+// content for the same reason this request has none.
+//
+// There is no observation token and no coordinate frame, and that is the truth
+// rather than an omission: typed content carries no coordinate, so there is
+// nothing for it to be measured in and nothing to cross-check against the render
+// size. It belongs to the workspace that registered it, which is the scope the
+// value is released in.
+type TypeTextRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Context        *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace      *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId       string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	LeaseId        string                 `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	FencingToken   uint64                 `protobuf:"varint,5,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	// text is the reference whose value is released at dispatch, exactly once, in
+	// the workspace above. A reference that was never registered, that was already
+	// released, or that has expired is refused; its value reaches no device.
+	Text            *SensitiveTextReference `protobuf:"bytes,7,opt,name=text,proto3" json:"text,omitempty"`
+	ApprovalGranted bool                    `protobuf:"varint,8,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *TypeTextRequest) Reset() {
+	*x = TypeTextRequest{}
+	mi := &file_drift_v1_device_input_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TypeTextRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TypeTextRequest) ProtoMessage() {}
+
+func (x *TypeTextRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_input_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TypeTextRequest.ProtoReflect.Descriptor instead.
+func (*TypeTextRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *TypeTextRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *TypeTextRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *TypeTextRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *TypeTextRequest) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+func (x *TypeTextRequest) GetFencingToken() uint64 {
+	if x != nil {
+		return x.FencingToken
+	}
+	return 0
+}
+
+func (x *TypeTextRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *TypeTextRequest) GetText() *SensitiveTextReference {
+	if x != nil {
+		return x.Text
+	}
+	return nil
+}
+
+func (x *TypeTextRequest) GetApprovalGranted() bool {
+	if x != nil {
+		return x.ApprovalGranted
+	}
+	return false
+}
+
+type TypeTextResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        *ActionResult          `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TypeTextResponse) Reset() {
+	*x = TypeTextResponse{}
+	mi := &file_drift_v1_device_input_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TypeTextResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TypeTextResponse) ProtoMessage() {}
+
+func (x *TypeTextResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_input_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TypeTextResponse.ProtoReflect.Descriptor instead.
+func (*TypeTextResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *TypeTextResponse) GetResult() *ActionResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
 var File_drift_v1_device_input_proto protoreflect.FileDescriptor
 
 const file_drift_v1_device_input_proto_rawDesc = "" +
@@ -723,6 +881,17 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"\tkey_event\x18\b \x01(\v2\x17.drift.v1.KeyEventInputR\bkeyEvent\x12)\n" +
 	"\x10approval_granted\x18\t \x01(\bR\x0fapprovalGranted\"B\n" +
 	"\x10KeyEventResponse\x12.\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result\"\xe2\x02\n" +
+	"\x0fTypeTextRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12\x19\n" +
+	"\blease_id\x18\x04 \x01(\tR\aleaseId\x12#\n" +
+	"\rfencing_token\x18\x05 \x01(\x04R\ffencingToken\x12'\n" +
+	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x124\n" +
+	"\x04text\x18\a \x01(\v2 .drift.v1.SensitiveTextReferenceR\x04text\x12)\n" +
+	"\x10approval_granted\x18\b \x01(\bR\x0fapprovalGranted\"B\n" +
+	"\x10TypeTextResponse\x12.\n" +
 	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result*\xfe\x05\n" +
 	"\x18DeviceInputRefusalReason\x12+\n" +
 	"'DEVICE_INPUT_REFUSAL_REASON_UNSPECIFIED\x10\x00\x12-\n" +
@@ -740,11 +909,12 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"/DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAUTHORIZED\x10\v\x122\n" +
 	".DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAVAILABLE\x10\f\x129\n" +
 	"5DEVICE_INPUT_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY\x10\r\x12.\n" +
-	"*DEVICE_INPUT_REFUSAL_REASON_LEASE_RELEASED\x10\x0e2\xc5\x01\n" +
+	"*DEVICE_INPUT_REFUSAL_REASON_LEASE_RELEASED\x10\x0e2\x88\x02\n" +
 	"\x12DeviceInputService\x122\n" +
 	"\x03Tap\x12\x14.drift.v1.TapRequest\x1a\x15.drift.v1.TapResponse\x128\n" +
 	"\x05Swipe\x12\x16.drift.v1.SwipeRequest\x1a\x17.drift.v1.SwipeResponse\x12A\n" +
-	"\bKeyEvent\x12\x19.drift.v1.KeyEventRequest\x1a\x1a.drift.v1.KeyEventResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\bKeyEvent\x12\x19.drift.v1.KeyEventRequest\x1a\x1a.drift.v1.KeyEventResponse\x12A\n" +
+	"\bTypeText\x12\x19.drift.v1.TypeTextRequest\x1a\x1a.drift.v1.TypeTextResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_device_input_proto_rawDescOnce sync.Once
@@ -759,48 +929,57 @@ func file_drift_v1_device_input_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_device_input_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_drift_v1_device_input_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_drift_v1_device_input_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_drift_v1_device_input_proto_goTypes = []any{
-	(DeviceInputRefusalReason)(0), // 0: drift.v1.DeviceInputRefusalReason
-	(*DeviceInputRefusal)(nil),    // 1: drift.v1.DeviceInputRefusal
-	(*TapRequest)(nil),            // 2: drift.v1.TapRequest
-	(*TapResponse)(nil),           // 3: drift.v1.TapResponse
-	(*SwipeRequest)(nil),          // 4: drift.v1.SwipeRequest
-	(*SwipeResponse)(nil),         // 5: drift.v1.SwipeResponse
-	(*KeyEventRequest)(nil),       // 6: drift.v1.KeyEventRequest
-	(*KeyEventResponse)(nil),      // 7: drift.v1.KeyEventResponse
-	(*RequestContext)(nil),        // 8: drift.v1.RequestContext
-	(*WorkspaceRef)(nil),          // 9: drift.v1.WorkspaceRef
-	(*TapInput)(nil),              // 10: drift.v1.TapInput
-	(*ActionResult)(nil),          // 11: drift.v1.ActionResult
-	(*SwipeInput)(nil),            // 12: drift.v1.SwipeInput
-	(*KeyEventInput)(nil),         // 13: drift.v1.KeyEventInput
+	(DeviceInputRefusalReason)(0),  // 0: drift.v1.DeviceInputRefusalReason
+	(*DeviceInputRefusal)(nil),     // 1: drift.v1.DeviceInputRefusal
+	(*TapRequest)(nil),             // 2: drift.v1.TapRequest
+	(*TapResponse)(nil),            // 3: drift.v1.TapResponse
+	(*SwipeRequest)(nil),           // 4: drift.v1.SwipeRequest
+	(*SwipeResponse)(nil),          // 5: drift.v1.SwipeResponse
+	(*KeyEventRequest)(nil),        // 6: drift.v1.KeyEventRequest
+	(*KeyEventResponse)(nil),       // 7: drift.v1.KeyEventResponse
+	(*TypeTextRequest)(nil),        // 8: drift.v1.TypeTextRequest
+	(*TypeTextResponse)(nil),       // 9: drift.v1.TypeTextResponse
+	(*RequestContext)(nil),         // 10: drift.v1.RequestContext
+	(*WorkspaceRef)(nil),           // 11: drift.v1.WorkspaceRef
+	(*TapInput)(nil),               // 12: drift.v1.TapInput
+	(*ActionResult)(nil),           // 13: drift.v1.ActionResult
+	(*SwipeInput)(nil),             // 14: drift.v1.SwipeInput
+	(*KeyEventInput)(nil),          // 15: drift.v1.KeyEventInput
+	(*SensitiveTextReference)(nil), // 16: drift.v1.SensitiveTextReference
 }
 var file_drift_v1_device_input_proto_depIdxs = []int32{
 	0,  // 0: drift.v1.DeviceInputRefusal.reason:type_name -> drift.v1.DeviceInputRefusalReason
-	8,  // 1: drift.v1.TapRequest.context:type_name -> drift.v1.RequestContext
-	9,  // 2: drift.v1.TapRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	10, // 3: drift.v1.TapRequest.tap:type_name -> drift.v1.TapInput
-	11, // 4: drift.v1.TapResponse.result:type_name -> drift.v1.ActionResult
-	8,  // 5: drift.v1.SwipeRequest.context:type_name -> drift.v1.RequestContext
-	9,  // 6: drift.v1.SwipeRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	12, // 7: drift.v1.SwipeRequest.swipe:type_name -> drift.v1.SwipeInput
-	11, // 8: drift.v1.SwipeResponse.result:type_name -> drift.v1.ActionResult
-	8,  // 9: drift.v1.KeyEventRequest.context:type_name -> drift.v1.RequestContext
-	9,  // 10: drift.v1.KeyEventRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	13, // 11: drift.v1.KeyEventRequest.key_event:type_name -> drift.v1.KeyEventInput
-	11, // 12: drift.v1.KeyEventResponse.result:type_name -> drift.v1.ActionResult
-	2,  // 13: drift.v1.DeviceInputService.Tap:input_type -> drift.v1.TapRequest
-	4,  // 14: drift.v1.DeviceInputService.Swipe:input_type -> drift.v1.SwipeRequest
-	6,  // 15: drift.v1.DeviceInputService.KeyEvent:input_type -> drift.v1.KeyEventRequest
-	3,  // 16: drift.v1.DeviceInputService.Tap:output_type -> drift.v1.TapResponse
-	5,  // 17: drift.v1.DeviceInputService.Swipe:output_type -> drift.v1.SwipeResponse
-	7,  // 18: drift.v1.DeviceInputService.KeyEvent:output_type -> drift.v1.KeyEventResponse
-	16, // [16:19] is the sub-list for method output_type
-	13, // [13:16] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	10, // 1: drift.v1.TapRequest.context:type_name -> drift.v1.RequestContext
+	11, // 2: drift.v1.TapRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	12, // 3: drift.v1.TapRequest.tap:type_name -> drift.v1.TapInput
+	13, // 4: drift.v1.TapResponse.result:type_name -> drift.v1.ActionResult
+	10, // 5: drift.v1.SwipeRequest.context:type_name -> drift.v1.RequestContext
+	11, // 6: drift.v1.SwipeRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	14, // 7: drift.v1.SwipeRequest.swipe:type_name -> drift.v1.SwipeInput
+	13, // 8: drift.v1.SwipeResponse.result:type_name -> drift.v1.ActionResult
+	10, // 9: drift.v1.KeyEventRequest.context:type_name -> drift.v1.RequestContext
+	11, // 10: drift.v1.KeyEventRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	15, // 11: drift.v1.KeyEventRequest.key_event:type_name -> drift.v1.KeyEventInput
+	13, // 12: drift.v1.KeyEventResponse.result:type_name -> drift.v1.ActionResult
+	10, // 13: drift.v1.TypeTextRequest.context:type_name -> drift.v1.RequestContext
+	11, // 14: drift.v1.TypeTextRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	16, // 15: drift.v1.TypeTextRequest.text:type_name -> drift.v1.SensitiveTextReference
+	13, // 16: drift.v1.TypeTextResponse.result:type_name -> drift.v1.ActionResult
+	2,  // 17: drift.v1.DeviceInputService.Tap:input_type -> drift.v1.TapRequest
+	4,  // 18: drift.v1.DeviceInputService.Swipe:input_type -> drift.v1.SwipeRequest
+	6,  // 19: drift.v1.DeviceInputService.KeyEvent:input_type -> drift.v1.KeyEventRequest
+	8,  // 20: drift.v1.DeviceInputService.TypeText:input_type -> drift.v1.TypeTextRequest
+	3,  // 21: drift.v1.DeviceInputService.Tap:output_type -> drift.v1.TapResponse
+	5,  // 22: drift.v1.DeviceInputService.Swipe:output_type -> drift.v1.SwipeResponse
+	7,  // 23: drift.v1.DeviceInputService.KeyEvent:output_type -> drift.v1.KeyEventResponse
+	9,  // 24: drift.v1.DeviceInputService.TypeText:output_type -> drift.v1.TypeTextResponse
+	21, // [21:25] is the sub-list for method output_type
+	17, // [17:21] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_device_input_proto_init() }
@@ -816,7 +995,7 @@ func file_drift_v1_device_input_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_device_input_proto_rawDesc), len(file_drift_v1_device_input_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

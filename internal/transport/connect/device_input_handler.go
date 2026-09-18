@@ -14,21 +14,26 @@ import (
 
 // The device input transport surface (card ARC-66).
 //
-// Three RPCs, one per typed input a device can actually be given today: tap,
-// swipe and key event. Each handler authenticates the caller, validates the
-// request's shape, calls one application boundary and maps the classified
-// failure it returns. No handler resolves a device to a transport serial, opens
-// a lease, evaluates policy, touches a database or reaches a device: those are
-// the application boundary's decisions, and a handler that made them would be a
-// second, unaudited place where authority is decided.
+// Four RPCs, one per typed input a device can actually be given today: tap,
+// swipe, key event and typed text. Each handler authenticates the caller,
+// validates the request's shape, calls one application boundary and maps the
+// classified failure it returns. No handler resolves a device to a transport
+// serial, opens a lease, evaluates policy, touches a database or reaches a
+// device: those are the application boundary's decisions, and a handler that
+// made them would be a second, unaudited place where authority is decided.
 //
-// Typed text and app launch have no RPC here on purpose. Both are
-// contract-complete but not dispatchable from this surface: typed text has a
-// resolver but no surface that can register a value with it (ARC-107), and a
-// launch names its target in the intent (ARC-73) without being dispatched here.
-// A route whose only possible outcome is a refusal is a control an operator
-// surface would render and then find dead. They are added when the card that
-// makes them dispatchable lands.
+// Typed text is here and carries no content to be here. Its value enters the
+// process on the control plane's own local content surface, as a request body
+// (`POST /local/text-references/<handle>`, ADR-0015), and this RPC names it only
+// by the opaque handle that registration returned: a generated message renders
+// every populated field in every form, so a message field can never be where
+// operator content enters. The value is released at dispatch, in the workspace
+// that registered it, and used once.
+//
+// App launch has no RPC here on purpose: it names its target in the intent
+// (ARC-73) without being dispatched from this surface. A route whose only
+// possible outcome is a refusal is a control an operator surface would render
+// and then find dead. It is added when the card that makes it dispatchable lands.
 
 // deviceInputTimeout bounds one device input dispatch at this boundary. The
 // application boundary may apply its own, shorter bound; this is the transport's
@@ -92,13 +97,20 @@ func NewDeviceInputHandler(inputs DeviceInputs) *DeviceInputHandler {
 // instead of a route that is never mounted at all — a dead control, which is the
 // outcome this gate exists to prevent.
 func isAbsentDeviceInputs(inputs DeviceInputs) bool {
-	if inputs == nil {
+	return isNilInterface(inputs)
+}
+
+// isNilInterface reports a value that is absent as a call target, including the
+// typed-nil shape a plain nil check misses: an interface holding a nil pointer is
+// not nil, and `var d *Dispatcher; NewHandler(d)` compiles.
+func isNilInterface(value any) bool {
+	if value == nil {
 		return true
 	}
-	value := reflect.ValueOf(inputs)
-	switch value.Kind() {
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
-		return value.IsNil()
+		return reflected.IsNil()
 	default:
 		return false
 	}
@@ -189,6 +201,44 @@ func (h *DeviceInputHandler) KeyEvent(ctx context.Context, request *connectrpc.R
 		return nil, mapDeviceInputError(runErr)
 	}
 	return connectrpc.NewResponse(&driftv1.KeyEventResponse{Result: actionResultProto(result)}), nil
+}
+
+// TypeText submits one typed-text entry.
+//
+// The request carries a reference, never a value, and the payload it builds
+// carries the same reference: the value is released inside the dispatch, by the
+// registry that owns it, and reaches neither this handler's locals nor its
+// response. There is no observation token to pass because typed content carries
+// no coordinate — nothing was measured, so there is nothing to cross-check — and
+// the workspace the request names is the scope the reference is released in.
+func (h *DeviceInputHandler) TypeText(ctx context.Context, request *connectrpc.Request[driftv1.TypeTextRequest]) (*connectrpc.Response[driftv1.TypeTextResponse], error) {
+	if err := h.ready(); err != nil {
+		return nil, err
+	}
+	if request == nil || request.Msg == nil {
+		return nil, invalidArgument("a typed text request is required")
+	}
+	message := request.Msg
+	actorType, actorID, err := requireActor(message.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	target, err := deviceInputTargetFromRequest(message.GetContext(), message.GetWorkspace(), message.GetDeviceId(), message.GetLeaseId(), message.GetFencingToken(), message.GetIdempotencyKey(), "", message.GetApprovalGranted(), action.SemanticTarget{})
+	if err != nil {
+		return nil, err
+	}
+	if err := validateTypeTextReference(message.GetText()); err != nil {
+		return nil, err
+	}
+	target.Payload = execution.InputPayload{Text: &execution.TextReference{
+		Handle: message.GetText().GetHandle(),
+		Length: message.GetText().GetValueLength(),
+	}}
+	result, runErr := h.inputs.Run(ctx, target, actorType, actorID)
+	if runErr != nil {
+		return nil, mapDeviceInputError(runErr)
+	}
+	return connectrpc.NewResponse(&driftv1.TypeTextResponse{Result: actionResultProto(result)}), nil
 }
 
 // ready reports whether this handler was constructed with something to call.
