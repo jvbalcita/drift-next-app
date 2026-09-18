@@ -64,6 +64,7 @@ func endpointProto(endpoint endpoints.Endpoint) *driftv1.DeviceEndpoint {
 		Port:         uint32(endpoint.Port),
 		State:        state,
 		ObservedAt:   formatTime(endpoint.ObservedAt),
+		SupersededAt: formatTimePtr(endpoint.SupersededAt),
 	}
 }
 
