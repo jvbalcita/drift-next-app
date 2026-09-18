@@ -102,6 +102,7 @@ func seedDuplicateFleet(t *testing.T, db *sql.DB) {
 	t.Helper()
 	const workspace = "reconcile-w"
 	execSQL(t, db, `INSERT INTO workspaces (id, name, state, created_at, updated_at) VALUES (?, 'Reconcile', 'active', ?, ?)`, workspace, testTime, testTime)
+	execSQL(t, db, `INSERT INTO device_groups (id, workspace_id, name, state, created_at, updated_at, row_version) VALUES ('group-1', ?, 'Lab floor', 'active', ?, ?, 1)`, workspace, testTime, testTime)
 	for index, row := range duplicateFleet() {
 		deviceID := "device-" + strconv.Itoa(index)
 		serial := row.serial
@@ -238,6 +239,13 @@ func TestDeviceIdentityReconciliationFoldsDuplicates(t *testing.T) {
 	historyBefore := endpointHistoryFingerprint(t, db)
 	rowsBefore := scalarCount(t, db, `SELECT COUNT(*) FROM device_endpoints`)
 	observedBefore := observedAtBySerial(t, db)
+	// The operator's current placement of two units sits on the row the registry
+	// wrote it against, plus one ended placement that is history.
+	ghostALTA13 := scalarString(t, db, `SELECT device_id FROM device_endpoints WHERE serial = '192.168.1.123:5555'`)
+	ghostALTA1 := scalarString(t, db, `SELECT device_id FROM device_endpoints WHERE serial = '192.168.1.104:5555'`)
+	execSQL(t, db, `INSERT INTO device_group_memberships (id, workspace_id, group_id, device_id, position, state, started_at, ended_at) VALUES ('placement-active-13', 'reconcile-w', 'group-1', ?, 1, 'active', ?, NULL)`, ghostALTA13, testTime)
+	execSQL(t, db, `INSERT INTO device_group_memberships (id, workspace_id, group_id, device_id, position, state, started_at, ended_at) VALUES ('placement-active-1', 'reconcile-w', 'group-1', ?, 2, 'active', ?, NULL)`, ghostALTA1, testTime)
+	execSQL(t, db, `INSERT INTO device_group_memberships (id, workspace_id, group_id, device_id, position, state, started_at, ended_at) VALUES ('placement-ended-13', 'reconcile-w', 'group-1', ?, 3, 'ended', ?, ?)`, ghostALTA13, testTime, testTime)
 	if devicesWithCurrent := scalarCount(t, db, `SELECT COUNT(*) FROM (SELECT device_id FROM device_endpoints WHERE state = 'current' GROUP BY workspace_id, device_id HAVING COUNT(*) = 1)`); devicesWithCurrent != 45 {
 		t.Fatalf("seeded devices holding one current endpoint = %d, want one per seeded row", devicesWithCurrent)
 	}
@@ -328,6 +336,21 @@ func TestDeviceIdentityReconciliationFoldsDuplicates(t *testing.T) {
 	}
 	if violations := foreignKeyViolations(t, db); violations != 0 {
 		t.Fatalf("foreign key violations after reconciliation = %d, want 0", violations)
+	}
+
+	// The unit's current placement followed the identity; the ended one is
+	// history and stayed on the row it happened against.
+	for placement, name := range map[string]string{"placement-active-13": "ALTA 13", "placement-active-1": "ALTA 1"} {
+		holder := scalarString(t, db, `SELECT d.display_name FROM device_group_memberships AS m JOIN devices AS d ON d.id = m.device_id WHERE m.id = ? AND d.state <> 'retired'`, placement)
+		if holder != name {
+			t.Fatalf("%s is held by %q, want the live %s identity", placement, holder, name)
+		}
+	}
+	if holder := scalarString(t, db, `SELECT d.state FROM device_group_memberships AS m JOIN devices AS d ON d.id = m.device_id WHERE m.id = 'placement-ended-13'`); holder != "retired" {
+		t.Fatalf("the ended placement moved off the row it was made against (holder state %q)", holder)
+	}
+	if over := scalarCount(t, db, `SELECT COUNT(*) FROM (SELECT device_id FROM device_group_memberships WHERE state = 'active' GROUP BY workspace_id, device_id HAVING COUNT(*) > 1)`); over != 0 {
+		t.Fatalf("devices holding more than one active placement = %d, want 0", over)
 	}
 
 	// The unit's history now sits at the identity the unit answers to: ALTA 13's
@@ -427,6 +450,36 @@ func TestDeviceIdentityReconciliationFollowsAChainBetweenTheTwoRules(t *testing.
 	}
 }
 
+// TestDeviceIdentityReconciliationMovesOnePlacementPerUnit covers two duplicate
+// rows of one unit that each hold a current placement. A device may hold only one
+// active membership, so the reconciliation must move one of them and leave the
+// other on its retired row - never violate the invariant, and never fail the
+// apply on the owner's database.
+func TestDeviceIdentityReconciliationMovesOnePlacementPerUnit(t *testing.T) {
+	db := openUpgradeDB(t, 24)
+	seedDuplicateFleet(t, db)
+	unnamedALTA8 := scalarString(t, db, `SELECT device_id FROM device_endpoints WHERE serial = '192.168.1.148:5555'`)
+	ghostALTA8 := scalarString(t, db, `SELECT device_id FROM device_endpoints WHERE serial = '192.168.1.122:5555'`)
+	execSQL(t, db, `INSERT INTO device_group_memberships (id, workspace_id, group_id, device_id, position, state, started_at, ended_at) VALUES ('placement-a', 'reconcile-w', 'group-1', ?, 1, 'active', ?, NULL)`, ghostALTA8, testTime)
+	execSQL(t, db, `INSERT INTO device_group_memberships (id, workspace_id, group_id, device_id, position, state, started_at, ended_at) VALUES ('placement-b', 'reconcile-w', 'group-1', ?, 2, 'active', ?, NULL)`, unnamedALTA8, testTime)
+
+	if err := applyLatestMigrations(t, db); err != nil {
+		t.Fatalf("Apply(0025) with two current placements on one unit error = %v", err)
+	}
+	if live := scalarCount(t, db, `SELECT COUNT(*) FROM devices WHERE state <> 'retired'`); live != 22 {
+		t.Fatalf("real devices = %d, want 22", live)
+	}
+	if placed := scalarCount(t, db, `SELECT COUNT(*) FROM device_group_memberships AS m JOIN devices AS d ON d.id = m.device_id WHERE m.state = 'active' AND d.state <> 'retired'`); placed != 1 {
+		t.Fatalf("current placements on live devices = %d, want 1", placed)
+	}
+	if over := scalarCount(t, db, `SELECT COUNT(*) FROM (SELECT device_id FROM device_group_memberships WHERE state = 'active' GROUP BY workspace_id, device_id HAVING COUNT(*) > 1)`); over != 0 {
+		t.Fatalf("devices holding more than one active placement = %d, want 0", over)
+	}
+	if lost := scalarCount(t, db, `SELECT COUNT(*) FROM device_group_memberships WHERE id IN ('placement-a', 'placement-b')`); lost != 2 {
+		t.Fatalf("placements after reconciliation = %d, want 2: nothing is deleted", lost)
+	}
+}
+
 // TestDeviceIdentityReconciliationLeavesAFreshInstallAlone proves the repair is
 // inert where there is nothing to repair: a database with no device rows must
 // apply it and come out with an empty reconciliation record, not an error.
@@ -466,5 +519,16 @@ func TestDeviceIdentityReconciliationAgainstLiveCopy(t *testing.T) {
 	}
 	if unexplained := scalarCount(t, db, `SELECT COUNT(*) FROM device_identity_reconciliations WHERE length(trim(reason)) = 0`); unexplained != 0 {
 		t.Fatalf("live copy reconciliations without a reason = %d, want 0", unexplained)
+	}
+	// The operator's current placements followed the units; nothing live is left
+	// pointing at a retired identity, and no ended placement moved.
+	if stranded := scalarCount(t, db, `SELECT COUNT(*) FROM device_group_memberships AS m JOIN devices AS d ON d.id = m.device_id WHERE m.state = 'active' AND d.state = 'retired'`); stranded != 0 {
+		t.Fatalf("live copy current placements left on a retired identity = %d, want 0", stranded)
+	}
+	if placed := scalarCount(t, db, `SELECT COUNT(*) FROM device_group_memberships AS m JOIN devices AS d ON d.id = m.device_id WHERE m.state = 'active' AND d.state <> 'retired'`); placed != 3 {
+		t.Fatalf("live copy current placements on live devices = %d, want the 3 the fleet had", placed)
+	}
+	if moved := scalarCount(t, db, `SELECT COUNT(*) FROM device_group_memberships AS m JOIN devices AS d ON d.id = m.device_id WHERE m.state = 'ended' AND d.state <> 'retired'`); moved != 0 {
+		t.Fatalf("live copy ended placements that moved = %d, want 0: history stays where it happened", moved)
 	}
 }

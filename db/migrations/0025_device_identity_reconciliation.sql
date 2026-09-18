@@ -92,12 +92,16 @@
 -- are written to device_identity_reconciliations, which is append-only and
 -- keyed to both device rows.
 --
--- The duplicate's OTHER references -- its leases, group placements, mirror
--- targets, health and account assignments -- are left where they are, pointing
--- at the retired row. They are the record of what was done with that identity
--- while it was current, not observation history, and re-pointing them is a
--- separate decision with its own uniqueness questions (a lease has one
--- (device, fencing token) row and a placement one membership per device).
+-- The duplicate's OTHER references -- its leases, mirror targets, recordings,
+-- health and account assignments -- are left where they are, pointing at the
+-- retired row. They are the record of what was done with that identity while it
+-- was current, not observation history, and re-pointing them is a separate
+-- decision with its own uniqueness questions (a lease has one (device, fencing
+-- token) row and a mirror target one row per session). Its CURRENT group
+-- placement is the exception, and it is moved above: a membership in state
+-- 'active' is the operator's placement of the UNIT, not a fact about the row it
+-- was written against, so leaving it on a retired identity would drop the unit
+-- out of its group.
 --
 -- This migration is idempotent: it records a pairing only for a duplicate that
 -- is not already recorded, re-points only endpoints that still sit on a
@@ -350,6 +354,45 @@ SET device_id = (
 WHERE device_id IN (
     SELECT duplicate_device_id FROM device_identity_reconciliations
 );
+
+-- A unit's current placement follows its identity. A membership in state
+-- 'ended' is history and stays where it happened; the one in state 'active' is
+-- the operator's placement of the unit, so it moves with the identity the unit
+-- answers to rather than being left on a retired row that drops the unit out of
+-- its group. A canonical device that already holds an active placement keeps it
+-- -- a device may hold only one, which
+-- device_group_memberships_one_active_group_idx enforces -- and the duplicate's
+-- placement is left on the retired row rather than silently replacing a
+-- placement the operator made against the canonical identity.
+WITH recipient AS (
+    SELECT m.id                          AS membership_id,
+           recorded.canonical_device_id  AS canonical_device_id
+    FROM device_group_memberships AS m
+    JOIN device_identity_reconciliations AS recorded
+      ON recorded.workspace_id = m.workspace_id
+     AND recorded.duplicate_device_id = m.device_id
+    WHERE m.state = 'active'
+)
+UPDATE device_group_memberships
+SET device_id = COALESCE(
+        (
+            SELECT recipient.canonical_device_id
+            FROM recipient
+            WHERE recipient.membership_id = device_group_memberships.id
+              AND NOT EXISTS (
+                      SELECT 1 FROM device_group_memberships AS placed
+                      WHERE placed.workspace_id = device_group_memberships.workspace_id
+                        AND placed.device_id = recipient.canonical_device_id
+                        AND placed.state = 'active'
+                  )
+        ),
+        -- A canonical device that already holds an active placement keeps it: the
+        -- duplicate's placement stays on the retired row rather than replacing a
+        -- placement the operator made against the canonical identity, and a unit
+        -- whose several duplicate rows each held one moves exactly one of them.
+        device_id
+    )
+WHERE id IN (SELECT membership_id FROM recipient);
 
 -- Retire the duplicate in place. The row is kept, with its id, its name, its
 -- creation time and every reference append-only evidence holds; it simply stops
