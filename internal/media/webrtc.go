@@ -31,6 +31,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"strings"
 	"sync"
@@ -80,6 +81,39 @@ var (
 	ErrNoPictures = errors.New("media: the stream is connected and has produced no picture")
 )
 
+// MirrorTransportKind names how a stream reaches the browser. It is the
+// transport this service can carry, not a request: the surface maps a caller's
+// request onto one of these and refuses a transport that is not carried, so a
+// caller never believes it is receiving something other than what it asked for.
+type MirrorTransportKind string
+
+const (
+	// TransportWebRTC is the fast path: pion inside this service, H.264 over
+	// RTP, pushed to a browser's peer connection.
+	TransportWebRTC MirrorTransportKind = "webrtc"
+
+	// TransportTCP is the compatibility path: the service's own stream surface,
+	// fragmented MP4, pulled by the browser and played through Media Source
+	// Extensions.
+	TransportTCP MirrorTransportKind = "tcp"
+)
+
+// MirrorCarrier is a stream this transport is carrying, whichever of the two
+// transports carries it: the browser is given its identity, and how the frames
+// reach it is the carrier's own business.
+type MirrorCarrier interface {
+	// StreamKey is the per-device stream identity the browser was given.
+	StreamKey() string
+	// Answer completes a peer handshake. A carrier that is not negotiated
+	// refuses, naming what it is instead.
+	Answer(ctx context.Context, offerSDP string) (string, error)
+	// Stats reports what the stream has carried and how it ended.
+	Stats() StreamStats
+	// Close releases the stream, and - when it was the last viewer - the
+	// device's capture with it.
+	Close() error
+}
+
 // LiveMirror is the engine surface this transport needs: one device's live
 // session, and a viewer subscribed to it. *MirrorEngine satisfies it.
 type LiveMirror interface {
@@ -97,28 +131,37 @@ type StreamTransportConfig struct {
 	// GatherTimeout bounds ICE gathering for one answer. Zero uses the default.
 	GatherTimeout time.Duration
 	// NoPictureTimeout bounds how long a connected peer may carry no picture.
-	// Zero uses the default.
+	// Zero uses the default. The stream endpoint's own start is bounded by the
+	// same value: both transports refuse to present a stream that has shown
+	// nothing.
 	NoPictureTimeout time.Duration
+	// ServeTimeout bounds how long a stream opened over the service's own stream
+	// surface may wait to be fetched. Zero uses the default.
+	ServeTimeout time.Duration
 }
 
-// StreamTransport carries devices' live mirrors to browsers.
+// StreamTransport carries devices' live mirrors to browsers, over both of the
+// transports this product ships.
 //
-// It owns one peer per browser connection and no capture of its own: a capture
-// starts because a peer subscribed to a device's session (through the engine) and
-// ends when the last peer detaches and the session's idle bound expires. Nothing
-// here can start a capture for a device nobody is watching.
+// It owns one peer connection per WebRTC browser and one stream endpoint per TCP
+// fetch, and no capture of its own: a capture starts because a browser
+// subscribed to a device's session (through the engine) and ends when the last
+// subscriber detaches and the session's idle bound expires. Nothing here can
+// start a capture for a device nobody is watching.
 type StreamTransport struct {
 	mirror           LiveMirror
 	api              *webrtc.API
 	ices             []webrtc.ICEServer
 	gather           time.Duration
 	noPictureTimeout time.Duration
+	serveTimeout     time.Duration
 
-	mu      sync.Mutex
-	peers   map[*StreamPeer]struct{}
-	closed  bool
-	closing bool
-	wg      sync.WaitGroup
+	mu        sync.Mutex
+	peers     map[*StreamPeer]struct{}
+	endpoints map[*MirrorEndpoint]struct{}
+	closed    bool
+	closing   bool
+	wg        sync.WaitGroup
 }
 
 // NewStreamTransport builds the transport over the engine that owns the
@@ -133,6 +176,9 @@ func NewStreamTransport(config StreamTransportConfig) (*StreamTransport, error) 
 	if config.NoPictureTimeout <= 0 {
 		config.NoPictureTimeout = DefaultNoPictureTimeout
 	}
+	if config.ServeTimeout <= 0 {
+		config.ServeTimeout = DefaultEndpointServeTimeout
+	}
 	api, err := newMirrorPeerAPI(defaultProfileLevelID)
 	if err != nil {
 		return nil, err
@@ -143,7 +189,9 @@ func NewStreamTransport(config StreamTransportConfig) (*StreamTransport, error) 
 		ices:             config.ICEServers,
 		gather:           config.GatherTimeout,
 		noPictureTimeout: config.NoPictureTimeout,
+		serveTimeout:     config.ServeTimeout,
 		peers:            make(map[*StreamPeer]struct{}),
+		endpoints:        make(map[*MirrorEndpoint]struct{}),
 	}, nil
 }
 
@@ -156,25 +204,32 @@ func (t *StreamTransport) ICEServers() []webrtc.ICEServer {
 	return append([]webrtc.ICEServer(nil), t.ices...)
 }
 
-// Open subscribes one viewer to a device's live mirror and returns the peer that
-// will carry it.
+// Open subscribes one browser to a device's live mirror over the requested
+// transport and returns the carrier that will deliver it.
 //
-// Opening a peer is what starts a capture: the engine starts the device's
-// session on its first viewer, and stops it when its last viewer has been gone
-// for the idle bound. A peer that could not be built releases its subscription
+// Opening is what starts a capture: the engine starts the device's session on
+// its first subscriber, and stops it when its last subscriber has been gone for
+// the idle bound. A carrier that could not be built releases its subscription
 // before returning, so a failed open leaves no capture running.
-func (t *StreamTransport) Open(ctx context.Context, deviceID, serial string) (*StreamPeer, error) {
-	if t == nil || t.mirror == nil {
-		return nil, errors.New("media: the stream transport is not constructed")
+//
+// A transport this service does not carry is refused rather than quietly
+// replaced: a caller that asked for one thing must never be handed another.
+func (t *StreamTransport) Open(ctx context.Context, deviceID, serial string, transport MirrorTransportKind) (MirrorCarrier, error) {
+	switch transport {
+	case TransportTCP:
+		return t.openEndpoint(ctx, deviceID, serial)
+	case "", TransportWebRTC:
+		return t.openPeer(ctx, deviceID, serial)
+	default:
+		return nil, fmt.Errorf("media: %q is not a transport this service carries", transport)
 	}
-	if strings.TrimSpace(deviceID) == "" || strings.TrimSpace(serial) == "" {
-		return nil, errors.New("media: opening a stream requires a device and its transport serial")
-	}
-	t.mu.Lock()
-	closed := t.closed || t.closing
-	t.mu.Unlock()
-	if closed {
-		return nil, errors.New("media: the stream transport is closed")
+}
+
+// openPeer subscribes one viewer and returns the peer connection that will
+// carry it.
+func (t *StreamTransport) openPeer(ctx context.Context, deviceID, serial string) (*StreamPeer, error) {
+	if err := t.available(deviceID, serial); err != nil {
+		return nil, err
 	}
 	session, viewer, err := t.mirror.Start(ctx, deviceID, serial)
 	if err != nil {
@@ -203,29 +258,78 @@ func (t *StreamTransport) Open(ctx context.Context, deviceID, serial string) (*S
 	return peer, nil
 }
 
-// Peers reports every live peer, in a stable order, for a startup line, a health
-// view or an audit.
+// openEndpoint subscribes one viewer and returns the stream endpoint a browser
+// fetches. The subscription exists from here, so a stream nobody fetches is
+// released by the endpoint's own watchdog rather than holding a capture open.
+func (t *StreamTransport) openEndpoint(ctx context.Context, deviceID, serial string) (*MirrorEndpoint, error) {
+	if err := t.available(deviceID, serial); err != nil {
+		return nil, err
+	}
+	session, viewer, err := t.mirror.Start(ctx, deviceID, serial)
+	if err != nil {
+		return nil, err
+	}
+	endpoint := newMirrorEndpoint(t, session, viewer)
+	t.mu.Lock()
+	if t.closed || t.closing {
+		t.mu.Unlock()
+		_ = endpoint.Close()
+		return nil, errors.New("media: the stream transport is closed")
+	}
+	t.endpoints[endpoint] = struct{}{}
+	t.wg.Add(1)
+	t.mu.Unlock()
+	go func() {
+		defer t.wg.Done()
+		endpoint.watch()
+	}()
+	return endpoint, nil
+}
+
+// available reports whether this transport can open a stream at all.
+func (t *StreamTransport) available(deviceID, serial string) error {
+	if t == nil || t.mirror == nil {
+		return errors.New("media: the stream transport is not constructed")
+	}
+	if strings.TrimSpace(deviceID) == "" || strings.TrimSpace(serial) == "" {
+		return errors.New("media: opening a stream requires a device and its transport serial")
+	}
+	t.mu.Lock()
+	closed := t.closed || t.closing
+	t.mu.Unlock()
+	if closed {
+		return errors.New("media: the stream transport is closed")
+	}
+	return nil
+}
+
+// Peers reports every live stream, in a stable order, for a startup line, a
+// health view or an audit. It covers both transports: what a caller asks about
+// is the streams this process is carrying, not the mechanism carrying them.
 func (t *StreamTransport) Peers() []StreamStats {
 	if t == nil {
 		return nil
 	}
 	t.mu.Lock()
-	peers := make([]*StreamPeer, 0, len(t.peers))
+	carriers := make([]MirrorCarrier, 0, len(t.peers)+len(t.endpoints))
 	for peer := range t.peers {
-		peers = append(peers, peer)
+		carriers = append(carriers, peer)
+	}
+	for endpoint := range t.endpoints {
+		carriers = append(carriers, endpoint)
 	}
 	t.mu.Unlock()
-	out := make([]StreamStats, 0, len(peers))
-	for _, peer := range peers {
-		out = append(out, peer.Stats())
+	out := make([]StreamStats, 0, len(carriers))
+	for _, carrier := range carriers {
+		out = append(out, carrier.Stats())
 	}
 	return out
 }
 
-// Stream reports the live peer carrying one stream identity, or false when there
-// is none. It is how a surface finds the stream a browser named, and it confers
-// nothing: the peer it returns is already this transport's own.
-func (t *StreamTransport) Stream(streamKey string) (*StreamPeer, bool) {
+// Stream reports the live stream carrying one stream identity, or false when
+// there is none. It is how a surface finds the stream a browser named, and it
+// confers nothing: the carrier it returns is already this transport's own.
+func (t *StreamTransport) Stream(streamKey string) (MirrorCarrier, bool) {
 	if t == nil || streamKey == "" {
 		return nil, false
 	}
@@ -236,11 +340,44 @@ func (t *StreamTransport) Stream(streamKey string) (*StreamPeer, bool) {
 			return peer, true
 		}
 	}
+	for endpoint := range t.endpoints {
+		if endpoint.StreamKey() == streamKey {
+			return endpoint, true
+		}
+	}
 	return nil, false
 }
 
-// Close releases every peer and waits for its forwarder, so nothing this
-// transport started outlives the call. The wait is bounded by ctx: a peer that
+// Endpoint reports the stream endpoint carrying one stream identity, or false
+// when this transport is not carrying that stream over its own stream surface -
+// including when it is carrying it over a peer connection instead.
+func (t *StreamTransport) Endpoint(streamKey string) (*MirrorEndpoint, bool) {
+	if t == nil || streamKey == "" {
+		return nil, false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for endpoint := range t.endpoints {
+		if endpoint.StreamKey() == streamKey {
+			return endpoint, true
+		}
+	}
+	return nil, false
+}
+
+// ServeStream carries one stream's bytes to the browser that fetched its stream
+// endpoint, and reports a stream this transport is not carrying as its own
+// refusal rather than as an empty response.
+func (t *StreamTransport) ServeStream(ctx context.Context, streamKey string, writer io.Writer, flush func() error) error {
+	endpoint, live := t.Endpoint(streamKey)
+	if !live {
+		return fmt.Errorf("%w: %s", ErrNoSuchStream, streamKey)
+	}
+	return endpoint.Serve(ctx, writer, flush)
+}
+
+// Close releases every stream and waits for its worker, so nothing this
+// transport started outlives the call. The wait is bounded by ctx: a stream that
 // does not stop inside the bound is named in the error rather than waited for
 // without end, exactly as the engine's own stop is.
 func (t *StreamTransport) Close(ctx context.Context) error {
@@ -252,14 +389,17 @@ func (t *StreamTransport) Close(ctx context.Context) error {
 	}
 	t.mu.Lock()
 	t.closing = true
-	peers := make([]*StreamPeer, 0, len(t.peers))
+	carriers := make([]MirrorCarrier, 0, len(t.peers)+len(t.endpoints))
 	for peer := range t.peers {
-		peers = append(peers, peer)
+		carriers = append(carriers, peer)
+	}
+	for endpoint := range t.endpoints {
+		carriers = append(carriers, endpoint)
 	}
 	t.mu.Unlock()
 	var first error
-	for _, peer := range peers {
-		if err := peer.Close(); err != nil && first == nil {
+	for _, carrier := range carriers {
+		if err := carrier.Close(); err != nil && first == nil {
 			first = err
 		}
 	}
@@ -272,7 +412,7 @@ func (t *StreamTransport) Close(ctx context.Context) error {
 	case <-done:
 	case <-ctx.Done():
 		if first == nil {
-			first = fmt.Errorf("media: %d stream(s) did not finish within the bound: %w", len(peers), ctx.Err())
+			first = fmt.Errorf("media: %d stream(s) did not finish within the bound: %w", len(carriers), ctx.Err())
 		}
 	}
 	t.mu.Lock()
@@ -284,6 +424,12 @@ func (t *StreamTransport) Close(ctx context.Context) error {
 func (t *StreamTransport) forget(peer *StreamPeer) {
 	t.mu.Lock()
 	delete(t.peers, peer)
+	t.mu.Unlock()
+}
+
+func (t *StreamTransport) forgetEndpoint(endpoint *MirrorEndpoint) {
+	t.mu.Lock()
+	delete(t.endpoints, endpoint)
 	t.mu.Unlock()
 }
 

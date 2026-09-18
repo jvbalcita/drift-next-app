@@ -282,14 +282,27 @@ func (f streamFixture) mustSession(t *testing.T, deviceID string) MirrorSession 
 	return session
 }
 
+// openPeer opens one device's stream over WebRTC and returns it as the peer type
+// these cases assert on: the transport hands back a carrier, and a case about the
+// peer transport has to say which transport it asked for.
+func openPeer(t *testing.T, transport *StreamTransport, deviceID, serial string) *StreamPeer {
+	t.Helper()
+	carrier, err := transport.Open(context.Background(), deviceID, serial, TransportWebRTC)
+	if err != nil {
+		t.Fatalf("open the stream for %s: %v", deviceID, err)
+	}
+	peer, ok := carrier.(*StreamPeer)
+	if !ok {
+		t.Fatalf("the WebRTC transport opened a %T, not a peer connection", carrier)
+	}
+	return peer
+}
+
 // openBrowser opens one device's stream and completes the handshake with a real
 // browser peer.
 func openBrowser(t *testing.T, fixture streamFixture, deviceID string) (*StreamPeer, *browser, MirrorSession) {
 	t.Helper()
-	peer, err := fixture.transport.Open(context.Background(), deviceID, "SERIAL-"+deviceID)
-	if err != nil {
-		t.Fatalf("open the stream for %s: %v", deviceID, err)
-	}
+	peer := openPeer(t, fixture.transport, deviceID, "SERIAL-"+deviceID)
 	session, live := fixture.engine.Session(deviceID)
 	if !live {
 		t.Fatalf("opening a stream did not subscribe the device: %s has no session", deviceID)
@@ -313,10 +326,7 @@ func TestALateBrowserIsPrimedFromTheCachedKeyFrame(t *testing.T) {
 	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
 	// A first viewer starts the capture, and the device sends its one
 	// configuration packet and one key frame.
-	first, err := fixture.transport.Open(context.Background(), "device-1", "SERIAL-device-1")
-	if err != nil {
-		t.Fatalf("open the first viewer: %v", err)
-	}
+	first := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
 	defer func() { _ = first.Close() }()
 	stream := fixture.dialer.streamFor(t, "device-1")
 	sessionReady(t, fixture.mustSession(t, "device-1"))
@@ -461,10 +471,7 @@ func TestTheBrowserReceivesTheKeyFrameItsParameterSetsAndThePictures(t *testing.
 func TestTheBrowserIsGivenTheStreamsOwnIdentityAndNothingElse(t *testing.T) {
 	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
 	client := newBrowser(t)
-	peer, err := fixture.transport.Open(context.Background(), "device-1", "SERIAL-device-1")
-	if err != nil {
-		t.Fatalf("open the stream: %v", err)
-	}
+	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
 	answer, err := peer.Answer(context.Background(), client.offer(t))
 	if err != nil {
 		t.Fatalf("answer the browser's offer: %v", err)
@@ -566,10 +573,10 @@ func TestOpeningAStreamRequiresADeviceAndAnArmedTransport(t *testing.T) {
 		t.Fatal("a stream transport without the mirror engine was constructed")
 	}
 	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
-	if _, err := fixture.transport.Open(context.Background(), "", "SERIAL-1"); err == nil {
+	if _, err := fixture.transport.Open(context.Background(), "", "SERIAL-1", TransportWebRTC); err == nil {
 		t.Fatal("a stream was opened for no device")
 	}
-	if _, err := fixture.transport.Open(context.Background(), "device-1", ""); err == nil {
+	if _, err := fixture.transport.Open(context.Background(), "device-1", "", TransportWebRTC); err == nil {
 		t.Fatal("a stream was opened for no serial")
 	}
 	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -577,7 +584,7 @@ func TestOpeningAStreamRequiresADeviceAndAnArmedTransport(t *testing.T) {
 	if err := fixture.transport.Close(stopCtx); err != nil {
 		t.Fatalf("closing the transport: %v", err)
 	}
-	if _, err := fixture.transport.Open(context.Background(), "device-1", "SERIAL-1"); err == nil {
+	if _, err := fixture.transport.Open(context.Background(), "device-1", "SERIAL-1", TransportWebRTC); err == nil {
 		t.Fatal("a closed transport opened a stream")
 	}
 }
