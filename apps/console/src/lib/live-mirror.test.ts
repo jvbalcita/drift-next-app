@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest"
 import { MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import { create } from "@bufbuild/protobuf"
 import { MirrorStreamSchema } from "@/gen/drift/v1/device_mirror_pb"
+import { deviceStatusMeanings } from "@/lib/device-status"
+import type { DeviceStatus } from "@/lib/domain/control-plane"
 import {
+  absentTransportSentence,
   drawnContentRect,
   gestureThresholdFor,
   liveMirrorCopy,
@@ -12,13 +15,21 @@ import {
   liveStreamView,
   liveTransportOf,
   planGesture,
+  refusedStreamSentence,
   streamPoint,
   transportSentence,
   type DrawnPicture,
+  type MirrorDevice,
   type SurfaceRect,
 } from "./live-mirror"
 
 const frame = { width: 1080, height: 1920 }
+
+/** named describes a device the way the surface hands it to the copy. */
+function named(status: DeviceStatus): MirrorDevice {
+  return { displayName: "Atlas 04", status }
+}
+
 /**
  * The picture drawn at exactly half its encoded size: a 1080x1920 stream in a
  * 540x960 element, so the picture's own box and the element's box coincide.
@@ -58,7 +69,7 @@ describe("the console's view of a live stream", () => {
     }))
     expect(view).toMatchObject({ streamId: "stream-1", transport: "webrtc", state: "live", frames: 41, keyFrames: 3 })
     expect(liveStreamFrame(view)).toEqual({ width: 1080, height: 1920 })
-    expect(transportSentence(view)).toBe(liveMirrorCopy.transport.webrtc)
+    expect(transportSentence(view, named("online"))).toBe(liveMirrorCopy.transport.webrtc)
   })
 
   it("reports no frame for a stream that declares none, rather than a placeholder size", () => {
@@ -72,6 +83,65 @@ describe("the console's view of a live stream", () => {
     expect(livePhaseSentence("live", view)).toContain("12 picture(s) carried")
     expect(livePhaseSentence("opening", null)).toBe(liveMirrorCopy.phase.opening)
     expect(livePhaseSentence("ended", view)).toContain("12 picture(s) were carried")
+  })
+})
+
+describe("what the console says about a device it has no stream for", () => {
+  /**
+   * The reported defect: the plane refuses a stream for a device with no current
+   * observation, and the transport line read "a transport this console does not
+   * recognise". That names console support the console already has - it carries
+   * both transports - and sends the operator looking in the wrong place, when the
+   * action that fixes it is observing the device.
+   */
+  it("never reads a transport nobody observed as one this console does not recognise", () => {
+    for (const status of ["unobserved", "offline"] as const) {
+      const sentence = transportSentence(null, named(status))
+      expect(sentence).not.toMatch(/does not recognise/)
+      expect(sentence).toContain(deviceStatusMeanings[status])
+      expect(sentence).toContain("scan")
+    }
+    expect(liveMirrorCopy.transport.unspecified).not.toMatch(/does not recognise/)
+  })
+
+  it("keeps never observed and observed-before apart, with the action each one needs", () => {
+    const never = absentTransportSentence(named("unobserved"))
+    const gone = absentTransportSentence(named("offline"))
+    expect(never).not.toBe(gone)
+    expect(never).toContain("Atlas 04")
+    expect(gone).toContain("Atlas 04")
+    expect(never).toContain("observe it first")
+    expect(gone).toContain("observe it again")
+  })
+
+  it("does not claim an observed device is unobserved when the console holds no stream for it", () => {
+    const sentence = transportSentence(null, named("online"))
+    expect(sentence).toContain(deviceStatusMeanings.online)
+    expect(sentence).not.toMatch(/observe it (first|again)/)
+  })
+
+  it("reads a stream carried without a transport as an unstated one, not an unsupported one", () => {
+    const view = liveStreamView(create(MirrorStreamSchema, { streamId: "s", renderWidth: 1080, renderHeight: 1920 }))
+    expect(view.transport).toBe("unspecified")
+    expect(transportSentence(view, named("online"))).toBe(liveMirrorCopy.transport.unspecified)
+  })
+
+  it("names the device and the observation it lacks, and keeps the plane's own refusal", () => {
+    const refusal = "device has no current transport endpoint"
+    const never = refusedStreamSentence(named("unobserved"), refusal)
+    expect(never).toContain("Atlas 04")
+    expect(never).toContain(refusal)
+    expect(never).toContain("scan")
+    expect(refusedStreamSentence(named("offline"), refusal)).toContain(deviceStatusMeanings.offline)
+    // A refusal that arrived with no sentence is still a refusal, and it is not
+    // reported as a delivered picture.
+    expect(refusedStreamSentence(named("unobserved"), "  ")).toContain(liveMirrorCopy.failure.openFailed)
+  })
+
+  it("leaves a refusal of a device the plane does observe exactly as the plane left it", () => {
+    const plane = "the peer produced no picture within its bound"
+    expect(refusedStreamSentence(named("online"), plane)).toBe(plane)
+    expect(refusedStreamSentence(named("attention"), plane)).toBe(plane)
   })
 })
 

@@ -7,8 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { create } from "@bufbuild/protobuf"
 import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
+import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { ControlPlaneIntent, DispatchIntent, DeviceView } from "@/lib/domain/control-plane"
+import { deviceStatusMeanings } from "@/lib/device-status"
 import { liveMirrorCopy, liveStreamView, type LiveStreamView } from "@/lib/live-mirror"
 import { LiveMirrorSurface } from "./live-mirror-surface"
 
@@ -57,7 +59,7 @@ function device(): DeviceView {
   return found
 }
 
-function renderSurface(options: { mirror?: LiveMirrorClient; hasLease?: boolean; token?: string; rect?: DOMRect; picture?: { width: number; height: number }; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
+function renderSurface(options: { mirror?: LiveMirrorClient; hasLease?: boolean; token?: string; rect?: DOMRect; picture?: { width: number; height: number }; device?: DeviceView; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
   const intents: ControlPlaneIntent[] = []
   const dispatch: DispatchIntent = async (intent) => {
     intents.push(intent)
@@ -66,7 +68,7 @@ function renderSurface(options: { mirror?: LiveMirrorClient; hasLease?: boolean;
   const mirror = options.hasOwnProperty("mirror") ? options.mirror : fakeMirror().client
   render(
     <LiveMirrorSurface
-      device={device()}
+      device={options.device ?? device()}
       mirror={mirror}
       workspaceId="workspace-lab-local"
       observationToken={options.token ?? observationToken}
@@ -306,6 +308,42 @@ describe("the big frame as a live mirror", () => {
     // The sentence is the surface's state line and the overlay's, which is the
     // point: the frame says it in the one place an operator is looking.
     expect(screen.getAllByText(liveMirrorCopy.phase.unavailable).length).toBeGreaterThan(0)
+  })
+
+  /**
+   * The owner's screen, reproduced end to end: the control plane refuses to
+   * carry a stream for a device nobody has observed, and the console rendered
+   * "Transport: a transport this console does not recognise". The device has no
+   * observation, so there is no observation token either - the same cause showing
+   * a second time on the input line - and the fix is to observe the device, not
+   * to find a transport this console supports.
+   */
+  it("reads a device with no current observation as an observation missing, not as a transport it does not support", async () => {
+    const refusal = "device has no current transport endpoint"
+    const mirror: LiveMirrorClient = {
+      ...fakeMirror().client,
+      async startStream() { throw new ConnectJsonError("failed_precondition", refusal) },
+    }
+    const unobserved: DeviceView = { ...device(), status: "unobserved", transport: "unspecified" }
+    const { intents } = renderSurface({ mirror, device: unobserved, token: "" })
+    await waitFor(() => expect(screen.getByTestId("live-mirror-phase")).toHaveTextContent(/failed/i))
+
+    const transport = screen.getByTestId("live-mirror-transport")
+    expect(transport).not.toHaveTextContent(/does not recognise/)
+    expect(transport).toHaveTextContent(deviceStatusMeanings.unobserved)
+    expect(transport).toHaveTextContent("scan")
+
+    // The refusal names the device and the plane's own answer, and keeps both.
+    const failure = screen.getByTestId("live-mirror-failure")
+    expect(failure).toHaveTextContent(unobserved.displayName)
+    expect(failure).toHaveTextContent(refusal)
+    expect(failure).toHaveTextContent("scan")
+
+    expect(screen.getByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.noObservation)
+    // The refusal is not weakened: no picture is claimed and no device was reached.
+    expect(screen.queryByTestId("live-mirror-video")).toHaveProperty("srcObject", null)
+    expect(transport).not.toHaveTextContent(/frame \d/)
+    expect(intents).toHaveLength(0)
   })
 
   it("does not pulse the live mark when the operator asked for reduced motion", async () => {

@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
 import type { DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
-import { drawnContentRect, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, liveStreamFrame, planGesture, streamPoint, transportSentence, type DrawnPicture, type FramePoint, type LiveMirrorPhase, type LiveMirrorTransportChoice, type PointerSample, type SurfaceRect } from "@/lib/live-mirror"
+import { drawnContentRect, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, liveStreamFrame, planGesture, refusedStreamSentence, streamPoint, transportSentence, type DrawnPicture, type FramePoint, type LiveMirrorPhase, type LiveMirrorTransportChoice, type MirrorDevice, type PointerSample, type SurfaceRect } from "@/lib/live-mirror"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 
 /**
@@ -216,7 +216,7 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
         onPointerCancel={cancelPointer}
       >
         <video ref={attachMirrorVideo} data-testid="live-mirror-video" muted playsInline autoPlay aria-hidden="true" className="absolute inset-0 size-full max-w-full object-contain" />
-        {phase === "live" ? null : <StreamStateOverlay phase={phase} failure={failure} />}
+        {phase === "live" ? null : <StreamStateOverlay phase={phase} failure={failure} device={device} />}
         {dragging ? <span aria-hidden="true" className="pointer-events-none absolute inset-x-6 top-6 h-px bg-primary" /> : null}
       </div>
       <div className="shrink-0 border-t border-white/10 px-3 py-2 text-[10px] text-white/80">
@@ -225,7 +225,7 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
           <span data-testid="live-mirror-phase">{livePhaseSentence(phase, stream)}</span>
         </p>
         <p className="mt-1" data-testid="live-mirror-transport">
-          Transport: {transportSentence(stream)}
+          Transport: {transportSentence(stream, device)}
           {frame ? ` · frame ${frame.width}x${frame.height}` : ""}
         </p>
       </div>
@@ -302,8 +302,14 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
  * states opaque: an operator is never shown a frozen last frame with no mark on
  * it. The starting state is deliberately translucent - a first picture may
  * already be arriving - but it never says Live.
+ *
+ * The reason line is read for the device rather than printed as the plane left
+ * it: a device with no current observation is refused by a sentence about a
+ * transport endpoint, and the operator's fix is to observe the device, so the
+ * console names it and says so, with the plane's own answer kept beside it (see
+ * `refusedStreamSentence`).
  */
-function StreamStateOverlay({ phase, failure }: { phase: LiveMirrorPhase; failure: string }) {
+function StreamStateOverlay({ phase, failure, device }: { phase: LiveMirrorPhase; failure: string; device: MirrorDevice }) {
   if (phase === "opening") {
     return (
       <div className="absolute inset-0 grid place-items-center bg-slate-950 p-4" role="status">
@@ -332,7 +338,7 @@ function StreamStateOverlay({ phase, failure }: { phase: LiveMirrorPhase; failur
         <p className="text-[11px] font-semibold text-white/90" role={phase === "failed" ? "alert" : undefined}>
           {livePhaseSentence(phase, null)}
         </p>
-        {failure !== "" ? <p className="text-[10px] leading-4 text-amber-300">{failure}</p> : null}
+        {failure !== "" ? <p className="text-[10px] leading-4 text-amber-300" data-testid="live-mirror-failure">{refusedStreamSentence(device, failure)}</p> : null}
       </div>
     </div>
   )
