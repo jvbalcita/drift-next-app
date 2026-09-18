@@ -229,6 +229,9 @@ const endpoints: EndpointView[] = devices.flatMap((device) => [
         port: 5555,
         state: "superseded" as const,
         observedAt: "2026-09-13T15:10:00Z",
+        // The moment this transport stopped being the device's current one: the
+        // history a moved device keeps, and the date it is read with.
+        supersededAt: "2026-09-14T09:42:18Z",
       }]
     : []),
 ])

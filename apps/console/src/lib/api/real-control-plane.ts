@@ -457,6 +457,9 @@ function mapEndpoint(endpoint: DeviceEndpoint): EndpointView {
     port: endpoint.port,
     state: mapEndpointState(endpoint.state),
     observedAt: endpoint.observedAt,
+    // Absent rather than empty for a record that is not superseded: this is a
+    // date the control plane either recorded or did not.
+    ...(endpoint.supersededAt ? { supersededAt: endpoint.supersededAt } : {}),
   }
 }
 
