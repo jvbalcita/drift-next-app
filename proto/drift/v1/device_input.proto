@@ -80,7 +80,9 @@ enum DeviceInputRefusalReason {
 // the input was resolved against, and (where policy requires it) an approval.
 // The payload is the published typed payload for that kind — the same `TapInput`,
 // `SwipeInput` and `KeyEventInput` messages ActionIntent carries — so this
-// surface introduces no second representation of a device input.
+// surface introduces no second representation of a device input. Typed text is
+// the one input whose payload is a reference rather than a value, because content
+// has no representation in a generated message at all (see below).
 //
 // A refused input answers with a Connect error whose code comes from the
 // boundary's stable vocabulary and which carries a DeviceInputRefusal detail. A
@@ -88,18 +90,25 @@ enum DeviceInputRefusalReason {
 // belongs to. There is no response that reports success for an input the device
 // did not receive.
 //
-// Typed text (ACTION_KIND_TEXT_INPUT) and app launch (ACTION_KIND_LAUNCH_APP) are
-// deliberately **absent**. Both are contract-complete but not dispatchable from
-// this surface: typed text has a resolver but no surface that can register a
-// value with it (ARC-107), and a launch carries its target in the intent (ARC-73)
-// without being dispatched here. A route whose only possible outcome is a refusal
-// is a control an operator surface will render and then find dead, so these two
-// are added when the card that makes them dispatchable lands rather than exposed
-// as refusals now.
+// Typed text now has an RPC here, and it carries no content to do it. Its value
+// is registered on the control plane's own local content surface
+// (`POST /local/text-references/<handle>`, ADR-0015) as a request BODY, and this
+// request names the value only by the opaque handle that registration returned.
+// A generated message renders every populated field in its string, text, JSON and
+// debug forms with no per-field redaction available, so a field can never be
+// where operator content enters the process; a value is released at dispatch, in
+// the workspace that registered it, and used exactly once.
+//
+// App launch (ACTION_KIND_LAUNCH_APP) remains deliberately **absent**: it carries
+// its target in the intent (ARC-73) without being dispatched here. A route whose
+// only possible outcome is a refusal is a control an operator surface will render
+// and then find dead, so it is added when the card that makes it dispatchable
+// lands rather than exposed as a refusal now.
 service DeviceInputService {
   rpc Tap(TapRequest) returns (TapResponse);
   rpc Swipe(SwipeRequest) returns (SwipeResponse);
   rpc KeyEvent(KeyEventRequest) returns (KeyEventResponse);
+  rpc TypeText(TypeTextRequest) returns (TypeTextResponse);
 }
 
 // TapRequest submits one tap: a semantic target, or a point inside
@@ -154,5 +163,34 @@ message KeyEventRequest {
 }
 
 message KeyEventResponse {
+  ActionResult result = 1;
+}
+
+// TypeTextRequest submits one typed-text entry. Its value is NOT here: it names
+// the opaque handle a registration returned, and the length of the value that
+// handle holds, so a caller can bound what it is about to type without either
+// boundary reading the content. `SensitiveTextReference` has no field for
+// content for the same reason this request has none.
+//
+// There is no observation token and no coordinate frame, and that is the truth
+// rather than an omission: typed content carries no coordinate, so there is
+// nothing for it to be measured in and nothing to cross-check against the render
+// size. It belongs to the workspace that registered it, which is the scope the
+// value is released in.
+message TypeTextRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string lease_id = 4;
+  uint64 fencing_token = 5;
+  string idempotency_key = 6;
+  // text is the reference whose value is released at dispatch, exactly once, in
+  // the workspace above. A reference that was never registered, that was already
+  // released, or that has expired is refused; its value reaches no device.
+  SensitiveTextReference text = 7;
+  bool approval_granted = 8;
+}
+
+message TypeTextResponse {
   ActionResult result = 1;
 }

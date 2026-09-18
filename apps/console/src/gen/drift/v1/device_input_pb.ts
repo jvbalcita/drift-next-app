@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { ActionResult, KeyEventInput, SwipeInput, TapInput } from "./action_pb";
+import type { ActionResult, KeyEventInput, SensitiveTextReference, SwipeInput, TapInput } from "./action_pb";
 import { file_drift_v1_action } from "./action_pb";
 import type { RequestContext, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device_input.proto.
  */
 export const file_drift_v1_device_input: GenFile = /*@__PURE__*/
-  fileDesc("ChtkcmlmdC92MS9kZXZpY2VfaW5wdXQucHJvdG8SCGRyaWZ0LnYxIn4KEkRldmljZUlucHV0UmVmdXNhbBIyCgZyZWFzb24YASABKA4yIi5kcmlmdC52MS5EZXZpY2VJbnB1dFJlZnVzYWxSZWFzb24SDAoEY29kZRgCIAEoCRIVCg1mYWlsdXJlX2NsYXNzGAMgASgJEg8KB21lc3NhZ2UYBCABKAkijQIKClRhcFJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSEAoIbGVhc2VfaWQYBCABKAkSFQoNZmVuY2luZ190b2tlbhgFIAEoBBIXCg9pZGVtcG90ZW5jeV9rZXkYBiABKAkSGQoRb2JzZXJ2YXRpb25fdG9rZW4YByABKAkSHwoDdGFwGAggASgLMhIuZHJpZnQudjEuVGFwSW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI1CgtUYXBSZXNwb25zZRImCgZyZXN1bHQYASABKAsyFi5kcmlmdC52MS5BY3Rpb25SZXN1bHQikwIKDFN3aXBlUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIQCghsZWFzZV9pZBgEIAEoCRIVCg1mZW5jaW5nX3Rva2VuGAUgASgEEhcKD2lkZW1wb3RlbmN5X2tleRgGIAEoCRIZChFvYnNlcnZhdGlvbl90b2tlbhgHIAEoCRIjCgVzd2lwZRgIIAEoCzIULmRyaWZ0LnYxLlN3aXBlSW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI3Cg1Td2lwZVJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCKdAgoPS2V5RXZlbnRSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEhAKCGxlYXNlX2lkGAQgASgJEhUKDWZlbmNpbmdfdG9rZW4YBSABKAQSFwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJEhkKEW9ic2VydmF0aW9uX3Rva2VuGAcgASgJEioKCWtleV9ldmVudBgIIAEoCzIXLmRyaWZ0LnYxLktleUV2ZW50SW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI6ChBLZXlFdmVudFJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCr+BQoYRGV2aWNlSW5wdXRSZWZ1c2FsUmVhc29uEisKJ0RFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9VTlNQRUNJRklFRBAAEi0KKURFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9MRUFTRV9NSVNTSU5HEAESLQopREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0xFQVNFX0VYUElSRUQQAhIuCipERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fTEVBU0VfTk9UX0hFTEQQAxIrCidERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fRkVOQ0VfU1RBTEUQBBIyCi5ERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fTk9fQ09OVFJPTF9TRVNTSU9OEAUSLgoqREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0xFQVNFX0NPTkZMSUNUEAYSLgoqREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0VNRVJHRU5DWV9TVE9QEAcSLQopREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX1BPTElDWV9ERU5JRUQQCBIzCi9ERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fQ0FQQUJJTElUWV9NSVNNQVRDSBAJEi4KKkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9ERVZJQ0VfT0ZGTElORRAKEjMKL0RFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9ERVZJQ0VfVU5BVVRIT1JJWkVEEAsSMgouREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0RFVklDRV9VTkFWQUlMQUJMRRAMEjkKNURFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9EVVBMSUNBVEVfSURFTVBPVEVOQ1lfS0VZEA0SLgoqREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0xFQVNFX1JFTEVBU0VEEA4yxQEKEkRldmljZUlucHV0U2VydmljZRIyCgNUYXASFC5kcmlmdC52MS5UYXBSZXF1ZXN0GhUuZHJpZnQudjEuVGFwUmVzcG9uc2USOAoFU3dpcGUSFi5kcmlmdC52MS5Td2lwZVJlcXVlc3QaFy5kcmlmdC52MS5Td2lwZVJlc3BvbnNlEkEKCEtleUV2ZW50EhkuZHJpZnQudjEuS2V5RXZlbnRSZXF1ZXN0GhouZHJpZnQudjEuS2V5RXZlbnRSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_action, file_drift_v1_common]);
+  fileDesc("ChtkcmlmdC92MS9kZXZpY2VfaW5wdXQucHJvdG8SCGRyaWZ0LnYxIn4KEkRldmljZUlucHV0UmVmdXNhbBIyCgZyZWFzb24YASABKA4yIi5kcmlmdC52MS5EZXZpY2VJbnB1dFJlZnVzYWxSZWFzb24SDAoEY29kZRgCIAEoCRIVCg1mYWlsdXJlX2NsYXNzGAMgASgJEg8KB21lc3NhZ2UYBCABKAkijQIKClRhcFJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSEAoIbGVhc2VfaWQYBCABKAkSFQoNZmVuY2luZ190b2tlbhgFIAEoBBIXCg9pZGVtcG90ZW5jeV9rZXkYBiABKAkSGQoRb2JzZXJ2YXRpb25fdG9rZW4YByABKAkSHwoDdGFwGAggASgLMhIuZHJpZnQudjEuVGFwSW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI1CgtUYXBSZXNwb25zZRImCgZyZXN1bHQYASABKAsyFi5kcmlmdC52MS5BY3Rpb25SZXN1bHQikwIKDFN3aXBlUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIQCghsZWFzZV9pZBgEIAEoCRIVCg1mZW5jaW5nX3Rva2VuGAUgASgEEhcKD2lkZW1wb3RlbmN5X2tleRgGIAEoCRIZChFvYnNlcnZhdGlvbl90b2tlbhgHIAEoCRIjCgVzd2lwZRgIIAEoCzIULmRyaWZ0LnYxLlN3aXBlSW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI3Cg1Td2lwZVJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCKdAgoPS2V5RXZlbnRSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEhAKCGxlYXNlX2lkGAQgASgJEhUKDWZlbmNpbmdfdG9rZW4YBSABKAQSFwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJEhkKEW9ic2VydmF0aW9uX3Rva2VuGAcgASgJEioKCWtleV9ldmVudBgIIAEoCzIXLmRyaWZ0LnYxLktleUV2ZW50SW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI6ChBLZXlFdmVudFJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCKGAgoPVHlwZVRleHRSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEhAKCGxlYXNlX2lkGAQgASgJEhUKDWZlbmNpbmdfdG9rZW4YBSABKAQSFwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJEi4KBHRleHQYByABKAsyIC5kcmlmdC52MS5TZW5zaXRpdmVUZXh0UmVmZXJlbmNlEhgKEGFwcHJvdmFsX2dyYW50ZWQYCCABKAgiOgoQVHlwZVRleHRSZXNwb25zZRImCgZyZXN1bHQYASABKAsyFi5kcmlmdC52MS5BY3Rpb25SZXN1bHQq/gUKGERldmljZUlucHV0UmVmdXNhbFJlYXNvbhIrCidERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fVU5TUEVDSUZJRUQQABItCilERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fTEVBU0VfTUlTU0lORxABEi0KKURFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9MRUFTRV9FWFBJUkVEEAISLgoqREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0xFQVNFX05PVF9IRUxEEAMSKwonREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0ZFTkNFX1NUQUxFEAQSMgouREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX05PX0NPTlRST0xfU0VTU0lPThAFEi4KKkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9MRUFTRV9DT05GTElDVBAGEi4KKkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9FTUVSR0VOQ1lfU1RPUBAHEi0KKURFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9QT0xJQ1lfREVOSUVEEAgSMwovREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0NBUEFCSUxJVFlfTUlTTUFUQ0gQCRIuCipERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fREVWSUNFX09GRkxJTkUQChIzCi9ERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fREVWSUNFX1VOQVVUSE9SSVpFRBALEjIKLkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9ERVZJQ0VfVU5BVkFJTEFCTEUQDBI5CjVERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fRFVQTElDQVRFX0lERU1QT1RFTkNZX0tFWRANEi4KKkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9MRUFTRV9SRUxFQVNFRBAOMogCChJEZXZpY2VJbnB1dFNlcnZpY2USMgoDVGFwEhQuZHJpZnQudjEuVGFwUmVxdWVzdBoVLmRyaWZ0LnYxLlRhcFJlc3BvbnNlEjgKBVN3aXBlEhYuZHJpZnQudjEuU3dpcGVSZXF1ZXN0GhcuZHJpZnQudjEuU3dpcGVSZXNwb25zZRJBCghLZXlFdmVudBIZLmRyaWZ0LnYxLktleUV2ZW50UmVxdWVzdBoaLmRyaWZ0LnYxLktleUV2ZW50UmVzcG9uc2USQQoIVHlwZVRleHQSGS5kcmlmdC52MS5UeXBlVGV4dFJlcXVlc3QaGi5kcmlmdC52MS5UeXBlVGV4dFJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_action, file_drift_v1_common]);
 
 /**
  * A refused device input, as the dispatch boundary reports it.
@@ -301,6 +301,91 @@ export const KeyEventResponseSchema: GenMessage<KeyEventResponse> = /*@__PURE__*
   messageDesc(file_drift_v1_device_input, 6);
 
 /**
+ * TypeTextRequest submits one typed-text entry. Its value is NOT here: it names
+ * the opaque handle a registration returned, and the length of the value that
+ * handle holds, so a caller can bound what it is about to type without either
+ * boundary reading the content. `SensitiveTextReference` has no field for
+ * content for the same reason this request has none.
+ *
+ * There is no observation token and no coordinate frame, and that is the truth
+ * rather than an omission: typed content carries no coordinate, so there is
+ * nothing for it to be measured in and nothing to cross-check against the render
+ * size. It belongs to the workspace that registered it, which is the scope the
+ * value is released in.
+ *
+ * @generated from message drift.v1.TypeTextRequest
+ */
+export type TypeTextRequest = Message<"drift.v1.TypeTextRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string device_id = 3;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: string lease_id = 4;
+   */
+  leaseId: string;
+
+  /**
+   * @generated from field: uint64 fencing_token = 5;
+   */
+  fencingToken: bigint;
+
+  /**
+   * @generated from field: string idempotency_key = 6;
+   */
+  idempotencyKey: string;
+
+  /**
+   * text is the reference whose value is released at dispatch, exactly once, in
+   * the workspace above. A reference that was never registered, that was already
+   * released, or that has expired is refused; its value reaches no device.
+   *
+   * @generated from field: drift.v1.SensitiveTextReference text = 7;
+   */
+  text?: SensitiveTextReference;
+
+  /**
+   * @generated from field: bool approval_granted = 8;
+   */
+  approvalGranted: boolean;
+};
+
+/**
+ * Describes the message drift.v1.TypeTextRequest.
+ * Use `create(TypeTextRequestSchema)` to create a new message.
+ */
+export const TypeTextRequestSchema: GenMessage<TypeTextRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_input, 7);
+
+/**
+ * @generated from message drift.v1.TypeTextResponse
+ */
+export type TypeTextResponse = Message<"drift.v1.TypeTextResponse"> & {
+  /**
+   * @generated from field: drift.v1.ActionResult result = 1;
+   */
+  result?: ActionResult;
+};
+
+/**
+ * Describes the message drift.v1.TypeTextResponse.
+ * Use `create(TypeTextResponseSchema)` to create a new message.
+ */
+export const TypeTextResponseSchema: GenMessage<TypeTextResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_input, 8);
+
+/**
  * DeviceInputRefusalReason is the dispatch boundary's stable refusal vocabulary.
  *
  * Each value is a distinct operator situation with its own remediation, and the
@@ -431,7 +516,9 @@ export const DeviceInputRefusalReasonSchema: GenEnum<DeviceInputRefusalReason> =
  * the input was resolved against, and (where policy requires it) an approval.
  * The payload is the published typed payload for that kind — the same `TapInput`,
  * `SwipeInput` and `KeyEventInput` messages ActionIntent carries — so this
- * surface introduces no second representation of a device input.
+ * surface introduces no second representation of a device input. Typed text is
+ * the one input whose payload is a reference rather than a value, because content
+ * has no representation in a generated message at all (see below).
  *
  * A refused input answers with a Connect error whose code comes from the
  * boundary's stable vocabulary and which carries a DeviceInputRefusal detail. A
@@ -439,14 +526,20 @@ export const DeviceInputRefusalReasonSchema: GenEnum<DeviceInputRefusalReason> =
  * belongs to. There is no response that reports success for an input the device
  * did not receive.
  *
- * Typed text (ACTION_KIND_TEXT_INPUT) and app launch (ACTION_KIND_LAUNCH_APP) are
- * deliberately **absent**. Both are contract-complete but not dispatchable from
- * this surface: typed text has a resolver but no surface that can register a
- * value with it (ARC-107), and a launch carries its target in the intent (ARC-73)
- * without being dispatched here. A route whose only possible outcome is a refusal
- * is a control an operator surface will render and then find dead, so these two
- * are added when the card that makes them dispatchable lands rather than exposed
- * as refusals now.
+ * Typed text now has an RPC here, and it carries no content to do it. Its value
+ * is registered on the control plane's own local content surface
+ * (`POST /local/text-references/<handle>`, ADR-0015) as a request BODY, and this
+ * request names the value only by the opaque handle that registration returned.
+ * A generated message renders every populated field in its string, text, JSON and
+ * debug forms with no per-field redaction available, so a field can never be
+ * where operator content enters the process; a value is released at dispatch, in
+ * the workspace that registered it, and used exactly once.
+ *
+ * App launch (ACTION_KIND_LAUNCH_APP) remains deliberately **absent**: it carries
+ * its target in the intent (ARC-73) without being dispatched here. A route whose
+ * only possible outcome is a refusal is a control an operator surface will render
+ * and then find dead, so it is added when the card that makes it dispatchable
+ * lands rather than exposed as a refusal now.
  *
  * @generated from service drift.v1.DeviceInputService
  */
@@ -474,6 +567,14 @@ export const DeviceInputService: GenService<{
     methodKind: "unary";
     input: typeof KeyEventRequestSchema;
     output: typeof KeyEventResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.DeviceInputService.TypeText
+   */
+  typeText: {
+    methodKind: "unary";
+    input: typeof TypeTextRequestSchema;
+    output: typeof TypeTextResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_device_input, 0);
