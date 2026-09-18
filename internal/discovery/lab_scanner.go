@@ -21,6 +21,12 @@ type RuntimeDevice struct {
 	DeviceName  string
 	Fingerprint string
 	State       DeviceLinkState
+
+	// HardwareSerial is the serial the device reported for itself, when the
+	// runtime read one. It is carried through to the observation unchanged: the
+	// adapter is the only layer that can ask the device, and the registry is the
+	// layer that decides identity.
+	HardwareSerial string
 }
 
 // RuntimeEnumerator is the narrow seam used by lab Network Profile scans.
@@ -118,6 +124,11 @@ func ObservedDeviceFromRuntime(device RuntimeDevice) ObservedDevice {
 		DeviceName:  device.DeviceName,
 		Fingerprint: device.Fingerprint,
 		State:       device.State,
+		// The serial the device reported about itself travels with the
+		// observation so the registry can match a device that changed transport
+		// to the identity it already has, rather than keying on the address the
+		// module was observed at this time.
+		HardwareSerial: device.HardwareSerial,
 		Evidence: map[string]string{
 			"source":       "authorized_lab_runtime",
 			"transport_id": device.TransportID,

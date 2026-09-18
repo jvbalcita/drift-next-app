@@ -259,7 +259,7 @@ func TestTheRenderSizeAdmissionDoesNotWidenTheAllowlistSurface(t *testing.T) {
 		{"shell", "sh", "-c", "input tap 1 2"},
 		{"shell", "rm", "-rf", "/sdcard"},
 		{"shell", "rm", "/sdcard/drift-abc.xml"},
-		{"shell", "getprop", "ro.serialno"},
+		{"shell", "getprop", "ro.boot.serialno"},
 		{"shell", "pm", "uninstall", "com.example"},
 		{"shell", "uiautomator", "dump", "--compressed", "/sdcard/window_dump.xml"},
 		{"exec-out", "cat", "/data/misc/adb/adb_keys"},

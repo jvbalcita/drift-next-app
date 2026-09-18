@@ -96,6 +96,13 @@ var (
 
 // allowedProperties is the typed allow-list of read-only build properties this
 // adapter may read. No caller can widen it at runtime.
+//
+// reportedSerialProperty is admitted for identity rather than for a health or
+// settings read: a TCP transport's serial IS the address the device answers on,
+// so the registry needs the serial the device reports for itself to keep one
+// device on one identity when that address changes (AGENTS.md section 2). It is
+// a fixed property read, and the adapter bounds and pattern-checks the value
+// before anything uses it.
 var allowedProperties = map[string]struct{}{
 	"ro.build.version.release":        {},
 	"ro.build.version.sdk":            {},
@@ -104,6 +111,7 @@ var allowedProperties = map[string]struct{}{
 	"ro.product.manufacturer":         {},
 	"ro.product.device":               {},
 	"ro.product.cpu.abi":              {},
+	reportedSerialProperty:            {},
 }
 
 // AllowedProperties returns a sorted copy of the readable property allow-list.
@@ -222,6 +230,18 @@ func getStateArgv() []string { return []string{"get-state"} }
 func screencapArgv() []string { return []string{"exec-out", "screencap", "-p"} }
 
 func deviceNameArgv() []string { return []string{"shell", "settings", "get", "global", "device_name"} }
+
+// reportedSerialProperty is the Android build property that carries a device's
+// own serial. It is the one property admitted to identify a DEVICE rather than
+// to describe a transport: adb names a TCP device by the address it answers on,
+// so that serial changes with the device's address, while this one stays with
+// the device and lets the registry keep one identity across a move.
+const reportedSerialProperty = "ro.serialno"
+
+// reportedSerialArgv reads the serial the device reports about itself. Every
+// token is fixed: the property is a constant rather than a caller value, so the
+// array has no variable position at all and cannot express command text.
+func reportedSerialArgv() []string { return []string{"shell", "getprop", reportedSerialProperty} }
 
 func getPropArgv(property string) ([]string, error) {
 	if _, ok := allowedProperties[property]; !ok {

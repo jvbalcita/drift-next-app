@@ -60,6 +60,18 @@ type ObservedDevice struct {
 	State       DeviceLinkState
 	Evidence    map[string]string
 
+	// HardwareSerial is the serial the DEVICE reported about itself (Android
+	// ro.serialno) when it reported a usable one, and it is identity evidence
+	// rather than a transport fact. A TCP device's Serial is the address it
+	// answers on, which changes with the transport; this stays with the device,
+	// so the registry matches on it first and keeps one device on one identity
+	// across a new transport, a new address, or a reconnect (AGENTS.md section
+	// 2: stable device identity is separate from mutable transport identity).
+	// It is empty for a device that reported none - a fake device, a transport
+	// adb lists as offline - which keeps that observation matching by its
+	// transport exactly as it did before this field existed.
+	HardwareSerial string
+
 	// Populated once the observation has been persisted.
 	DeviceID   devices.DeviceID
 	EndpointID string

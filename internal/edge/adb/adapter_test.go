@@ -38,6 +38,12 @@ func deviceArgs(args ...string) []string {
 	return append([]string{"-s", testSerial}, args...)
 }
 
+// serialArgs is the argv the adapter dispatches for one named serial: the
+// fixed builder array behind an explicit -s.
+func serialArgs(serial string, args ...string) []string {
+	return append([]string{"-s", serial}, args...)
+}
+
 func TestNewAdapterRequiresExplicitConfiguration(t *testing.T) {
 	runner := NewFakeRunner()
 
@@ -69,7 +75,15 @@ ZY223UNAUTH            unauthorized usb:1-3 transport_id:3
 `
 
 func TestEnumerateParsesEveryTransportState(t *testing.T) {
-	runner := NewFakeRunner().RespondStdout(devicesArgv(), devicesFixture)
+	runner := NewFakeRunner().
+		RespondStdout(devicesArgv(), devicesFixture).
+		// The two usable transports answer the two reads that describe the
+		// DEVICE behind them, in the order the adapter asks: the serial it
+		// reports for itself, then the name an operator reads.
+		RespondStdout(serialArgs("emulator-5554", reportedSerialArgv()...), "emuHW1\n").
+		RespondStdout(serialArgs("emulator-5554", deviceNameArgv()...), "ALTA EMU\n").
+		RespondStdout(serialArgs("R5CT30ABCD", reportedSerialArgv()...), "R5CT30ABCD\n").
+		RespondStdout(serialArgs("R5CT30ABCD", deviceNameArgv()...), "ALTA 1\n")
 	adapter := newTestAdapter(t, runner)
 
 	devices, err := adapter.Enumerate(context.Background())
@@ -81,8 +95,8 @@ func TestEnumerateParsesEveryTransportState(t *testing.T) {
 	}
 
 	want := []DiscoveredDevice{
-		{Serial: "emulator-5554", State: StateDevice, Product: "sdk_gphone64_arm64", Model: "sdk_gphone64_arm64", Device: "emu64a", TransportID: "1", ConnectionType: ConnectionUSB},
-		{Serial: "R5CT30ABCD", State: StateDevice, Product: "b0q", Model: "SM_S908B", Device: "b0q", TransportID: "2", ConnectionType: ConnectionUSB},
+		{Serial: "emulator-5554", State: StateDevice, Product: "sdk_gphone64_arm64", Model: "sdk_gphone64_arm64", DeviceName: "ALTA EMU", Device: "emu64a", TransportID: "1", ConnectionType: ConnectionUSB, HardwareSerial: "emuHW1"},
+		{Serial: "R5CT30ABCD", State: StateDevice, Product: "b0q", Model: "SM_S908B", DeviceName: "ALTA 1", Device: "b0q", TransportID: "2", ConnectionType: ConnectionUSB, HardwareSerial: "R5CT30ABCD"},
 		{Serial: "ZY223UNAUTH", State: StateUnauthorized, TransportID: "3", ConnectionType: ConnectionUSB},
 		{Serial: "192.168.1.10:5555", State: StateOffline, TransportID: "4", ConnectionType: ConnectionTCP},
 		{Serial: "0123456789ABCDEF", State: StateNoPermissions, ConnectionType: ConnectionUSB},
@@ -94,8 +108,8 @@ func TestEnumerateParsesEveryTransportState(t *testing.T) {
 	}
 
 	invocations := runner.Invocations()
-	if len(invocations) != 3 {
-		t.Fatalf("len(invocations) = %d, want enumeration plus one name read per usable transport", len(invocations))
+	if len(invocations) != 5 {
+		t.Fatalf("len(invocations) = %d, want enumeration plus a serial read and a name read per usable transport", len(invocations))
 	}
 	if invocations[0].Executable != testExecutable {
 		t.Fatalf("executable = %q, want %q", invocations[0].Executable, testExecutable)
@@ -108,7 +122,8 @@ func TestEnumerateParsesEveryTransportState(t *testing.T) {
 func TestEnumerateCapturesGlobalAndroidDeviceNameForUsableTransport(t *testing.T) {
 	runner := NewFakeRunner().
 		RespondStdout(devicesArgv(), "List of devices attached\nR5CT30ABCD             device usb:1-2 product:b0q model:SM_G9750 device:b0q transport_id:2\n").
-		RespondStdout(append([]string{"-s", testSerial}, deviceNameArgv()...), "ALTA 1\n")
+		RespondStdout(deviceArgs(reportedSerialArgv()...), "R5CT30ABCD\n").
+		RespondStdout(deviceArgs(deviceNameArgv()...), "ALTA 1\n")
 	adapter := newTestAdapter(t, runner)
 
 	devices, err := adapter.Enumerate(context.Background())
@@ -122,11 +137,79 @@ func TestEnumerateCapturesGlobalAndroidDeviceNameForUsableTransport(t *testing.T
 		t.Fatalf("DeviceName = %q, want the Android global device_name", devices[0].DeviceName)
 	}
 	invocations := runner.Invocations()
-	if len(invocations) != 2 {
-		t.Fatalf("len(invocations) = %d, want enumeration plus one name read", len(invocations))
+	if len(invocations) != 3 {
+		t.Fatalf("len(invocations) = %d, want enumeration plus the reported serial and one name read", len(invocations))
 	}
-	if got := strings.Join(invocations[1].Args, " "); got != "-s "+testSerial+" shell settings get global device_name" {
+	if got := strings.Join(invocations[1].Args, " "); got != "-s "+testSerial+" shell getprop "+reportedSerialProperty {
+		t.Fatalf("reported-serial read args = %q, want the fixed reported-serial argv", got)
+	}
+	if got := strings.Join(invocations[2].Args, " "); got != "-s "+testSerial+" shell settings get global device_name" {
 		t.Fatalf("name read args = %q, want the fixed device_name argv", got)
+	}
+}
+
+// The serial a device reports for itself is the identity the registry matches a
+// device on, so the adapter reads it for a usable transport and refuses any
+// answer that is not a bounded token: a device that cannot say who it is must
+// keep resolving by its transport rather than carrying a placeholder every such
+// device would share into the registry.
+func TestEnumerateCapturesOnlyAUsableReportedSerial(t *testing.T) {
+	tests := []struct {
+		name    string
+		answer  string
+		reports string
+	}{
+		{name: "a bounded serial", answer: "R58M43QGSQX\n", reports: "R58M43QGSQX"},
+		{name: "a padded serial", answer: "  R58M43QGSQX  \n", reports: "R58M43QGSQX"},
+		{name: "the platform sentinel", answer: "unknown\n", reports: ""},
+		{name: "a null sentinel", answer: "null\n", reports: ""},
+		{name: "a blank answer", answer: "\n", reports: ""},
+		{name: "a second line", answer: "R58M43QGSQX\nADB123\n", reports: ""},
+		{name: "a spaced answer", answer: "R58M43QGSQX R58M43QGSQY\n", reports: ""},
+		{name: "an overlong answer", answer: strings.Repeat("R", maxReportedSerialLength+1) + "\n", reports: ""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runner := NewFakeRunner().
+				RespondStdout(devicesArgv(), "List of devices attached\nR5CT30ABCD             device usb:1-2 product:b0q model:SM_G9750 device:b0q transport_id:2\n").
+				RespondStdout(deviceArgs(reportedSerialArgv()...), test.answer).
+				RespondStdout(deviceArgs(deviceNameArgv()...), "ALTA 1\n")
+			adapter := newTestAdapter(t, runner)
+
+			devices, err := adapter.Enumerate(context.Background())
+			if err != nil {
+				t.Fatalf("Enumerate() = %v", err)
+			}
+			if len(devices) != 1 {
+				t.Fatalf("len(devices) = %d, want one", len(devices))
+			}
+			if devices[0].HardwareSerial != test.reports {
+				t.Fatalf("HardwareSerial = %q, want %q", devices[0].HardwareSerial, test.reports)
+			}
+		})
+	}
+}
+
+// The identity read is asked once per transport and remembered: Enumerate is the
+// watcher's polling path, so a second poll must not repeat it.
+func TestEnumerateReadsTheReportedSerialOncePerTransport(t *testing.T) {
+	runner := NewFakeRunner().
+		RespondStdout(devicesArgv(), "List of devices attached\nR5CT30ABCD             device usb:1-2 product:b0q model:SM_G9750 device:b0q transport_id:2\n").
+		RespondStdout(deviceArgs(reportedSerialArgv()...), "R58M43QGSQX\n").
+		RespondStdout(deviceArgs(deviceNameArgv()...), "ALTA 1\n")
+	adapter := newTestAdapter(t, runner)
+
+	for poll := 0; poll < 3; poll++ {
+		devices, err := adapter.Enumerate(context.Background())
+		if err != nil {
+			t.Fatalf("Enumerate() poll %d = %v", poll, err)
+		}
+		if devices[0].HardwareSerial != "R58M43QGSQX" || devices[0].DeviceName != "ALTA 1" {
+			t.Fatalf("poll %d = %+v, want the cached device facts on every poll", poll, devices[0])
+		}
+	}
+	if invocations := runner.Invocations(); len(invocations) != 5 {
+		t.Fatalf("len(invocations) = %d, want three enumerations plus one serial read and one name read", len(invocations))
 	}
 }
 
@@ -457,9 +540,12 @@ func TestReattachIsReadOnlyAndUsedAtMostOncePerChange(t *testing.T) {
 
 	for _, invocation := range runner.Invocations() {
 		joined := strings.Join(invocation.Args, " ")
-		if joined != "devices -l" && !strings.HasSuffix(joined, " shell settings get global device_name") {
-			t.Fatalf("reattach issued a non read-only command: %q", joined)
+		if joined == "devices -l" ||
+			strings.HasSuffix(joined, " shell settings get global device_name") ||
+			strings.HasSuffix(joined, " shell getprop "+reportedSerialProperty) {
+			continue
 		}
+		t.Fatalf("reattach issued a non read-only command: %q", joined)
 	}
 }
 
@@ -480,7 +566,7 @@ func TestRunAllowlistedRefusesUnapprovedArgv(t *testing.T) {
 		{"shell", "input", "tap", "1"},
 		{"shell", "input", "tap", "1", "2", "3"},
 		{"shell", "input", "tap", "-1", "2"},
-		{"shell", "getprop", "ro.serialno"},
+		{"shell", "getprop", "ro.boot.serialno"},
 		{"exec-out", "cat", "/data/misc/adb/adb_keys"},
 		{"devices", "-l"},
 		{"reconnect"},
