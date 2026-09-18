@@ -53,7 +53,10 @@ func (h *MirrorStreamHTTPHandler) ServeHTTP(writer http.ResponseWriter, request 
 	}
 	stream, live := h.streams.Stream(streamKey)
 	if !live {
-		http.Error(writer, "no live stream with that identity is being carried", http.StatusNotFound)
+		// The refusal names the identity it was given and the identities this
+		// service IS carrying, for the same reason the surface's own does: a
+		// browser's fetch that fails has to be diagnosable from what it was told.
+		http.Error(writer, noSuchStreamError(h.streams, streamKey).Error(), http.StatusNotFound)
 		return
 	}
 	endpoint, carries := stream.(DeviceMirrorEndpointStream)

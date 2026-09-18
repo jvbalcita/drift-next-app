@@ -602,6 +602,70 @@ func TestMirrorStopsCapturingADeviceNobodyIsWatching(t *testing.T) {
 	}
 }
 
+// TestMirrorSessionOutlivesTheContextThatStartedIt pins the lifetime rule that is
+// the difference between a device's screen reaching the browser that asked for it
+// and that browser being told no such stream exists.
+//
+// The call that starts a session IS a request - an operator opening a device's big
+// frame - and a transport cancels a request's context the moment its response has
+// been written. A session that inherited that cancellation would end there: the
+// device work it is doing would be cancelled mid-flight, the engine would forget
+// it, and the browser's next request, attaching to the stream identity it was
+// just given, would be refused. That is a capture that never carries a picture
+// and a refusal that names the wrong cause.
+func TestMirrorSessionOutlivesTheContextThatStartedIt(t *testing.T) {
+	dialer := newFakeDialer()
+	engine := newEngine(t, dialer, MirrorEngineConfig{Idle: 500 * time.Millisecond})
+
+	started, cancel := context.WithCancel(context.Background())
+	session, viewer, err := engine.Start(started, "device-alpha", "SERIAL-alpha")
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer viewer.Close()
+	stream := dialer.streamFor(t, "device-alpha")
+	sessionReady(t, session)
+
+	// The opening request returns, and its context is cancelled exactly as a
+	// transport cancels it: the response has been written and the call is over.
+	cancel()
+
+	// A session that inherited that cancellation ends here, asynchronously: the
+	// read it is blocked in returns the cancellation and the session ends with
+	// it. That is given the chance to happen before this asserts it did not.
+	for deadline := time.Now().Add(250 * time.Millisecond); time.Now().Before(deadline); {
+		if failure := session.Fails(); failure != nil {
+			t.Fatalf("the session ended when the call that started it returned: %v", failure)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// The device is still being captured, and the viewer still receives what it
+	// produces: the frame is read by the session's own worker, not by the test.
+	stream.push(StreamFrame{Key: true, Data: idrUnit})
+	if frame := next(t, viewer); !frame.Key {
+		t.Fatal("the viewer received something other than the device's key frame after the opening request returned")
+	}
+	if _, live := engine.Session("device-alpha"); !live {
+		t.Fatal("the session ended when the call that started it returned: the capture belongs to the engine and its viewers, not to that call")
+	}
+
+	// What ends it is the engine's own stop, which is what the process's shutdown
+	// does - and a stopped engine carries nothing.
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer stopCancel()
+	if stopErr := engine.Stop(stopCtx); stopErr != nil {
+		t.Fatalf("Stop: %v", stopErr)
+	}
+	if _, live := engine.Session("device-alpha"); live {
+		t.Fatal("the session outlived the engine that owned it")
+	}
+	waitFor(t, "the device's stream to be released by the engine's stop", func() bool {
+		_, closes, _ := stream.state()
+		return closes > 0
+	})
+}
+
 // TestMirrorStopEndsEverySessionAndWaitsForThem is acceptance criterion 2 as the
 // composition root uses it: Stop returns only once every capture it owned has
 // stopped, and it is safe to call twice.

@@ -311,7 +311,12 @@ func NewMirrorEngine(config MirrorEngineConfig) (*MirrorEngine, error) {
 //
 // Joining is deliberate: one device has one session, and the second viewer of the
 // same device attaches to the session already running instead of starting a
-// second capture of the same screen.
+// second capture of the same screen. For the same reason the session outlives the
+// call that started it: it belongs to the engine, which the process owns and
+// stops, and to the viewers subscribed to it - never to whichever request
+// happened to open it (see bind). The context here bounds the START, and its
+// values reach the session; its cancellation does not end a capture the engine is
+// carrying for a browser that is still attached to it.
 func (e *MirrorEngine) Start(ctx context.Context, deviceID, serial string) (MirrorSession, MirrorViewer, error) {
 	if deviceID == "" || serial == "" {
 		return nil, nil, errors.New("media: starting a mirror requires a device and its transport serial")
@@ -508,18 +513,37 @@ func newMirrorSession(deviceID, serial string, engine *MirrorEngine) *mirrorSess
 	}
 }
 
-// bind attaches the session to the context its starter passed. The session's own
-// context ends when that one does, or earlier - when the session ends for a
-// reason of its own, such as the last viewer detaching.
+// bind attaches the session to the context its starter passed, and takes that
+// context's VALUES while dropping its CANCELLATION.
 //
-// It is what makes an ended session's reader stop: without it a session ended by
-// its idle bound would leave its worker blocked on a read for as long as the
-// caller's context lived, and the device's stream would never be closed. That is
-// exactly the orphaned capture this engine exists to prevent.
+// The session outlives the call that started it, and that is the whole reason
+// this method exists. The call is a request - an operator opening a device's big
+// frame - and it returns long before the session's work is done, because the
+// session's work is the device's capture, which lasts as long as a viewer is
+// subscribed. A session that inherited that request's cancellation would end the
+// moment the request returned: a transport cancels a request's context as soon as
+// its response is written, so the device work the session is doing - the push of
+// the device-side server, the transport handshake - would be cancelled
+// mid-flight, the session would end, and the browser's very next request,
+// attaching to the stream identity it was just given, would be refused with "no
+// live stream with that identity is being carried". The device's own screen would
+// never be carried at all, and the refusal would name the wrong cause.
+//
+// What ends the session is the session's own work: its last viewer detaching for
+// the idle bound, the device's stream ending, or the engine being stopped - which
+// is what the process's shutdown does, through the composition root that owns the
+// engine. Ending the session cancels this context, and that is what makes an
+// ended session's reader stop: without it a session ended by its idle bound would
+// leave its worker blocked on a read for as long as the caller's context lived,
+// and the device's stream would never be closed. That is exactly the orphaned
+// capture this engine exists to prevent.
 func (s *mirrorSession) bind(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.ctx, s.cancel = context.WithCancel(ctx)
+	s.ctx, s.cancel = context.WithCancel(context.WithoutCancel(ctx))
 }
 
 // context reports the session's own cancellation, which every blocking call this

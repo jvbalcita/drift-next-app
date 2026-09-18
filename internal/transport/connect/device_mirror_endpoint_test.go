@@ -116,6 +116,40 @@ func TestAStreamEndpointRefusesBeforeTheBodyBegins(t *testing.T) {
 	}
 }
 
+// TestAStreamEndpointRefusalNamesWhatIsCarried: a browser's fetch of a stream
+// identity this service is not carrying is told which identities ARE being
+// carried. The sentence alone is not actionable - the same one covers an identity
+// that was never a stream, one whose session has ended, and one that is a stream
+// under another name - so the fetch that fails is diagnosable from what it was
+// told, without anyone reading the service's database. It names stream identities
+// and never the serial a stream came from.
+func TestAStreamEndpointRefusalNamesWhatIsCarried(t *testing.T) {
+	endpoint := &fakeEndpointStream{fakeMirrorStream: &fakeMirrorStream{key: mirrorStreamID, deviceID: mirrorDevice, serial: mirrorSerial}, body: []byte("ftyp-container")}
+	mirrors := newFakeMirrors(endpoint)
+	if handler := transportconnect.NewMirrorStreamHTTPHandler(mirrors); handler == nil {
+		t.Fatal("a constructed transport produced no stream endpoint handler")
+	}
+
+	const asked = "drift-elsewhere-00000000"
+	recorder := fetchStream(t, mirrors, asked)
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("the fetch of an unknown identity answered %d, want 404", recorder.Code)
+	}
+	body := strings.TrimSpace(recorder.Body.String())
+	if !strings.Contains(body, `asked for "`+asked+`"`) {
+		t.Fatalf("the refusal does not name the identity it was given: %q", body)
+	}
+	if !strings.Contains(body, mirrorStreamID) {
+		t.Fatalf("the refusal does not name the stream that IS being carried (%q): %q", mirrorStreamID, body)
+	}
+	if strings.Contains(body, mirrorSerial) {
+		t.Fatalf("the refusal names the serial a stream came from: %q", body)
+	}
+	if strings.Contains(body, "carrying nothing") {
+		t.Fatalf("the refusal says nothing is carried while a stream is: %q", body)
+	}
+}
+
 // TestAStreamEndpointWithoutATransportIsNotConstructed: the mount gate. A handler
 // over nothing is nil, so the route is empty rather than mounted and answering
 // every request with a refusal - the rule every other surface in this service

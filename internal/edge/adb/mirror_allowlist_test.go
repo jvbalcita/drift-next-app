@@ -50,6 +50,30 @@ func mirrorTestLaunch(t *testing.T) []string {
 	return args
 }
 
+// TestTheMirrorRemovalIsAdbOwnGrammar pins the removal to the array adb accepts.
+//
+// The tunnel removal is `reverse --remove <remote>`: three tokens, the remote spec
+// alone. The shape that appends the ADD form's tunnel target is a usage error -
+// adb answers "adb: --remove requires an argument" and removes nothing - so the
+// tunnel stays registered with the device's adb server, pointing at a loopback
+// port this process has already closed, for as long as that server lives.
+func TestTheMirrorRemovalIsAdbOwnGrammar(t *testing.T) {
+	removal := mirrorTestReverse(t, true)
+	if len(removal) != 3 || removal[0] != "reverse" || removal[1] != "--remove" || !isMirrorAbstractSocket(removal[2]) {
+		t.Fatalf("MirrorReverseArgv(remove) = %q, want adb's own `reverse --remove <remote>`", removal)
+	}
+	name, ok := matchesAllowlist(removal)
+	if !ok || name != MirrorReverseRemoveOperation {
+		t.Fatalf("matchesAllowlist(%q) = %q, %v; want %q, true", removal, name, ok, MirrorReverseRemoveOperation)
+	}
+	// The addition still carries its target, and is still the addition's own
+	// operation: the two forms are not each other.
+	addition := mirrorTestReverse(t, false)
+	if name, ok := matchesAllowlist(addition); !ok || name != MirrorReverseAddOperation {
+		t.Fatalf("matchesAllowlist(%q) = %q, %v; want %q, true", addition, name, ok, MirrorReverseAddOperation)
+	}
+}
+
 // TestTheMirrorAdmissionRecognisesTheArraysItsBuildersProduce is the admission
 // itself: every shape the mirror issues is admitted, under its own operation
 // name, and none of them is admitted as anything else.
@@ -147,7 +171,15 @@ func TestTheMirrorAdmissionRefusesEveryNearMiss(t *testing.T) {
 		{"reverse", "localabstract:scrcpy_2abc1234", "tcp:027183"},
 		{"reverse", "localabstract:scrcpy_2abc1234", "tcp:27183", "extra"},
 		{"reverse", "--remove-all", "localabstract:scrcpy_2abc1234", "tcp:27183"},
-		{"reverse", "--remove", "localabstract:scrcpy_2abc1234"},
+		// The removal that adb refuses: `reverse --remove <remote>` takes the remote
+		// spec alone, so an array that appends the ADD form's tunnel target is a
+		// usage error adb answers with stderr and no removal. It is not admitted,
+		// because a shape that fails this way leaves the tunnel registered with the
+		// device's adb server and reads as a release that happened.
+		{"reverse", "--remove", "localabstract:scrcpy_2abc1234", "tcp:27183"},
+		{"reverse", "--remove", "tcp:27183", "localabstract:scrcpy_2abc1234"},
+		{"reverse", "--remove", "localabstract:other_2abc1234"},
+		{"reverse", "--remove", "localabstract:scrcpy_2ABC1234"},
 		{"shell", "reverse", "localabstract:scrcpy_2abc1234", "tcp:27183"},
 		// The launch: another server version, another main class, another
 		// CLASSPATH, an option the client does not ask for, a reordered option, a

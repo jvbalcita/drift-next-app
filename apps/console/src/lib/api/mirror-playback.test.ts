@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { browserMirrorPlayback, type MediaSourcePort, type SourceBufferPort } from "@/lib/api/mirror-playback"
 import { concatBytes } from "@/lib/mp4-segments"
 import { liveMirrorCopy } from "@/lib/live-mirror"
@@ -188,6 +188,31 @@ describe("the TCP transport's playback", () => {
       fetchStream: async () => null,
     })
     await expect(playback.start()).rejects.toThrow(liveMirrorCopy.failure.refusedEndpoint)
+  })
+
+  it("keeps the control plane's own refusal sentence, so the frame names what IS carried", async () => {
+    // The default fetch, over a stubbed transport: this is the path the console
+    // actually uses. The plane's answer is the diagnosis - it names the stream
+    // identity this console asked for and the identities that ARE live - so it is
+    // reported with this console's own sentence, and never replaced by it.
+    const said = 'no live stream with that identity is being carried (asked for "drift-alpha-1"; this service is carrying 1 live stream(s): drift-beta-2)'
+    vi.stubGlobal("fetch", async () => ({ ok: false, status: 404, text: async () => `${said}\n` }) as unknown as Response)
+    try {
+      const playback = browserMirrorPlayback({ element: null, url: "http://control-plane.test/stream", headers: {} })
+      await expect(playback.start()).rejects.toThrow(said)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("states its own sentence for a refusal that carried no readable answer", async () => {
+    vi.stubGlobal("fetch", async () => ({ ok: false, status: 404, text: async () => "" }) as unknown as Response)
+    try {
+      const playback = browserMirrorPlayback({ element: null, url: "http://control-plane.test/stream", headers: {} })
+      await expect(playback.start()).rejects.toThrow(liveMirrorCopy.failure.refusedEndpoint)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it("ends the media stream when the response ends, and takes the picture down when it is stopped", async () => {

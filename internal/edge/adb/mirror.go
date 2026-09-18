@@ -134,14 +134,20 @@ func MirrorReverseArgv(sessionID uint32, port int, remove bool) ([]string, error
 	if err != nil {
 		return nil, err
 	}
+	if remove {
+		// adb's own grammar for a removal is `reverse --remove <remote>`: the
+		// remote spec and nothing else. Handing it the tunnel target as well - the
+		// shape the ADD form takes - is a usage error ("adb: --remove requires an
+		// argument"), and a tunnel nothing removed stays registered with the
+		// device's adb server for as long as that server lives. Measured on the lab
+		// fleet: with the target appended, every session left its abstract socket
+		// pointing at a port this process had already closed.
+		return []string{"reverse", "--remove", socket}, nil
+	}
 	if port < 1 || port > 65535 {
 		return nil, fmt.Errorf("%w: a tunnel target needs a port in 1..65535, got %d", ErrMirrorShapeInvalid, port)
 	}
-	args := []string{"reverse"}
-	if remove {
-		args = append(args, "--remove")
-	}
-	return append(args, socket, "tcp:"+strconv.Itoa(port)), nil
+	return []string{"reverse", socket, "tcp:" + strconv.Itoa(port)}, nil
 }
 
 // MirrorServerLaunchArgv builds the device-side server launch: a fixed binary
@@ -233,7 +239,7 @@ func matchesMirrorAllowlist(args []string) (string, bool) {
 		return MirrorServerPushOperation, true
 	case len(args) == 3 && args[0] == "reverse" && isMirrorAbstractSocket(args[1]) && isMirrorTunnelTarget(args[2]):
 		return MirrorReverseAddOperation, true
-	case len(args) == 4 && args[0] == "reverse" && args[1] == "--remove" && isMirrorAbstractSocket(args[2]) && isMirrorTunnelTarget(args[3]):
+	case len(args) == 3 && args[0] == "reverse" && args[1] == "--remove" && isMirrorAbstractSocket(args[2]):
 		return MirrorReverseRemoveOperation, true
 	case matchesMirrorServerLaunch(args):
 		return MirrorServerLaunchOperation, true
