@@ -1,6 +1,7 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
-import { Keyboard, LoaderCircle, MousePointer2, RotateCw, Smartphone, X } from "lucide-react"
+import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react"
+import { CornerDownLeft, Keyboard, LoaderCircle, MousePointer2, RotateCw, Smartphone, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
@@ -57,6 +58,7 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
   const [notice, setNotice] = useState("")
   const [refusal, setRefusal] = useState("")
   const [dragging, setDragging] = useState(false)
+  const [draft, setDraft] = useState("")
 
   const inputBlockedReason = !hasLease
     ? liveMirrorCopy.input.noLease
@@ -66,6 +68,16 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
         ? liveMirrorCopy.input.noFrame
         : ""
   const inputReady = inputBlockedReason === "" && (phase === "live" || phase === "starting")
+  // Typed text is held to a different rule than a coordinate, and the difference
+  // is the point: it carries no frame, so an unobserved frame is not a reason to
+  // refuse it, and it travels the device's live session, so a stream that is not
+  // open is.
+  const textBlockedReason = !hasLease
+    ? liveMirrorCopy.text.noLease
+    : phase === "live" || phase === "starting"
+      ? ""
+      : liveMirrorCopy.text.noStream
+  const textReady = textBlockedReason === ""
 
   function surfaceRect() {
     const element = stage.current
@@ -93,6 +105,29 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
   async function sendKey(keyCode: number, label: string) {
     const result = await dispatch({ type: "submitDeviceKeyEvent", deviceId: device.id, keyCode, confirmed: true })
     setNotice(`${label}: ${result.message}`)
+  }
+
+  /**
+   * sendText types what the operator typed into the device.
+   *
+   * The value is read once, dispatched once, and dropped from this component's
+   * state only when the control plane accepted the dispatch: a value the console
+   * keeps after it was typed is a value that will be typed a second time, and a
+   * value it drops after a refusal is one the operator has to type again. Nothing
+   * here renders it — the notice names the outcome, never the content.
+   */
+  async function sendText(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!textReady) return
+    const value = draft
+    if (value.trim() === "") {
+      setRefusal(liveMirrorCopy.text.empty)
+      return
+    }
+    setRefusal("")
+    const result = await dispatch({ type: "submitDeviceText", deviceId: device.id, text: value, confirmed: true })
+    setNotice(`${result.message}`)
+    if (result.ok) setDraft("")
   }
 
   const beginPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -188,6 +223,30 @@ export function LiveMirrorSurface({ device, mirror, transport = "webrtc", worksp
             </Button>
           ))}
         </div>
+        <form className="mt-2 space-y-1" onSubmit={(event) => void sendText(event)}>
+          <label className="block text-[10px] leading-4 text-white/70" htmlFor="live-mirror-text">
+            {liveMirrorCopy.text.label}
+          </label>
+          <div className="flex gap-1">
+            <Input
+              id="live-mirror-text"
+              data-testid="live-mirror-text"
+              className="h-7 flex-1 text-[11px]"
+              value={draft}
+              placeholder={liveMirrorCopy.text.placeholder}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={!textReady}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+            <Button type="submit" size="sm" variant="outline" disabled={!textReady} data-testid="live-mirror-text-send">
+              <CornerDownLeft className="size-3.5" aria-hidden="true" />
+              {liveMirrorCopy.text.send}
+            </Button>
+          </div>
+          <p className="text-[10px] leading-4 text-white/50">{liveMirrorCopy.text.hint}</p>
+          {textBlockedReason !== "" ? <p className="text-[10px] leading-4 text-amber-300" data-testid="live-mirror-text-blocked">{textBlockedReason}</p> : null}
+        </form>
         {phase === "live" || phase === "starting" ? (
           <Button type="button" size="sm" variant="outline" className="mt-2 w-full" onClick={stop}>
             <X className="size-3.5" aria-hidden="true" />

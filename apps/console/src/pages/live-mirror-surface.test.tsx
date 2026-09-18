@@ -57,11 +57,11 @@ function device(): DeviceView {
   return found
 }
 
-function renderSurface(options: { mirror?: LiveMirrorClient; hasLease?: boolean; token?: string; rect?: DOMRect } = {}) {
+function renderSurface(options: { mirror?: LiveMirrorClient; hasLease?: boolean; token?: string; rect?: DOMRect; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
   const intents: ControlPlaneIntent[] = []
   const dispatch: DispatchIntent = async (intent) => {
     intents.push(intent)
-    return { ok: true, kind: intent.type, message: "The control plane accepted the input." }
+    return { ok: true, kind: intent.type, message: "The control plane accepted the input.", ...(options.reply?.(intent) ?? {}) }
   }
   const mirror = options.hasOwnProperty("mirror") ? options.mirror : fakeMirror().client
   render(
@@ -292,6 +292,67 @@ describe("the big frame as a live mirror", () => {
     const { intents } = renderSurface({ mirror: fakeMirror(stream({ state: MirrorStreamState.STARTING, frames: 0n })).client })
     await waitFor(() => expect(screen.getByTestId("live-mirror-phase")).toHaveTextContent(liveMirrorCopy.phase.starting))
     expect(screen.getByTestId("live-mirror-mark")).not.toHaveClass("animate-pulse")
+    expect(intents).toHaveLength(0)
+  })
+
+  it("types what the operator entered into the device, and clears it once it was typed", async () => {
+    const user = userEvent.setup()
+    const { intents } = renderSurface()
+    await live(intents)
+
+    const field = screen.getByTestId("live-mirror-text")
+    await user.type(field, "hello device")
+    await user.click(screen.getByTestId("live-mirror-text-send"))
+
+    await waitFor(() => expect(intents).toHaveLength(1))
+    expect(intents[0]).toMatchObject({ type: "submitDeviceText", deviceId: device().id, text: "hello device" })
+    // The console keeps no copy of a value it typed: the field is empty again,
+    // and nothing it renders carries the text back.
+    await waitFor(() => expect(field).toHaveValue(""))
+    expect(screen.getByTestId("live-mirror-notice")).not.toHaveTextContent("hello device")
+  })
+
+  it("keeps what the operator typed when the control plane refused it, and says so", async () => {
+    const user = userEvent.setup()
+    const { intents } = renderSurface({ reply: () => ({ ok: false, message: "The device lease has expired." }) })
+    await live(intents)
+
+    const field = screen.getByTestId("live-mirror-text")
+    await user.type(field, "hello device")
+    await user.click(screen.getByTestId("live-mirror-text-send"))
+
+    await waitFor(() => expect(screen.getByTestId("live-mirror-notice")).toHaveTextContent("The device lease has expired."))
+    expect(field).toHaveValue("hello device")
+    expect(intents).toHaveLength(1)
+  })
+
+  it("refuses an empty entry rather than dispatching it", async () => {
+    const user = userEvent.setup()
+    const { intents } = renderSurface()
+    await live(intents)
+
+    await user.click(screen.getByTestId("live-mirror-text-send"))
+
+    expect(screen.getByRole("alert")).toHaveTextContent(liveMirrorCopy.text.empty)
+    expect(intents).toHaveLength(0)
+  })
+
+  it("offers no way to type into a device it holds no lease for, and says why", async () => {
+    const { intents } = renderSurface({ hasLease: false })
+    await live(intents)
+
+    expect(screen.getByTestId("live-mirror-text")).toBeDisabled()
+    expect(screen.getByTestId("live-mirror-text-send")).toBeDisabled()
+    expect(screen.getByTestId("live-mirror-text-blocked")).toHaveTextContent(liveMirrorCopy.text.noLease)
+  })
+
+  it("stops offering typed text when the stream it would travel is over, and says why", async () => {
+    const mirror = fakeMirror(stream({ state: MirrorStreamState.ENDED, frames: 20n }))
+    const { intents } = renderSurface({ mirror: mirror.client })
+    await waitFor(() => expect(screen.getByTestId("live-mirror-phase")).toHaveTextContent(/stream ended/i), { timeout: 4_000 })
+
+    expect(screen.getByTestId("live-mirror-text")).toBeDisabled()
+    expect(screen.getByTestId("live-mirror-text-blocked")).toHaveTextContent(liveMirrorCopy.text.noStream)
     expect(intents).toHaveLength(0)
   })
 })

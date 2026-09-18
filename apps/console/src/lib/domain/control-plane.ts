@@ -825,6 +825,17 @@ export type ControlPlaneIntent =
   | { type: "submitDeviceSwipe"; deviceId: string; startX: number; startY: number; endX: number; endY: number; durationMs: number; renderWidth: number; renderHeight: number; observationToken: string; confirmed: boolean }
   | { type: "submitDeviceKeyEvent"; deviceId: string; keyCode: number; confirmed: boolean }
   /**
+   * submitDeviceText types text into the device through its live session.
+   *
+   * The value travels as the BODY of a registration on the control plane's own
+   * local content surface and never as a field of a request, so the RPC this
+   * dispatch makes names an opaque handle and not the text: a generated message
+   * renders every populated field in its string, JSON and debug forms, and there
+   * is no per-field redaction to stop it. The kernel still authorizes the input,
+   * and the value is released at dispatch, in the workspace that registered it.
+   */
+  | { type: "submitDeviceText"; deviceId: string; text: string; confirmed: boolean }
+  /**
    * applyFleetDeviceSettings applies the catalogued device settings — rotation
    * lock and autofill off — to every device in the registry, through the same
    * control kernel every other device action goes through: one control session,

@@ -139,6 +139,26 @@ export const liveMirrorCopy = {
     { label: "Enter", keyCode: 66 },
     { label: "Backspace", keyCode: 67 },
   ] as const,
+  /**
+   * Typing into the device. The value an operator types here is the one input
+   * content the console handles at all, so every sentence about it is explicit:
+   * where it goes, what it is measured in (nothing — it carries no coordinate),
+   * and that the request which types it never carries it.
+   */
+  text: {
+    label: "Type into the device",
+    placeholder: "Text to type on the device",
+    send: "Send text",
+    /** Reported after a dispatch the control plane accepted. */
+    sent: "Text dispatched to the device.",
+    /** Said before anything is dispatched, when there is nothing to send. */
+    empty: "Type something before sending it.",
+    /** Why the control is unavailable, said before anything is dispatched. */
+    noLease: "Typing into the device needs this device's active lease, which this console has not acquired.",
+    noStream: "Typing into the device needs an open live stream, because the text travels the device's own mirror session.",
+    /** What the control does with what is typed into it. */
+    hint: "Type here and press Enter. The text is registered with the control plane under an opaque handle and typed over the device's live session; the request that types it names the handle, never the text.",
+  },
   /** Why input cannot be sent, said before anything is dispatched. */
   input: {
     noLease: "Input needs this device's active lease, which this console has not acquired.",

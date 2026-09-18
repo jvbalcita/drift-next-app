@@ -1056,6 +1056,11 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       case "submitDeviceSwipe":
       case "submitDeviceKeyEvent":
         return result(intent, `${intent.type.replace("submitDevice", "")} accepted by fake device kernel.`)
+      case "submitDeviceText":
+        // The fake kernel says nothing about the value: it reached a fake device
+        // kernel, and a mock that echoed what was typed would be the one place
+        // this console renders operator content back.
+        return result(intent, "Text accepted by fake device kernel.")
       case "submitDeviceAction":
         return this.submitDeviceAction(intent)
       case "beginRecording":

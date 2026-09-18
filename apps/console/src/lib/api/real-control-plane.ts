@@ -2145,6 +2145,21 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         const response = await this.services.deviceInput.keyEvent(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: "", approvalGranted: intent.confirmed, keyEvent: { keyCode: intent.keyCode } })
         return mutation(intent, `Key event outcome: ${response.result?.outcome ?? "unknown"}.`, { resourceId: response.result?.actionId })
       }
+      case "submitDeviceText": {
+        const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
+        if (!lease) return failure(intent, "Acquire an active lease before typing into the device.", { errorCode: "precondition_failed" })
+        const value = intent.text
+        if (value.trim() === "") return failure(intent, "Type something before sending it.", { errorCode: "invalid_input" })
+        // The value leaves this process through the content surface and nowhere
+        // else: it is the body of one registration, it is named afterwards by an
+        // opaque handle, and the length that travels is the number of BYTES the
+        // control plane will hold — the same thing it compares when it releases.
+        const handle = `text-${requestId}`
+        const length = new TextEncoder().encode(value).length
+        await this.services.textReference.register(handle, workspaceId, value)
+        const response = await this.services.deviceInput.typeText(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, approvalGranted: intent.confirmed, text: { handle, valueLength: length } })
+        return mutation(intent, `Typed text outcome: ${response.result?.outcome ?? "unknown"}.`, { resourceId: response.result?.actionId })
+      }
       case "submitDeviceAction": {
         if (!intent.confirmed && intent.kind !== "observe" && intent.kind !== "health_check") {
           return failure(intent, "This action requires confirmation.", { errorCode: "precondition_failed" })
