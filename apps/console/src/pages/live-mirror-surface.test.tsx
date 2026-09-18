@@ -27,11 +27,12 @@ function stream(overrides: { state?: MirrorStreamState; failure?: string; frames
   }))
 }
 
-function fakeMirror(initial: LiveStreamView = stream()): { client: LiveMirrorClient; calls: string[] } {
+function fakeMirror(initial: LiveStreamView = stream()): { client: LiveMirrorClient; calls: string[]; setState(next: LiveStreamView): void } {
   const calls: string[] = []
   let state = initial
   return {
     calls,
+    setState(next) { state = next },
     client: {
       async startStream(request) { calls.push(`start:${request.deviceId}`); return state },
       async negotiate(_streamId, offerSdp) { calls.push(`negotiate:${offerSdp}`); return { answerSdp: "answer-sdp", stream: state } },
@@ -90,20 +91,30 @@ let originalMatchMedia: typeof window.matchMedia
  * default peer factory asks anything of. Nothing here publishes a track: these
  * tests are about what the surface renders and what it sends back.
  */
+const livePeers: FakeRTCPeerConnection[] = []
+
 class FakeRTCPeerConnection {
   iceGatheringState = "complete"
   localDescription: { type: string; sdp: string } | null = null
+  private tracks: ((event: { streams: MediaStream[] }) => void)[] = []
+  constructor() { livePeers.push(this) }
   addTransceiver() { return undefined }
   async createOffer() { return { type: "offer", sdp: "offer-sdp" } }
   async setLocalDescription(description: { type: string; sdp: string }) { this.localDescription = description }
   async setRemoteDescription() { return undefined }
-  addEventListener() { return undefined }
+  addEventListener(type: string, listener: (event: { streams: MediaStream[] }) => void) {
+    if (type === "track") this.tracks.push(listener)
+    return undefined
+  }
   removeEventListener() { return undefined }
   close() { return undefined }
+  /** publish is the device's first picture arriving on the negotiated track. */
+  publish(media: MediaStream) { for (const listener of this.tracks) listener({ streams: [media] }) }
 }
 
 beforeEach(() => {
   originalMatchMedia = window.matchMedia
+  livePeers.length = 0
   vi.stubGlobal("RTCPeerConnection", FakeRTCPeerConnection)
 })
 
@@ -228,6 +239,9 @@ describe("the big frame as a live mirror", () => {
   it("says a stream ended rather than leaving its last frame looking current", async () => {
     renderSurface({ mirror: fakeMirror(stream({ state: MirrorStreamState.ENDED, frames: 40n })).client })
     await waitFor(() => expect(screen.getByTestId("live-mirror-phase")).toHaveTextContent(/stream ended/i))
+    // No peer is opened for a stream that is already over: there is no picture to
+    // negotiate for, and opening one would be a capture for nobody.
+    expect(livePeers).toHaveLength(0)
     expect(screen.getByTestId("live-mirror-phase")).toHaveTextContent(/40 picture\(s\) were carried/i)
   })
 
@@ -254,6 +268,23 @@ describe("the big frame as a live mirror", () => {
     const { intents } = renderSurface()
     await live(intents)
     expect(screen.getByTestId("live-mirror-mark")).not.toHaveClass("animate-pulse")
+  })
+
+  it("drops the picture and covers the frame when a live stream ends, so its last frame cannot look current", async () => {
+    const mirror = fakeMirror(stream({ state: MirrorStreamState.LIVE, frames: 20n }))
+    const { intents } = renderSurface({ mirror: mirror.client })
+    await live(intents)
+
+    const media = {} as MediaStream
+    expect(livePeers).toHaveLength(1)
+    livePeers[0]!.publish(media)
+    const video = document.querySelector("video")
+    await waitFor(() => expect(video).toHaveProperty("srcObject", media))
+
+    mirror.setState(stream({ state: MirrorStreamState.ENDED, frames: 20n }))
+    await waitFor(() => expect(screen.getByTestId("live-mirror-phase")).toHaveTextContent(/stream ended/i), { timeout: 4_000 })
+    expect(video).toHaveProperty("srcObject", null)
+    expect(document.querySelector("video")).toBe(video)
   })
 
   it("shows no live mark while a stream is connected but has carried no picture", async () => {
