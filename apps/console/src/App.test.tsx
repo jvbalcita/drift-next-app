@@ -7,6 +7,13 @@ import { beforeEach, describe, expect, it } from "vitest"
 import App from "./App"
 import { liveMirrorCopy } from "@/lib/live-mirror"
 
+// userEvent's default delay waits on a real timer between the events of every interaction. On a
+// loaded runner that wait, not the render, is what pushes a heavy console test past its 5s
+// timeout: measured 2026-09-18, a walk over ten destinations spent ~9s of an ~11s test waiting
+// between events, and the same walk was ~2s without it. These tests still dispatch every event;
+// they just do not idle between them. See AGENTS.md, "Testing and verification".
+const setupUser = () => userEvent.setup({ delay: null })
+
 describe("Drift command center", () => {
   beforeEach(() => {
     window.location.hash = "#overview/fleet"
@@ -31,7 +38,7 @@ describe("Drift command center", () => {
   })
 
   it("updates the inspector and fleet filter without enabling device actions", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /Nova 02/ }))
@@ -45,7 +52,7 @@ describe("Drift command center", () => {
   })
 
   it("provides an accessible collapsible navigation shell", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     const sidebar = document.querySelector<HTMLDivElement>(
@@ -83,7 +90,7 @@ describe("Drift command center", () => {
   })
 
   it("routes block navigation selections through the app shell", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     const devicesButton = screen.getByRole("button", { name: /^Devices/ })
@@ -94,12 +101,14 @@ describe("Drift command center", () => {
   })
 
   it("keeps device tabs and pagination synchronized with the hash route", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Devices/ }))
     expect(window.location.hash).toBe("#devices/all")
-    await user.click(screen.getByRole("tab", { name: "Online" }))
+    // The destination's module loads on demand and the shell shows its loading state until it
+    // resolves, so await the tab instead of querying it synchronously.
+    await user.click(await screen.findByRole("tab", { name: "Online" }))
     expect(window.location.hash).toBe("#devices/online")
     expect(screen.getByText("Online", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
 
@@ -164,7 +173,7 @@ describe("Drift command center", () => {
   })
 
   it("keeps invalid setting JSON inline and focuses its error summary", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     window.location.hash = "#settings/workspace"
     render(<App />)
 
@@ -180,7 +189,7 @@ describe("Drift command center", () => {
   })
 
   it("keeps invalid network profile fields inline and focuses their summary", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     window.location.hash = "#network-profiles/profiles"
     render(<App />)
 
@@ -194,7 +203,7 @@ describe("Drift command center", () => {
   })
 
   it("exposes Control as a compact-frame mock-only destination", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
@@ -217,7 +226,7 @@ describe("Drift command center", () => {
   })
 
   it("opens a source and selects followers by clicking compact frames", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
@@ -233,7 +242,7 @@ describe("Drift command center", () => {
   })
 
   it("opens the workspace sheet and exposes OTG octet inputs", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
@@ -258,7 +267,7 @@ describe("Drift command center", () => {
   })
 
   it("keeps console preferences separate from the workspace and supports pinning the open device", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
@@ -298,7 +307,7 @@ describe("Drift command center", () => {
   })
 
   it("surfaces lab adapter status beside the mock workspace without replacing it", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
@@ -319,7 +328,7 @@ describe("Drift command center", () => {
   })
 
   it("requires confirmation before spool replay after a mock disconnect", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
@@ -344,7 +353,7 @@ describe("Drift command center", () => {
   })
 
   it("refuses a capture that names no device and reports the error", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
@@ -366,7 +375,7 @@ describe("Drift command center", () => {
   })
 
   it("shows the sanitized lab preview only for the serial that was captured", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Control/ }))
@@ -387,7 +396,7 @@ describe("Drift command center", () => {
   })
 
   it("keeps the lab adapter boundary separate from registered devices", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Devices/ }))
@@ -404,7 +413,7 @@ describe("Drift command center", () => {
   })
 
   it("lists lab adapter events through the existing event filters", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     await user.click(screen.getByRole("button", { name: /^Events/ }))
@@ -418,28 +427,33 @@ describe("Drift command center", () => {
     expect(screen.getByText("2 Results")).toBeInTheDocument()
   })
 
-  it("loads the typed browser-only destinations through the shell", async () => {
-    const user = userEvent.setup()
-    render(<App />)
+  // The ten destinations are ten independent routing assertions. Asserting all ten in one
+  // test made that test's cost the sum of ten load-sensitive navigations (ten page mounts and
+  // ten accessible-name tree walks) under a single 5s budget, which is what timed out on a
+  // loaded runner. One destination per test keeps each assertion at one navigation's cost and
+  // asserts exactly what the walk did: clicking the destination's entry in the shell shows it.
+  const destinationRoutes = [
+    ["Devices", /Device Registry/],
+    ["Accounts", /^Accounts$/],
+    ["Network Profiles", /Network Profiles/],
+    ["Groups", /Groups and Membership/],
+    ["Agents", /Agent Profiles/],
+    ["Runs", /Runs and Targets/],
+    ["Artifacts", /^Artifacts$/],
+    ["Events", /Events and Audit/],
+    ["Policies", /^Policies$/],
+    ["Settings", /^Settings$/],
+  ] as const
 
-    const destinations = [
-      ["Devices", /Device Registry/],
-      ["Accounts", /^Accounts$/],
-      ["Network Profiles", /Network Profiles/],
-      ["Groups", /Groups and Membership/],
-      ["Agents", /Agent Profiles/],
-      ["Runs", /Runs and Targets/],
-      ["Artifacts", /^Artifacts$/],
-      ["Events", /Events and Audit/],
-      ["Policies", /^Policies$/],
-      ["Settings", /^Settings$/],
-    ] as const
+  for (const [label, heading] of destinationRoutes) {
+    it(`loads the typed browser-only destination ${label} through the shell`, async () => {
+      const user = setupUser()
+      render(<App />)
 
-    for (const [label, heading] of destinations) {
       await user.click(screen.getByRole("button", { name: new RegExp(`^${label}`) }))
       expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument()
-    }
-  })
+    })
+  }
 
   it("uses the sidebar-07 inset header composition", () => {
     render(<App />)
@@ -489,7 +503,7 @@ describe("Drift command center", () => {
   })
 
   it("matches the sidebar-07 profile menu dimensions and typography", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     render(<App />)
 
     const footer = document.querySelector<HTMLElement>('[data-slot="sidebar-footer"]')
@@ -518,7 +532,7 @@ describe("Drift command center", () => {
   })
 
   it("uses an off-canvas navigation sheet on narrow viewports", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const previousWidth = window.innerWidth
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
