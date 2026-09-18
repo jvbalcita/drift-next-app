@@ -2,8 +2,11 @@ package transportconnect
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/url"
+	"strconv"
+	"strings"
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
@@ -92,6 +95,49 @@ type DeviceMirrors interface {
 	// named, and it confers nothing: the stream it returns is already this
 	// service's own.
 	Stream(streamKey string) (DeviceMirrorStream, bool)
+	// Carrying reports the identities of the streams this transport is carrying
+	// right now, in a stable order. It exists for one refusal - see
+	// noSuchStreamError - because "that identity is not being carried" is not
+	// actionable without the identities that ARE, and the alternative an operator
+	// has is reading the service's own database to find out.
+	//
+	// What it returns is a stream identity and nothing else: no device address, no
+	// adb serial and no media-server URL is reachable through it.
+	Carrying() []string
+}
+
+// noSuchStreamError is the refusal a caller reads when the stream identity it
+// named is not one this service is carrying.
+//
+// The sentence alone is not actionable, and it is the same sentence for three
+// different facts: an identity that was never a stream, one whose session has
+// ended, and one that belongs to a stream this service is carrying under a
+// different name. An operator looking at a frame that shows nothing cannot tell
+// those apart, and neither can the next person to read that frame - so the refusal
+// names the identity it was given and the identities that ARE live, which is the
+// whole diagnosis.
+//
+// What it names is this service's own stream identities - the handle the browser
+// is given for a stream it opens - and never a device address, an adb serial or a
+// media-server URL (AGENTS.md section 9). The list is bounded by the engine's own
+// session bound, so the refusal is bounded with it.
+func noSuchStreamError(streams DeviceMirrors, asked string) error {
+	return notFoundError("no live stream with that identity is being carried (asked for " +
+		strconv.Quote(asked) + "; " + carryingSentence(streams) + ")")
+}
+
+// carryingSentence names the streams this transport is carrying, or says plainly
+// that it is carrying none - which is itself the diagnosis when a device's session
+// has ended.
+func carryingSentence(streams DeviceMirrors) string {
+	live := []string(nil)
+	if streams != nil {
+		live = streams.Carrying()
+	}
+	if len(live) == 0 {
+		return "this service is carrying nothing right now"
+	}
+	return fmt.Sprintf("this service is carrying %d live stream(s): %s", len(live), strings.Join(live, ", "))
 }
 
 // mirrorStreamProto maps one stream's own reporting onto the wire contract.

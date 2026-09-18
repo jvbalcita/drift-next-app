@@ -49,6 +49,15 @@ func (p mirrorPort) Stream(streamKey string) (transportconnect.DeviceMirrorStrea
 	return carrier, true
 }
 
+func (p mirrorPort) Carrying() []string {
+	peers := p.transport.Peers()
+	keys := make([]string, 0, len(peers))
+	for _, peer := range peers {
+		keys = append(keys, peer.StreamKey)
+	}
+	return keys
+}
+
 var _ transportconnect.DeviceMirrors = mirrorPort{}
 
 // scriptedStream is one device's live stream as the dialer returns it: it reports

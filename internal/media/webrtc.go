@@ -33,6 +33,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -323,6 +324,10 @@ func (t *StreamTransport) Peers() []StreamStats {
 	for _, carrier := range carriers {
 		out = append(out, carrier.Stats())
 	}
+	// The carriers come out of two maps, so the order is chosen rather than
+	// inherited: a caller that states this list - a startup line, a health view, a
+	// refusal naming what IS being carried - states the same list every time.
+	sort.Slice(out, func(i, j int) bool { return out[i].StreamKey < out[j].StreamKey })
 	return out
 }
 

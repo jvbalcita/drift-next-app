@@ -412,6 +412,20 @@ func (p mirrorStreamPort) Stream(streamKey string) (transportconnect.DeviceMirro
 	return carrier, true
 }
 
+// Carrying reports the identities of the streams this transport is carrying, which
+// is what the surface's "no live stream with that identity" refusal names beside
+// the identity it was given. Only the stream key crosses this seam: the stats the
+// transport reports also carry the serial each stream came from, and that is never
+// part of what a browser-facing refusal states (AGENTS.md section 9).
+func (p mirrorStreamPort) Carrying() []string {
+	peers := p.transport.Peers()
+	keys := make([]string, 0, len(peers))
+	for _, peer := range peers {
+		keys = append(keys, peer.StreamKey)
+	}
+	return keys
+}
+
 // mirrorMountState reports whether the live mirror surface was mounted. Like the
 // other state reporters it says nothing about whether a mounted surface will
 // carry a stream: opening one is a request, and the engine decides.

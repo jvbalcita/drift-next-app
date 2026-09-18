@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -159,6 +160,17 @@ func (m *fakeMirrors) Stream(streamKey string) (transportconnect.DeviceMirrorStr
 		return nil, false
 	}
 	return stream, true
+}
+
+// Carrying reports the identities the fake transport holds, sorted, so a refusal
+// that names them names the same ones every time.
+func (m *fakeMirrors) Carrying() []string {
+	keys := make([]string, 0, len(m.streams))
+	for key := range m.streams {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func mirrorRequestContext() *driftv1.RequestContext {
@@ -464,6 +476,46 @@ func TestGetMirrorStreamRefusesAnUnknownIdentity(t *testing.T) {
 		t.Fatal("a blank stream identity was accepted")
 	} else if code := connectrpc.CodeOf(err); code != connectrpc.CodeInvalidArgument {
 		t.Fatalf("refusal code = %v, want invalid_argument", code)
+	}
+}
+
+// TestAnUnknownIdentityIsRefusedWithWhatIsCarried is the diagnosability the
+// refusal owes an operator: the same sentence covers an identity that was never a
+// stream, one whose session has ended, and one that is a stream under another
+// name, and a frame that shows nothing cannot tell them apart. So the refusal
+// names the identity it was given and the identities this service IS carrying, and
+// says plainly that it carries none when that is the fact.
+//
+// What it names is a stream identity and never the serial a stream came from: the
+// identities are the handles a browser is already given for the streams it opens.
+func TestAnUnknownIdentityIsRefusedWithWhatIsCarried(t *testing.T) {
+	live := &fakeMirrorStream{key: mirrorStreamID, deviceID: mirrorDevice, serial: mirrorSerial}
+	handler := mirrorHandler(t, newFakeMirrors(live))
+
+	const asked = "drift-elsewhere-00000000"
+	_, err := handler.GetMirrorStream(context.Background(), connectrpc.NewRequest(&driftv1.GetMirrorStreamRequest{StreamId: asked}))
+	if err == nil {
+		t.Fatal("an unknown stream was reported as live")
+	}
+	message := err.Error()
+	if !strings.Contains(message, `asked for "`+asked+`"`) {
+		t.Fatalf("the refusal does not name the identity it was given: %q", message)
+	}
+	if !strings.Contains(message, mirrorStreamID) {
+		t.Fatalf("the refusal does not name the stream that IS being carried (%q): %q", mirrorStreamID, message)
+	}
+	if strings.Contains(message, mirrorSerial) {
+		t.Fatalf("the refusal names the serial a stream came from: %q", message)
+	}
+
+	// A service carrying nothing says so, rather than listing nothing.
+	empty := mirrorHandler(t, newFakeMirrors())
+	_, emptyErr := empty.GetMirrorStream(context.Background(), connectrpc.NewRequest(&driftv1.GetMirrorStreamRequest{StreamId: asked}))
+	if emptyErr == nil {
+		t.Fatal("an unknown stream was reported as live by a transport carrying nothing")
+	}
+	if !strings.Contains(emptyErr.Error(), "carrying nothing right now") {
+		t.Fatalf("a transport carrying no streams did not say so: %q", emptyErr.Error())
 	}
 }
 

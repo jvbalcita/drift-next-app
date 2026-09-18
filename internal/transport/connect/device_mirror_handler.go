@@ -164,7 +164,8 @@ func (h *DeviceMirrorHandler) GetMirrorStream(ctx context.Context, request *conn
 
 // stream finds the stream a caller named. An absent or unknown identity is a
 // refusal rather than a guess: this surface never opens a stream to answer a
-// question about one.
+// question about one, and the refusal names both the identity it was given and
+// the identities this service IS carrying (see noSuchStreamError).
 func (h *DeviceMirrorHandler) stream(streamID string) (DeviceMirrorStream, error) {
 	trimmed := strings.TrimSpace(streamID)
 	if trimmed == "" {
@@ -172,7 +173,7 @@ func (h *DeviceMirrorHandler) stream(streamID string) (DeviceMirrorStream, error
 	}
 	stream, live := h.streams.Stream(trimmed)
 	if !live {
-		return nil, notFoundError("no live stream with that identity is being carried")
+		return nil, noSuchStreamError(h.streams, trimmed)
 	}
 	return stream, nil
 }

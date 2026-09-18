@@ -37,6 +37,8 @@ func (m mountMirrors) Stream(string) (transportconnect.DeviceMirrorStream, bool)
 	return m.stream, true
 }
 
+func (m mountMirrors) Carrying() []string { return []string{m.stream.key} }
+
 // The compiler is what proves the transport satisfies the port the route serves:
 // if this stops compiling, the route has no production mount again.
 var _ transportconnect.DeviceMirrors = mountMirrors{}
@@ -127,3 +129,5 @@ func (m *mountMirrorPointer) Open(context.Context, string, string, media.MirrorT
 func (m *mountMirrorPointer) Stream(string) (transportconnect.DeviceMirrorStream, bool) {
 	return m.mountMirrors.stream, true
 }
+
+func (m *mountMirrorPointer) Carrying() []string { return m.mountMirrors.Carrying() }
