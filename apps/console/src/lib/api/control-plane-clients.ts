@@ -38,6 +38,19 @@ import {
 } from "@/gen/drift/v1/account_pb"
 import { GetHaltRequestSchema, GetHaltResponseSchema, HaltState, SetHaltRequestSchema, SetHaltResponseSchema, SubmitActionRequestSchema, SubmitActionResponseSchema } from "@/gen/drift/v1/action_pb"
 import { KeyEventRequestSchema, KeyEventResponseSchema, SwipeRequestSchema, SwipeResponseSchema, TapRequestSchema, TapResponseSchema } from "@/gen/drift/v1/device_input_pb"
+import {
+  GetMirrorStreamRequestSchema,
+  GetMirrorStreamResponseSchema,
+  MirrorTransport,
+  NegotiateMirrorStreamRequestSchema,
+  NegotiateMirrorStreamResponseSchema,
+  StartMirrorStreamRequestSchema,
+  StartMirrorStreamResponseSchema,
+  StopMirrorStreamRequestSchema,
+  StopMirrorStreamResponseSchema,
+  type MirrorStream,
+} from "@/gen/drift/v1/device_mirror_pb"
+import { liveMirrorCopy, liveStreamView, type LiveStreamView } from "@/lib/live-mirror"
 import { ApplyDeviceSettingsRequestSchema, ApplyDeviceSettingsResponseSchema, DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
 import {
   DeleteArtifactRequestSchema,
@@ -233,7 +246,7 @@ import {
   GetRuntimeStatusRequestSchema,
   GetRuntimeStatusResponseSchema,
 } from "@/gen/drift/v1/runtime_pb"
-import { ConnectJsonClient, requestContext, workspaceRef } from "@/lib/api/connect-json"
+import { ConnectJsonClient, ConnectJsonError, defaultOperatorId, newRequestId, requestContext, workspaceRef } from "@/lib/api/connect-json"
 import {
   ActivateFleetRequestSchema,
   ActivateFleetResponseSchema,
@@ -878,6 +891,90 @@ export class SkillClient {
       reason,
     })
   }
+}
+
+/**
+ * LiveStreamAnswer is one negotiated stream: the control plane's answer to the
+ * browser's offer, and the stream as it stands after the handshake.
+ */
+export interface LiveStreamAnswer {
+  answerSdp: string
+  stream: LiveStreamView
+}
+
+/**
+ * LiveMirrorClient is the port the console's live surface drives: open one
+ * device's stream, negotiate a transport with this browser, read where it stands,
+ * and end it.
+ *
+ * It is deliberately not part of ControlPlaneIntent. A stream is not a snapshot
+ * mutation: it is opened when the big frame opens, ended when it closes, and its
+ * state changes on its own schedule, so it is read on its own cadence rather than
+ * folded into a projection the console re-reads every few seconds.
+ *
+ * The port carries no device address, no serial and no stream path a browser
+ * could reach directly: it names a device in a workspace and receives this
+ * service's own stream identity, which is the whole of what the frames hang off.
+ */
+export interface LiveMirrorClient {
+  startStream(request: { workspaceId: string; deviceId: string }): Promise<LiveStreamView>
+  negotiate(streamId: string, offerSdp: string): Promise<LiveStreamAnswer>
+  stopStream(streamId: string): Promise<LiveStreamView>
+  getStream(streamId: string): Promise<LiveStreamView>
+}
+
+export class DeviceMirrorClient implements LiveMirrorClient {
+  private readonly rpc: TypedConnectClient
+  private readonly operatorId: string
+  constructor(json: ConnectJsonClient, operatorId = defaultOperatorId) {
+    this.rpc = new TypedConnectClient(json, "drift.v1.DeviceMirrorService")
+    this.operatorId = operatorId
+  }
+  /**
+   * startStream asks for WebRTC by name rather than leaving the transport to the
+   * control plane's default. The console can render WebRTC and nothing else yet,
+   * and a stream that quietly arrived over another transport would be a picture
+   * this surface cannot show.
+   */
+  async startStream(request: { workspaceId: string; deviceId: string }): Promise<LiveStreamView> {
+    const requestId = newRequestId()
+    const response = await this.rpc.call("StartMirrorStream", StartMirrorStreamRequestSchema, StartMirrorStreamResponseSchema, {
+      context: requestContext({ requestId, actorId: this.operatorId }),
+      workspace: workspaceRef(request.workspaceId),
+      deviceId: request.deviceId,
+      transport: MirrorTransport.WEBRTC,
+    })
+    return requireStream(response.stream)
+  }
+  async negotiate(streamId: string, offerSdp: string): Promise<LiveStreamAnswer> {
+    const response = await this.rpc.call("NegotiateMirrorStream", NegotiateMirrorStreamRequestSchema, NegotiateMirrorStreamResponseSchema, {
+      context: requestContext({ requestId: newRequestId(), actorId: this.operatorId }),
+      streamId,
+      offerSdp,
+    })
+    return { answerSdp: response.answerSdp, stream: requireStream(response.stream) }
+  }
+  async stopStream(streamId: string): Promise<LiveStreamView> {
+    const response = await this.rpc.call("StopMirrorStream", StopMirrorStreamRequestSchema, StopMirrorStreamResponseSchema, {
+      context: requestContext({ requestId: newRequestId(), actorId: this.operatorId }),
+      streamId,
+    })
+    return requireStream(response.stream)
+  }
+  async getStream(streamId: string): Promise<LiveStreamView> {
+    const response = await this.rpc.call("GetMirrorStream", GetMirrorStreamRequestSchema, GetMirrorStreamResponseSchema, { streamId })
+    return requireStream(response.stream)
+  }
+}
+
+/**
+ * requireStream refuses a response that carried no stream, rather than reading it
+ * as an empty one: an absent stream is a control plane that did not answer the
+ * question, and it must not render as a stream that is merely not live yet.
+ */
+function requireStream(stream: MirrorStream | undefined): LiveStreamView {
+  if (!stream) throw new ConnectJsonError("internal", liveMirrorCopy.failure.noStream)
+  return liveStreamView(stream)
 }
 
 export class MirrorClient {

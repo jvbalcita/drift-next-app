@@ -1,0 +1,204 @@
+// @vitest-environment jsdom
+
+import "@testing-library/jest-dom/vitest"
+import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { describe, expect, it } from "vitest"
+import { create } from "@bufbuild/protobuf"
+import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
+import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
+import { useLiveMirror } from "@/lib/api/use-live-mirror"
+import { liveMirrorCopy, liveStreamView, type LiveStreamView } from "@/lib/live-mirror"
+
+interface StreamOverrides {
+  state?: MirrorStreamState
+  failure?: string
+  frames?: bigint
+}
+
+function stream(overrides: StreamOverrides = {}): LiveStreamView {
+  return liveStreamView(create(MirrorStreamSchema, {
+    streamId: "stream-1",
+    deviceId: "device-1",
+    transport: MirrorTransport.WEBRTC,
+    renderWidth: 1080,
+    renderHeight: 1920,
+    state: MirrorStreamState.STARTING,
+    frames: 0n,
+    ...overrides,
+  }))
+}
+
+interface FakeClient {
+  client: LiveMirrorClient
+  calls: string[]
+  setState(next: LiveStreamView): void
+  failReads(failure: unknown | null): void
+  reads: number
+}
+
+function fakeClient(initial: LiveStreamView = stream()): FakeClient {
+  const calls: string[] = []
+  let state = initial
+  let readFailure: unknown | null = null
+  const handle: FakeClient = {
+    calls,
+    get reads() { return calls.filter((call) => call.startsWith("get:")).length },
+    setState(next) { state = next },
+    failReads(failure) { readFailure = failure },
+    client: {
+      async startStream(request) {
+        calls.push(`start:${request.deviceId}`)
+        return state
+      },
+      async negotiate(streamId, offerSdp) {
+        calls.push(`negotiate:${streamId}:${offerSdp}`)
+        return { answerSdp: "answer-sdp", stream: state }
+      },
+      async stopStream(streamId) {
+        calls.push(`stop:${streamId}`)
+        return { ...state, state: "ended" }
+      },
+      async getStream(streamId) {
+        calls.push(`get:${streamId}`)
+        if (readFailure) throw readFailure
+        return state
+      },
+    },
+  }
+  return handle
+}
+
+interface FakePeer {
+  factory: () => { createOffer(): Promise<string>; acceptAnswer(sdp: string): Promise<void>; onStream(listener: (stream: MediaStream) => void): void; close(): void }
+  calls: string[]
+  emitStream(): void
+  media: MediaStream
+}
+
+function fakePeer(): FakePeer {
+  const calls: string[] = []
+  const media = {} as MediaStream
+  let listener: ((stream: MediaStream) => void) | null = null
+  const peer = {
+    async createOffer() { calls.push("offer"); return "offer-sdp" },
+    async acceptAnswer(sdp: string) { calls.push(`answer:${sdp}`) },
+    onStream(next: (stream: MediaStream) => void) { listener = next },
+    close() { calls.push("close") },
+  }
+  return { factory: () => peer, calls, emitStream: () => listener?.(media), media }
+}
+
+function Harness({ client, peerFactory, deviceId = "device-1" }: { client?: LiveMirrorClient; peerFactory?: FakePeer["factory"]; deviceId?: string }) {
+  const session = useLiveMirror(deviceId, { client, peerFactory, workspaceId: "workspace-lab-local", pollIntervalMs: 5, pollFailureLimit: 2 })
+  return (
+    <div>
+      <span data-testid="phase">{session.phase}</span>
+      <span data-testid="failure">{session.failure}</span>
+      <span data-testid="frames">{session.stream?.frames ?? -1}</span>
+      <video data-testid="video" ref={session.attachVideo} />
+      <button type="button" onClick={session.stop}>stop</button>
+    </div>
+  )
+}
+
+describe("the console's live mirror session", () => {
+  it("opens the stream, negotiates the browser's own offer, and paints the peer's stream into the video", async () => {
+    const handle = fakeClient()
+    const peer = fakePeer()
+    render(<Harness client={handle.client} peerFactory={peer.factory} />)
+
+    await waitFor(() => expect(peer.calls).toContain("answer:answer-sdp"))
+    expect(handle.calls.slice(0, 2)).toEqual(["start:device-1", "negotiate:stream-1:offer-sdp"])
+    expect(screen.getByTestId("phase")).toHaveTextContent("starting")
+
+    peer.emitStream()
+    await waitFor(() => expect(screen.getByTestId("video")).toHaveProperty("srcObject", peer.media))
+  })
+
+  it("reports LIVE only when the control plane reports pictures carried", async () => {
+    const handle = fakeClient()
+    const peer = fakePeer()
+    render(<Harness client={handle.client} peerFactory={peer.factory} />)
+
+    await waitFor(() => expect(handle.reads).toBeGreaterThan(0))
+    expect(screen.getByTestId("phase")).toHaveTextContent("starting")
+
+    handle.setState(stream({ state: MirrorStreamState.LIVE, frames: 7n }))
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("live"))
+    expect(screen.getByTestId("frames")).toHaveTextContent("7")
+  })
+
+  it("takes the picture down and tells the operator when the stream fails", async () => {
+    const handle = fakeClient()
+    const peer = fakePeer()
+    render(<Harness client={handle.client} peerFactory={peer.factory} />)
+    await waitFor(() => expect(handle.calls).toContain("negotiate:stream-1:offer-sdp"))
+
+    handle.setState(stream({ state: MirrorStreamState.FAILED, failure: "the peer produced no picture within its bound" }))
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
+    expect(screen.getByTestId("failure")).toHaveTextContent("the peer produced no picture within its bound")
+    expect(peer.calls).toContain("close")
+    expect(handle.calls).toContain("stop:stream-1")
+    expect(screen.getByTestId("video")).toHaveProperty("srcObject", null)
+  })
+
+  it("stops claiming to show a stream the control plane has stopped answering for", async () => {
+    const handle = fakeClient()
+    const peer = fakePeer()
+    render(<Harness client={handle.client} peerFactory={peer.factory} />)
+    await waitFor(() => expect(handle.reads).toBeGreaterThan(0))
+
+    handle.failReads(new Error("control plane is gone"))
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
+    expect(screen.getByTestId("failure")).toHaveTextContent(liveMirrorCopy.failure.lost)
+    expect(peer.calls).toContain("close")
+  })
+
+  it("ends visibly when the stream is no longer carried, rather than freezing on its last frame", async () => {
+    const handle = fakeClient(stream({ state: MirrorStreamState.LIVE, frames: 30n }))
+    const peer = fakePeer()
+    render(<Harness client={handle.client} peerFactory={peer.factory} />)
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("live"))
+
+    handle.setState(stream({ state: MirrorStreamState.ENDED, frames: 30n }))
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("ended"))
+    expect(screen.getByTestId("video")).toHaveProperty("srcObject", null)
+    expect(peer.calls).toContain("close")
+  })
+
+  it("opens and ends the stream with the operator's own session, and releases it on unmount", async () => {
+    const user = userEvent.setup()
+    const handle = fakeClient(stream({ state: MirrorStreamState.LIVE, frames: 3n }))
+    const peer = fakePeer()
+    const view = render(<Harness client={handle.client} peerFactory={peer.factory} />)
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("live"))
+
+    await user.click(screen.getByRole("button", { name: "stop" }))
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("ended"))
+    expect(handle.calls.filter((call) => call === "stop:stream-1")).toHaveLength(1)
+    expect(peer.calls).toContain("close")
+
+    // A stream the operator already stopped is not stopped a second time when the
+    // frame finally unmounts.
+    view.unmount()
+    expect(handle.calls.filter((call) => call === "stop:stream-1")).toHaveLength(1)
+  })
+
+  it("tells an operator whose console has no control plane that there is nothing to show", async () => {
+    render(<Harness />)
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("unavailable"))
+    expect(screen.getByTestId("failure")).toHaveTextContent("")
+  })
+
+  it("reports a stream that could not be opened rather than opening a surface that shows nothing", async () => {
+    const handle = fakeClient()
+    const failing: LiveMirrorClient = {
+      ...handle.client,
+      startStream: async () => { throw new Error("the live mirror is not constructed") },
+    }
+    render(<Harness client={failing} peerFactory={fakePeer().factory} />)
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
+    expect(screen.getByTestId("failure")).toHaveTextContent("the live mirror is not constructed")
+  })
+})
