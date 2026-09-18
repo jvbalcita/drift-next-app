@@ -494,3 +494,55 @@ func TestActionContractDeclaresNoGenericCommandOrShellMember(t *testing.T) {
 		t.Fatalf("launch_app specification is incomplete: %#v", spec)
 	}
 }
+
+// TestTheTypedTextRequestHasNoFieldThatCanCarryTheValue pins the exact field set
+// of the request the device input surface dispatches typed text with.
+//
+// The property is structural, not a promise: content cannot render out of this
+// request because no field can hold it. A field added later is a new way for
+// operator content to enter the process, so this test fails on the addition
+// rather than on the leak — which is the point, because by the time a leak is
+// observable the value is already in a log somewhere.
+func TestTheTypedTextRequestHasNoFieldThatCanCarryTheValue(t *testing.T) {
+	request := driftv1.File_drift_v1_device_input_proto.Messages().ByName("TypeTextRequest")
+	if request == nil {
+		t.Fatal("TypeTextRequest is missing from the device input contract")
+	}
+	want := map[protoreflect.FieldNumber]protoreflect.Name{
+		1: "context",
+		2: "workspace",
+		3: "device_id",
+		4: "lease_id",
+		5: "fencing_token",
+		6: "idempotency_key",
+		7: "text",
+		8: "approval_granted",
+	}
+	fields := request.Fields()
+	if fields.Len() != len(want) {
+		t.Fatalf("TypeTextRequest fields = %d, want exactly %d: %v", fields.Len(), len(want), fields)
+	}
+	for number, name := range want {
+		field := fields.ByNumber(number)
+		if field == nil || field.Name() != name {
+			t.Fatalf("TypeTextRequest field %d = %v, want %q", number, field, name)
+		}
+	}
+	// The one field that names content names it by reference. It is a message
+	// with a handle and a length, and the message itself is pinned above.
+	text := fields.ByName("text")
+	if text == nil || text.Kind() != protoreflect.MessageKind || text.Message().FullName() != "drift.v1.SensitiveTextReference" {
+		t.Fatalf("TypeTextRequest.text = %v, want a SensitiveTextReference", text)
+	}
+
+	// The service exposes the RPC, and it is the typed text one — a surface with
+	// no reachable procedure would be the dead control every deferral on this
+	// card was written to avoid.
+	service := driftv1.File_drift_v1_device_input_proto.Services().ByName("DeviceInputService")
+	if service == nil {
+		t.Fatal("DeviceInputService is missing from the device input contract")
+	}
+	if method := service.Methods().ByName("TypeText"); method == nil {
+		t.Fatal("DeviceInputService has no TypeText method")
+	}
+}

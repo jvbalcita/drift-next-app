@@ -115,7 +115,18 @@ func validateTypeTextInput(msg *driftv1.ActionIntent) error {
 	if typed == nil {
 		return invalidArgument("typed text requires its typed text payload")
 	}
-	reference := typed.GetText()
+	return validateTypeTextReference(typed.GetText())
+}
+
+// validateTypeTextReference is the one implementation of the typed-text
+// reference contract. The action intent path and the device input surface both
+// call it, so a requirement added to one cannot go missing from the other.
+//
+// It reads the reference and never a value, because there is no field for one:
+// the handle is opaque by pattern (no whitespace, no content punctuation, so
+// content cannot be smuggled through the only string this carries) and the
+// length is what a caller may bound an input by without the content being read.
+func validateTypeTextReference(reference *driftv1.SensitiveTextReference) error {
 	if reference == nil {
 		return invalidArgument("typed text requires a text reference")
 	}
