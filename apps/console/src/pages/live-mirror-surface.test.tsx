@@ -9,7 +9,7 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { ControlPlaneIntent, DispatchIntent, DeviceView } from "@/lib/domain/control-plane"
-import { liveMirrorCopy, liveStreamView, drawnContentRect, type LiveStreamView } from "@/lib/live-mirror"
+import { liveMirrorCopy, liveStreamView, type LiveStreamView } from "@/lib/live-mirror"
 import { LiveMirrorSurface } from "./live-mirror-surface"
 
 const observationToken = "fresh-atlas-04"
@@ -165,16 +165,17 @@ describe("the big frame as a live mirror", () => {
   it("maps a tap through the picture's drawn box, not through the element's", async () => {
     // The measured defect, at the sizes it was measured at: this console's 9:16
     // frame drawing a 19:9 stream, with a pillarbox on each side. Mapping the
-    // element's box read the picture's own left edge as x=107.
+    // element's box read the picture's own left edge as x=107. The fit is
+    // written out here rather than asked of drawnContentRect, so the fixture
+    // cannot move with the mapping it is checking.
     const rect = stageRect(314, 531)
     const picture = { width: 1080, height: 2280 }
+    const pictureLeft = (rect.width - picture.width * (rect.height / picture.height)) / 2
     const { intents, stage } = renderSurface({ rect, picture, mirror: fakeMirror(stream({ width: picture.width, height: picture.height })).client })
     await live(intents)
 
-    const drawn = drawnContentRect({ left: rect.left, top: rect.top, width: rect.width, height: rect.height }, picture)
-    if (!drawn) throw new Error("the fixture draws nothing")
-    fireEvent.pointerDown(stage, { pointerId: 5, clientX: drawn.left, clientY: drawn.top })
-    fireEvent.pointerUp(stage, { pointerId: 5, clientX: drawn.left, clientY: drawn.top })
+    fireEvent.pointerDown(stage, { pointerId: 5, clientX: pictureLeft, clientY: rect.top })
+    fireEvent.pointerUp(stage, { pointerId: 5, clientX: pictureLeft, clientY: rect.top })
 
     await waitFor(() => expect(intents).toHaveLength(1))
     expect(intents[0]).toMatchObject({ type: "submitDeviceTap", deviceId: "atlas-04", x: 0, y: 0, renderWidth: 1080, renderHeight: 2280 })

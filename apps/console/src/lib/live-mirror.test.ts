@@ -139,38 +139,45 @@ describe("mapping a tap through the picture's drawn box, not the element's", () 
    * read a tap on the picture's own left edge as x=107 and one on its right edge
    * as x=972 - up to ~107px, about 10% of the frame's width, and silently, since
    * the console declares the correct frame and both points were inside it.
+   *
+   * The fit is written out here rather than asked of `drawnContentRect`: a
+   * fixture derived from the function it checks moves with a fault, and a
+   * fixture that moves with the fault cannot fail.
    */
-  const picture: DrawnPicture = { box: narrowBox, content: wideFrame }
-  const drawn = drawnContentRect(narrowBox, wideFrame)
-  if (!drawn) throw new Error("the measured fixture draws nothing")
+  const box: SurfaceRect = { left: 0, top: 0, width: 314, height: 531 }
+  const picture = { width: 1080, height: 2280 }
+  const scale = 531 / 2280
+  const width = picture.width * scale
+  const left = (box.width - width) / 2
 
   it("maps the picture's own edges onto the frame's, and never the element's", () => {
-    expect(streamPoint(picture, wideFrame, drawn.left, 200)).toMatchObject({ ok: true, x: 0 })
-    expect(streamPoint(picture, wideFrame, drawn.left + drawn.width, 200)).toMatchObject({ ok: true, x: 1079 })
-    // The same two taps as the element's box would have read them.
-    expect(Math.floor((drawn.left * wideFrame.width) / narrowBox.width)).toBe(107)
-    expect(Math.floor(((drawn.left + drawn.width) * wideFrame.width) / narrowBox.width)).toBe(972)
+    expect(streamPoint({ box, content: picture }, picture, left, 200)).toMatchObject({ ok: true, x: 0 })
+    expect(streamPoint({ box, content: picture }, picture, left + width, 200)).toMatchObject({ ok: true, x: 1079 })
+    // The same two taps as the element's box reads them.
+    expect(Math.floor((left * picture.width) / box.width)).toBe(107)
+    expect(Math.floor(((left + width) * picture.width) / box.width)).toBe(972)
   })
 
   it("refuses a tap in the pillarbox rather than scaling it onto the frame", () => {
-    for (const clientX of [0, 5, drawn.left - 1, drawn.left + drawn.width + 1, narrowBox.width - 1]) {
-      expect(streamPoint(picture, wideFrame, clientX, 200)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
+    for (const clientX of [0, 5, left - 1, left + width + 1, box.width - 1]) {
+      expect(streamPoint({ box, content: picture }, picture, clientX, 200)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
     }
   })
 
   it("refuses a tap in a letterbox bar as well, above and below a landscape picture", () => {
-    const box: SurfaceRect = { left: 40, top: 60, width: 540, height: 960 }
+    // A 1920x1080 stream in a 540x960 element is drawn 540x303.75 at y=388.125.
+    const bars: SurfaceRect = { left: 40, top: 60, width: 540, height: 960 }
     const landscape = { width: 1920, height: 1080 }
-    const bars = drawnContentRect(box, landscape)
-    if (!bars) throw new Error("the landscape fixture draws nothing")
-    expect(streamPoint({ box, content: landscape }, landscape, 40 + 270, 60 + 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
-    expect(streamPoint({ box, content: landscape }, landscape, 40 + 270, 60 + 950)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
-    expect(streamPoint({ box, content: landscape }, landscape, 40 + 270, bars.top)).toEqual({ ok: true, x: 960, y: 0 })
+    expect(streamPoint({ box: bars, content: landscape }, landscape, 40 + 270, 60 + 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
+    expect(streamPoint({ box: bars, content: landscape }, landscape, 40 + 270, 60 + 950)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })
+    expect(streamPoint({ box: bars, content: landscape }, landscape, 40 + 270, 388.125)).toEqual({ ok: true, x: 960, y: 0 })
   })
 
   it("measures a gesture at the picture's scale, not at the element's", () => {
-    expect(gestureThresholdFor(drawn, wideFrame)).toBe(52)
-    expect(gestureThresholdFor(narrowBox, wideFrame)).toBe(41)
+    // A 1080x2160 stream in a 320x540 element is drawn 270x540 at x=25.
+    const picture = { width: 1080, height: 2160 }
+    expect(gestureThresholdFor({ left: 25, top: 0, width: 270, height: 540 }, picture)).toBe(48)
+    expect(gestureThresholdFor({ left: 0, top: 0, width: 320, height: 540 }, picture)).toBe(41)
   })
 })
 
