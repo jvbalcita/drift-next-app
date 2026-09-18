@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import { liveMirrorCopy, type LiveMirrorPhase, type LiveStreamView } from "@/lib/live-mirror"
+import { browserMirrorPlaybackFactory, type MirrorPlayback, type MirrorPlaybackFactory } from "@/lib/api/mirror-playback"
+import { liveMirrorCopy, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView } from "@/lib/live-mirror"
 
 /**
  * The browser's half of one live stream.
@@ -91,8 +92,17 @@ export interface UseLiveMirrorOptions {
   /** client is the control plane's live mirror surface. Absent means this console has none. */
   client?: LiveMirrorClient
   workspaceId?: string
+  /**
+   * transport is the transport the operator chose in Console Settings. Every
+   * stream this console opens asks for it; the control plane carries that
+   * transport or refuses the stream, so the surface never shows a picture that
+   * arrived over a transport the operator did not pick.
+   */
+  transport?: LiveMirrorTransportChoice
   /** peerFactory is the seam a test supplies in place of the browser's WebRTC stack. */
   peerFactory?: MirrorPeerFactory
+  /** playbackFactory is the seam a test supplies in place of the browser's media stack. */
+  playbackFactory?: MirrorPlaybackFactory
   /** pollIntervalMs is how often the stream's own state is read while it is open. */
   pollIntervalMs?: number
   /**
@@ -119,7 +129,7 @@ export const defaultMirrorPollIntervalMs = 1_000
 export const defaultMirrorPollFailureLimit = 2
 
 export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = {}): LiveMirrorSession {
-  const { client, workspaceId = "", peerFactory, pollIntervalMs = defaultMirrorPollIntervalMs, pollFailureLimit = defaultMirrorPollFailureLimit } = options
+  const { client, workspaceId = "", transport = "webrtc", peerFactory, playbackFactory, pollIntervalMs = defaultMirrorPollIntervalMs, pollFailureLimit = defaultMirrorPollFailureLimit } = options
   const [phase, setPhase] = useState<LiveMirrorPhase>("idle")
   const [stream, setStream] = useState<LiveStreamView | null>(null)
   const [failure, setFailure] = useState("")
@@ -154,16 +164,20 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
     let settled = false
     let streamId = ""
     let peer: MirrorPeer | null = null
+    let playback: MirrorPlayback | null = null
     let timer: ReturnType<typeof setInterval> | undefined
     let pollFailures = 0
 
     const closePeer = () => {
       peer?.close()
       peer = null
-      const element = videoRef.current
-      // The picture is dropped before the console says anything about it: a video
-      // element left holding its last frame is exactly the frozen frame an
+      // Both transports are torn down in the same order and for the same reason:
+      // the picture goes before the console says anything about it, because a
+      // video element left holding its last frame is exactly the frozen frame an
       // operator must never be shown in place of a device's screen.
+      playback?.stop()
+      playback = null
+      const element = videoRef.current
       if (element) element.srcObject = null
     }
     const stopPolling = () => {
@@ -223,7 +237,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
 
     void (async () => {
       try {
-        const opened = await client.startStream({ workspaceId, deviceId })
+        const opened = await client.startStream({ workspaceId, deviceId, transport })
         if (disposed) {
           void client.stopStream(opened.streamId).catch(() => undefined)
           return
@@ -239,6 +253,26 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
         }
         if (opened.state === "ended") {
           finish("ended", "")
+          return
+        }
+        if (opened.transport === "tcp") {
+          // The TCP transport is fetched rather than negotiated: the control
+          // plane named this device's own stream endpoint, and the response body
+          // is the picture. Nothing here waits for a frame the way the peer path
+          // does - the bytes are the frame - so what remains is the same poll and
+          // the same teardown.
+          if (opened.streamUrl.trim() === "") {
+            finish("failed", liveMirrorCopy.failure.noEndpoint)
+            return
+          }
+          const endpoint = client.streamEndpoint(opened.streamUrl)
+          const request = { element: videoRef.current, url: endpoint.url, headers: endpoint.headers }
+          const started = playbackFactory ? playbackFactory(request) : browserMirrorPlaybackFactory(request)
+          playback = started
+          await started.start()
+          if (disposed || settled) return
+          setPhase(opened.state === "live" ? "live" : "starting")
+          timer = setInterval(poll, pollIntervalMs)
           return
         }
         const created = peerFactory ? peerFactory() : browserMirrorPeerFactory()
@@ -286,7 +320,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       release()
       teardownRef.current = null
     }
-  }, [attempt, client, deviceId, peerFactory, pollFailureLimit, pollIntervalMs, workspaceId])
+  }, [attempt, client, deviceId, peerFactory, playbackFactory, pollFailureLimit, pollIntervalMs, transport, workspaceId])
 
   return { phase, stream, failure, attachVideo, retry, stop }
 }

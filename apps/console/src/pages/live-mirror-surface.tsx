@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
 import type { DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
-import { gestureThresholdFor, liveMirrorCopy, livePhaseSentence, liveStreamFrame, planGesture, streamPoint, transportSentence, type FramePoint, type LiveMirrorPhase, type PointerSample } from "@/lib/live-mirror"
+import { gestureThresholdFor, liveMirrorCopy, livePhaseSentence, liveStreamFrame, planGesture, streamPoint, transportSentence, type FramePoint, type LiveMirrorPhase, type LiveMirrorTransportChoice, type PointerSample } from "@/lib/live-mirror"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 
 /**
@@ -38,6 +38,8 @@ export interface LiveMirrorSurfaceProps {
   device: DeviceView
   /** mirror is the control plane's live mirror surface; absent means this console has none. */
   mirror?: LiveMirrorClient
+  /** transport is the transport Console Settings chose for this console's streams. */
+  transport?: LiveMirrorTransportChoice
   workspaceId: string
   /** observationToken is the observation this device's coordinates are bound to. */
   observationToken: string
@@ -46,9 +48,9 @@ export interface LiveMirrorSurfaceProps {
   dispatch: DispatchIntent
 }
 
-export function LiveMirrorSurface({ device, mirror, workspaceId, observationToken, hasLease, dispatch }: LiveMirrorSurfaceProps) {
+export function LiveMirrorSurface({ device, mirror, transport = "webrtc", workspaceId, observationToken, hasLease, dispatch }: LiveMirrorSurfaceProps) {
   const reducedMotion = useReducedMotion()
-  const { phase, stream, failure, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId })
+  const { phase, stream, failure, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport })
   const frame = liveStreamFrame(stream)
   const stage = useRef<HTMLDivElement | null>(null)
   const gesture = useRef<{ down: PointerSample; last: PointerSample } | null>(null)

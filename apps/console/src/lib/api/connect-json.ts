@@ -123,6 +123,22 @@ export class ConnectJsonClient {
     this.token = token.trim()
   }
 
+  /**
+   * endpoint resolves a path on this control plane's own surface, with the same
+   * credentials every request to it is made with.
+   *
+   * It exists because a byte surface - a live stream's own stream endpoint - is
+   * reached by the SAME configuration as the RPCs. A second, separately configured
+   * path to the same service is a second thing to get wrong.
+   */
+  endpoint(path: string): { url: string; headers: Record<string, string> } {
+    const suffix = path.startsWith("/") ? path : `/${path}`
+    return {
+      url: `${this.baseUrl}${suffix}`,
+      headers: this.token ? { [labTokenHeader]: this.token } : {},
+    }
+  }
+
   async call<Request extends DescMessage, Response extends DescMessage>(
     serviceName: string,
     method: string,

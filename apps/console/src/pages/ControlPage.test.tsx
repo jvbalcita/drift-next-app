@@ -685,22 +685,26 @@ describe("ControlPage live mirror frame", () => {
     close() { return undefined }
   }
 
-  function fakeMirror(state: "live" | "starting" | "ended" = "live") {
-    const calls: string[] = []
+  function fakeMirror(state: "starting" | "live" | "ended" = "live", transport: MirrorTransport = MirrorTransport.WEBRTC) {
     const view = liveStreamView(create(MirrorStreamSchema, {
       streamId: "stream-1",
       deviceId: "atlas-04",
-      transport: MirrorTransport.WEBRTC,
+      transport,
+      streamUrl: transport === MirrorTransport.TCP ? "/drift/v1/mirror/stream?stream_id=stream-1" : "",
       renderWidth: 1080,
       renderHeight: 1920,
       state: state === "live" ? MirrorStreamState.LIVE : state === "starting" ? MirrorStreamState.STARTING : MirrorStreamState.ENDED,
       frames: state === "live" ? 9n : 0n,
     }))
+    const calls: string[] = []
     const client: LiveMirrorClient = {
-      async startStream(request) { calls.push(`start:${request.deviceId}`); return view },
+      // The transport the operator chose travels with the request, so a case can
+      // assert the choice reached the control plane rather than a default.
+      async startStream(request) { calls.push(`start:${request.deviceId}:${request.transport ?? "unspecified"}`); return view },
       async negotiate(_streamId, offerSdp) { calls.push(`negotiate:${offerSdp}`); return { answerSdp: "answer-sdp", stream: view } },
       async stopStream(streamId) { calls.push(`stop:${streamId}`); return { ...view, state: "ended" } },
       async getStream() { return view },
+      streamEndpoint(path) { calls.push(`endpoint:${path}`); return { url: `http://control-plane.test${path}`, headers: {} } },
     }
     return { client, calls }
   }
@@ -721,24 +725,44 @@ describe("ControlPage live mirror frame", () => {
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
     await waitFor(() => expect(screen.getByTestId("live-mirror-transport")).toHaveTextContent(/WebRTC \(pion/i))
 
-    expect(mirror.calls.some((call) => call === "start:atlas-04")).toBe(true)
+    expect(mirror.calls.some((call) => call === "start:atlas-04:webrtc")).toBe(true)
     expect(screen.queryByText("Interactive phone surface")).not.toBeInTheDocument()
     // The stream's own frame is stated, because every coordinate is measured in it.
     expect(screen.getByTestId("live-mirror-transport")).toHaveTextContent("1080x1920")
   })
 
-  it("says which transport is in use without offering a transport to choose", async () => {
+  it("offers both transports, and opens the device's stream over the one chosen", async () => {
     const user = userEvent.setup()
     const mock = new MockControlPlaneClient()
-    const mirror = fakeMirror()
+    const mirror = fakeMirror("live", MirrorTransport.TCP)
+    // The TCP transport reads its bytes from the control plane's stream endpoint;
+    // what this case asserts is the wiring, so the endpoint answers with an empty
+    // body rather than reaching a network.
+    const emptyBody = { getReader: () => ({ read: async () => ({ done: true, value: undefined }) }) } as unknown as ReadableStream<Uint8Array>
+    vi.stubGlobal("fetch", async () => ({ ok: true, body: emptyBody }))
     render(<ControlPage snapshot={mock.getSnapshot()} dispatch={async (intent) => mock.dispatch(intent)} mirror={mirror.client} />)
 
     const settings = screen.getAllByRole("button", { name: /^Settings$/ }).find((button) => button.getAttribute("aria-haspopup") === "dialog")
     expect(settings).toBeDefined()
     await user.click(settings!)
 
-    expect(screen.queryByRole("button", { name: /^Connection$/i })).not.toBeInTheDocument()
+    // Both transports work, so this is a choice rather than a statement - and the
+    // control an operator reads is the one this console opens streams over.
     expect(screen.getByText(liveMirrorCopy.settings.notice)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Connection$/i })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: liveMirrorCopy.settings.label }))
+    await user.click(await screen.findByRole("menuitem", { name: liveMirrorCopy.settings.choice.tcp }))
+    expect(screen.getByRole("button", { name: liveMirrorCopy.settings.label })).toHaveTextContent(liveMirrorCopy.settings.choice.tcp)
+
+    await user.keyboard("{Escape}")
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+
+    // The choice travels with the stream: the console asked for TCP, and the
+    // frame states the transport the stream is actually using.
+    await waitFor(() => expect(mirror.calls.some((call) => call === "start:atlas-04:tcp")).toBe(true))
+    await waitFor(() => expect(screen.getByTestId("live-mirror-transport")).toHaveTextContent(/TCP \(MSE/i))
+    expect(screen.getByTestId("live-mirror-transport")).toHaveTextContent("1080x1920")
+    expect(mirror.calls.some((call) => call.startsWith("endpoint:"))).toBe(true)
   })
 
   it("shows no live frame for a console that has no control plane behind it", async () => {

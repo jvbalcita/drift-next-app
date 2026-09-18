@@ -37,6 +37,25 @@ export interface LiveStreamView {
   failure: string
   frames: number
   keyFrames: number
+  /**
+   * streamUrl is the per-device stream endpoint a TCP stream is fetched from, as
+   * this service named it. It is empty for a stream carried over WebRTC, which is
+   * negotiated instead.
+   */
+  streamUrl: string
+}
+
+/**
+ * The transport an operator chooses in Console Settings.
+ *
+ * Both are carried, and the choice travels with every stream this console opens:
+ * the control plane carries the transport that was asked for or refuses it, so a
+ * stream never quietly arrives over the other one.
+ */
+export type LiveMirrorTransportChoice = "webrtc" | "tcp"
+
+export function transportRequestFor(choice: LiveMirrorTransportChoice): MirrorTransport {
+  return choice === "tcp" ? MirrorTransport.TCP : MirrorTransport.WEBRTC
 }
 
 export function liveTransportOf(transport: MirrorTransport): LiveMirrorTransport {
@@ -68,6 +87,7 @@ export function liveStreamView(stream: MirrorStream): LiveStreamView {
     failure: stream.failure,
     frames: Number(stream.frames),
     keyFrames: Number(stream.keyFrames),
+    streamUrl: stream.streamUrl,
   }
 }
 
@@ -132,6 +152,11 @@ export const liveMirrorCopy = {
     noStream: "The control plane answered without a stream, so there is nothing to show.",
     openFailed: "The live stream could not be opened.",
     lost: "The control plane stopped answering for this stream, so the frame you would see is no longer known to be live.",
+    noEndpoint: "The control plane opened a stream over the TCP transport and named no stream endpoint to fetch, so there is nothing to read.",
+    refusedEndpoint: "The control plane refused the stream endpoint for this stream.",
+    noInitSegment: "The stream carried a picture before the segment that describes its codec, so a decoder cannot be told what it is about to decode.",
+    noCodec: "The stream's initialisation segment declares no H.264 codec, so there is nothing to hand a decoder.",
+    sourceNeverOpened: "The browser's media source never opened, so this stream could not be handed to it.",
   },
   /** Why a coordinate never left the console. */
   refusal: {
@@ -140,15 +165,17 @@ export const liveMirrorCopy = {
     outsideFrame: "That point lies outside the frame the stream is encoded at.",
   },
   /**
-   * The Console Settings entry. Acceptance criterion 1 forbids a selector with
-   * one working option, so until TCP (MSE) works this is a STATEMENT, not a
-   * choice: an operator is told which transport is used and why nothing is
-   * offered.
+   * The Console Settings entry. Acceptance criterion 1: the choice exists because
+   * BOTH transports work. It is what an operator's streams are opened over, and
+   * the surface states which one a stream is actually using.
    */
   settings: {
     label: "Live Mirror Transport",
-    inUse: "WebRTC (pion, inside the control plane)",
-    notice: "TCP (MSE) is not implemented in this build, so there is no transport to choose: a selector offering one working option is a control an operator finds dead. The choice appears here in the change that makes the second transport work.",
+    choice: {
+      webrtc: "WebRTC (pion, inside the control plane)",
+      tcp: "TCP (MSE, the service's stream endpoint)",
+    } satisfies Record<LiveMirrorTransportChoice, string>,
+    notice: "Both transports carry this console. WebRTC negotiates a peer connection and pushes the pictures to it; TCP fetches this device's own stream endpoint and plays it as MSE, which is the slower path and the one that works where WebRTC does not. The choice is sent with every stream this console opens.",
   },
 } as const
 

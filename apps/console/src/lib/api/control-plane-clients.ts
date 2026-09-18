@@ -41,7 +41,6 @@ import { KeyEventRequestSchema, KeyEventResponseSchema, SwipeRequestSchema, Swip
 import {
   GetMirrorStreamRequestSchema,
   GetMirrorStreamResponseSchema,
-  MirrorTransport,
   NegotiateMirrorStreamRequestSchema,
   NegotiateMirrorStreamResponseSchema,
   StartMirrorStreamRequestSchema,
@@ -50,7 +49,7 @@ import {
   StopMirrorStreamResponseSchema,
   type MirrorStream,
 } from "@/gen/drift/v1/device_mirror_pb"
-import { liveMirrorCopy, liveStreamView, type LiveStreamView } from "@/lib/live-mirror"
+import { liveMirrorCopy, liveStreamView, transportRequestFor, type LiveMirrorTransportChoice, type LiveStreamView } from "@/lib/live-mirror"
 import { ApplyDeviceSettingsRequestSchema, ApplyDeviceSettingsResponseSchema, DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
 import {
   DeleteArtifactRequestSchema,
@@ -917,34 +916,44 @@ export interface LiveStreamAnswer {
  * service's own stream identity, which is the whole of what the frames hang off.
  */
 export interface LiveMirrorClient {
-  startStream(request: { workspaceId: string; deviceId: string }): Promise<LiveStreamView>
+  /**
+   * startStream opens one device's live stream over the transport the operator
+   * chose. The transport is asked for by name rather than left to the control
+   * plane's default, because this console renders both and the operator picked
+   * one; the control plane carries what was asked for or refuses it.
+   */
+  startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice }): Promise<LiveStreamView>
   negotiate(streamId: string, offerSdp: string): Promise<LiveStreamAnswer>
   stopStream(streamId: string): Promise<LiveStreamView>
   getStream(streamId: string): Promise<LiveStreamView>
+  /**
+   * streamEndpoint resolves the per-device stream endpoint a TCP stream is fetched
+   * from, with the credentials this console reaches the control plane with.
+   */
+  streamEndpoint(path: string): { url: string; headers: Record<string, string> }
 }
 
 export class DeviceMirrorClient implements LiveMirrorClient {
   private readonly rpc: TypedConnectClient
+  private readonly json: ConnectJsonClient
   private readonly operatorId: string
   constructor(json: ConnectJsonClient, operatorId = defaultOperatorId) {
     this.rpc = new TypedConnectClient(json, "drift.v1.DeviceMirrorService")
+    this.json = json
     this.operatorId = operatorId
   }
-  /**
-   * startStream asks for WebRTC by name rather than leaving the transport to the
-   * control plane's default. The console can render WebRTC and nothing else yet,
-   * and a stream that quietly arrived over another transport would be a picture
-   * this surface cannot show.
-   */
-  async startStream(request: { workspaceId: string; deviceId: string }): Promise<LiveStreamView> {
+  async startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice }): Promise<LiveStreamView> {
     const requestId = newRequestId()
     const response = await this.rpc.call("StartMirrorStream", StartMirrorStreamRequestSchema, StartMirrorStreamResponseSchema, {
       context: requestContext({ requestId, actorId: this.operatorId }),
       workspace: workspaceRef(request.workspaceId),
       deviceId: request.deviceId,
-      transport: MirrorTransport.WEBRTC,
+      transport: transportRequestFor(request.transport ?? "webrtc"),
     })
     return requireStream(response.stream)
+  }
+  streamEndpoint(path: string): { url: string; headers: Record<string, string> } {
+    return this.json.endpoint(path)
   }
   async negotiate(streamId: string, offerSdp: string): Promise<LiveStreamAnswer> {
     const response = await this.rpc.call("NegotiateMirrorStream", NegotiateMirrorStreamRequestSchema, NegotiateMirrorStreamResponseSchema, {

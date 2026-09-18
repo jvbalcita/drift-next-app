@@ -38,6 +38,7 @@ function fakeMirror(initial: LiveStreamView = stream()): { client: LiveMirrorCli
       async negotiate(_streamId, offerSdp) { calls.push(`negotiate:${offerSdp}`); return { answerSdp: "answer-sdp", stream: state } },
       async stopStream(streamId) { calls.push(`stop:${streamId}`); return { ...state, state: "ended" } },
       async getStream() { return state },
+      streamEndpoint(path) { calls.push(`endpoint:${path}`); return { url: `http://control-plane.test${path}`, headers: {} } },
     },
   }
 }

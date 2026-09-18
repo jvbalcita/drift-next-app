@@ -7,13 +7,16 @@ import { describe, expect, it } from "vitest"
 import { create } from "@bufbuild/protobuf"
 import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
+import type { MirrorPlayback, MirrorPlaybackFactory, MirrorPlaybackRequest } from "@/lib/api/mirror-playback"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
-import { liveMirrorCopy, liveStreamView, type LiveStreamView } from "@/lib/live-mirror"
+import { liveMirrorCopy, liveStreamView, type LiveMirrorTransportChoice, type LiveStreamView } from "@/lib/live-mirror"
 
 interface StreamOverrides {
   state?: MirrorStreamState
   failure?: string
   frames?: bigint
+  transport?: MirrorTransport
+  streamUrl?: string
 }
 
 function stream(overrides: StreamOverrides = {}): LiveStreamView {
@@ -29,9 +32,33 @@ function stream(overrides: StreamOverrides = {}): LiveStreamView {
   }))
 }
 
+/**
+ * fakePlayback stands in for the browser's media stack: what a case asserts is
+ * which stream this console fetched and how it was torn down, neither of which
+ * needs a decoder.
+ */
+function fakePlayback() {
+  const starts: MirrorPlaybackRequest[] = []
+  let stops = 0
+  const factory: MirrorPlaybackFactory = (request) => {
+    starts.push(request)
+    const playback: MirrorPlayback = {
+      async start() {
+        // The endpoint's own state is read by the poll, not by the fetch: a body
+        // that never carries a picture is a failure the poll reports.
+      },
+      stop() { stops += 1 },
+    }
+    return playback
+  }
+  return { factory, starts, stops: () => stops }
+}
+
 interface FakeClient {
   client: LiveMirrorClient
   calls: string[]
+  /** transports are the transports this console asked the control plane for. */
+  transports: string[]
   setState(next: LiveStreamView): void
   failReads(failure: unknown | null): void
   reads: number
@@ -39,16 +66,19 @@ interface FakeClient {
 
 function fakeClient(initial: LiveStreamView = stream()): FakeClient {
   const calls: string[] = []
+  const transports: string[] = []
   let state = initial
   let readFailure: unknown | null = null
   const handle: FakeClient = {
     calls,
+    transports,
     get reads() { return calls.filter((call) => call.startsWith("get:")).length },
     setState(next) { state = next },
     failReads(failure) { readFailure = failure },
     client: {
       async startStream(request) {
         calls.push(`start:${request.deviceId}`)
+        transports.push(request.transport ?? "unspecified")
         return state
       },
       async negotiate(streamId, offerSdp) {
@@ -63,6 +93,10 @@ function fakeClient(initial: LiveStreamView = stream()): FakeClient {
         calls.push(`get:${streamId}`)
         if (readFailure) throw readFailure
         return state
+      },
+      streamEndpoint(path) {
+        calls.push(`endpoint:${path}`)
+        return { url: `http://control-plane.test${path}`, headers: { "X-Drift-Lab-Token": "token" } }
       },
     },
   }
@@ -89,8 +123,8 @@ function fakePeer(): FakePeer {
   return { factory: () => peer, calls, emitStream: () => listener?.(media), media }
 }
 
-function Harness({ client, peerFactory, deviceId = "device-1" }: { client?: LiveMirrorClient; peerFactory?: FakePeer["factory"]; deviceId?: string }) {
-  const session = useLiveMirror(deviceId, { client, peerFactory, workspaceId: "workspace-lab-local", pollIntervalMs: 5, pollFailureLimit: 2 })
+function Harness({ client, peerFactory, playbackFactory, transport, deviceId = "device-1" }: { client?: LiveMirrorClient; peerFactory?: FakePeer["factory"]; playbackFactory?: MirrorPlaybackFactory; transport?: LiveMirrorTransportChoice; deviceId?: string }) {
+  const session = useLiveMirror(deviceId, { client, peerFactory, playbackFactory, transport, workspaceId: "workspace-lab-local", pollIntervalMs: 5, pollFailureLimit: 2 })
   return (
     <div>
       <span data-testid="phase">{session.phase}</span>
@@ -183,6 +217,46 @@ describe("the console's live mirror session", () => {
     // frame finally unmounts.
     view.unmount()
     expect(handle.calls.filter((call) => call === "stop:stream-1")).toHaveLength(1)
+  })
+
+  it("fetches the stream's own endpoint over the TCP transport, and never negotiates a peer", async () => {
+    const handle = fakeClient(stream({ transport: MirrorTransport.TCP, streamUrl: "/drift/v1/mirror/stream?stream_id=stream-1", state: MirrorStreamState.LIVE, frames: 4n }))
+    const peer = fakePeer()
+    const playback = fakePlayback()
+    render(<Harness client={handle.client} peerFactory={peer.factory} playbackFactory={playback.factory} transport="tcp" />)
+
+    await waitFor(() => expect(playback.starts).toHaveLength(1))
+    expect(handle.transports).toEqual(["tcp"])
+    expect(playback.starts[0].url).toContain("stream_id=stream-1")
+    expect(playback.starts[0].headers["X-Drift-Lab-Token"]).toBe("token")
+    // A TCP stream is fetched, not negotiated: no peer was built and no offer was
+    // sent, and the phase follows the control plane's own report of pictures.
+    expect(peer.calls).toEqual([])
+    expect(handle.calls.some((call) => call.startsWith("negotiate"))).toBe(false)
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("live"))
+  })
+
+  it("stops the playback and tells the control plane to end the stream when the operator stops it", async () => {
+    const handle = fakeClient(stream({ transport: MirrorTransport.TCP, streamUrl: "/drift/v1/mirror/stream?stream_id=stream-1" }))
+    const playback = fakePlayback()
+    const user = userEvent.setup()
+    render(<Harness client={handle.client} playbackFactory={playback.factory} transport="tcp" />)
+
+    await waitFor(() => expect(playback.starts).toHaveLength(1))
+    await user.click(screen.getByRole("button", { name: "stop" }))
+
+    await waitFor(() => expect(playback.stops()).toBe(1))
+    expect(handle.calls).toContain("stop:stream-1")
+  })
+
+  it("reports a TCP stream the control plane opened without naming an endpoint", async () => {
+    const handle = fakeClient(stream({ transport: MirrorTransport.TCP, streamUrl: "" }))
+    const playback = fakePlayback()
+    render(<Harness client={handle.client} playbackFactory={playback.factory} transport="tcp" />)
+
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
+    expect(screen.getByTestId("failure")).toHaveTextContent(liveMirrorCopy.failure.noEndpoint)
+    expect(playback.starts).toHaveLength(0)
   })
 
   it("tells an operator whose console has no control plane that there is nothing to show", async () => {
