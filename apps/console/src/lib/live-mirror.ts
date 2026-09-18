@@ -1,7 +1,7 @@
 import { MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import type { MirrorStream } from "@/gen/drift/v1/device_mirror_pb"
 import { deviceObservationSentence } from "@/lib/device-status"
-import type { DeviceStatus } from "@/lib/domain/control-plane"
+import type { DeviceStatus, ObservationView } from "@/lib/domain/control-plane"
 
 /**
  * The console's own view of one device's live mirror.
@@ -203,9 +203,61 @@ export const liveMirrorCopy = {
   input: {
     noLease: "Input needs this device's active lease, which this console has not acquired.",
     noObservation: "Input needs the observation the coordinates are measured from, and this console has none for this device.",
+    /**
+     * Said while the console is reading the device's own observations.
+     *
+     * It is its own sentence rather than a longer refusal because it is not a
+     * refusal: nothing has been asked of the kernel yet, and an operator who
+     * clicks during the read is told the console is still finding the value the
+     * click will be measured against instead of being told the device has none.
+     */
+    readingObservation: "Reading the observation these coordinates will be measured from, from the control plane. Nothing has been sent to the device.",
     noFrame: "Input needs the frame the stream is encoded at, and this stream has not reported one.",
     refused: "The control plane refused that input.",
     tapSent: "Tap dispatched.",
+  },
+  /**
+   * The info control and everything the frame's own body no longer carries.
+   *
+   * The frame IS the device's screen: it holds the picture and the pointer and
+   * nothing else, so the state, the transport, the encoded frame, the box the
+   * picture is drawn in, and every refusal and warning are read from here
+   * instead (AGENTS.md section 7 - the text beside a control is part of the
+   * control). Nothing moved here is dropped: each sentence is the one the frame
+   * used to print, and the tests that pinned it pin it here.
+   */
+  details: {
+    /** The tooltip names what the control opens, and nothing else. */
+    label: "Live mirror details",
+    tooltip: "Live mirror details: what this frame is showing, the frame its coordinates are measured in, and every refusal it has reported.",
+    heading: "Live mirror details",
+    /** What this surface is, said once, so the lines below read as one account. */
+    intro: "Everything this frame used to print over the device's screen. The frame itself is the device's screen: it carries the picture and the pointer, and nothing else.",
+    /** The paragraph the frame's body used to carry under the picture. */
+    pointer: "Tap the picture to tap the device, drag it to swipe, and scroll inside it to scroll the device. Coordinates are measured in the frame the stream is encoded at, never in this element's pixels and never rescaled from another one. The picture is drawn at the stream's own shape, so a point in the bar beside it reaches no device: it is refused and named rather than moved onto the frame.",
+    /** The fact each line states, so a reader can tell one line's subject from another. */
+    field: {
+      state: "State",
+      transport: "Transport",
+      frame: "Encoded frame",
+      drawn: "Drawn picture",
+      pointer: "Pointer",
+      failure: "Failure reason",
+      refusal: "Refusal",
+      warning: "Input warning",
+      typing: "Typing into the device",
+    },
+    /** The drawn box has no measurement to state yet, and says which fact is missing. */
+    drawnUnmeasured: "No picture has been drawn from this stream yet, so there is no drawn box for a point to be measured in.",
+    /**
+     * The details are holding something an operator has not read.
+     *
+     * The info control marks itself with this rather than leaving a refusal
+     * behind an unopened control: a refusal is still named, never silent, and
+     * the frame's body stays the picture.
+     */
+    unread: "This frame has refused something. Open the details to read it.",
+    waiting: "Nothing has been reported yet: this frame has no stream to state anything about.",
   },
   /** The sentences that stand in for a stream the console cannot show. */
   failure: {
@@ -238,6 +290,17 @@ export const liveMirrorCopy = {
     noFrame: "The stream has not reported the frame its coordinates are measured in.",
     noPicture: "The browser has not drawn a picture from this stream yet, so there is no frame on screen to point at.",
     outsideFrame: "That point is not on the frame the device presents at: the stream is drawn smaller than this element, and a point in the bar beside the picture reaches no device.",
+    /**
+     * A scroll whose gesture has no room left inside the frame.
+     *
+     * It is its own sentence because the alternative is worse: a gesture that
+     * would leave the frame is refused rather than clipped into a shorter
+     * movement at one edge only, and an operator who scrolled at the frame's
+     * very edge is told that is what happened rather than watching nothing move.
+     * The two axes are told apart so the sentence names the direction.
+     */
+    noScrollRoomY: "That scroll would end outside the frame the device presents at, and this console does not rescale a gesture: at this point on the picture there is no room to scroll vertically.",
+    noScrollRoomX: "That scroll would end outside the frame the device presents at, and this console does not rescale a gesture: at this point on the picture there is no room to scroll horizontally.",
   },
   /**
    * The Console Settings entry. Acceptance criterion 1: the choice exists because
@@ -494,4 +557,194 @@ function insideFrame(point: PointerSample, frame: StreamFrame): boolean {
 /** The code a key control dispatches, or nothing when the console does not offer it. */
 export function liveMirrorKeyCodes(): readonly { label: string; keyCode: number }[] {
   return liveMirrorCopy.keys
+}
+
+/**
+ * The observation a device's coordinates are measured from, out of the
+ * observations this console holds.
+ *
+ * A coordinate is dispatched with the observation it was measured from, and a
+ * token the control plane cannot resolve is refused at the boundary, so which
+ * observation a frame names is not a detail: it is the input path.
+ *
+ * Two rules, and the reason for each:
+ *
+ *  - the token must name a COMPLETE capture. A partial capture's observation is
+ *    a device nobody finished looking at, and its coordinates are not a frame
+ *    the device's screen can be pointed at;
+ *  - the newest one wins, by the observation's own captured time where the
+ *    console can compare them, and by the projection's own order (the control
+ *    plane lists observations newest first) where it cannot. A console that took
+ *    the first match it found in an arbitrary order would name an observation
+ *    the device has since replaced.
+ *
+ * It returns the empty string when this device has none, and that is a fact the
+ * caller reports: a console that invented a token would dispatch a coordinate
+ * measured from nothing.
+ */
+export function observationTokenFor(observations: readonly ObservationView[], deviceId: string): string {
+  let newest: ObservationView | undefined
+  for (const candidate of observations) {
+    if (candidate.deviceId !== deviceId) continue
+    if (candidate.captureStatus !== "complete") continue
+    if (candidate.freshnessToken.trim() === "") continue
+    if (!newest || newerThan(candidate, newest)) newest = candidate
+  }
+  return newest?.freshnessToken ?? ""
+}
+
+/** newerThan compares two observations' captured times, and answers no when they are not comparable. */
+function newerThan(candidate: ObservationView, current: ObservationView): boolean {
+  const left = Date.parse(candidate.capturedAt)
+  const right = Date.parse(current.capturedAt)
+  if (Number.isNaN(left) || Number.isNaN(right)) return false
+  return left > right
+}
+
+/**
+ * One wheel turn, as the browser reported it.
+ *
+ * `deltaMode` is the browser's own contract for what the deltas are measured in:
+ * 0 is pixels, 1 is lines (a mouse wheel's notch in Firefox), 2 is pages. All
+ * three are converted before anything is measured, because a delta read as the
+ * wrong unit is a scroll of the wrong size rather than a missing one.
+ */
+export interface WheelTurn {
+  deltaX: number
+  deltaY: number
+  deltaMode: number
+}
+
+/** How many pixels one line of a deltaMode 1 wheel turn is worth. */
+export const wheelLinePixels = 16
+
+/** The span one scroll step is dispatched as, as a share of the frame's own dimension. */
+export const scrollStepFraction = 1 / 12
+
+/** How long one dispatched scroll swipe is given, in milliseconds. */
+export const scrollSwipeMs = 80
+
+/** The most scroll steps one wheel event may become, so a burst cannot fan out without bound. */
+export const maximumScrollStepsPerEvent = 4
+
+/** A scroll in the frame's own units. */
+export interface FrameScroll {
+  x: number
+  y: number
+}
+
+/**
+ * wheelScrollDelta converts one wheel turn into the scroll it asks for, in the
+ * frame the stream is encoded at.
+ *
+ * It is measured through the box the picture is DRAWN in, exactly as a pointer
+ * is: the element's own pixels are the operator's layout, and a scroll measured
+ * in them would move the device by a distance that depends on the size of the
+ * operator's window rather than on the device's screen. It returns null when
+ * there is no drawn box to measure through, so the caller refuses rather than
+ * converting against a box nobody has.
+ */
+export function wheelScrollDelta(turn: WheelTurn, drawn: SurfaceRect | null, frame: StreamFrame): FrameScroll | null {
+  if (!sized(frame) || !measurable(drawn)) return null
+  if (!Number.isFinite(turn.deltaX) || !Number.isFinite(turn.deltaY)) return null
+  const pixelsX = wheelPixels(turn.deltaX, turn.deltaMode, drawn.width)
+  const pixelsY = wheelPixels(turn.deltaY, turn.deltaMode, drawn.height)
+  return {
+    x: (pixelsX * frame.width) / drawn.width,
+    y: (pixelsY * frame.height) / drawn.height,
+  }
+}
+
+/** wheelPixels converts one delta to the element's pixels, per the wheel's own deltaMode. */
+function wheelPixels(delta: number, deltaMode: number, page: number): number {
+  if (deltaMode === 1) return delta * wheelLinePixels
+  if (deltaMode === 2) return delta * page
+  return delta
+}
+
+/** scrollStepUnits is the frame-unit distance one scroll step moves the device. */
+export function scrollStepUnits(frame: StreamFrame, axis: "x" | "y"): number {
+  const dimension = axis === "x" ? frame.width : frame.height
+  return Math.max(1, Math.round(dimension * scrollStepFraction))
+}
+
+export interface ScrollSwipe {
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+  durationMs: number
+}
+
+export interface ScrollPlan {
+  /** The gestures this call is worth, in the order they are dispatched. */
+  swipes: ScrollSwipe[]
+  /** The scroll not yet dispatched, carried to the next turn. */
+  remainder: FrameScroll
+  /** A scroll that cannot be expressed as a gesture inside the frame, named. */
+  refusal: string
+}
+
+/**
+ * planWheelScrolls turns accumulated wheel scroll into the swipes it is worth.
+ *
+ * The device input contract has no scroll kind: tap, swipe, typed text, key
+ * event and app launch are what a device can be told (ADR-0008), so a wheel is
+ * dispatched as the gesture a finger would make - a swipe in the scrolled
+ * direction - through the same path, the same lease and the same frame as every
+ * other gesture. Nothing here invents an input the kernel cannot authorize.
+ *
+ * One wheel turn is one gesture, and the scroll is quantised by the frame: a
+ * trackpad reports a flick as tens of small turns, and dispatching one action
+ * per turn would send tens of device commands for one movement of a hand. The
+ * scroll is therefore accumulated and spent in whole steps of the frame's own
+ * size; a remainder smaller than a step waits for the next turn, and whatever is
+ * still pending when the operator stops is never dispatched - which is stated
+ * rather than hidden: the console reports whole steps, not the event rate of the
+ * pointing device.
+ *
+ * A gesture must lie inside the frame the device presents at (ADR-0010), so a
+ * step at the frame's edge is shortened to fit rather than rescaled, and a step
+ * with no room at all is refused with its own sentence.
+ */
+export function planWheelScrolls(at: { x: number; y: number }, scroll: FrameScroll, frame: StreamFrame): ScrollPlan {
+  let remainder = { x: scroll.x, y: scroll.y }
+  const swipes: ScrollSwipe[] = []
+  let refusal = ""
+  for (const axis of ["x", "y"] as const) {
+    const step = scrollStepUnits(frame, axis)
+    while (Math.abs(remainder[axis]) >= step && swipes.length < maximumScrollStepsPerEvent) {
+      const direction = Math.sign(remainder[axis])
+      const plan = scrollSwipe(at, axis, direction * step, frame)
+      if (plan.kind === "refused") return { swipes, remainder: { x: 0, y: 0 }, refusal: plan.refusal }
+      swipes.push(plan.swipe)
+      remainder = { ...remainder, [axis]: remainder[axis] - direction * step }
+    }
+  }
+  return { swipes, remainder, refusal }
+}
+
+/**
+ * scrollSwipe is the gesture one scroll step becomes: from the point the wheel
+ * is over, in the direction the content moves, bounded by the frame.
+ *
+ * The content moves opposite to the finger that scrolls it, which is why the end
+ * point is the start MINUS the scroll rather than plus it: a wheel turned down
+ * moves the content up, and the gesture that does that on a touchscreen drags
+ * upward.
+ */
+function scrollSwipe(at: { x: number; y: number }, axis: "x" | "y", delta: number, frame: StreamFrame): { kind: "swipe"; swipe: ScrollSwipe } | { kind: "refused"; refusal: string } {
+  const startX = clampIndex(at.x, frame.width)
+  const startY = clampIndex(at.y, frame.height)
+  const endX = axis === "x" ? clampIndex(startX - delta, frame.width) : startX
+  const endY = axis === "y" ? clampIndex(startY - delta, frame.height) : startY
+  if (endX === startX && endY === startY) {
+    return { kind: "refused", refusal: axis === "x" ? liveMirrorCopy.refusal.noScrollRoomX : liveMirrorCopy.refusal.noScrollRoomY }
+  }
+  return { kind: "swipe", swipe: { startX, startY, endX, endY, durationMs: scrollSwipeMs } }
+}
+
+function clampIndex(value: number, dimension: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(Math.max(Math.round(value), 0), Math.max(0, dimension - 1))
 }

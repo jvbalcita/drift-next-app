@@ -12,6 +12,55 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, liveStreamView } from "@/lib/live-mirror"
 import { ControlPage } from "./ControlPage"
+import { liveTileCopy, liveTileViewerLimit } from "@/lib/live-tiles"
+
+/**
+ * The browser's WebRTC stack is stubbed rather than exercised: what these tests
+ * are about is that the console OPENs a device's stream and what it renders while
+ * it holds one, not that a browser can decode H.264.
+ */
+class FakeRTCPeerConnection {
+  iceGatheringState = "complete"
+  localDescription: { type: string; sdp: string } | null = null
+  addTransceiver() { return undefined }
+  async createOffer() { return { type: "offer", sdp: "offer-sdp" } }
+  async setLocalDescription(description: { type: string; sdp: string }) { this.localDescription = description }
+  async setRemoteDescription() { return undefined }
+  addEventListener() { return undefined }
+  removeEventListener() { return undefined }
+  close() { return undefined }
+}
+
+/** fakeMirror answers one device's stream, recording what the console asked for. */
+function fakeMirror(state: "starting" | "live" | "ended" = "live", transport: MirrorTransport = MirrorTransport.WEBRTC) {
+  const view = liveStreamView(create(MirrorStreamSchema, {
+    streamId: "stream-1",
+    deviceId: "atlas-04",
+    transport,
+    streamUrl: transport === MirrorTransport.TCP ? "/drift/v1/mirror/stream?stream_id=stream-1" : "",
+    renderWidth: 1080,
+    renderHeight: 1920,
+    state: state === "live" ? MirrorStreamState.LIVE : state === "starting" ? MirrorStreamState.STARTING : MirrorStreamState.ENDED,
+    frames: state === "live" ? 9n : 0n,
+  }))
+  const calls: string[] = []
+  const client: LiveMirrorClient = {
+    // The transport the operator chose travels with the request, so a case can
+    // assert the choice reached the control plane rather than a default.
+    async startStream(request) { calls.push(`start:${request.deviceId}:${request.transport ?? "unspecified"}`); return view },
+    async negotiate(_streamId, offerSdp) { calls.push(`negotiate:${offerSdp}`); return { answerSdp: "answer-sdp", stream: view } },
+    async stopStream(streamId) { calls.push(`stop:${streamId}`); return { ...view, state: "ended" } },
+    async getStream() { return view },
+    streamEndpoint(path) { calls.push(`endpoint:${path}`); return { url: `http://control-plane.test${path}`, headers: {} } },
+  }
+  return { client, calls }
+}
+
+/** openLiveMirrorDetails opens the info control beside the pin and returns what it holds. */
+async function openLiveMirrorDetails(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByTestId("live-mirror-info"))
+  return screen.findByTestId("live-mirror-details")
+}
 
 beforeEach(() => {
   render(<Toaster />)
@@ -668,47 +717,6 @@ describe("ControlPage Console Settings fleet device settings", () => {
 })
 
 describe("ControlPage live mirror frame", () => {
-  /**
-   * The browser's WebRTC stack is stubbed rather than exercised: what these tests
-   * are about is that the big frame OPENs the device's stream and states the
-   * transport, not that a browser can decode H.264.
-   */
-  class FakeRTCPeerConnection {
-    iceGatheringState = "complete"
-    localDescription: { type: string; sdp: string } | null = null
-    addTransceiver() { return undefined }
-    async createOffer() { return { type: "offer", sdp: "offer-sdp" } }
-    async setLocalDescription(description: { type: string; sdp: string }) { this.localDescription = description }
-    async setRemoteDescription() { return undefined }
-    addEventListener() { return undefined }
-    removeEventListener() { return undefined }
-    close() { return undefined }
-  }
-
-  function fakeMirror(state: "starting" | "live" | "ended" = "live", transport: MirrorTransport = MirrorTransport.WEBRTC) {
-    const view = liveStreamView(create(MirrorStreamSchema, {
-      streamId: "stream-1",
-      deviceId: "atlas-04",
-      transport,
-      streamUrl: transport === MirrorTransport.TCP ? "/drift/v1/mirror/stream?stream_id=stream-1" : "",
-      renderWidth: 1080,
-      renderHeight: 1920,
-      state: state === "live" ? MirrorStreamState.LIVE : state === "starting" ? MirrorStreamState.STARTING : MirrorStreamState.ENDED,
-      frames: state === "live" ? 9n : 0n,
-    }))
-    const calls: string[] = []
-    const client: LiveMirrorClient = {
-      // The transport the operator chose travels with the request, so a case can
-      // assert the choice reached the control plane rather than a default.
-      async startStream(request) { calls.push(`start:${request.deviceId}:${request.transport ?? "unspecified"}`); return view },
-      async negotiate(_streamId, offerSdp) { calls.push(`negotiate:${offerSdp}`); return { answerSdp: "answer-sdp", stream: view } },
-      async stopStream(streamId) { calls.push(`stop:${streamId}`); return { ...view, state: "ended" } },
-      async getStream() { return view },
-      streamEndpoint(path) { calls.push(`endpoint:${path}`); return { url: `http://control-plane.test${path}`, headers: {} } },
-    }
-    return { client, calls }
-  }
-
   beforeEach(() => {
     vi.stubGlobal("RTCPeerConnection", FakeRTCPeerConnection)
   })
@@ -723,12 +731,15 @@ describe("ControlPage live mirror frame", () => {
     render(<ControlPage snapshot={mock.getSnapshot()} dispatch={async (intent) => mock.dispatch(intent)} mirror={mirror.client} />)
 
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
-    await waitFor(() => expect(screen.getByTestId("live-mirror-transport")).toHaveTextContent(/WebRTC \(pion/i))
-
     expect(mirror.calls.some((call) => call === "start:atlas-04:webrtc")).toBe(true)
     expect(screen.queryByText("Interactive phone surface")).not.toBeInTheDocument()
-    // The stream's own frame is stated, because every coordinate is measured in it.
-    expect(screen.getByTestId("live-mirror-transport")).toHaveTextContent("1080x1920")
+
+    // The stream's own frame is stated, because every coordinate is measured in
+    // it - and it is stated behind the info control beside the pin, not over the
+    // device's screen, which is the whole of this change.
+    const details = await openLiveMirrorDetails(user)
+    expect(within(details).getByTestId("live-mirror-transport")).toHaveTextContent(/WebRTC \(pion/i)
+    expect(within(details).getByTestId("live-mirror-transport")).toHaveTextContent("1080x1920")
   })
 
   it("offers both transports, and opens the device's stream over the one chosen", async () => {
@@ -758,10 +769,12 @@ describe("ControlPage live mirror frame", () => {
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
 
     // The choice travels with the stream: the console asked for TCP, and the
-    // frame states the transport the stream is actually using.
+    // frame states the transport the stream is actually using, behind the info
+    // control beside the pin.
     await waitFor(() => expect(mirror.calls.some((call) => call === "start:atlas-04:tcp")).toBe(true))
-    await waitFor(() => expect(screen.getByTestId("live-mirror-transport")).toHaveTextContent(/TCP \(MSE/i))
-    expect(screen.getByTestId("live-mirror-transport")).toHaveTextContent("1080x1920")
+    const details = await openLiveMirrorDetails(user)
+    expect(within(details).getByTestId("live-mirror-transport")).toHaveTextContent(/TCP \(MSE/i)
+    expect(within(details).getByTestId("live-mirror-transport")).toHaveTextContent("1080x1920")
     expect(mirror.calls.some((call) => call.startsWith("endpoint:"))).toBe(true)
   })
 
@@ -771,7 +784,133 @@ describe("ControlPage live mirror frame", () => {
     render(<ControlPage snapshot={mock.getSnapshot()} dispatch={async (intent) => mock.dispatch(intent)} />)
 
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
-    await waitFor(() => expect(screen.getByTestId("live-mirror-phase")).toHaveTextContent(/no control plane/i))
+    // The frame says so where the picture would be, and the details say it in
+    // the console's own words rather than leaving an empty box.
+    expect(await screen.findByText(liveMirrorCopy.phase.unavailable)).toBeInTheDocument()
+    const details = await openLiveMirrorDetails(user)
+    expect(within(details).getByTestId("live-mirror-phase")).toHaveTextContent(/no control plane/i)
     expect(screen.queryByText("Interactive phone surface")).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The fleet grid's tiles.
+ *
+ * Two claims, both about what a tile IS: a device with no current observation is
+ * drawn in ONE fixed colour rather than its index, and an observed tile carries
+ * the device's live picture within a bound the console decides rather than the
+ * grid's size. A tile is a viewer: nothing here takes a lease, opens a control
+ * session, or dispatches anything.
+ */
+describe("ControlPage fleet tiles", () => {
+  beforeEach(() => {
+    vi.stubGlobal("RTCPeerConnection", FakeRTCPeerConnection)
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /** mirrorFor answers each device's own stream, and records every subscription. */
+  function mirrorFor(): { client: LiveMirrorClient; started: string[] } {
+    const started: string[] = []
+    const client: LiveMirrorClient = {
+      async startStream(request) {
+        started.push(request.deviceId)
+        return liveStreamView(create(MirrorStreamSchema, { streamId: `stream-${request.deviceId}`, deviceId: request.deviceId, transport: MirrorTransport.WEBRTC, renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n }))
+      },
+      async negotiate(_streamId, _offerSdp) { return { answerSdp: "answer-sdp", stream: liveStreamView(create(MirrorStreamSchema, { streamId: "stream", deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n })) } },
+      async stopStream() { return liveStreamView(create(MirrorStreamSchema, { streamId: "stream", deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.ENDED })) },
+      async getStream(streamId) { return liveStreamView(create(MirrorStreamSchema, { streamId, deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n })) },
+      streamEndpoint(path) { return { url: `http://control-plane.test${path}`, headers: {} } },
+    }
+    return { client, started }
+  }
+
+  function grid() {
+    const mock = new MockControlPlaneClient()
+    const snapshot = mock.getSnapshot()
+    // A second absent state, so the fixed colour is checked on both of the facts
+    // that are not "observed" rather than on one of them.
+    const neverObserved: DeviceView = {
+      ...snapshot.devices[0]!,
+      id: "atlas-09",
+      displayName: "Atlas 09",
+      status: "unobserved",
+      transport: "unspecified",
+      controlEligibility: "offline",
+    }
+    snapshot.devices = [...snapshot.devices, neverObserved]
+    return { snapshot, dispatch: async (intent: ControlPlaneIntent) => mock.dispatch(intent) }
+  }
+
+  it("draws every device with no current observation in ONE fixed colour", () => {
+    const { snapshot, dispatch } = grid()
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
+
+    // Nova 05 was observed and is not now; Atlas 09 has never been observed. Both
+    // are "nothing is observed here", so both carry the same fixed colour,
+    // whatever their index in the grid.
+    const departed = screen.getByRole("button", { name: /Nova 05/i })
+    const unseen = screen.getByRole("button", { name: /Atlas 09/i })
+    expect(departed).toHaveClass("bg-zinc-800")
+    expect(unseen).toHaveClass("bg-zinc-800")
+
+    // An observed tile keeps its own index colour, so the two states cannot read
+    // as one - and the tile's own status label still says which fact it is.
+    const online = screen.getByRole("button", { name: /Atlas 04/i })
+    expect(online).not.toHaveClass("bg-zinc-800")
+    expect(within(departed).getByText("Offline")).toBeInTheDocument()
+    expect(within(unseen).getByText("Not Observed")).toBeInTheDocument()
+  })
+
+  it("carries a live picture on an observed tile, subscribed no further than the console's own bound", async () => {
+    const { snapshot, dispatch } = grid()
+    const mirror = mirrorFor()
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={mirror.client} />)
+
+    // The observed tiles carry a picture, and the grid holds five of them while
+    // the console carries four: the subscriber set is the console's bound, not
+    // the grid's size.
+    expect(await screen.findByTestId("live-tile-video-atlas-04")).toBeInTheDocument()
+    const pictures = screen.getAllByTestId(/^live-tile-video-/)
+    expect(pictures).toHaveLength(liveTileViewerLimit)
+    expect(mirror.started.sort()).toEqual(["atlas-04", "atlas-07", "nova-02", "orion-01"])
+
+    // The device with no current observation is not subscribed at all, and spends
+    // none of the bound: there is nothing to carry for it.
+    expect(mirror.started).not.toContain("nova-05")
+    expect(screen.queryByTestId("live-tile-video-nova-05")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("live-tile-video-atlas-09")).not.toBeInTheDocument()
+
+    // The tile the bound does not reach says so in the tile, and does not imply
+    // it is live: no picture element, and the whole sentence behind the mark.
+    const unshown = screen.getByTestId("live-tile-state-orion-03")
+    expect(unshown).toHaveAttribute("aria-label", liveTileCopy.unshown(liveTileViewerLimit))
+    expect(unshown).toHaveTextContent(liveTileCopy.unshownShort)
+    expect(screen.queryByTestId("live-tile-video-orion-03")).not.toBeInTheDocument()
+  })
+
+  it("says a tile is not live rather than showing the last frame a failed stream produced", async () => {
+    const { snapshot, dispatch } = grid()
+    const refusal = "the peer produced no picture within its bound"
+    const client: LiveMirrorClient = {
+      ...mirrorFor().client,
+      async startStream(request) {
+        if (request.deviceId === "atlas-04") throw new Error(refusal)
+        return liveStreamView(create(MirrorStreamSchema, { streamId: `stream-${request.deviceId}`, deviceId: request.deviceId, transport: MirrorTransport.WEBRTC, renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n }))
+      },
+    }
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={client} />)
+
+    const failed = await screen.findByTestId("live-tile-state-atlas-04")
+    expect(failed).toHaveAttribute("data-tile-state", "failed")
+    // The classification reaches the operator: the plane's own reason, in the
+    // tile's own element, and no picture kept from before the failure.
+    expect(failed).toHaveAttribute("aria-label", expect.stringContaining(refusal) as unknown as string)
+    expect(screen.queryByTestId("live-tile-video-atlas-04")).not.toBeInTheDocument()
+
+    // The other observed tiles are unaffected: one tile's failure is not a reason
+    // for the grid to stop carrying every other device.
+    expect(await screen.findByTestId("live-tile-video-atlas-07")).toBeInTheDocument()
   })
 })
