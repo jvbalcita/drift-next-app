@@ -169,8 +169,43 @@ export function browserMirrorPlayback(request: MirrorPlaybackRequest): MirrorPla
 
 async function defaultFetchStream(url: string, headers: Record<string, string>): Promise<ReadableStream<Uint8Array> | null> {
   const response = await fetch(url, { headers, cache: "no-store" })
-  if (!response.ok || !response.body) return null
-  return response.body
+  if (response.ok && response.body) return response.body
+  // A refusal's body is the control plane's own sentence, and it is the whole
+  // diagnosis: it names the stream identity this console asked for and the
+  // identities the plane IS carrying, which is what makes the failure readable
+  // from the frame instead of from the plane's database. Reporting this console's
+  // own sentence in its place would throw away the only part of the refusal that
+  // says why, so the plane's answer is kept behind it.
+  throw new Error(refusalSentence(liveMirrorCopy.failure.refusedEndpoint, await refusalText(response)))
+}
+
+/**
+ * refusalSentence is this console's sentence for a stream endpoint it could not
+ * read, with the control plane's own answer kept on the end of it.
+ *
+ * It is the same rule the console already applies to a refusal it reads off a
+ * negotiation (see `openRefusal` in the copy table): the plane's sentence is
+ * reported rather than replaced or softened, because it is what the plane said and
+ * it is what an operator - or whoever reads the frame next - has to work from.
+ */
+function refusalSentence(consoleSentence: string, said: string): string {
+  return said === "" ? consoleSentence : `${consoleSentence} ${said}`
+}
+
+/**
+ * refusalText reads a refusal's own words, collapsed onto one line and bounded to
+ * what a sentence about a stream can be: the plane answers with a fixed sentence
+ * plus the identities it is carrying, and a frame has no use for the newline
+ * `http.Error` ends its body with.
+ */
+async function refusalText(response: Response): Promise<string> {
+  try {
+    return (await response.text()).replace(/\s+/g, " ").trim()
+  } catch {
+    // A body that cannot be read is a refusal this console can only state in its
+    // own words; it is never a reason to fail the teardown.
+    return ""
+  }
 }
 
 async function waitForSourceOpen(source: MediaSourcePort): Promise<void> {
