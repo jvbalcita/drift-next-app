@@ -270,7 +270,11 @@ describe("Drift command center", () => {
     expect(screen.getByRole("dialog")).toHaveAccessibleName(/console settings/i)
     expect(screen.getByRole("slider", { name: /Devices gap/i })).toBeInTheDocument()
     expect(screen.getByRole("switch", { name: /Control small screen/i })).not.toBeChecked()
-    expect(screen.getByRole("button", { name: /^Connection$/i })).toHaveTextContent("WebRTC")
+    // The transport is stated, not chosen: TCP (MSE) is not implemented yet, and a
+    // selector offering one working option is a control an operator finds dead.
+    expect(screen.queryByRole("button", { name: /^Connection$/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/Live Mirror Transport/i)).toBeInTheDocument()
+    expect(screen.getByText(/TCP \(MSE\) is not implemented in this build/i)).toBeInTheDocument()
 
     await user.click(screen.getByRole("tab", { name: /Device presentation/i }))
     expect(screen.getByRole("group", { name: /Workspace Position/i })).toBeInTheDocument()

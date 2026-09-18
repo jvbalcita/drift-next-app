@@ -3,10 +3,14 @@
 import "@testing-library/jest-dom/vitest"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import { Toaster } from "@/components/ui/sonner"
 import type { ControlPlaneIntent, DeviceView, MutationResult } from "@/lib/domain/control-plane"
+import { create } from "@bufbuild/protobuf"
+import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
+import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
+import { liveMirrorCopy, liveStreamView } from "@/lib/live-mirror"
 import { ControlPage } from "./ControlPage"
 
 beforeEach(() => {
@@ -660,5 +664,90 @@ describe("ControlPage Console Settings fleet device settings", () => {
     // The refused device carries the control plane's own sentence, not a generic
     // failure.
     expect(within(table).getAllByText(/no single current transport endpoint/)).toHaveLength(2)
+  })
+})
+
+describe("ControlPage live mirror frame", () => {
+  /**
+   * The browser's WebRTC stack is stubbed rather than exercised: what these tests
+   * are about is that the big frame OPENs the device's stream and states the
+   * transport, not that a browser can decode H.264.
+   */
+  class FakeRTCPeerConnection {
+    iceGatheringState = "complete"
+    localDescription: { type: string; sdp: string } | null = null
+    addTransceiver() { return undefined }
+    async createOffer() { return { type: "offer", sdp: "offer-sdp" } }
+    async setLocalDescription(description: { type: string; sdp: string }) { this.localDescription = description }
+    async setRemoteDescription() { return undefined }
+    addEventListener() { return undefined }
+    removeEventListener() { return undefined }
+    close() { return undefined }
+  }
+
+  function fakeMirror(state: "live" | "starting" | "ended" = "live") {
+    const calls: string[] = []
+    const view = liveStreamView(create(MirrorStreamSchema, {
+      streamId: "stream-1",
+      deviceId: "atlas-04",
+      transport: MirrorTransport.WEBRTC,
+      renderWidth: 1080,
+      renderHeight: 1920,
+      state: state === "live" ? MirrorStreamState.LIVE : state === "starting" ? MirrorStreamState.STARTING : MirrorStreamState.ENDED,
+      frames: state === "live" ? 9n : 0n,
+    }))
+    const client: LiveMirrorClient = {
+      async startStream(request) { calls.push(`start:${request.deviceId}`); return view },
+      async negotiate(_streamId, offerSdp) { calls.push(`negotiate:${offerSdp}`); return { answerSdp: "answer-sdp", stream: view } },
+      async stopStream(streamId) { calls.push(`stop:${streamId}`); return { ...view, state: "ended" } },
+      async getStream() { return view },
+    }
+    return { client, calls }
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("RTCPeerConnection", FakeRTCPeerConnection)
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("opens the selected device's live frame, and the placeholder decoration is gone", async () => {
+    const user = userEvent.setup()
+    const mock = new MockControlPlaneClient()
+    const mirror = fakeMirror()
+    render(<ControlPage snapshot={mock.getSnapshot()} dispatch={async (intent) => mock.dispatch(intent)} mirror={mirror.client} />)
+
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    await waitFor(() => expect(screen.getByTestId("live-mirror-transport")).toHaveTextContent(/WebRTC \(pion/i))
+
+    expect(mirror.calls.some((call) => call === "start:atlas-04")).toBe(true)
+    expect(screen.queryByText("Interactive phone surface")).not.toBeInTheDocument()
+    // The stream's own frame is stated, because every coordinate is measured in it.
+    expect(screen.getByTestId("live-mirror-transport")).toHaveTextContent("1080x1920")
+  })
+
+  it("says which transport is in use without offering a transport to choose", async () => {
+    const user = userEvent.setup()
+    const mock = new MockControlPlaneClient()
+    const mirror = fakeMirror()
+    render(<ControlPage snapshot={mock.getSnapshot()} dispatch={async (intent) => mock.dispatch(intent)} mirror={mirror.client} />)
+
+    const settings = screen.getAllByRole("button", { name: /^Settings$/ }).find((button) => button.getAttribute("aria-haspopup") === "dialog")
+    expect(settings).toBeDefined()
+    await user.click(settings!)
+
+    expect(screen.queryByRole("button", { name: /^Connection$/i })).not.toBeInTheDocument()
+    expect(screen.getByText(liveMirrorCopy.settings.notice)).toBeInTheDocument()
+  })
+
+  it("shows no live frame for a console that has no control plane behind it", async () => {
+    const user = userEvent.setup()
+    const mock = new MockControlPlaneClient()
+    render(<ControlPage snapshot={mock.getSnapshot()} dispatch={async (intent) => mock.dispatch(intent)} />)
+
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    await waitFor(() => expect(screen.getByTestId("live-mirror-phase")).toHaveTextContent(/no control plane/i))
+    expect(screen.queryByText("Interactive phone surface")).not.toBeInTheDocument()
   })
 })
