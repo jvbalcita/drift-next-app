@@ -284,13 +284,20 @@ describe("NetworkProfilesPage observed scan devices", () => {
 })
 
 describe("NetworkProfilesPage registered endpoints", () => {
-  it("renders every registered endpoint with its canonical device name", () => {
+  it("lists a device that moved once, at the endpoint it answers on now, and does not count the record it left", () => {
     renderNetworkProfilesPage({ view: "endpoints" })
 
-    const endpoints = screen.getByRole("table", { name: "Registered network endpoints" })
-    // Two records for the same canonical device: current and superseded.
-    expect(within(endpoints).getAllByText("Atlas 04")).toHaveLength(2)
-    expect(within(endpoints).getByText("endpoint-atlas-04-current · MOCK-DEVICE-101")).toBeInTheDocument()
+    const board = screen.getByRole("table", { name: "Registered network endpoints" })
+    // The mock seeds atlas-04 with two endpoint records: the transport it was
+    // observed at first and the one it answers on now. The board reads the
+    // device's CURRENT endpoint, so the device is drawn once - and the record it
+    // left, which is that device's own history, is not listed here.
+    expect(within(board).getAllByText("Atlas 04")).toHaveLength(1)
+    expect(within(board).getByText("endpoint-atlas-04-current · MOCK-DEVICE-101")).toBeInTheDocument()
+    expect(within(board).queryByText("endpoint-atlas-04-superseded · MOCK-DEVICE-101")).not.toBeInTheDocument()
+    // And it is not counted: the board's own total is one current endpoint per
+    // device, not one row per endpoint record.
+    expect(screen.getByText(/Showing 1–6 of 6 results/)).toBeInTheDocument()
   })
 
   it("says why an empty endpoint list is empty", () => {

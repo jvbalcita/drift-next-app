@@ -120,3 +120,48 @@ func TestCurrentSerialRefusesACurrentEndpointWithNoSerial(t *testing.T) {
 		t.Fatalf("refusal returned serial %q alongside its error", serial)
 	}
 }
+
+// TestCurrentSerialReadsTheCurrentEndpointNotTheOneTheDeviceLeft: a device whose
+// transport moved carries two endpoint records - the port it answers on now and
+// the one it was activated away from - and a resolution that read either would
+// be a guess. The mirror resolves the CURRENT one, so an operator's stream is
+// opened on the address the device actually answers on (ARC-162).
+func TestCurrentSerialReadsTheCurrentEndpointNotTheOneTheDeviceLeft(t *testing.T) {
+	ctx := context.Background()
+	db := openDB(t)
+	workspace := organizations.Workspace{ID: "workspace-a", Name: "A", State: organizations.WorkspaceActive}
+	if err := store.NewWorkspaceService(db).Create(ctx, workspace, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.NewDeviceService(db).Create(ctx, devices.Device{
+		ID: "device-1", Workspace: workspace.ID, DisplayName: "One", State: devices.Active,
+	}, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	// The port the device was activated away from, then the one it answers on
+	// now: the first is superseded by the second, and both stay on the record.
+	bound := []endpoints.Endpoint{
+		{ID: "endpoint-old", Workspace: workspace.ID, DeviceID: "device-1", Transport: endpoints.TransportTCP, Host: "192.168.1.140", Port: 5555, Serial: "192.168.1.140:5555", State: endpoints.Current, ObservedAt: time.Now().UTC().Add(-time.Hour)},
+		{ID: "endpoint-new", Workspace: workspace.ID, DeviceID: "device-1", Transport: endpoints.TransportTCP, Host: "192.168.1.141", Port: 5555, Serial: "192.168.1.141:5555", State: endpoints.Current, ObservedAt: time.Now().UTC()},
+	}
+	binding := store.NewEndpointService(db)
+	for _, endpoint := range bound {
+		if err := binding.BindCurrent(ctx, endpoint, "operator", "op-1"); err != nil {
+			t.Fatalf("BindCurrent(%s) error = %v", endpoint.ID, err)
+		}
+	}
+	service, err := lab.NewService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := execution.NewRegistry(service, db)
+	t.Cleanup(func() { _ = registry.Close() })
+
+	serial, err := registry.CurrentSerial(ctx, string(workspace.ID), "device-1")
+	if err != nil {
+		t.Fatalf("resolving a moved device's current serial failed: %v", err)
+	}
+	if serial != "192.168.1.141:5555" {
+		t.Fatalf("resolved serial = %q, want the current endpoint 192.168.1.141:5555 and not the one the device left", serial)
+	}
+}

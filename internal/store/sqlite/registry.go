@@ -805,11 +805,16 @@ func (d *DB) ListScanRuns(ctx context.Context, workspace organizations.Workspace
 // deviceID lists every endpoint in the workspace, a non-empty one narrows the
 // read to that device. The transport is read from the stored record, so a caller
 // reporting it reports the observation rather than rebuilding it.
+//
+// A superseded row is history, so it answers WHEN it was superseded as well as
+// what it was: an endpoint change is not an identity change, and a reader that
+// can only say "this transport is no longer current" cannot tell an operator
+// when the device left it.
 func (d *DB) ListEndpoints(ctx context.Context, workspace organizations.WorkspaceID, deviceID devices.DeviceID, currentOnly bool) ([]endpoints.Endpoint, error) {
 	if err := validateWorkspace(string(workspace)); err != nil {
 		return nil, err
 	}
-	query := `SELECT id, workspace_id, device_id, endpoint_type, serial, host, port, state, observed_at FROM device_endpoints WHERE workspace_id=?`
+	query := `SELECT id, workspace_id, device_id, endpoint_type, serial, host, port, state, observed_at, superseded_at FROM device_endpoints WHERE workspace_id=?`
 	args := []any{workspace}
 	if deviceID != "" {
 		query += ` AND device_id=?`
@@ -827,10 +832,10 @@ func (d *DB) ListEndpoints(ctx context.Context, workspace organizations.Workspac
 	result := make([]endpoints.Endpoint, 0)
 	for rows.Next() {
 		var endpoint endpoints.Endpoint
-		var serial, host sql.NullString
+		var serial, host, supersededAt sql.NullString
 		var port sql.NullInt64
 		var endpointType, observed string
-		if err := rows.Scan(&endpoint.ID, &endpoint.Workspace, &endpoint.DeviceID, &endpointType, &serial, &host, &port, &endpoint.State, &observed); err != nil {
+		if err := rows.Scan(&endpoint.ID, &endpoint.Workspace, &endpoint.DeviceID, &endpointType, &serial, &host, &port, &endpoint.State, &observed, &supersededAt); err != nil {
 			return nil, err
 		}
 		endpoint.Transport = transportFromToken(endpointType)
@@ -844,6 +849,11 @@ func (d *DB) ListEndpoints(ctx context.Context, workspace organizations.Workspac
 			endpoint.Port = uint16(port.Int64)
 		}
 		endpoint.ObservedAt, _ = time.Parse(time.RFC3339Nano, observed)
+		if supersededAt.Valid {
+			if at, parseErr := time.Parse(time.RFC3339Nano, supersededAt.String); parseErr == nil {
+				endpoint.SupersededAt = &at
+			}
+		}
 		result = append(result, endpoint)
 	}
 	return result, classifyContext(rows.Err())

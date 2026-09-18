@@ -77,16 +77,22 @@ func (EndpointState) EnumDescriptor() ([]byte, []int) {
 }
 
 type DeviceEndpoint struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	DeviceId      string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
-	EndpointType  string                 `protobuf:"bytes,4,opt,name=endpoint_type,json=endpointType,proto3" json:"endpoint_type,omitempty"`
-	Serial        string                 `protobuf:"bytes,5,opt,name=serial,proto3" json:"serial,omitempty"`
-	Host          string                 `protobuf:"bytes,6,opt,name=host,proto3" json:"host,omitempty"`
-	Port          uint32                 `protobuf:"varint,7,opt,name=port,proto3" json:"port,omitempty"`
-	State         EndpointState          `protobuf:"varint,8,opt,name=state,proto3,enum=drift.v1.EndpointState" json:"state,omitempty"`
-	ObservedAt    string                 `protobuf:"bytes,9,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Id           string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Workspace    *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId     string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	EndpointType string                 `protobuf:"bytes,4,opt,name=endpoint_type,json=endpointType,proto3" json:"endpoint_type,omitempty"`
+	Serial       string                 `protobuf:"bytes,5,opt,name=serial,proto3" json:"serial,omitempty"`
+	Host         string                 `protobuf:"bytes,6,opt,name=host,proto3" json:"host,omitempty"`
+	Port         uint32                 `protobuf:"varint,7,opt,name=port,proto3" json:"port,omitempty"`
+	State        EndpointState          `protobuf:"varint,8,opt,name=state,proto3,enum=drift.v1.EndpointState" json:"state,omitempty"`
+	ObservedAt   string                 `protobuf:"bytes,9,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	// The moment this endpoint stopped being the device's current one, empty for
+	// an endpoint that is still current. A superseded record stays readable as
+	// history, and this is what lets a reader say WHEN it was superseded rather
+	// than only that it was: an endpoint change is not an identity change, so the
+	// record of the transport the device left is kept and dated.
+	SupersededAt  string `protobuf:"bytes,10,opt,name=superseded_at,json=supersededAt,proto3" json:"superseded_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -180,6 +186,13 @@ func (x *DeviceEndpoint) GetState() EndpointState {
 func (x *DeviceEndpoint) GetObservedAt() string {
 	if x != nil {
 		return x.ObservedAt
+	}
+	return ""
+}
+
+func (x *DeviceEndpoint) GetSupersededAt() string {
+	if x != nil {
+		return x.SupersededAt
 	}
 	return ""
 }
@@ -308,7 +321,7 @@ var File_drift_v1_endpoint_proto protoreflect.FileDescriptor
 
 const file_drift_v1_endpoint_proto_rawDesc = "" +
 	"\n" +
-	"\x17drift/v1/endpoint.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xa8\x02\n" +
+	"\x17drift/v1/endpoint.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xcd\x02\n" +
 	"\x0eDeviceEndpoint\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
@@ -319,7 +332,9 @@ const file_drift_v1_endpoint_proto_rawDesc = "" +
 	"\x04port\x18\a \x01(\rR\x04port\x12-\n" +
 	"\x05state\x18\b \x01(\x0e2\x17.drift.v1.EndpointStateR\x05state\x12\x1f\n" +
 	"\vobserved_at\x18\t \x01(\tR\n" +
-	"observedAt\"\xbd\x01\n" +
+	"observedAt\x12#\n" +
+	"\rsuperseded_at\x18\n" +
+	" \x01(\tR\fsupersededAt\"\xbd\x01\n" +
 	"\x1aListDeviceEndpointsRequest\x124\n" +
 	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12!\n" +

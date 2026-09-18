@@ -22,6 +22,12 @@ message DeviceEndpoint {
   uint32 port = 7;
   EndpointState state = 8;
   string observed_at = 9;
+  // The moment this endpoint stopped being the device's current one, empty for
+  // an endpoint that is still current. A superseded record stays readable as
+  // history, and this is what lets a reader say WHEN it was superseded rather
+  // than only that it was: an endpoint change is not an identity change, so the
+  // record of the transport the device left is kept and dated.
+  string superseded_at = 10;
 }
 message ListDeviceEndpointsRequest {
   WorkspaceRef workspace = 1;

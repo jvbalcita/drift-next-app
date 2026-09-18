@@ -101,6 +101,12 @@ type Endpoint struct {
 	Port       uint16
 	State      State
 	ObservedAt time.Time
+	// SupersededAt is when this endpoint stopped being the device's current
+	// one, and it is nil for an endpoint that is still current. The endpoint
+	// record is not deleted when the device moves: it stays as the history of
+	// the transport the device was observed at, and this is the date that makes
+	// the history readable rather than only present.
+	SupersededAt *time.Time
 }
 
 func (s State) Valid() bool {

@@ -142,6 +142,13 @@ export interface EndpointView {
   port: number
   state: EndpointState
   observedAt: string
+  /**
+   * When this endpoint stopped being the device's current one. It is present
+   * only on a superseded record: the transport a device left stays as history,
+   * and this is what lets a surface say when the device left it instead of only
+   * that it is no longer current.
+   */
+  supersededAt?: string
 }
 
 export type ProjectionWarningSource = "devices" | "endpoints"

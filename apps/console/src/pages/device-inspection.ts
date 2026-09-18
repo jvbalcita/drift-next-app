@@ -260,7 +260,7 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
     label: "Endpoint",
     sections: [{
       title: "Connection & Endpoints",
-      description: "Transport endpoints are mutable: this device keeps the same stable identity across endpoint changes, and the address below is never the device name.",
+      description: "Transport endpoints are mutable: this device keeps the same stable identity across endpoint changes, and the address below is never the device name. A record this device has left stays as history and says when it was superseded.",
       items: endpoints.map((endpoint) => ({
         key: endpoint.id,
         rows: rows([
@@ -271,6 +271,7 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
           row("Transport Type", endpoint.endpointType),
           row("State", endpoint.state),
           row("Observed At", endpoint.observedAt, true),
+          row("Superseded At", endpoint.supersededAt, true),
           row("Endpoint Record", endpoint.id, true),
           row("Registry Projection", endpoint.id === device.endpointId ? "current endpoint projection" : undefined),
         ]),

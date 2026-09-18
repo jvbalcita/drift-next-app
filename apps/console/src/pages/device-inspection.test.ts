@@ -135,6 +135,10 @@ describe("device inspection tabs", () => {
     expect(rendered).toContain("192.0.2.10:5555")
     // superseded endpoint history is real projection data, not a placeholder
     expect(rendered).toContain("192.0.2.9:5555")
+    // and the record the device left says WHEN it was superseded, so an operator
+    // can tell a transport the device moved off from one it never answered on
+    expect(rendered).toContain("Superseded At")
+    expect(rendered).toContain("2026-09-14T09:42:18Z")
     expect(rendered).toContain("86%")
     expect(rendered).toContain("run-1042")
     expect(rendered).toContain("observation-atlas-04")
