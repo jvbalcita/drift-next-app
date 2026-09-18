@@ -24,20 +24,22 @@ option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
 // address, an adb serial, a media-server URL or a stream path to reach directly.
 // Every byte it receives comes back through this service's own surface.
 //
-// The transport field states the transport a stream IS using. It is not yet an
-// operator-selectable setting: this card ships WebRTC first and the second
-// transport (TCP, as MSE) after it, and a selector that offers one working
-// option is a control an operator finds dead. The selector appears in Console
-// Settings in the change that makes the second transport work.
+// The transport field states the transport a stream IS using, and the request
+// field states the transport the operator asked for. Both transports work: a
+// requested transport this service cannot carry is refused rather than silently
+// replaced, so a caller never believes it is receiving something other than what
+// it asked for.
 
 // MirrorTransport names how a device's live stream reaches a browser.
 enum MirrorTransport {
   MIRROR_TRANSPORT_UNSPECIFIED = 0;
-  // WebRTC (pion) inside the control plane: the fast path this card ships.
+  // WebRTC (pion) inside the control plane: the stream is negotiated with a
+  // peer connection and pushed to it. The default when nothing is asked for.
   MIRROR_TRANSPORT_WEBRTC = 1;
-  // The TCP compatibility path, carried as MSE. Reserved: it is specified by
-  // this card and not yet implemented, and no stream is ever reported as
-  // using it until one does.
+  // The TCP compatibility path: the stream is pulled from this service's own
+  // stream endpoint (stream_url) as fragmented MP4 and played as MSE. It is
+  // chosen for compatibility - the path a browser without a working WebRTC
+  // stack can still show - and it is slower than the WebRTC path by design.
   MIRROR_TRANSPORT_TCP = 2;
 }
 
@@ -78,6 +80,13 @@ message MirrorStream {
   // browser. They are what "live" is asserted on: never the connection state.
   uint64 frames = 8;
   uint64 key_frames = 9;
+  // stream_url is the per-device stream endpoint a browser fetches when the
+  // transport is TCP. It is a path on this service's own guarded surface, and it
+  // is the ONLY thing a browser is given to reach the frames: never a device
+  // address, an adb serial, an RTSP address or a media-server control URL. It is
+  // empty for a stream carried over WebRTC, which is negotiated with
+  // NegotiateMirrorStream instead.
+  string stream_url = 10;
 }
 
 message StartMirrorStreamRequest {
@@ -85,7 +94,7 @@ message StartMirrorStreamRequest {
   WorkspaceRef workspace = 2;
   string device_id = 3;
   // transport is the transport the caller asks for. UNSPECIFIED selects the
-  // default, which is WebRTC. A transport that is not implemented is refused
+  // default, which is WebRTC. A transport this service cannot carry is refused
   // rather than silently replaced, so a caller never believes it is receiving
   // something other than what it asked for.
   MirrorTransport transport = 4;

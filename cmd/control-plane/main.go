@@ -321,6 +321,16 @@ func main() {
 		routes = append(routes, mirrorRoute)
 		mirrorMounted = true
 	}
+	// The per-device stream endpoint the TCP transport is fetched from. It is
+	// mounted with the same gate as the surface above and says so in the startup
+	// line, because a transport whose endpoint is missing is a transport that
+	// cannot work: an operator selecting it would get a frame that never fills.
+	streamEndpointMounted := false
+	if streamRoute := service.MirrorStreamRoute(mirrorStreamPort{transport: mirrorStreams}, labToken); streamRoute.Path != "" {
+		routes = append(routes, streamRoute)
+		streamEndpointMounted = true
+	}
+	log.Printf("live mirror stream endpoint %s at %s (a browser is given a per-device path on this service's own guarded surface; the loopback bind and the token check above are what stand in front of it)", mountState(streamEndpointMounted), transportconnect.MirrorStreamPath)
 	server := service.NewHTTPServer("control-plane", address, routes...)
 	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, device settings surface %s, text reference surface %s, transport surface %s, live mirror surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), mountState(settingsMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted), mirrorMountState(mirrorMounted))
 	serveErr := service.Serve(ctx, server)
@@ -386,20 +396,20 @@ func deviceMirrorRoute(streams *media.StreamTransport, resolver transportconnect
 // handler needs. Nothing is derived here and nothing is wrapped twice.
 type mirrorStreamPort struct{ transport *media.StreamTransport }
 
-func (p mirrorStreamPort) Open(ctx context.Context, deviceID, serial string) (transportconnect.DeviceMirrorStream, error) {
-	peer, err := p.transport.Open(ctx, deviceID, serial)
+func (p mirrorStreamPort) Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind) (transportconnect.DeviceMirrorStream, error) {
+	carrier, err := p.transport.Open(ctx, deviceID, serial, transport)
 	if err != nil {
 		return nil, err
 	}
-	return peer, nil
+	return carrier, nil
 }
 
 func (p mirrorStreamPort) Stream(streamKey string) (transportconnect.DeviceMirrorStream, bool) {
-	peer, live := p.transport.Stream(streamKey)
+	carrier, live := p.transport.Stream(streamKey)
 	if !live {
 		return nil, false
 	}
-	return peer, true
+	return carrier, true
 }
 
 // mirrorMountState reports whether the live mirror surface was mounted. Like the

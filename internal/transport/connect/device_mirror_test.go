@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
+	"sync"
 	"testing"
 
 	connectrpc "connectrpc.com/connect"
@@ -70,24 +72,61 @@ func (s *fakeMirrorStream) Close() error {
 	return s.closeErr
 }
 
-// fakeMirrors is the stream transport the surface calls.
-type fakeMirrors struct {
-	streams  map[string]*fakeMirrorStream
-	openErr  error
-	opened   []string
-	openFunc func(deviceID, serial string) *fakeMirrorStream
+// fakeEndpointStream is one stream carried over the service's own stream
+// endpoint: the surface sees it as a stream, and a fetch of its endpoint is
+// served by it. It is what makes "which transport is this" observable rather than
+// asserted.
+type fakeEndpointStream struct {
+	*fakeMirrorStream
+
+	mu     sync.Mutex
+	served int
+	body   []byte
 }
 
-func newFakeMirrors(streams ...*fakeMirrorStream) *fakeMirrors {
-	byKey := make(map[string]*fakeMirrorStream, len(streams))
+func (s *fakeEndpointStream) Serve(_ context.Context, writer io.Writer, flush func() error) error {
+	s.mu.Lock()
+	s.served++
+	body := append([]byte(nil), s.body...)
+	s.mu.Unlock()
+	if len(body) > 0 {
+		if _, err := writer.Write(body); err != nil {
+			return err
+		}
+	}
+	if flush != nil {
+		return flush()
+	}
+	return nil
+}
+
+// The compiler is what proves the endpoint stream is a stream this surface can
+// carry: if this stops compiling, the surface has no TCP transport again.
+var (
+	_ transportconnect.DeviceMirrorEndpointStream = (*fakeEndpointStream)(nil)
+	_ transportconnect.DeviceMirrorStream         = (*fakeEndpointStream)(nil)
+)
+
+// fakeMirrors is the stream transport the surface calls.
+type fakeMirrors struct {
+	streams    map[string]transportconnect.DeviceMirrorStream
+	openErr    error
+	opened     []string
+	transports []string
+	openFunc   func(deviceID, serial string) *fakeMirrorStream
+}
+
+func newFakeMirrors(streams ...transportconnect.DeviceMirrorStream) *fakeMirrors {
+	byKey := make(map[string]transportconnect.DeviceMirrorStream, len(streams))
 	for _, stream := range streams {
-		byKey[stream.key] = stream
+		byKey[stream.StreamKey()] = stream
 	}
 	return &fakeMirrors{streams: byKey}
 }
 
-func (m *fakeMirrors) Open(_ context.Context, deviceID, serial string) (transportconnect.DeviceMirrorStream, error) {
+func (m *fakeMirrors) Open(_ context.Context, deviceID, serial string, transport media.MirrorTransportKind) (transportconnect.DeviceMirrorStream, error) {
 	m.opened = append(m.opened, deviceID+"/"+serial)
+	m.transports = append(m.transports, string(transport))
 	if m.openErr != nil {
 		return nil, m.openErr
 	}
@@ -101,6 +140,14 @@ func (m *fakeMirrors) Open(_ context.Context, deviceID, serial string) (transpor
 	}
 	if m.openFunc != nil {
 		stream = m.openFunc(deviceID, serial)
+	}
+	// A stream opened over TCP is carried from the stream endpoint, and that is
+	// what the surface has to see: the transport it reports and the handle it
+	// hands out both follow from it.
+	if transport == media.TransportTCP {
+		endpoint := &fakeEndpointStream{fakeMirrorStream: stream, body: []byte("ftyp-container")}
+		m.streams[stream.key] = endpoint
+		return endpoint, nil
 	}
 	m.streams[stream.key] = stream
 	return stream, nil
@@ -171,11 +218,6 @@ func TestStartMirrorStreamRefusesBeforeAnythingIsOpened(t *testing.T) {
 		{name: "no workspace", workspace: "", device: mirrorDevice, wantCode: connectrpc.CodeInvalidArgument},
 		{name: "no device", workspace: mirrorWorkspace, device: "", wantCode: connectrpc.CodeInvalidArgument},
 		{
-			name: "a transport that is not implemented", workspace: mirrorWorkspace, device: mirrorDevice,
-			transport: driftv1.MirrorTransport_MIRROR_TRANSPORT_TCP,
-			wantCode:  connectrpc.CodeUnavailable,
-		},
-		{
 			name: "a transport that does not exist", workspace: mirrorWorkspace, device: mirrorDevice,
 			transport: driftv1.MirrorTransport(99),
 			wantCode:  connectrpc.CodeInvalidArgument,
@@ -235,6 +277,72 @@ func TestStartMirrorStreamOpensTheDevicesCurrentTransportAndNamesNothingElse(t *
 	// reach the device around this service.
 	if rendered := fmt.Sprintf("%v", stream); strings.Contains(rendered, mirrorSerial) {
 		t.Fatalf("the stream descriptor carries the device's transport serial: %s", rendered)
+	}
+}
+
+// TestStartMirrorStreamCarriesTheTransportTheOperatorAskedFor: both transports are
+// carried, and a stream over the TCP transport is given the per-device endpoint a
+// browser fetches its bytes from. A peer-connection stream states no endpoint,
+// because it does not serve one.
+func TestStartMirrorStreamCarriesTheTransportTheOperatorAskedFor(t *testing.T) {
+	cases := []struct {
+		name          string
+		requested     driftv1.MirrorTransport
+		wantTransport driftv1.MirrorTransport
+		wantCarried   media.MirrorTransportKind
+		wantURL       bool
+	}{
+		{
+			name:          "unspecified selects the default",
+			requested:     driftv1.MirrorTransport_MIRROR_TRANSPORT_UNSPECIFIED,
+			wantTransport: driftv1.MirrorTransport_MIRROR_TRANSPORT_WEBRTC,
+			wantCarried:   media.TransportWebRTC,
+		},
+		{
+			name:          "webrtc",
+			requested:     driftv1.MirrorTransport_MIRROR_TRANSPORT_WEBRTC,
+			wantTransport: driftv1.MirrorTransport_MIRROR_TRANSPORT_WEBRTC,
+			wantCarried:   media.TransportWebRTC,
+		},
+		{
+			name:          "tcp",
+			requested:     driftv1.MirrorTransport_MIRROR_TRANSPORT_TCP,
+			wantTransport: driftv1.MirrorTransport_MIRROR_TRANSPORT_TCP,
+			wantCarried:   media.TransportTCP,
+			wantURL:       true,
+		},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			mirrors := newFakeMirrors()
+			handler := mirrorHandler(t, mirrors)
+			response, err := handler.StartMirrorStream(context.Background(), startRequest(mirrorWorkspace, mirrorDevice, test.requested))
+			if err != nil {
+				t.Fatalf("start the stream: %v", err)
+			}
+			if len(mirrors.transports) != 1 || mirrors.transports[0] != string(test.wantCarried) {
+				t.Fatalf("the transport asked for was carried as %v, want %q", mirrors.transports, test.wantCarried)
+			}
+			stream := response.Msg.GetStream()
+			if stream.GetTransport() != test.wantTransport {
+				t.Fatalf("transport = %v, want %v", stream.GetTransport(), test.wantTransport)
+			}
+			url := stream.GetStreamUrl()
+			if test.wantURL {
+				want := transportconnect.MirrorStreamPath + "?stream_id=" + stream.GetStreamId()
+				if url != want {
+					t.Fatalf("stream url = %q, want the stream's own endpoint %q", url, want)
+				}
+			} else if url != "" {
+				t.Fatalf("a peer-connection stream states the endpoint %q, which it does not serve", url)
+			}
+			// Acceptance criterion 4, on the TCP path: what a browser is given to
+			// reach the frames is this service's own path, and nothing about the
+			// device it came from.
+			if rendered := fmt.Sprintf("%v", stream); strings.Contains(rendered, mirrorSerial) {
+				t.Fatalf("the stream descriptor carries the device's transport serial: %s", rendered)
+			}
+		})
 	}
 }
 

@@ -144,6 +144,27 @@ func DeviceMirrorRoute(streams transportconnect.DeviceMirrors, serials transport
 	return Route{Path: path, Handler: RequireLabToken(token, connectHandler)}
 }
 
+// MirrorStreamRoute mounts the per-device stream endpoint a browser fetches when
+// the operator's transport is TCP: the response body is one device's live mirror
+// as fragmented MP4.
+//
+// It carries the same constant-time token check as every other local surface, and
+// it is mounted only when the live mirror's transport was constructed - a mount
+// gate on the handler the constructor actually returned, not on the caller's
+// argument. A deployment without a live mirror therefore exposes no stream
+// endpoint at all, rather than one whose every request can only be refused.
+//
+// The endpoint is served on the same listener as everything else, which startup
+// has already required to be loopback (AGENTS.md section 9): broadening the
+// service's exposure is a deployment decision, and it is not made here.
+func MirrorStreamRoute(streams transportconnect.DeviceMirrors, token string) Route {
+	handler := transportconnect.NewMirrorStreamHTTPHandler(streams)
+	if handler == nil {
+		return Route{}
+	}
+	return Route{Path: transportconnect.MirrorStreamPath, Handler: RequireLabToken(token, handler)}
+}
+
 // ProductRoutes mounts the local product Connect surfaces when handlers were
 // constructed against an open SQLite store. Empty handlers are skipped.
 func ProductRoutes(handlers *transportconnect.ProductHandlers, token string) []Route {

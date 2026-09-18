@@ -26,11 +26,13 @@ type MirrorTransport int32
 
 const (
 	MirrorTransport_MIRROR_TRANSPORT_UNSPECIFIED MirrorTransport = 0
-	// WebRTC (pion) inside the control plane: the fast path this card ships.
+	// WebRTC (pion) inside the control plane: the stream is negotiated with a
+	// peer connection and pushed to it. The default when nothing is asked for.
 	MirrorTransport_MIRROR_TRANSPORT_WEBRTC MirrorTransport = 1
-	// The TCP compatibility path, carried as MSE. Reserved: it is specified by
-	// this card and not yet implemented, and no stream is ever reported as
-	// using it until one does.
+	// The TCP compatibility path: the stream is pulled from this service's own
+	// stream endpoint (stream_url) as fragmented MP4 and played as MSE. It is
+	// chosen for compatibility - the path a browser without a working WebRTC
+	// stack can still show - and it is slower than the WebRTC path by design.
 	MirrorTransport_MIRROR_TRANSPORT_TCP MirrorTransport = 2
 )
 
@@ -158,8 +160,15 @@ type MirrorStream struct {
 	Failure string `protobuf:"bytes,7,opt,name=failure,proto3" json:"failure,omitempty"`
 	// frames and key_frames are the pictures this stream has carried to this
 	// browser. They are what "live" is asserted on: never the connection state.
-	Frames        uint64 `protobuf:"varint,8,opt,name=frames,proto3" json:"frames,omitempty"`
-	KeyFrames     uint64 `protobuf:"varint,9,opt,name=key_frames,json=keyFrames,proto3" json:"key_frames,omitempty"`
+	Frames    uint64 `protobuf:"varint,8,opt,name=frames,proto3" json:"frames,omitempty"`
+	KeyFrames uint64 `protobuf:"varint,9,opt,name=key_frames,json=keyFrames,proto3" json:"key_frames,omitempty"`
+	// stream_url is the per-device stream endpoint a browser fetches when the
+	// transport is TCP. It is a path on this service's own guarded surface, and it
+	// is the ONLY thing a browser is given to reach the frames: never a device
+	// address, an adb serial, an RTSP address or a media-server control URL. It is
+	// empty for a stream carried over WebRTC, which is negotiated with
+	// NegotiateMirrorStream instead.
+	StreamUrl     string `protobuf:"bytes,10,opt,name=stream_url,json=streamUrl,proto3" json:"stream_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -257,13 +266,20 @@ func (x *MirrorStream) GetKeyFrames() uint64 {
 	return 0
 }
 
+func (x *MirrorStream) GetStreamUrl() string {
+	if x != nil {
+		return x.StreamUrl
+	}
+	return ""
+}
+
 type StartMirrorStreamRequest struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	Context   *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
 	Workspace *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
 	DeviceId  string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	// transport is the transport the caller asks for. UNSPECIFIED selects the
-	// default, which is WebRTC. A transport that is not implemented is refused
+	// default, which is WebRTC. A transport this service cannot carry is refused
 	// rather than silently replaced, so a caller never believes it is receiving
 	// something other than what it asked for.
 	Transport     MirrorTransport `protobuf:"varint,4,opt,name=transport,proto3,enum=drift.v1.MirrorTransport" json:"transport,omitempty"`
@@ -675,7 +691,7 @@ var File_drift_v1_device_mirror_proto protoreflect.FileDescriptor
 
 const file_drift_v1_device_mirror_proto_rawDesc = "" +
 	"\n" +
-	"\x1cdrift/v1/device_mirror.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xcd\x02\n" +
+	"\x1cdrift/v1/device_mirror.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xec\x02\n" +
 	"\fMirrorStream\x12\x1b\n" +
 	"\tstream_id\x18\x01 \x01(\tR\bstreamId\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x127\n" +
@@ -686,7 +702,10 @@ const file_drift_v1_device_mirror_proto_rawDesc = "" +
 	"\afailure\x18\a \x01(\tR\afailure\x12\x16\n" +
 	"\x06frames\x18\b \x01(\x04R\x06frames\x12\x1d\n" +
 	"\n" +
-	"key_frames\x18\t \x01(\x04R\tkeyFrames\"\xda\x01\n" +
+	"key_frames\x18\t \x01(\x04R\tkeyFrames\x12\x1d\n" +
+	"\n" +
+	"stream_url\x18\n" +
+	" \x01(\tR\tstreamUrl\"\xda\x01\n" +
 	"\x18StartMirrorStreamRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +

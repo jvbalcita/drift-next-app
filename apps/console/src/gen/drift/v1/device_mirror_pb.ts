@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device_mirror.proto.
  */
 export const file_drift_v1_device_mirror: GenFile = /*@__PURE__*/
-  fileDesc("ChxkcmlmdC92MS9kZXZpY2VfbWlycm9yLnByb3RvEghkcmlmdC52MSLwAQoMTWlycm9yU3RyZWFtEhEKCXN0cmVhbV9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSLAoJdHJhbnNwb3J0GAMgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0EhQKDHJlbmRlcl93aWR0aBgEIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAUgASgNEioKBXN0YXRlGAYgASgOMhsuZHJpZnQudjEuTWlycm9yU3RyZWFtU3RhdGUSDwoHZmFpbHVyZRgHIAEoCRIOCgZmcmFtZXMYCCABKAQSEgoKa2V5X2ZyYW1lcxgJIAEoBCKxAQoYU3RhcnRNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEiwKCXRyYW5zcG9ydBgEIAEoDjIZLmRyaWZ0LnYxLk1pcnJvclRyYW5zcG9ydCJDChlTdGFydE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSJvChxOZWdvdGlhdGVNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIRCglzdHJlYW1faWQYAiABKAkSEQoJb2ZmZXJfc2RwGAMgASgJIlsKHU5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlEhIKCmFuc3dlcl9zZHAYASABKAkSJgoGc3RyZWFtGAIgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIlcKF1N0b3BNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIRCglzdHJlYW1faWQYAiABKAkiQgoYU3RvcE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSIrChZHZXRNaXJyb3JTdHJlYW1SZXF1ZXN0EhEKCXN0cmVhbV9pZBgBIAEoCSJBChdHZXRNaXJyb3JTdHJlYW1SZXNwb25zZRImCgZzdHJlYW0YASABKAsyFi5kcmlmdC52MS5NaXJyb3JTdHJlYW0qagoPTWlycm9yVHJhbnNwb3J0EiAKHE1JUlJPUl9UUkFOU1BPUlRfVU5TUEVDSUZJRUQQABIbChdNSVJST1JfVFJBTlNQT1JUX1dFQlJUQxABEhgKFE1JUlJPUl9UUkFOU1BPUlRfVENQEAIqtwEKEU1pcnJvclN0cmVhbVN0YXRlEiMKH01JUlJPUl9TVFJFQU1fU1RBVEVfVU5TUEVDSUZJRUQQABIgChxNSVJST1JfU1RSRUFNX1NUQVRFX1NUQVJUSU5HEAESHAoYTUlSUk9SX1NUUkVBTV9TVEFURV9MSVZFEAISHQoZTUlSUk9SX1NUUkVBTV9TVEFURV9FTkRFRBADEh4KGk1JUlJPUl9TVFJFQU1fU1RBVEVfRkFJTEVEEAQykAMKE0RldmljZU1pcnJvclNlcnZpY2USXAoRU3RhcnRNaXJyb3JTdHJlYW0SIi5kcmlmdC52MS5TdGFydE1pcnJvclN0cmVhbVJlcXVlc3QaIy5kcmlmdC52MS5TdGFydE1pcnJvclN0cmVhbVJlc3BvbnNlEmgKFU5lZ290aWF0ZU1pcnJvclN0cmVhbRImLmRyaWZ0LnYxLk5lZ290aWF0ZU1pcnJvclN0cmVhbVJlcXVlc3QaJy5kcmlmdC52MS5OZWdvdGlhdGVNaXJyb3JTdHJlYW1SZXNwb25zZRJZChBTdG9wTWlycm9yU3RyZWFtEiEuZHJpZnQudjEuU3RvcE1pcnJvclN0cmVhbVJlcXVlc3QaIi5kcmlmdC52MS5TdG9wTWlycm9yU3RyZWFtUmVzcG9uc2USVgoPR2V0TWlycm9yU3RyZWFtEiAuZHJpZnQudjEuR2V0TWlycm9yU3RyZWFtUmVxdWVzdBohLmRyaWZ0LnYxLkdldE1pcnJvclN0cmVhbVJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChxkcmlmdC92MS9kZXZpY2VfbWlycm9yLnByb3RvEghkcmlmdC52MSKEAgoMTWlycm9yU3RyZWFtEhEKCXN0cmVhbV9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSLAoJdHJhbnNwb3J0GAMgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0EhQKDHJlbmRlcl93aWR0aBgEIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAUgASgNEioKBXN0YXRlGAYgASgOMhsuZHJpZnQudjEuTWlycm9yU3RyZWFtU3RhdGUSDwoHZmFpbHVyZRgHIAEoCRIOCgZmcmFtZXMYCCABKAQSEgoKa2V5X2ZyYW1lcxgJIAEoBBISCgpzdHJlYW1fdXJsGAogASgJIrEBChhTdGFydE1pcnJvclN0cmVhbVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSLAoJdHJhbnNwb3J0GAQgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0IkMKGVN0YXJ0TWlycm9yU3RyZWFtUmVzcG9uc2USJgoGc3RyZWFtGAEgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIm8KHE5lZ290aWF0ZU1pcnJvclN0cmVhbVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EhEKCXN0cmVhbV9pZBgCIAEoCRIRCglvZmZlcl9zZHAYAyABKAkiWwodTmVnb3RpYXRlTWlycm9yU3RyZWFtUmVzcG9uc2USEgoKYW5zd2VyX3NkcBgBIAEoCRImCgZzdHJlYW0YAiABKAsyFi5kcmlmdC52MS5NaXJyb3JTdHJlYW0iVwoXU3RvcE1pcnJvclN0cmVhbVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EhEKCXN0cmVhbV9pZBgCIAEoCSJCChhTdG9wTWlycm9yU3RyZWFtUmVzcG9uc2USJgoGc3RyZWFtGAEgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIisKFkdldE1pcnJvclN0cmVhbVJlcXVlc3QSEQoJc3RyZWFtX2lkGAEgASgJIkEKF0dldE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSpqCg9NaXJyb3JUcmFuc3BvcnQSIAocTUlSUk9SX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEhsKF01JUlJPUl9UUkFOU1BPUlRfV0VCUlRDEAESGAoUTUlSUk9SX1RSQU5TUE9SVF9UQ1AQAiq3AQoRTWlycm9yU3RyZWFtU3RhdGUSIwofTUlSUk9SX1NUUkVBTV9TVEFURV9VTlNQRUNJRklFRBAAEiAKHE1JUlJPUl9TVFJFQU1fU1RBVEVfU1RBUlRJTkcQARIcChhNSVJST1JfU1RSRUFNX1NUQVRFX0xJVkUQAhIdChlNSVJST1JfU1RSRUFNX1NUQVRFX0VOREVEEAMSHgoaTUlSUk9SX1NUUkVBTV9TVEFURV9GQUlMRUQQBDKQAwoTRGV2aWNlTWlycm9yU2VydmljZRJcChFTdGFydE1pcnJvclN0cmVhbRIiLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVxdWVzdBojLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVzcG9uc2USaAoVTmVnb3RpYXRlTWlycm9yU3RyZWFtEiYuZHJpZnQudjEuTmVnb3RpYXRlTWlycm9yU3RyZWFtUmVxdWVzdBonLmRyaWZ0LnYxLk5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlElkKEFN0b3BNaXJyb3JTdHJlYW0SIS5kcmlmdC52MS5TdG9wTWlycm9yU3RyZWFtUmVxdWVzdBoiLmRyaWZ0LnYxLlN0b3BNaXJyb3JTdHJlYW1SZXNwb25zZRJWCg9HZXRNaXJyb3JTdHJlYW0SIC5kcmlmdC52MS5HZXRNaXJyb3JTdHJlYW1SZXF1ZXN0GiEuZHJpZnQudjEuR2V0TWlycm9yU3RyZWFtUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
 
 /**
  * MirrorStream is one device's live stream as the console sees it.
@@ -79,6 +79,18 @@ export type MirrorStream = Message<"drift.v1.MirrorStream"> & {
    * @generated from field: uint64 key_frames = 9;
    */
   keyFrames: bigint;
+
+  /**
+   * stream_url is the per-device stream endpoint a browser fetches when the
+   * transport is TCP. It is a path on this service's own guarded surface, and it
+   * is the ONLY thing a browser is given to reach the frames: never a device
+   * address, an adb serial, an RTSP address or a media-server control URL. It is
+   * empty for a stream carried over WebRTC, which is negotiated with
+   * NegotiateMirrorStream instead.
+   *
+   * @generated from field: string stream_url = 10;
+   */
+  streamUrl: string;
 };
 
 /**
@@ -109,7 +121,7 @@ export type StartMirrorStreamRequest = Message<"drift.v1.StartMirrorStreamReques
 
   /**
    * transport is the transport the caller asks for. UNSPECIFIED selects the
-   * default, which is WebRTC. A transport that is not implemented is refused
+   * default, which is WebRTC. A transport this service cannot carry is refused
    * rather than silently replaced, so a caller never believes it is receiving
    * something other than what it asked for.
    *
@@ -280,16 +292,18 @@ export enum MirrorTransport {
   UNSPECIFIED = 0,
 
   /**
-   * WebRTC (pion) inside the control plane: the fast path this card ships.
+   * WebRTC (pion) inside the control plane: the stream is negotiated with a
+   * peer connection and pushed to it. The default when nothing is asked for.
    *
    * @generated from enum value: MIRROR_TRANSPORT_WEBRTC = 1;
    */
   WEBRTC = 1,
 
   /**
-   * The TCP compatibility path, carried as MSE. Reserved: it is specified by
-   * this card and not yet implemented, and no stream is ever reported as
-   * using it until one does.
+   * The TCP compatibility path: the stream is pulled from this service's own
+   * stream endpoint (stream_url) as fragmented MP4 and played as MSE. It is
+   * chosen for compatibility - the path a browser without a working WebRTC
+   * stack can still show - and it is slower than the WebRTC path by design.
    *
    * @generated from enum value: MIRROR_TRANSPORT_TCP = 2;
    */

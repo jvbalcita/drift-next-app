@@ -62,14 +62,15 @@ func (h *DeviceMirrorHandler) StartMirrorStream(ctx context.Context, request *co
 	if deviceID == "" {
 		return nil, invalidArgument("a live stream requires a device")
 	}
-	if _, err := wantedTransport(message.GetTransport()); err != nil {
+	transport, err := wantedTransport(message.GetTransport())
+	if err != nil {
 		return nil, err
 	}
 	serial, err := h.serials.CurrentSerial(ctx, workspaceID, deviceID)
 	if err != nil {
 		return nil, MapError(err)
 	}
-	stream, openErr := h.streams.Open(ctx, deviceID, serial)
+	stream, openErr := h.streams.Open(ctx, deviceID, serial, transport)
 	if openErr != nil {
 		return nil, MapError(openErr)
 	}
