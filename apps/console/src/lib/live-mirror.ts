@@ -199,6 +199,31 @@ export const liveMirrorCopy = {
     /** What the control does with what is typed into it. */
     hint: "Type here and press Enter. The text is registered with the control plane under an opaque handle and typed over the device's live session; the request that types it names the handle, never the text.",
   },
+  /**
+   * The operator's own keyboard, and the one control that hands it back.
+   *
+   * The frame IS the device's screen, so the state of the operator's keyboard is
+   * never printed over it: it is stated in the panel's action column, beside the
+   * key and typed-text controls that say the same thing as commands. The frame's
+   * own accessible name says what the frame is and that typing starts by giving
+   * it focus, and nothing more. The frame's focus IS the capture boundary, so
+   * these sentences say what focus decides rather than that something was
+   * switched on elsewhere in the console.
+   */
+  capture: {
+    /** The frame's accessible name: the frame is where the operator's keyboard starts. */
+    frameLabel: "Device screen: click it, or focus it with Tab, to type into the device with your own keyboard. A keystroke reaches the device only while this frame holds focus.",
+    /** The line's own subject, so the state below it cannot be read as another control's. */
+    label: "Keyboard capture",
+    /** Said while the frame holds focus. */
+    on: "Keyboard capture is on: this frame holds focus, so your keystrokes are dispatched to the device through the same lease, policy and control session as every other input, and one the control plane refuses is reported with its refusal. Tab is dispatched too, and also moves focus out of the frame, which ends capture: that is what keeps capture leavable from the keyboard alone.",
+    /** Said while the frame does not hold focus, naming the action that changes it. */
+    off: "Keyboard capture is off: nothing typed on this console's keyboard reaches the device. Click the device's screen, or focus it with Tab, to type into it.",
+    /** The one action that leaves capture, named. */
+    release: "Release keyboard",
+    /** What the control does, on the control: it is this console's own action. */
+    releaseHint: "Leaves capture and hands this console's keyboard back to it. It is this console's own action rather than a device input, so no refusal a device or the control plane reports can swallow it.",
+  },
   /** Why input cannot be sent, said before anything is dispatched. */
   input: {
     noLease: "Input needs this device's active lease, which this console has not acquired.",
@@ -557,6 +582,144 @@ function insideFrame(point: PointerSample, frame: StreamFrame): boolean {
 /** The code a key control dispatches, or nothing when the console does not offer it. */
 export function liveMirrorKeyCodes(): readonly { label: string; keyCode: number }[] {
   return liveMirrorCopy.keys
+}
+
+/**
+ * The keys this console can name in the device's own vocabulary.
+ *
+ * A key event carries ONE key code (`KeyEventInput`, ADR-0008), so every entry
+ * here is a single key the device's input path already knows: the named keys an
+ * operator reaches for while working a screen, the characters their own keyboard
+ * types as themselves, and the four modifier keys. The codes are the device's own
+ * (Android's key codes), and this table is the whole of what this console sends:
+ * a key that is not in it is refused by name rather than mapped to a code nobody
+ * checked, because a made-up code is a key event the device acts on.
+ */
+const deviceKeys: Record<string, { keyCode: number; label: string; modifier?: boolean }> = {
+  Enter: { keyCode: 66, label: "Enter" },
+  Backspace: { keyCode: 67, label: "Backspace" },
+  Delete: { keyCode: 112, label: "Delete" },
+  Tab: { keyCode: 61, label: "Tab" },
+  Escape: { keyCode: 111, label: "Escape" },
+  ArrowUp: { keyCode: 19, label: "Arrow up" },
+  ArrowDown: { keyCode: 20, label: "Arrow down" },
+  ArrowLeft: { keyCode: 21, label: "Arrow left" },
+  ArrowRight: { keyCode: 22, label: "Arrow right" },
+  Home: { keyCode: 3, label: "Home" },
+  End: { keyCode: 123, label: "End" },
+  PageUp: { keyCode: 92, label: "Page up" },
+  PageDown: { keyCode: 93, label: "Page down" },
+  " ": { keyCode: 62, label: "Space" },
+  Shift: { keyCode: 59, label: "Shift", modifier: true },
+  Control: { keyCode: 113, label: "Control", modifier: true },
+  Alt: { keyCode: 57, label: "Alt", modifier: true },
+  Meta: { keyCode: 117, label: "Meta", modifier: true },
+}
+
+/** The device key code of `A`, which the rest of the alphabet follows. */
+const letterAKeyCode = 29
+/** The device key code of `0`, which the rest of the digits follow. */
+const digitZeroKeyCode = 7
+
+/** The four modifiers a browser reports beside a key, under the device's own name for each. */
+const modifierKeys = [
+  ["shiftKey", "Shift"],
+  ["ctrlKey", "Control"],
+  ["altKey", "Alt"],
+  ["metaKey", "Meta"],
+] as const
+
+/**
+ * One keystroke, as the browser reported it.
+ *
+ * `key` is what the operator's layout produced — the character for a character
+ * key, and the key's own name for the rest — and the four flags are the modifiers
+ * that were held when it did.
+ */
+export interface KeystrokeSample {
+  key: string
+  shiftKey: boolean
+  ctrlKey: boolean
+  altKey: boolean
+  metaKey: boolean
+}
+
+/**
+ * The key event a keystroke is, or the reason there is none.
+ *
+ * The console names the KEY and lets the device's own keyboard decide what that
+ * key produces, which is why the character is matched whatever its case: an
+ * operator with caps lock on pressed the same key as one without it. What the
+ * flags are read for is the case the one-key-code contract cannot carry — a
+ * modifier held at the same time is a second key, and `KeyEventInput` has one
+ * `key_code` and no meta state, so the combination is refused and NAMED rather
+ * than sent as the bare key, which would type something the operator did not
+ * press. The modifier keys themselves are in the vocabulary and are sent as
+ * their own event when one is held on its own.
+ */
+export type KeystrokePlan =
+  | { kind: "key"; keyCode: number; label: string }
+  | { kind: "unsupported"; refusal: string }
+
+export function planKeystroke(sample: KeystrokeSample): KeystrokePlan {
+  const named = deviceKeys[sample.key]
+  const held = modifierKeys.filter(([flag]) => sample[flag]).map(([, name]) => name)
+  if (named?.modifier) {
+    if (held.length > 1) return { kind: "unsupported", refusal: keystrokeCombinationRefusal(held.join("+"), named.label) }
+    return { kind: "key", keyCode: named.keyCode, label: named.label }
+  }
+  if (held.length > 0) return { kind: "unsupported", refusal: keystrokeCombinationRefusal(held.join("+"), keystrokeName(sample.key)) }
+  if (named) return { kind: "key", keyCode: named.keyCode, label: named.label }
+  const character = sample.key.length === 1 ? sample.key.toLowerCase() : ""
+  if (character >= "a" && character <= "z") return { kind: "key", keyCode: letterAKeyCode + character.charCodeAt(0) - 97, label: character.toUpperCase() }
+  if (character >= "0" && character <= "9") return { kind: "key", keyCode: digitZeroKeyCode + Number(character), label: character }
+  return { kind: "unsupported", refusal: keystrokeUnknownRefusal(keystrokeName(sample.key)) }
+}
+
+/** keystrokeName names a key the way an operator would read it, for a refusal sentence. */
+function keystrokeName(key: string): string {
+  if (key === " ") return "Space"
+  if (key.trim() === "") return "that key"
+  return key
+}
+
+/**
+ * The refusal an operator reads when a modifier is held with another key.
+ *
+ * It names the operator's own keystroke, so the sentence is about what they just
+ * pressed rather than about a key this console offers somewhere: the console
+ * cannot express it as one key event, and it says so instead of dropping it.
+ * Typing the text is named as the way to get the operator's intent to the
+ * device, because a character is what the typed-text kind carries.
+ */
+export function keystrokeCombinationRefusal(modifier: string, key: string): string {
+  return `${modifier} held with ${key} is not one key event: the device input contract carries one key code per event and no modifier state, so this console cannot express it. Nothing was sent to the device. Release the modifier and press the key on its own, or type the text with the typed-text control.`
+}
+
+/** The refusal an operator reads when the device's vocabulary has no code for the key. */
+export function keystrokeUnknownRefusal(key: string): string {
+  return `${key} is not a key this console can name in the device's own key vocabulary, so nothing was sent to the device.`
+}
+
+/**
+ * How often one held key may reach the device, in milliseconds.
+ *
+ * This is the rate the console gives the control session it holds for this frame,
+ * and it is deliberately not the browser's: auto-repeat is emitted at whatever
+ * rate the operator's own machine is configured for, so a frame that dispatched
+ * every repeat would hand the device a burst whose size depends on a setting on
+ * someone else's keyboard. Repeats that fall inside this interval are dropped
+ * rather than queued — a queued repeat is a movement the operator's hand did not
+ * make, delivered after they made it — and a burst the kernel refuses is reported
+ * as that refusal, so nothing is lost silently.
+ */
+export const keyRepeatIntervalMs = 50
+
+/** repeatDue answers whether a held key has waited its session's rate since the last one. */
+export function repeatDue(lastDispatchAtMs: number | undefined, atMs: number): boolean {
+  if (lastDispatchAtMs === undefined) return true
+  if (!Number.isFinite(lastDispatchAtMs) || !Number.isFinite(atMs)) return false
+  return atMs - lastDispatchAtMs >= keyRepeatIntervalMs
 }
 
 /**

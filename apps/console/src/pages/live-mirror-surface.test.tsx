@@ -11,7 +11,7 @@ import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { ControlPlaneIntent, DispatchIntent, DeviceView, ObservationView } from "@/lib/domain/control-plane"
 import { deviceStatusMeanings } from "@/lib/device-status"
-import { liveMirrorCopy, liveStreamView, scrollStepUnits, type LiveStreamView } from "@/lib/live-mirror"
+import { keyRepeatIntervalMs, liveMirrorCopy, liveStreamView, scrollStepUnits, type LiveStreamView } from "@/lib/live-mirror"
 import { FloatingDevice } from "./ControlPage"
 
 /**
@@ -146,6 +146,33 @@ async function openDetails(user: ReturnType<typeof userEvent.setup>) {
 async function live(intents: ControlPlaneIntent[]) {
   await waitFor(() => expect(screen.getByTestId("live-mirror-info")).toBeInTheDocument())
   expect(intents).toHaveLength(0)
+}
+
+/**
+ * keystroke presses one key on the operator's own keyboard, at a stated moment.
+ *
+ * `timeStamp` is set on the event rather than left to the clock, because what one
+ * of these tests checks is a RATE: a test that read the machine's own clock would
+ * be measuring the host instead of the console.
+ */
+function keystroke(target: Element, init: { key: string; repeat?: boolean; shiftKey?: boolean; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean; atMs?: number }) {
+  const event = new KeyboardEvent("keydown", {
+    key: init.key,
+    repeat: init.repeat ?? false,
+    shiftKey: init.shiftKey ?? false,
+    ctrlKey: init.ctrlKey ?? false,
+    altKey: init.altKey ?? false,
+    metaKey: init.metaKey ?? false,
+    bubbles: true,
+    cancelable: true,
+  })
+  Object.defineProperty(event, "timeStamp", { value: init.atMs ?? 0 })
+  fireEvent(target, event)
+}
+
+/** keyEvents is the key events among the intents the panel sent. */
+function keyEvents(intents: ControlPlaneIntent[]) {
+  return intents.filter((intent) => intent.type === "submitDeviceKeyEvent")
 }
 
 let originalMatchMedia: typeof window.matchMedia
@@ -700,5 +727,149 @@ describe("typing into the device from the panel's action column", () => {
     const details = await openDetails(user)
     expect(within(details).getByTestId("live-mirror-text-blocked")).toHaveTextContent(liveMirrorCopy.text.noStream)
     expect(intents).toHaveLength(0)
+  })
+})
+
+/**
+ * The operator's own keyboard, as `FloatingDevice` composes it.
+ *
+ * The frame's focus IS the capture boundary, so every test here has to put the
+ * operator's keyboard somewhere: a keystroke is this frame's to send only while
+ * the frame holds focus, and the tests that check it is NOT sent are as
+ * load-bearing as the one that checks it is.
+ */
+describe("the operator's own keyboard types into the device", () => {
+  it("sends the key the operator pressed while the frame holds focus, as one key event through the kernel", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents, stage } = renderPanel()
+    await live(intents)
+
+    // Clicking into the picture gives the frame the operator's keyboard: the
+    // press focuses the frame, which is the capture boundary.
+    await user.click(stage)
+    expect(stage).toHaveFocus()
+
+    keystroke(stage, { key: "Enter" })
+
+    await waitFor(() => expect(keyEvents(intents)).toHaveLength(1))
+    expect(keyEvents(intents)[0]).toMatchObject({ type: "submitDeviceKeyEvent", deviceId: "atlas-04", keyCode: 66, confirmed: true })
+  })
+
+  it("reaches no device while the frame does not hold focus, and is not captured from elsewhere", async () => {
+    const { intents, stage } = renderPanel()
+    await live(intents)
+
+    // Nothing holds the frame's focus: the console has one focus, so a keystroke
+    // typed at the console belongs to whatever control has it.
+    keystroke(document.body, { key: "Enter" })
+    keystroke(stage, { key: "Enter" })
+    expect(intents).toHaveLength(0)
+
+    // And it is not captured from elsewhere while the frame DOES hold focus: the
+    // listener is the frame's own, so a keystroke outside it is not the frame's.
+    stage.focus()
+    await waitFor(() => expect(screen.getByTestId("live-mirror-capture")).toHaveTextContent(liveMirrorCopy.capture.on))
+    keystroke(document.body, { key: "Enter" })
+    expect(intents).toHaveLength(0)
+
+    keystroke(stage, { key: "Enter" })
+    await waitFor(() => expect(keyEvents(intents)).toHaveLength(1))
+  })
+
+  it("shows the capture state where the controls are, and never over the device's screen", async () => {
+    const { intents, stage } = renderPanel()
+    await live(intents)
+
+    const inputs = screen.getByTestId("live-mirror-inputs")
+    const line = within(inputs).getByTestId("live-mirror-capture")
+    expect(line).toHaveTextContent(liveMirrorCopy.capture.off)
+    // Nothing leaves capture before the frame holds it.
+    expect(within(inputs).queryByTestId("live-mirror-release")).not.toBeInTheDocument()
+
+    stage.focus()
+    await waitFor(() => expect(line).toHaveTextContent(liveMirrorCopy.capture.on))
+    expect(within(inputs).getByTestId("live-mirror-release")).toBeInTheDocument()
+    // The frame's body is the device's screen: the state is not drawn over it.
+    expect(within(screen.getByLabelText(/floating phone frame/i)).queryByTestId("live-mirror-capture")).not.toBeInTheDocument()
+    expect(within(screen.getByLabelText(/floating phone frame/i)).queryByTestId("live-mirror-release")).not.toBeInTheDocument()
+  })
+
+  it("leaves capture by one explicit, named action the device cannot swallow", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents, stage } = renderPanel()
+    await live(intents)
+    stage.focus()
+
+    await user.click(await screen.findByTestId("live-mirror-release"))
+
+    // It is this console's own action: it ends capture, it gives the focus back,
+    // and it dispatches nothing for a device or the control plane to refuse.
+    expect(intents).toHaveLength(0)
+    expect(stage).not.toHaveFocus()
+    expect(screen.getByTestId("live-mirror-capture")).toHaveTextContent(liveMirrorCopy.capture.off)
+    expect(screen.queryByTestId("live-mirror-release")).not.toBeInTheDocument()
+    // The keyboard is the console's again: the keystroke reaches no device even
+    // though this dispatch would have accepted it.
+    keystroke(stage, { key: "Enter" })
+    expect(intents).toHaveLength(0)
+  })
+
+  it("names a key the contract cannot express instead of sending a key nobody pressed", async () => {
+    const user = userEvent.setup()
+    const { intents, stage } = renderPanel()
+    await live(intents)
+    stage.focus()
+
+    keystroke(stage, { key: "a", shiftKey: true })
+
+    expect(intents).toHaveLength(0)
+    expect(await screen.findByTestId("live-mirror-info-mark")).toBeInTheDocument()
+    const details = await openDetails(user)
+    expect(within(details).getByTestId("live-mirror-refusal")).toHaveTextContent("Shift held with a")
+    expect(within(details).getByTestId("live-mirror-refusal")).toHaveTextContent("Nothing was sent to the device")
+  })
+
+  it("reports the control plane's own refusal of a keystroke rather than dropping it", async () => {
+    const { intents, stage } = renderPanel({ reply: () => ({ ok: false, message: "The control plane refused that input: the lease expired." }) })
+    await live(intents)
+    stage.focus()
+
+    keystroke(stage, { key: "Backspace" })
+
+    await waitFor(() => expect(screen.getByTestId("live-mirror-notice")).toHaveTextContent(/lease expired/))
+    expect(keyEvents(intents)).toHaveLength(1)
+  })
+
+  it("refuses a keystroke it cannot describe, naming the key and the reason, instead of dropping it", async () => {
+    const user = userEvent.setup()
+    const { intents, stage } = renderPanel({ hasLease: false })
+    await live(intents)
+    stage.focus()
+
+    keystroke(stage, { key: "Enter" })
+
+    expect(intents).toHaveLength(0)
+    await waitFor(() => expect(screen.getByTestId("live-mirror-notice")).toHaveTextContent(liveMirrorCopy.input.noLease))
+    const details = await openDetails(user)
+    expect(within(details).getByTestId("live-mirror-refusal")).toHaveTextContent(liveMirrorCopy.input.noLease)
+  })
+
+  it("bounds a held key by the control session's own rate, not by the browser's event rate", async () => {
+    const { intents, stage } = renderPanel()
+    await live(intents)
+    stage.focus()
+
+    keystroke(stage, { key: "a", atMs: 1_000 })
+    await waitFor(() => expect(keyEvents(intents)).toHaveLength(1))
+
+    // The browser's own auto-repeat arrives faster than this session's rate: the
+    // burst is not dispatched, and the repeat past the bound is, so a held key
+    // still moves.
+    keystroke(stage, { key: "a", repeat: true, atMs: 1_000 + keyRepeatIntervalMs / 2 })
+    expect(keyEvents(intents)).toHaveLength(1)
+
+    keystroke(stage, { key: "a", repeat: true, atMs: 1_000 + keyRepeatIntervalMs })
+    await waitFor(() => expect(keyEvents(intents)).toHaveLength(2))
+    expect(keyEvents(intents)[1]).toMatchObject({ keyCode: 29 })
   })
 })
