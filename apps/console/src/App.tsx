@@ -55,7 +55,7 @@ function App() {
   return (
     <TooltipProvider>
       <SidebarProvider defaultOpen data-visual-style="swiss-editorial" className="drift-theme min-h-svh bg-background text-foreground">
-        <AppSidebar activeSection={route.section} activeView={route.view} onSectionChange={(section, view) => navigate(section as Section, view)} />
+        <AppSidebar activeSection={route.section} onSectionChange={(section, view) => navigate(section as Section, view)} />
         <SidebarInset className="min-w-0">
           <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
             <div className="flex items-center gap-2 px-4">

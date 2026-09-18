@@ -26,10 +26,10 @@ export function WorkflowsPage({ snapshot, dispatch, view = "definitions", onView
         </p>
       ) : null}
       <Tabs value={view} onValueChange={onViewChange}>
-        <TabsList className="rounded-none border border-border bg-background p-0" aria-label="Workflow Views">
-          <TabsTrigger value="definitions" className="rounded-none">Definitions</TabsTrigger>
-          <TabsTrigger value="versions" className="rounded-none">Versions</TabsTrigger>
-          <TabsTrigger value="skills" className="rounded-none">Skills</TabsTrigger>
+        <TabsList aria-label="Workflow Views">
+          <TabsTrigger value="definitions">Definitions</TabsTrigger>
+          <TabsTrigger value="versions">Versions</TabsTrigger>
+          <TabsTrigger value="skills">Skills</TabsTrigger>
         </TabsList>
         <TabsContent value="definitions" className="mt-4">
           <form onSubmit={createWorkflow} className="mb-4 flex flex-wrap items-end gap-3 border border-border p-4">

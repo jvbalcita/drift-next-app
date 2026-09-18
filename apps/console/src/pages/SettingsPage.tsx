@@ -84,14 +84,14 @@ export function SettingsPage({
       <OperatorNotice>All settings are local projections. Browser display preferences cannot authorize device control.</OperatorNotice>
 
       <Tabs value={view === "history" ? "history" : "settings"} onValueChange={(next) => onViewChange?.(next === "history" ? "history" : activeScope.replaceAll("_", "-"))} className="mt-6">
-        <TabsList className="rounded-none border border-border bg-background p-0" aria-label="Settings Views">
-          <TabsTrigger value="settings" className="rounded-none">Settings</TabsTrigger>
-          <TabsTrigger value="history" className="rounded-none">History</TabsTrigger>
+        <TabsList aria-label="Settings Views">
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
         <TabsContent value="settings" className="mt-4">
           <Tabs value={activeScope} onValueChange={(next) => { setPage(0); onViewChange?.(next.replaceAll("_", "-")) }}>
-            <TabsList className="h-auto max-w-full flex-wrap justify-start rounded-none border border-border bg-background p-0" aria-label="Setting Scopes">
-              {scopes.map((scope) => <TabsTrigger key={scope.value} value={scope.value} className="rounded-none text-xs">{scope.label}</TabsTrigger>)}
+            <TabsList aria-label="Setting Scopes">
+              {scopes.map((scope) => <TabsTrigger key={scope.value} value={scope.value} className="text-[11px]">{scope.label}</TabsTrigger>)}
             </TabsList>
             <TabsContent value={activeScope} className="mt-4">
               {settings.length === 0 ? <EmptyState label="No Settings" detail="No settings are available for this scope." /> : <SettingsTable settings={pagedSettings} onOpen={open} />}

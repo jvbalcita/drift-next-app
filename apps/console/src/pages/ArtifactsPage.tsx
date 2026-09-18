@@ -228,20 +228,20 @@ export function ArtifactsPage({
 
       {loadState === "ready" ? (
         <Tabs value={view} onValueChange={onViewChange} className="mt-2">
-          <TabsList className="h-auto flex-wrap rounded-none border border-border bg-background p-0" aria-label="Artifact Views">
-            <TabsTrigger value="library" className="rounded-none">
+          <TabsList aria-label="Artifact Views">
+            <TabsTrigger value="library">
               Library
             </TabsTrigger>
-            <TabsTrigger value="media" className="rounded-none">
+            <TabsTrigger value="media">
               Media
             </TabsTrigger>
-            <TabsTrigger value="recordings" className="rounded-none">
+            <TabsTrigger value="recordings">
               Recordings
             </TabsTrigger>
-            <TabsTrigger value="storage" className="rounded-none">
+            <TabsTrigger value="storage">
               Storage
             </TabsTrigger>
-            <TabsTrigger value="audit" className="rounded-none">
+            <TabsTrigger value="audit">
               Audit
             </TabsTrigger>
           </TabsList>
