@@ -32,6 +32,12 @@ const (
 	// registry projection. Names are device-supplied input, not command text.
 	maxDeviceNameLength = 128
 
+	// maxReportedSerialLength bounds the serial a device reports for itself.
+	// It matches the bound the registry's own column enforces, and it is
+	// re-derived here rather than imported: this is the layer that reads the
+	// value off the device.
+	maxReportedSerialLength = 64
+
 	// DefaultMaxScreenshotBytes bounds one screencap payload.
 	DefaultMaxScreenshotBytes = 8 << 20
 )
@@ -97,6 +103,13 @@ type DiscoveredDevice struct {
 	Device         string
 	TransportID    string
 	ConnectionType string
+
+	// HardwareSerial is the serial the DEVICE reported about itself
+	// (ro.serialno), read only for a usable transport and empty when the device
+	// reported none. It is identity evidence: Serial above is the transport,
+	// and for a TCP device that is the address it answers on, while this value
+	// follows the device to whatever address it answers on next.
+	HardwareSerial string
 }
 
 // HealthReport is a read-only snapshot of one transport plus allow-listed
@@ -191,6 +204,10 @@ type Adapter struct {
 	nameMu      sync.Mutex
 	nameRead    map[string]bool
 	deviceNames map[string]string
+
+	serialMu        sync.Mutex
+	serialRead      map[string]bool
+	reportedSerials map[string]string
 }
 
 // reattachState records the single read-only reattach permitted per observed
@@ -266,6 +283,8 @@ func NewAdapter(executable string, runner Runner, opts ...Option) (*Adapter, err
 		reattach:           make(map[string]reattachState),
 		nameRead:           make(map[string]bool),
 		deviceNames:        make(map[string]string),
+		serialRead:         make(map[string]bool),
+		reportedSerials:    make(map[string]string),
 	}
 	for _, opt := range opts {
 		if opt == nil {
@@ -300,19 +319,23 @@ func (a *Adapter) Enumerate(ctx context.Context) ([]DiscoveredDevice, error) {
 			Cause:        parseErr,
 		}
 	}
-	if err := a.enrichDeviceNames(ctx, devices); err != nil {
+	if err := a.enrichDeviceFacts(ctx, devices); err != nil {
 		return nil, err
 	}
 	return devices, nil
 }
 
-// enrichDeviceNames reads the Android global device_name setting for usable
-// transports. It is deliberately a fixed, read-only argv and is cached for the
-// adapter lifetime: Enumerate is also the transport watcher's polling path, so
-// repeating a shell read for every known serial would turn a five-second poll
-// into a fleet-wide command storm. A blank successful read is cached too; an
-// error is not, so a temporarily unavailable device can be retried later.
-func (a *Adapter) enrichDeviceNames(ctx context.Context, devices []DiscoveredDevice) error {
+// enrichDeviceFacts reads the two facts the DEVICE reports about itself, for
+// usable transports only: the serial it carries (ro.serialno), which the
+// registry matches a device's identity on, and the Android device_name setting
+// an operator reads as its name.
+//
+// Both reads are deliberately fixed, read-only argvs and both are cached for
+// the adapter lifetime: Enumerate is also the transport watcher's polling path,
+// so repeating a shell read for every known transport would turn a five-second
+// poll into a fleet-wide command storm. A blank successful read is cached too;
+// an error is not, so a temporarily unavailable device can be retried later.
+func (a *Adapter) enrichDeviceFacts(ctx context.Context, devices []DiscoveredDevice) error {
 	for index := range devices {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -321,6 +344,23 @@ func (a *Adapter) enrichDeviceNames(ctx context.Context, devices []DiscoveredDev
 			continue
 		}
 		serial := devices[index].Serial
+		// The device's own serial is read first: it is the fact identity
+		// resolution needs, and a device that cannot answer it is a device that
+		// will not answer the name read either, so it is not asked twice.
+		if reported, ok := a.cachedReportedSerial(serial); ok {
+			devices[index].HardwareSerial = reported
+		} else {
+			result, err := a.run(ctx, "getprop-reported-serial", serial, reportedSerialArgv())
+			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				continue
+			}
+			reported := normalizeReportedSerial(string(result.Stdout))
+			a.rememberReportedSerial(serial, reported)
+			devices[index].HardwareSerial = reported
+		}
 		if name, ok := a.cachedDeviceName(serial); ok {
 			devices[index].DeviceName = name
 			continue
@@ -351,6 +391,39 @@ func (a *Adapter) rememberDeviceName(serial, name string) {
 	defer a.nameMu.Unlock()
 	a.nameRead[serial] = true
 	a.deviceNames[serial] = name
+}
+
+func (a *Adapter) cachedReportedSerial(serial string) (string, bool) {
+	a.serialMu.Lock()
+	defer a.serialMu.Unlock()
+	return a.reportedSerials[serial], a.serialRead[serial]
+}
+
+func (a *Adapter) rememberReportedSerial(serial, reported string) {
+	a.serialMu.Lock()
+	defer a.serialMu.Unlock()
+	a.serialRead[serial] = true
+	a.reportedSerials[serial] = reported
+}
+
+// normalizeReportedSerial accepts the serial a device reports for itself as an
+// identity match key: a bounded single token of the same shape an adb serial
+// has. A blank answer, a sentinel the platform uses for "cannot say", or a
+// value that is not a safe token is rejected, so a device that cannot report
+// who it is stays on its transport identity instead of claiming an identity
+// every such device would share.
+func normalizeReportedSerial(value string) string {
+	serial := strings.TrimSpace(value)
+	if serial == "" || len(serial) > maxReportedSerialLength {
+		return ""
+	}
+	if strings.EqualFold(serial, "unknown") || strings.EqualFold(serial, "null") {
+		return ""
+	}
+	if !serialPattern.MatchString(serial) {
+		return ""
+	}
+	return serial
 }
 
 // normalizeDeviceName accepts the single-line setting value and rejects

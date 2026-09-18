@@ -150,7 +150,7 @@ func TestGetPropArgvHonorsTypedAllowlist(t *testing.T) {
 			t.Fatalf("getPropArgv(%q) = %q", property, args)
 		}
 	}
-	for _, property := range []string{"", "ro.serialno", "sys.boot_completed", "ro.product.model;id"} {
+	for _, property := range []string{"", "ro.boot.serialno", "sys.boot_completed", "ro.product.model;id"} {
 		if _, err := getPropArgv(property); !errors.Is(err, ErrPropertyNotAllowlisted) {
 			t.Fatalf("getPropArgv(%q) = %v, want ErrPropertyNotAllowlisted", property, err)
 		}
@@ -202,7 +202,10 @@ func TestAllowlistRejectsBlindReplayAndArbitraryShell(t *testing.T) {
 		{"sh", "-c", "ls"},
 		{"shell", "sh", "-c", "ls"},
 		{"exec-out", "cat", "/data/misc/adb/adb_keys"},
-		{"shell", "getprop", "ro.serialno"},
+		// A build property outside the typed allow-list: the getprop admission
+		// is bounded by that list, so a sibling of an admitted property is
+		// still refused.
+		{"shell", "getprop", "ro.boot.serialno"},
 		{"shell", "uiautomator", "dump", "--compressed", "/sdcard/window_dump.xml"},
 		{"push", "/tmp/payload", "/data/local/tmp/payload"},
 		{"root"},

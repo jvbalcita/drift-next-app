@@ -133,3 +133,188 @@ func TestOneSerialOnTwoTransportsKeepsOneDeviceIdentity(t *testing.T) {
 		t.Fatalf("current transport = %#v, want exactly the TCP transport the newest observation recorded", currentOnly)
 	}
 }
+
+// The identity of a TCP device cannot be its transport: adb names a TCP device
+// by the address it answers on, so the serial the registry keys on changes the
+// moment the device's address does. Observed live: every unit in the lab ended
+// up registered twice (45 device rows for a fleet of about 22) after the fleet
+// took new DHCP leases, because each new address arrived as a serial no device
+// row held. The serial the DEVICE reports for itself is what must keep the
+// identity, so one unit answers to one device_id wherever it is observed.
+func TestAReportedSerialKeepsOneIdentityAcrossATransportMove(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	workspace := organizations.WorkspaceID("w-identity-move")
+	newArrivalWorkspace(t, db, workspace)
+	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
+
+	// The unit answers on 192.168.1.123 and reports the serial it carries.
+	first, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial:         "192.168.1.123:5555",
+		Host:           "192.168.1.123",
+		Port:           5555,
+		HardwareSerial: "R58M43QGSQX",
+		Model:          "SM-G9750",
+		DeviceName:     "ALTA 13",
+		State:          discovery.LinkOnline,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("first RecordArrivals() error = %v", err)
+	}
+
+	// The same unit, now answering on a new lease, reporting the same serial.
+	second, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial:         "192.168.1.134:5555",
+		Host:           "192.168.1.134",
+		Port:           5555,
+		HardwareSerial: "R58M43QGSQX",
+		Model:          "SM-G9750",
+		DeviceName:     "ALTA 13",
+		State:          discovery.LinkOnline,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("second RecordArrivals() error = %v", err)
+	}
+	if second[0].DeviceID != first[0].DeviceID {
+		t.Fatalf("a new address minted a second identity: first=%q second=%q; one device must keep one device_id",
+			first[0].DeviceID, second[0].DeviceID)
+	}
+	if !second[0].Known {
+		t.Fatal("the moved device reported Known = false, want true: its reported serial was already registered")
+	}
+
+	// And a third move, to a lease nobody has seen at all.
+	third, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial:         "192.168.1.150:5555",
+		Host:           "192.168.1.150",
+		Port:           5555,
+		HardwareSerial: "R58M43QGSQX",
+		Model:          "SM-G9750",
+		DeviceName:     "ALTA 13",
+		State:          discovery.LinkOnline,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("third RecordArrivals() error = %v", err)
+	}
+	if third[0].DeviceID != first[0].DeviceID {
+		t.Fatalf("a second move minted a third identity: %q, want %q", third[0].DeviceID, first[0].DeviceID)
+	}
+
+	if got := countRows(t, db, `SELECT COUNT(*) FROM devices WHERE workspace_id = ?`, workspace); got != 1 {
+		t.Fatalf("devices = %d, want 1: three addresses of one device are not three devices", got)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ?`, workspace); got != 3 {
+		t.Fatalf("endpoints = %d, want 3: every address the unit was observed at stays on the record", got)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ? AND state = 'current'`, workspace); got != 1 {
+		t.Fatalf("current endpoints = %d, want 1: only the newest transport is current", got)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM devices WHERE workspace_id = ? AND hardware_serial = 'R58M43QGSQX'`, workspace); got != 1 {
+		t.Fatalf("rows carrying the reported serial = %d, want 1", got)
+	}
+}
+
+// A device registered before the registry could match on a reported serial — and
+// every row the live plane already holds — carries none, so the first
+// observation that reports one must be matched by the transport it arrives on
+// and learn the serial then. Without that the fix would only ever help rows that
+// already had one, and the fleet would keep splitting.
+func TestAnObservationLearnsTheReportedSerialItResolvesTo(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	workspace := organizations.WorkspaceID("w-identity-learn")
+	newArrivalWorkspace(t, db, workspace)
+	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
+
+	// The row as it exists today: registered by address, no reported serial.
+	registered, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial:     "192.168.1.123:5555",
+		Host:       "192.168.1.123",
+		Port:       5555,
+		Model:      "SM-G9750",
+		DeviceName: "ALTA 13",
+		State:      discovery.LinkOnline,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("first RecordArrivals() error = %v", err)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM devices WHERE workspace_id = ? AND hardware_serial IS NULL`, workspace); got != 1 {
+		t.Fatalf("rows without a reported serial = %d, want 1: an observation that reported none must not invent one", got)
+	}
+
+	// The same address, now reporting the serial it carries: the identity is the
+	// one already registered there, and it learns the serial.
+	learned, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial:         "192.168.1.123:5555",
+		Host:           "192.168.1.123",
+		Port:           5555,
+		HardwareSerial: "R58M43QGSQX",
+		Model:          "SM-G9750",
+		DeviceName:     "ALTA 13",
+		State:          discovery.LinkOnline,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("second RecordArrivals() error = %v", err)
+	}
+	if learned[0].DeviceID != registered[0].DeviceID {
+		t.Fatalf("learning a reported serial minted a new identity: %q, want %q", learned[0].DeviceID, registered[0].DeviceID)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM devices WHERE workspace_id = ? AND hardware_serial = 'R58M43QGSQX'`, workspace); got != 1 {
+		t.Fatalf("rows carrying the learned serial = %d, want 1", got)
+	}
+
+	// The move that used to split the fleet now resolves through what was learned.
+	moved, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial:         "192.168.1.134:5555",
+		Host:           "192.168.1.134",
+		Port:           5555,
+		HardwareSerial: "R58M43QGSQX",
+		Model:          "SM-G9750",
+		DeviceName:     "ALTA 13",
+		State:          discovery.LinkOnline,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("third RecordArrivals() error = %v", err)
+	}
+	if moved[0].DeviceID != registered[0].DeviceID {
+		t.Fatalf("the move after learning minted a second identity: %q, want %q", moved[0].DeviceID, registered[0].DeviceID)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM devices WHERE workspace_id = ?`, workspace); got != 1 {
+		t.Fatalf("devices = %d, want 1", got)
+	}
+}
+
+// A device that reports no serial is matched exactly as it was before the
+// registry could ask for one: by its transport. A fake device, and a transport
+// adb lists without a device behind it, must keep working that way rather than
+// failing to register at all.
+func TestAnObservationWithoutAReportedSerialStillMatchesByItsTransport(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	workspace := organizations.WorkspaceID("w-identity-transport")
+	newArrivalWorkspace(t, db, workspace)
+	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
+
+	observation := discovery.ObservedDevice{
+		Serial:     "192.0.2.10:5555",
+		Host:       "192.0.2.10",
+		Port:       5555,
+		Model:      "SM-G9750",
+		DeviceName: "ALTA-FAKE",
+		State:      discovery.LinkOnline,
+	}
+	first, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{observation}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("first RecordArrivals() error = %v", err)
+	}
+	second, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{observation}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("second RecordArrivals() error = %v", err)
+	}
+	if first[0].DeviceID != second[0].DeviceID {
+		t.Fatalf("an unchanged transport minted a second identity: %q then %q", first[0].DeviceID, second[0].DeviceID)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM devices WHERE workspace_id = ?`, workspace); got != 1 {
+		t.Fatalf("devices = %d, want 1 after two observations of one transport", got)
+	}
+}

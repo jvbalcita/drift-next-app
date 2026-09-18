@@ -59,6 +59,10 @@ func runtimeDevice(device adb.DiscoveredDevice) discovery.RuntimeDevice {
 		Model:       device.Model,
 		DeviceName:  device.DeviceName,
 		State:       runtimeLinkState(device.State),
+		// The device's own serial is identity evidence the adapter read, not a
+		// transport fact this mapper derives: it is copied through so the
+		// registry can match a device across a transport change.
+		HardwareSerial: device.HardwareSerial,
 	}
 }
 

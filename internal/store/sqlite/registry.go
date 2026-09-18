@@ -301,7 +301,8 @@ func (d *DB) upsertObservedDevice(ctx context.Context, tx *sql.Tx, workspace org
 		if displayName == "" {
 			displayName = observation.Host
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO devices (id, workspace_id, display_name, platform_version, state, last_seen_at, created_at, updated_at, row_version) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 1)`, deviceID, workspace, displayName, platformVersionFor(observation), at, at, at); err != nil {
+		reported := reportedIdentity(observation)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO devices (id, workspace_id, display_name, platform_version, state, hardware_serial, last_seen_at, created_at, updated_at, row_version) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, 1)`, deviceID, workspace, displayName, platformVersionFor(observation), nullableString(reported), at, at, at); err != nil {
 			return result, mapConstraint(err)
 		}
 	} else {
@@ -332,6 +333,12 @@ func (d *DB) upsertObservedDevice(ctx context.Context, tx *sql.Tx, workspace org
 			if _, err := tx.ExecContext(ctx, `UPDATE devices SET last_seen_at=?, updated_at=?, row_version=row_version+1 WHERE workspace_id=? AND id=?`, at, at, workspace, deviceID); err != nil {
 				return result, err
 			}
+		}
+		// The identity a device reported about itself is learned here, on the
+		// row this observation resolved to, so the device's NEXT observation
+		// matches on it even from another transport.
+		if err := d.bindReportedSerial(ctx, tx, workspace, deviceID, reportedIdentity(observation), at); err != nil {
+			return result, err
 		}
 	}
 
@@ -383,12 +390,53 @@ func generatedDisplayName(name string, observation discovery.ObservedDevice) boo
 	return false
 }
 
+// maxHardwareSerialLength bounds the serial a device reports about itself, and
+// matches the bound the devices column enforces. It is re-derived here rather
+// than imported from the adapter, because this is the layer that decides what
+// may be written to the column.
+const maxHardwareSerialLength = 64
+
+// reportedIdentity is the serial a device reported about itself, as a value the
+// registry may match an identity on: trimmed, and absent unless it is a single
+// bounded token. Anything else - a blank answer, a multi-token value, an
+// over-long string - is treated as a device that reported nothing, so the
+// observation matches by its transport exactly as it did before the device
+// could report a serial, rather than being refused or written unusable.
+func reportedIdentity(observation discovery.ObservedDevice) string {
+	identity := strings.TrimSpace(observation.HardwareSerial)
+	if identity == "" || len(identity) > maxHardwareSerialLength {
+		return ""
+	}
+	if strings.IndexFunc(identity, func(r rune) bool { return r <= 0x20 || r == 0x7f }) >= 0 {
+		return ""
+	}
+	return identity
+}
+
 // deviceIDForObservation resolves an observation to an existing device through
-// its transport history. A serial is the only reliable cross-scan identity;
-// a serial-less observation falls back to its transport address.
+// the identity the device reported about itself, and then through its transport
+// history. A TCP transport serial IS the address the device answers on, so it
+// changes the moment the device's address changes; the serial the device
+// reports for itself does not, which is what lets a device that moved - or
+// reconnected on another interface - resolve to the identity it already has
+// instead of minting a second one. A serial is the only reliable cross-scan
+// identity for a device that reported none; a serial-less observation falls
+// back to its transport address.
 func deviceIDForObservation(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, observation discovery.ObservedDevice) (devices.DeviceID, bool, error) {
 	var stored string
 	var err error
+	if identity := reportedIdentity(observation); identity != "" {
+		err = tx.QueryRowContext(ctx, `SELECT id FROM devices WHERE workspace_id=? AND hardware_serial=?`, workspace, identity).Scan(&stored)
+		switch err {
+		case nil:
+			return devices.DeviceID(stored), true, nil
+		case sql.ErrNoRows:
+			// The device reported a serial this workspace has no identity for
+			// yet, so it is registered on the transport this observation named.
+		default:
+			return "", false, classifyContext(err)
+		}
+	}
 	if strings.TrimSpace(observation.Serial) != "" {
 		err = tx.QueryRowContext(ctx, `SELECT device_id FROM device_endpoints WHERE workspace_id=? AND serial=? ORDER BY observed_at DESC, id LIMIT 1`, workspace, observation.Serial).Scan(&stored)
 	} else {
@@ -402,6 +450,33 @@ func deviceIDForObservation(ctx context.Context, tx *sql.Tx, workspace organizat
 	default:
 		return "", false, classifyContext(err)
 	}
+}
+
+// bindReportedSerial records the serial a device reported about itself on the
+// identity an observation resolved to, so the next observation of that device
+// resolves to the same device even when it arrives on a different transport.
+// Without this the identity a moved device is matched against would never be
+// learned, and the fix would only help rows that already carried a serial.
+//
+// It fills an empty column and nothing else. A row that already holds a serial
+// keeps it, so an address that later answers for a different device cannot
+// silently re-point an existing identity; and a serial another device in the
+// workspace already claims is left unbound rather than failing the write,
+// because a duplicate claim is the one case where the fleet's own observation
+// batch must not be refused whole - the unique index keeps the invariant either
+// way, and the first device to claim a serial is the one that answers to it.
+func (d *DB) bindReportedSerial(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, deviceID devices.DeviceID, reported string, at string) error {
+	if reported == "" {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `UPDATE devices SET hardware_serial=?, updated_at=?, row_version=row_version+1
+		WHERE workspace_id=? AND id=? AND hardware_serial IS NULL
+		AND NOT EXISTS (SELECT 1 FROM devices AS claimed WHERE claimed.workspace_id=devices.workspace_id AND claimed.hardware_serial=? AND claimed.id<>devices.id)`,
+		reported, at, workspace, deviceID, reported)
+	if err != nil {
+		return mapConstraint(err)
+	}
+	return nil
 }
 
 // observedTransportAddress is the address an observation's transport is
