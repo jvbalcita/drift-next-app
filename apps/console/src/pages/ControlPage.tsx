@@ -9,10 +9,12 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceSettingName, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
+import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceSettingName, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult, ObservationView } from "@/lib/domain/control-plane"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import { liveMirrorCopy, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
-import { LiveMirrorSurface } from "./live-mirror-surface"
+import { liveMirrorCopy, observationTokenFor, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
+import { allocateTileViewers } from "@/lib/live-tiles"
+import { LiveMirrorInfo, LiveMirrorInputs, LiveMirrorSurface, useLiveMirrorSession } from "./live-mirror-surface"
+import { LiveTilePicture } from "./live-tile"
 import { deviceObservationSentence, deviceStatusLabels, notObserved } from "@/lib/device-status"
 import { deviceSettingLabels, deviceSettingNames } from "@/lib/device-settings"
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
@@ -47,6 +49,19 @@ const workspaceDefaults: Workspace = { largeHeight: 480, smallHeight: 192, quali
 const settingsDefaults: ConsoleSettings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, priority: "Quality", controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showIp: true, liveMirrorTransport: "webrtc" }
 const initialPosition: FloatingPosition = { x: 120, y: 88 }
 const phoneColors = ["bg-emerald-700", "bg-sky-700", "bg-teal-700", "bg-fuchsia-700", "bg-rose-700", "bg-slate-950", "bg-neutral-950", "bg-cyan-800", "bg-violet-800", "bg-purple-800", "bg-teal-800", "bg-slate-600"]
+/**
+ * The ONE colour a device with no current observation is drawn in.
+ *
+ * A tile's colour is otherwise its index into `phoneColors`, which is a
+ * placement fact: two disconnected devices read as two different colours, and
+ * the same device changes colour when a filter or a group moves it. "Nothing is
+ * observed here" is one fact, so it has one colour, on every tile, whatever the
+ * tile's index, group or placement - and it is a colour no observed tile uses,
+ * so a tile that is carrying a picture cannot be mistaken for one that is not.
+ * The colour is decoration: the tile's centred mark and its status label are
+ * what state the fact in words, and they are unchanged.
+ */
+const absentPhoneColor = "bg-zinc-800"
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
@@ -54,7 +69,7 @@ function errorMessage(error: unknown): string {
   return "The action could not be completed."
 }
 
-export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", mirror }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; dispatchLab?: (intent: ControlPlaneIntent) => Promise<MutationResult>; labNotice?: string; mirror?: LiveMirrorClient }) {
+export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", mirror, observationsForDevice }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; dispatchLab?: (intent: ControlPlaneIntent) => Promise<MutationResult>; labNotice?: string; mirror?: LiveMirrorClient; observationsForDevice?: (deviceId: string) => Promise<readonly ObservationView[]> }) {
   const [workspace, setWorkspace] = useState(workspaceDefaults)
   const [settings, setSettings] = useState(settingsDefaults)
   const [sourceId, setSourceId] = useState<string | null>(null)
@@ -87,6 +102,15 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
   // order, and never a claim about which devices are attached.
   const observedEndpoints = Array.from(new Set(snapshot.endpoints.filter((endpoint) => endpoint.state === "current" && endpoint.host.trim() !== "").map((endpoint) => `${endpoint.host}:${endpoint.port}`))).sort()
   const visibleDevices = snapshot.devices.filter((device) => matchesConnectionFilter(device, connectionFilter))
+  /**
+   * The tiles that carry a live picture, in the grid's own order.
+   *
+   * The bound is the console's, not the projection's (see `allocateTileViewers`):
+   * a fleet grid is a fleet view, and each live tile is a stream on the control
+   * plane, so how many tiles subscribe is decided here rather than by how many
+   * devices happen to be in the view.
+   */
+  const tileViewers = allocateTileViewers(visibleDevices)
 
   function showToastMessage(message: string) {
     if (message.trim() !== "") toast.info(message)
@@ -228,10 +252,18 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
    * dispatchable at all: the console refuses locally only what it can see it
    * cannot describe, and the kernel remains the authority for everything it does
    * send (AGENTS.md section 3).
+   *
+   * Which observation the token names is read by `observationTokenFor`, which
+   * takes the newest COMPLETE observation for this device rather than the first
+   * match in list order, and the frame reads the device's own observations from
+   * the control plane when the projection's page holds none for it (see
+   * `useLiveMirrorSession`): a workspace-wide page is not this device's
+   * observation, and a live frame that refused every click for want of one was
+   * the defect this answers.
    */
-  const sourceObservation = source ? snapshot.observations.find((candidate) => candidate.deviceId === source.id && candidate.freshnessToken)?.freshnessToken ?? "" : ""
+  const sourceObservation = source ? observationTokenFor(snapshot.observations, source.id) : ""
   const sourceLease = source ? snapshot.leases.some((candidate) => candidate.deviceId === source.id && candidate.state === "active") : false
-  const deviceModal = source ? <FloatingDevice device={source} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]) }} onPreview={startPreview} onAction={handleDeviceAction} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} observationToken={sourceObservation} hasLease={sourceLease} dispatch={dispatch} /> : null
+  const deviceModal = source ? <FloatingDevice device={source} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]) }} onPreview={startPreview} onAction={handleDeviceAction} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} observationToken={sourceObservation} hasLease={sourceLease} dispatch={dispatch} observationsForDevice={observationsForDevice} /> : null
   const selectedCount = (source ? 1 : 0) + followers.length
 
   return <div className="relative min-h-full">
@@ -261,7 +293,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
         <LabObservationFrame adapter={snapshot.labAdapter} height={workspace.largeHeight} />
         <ConnectionFilterBar filter={connectionFilter} onChange={setConnectionFilter} shown={visibleDevices.length} total={snapshot.devices.length} />
         <div className={`grid items-start gap-4 ${modalPinned && source ? "xl:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
-          {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail="No device in the current view has an observed transport matching this filter." /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${workspace.orientation === "portrait" ? Math.round(workspace.smallHeight * 9 / 16) : workspace.smallHeight}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
+          {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail="No device in the current view has an observed transport matching this filter." /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${workspace.orientation === "portrait" ? Math.round(workspace.smallHeight * 9 / 16) : workspace.smallHeight}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} mirror={mirror} transport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} viewing={tileViewers.includes(device.id)} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
           {modalPinned ? deviceModal : null}
         </div>
       </section>
@@ -502,7 +534,7 @@ function DeviceListDialog({ devices, endpoints, onReload, pendingAction }: { dev
   })}</tbody></table></div></DialogContent></Dialog>
 }
 
-function CompactPhone({ device, index, size, orientation, active, follower, settings, onClick }: { device: DeviceView; index: number; size: number; orientation: Workspace["orientation"]; active: boolean; follower: boolean; settings: ConsoleSettings; onClick: () => void }) {
+function CompactPhone({ device, index, size, orientation, active, follower, settings, mirror, transport, workspaceId, viewing, onClick }: { device: DeviceView; index: number; size: number; orientation: Workspace["orientation"]; active: boolean; follower: boolean; settings: ConsoleSettings; mirror?: LiveMirrorClient; transport: LiveMirrorTransportChoice; workspaceId: string; viewing: boolean; onClick: () => void }) {
   const width = orientation === "portrait" ? Math.round(size * 9 / 16) : size
   const height = orientation === "portrait" ? size : Math.round(size * 9 / 16)
   // A device that is not currently observed carries a mark CENTRED in its frame,
@@ -513,12 +545,42 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
   // and never-observed take different icons so the two facts cannot be read as
   // one. The OTG/HOLD tag is left alone: it reports control eligibility, which
   // this mark does not change.
+  //
+  // The colour is the second half of the same rule: a device with no current
+  // observation takes ONE fixed colour (see `absentPhoneColor`) rather than its
+  // index, so every disconnected tile reads the same whatever its placement, and
+  // the index colour is left to the tiles that are actually carrying something.
   const absent = notObserved(device.status)
   const AbsentIcon = device.status === "unobserved" ? SearchX : Unplug
-  return <button type="button" aria-pressed={active || follower} onClick={onClick} className={`relative justify-self-center overflow-hidden rounded-[9px] border-[3px] text-left text-white transition-colors focus-visible:outline-3 focus-visible:outline-primary ${active ? "border-primary ring-2 ring-primary/40" : follower ? "border-primary/70" : "border-slate-500"} ${phoneColors[index % phoneColors.length]}`} style={{ width, height, boxSizing: "border-box" }}><span className="absolute inset-0 bg-black/10" style={{ opacity: 1 - settings.opacity / 100 }} />{settings.showTag ? <span className="absolute left-0 top-0 bg-red-500 px-1 text-[8px] font-bold leading-4">{device.controlEligibility === "eligible" ? "OTG" : "HOLD"}</span> : null}<span className="absolute inset-x-0 top-6 text-center">{settings.showIndex ? <span className="block text-lg font-bold leading-none">{index + 1}</span> : null}{settings.showName ? <span className="mt-1 block text-[10px] font-semibold">{device.displayName}</span> : null}{settings.showIp ? <span className="mt-1 block font-mono text-[8px] text-white/80">{device.endpointId}</span> : null}</span>{absent ? <span className="pointer-events-none absolute inset-0 grid place-items-center"><span className="grid place-items-center border border-white/40 bg-slate-950/75 p-1.5"><AbsentIcon role="img" aria-label={deviceObservationSentence(device.displayName, device.status)} className="size-5" /></span></span> : null}<span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] text-white/90"><Smartphone className="size-3" aria-hidden="true" /><span>{deviceStatusLabels[device.status]}</span></span>{active ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Open</span> : follower ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Follower</span> : null}</button>
+  const frameColor = absent ? absentPhoneColor : phoneColors[index % phoneColors.length]
+  return <button type="button" aria-pressed={active || follower} onClick={onClick} className={`relative justify-self-center overflow-hidden rounded-[9px] border-[3px] text-left text-white transition-colors focus-visible:outline-3 focus-visible:outline-primary ${active ? "border-primary ring-2 ring-primary/40" : follower ? "border-primary/70" : "border-slate-500"} ${frameColor}`} style={{ width, height, boxSizing: "border-box" }}>{absent ? null : <LiveTilePicture device={device} mirror={mirror} transport={transport} workspaceId={workspaceId} viewing={viewing} />}<span className="absolute inset-0 bg-black/10" style={{ opacity: 1 - settings.opacity / 100 }} />{settings.showTag ? <span className="absolute left-0 top-0 bg-red-500 px-1 text-[8px] font-bold leading-4">{device.controlEligibility === "eligible" ? "OTG" : "HOLD"}</span> : null}<span className="absolute inset-x-0 top-6 text-center">{settings.showIndex ? <span className="block text-lg font-bold leading-none">{index + 1}</span> : null}{settings.showName ? <span className="mt-1 block text-[10px] font-semibold">{device.displayName}</span> : null}{settings.showIp ? <span className="mt-1 block font-mono text-[8px] text-white/80">{device.endpointId}</span> : null}</span>{absent ? <span className="pointer-events-none absolute inset-0 grid place-items-center"><span className="grid place-items-center border border-white/40 bg-slate-950/75 p-1.5"><AbsentIcon role="img" aria-label={deviceObservationSentence(device.displayName, device.status)} className="size-5" /></span></span> : null}<span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] text-white/90"><Smartphone className="size-3" aria-hidden="true" /><span>{deviceStatusLabels[device.status]}</span></span>{active ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Open</span> : follower ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Follower</span> : null}</button>
 }
 
-function FloatingDevice({ device, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onPreview, onAction, mirror, mirrorTransport, workspaceId, observationToken, hasLease, dispatch }: { device: DeviceView; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onPreview: () => void; onAction: (value: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; observationToken: string; hasLease: boolean; dispatch: DispatchIntent }) {
+/**
+ * The floating panel: the big frame, and the controls that surround it.
+ *
+ * The frame's own body is the device's screen - the picture and the pointer, and
+ * nothing else. Everything that used to be printed over that screen is here,
+ * in the panel that is a separate surface from the frame:
+ *
+ *  - the title bar keeps the device's name and its controls (pin, close), keeps
+ *    the battery the frame's own header used to show, and gains the info control
+ *    that holds the stream's state, transport, encoded frame, drawn box and
+ *    refusals;
+ *  - the action column keeps every device command it had and gains the ones that
+ *    were inside the frame: key events, typing into the device, and stopping or
+ *    reopening the stream;
+ *  - the footer keeps the preview sentence and the follower count.
+ *
+ * The frame takes the STREAM's aspect: `phoneHeight` is read from the session's
+ * frame rather than pinned at 9:16, so an operator sees the device's screen AS
+ * the frame instead of a picture inset in a dark box. A stream that has not
+ * reported a size yet keeps this console's own portrait shape - the one case
+ * with no aspect to take - and the picture's drawn box stays honest either way,
+ * so a pointer is still measured through the box the picture is actually in.
+ */
+export function FloatingDevice({ device, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onPreview, onAction, mirror, mirrorTransport, workspaceId, observationToken, hasLease, dispatch, observationsForDevice }: { device: DeviceView; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onPreview: () => void; onAction: (value: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; observationToken: string; hasLease: boolean; dispatch: DispatchIntent; observationsForDevice?: (deviceId: string) => Promise<readonly ObservationView[]> }) {
+  const session = useLiveMirrorSession({ device, mirror, transport: mirrorTransport, workspaceId, observationToken, hasLease, dispatch, observationsForDevice })
   const controlsWidth = 220
   const frameGap = 12
   const viewportWidth = typeof window === "undefined" ? Number.POSITIVE_INFINITY : window.innerWidth
@@ -526,7 +588,7 @@ function FloatingDevice({ device, followers, workspace, settings, position, pinn
   const availableWidth = Number.isFinite(viewportWidth) ? Math.max(320, viewportWidth - viewportMargin * 2) : Number.POSITIVE_INFINITY
   const requestedPhoneWidth = Math.round(workspace.largeHeight * 9 / 16)
   const phoneWidth = Math.min(requestedPhoneWidth, Math.max(96, availableWidth - controlsWidth - frameGap))
-  const phoneHeight = Math.round(phoneWidth * 16 / 9)
+  const phoneHeight = Math.round(phoneWidth * (session.frame ? session.frame.height / session.frame.width : 16 / 9))
   const controlsLeft = settings.controlsSide === "left"
   const frameSize = { width: phoneWidth + controlsWidth + frameGap, height: phoneHeight }
   const maxLeft = Number.isFinite(viewportWidth) ? Math.max(viewportMargin, viewportWidth - frameSize.width - viewportMargin) : position.x
@@ -535,17 +597,16 @@ function FloatingDevice({ device, followers, workspace, settings, position, pinn
   const controlsFrameStyle = { width: controlsWidth, minWidth: controlsWidth, maxWidth: controlsWidth, height: phoneHeight, boxSizing: "border-box" as const }
   return <div className={`${pinned ? "relative z-20 self-start" : "fixed z-[100]"} flex items-start gap-3 ${controlsLeft ? "flex-row-reverse" : ""}`} style={positionStyle}>
     <div aria-label={`${device.displayName} floating phone frame`} className="flex shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-slate-900 text-white" style={phoneFrameStyle}>
-      <div className="flex h-8 shrink-0 items-center justify-between bg-slate-950 px-3 text-[9px]"><span>02:16 · {device.displayName}</span><span>{device.batteryPercent}%</span></div>
-      <LiveMirrorSurface device={device} mirror={mirror} transport={mirrorTransport} workspaceId={workspaceId} observationToken={observationToken} hasLease={hasLease} dispatch={dispatch} />
-      <div className="flex shrink-0 items-center gap-2 border-t border-white/10 px-3 py-2">
-        <p className="min-w-0 flex-1 text-[9px] leading-3 text-white/60">Preview mirrors the selected followers independently; it copies no commands to them.</p>
-        <Button size="sm" variant="outline" disabled={followers.length === 0} onClick={onPreview}><MousePointer2 className="size-3.5" aria-hidden="true" />Start Preview</Button>
-      </div>
+      <LiveMirrorSurface session={session} />
     </div>
     <div aria-label={`${device.displayName} floating device controls`} className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-popover text-foreground" style={controlsFrameStyle}>
-      <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2"><ControlButton icon={Smartphone} label="Change Device" onClick={() => onAction("Change Device")} /><ControlButton icon={Volume2} label="Volume Up" onClick={() => onAction("Volume Up")} /><ControlButton icon={Volume1} label="Volume Down" onClick={() => onAction("Volume Down")} /><ControlButton icon={Image} label="Screenshot" onClick={() => onAction("Screenshot")} /><ControlButton icon={Power} label="Power Button" onClick={() => onAction("Power Button")} /><ControlButton icon={RotateCw} label="Lock Rotate" onClick={() => onAction("Lock Rotate")} /><ControlButton icon={Grid3X3} label="Install APK" onClick={() => onAction("Install APK")} /><ControlButton icon={Upload} label="Import File" onClick={() => onAction("Import File")} /><ControlButton icon={Download} label="Export File" onClick={() => onAction("Export File")} /><ControlButton icon={ClipboardCopy} label="ADB Command" onClick={() => onAction("ADB Command")} /><ControlButton icon={Keyboard} label="Quick Phrase" onClick={() => onAction("Quick Phrase")} /><ControlButton icon={RotateCw} label="Reboot" onClick={() => onAction("Reboot")} /><ControlButton icon={Keyboard} label="Switch Keyboard" onClick={() => onAction("Switch Keyboard")} /></div>
-      <div className="shrink-0 border-t border-border px-3 py-2 text-[10px] text-muted-foreground">{followers.length} follower{followers.length === 1 ? "" : "s"} selected</div>
+      <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><span className="shrink-0 font-mono text-[10px] text-muted-foreground">{device.batteryPercent}%</span><LiveMirrorInfo session={session} /><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2"><LiveMirrorInputs session={session} /><div className="my-2 border-t border-border" /><ControlButton icon={Smartphone} label="Change Device" onClick={() => onAction("Change Device")} /><ControlButton icon={Volume2} label="Volume Up" onClick={() => onAction("Volume Up")} /><ControlButton icon={Volume1} label="Volume Down" onClick={() => onAction("Volume Down")} /><ControlButton icon={Image} label="Screenshot" onClick={() => onAction("Screenshot")} /><ControlButton icon={Power} label="Power Button" onClick={() => onAction("Power Button")} /><ControlButton icon={RotateCw} label="Lock Rotate" onClick={() => onAction("Lock Rotate")} /><ControlButton icon={Grid3X3} label="Install APK" onClick={() => onAction("Install APK")} /><ControlButton icon={Upload} label="Import File" onClick={() => onAction("Import File")} /><ControlButton icon={Download} label="Export File" onClick={() => onAction("Export File")} /><ControlButton icon={ClipboardCopy} label="ADB Command" onClick={() => onAction("ADB Command")} /><ControlButton icon={Keyboard} label="Quick Phrase" onClick={() => onAction("Quick Phrase")} /><ControlButton icon={RotateCw} label="Reboot" onClick={() => onAction("Reboot")} /><ControlButton icon={Keyboard} label="Switch Keyboard" onClick={() => onAction("Switch Keyboard")} /></div>
+      <div className="shrink-0 space-y-2 border-t border-border px-3 py-2">
+        <p className="text-[10px] leading-3 text-muted-foreground">Preview mirrors the selected followers independently; it copies no commands to them.</p>
+        <Button size="sm" variant="outline" className="w-full" disabled={followers.length === 0} onClick={onPreview}><MousePointer2 className="size-3.5" aria-hidden="true" />Start Preview</Button>
+        <p className="text-[10px] text-muted-foreground">{followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
+      </div>
     </div>
   </div>
 }

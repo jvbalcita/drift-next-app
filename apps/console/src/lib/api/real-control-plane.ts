@@ -1264,7 +1264,15 @@ function mapObservationSource(source: string): ObservationView["source"] {
   return source.toLowerCase().includes("mirror") ? "mirror" : "device"
 }
 
-function mapObservation(observation: ObservationSnapshot): ObservationView {
+/**
+ * mapObservation maps one observation snapshot onto the console's own view.
+ *
+ * It is exported because the frame reads a device's observations directly from
+ * the control plane, over the same RPC and the same mapping as the projection's
+ * refresh: two mappings of one contract would be two chances for a token that
+ * the kernel accepts to be reported as one it does not.
+ */
+export function mapObservation(observation: ObservationSnapshot): ObservationView {
   return {
     id: observation.id,
     deviceId: observation.deviceId,

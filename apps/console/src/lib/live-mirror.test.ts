@@ -14,14 +14,22 @@ import {
   liveStreamFrame,
   liveStreamView,
   liveTransportOf,
+  maximumScrollStepsPerEvent,
+  observationTokenFor,
   planGesture,
+  planWheelScrolls,
   refusedStreamSentence,
+  scrollStepUnits,
+  scrollSwipeMs,
   streamPoint,
   transportSentence,
+  wheelLinePixels,
+  wheelScrollDelta,
   type DrawnPicture,
   type MirrorDevice,
   type SurfaceRect,
 } from "./live-mirror"
+import type { ObservationView } from "./domain/control-plane"
 
 const frame = { width: 1080, height: 1920 }
 
@@ -275,5 +283,132 @@ describe("one gesture, one action", () => {
   it("scales the tap/swipe threshold by the surface's own scale, so a downscaled frame feels the same", () => {
     expect(gestureThresholdFor(halfBox, frame)).toBe(24)
     expect(gestureThresholdFor({ left: 0, top: 0, width: 1080, height: 1920 }, frame)).toBe(12)
+  })
+})
+
+describe("the observation a coordinate is dispatched against", () => {
+  function observed(overrides: Partial<ObservationView>): ObservationView {
+    return {
+      id: "observation-1",
+      deviceId: "atlas-04",
+      capturedAt: "2026-09-18T09:00:00Z",
+      source: "device",
+      captureStatus: "complete",
+      packageName: "",
+      activityName: "",
+      coordinateSpace: "display:1080x1920",
+      freshnessToken: "fresh-1",
+      artifactCount: 1,
+      ...overrides,
+    }
+  }
+
+  it("takes the newest complete observation of THIS device, and never another device's", () => {
+    const observations = [
+      observed({ id: "old", capturedAt: "2026-09-18T08:00:00Z", freshnessToken: "fresh-old" }),
+      observed({ id: "other", deviceId: "nova-05", capturedAt: "2026-09-18T10:00:00Z", freshnessToken: "fresh-other" }),
+      observed({ id: "new", capturedAt: "2026-09-18T09:30:00Z", freshnessToken: "fresh-new" }),
+    ]
+    expect(observationTokenFor(observations, "atlas-04")).toBe("fresh-new")
+    expect(observationTokenFor(observations, "nova-05")).toBe("fresh-other")
+    expect(observationTokenFor(observations, "orion-01")).toBe("")
+  })
+
+  it("skips an observation that is not a complete capture, and one that names no token", () => {
+    const observations = [
+      observed({ id: "partial", capturedAt: "2026-09-18T11:00:00Z", captureStatus: "partial", freshnessToken: "fresh-partial" }),
+      observed({ id: "failed", capturedAt: "2026-09-18T10:30:00Z", captureStatus: "failed", freshnessToken: "fresh-failed" }),
+      observed({ id: "tokenless", capturedAt: "2026-09-18T10:00:00Z", freshnessToken: "   " }),
+      observed({ id: "complete", capturedAt: "2026-09-18T09:00:00Z", freshnessToken: "fresh-complete" }),
+    ]
+    expect(observationTokenFor(observations, "atlas-04")).toBe("fresh-complete")
+  })
+
+  it("falls back to the projection's own order when the times cannot be compared", () => {
+    // The control plane lists observations newest first, so the first one that
+    // qualifies is the newest when a fixture's times are not comparable - and the
+    // console reports no token rather than inventing an order.
+    const unorderable = [
+      observed({ id: "first", capturedAt: "just now", freshnessToken: "fresh-first" }),
+      observed({ id: "second", capturedAt: "2 min ago", freshnessToken: "fresh-second" }),
+    ]
+    expect(observationTokenFor(unorderable, "atlas-04")).toBe("fresh-first")
+    expect(observationTokenFor([], "atlas-04")).toBe("")
+  })
+})
+
+describe("a wheel turn as the gesture it becomes", () => {
+  const drawn: SurfaceRect = { left: 0, top: 0, width: 540, height: 960 }
+
+  it("converts the browser's own units before measuring anything", () => {
+    // Pixels are the element's own, lines are a fixed number of them, and a page
+    // is the box the picture is drawn in.
+    expect(wheelScrollDelta({ deltaX: 0, deltaY: 120, deltaMode: 0 }, drawn, frame)).toEqual({ x: 0, y: 240 })
+    expect(wheelScrollDelta({ deltaX: 0, deltaY: 3, deltaMode: 1 }, drawn, frame)).toEqual({ x: 0, y: (3 * wheelLinePixels * frame.height) / drawn.height })
+    expect(wheelScrollDelta({ deltaX: 0, deltaY: 1, deltaMode: 2 }, drawn, frame)).toEqual({ x: 0, y: frame.height })
+  })
+
+  it("measures through the picture's drawn box, not through the element", () => {
+    // The picture is drawn at half the element's height here, so a scroll of one
+    // drawn pixel is worth two of the frame's - and the element's own box would
+    // report half the distance the operator asked for.
+    expect(wheelScrollDelta({ deltaX: 60, deltaY: 0, deltaMode: 0 }, { left: 0, top: 0, width: 270, height: 960 }, frame)).toEqual({ x: 240, y: 0 })
+  })
+
+  it("refuses to convert a turn it has no box or frame to measure against", () => {
+    expect(wheelScrollDelta({ deltaX: 0, deltaY: 120, deltaMode: 0 }, null, frame)).toBeNull()
+    expect(wheelScrollDelta({ deltaX: 0, deltaY: 120, deltaMode: 0 }, { left: 0, top: 0, width: 0, height: 960 }, frame)).toBeNull()
+    expect(wheelScrollDelta({ deltaX: 0, deltaY: 120, deltaMode: 0 }, drawn, { width: 0, height: 0 })).toBeNull()
+    expect(wheelScrollDelta({ deltaX: Number.NaN, deltaY: 120, deltaMode: 0 }, drawn, frame)).toBeNull()
+  })
+
+  it("spends accumulated scroll in whole steps of the frame, carrying the rest", () => {
+    const step = scrollStepUnits(frame, "y")
+    expect(step).toBe(160)
+    // Under one step: nothing is dispatched, because one wheel event is not one
+    // gesture: a trackpad reports a flick as tens of them.
+    const partial = planWheelScrolls({ x: 540, y: 960 }, { x: 0, y: step - 1 }, frame)
+    expect(partial.swipes).toHaveLength(0)
+    expect(partial.remainder).toEqual({ x: 0, y: step - 1 })
+
+    // Over one step: one gesture, and the remainder waits for the next turn.
+    const whole = planWheelScrolls({ x: 540, y: 960 }, { x: 0, y: step * 2 + 10 }, frame)
+    expect(whole.swipes).toHaveLength(2)
+    expect(whole.remainder).toEqual({ x: 0, y: 10 })
+    expect(whole.swipes[0]).toMatchObject({ startX: 540, startY: 960, endX: 540, endY: 960 - step })
+  })
+
+  it("moves the content against the scroll, on both axes", () => {
+    const stepY = scrollStepUnits(frame, "y")
+    const stepX = scrollStepUnits(frame, "x")
+    // A wheel turned down scrolls the content up, which is a finger drag upward;
+    // a wheel turned right does the same horizontally.
+    expect(planWheelScrolls({ x: 540, y: 960 }, { x: 0, y: stepY }, frame).swipes[0]).toMatchObject({ startY: 960, endY: 960 - stepY })
+    expect(planWheelScrolls({ x: 540, y: 960 }, { x: 0, y: -stepY }, frame).swipes[0]).toMatchObject({ startY: 960, endY: 960 + stepY })
+    expect(planWheelScrolls({ x: 540, y: 960 }, { x: stepX, y: 0 }, frame).swipes[0]).toMatchObject({ startX: 540, endX: 540 - stepX, startY: 960, endY: 960 })
+  })
+
+  it("shortens a step at the frame's edge rather than rescaling the gesture", () => {
+    // The device input contract requires both endpoints inside the frame
+    // (ADR-0010), so a step that would leave it is bounded by it: the gesture
+    // stops at the frame's own last row rather than being moved or scaled.
+    const step = scrollStepUnits(frame, "y")
+    const atEdge = planWheelScrolls({ x: 540, y: 5 }, { x: 0, y: step }, frame)
+    expect(atEdge.swipes[0]).toMatchObject({ startY: 5, endY: 0, durationMs: scrollSwipeMs })
+    // A step with no room at all is refused, and says which direction had none.
+    const noRoom = planWheelScrolls({ x: 540, y: 0 }, { x: 0, y: step }, frame)
+    expect(noRoom.swipes).toHaveLength(0)
+    expect(noRoom.refusal).toBe(liveMirrorCopy.refusal.noScrollRoomY)
+    const sideways = planWheelScrolls({ x: 20, y: 960 }, { x: scrollStepUnits(frame, "x"), y: 0 }, frame)
+    expect(sideways.swipes[0]).toMatchObject({ startX: 20, endX: 0 })
+    expect(planWheelScrolls({ x: 0, y: 960 }, { x: scrollStepUnits(frame, "x"), y: 0 }, frame).refusal).toBe(liveMirrorCopy.refusal.noScrollRoomX)
+  })
+
+  it("bounds how many gestures one wheel turn can become", () => {
+    // A page-mode turn is worth several steps; the console spends a bounded
+    // number of them per event rather than fanning a burst out without bound.
+    const plan = planWheelScrolls({ x: 540, y: 1680 }, { x: 0, y: frame.height * 4 }, frame)
+    expect(plan.swipes.length).toBeLessThanOrEqual(maximumScrollStepsPerEvent)
+    expect(plan.swipes.length).toBe(maximumScrollStepsPerEvent)
   })
 })
