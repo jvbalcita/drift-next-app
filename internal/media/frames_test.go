@@ -24,7 +24,9 @@ type frameStep struct {
 	err     error
 	// hold makes the call wait for this serial's gate, which is how a capture
 	// that has not answered yet - and a shutdown that arrives while it is in
-	// flight - is exercised.
+	// flight - is exercised. What the call answers when the gate opens is this
+	// step's own payload or error, so a held step can carry the answer it is
+	// holding back.
 	hold bool
 }
 
@@ -33,6 +35,18 @@ func shot(payload []byte) frameStep { return frameStep{payload: payload} }
 func failedCapture(err error) frameStep { return frameStep{err: err} }
 
 func heldCapture() frameStep { return frameStep{hold: true} }
+
+// heldFailure is a failure the capture path keeps to itself until the test
+// releases it. A device whose next capture is held has stopped recording: the
+// attempt is in flight and unanswered, so what the test reads is what the attempt
+// before it left behind, and a free-running loop cannot overtake the read.
+func heldFailure(err error) frameStep { return frameStep{err: err, hold: true} }
+
+// heldCaptureTimeout bounds a capture the test holds open on purpose. It is long
+// enough that the engine's own timeout never ends a held capture while the test is
+// asserting on what that attempt left behind; the test's own shutdown still ends it
+// immediately.
+const heldCaptureTimeout = 30 * time.Second
 
 // pngBytes builds a payload of exactly size bytes behind the PNG signature. The
 // frame engine never parses the image - the adapter does, and checks it there -
@@ -363,16 +377,26 @@ func TestFrameEngineTakesOneBoundedCapturePerSubscribedDevicePerTick(t *testing.
 // a device that fails to capture is recorded and classified, is never reported as
 // current while it is failing, does not take the loop down, and clears only when a
 // later capture succeeds.
+//
+// The device's SECOND capture is held until the test releases it, so what the
+// frame holds while the test reads it is the first failure's own outcome. Reading
+// the same facts off a free-running loop races the next tick: the second failure
+// lands one interval later, and a test goroutine that host load has delayed past
+// that point reads the second failure's class as if it were the first one's - or
+// misses the one-failure state entirely and waits for a state that has passed.
 func TestFrameEngineClassifiesFailuresWithoutStoppingTheLoop(t *testing.T) {
 	t.Parallel()
 	capturer := newFakeFrameCapturer().
 		script("SERIAL-A",
 			failedCapture(captureFailure("SERIAL-A", domain.FailureDeviceOffline)),
-			failedCapture(captureFailure("SERIAL-A", domain.FailureTransport)),
+			heldFailure(captureFailure("SERIAL-A", domain.FailureTransport)),
 			shot(pngBytes(64)),
 		).
 		script("SERIAL-B", shot(pngBytes(64)))
-	engine, logs := newTestEngine(t, capturer, media.FrameEngineConfig{Interval: 5 * time.Millisecond})
+	engine, logs := newTestEngine(t, capturer, media.FrameEngineConfig{
+		Interval:       5 * time.Millisecond,
+		CaptureTimeout: heldCaptureTimeout,
+	})
 	if err := engine.Subscribe("SERIAL-A"); err != nil {
 		t.Fatalf("Subscribe(SERIAL-A): %v", err)
 	}
@@ -401,6 +425,10 @@ func TestFrameEngineClassifiesFailuresWithoutStoppingTheLoop(t *testing.T) {
 	if !logs.contains("frame engine could not capture SERIAL-A (device_offline)") {
 		t.Fatalf("the failure was not reported with its class:\n%s", logs.joined())
 	}
+
+	// Answering the held capture answers the device's next attempt, which fails
+	// too, and the loop carries on from there.
+	capturer.release("SERIAL-A")
 	// A failed capture on one device does not stop another device's work.
 	waitFor(t, func() bool { return capturer.callCount("SERIAL-B") >= 2 }, "the other device to keep being captured")
 
@@ -432,15 +460,24 @@ func TestFrameEngineClassifiesFailuresWithoutStoppingTheLoop(t *testing.T) {
 // TestFrameEngineReportsTruncationRatherThanAPartialFrame pins the reuse of the
 // one-shot preview discipline: a capture larger than the bound is reported as
 // truncated with no preview at all, and a capture at the bound is delivered whole.
+//
+// The oversize device's second capture is held, so the engine cannot complete a
+// second round before the test stops it. What the outcome reports is therefore one
+// round's captures, and its count is that round's rather than however many rounds
+// host load happened to let the loop run between the assertion and the stop.
 func TestFrameEngineReportsTruncationRatherThanAPartialFrame(t *testing.T) {
 	t.Parallel()
 	const bound = 64
 	oversize := pngBytes(128)
 	atBound := pngBytes(bound)
 	capturer := newFakeFrameCapturer().
-		script("SERIAL-A", shot(oversize)).
+		script("SERIAL-A", shot(oversize), heldCapture()).
 		script("SERIAL-B", shot(atBound))
-	engine, logs := newTestEngine(t, capturer, media.FrameEngineConfig{Interval: 5 * time.Millisecond, PreviewBytes: bound})
+	engine, logs := newTestEngine(t, capturer, media.FrameEngineConfig{
+		Interval:       5 * time.Millisecond,
+		CaptureTimeout: heldCaptureTimeout,
+		PreviewBytes:   bound,
+	})
 	if err := engine.Subscribe("SERIAL-A"); err != nil {
 		t.Fatalf("Subscribe(SERIAL-A): %v", err)
 	}
