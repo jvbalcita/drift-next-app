@@ -1,6 +1,7 @@
 # 0017 — The live mirror's process ownership, deployment seam, and shutdown audit
 
 Status: accepted (2026-09-18)
+- Amended: 2026-09-18 — the scrcpy server input section 4 requires is now resolved and supplied by the runtime that launches the control plane, on both of its start paths, rather than being left to a variable exported in the shell that launched the console (card ARC-168). See the amendment below.
 
 ## Context
 
@@ -170,3 +171,82 @@ behaves differently.
   `bash scripts/secret-scan.sh`, `git diff --check`, `go.mod`/`go.sum` unchanged,
   no dependency added. No device was touched: every test runs over fakes and
   loopback only.
+
+## Amendment: the runtime supplies the mirror's scrcpy server (card ARC-168)
+
+### What was wrong
+
+Section 4 makes `DRIFT_MIRROR_SCRCPY_SERVER` an input the seam refuses without,
+and nothing supplied it. The child inherits the launching shell's environment, so
+exporting the variable by hand armed the mirror — which is why the gap survived a
+live mirror that worked — but a desktop application must not require that.
+Launching `drift` started a control plane carrying the address, the database, the
+artifact root, the device mode, the adb path and the service token, and left the
+live mirror refused: `NewDialerFromEnv` failed and every `StartMirrorStream` was
+refused, on both of that runtime's start paths.
+
+### What changed
+
+- `runtime.Config` carries `ScrcpyServerPath` — unset by default, and not
+  persisted when resolution leaves it empty, so a discovered path is never frozen
+  into `runtime.json`. `Supervisor.Setup` resolves it through the new
+  `DiscoverScrcpyServer`, in one order: a value the deployment configured, used AS
+  CONFIGURED (the dialer keeps the last word on whether it names a usable server);
+  then an explicit value in the launching environment, so an operator who armed
+  the mirror by exporting the variable keeps working and is never overridden by a
+  discovery; then the platform's own scrcpy installation —
+  `/opt/homebrew/share/scrcpy/scrcpy-server` and
+  `/usr/local/share/scrcpy/scrcpy-server` on darwin, `/usr/share/scrcpy`,
+  `/usr/local/share/scrcpy` and Linuxbrew on linux — and only when that file is
+  actually there. It is not a filesystem search and it invents nothing: a host
+  with no server resolves no path, and the input is then configured.
+- Both control-plane start paths — `StartAll` and `StartComponent` — build that
+  child's configuration from one `controlPlaneEnv`, so an input cannot arrive on
+  the path an operator happened to use and be missing on the other. That
+  duplication is what let the omission survive: the two lists were maintained by
+  hand.
+- A server that did not resolve is passed as NO variable, never as an empty one:
+  the dialer's own refusal names `DRIFT_MIRROR_SCRCPY_SERVER`, where a value it
+  accepted would be a mirror that armed and showed nothing. `DRIFT_MIRROR_KEEP_AWAKE`
+  is deliberately not set, so the screen-hold default and every explicit spelling
+  of it are exactly as section 4 recorded them.
+- The startup line reports the resolved server, or the input to set when nothing
+  resolved, so a frame whose mirror shows nothing carries its own diagnosis.
+
+### Validation
+
+- `internal/runtime/scrcpy_test.go`: a configured path is used as configured even
+  when it is not there; an exported path beats a discovered one and is trimmed;
+  every platform location is used when it is there and configured in no other
+  way; a blank configured path or export is not a configured one; a directory
+  where a server is expected, a host with nothing installed and a platform with no
+  fixed installation location all resolve nothing; and the production resolver
+  never names a file this host does not have.
+- `internal/runtime/scrcpy_child_test.go`: both start paths hand the control plane
+  `DRIFT_MIRROR_SCRCPY_SERVER` with the resolved value; every other deployment
+  input still travels; an unresolved server yields no variable at all and a
+  startup line naming the input; the resolution is asked about the deployment's
+  own configured value and what it resolves is what the child is handed; and the
+  runtime never chooses the screen hold for the operator.
+- Fault injections against the committed tree, each reverted: dropping the
+  variable from `controlPlaneEnv`, dropping the environment candidate, and
+  accepting a platform location without checking that the file is there each fail
+  the tests that pin them.
+- End to end, the real `cmd/control-plane` child was run with exactly the
+  environment this runtime builds, without the variable and with it:
+  `live mirror not started: the live mirror needs the host path of the scrcpy
+  server (DRIFT_MIRROR_SCRCPY_SERVER)` before, and `live mirror armed (a device is
+  captured only while a viewer is subscribed; 0 device(s) mirrored right now)` plus
+  `live mirror surface mounted` after. No device was touched.
+
+### What is deliberately not done
+
+- The console's own frame is unchanged: the diagnosis reaches it as a runtime log
+  line, which is the surface the frame already renders, and no new component or
+  field was invented for it.
+- A host that keeps only a version-suffixed copy (`scrcpy-server-v4.1`) is
+  configured explicitly rather than guessed at: which build this product drives is
+  pinned by the allow-list, and picking a versioned file on the host's behalf is
+  not this resolver's decision.
+- The scrcpy server is not vendored or downloaded: it stays the operator's own
+  installation.
