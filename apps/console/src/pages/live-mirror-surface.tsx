@@ -657,6 +657,14 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
  * phone itself puts in that row, including the app switcher, which is what
  * "menu" is on this fleet's Android.
  *
+ * The row is the LAST thing in the panel, because it is the phone's own bottom
+ * bar: everything this footer says about the row - the outcome of a dispatch, and
+ * the way back to a stream that failed or ended - is stated ABOVE it, and the
+ * follower count the panel reads is above that. A control drawn under the bar
+ * would put the panel's own chrome where the device puts its navigation, which is
+ * the inversion the owner reported when the row and the count were the other way
+ * round.
+ *
  * The outcome of a dispatch is stated beside the row, and the row states why it
  * cannot act rather than only looking disabled: the info control beside the pin
  * carries the same reason in full.
@@ -664,6 +672,13 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
 export function LiveMirrorDeviceKeys({ session }: { session: LiveMirrorSessionView }) {
   return (
     <div data-testid="live-mirror-device-keys" className="space-y-1">
+      <p className="min-h-4 text-[10px] leading-4 text-muted-foreground" aria-live="polite" data-testid="live-mirror-notice">{session.notice}</p>
+      {session.phase === "failed" || session.phase === "ended" ? (
+        <Button type="button" size="sm" variant="outline" className="w-full" onClick={session.retry} data-testid="live-mirror-retry">
+          <RotateCw className="size-3.5" aria-hidden="true" />
+          Reopen the live stream
+        </Button>
+      ) : null}
       <div className="flex items-stretch justify-center gap-1 border-t border-border pt-2" role="group" aria-label={liveMirrorCopy.navigationKeys.label}>
         {liveMirrorCopy.navigationKeys.keys.map((key) => {
           const KeyIcon = navigationKeyIcons[key.name]
@@ -685,13 +700,6 @@ export function LiveMirrorDeviceKeys({ session }: { session: LiveMirrorSessionVi
           )
         })}
       </div>
-      <p className="min-h-4 text-[10px] leading-4 text-muted-foreground" aria-live="polite" data-testid="live-mirror-notice">{session.notice}</p>
-      {session.phase === "failed" || session.phase === "ended" ? (
-        <Button type="button" size="sm" variant="outline" className="w-full" onClick={session.retry} data-testid="live-mirror-retry">
-          <RotateCw className="size-3.5" aria-hidden="true" />
-          Reopen the live stream
-        </Button>
-      ) : null}
     </div>
   )
 }

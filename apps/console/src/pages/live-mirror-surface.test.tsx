@@ -525,6 +525,27 @@ describe("the info control beside the pin", () => {
     expect(intents[1]).toMatchObject({ type: "submitDeviceKeyEvent", keyCode: 3, observationToken: streamToken })
   })
 
+  /**
+   * The owner's instruction: the menu row and the follower count are inverted.
+   * The row belongs where the phone puts its own navigation - the bottom of the
+   * panel - and the count reads above it. Asserted as ORDER rather than as
+   * presence, because both elements were already present and it is their order
+   * that was wrong; the row is also asserted to be the panel's last element, so
+   * nothing the panel draws can end up under the device's own navigation bar.
+   */
+  it("reads the follower count above the nav row, which is the panel's last element", async () => {
+    const { intents } = renderPanel()
+    await live(intents)
+
+    const followers = screen.getByTestId("live-mirror-followers")
+    const keys = screen.getByTestId("live-mirror-device-keys")
+    const footer = followers.parentElement as HTMLElement
+
+    expect(followers.compareDocumentPosition(keys) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(footer.lastElementChild).toBe(keys)
+    expect(screen.getByLabelText(/floating device controls/i).lastElementChild).toBe(footer)
+  })
+
   it("refuses to describe an input it has no lease for, and names the missing lease", async () => {
     const user = userEvent.setup()
     const { intents } = renderPanel({ hasLease: false })

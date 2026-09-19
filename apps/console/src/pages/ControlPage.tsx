@@ -613,9 +613,11 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
  *    leaving capture was always blurring the frame, and the fact is stated once,
  *    where the rest of the frame's state is read - in the info control;
  *  - the footer IS the device's navigation bar - menu/recents, home, back - and
- *    the follower count. The `Start Preview` control and its sentence are gone
- *    with the button: selecting a small frame is what makes it a follower now, so
- *    there is nothing left to press.
+ *    the follower count, and the count reads ABOVE the row: the row is the panel's
+ *    LAST element, where the phone itself puts its navigation, and everything the
+ *    footer says about the row is stated above it. The `Start Preview` control and
+ *    its sentence are gone with the button: selecting a small frame is what makes
+ *    it a follower now, so there is nothing left to press.
  *
  * The frame takes the STREAM's aspect: `phoneHeight` is read from the session's
  * frame rather than pinned at 9:16, so an operator sees the device's screen AS
@@ -648,8 +650,8 @@ export function FloatingDevice({ device, followers, workspace, settings, positio
       <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><LiveMirrorInfo session={session} /><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">{session.phase === "live" || session.phase === "starting" ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><ControlButton icon={Smartphone} label="Change Device" onClick={() => onAction("Change Device")} /><ControlButton icon={Volume2} label="Volume Up" onClick={() => onAction("Volume Up")} /><ControlButton icon={Volume1} label="Volume Down" onClick={() => onAction("Volume Down")} /><ControlButton icon={Image} label="Screenshot" onClick={() => onAction("Screenshot")} /><ControlButton icon={Power} label="Power Button" onClick={() => onAction("Power Button")} /><ControlButton icon={RotateCw} label="Lock Rotate" onClick={() => onAction("Lock Rotate")} /><ControlButton icon={Grid3X3} label="Install APK" onClick={() => onAction("Install APK")} /><ControlButton icon={Upload} label="Import File" onClick={() => onAction("Import File")} /><ControlButton icon={Download} label="Export File" onClick={() => onAction("Export File")} /><ControlButton icon={ClipboardCopy} label="ADB Command" onClick={() => onAction("ADB Command")} /><ControlButton icon={Keyboard} label="Quick Phrase" onClick={() => onAction("Quick Phrase")} /><ControlButton icon={RotateCw} label="Reboot" onClick={() => onAction("Reboot")} /><ControlButton icon={Keyboard} label="Switch Keyboard" onClick={() => onAction("Switch Keyboard")} /></div>
       <div className="shrink-0 border-t border-border px-2 py-2">
+        <p data-testid="live-mirror-followers" className="mb-1 text-center text-[10px] text-muted-foreground">{followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
         <LiveMirrorDeviceKeys session={session} />
-        <p className="mt-1 text-center text-[10px] text-muted-foreground">{followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
       </div>
     </div>
   </div>
