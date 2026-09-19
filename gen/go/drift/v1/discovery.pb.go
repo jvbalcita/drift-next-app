@@ -82,13 +82,22 @@ func (ScanRunState) EnumDescriptor() ([]byte, []int) {
 // DeviceLinkState is the observed transport state of a scanned device. It is a
 // fact about the current link, not a lifecycle an operator must advance: an
 // offline or unauthorized device is reported as such and is not actionable.
+//
+// NO_PERMISSIONS is a transport this host may not open at all, and it is the
+// scan surface's counterpart of DeviceStatus.DEVICE_STATUS_NO_PERMISSIONS. It is
+// deliberately NOT the same value as UNAUTHORIZED: one is fixed on the host's
+// permission rule and the other on the device's own display, so a consumer told
+// only "unauthorized" would send an operator to the wrong side of the cable. It
+// was added after this enum shipped, so every value above it keeps its number
+// and no retired number is reused (the reservations above bind that).
 type DeviceLinkState int32
 
 const (
-	DeviceLinkState_DEVICE_LINK_STATE_UNSPECIFIED  DeviceLinkState = 0
-	DeviceLinkState_DEVICE_LINK_STATE_ONLINE       DeviceLinkState = 1
-	DeviceLinkState_DEVICE_LINK_STATE_OFFLINE      DeviceLinkState = 2
-	DeviceLinkState_DEVICE_LINK_STATE_UNAUTHORIZED DeviceLinkState = 3
+	DeviceLinkState_DEVICE_LINK_STATE_UNSPECIFIED    DeviceLinkState = 0
+	DeviceLinkState_DEVICE_LINK_STATE_ONLINE         DeviceLinkState = 1
+	DeviceLinkState_DEVICE_LINK_STATE_OFFLINE        DeviceLinkState = 2
+	DeviceLinkState_DEVICE_LINK_STATE_UNAUTHORIZED   DeviceLinkState = 3
+	DeviceLinkState_DEVICE_LINK_STATE_NO_PERMISSIONS DeviceLinkState = 4
 )
 
 // Enum value maps for DeviceLinkState.
@@ -98,12 +107,14 @@ var (
 		1: "DEVICE_LINK_STATE_ONLINE",
 		2: "DEVICE_LINK_STATE_OFFLINE",
 		3: "DEVICE_LINK_STATE_UNAUTHORIZED",
+		4: "DEVICE_LINK_STATE_NO_PERMISSIONS",
 	}
 	DeviceLinkState_value = map[string]int32{
-		"DEVICE_LINK_STATE_UNSPECIFIED":  0,
-		"DEVICE_LINK_STATE_ONLINE":       1,
-		"DEVICE_LINK_STATE_OFFLINE":      2,
-		"DEVICE_LINK_STATE_UNAUTHORIZED": 3,
+		"DEVICE_LINK_STATE_UNSPECIFIED":    0,
+		"DEVICE_LINK_STATE_ONLINE":         1,
+		"DEVICE_LINK_STATE_OFFLINE":        2,
+		"DEVICE_LINK_STATE_UNAUTHORIZED":   3,
+		"DEVICE_LINK_STATE_NO_PERMISSIONS": 4,
 	}
 )
 
@@ -734,12 +745,13 @@ const file_drift_v1_discovery_proto_rawDesc = "" +
 	"\x16SCAN_RUN_STATE_RUNNING\x10\x02\x12\x1c\n" +
 	"\x18SCAN_RUN_STATE_COMPLETED\x10\x03\x12\x19\n" +
 	"\x15SCAN_RUN_STATE_FAILED\x10\x04\x12\x1c\n" +
-	"\x18SCAN_RUN_STATE_CANCELLED\x10\x05*\x95\x01\n" +
+	"\x18SCAN_RUN_STATE_CANCELLED\x10\x05*\xbb\x01\n" +
 	"\x0fDeviceLinkState\x12!\n" +
 	"\x1dDEVICE_LINK_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18DEVICE_LINK_STATE_ONLINE\x10\x01\x12\x1d\n" +
 	"\x19DEVICE_LINK_STATE_OFFLINE\x10\x02\x12\"\n" +
-	"\x1eDEVICE_LINK_STATE_UNAUTHORIZED\x10\x032\xfc\x01\n" +
+	"\x1eDEVICE_LINK_STATE_UNAUTHORIZED\x10\x03\x12$\n" +
+	" DEVICE_LINK_STATE_NO_PERMISSIONS\x10\x042\xfc\x01\n" +
 	"\x10DiscoveryService\x12D\n" +
 	"\tStartScan\x12\x1a.drift.v1.StartScanRequest\x1a\x1b.drift.v1.StartScanResponse\x12S\n" +
 	"\x0eStartRangeScan\x12\x1f.drift.v1.StartRangeScanRequest\x1a .drift.v1.StartRangeScanResponse\x12M\n" +

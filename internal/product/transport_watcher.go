@@ -77,6 +77,13 @@ type TransportChangeKind string
 const (
 	TransportArrived  TransportChangeKind = "arrived"
 	TransportDeparted TransportChangeKind = "departed"
+	// TransportReidentified is a transport the watcher had in view under one
+	// of its own identifiers and now sees under another: the adapter
+	// re-registered it (a hub mode change, an adapter restart) while the
+	// transport itself stayed attached. It is a change in the transport's own
+	// name and not an attachment or a detachment, which is why it is named
+	// rather than reported as the pair it looks like.
+	TransportReidentified TransportChangeKind = "reidentified"
 )
 
 // TransportChange is one attached-transport change observed after launch. Its
@@ -129,6 +136,19 @@ type TransportWatchOutcome struct {
 	DepartureErrors int
 	// LastDepartureError is the most recent refused departure batch.
 	LastDepartureError error
+	// EmptyPolls is how many polls answered with no transport at all while the
+	// watcher had transports in view. Such an answer is not an observation of
+	// absence: it is the same fact as a poll that failed - the enumeration was
+	// not readable - and it records no departure. It is counted here because a
+	// fleet that stops being observable has to be explicable from the watch's
+	// own numbers rather than only from the absence of new rows.
+	EmptyPolls int
+	// Reidentified is how many transports the watcher saw re-registered while
+	// they stayed attached - the same transport record under a different
+	// identifier of its own. A re-registration is not an attachment and not a
+	// detachment: the transport was present in the poll that saw it, so no
+	// departure is recorded for the name it answered under before.
+	Reidentified int
 	// Err is why the watch ended: the cancellation that stopped it, or the
 	// reason it could not poll at all.
 	Err error
@@ -155,6 +175,15 @@ func (o TransportWatchOutcome) Report() string {
 	}
 	if o.DepartureErrors > 0 {
 		report += fmt.Sprintf(", %d departure batch(es) NOT recorded", o.DepartureErrors)
+	}
+	if o.EmptyPolls > 0 {
+		// An empty answer is named beside the failed polls it is the same fact
+		// as, so a watcher that could not read the enumeration is explicable
+		// from its own record whether it was refused an answer or handed none.
+		report += fmt.Sprintf(", %d poll(s) answered empty (recorded no departure)", o.EmptyPolls)
+	}
+	if o.Reidentified > 0 {
+		report += fmt.Sprintf(", %d transport(s) re-identified while attached (recorded no departure)", o.Reidentified)
 	}
 	if o.Polls > 0 {
 		report += fmt.Sprintf("; %d transport(s) attached at the last poll", o.Attached)
@@ -340,6 +369,22 @@ func (w *TransportWatcher) poll(ctx context.Context, previous attachmentSnapshot
 		// would announce the whole fleet as having just arrived.
 		return current
 	}
+	// An enumeration that names no transport at all while this watcher has
+	// transports in view is not an observation of absence. A poll that failed
+	// and a poll that answered empty are one fact - the transport enumeration
+	// was not readable - and reading the second as "everything left" turns an
+	// observation failure into a fleet-wide outage: every current endpoint is
+	// superseded at once, the fleet reads as offline with no reason, and only
+	// a later poll that happens to answer can restore it. Polling is the
+	// resolution, so the empty answer is named and the last real view stands:
+	// the next poll is compared against what was actually observed rather than
+	// against an answer nobody could read.
+	if len(current) == 0 && len(previous) > 0 {
+		outcome.EmptyPolls++
+		outcome.Attached = len(previous)
+		w.logf("discovery watcher enumeration answered empty: no departure recorded for %d transport(s) still in view (polling is the resolution, and an unreadable enumeration is not a departure)", len(previous))
+		return previous
+	}
 	observedAt := w.now()
 	// pending is what this poll owes the registry: the transports it just saw
 	// arrive, plus the arrivals an earlier poll could not record while they are
@@ -368,9 +413,39 @@ func (w *TransportWatcher) poll(ctx context.Context, previous attachmentSnapshot
 	// detection, so one transport leaving once is handed over once, and it is
 	// collected before the hand-over for the same reason arrivals are: a batch
 	// recorded in the order it was observed is reproducible.
+	//
+	// A transport that is not in this poll's view under the identifier it
+	// answered under before is not necessarily a transport that left: the
+	// adapter re-registers a transport after a hub mode change or an adapter
+	// restart, and the same transport then answers under a new identifier of
+	// its own. That transport IS in this poll's view, so a departure naming its
+	// record would end the very endpoint this poll just made current - which is
+	// how a fleet that never left reads as departed. The transport record is
+	// the identity a departure is recorded against, so the record's presence in
+	// this poll's answer is what decides it.
+	presentRecords := make(map[string]struct{}, len(current))
+	for _, device := range current {
+		presentRecords[transportRecordKey(device)] = struct{}{}
+	}
 	departed := make(map[string]discovery.RuntimeDevice)
 	for key, device := range previous {
 		if _, present := current[key]; present {
+			continue
+		}
+		if _, reidentified := presentRecords[transportRecordKey(device)]; reidentified {
+			// The same transport, under another identifier of its own: it is
+			// attached, so nothing departed and the name it answered under
+			// before is not a record to end. An arrival held for that former
+			// identifier is no longer owed either - the transport is in view
+			// under the identifier its arrival was reported for.
+			delete(w.unrecorded, key)
+			outcome.Reidentified++
+			w.report(TransportChange{
+				Kind:        TransportReidentified,
+				Serial:      device.Serial,
+				TransportID: device.TransportID,
+				ObservedAt:  observedAt,
+			})
 			continue
 		}
 		outcome.Departures++
@@ -486,6 +561,16 @@ func (w *TransportWatcher) report(change TransportChange) {
 // attachmentSnapshot is the attached-transport view one successful poll
 // produced, keyed by transportKey.
 type attachmentSnapshot map[string]discovery.RuntimeDevice
+
+// transportRecordKey is the identity a departure is recorded against: the
+// SERIAL and the address the transport answers at, which is the pair the
+// registry matches an endpoint record on. It deliberately excludes the
+// transport's own identifier, because that is what changes when the adapter
+// re-registers a transport - a re-registration moves the identifier and leaves
+// the record the same.
+func transportRecordKey(device discovery.RuntimeDevice) string {
+	return strings.TrimSpace(device.Serial) + "|" + strings.TrimSpace(device.Host) + ":" + strconv.FormatUint(uint64(device.Port), 10)
+}
 
 // transportKey identifies one attached transport for change detection: the
 // device's serial together with the transport it answers on, or its address when

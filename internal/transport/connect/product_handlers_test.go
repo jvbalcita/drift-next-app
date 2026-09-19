@@ -259,6 +259,56 @@ func TestDiscoveryStartScanUpsertsObservedDevicesWithoutDuplicatingDevices(t *te
 	}
 }
 
+// TestDiscoveryStartScanCarriesANoPermissionsTransportOnTheWire is ARC-196's F2.
+// The discovery model gained `no_permissions` while the published DeviceLinkState
+// enum had no counterpart, so a scan that observed one projected it onto
+// ..._UNSPECIFIED: a consumer was told "unknown" about a transport this plane had
+// just read, and could no longer tell a host-side permission rule from a device
+// that has not authorized the host. The wire value is additive - the numbers
+// above it are untouched - and it is asserted through the handler the console
+// calls, not through the mapping function alone.
+func TestDiscoveryStartScanCarriesANoPermissionsTransportOnTheWire(t *testing.T) {
+	db := openProductDB(t)
+	ctx := context.Background()
+	profile := networkprofiles.NetworkProfile{
+		ID: "profile-1", Workspace: "workspace-a", Name: "Mock lab",
+		AddressPolicy: "192.0.2.0/28", Ports: []uint16{5555}, IsDefault: true,
+	}
+	if err := store.NewNetworkProfileService(db).Create(ctx, profile, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	scanner := discovery.NewFakeScanner([]discovery.ObservedDevice{{
+		Serial: "mock-serial-no-permissions", Host: "192.0.2.9", Port: 5555, Model: "Mock Nine",
+		Fingerprint: "sha256:fake", Evidence: map[string]string{"source": "fake"}, State: discovery.LinkNoPermissions,
+	}})
+	handler := transportconnect.NewDiscoveryHandler(discovery.NewService(db, scanner), db)
+	run, err := handler.StartScan(ctx, connectrpc.NewRequest(&driftv1.StartScanRequest{
+		Context:          requestContext("scan-no-permissions"),
+		Workspace:        &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		NetworkProfileId: string(profile.ID),
+	}))
+	if err != nil {
+		t.Fatalf("StartScan() = %v", err)
+	}
+	if len(run.Msg.Devices) != 1 {
+		t.Fatalf("start scan devices = %#v, want one observed device", run.Msg.Devices)
+	}
+	observed := run.Msg.Devices[0]
+	if got := observed.GetState(); got != driftv1.DeviceLinkState_DEVICE_LINK_STATE_NO_PERMISSIONS {
+		t.Fatalf("a scan-observed no-permissions transport projects as %v, want NO_PERMISSIONS: a consumer told UNSPECIFIED cannot tell it from a link nobody read", got)
+	}
+	// The wire carries the fact; the transport is still this device's current
+	// endpoint. Currency is an observation fact and never an authorization
+	// decision (ARC-196), so carrying the state did not cost visibility either.
+	current, err := store.NewEndpointRepository(db).ListCurrent(ctx, "workspace-a", devices.DeviceID(observed.GetDeviceId()))
+	if err != nil || len(current) != 1 {
+		t.Fatalf("current endpoints = %#v err=%v, want the observed transport", current, err)
+	}
+	if current[0].LinkState != endpoints.LinkStateNoPermissions {
+		t.Fatalf("stored link state = %q, want %q", current[0].LinkState, endpoints.LinkStateNoPermissions)
+	}
+}
+
 // The console reads registered endpoints for the whole workspace. A read that
 // insists on a single device identity cannot fill that list, and the refusal
 // looks exactly like "no rows" to the operator.

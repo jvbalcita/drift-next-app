@@ -161,6 +161,11 @@ func scanRunStateProto(state discovery.ScanRunState) driftv1.ScanRunState {
 	}
 }
 
+// deviceLinkStateProto translates the link state a scan observed into the wire
+// vocabulary. It is the ONE place that translation happens. Every state the
+// discovery model can record has a wire value: a state that reached the wire as
+// UNSPECIFIED would tell a consumer "unknown" about a transport this plane had
+// just read, which is how a `no permissions` transport became one (ARC-196 F2).
 func deviceLinkStateProto(state discovery.DeviceLinkState) driftv1.DeviceLinkState {
 	switch state {
 	case discovery.LinkOnline:
@@ -169,6 +174,8 @@ func deviceLinkStateProto(state discovery.DeviceLinkState) driftv1.DeviceLinkSta
 		return driftv1.DeviceLinkState_DEVICE_LINK_STATE_OFFLINE
 	case discovery.LinkUnauthorized:
 		return driftv1.DeviceLinkState_DEVICE_LINK_STATE_UNAUTHORIZED
+	case discovery.LinkNoPermissions:
+		return driftv1.DeviceLinkState_DEVICE_LINK_STATE_NO_PERMISSIONS
 	default:
 		return driftv1.DeviceLinkState_DEVICE_LINK_STATE_UNSPECIFIED
 	}
