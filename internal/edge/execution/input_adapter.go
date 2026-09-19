@@ -191,7 +191,7 @@ func (a *inputAdapter) deliverToMirror(ctx context.Context, intent action.Intent
 	if kind == action.TextInput {
 		return a.deliverTextToMirror(ctx, intent, payload)
 	}
-	delivery := MirrorDeliveryInput{DeviceID: deviceID, Kind: kind}
+	delivery := MirrorDeliveryInput{DeviceID: deviceID, Kind: kind, ObservationToken: intent.ObservationToken}
 	switch kind {
 	case action.Tap:
 		delivery.Point, delivery.Frame = payload.Tap.Point, payload.Tap.Space

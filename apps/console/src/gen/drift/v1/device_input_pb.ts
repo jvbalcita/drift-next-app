@@ -107,6 +107,11 @@ export type TapRequest = Message<"drift.v1.TapRequest"> & {
   idempotencyKey: string;
 
   /**
+   * observation_token names the observation the tap was resolved against: the
+   * live stream that carries it, for a tap a session delivers. It must equal the
+   * render space's own token, and the plane refuses it when what it names is not
+   * the stream the tap is delivered on (see DeviceInputService).
+   *
    * @generated from field: string observation_token = 7;
    */
   observationToken: string;
@@ -184,6 +189,11 @@ export type SwipeRequest = Message<"drift.v1.SwipeRequest"> & {
   idempotencyKey: string;
 
   /**
+   * observation_token names the observation the swipe was resolved against: the
+   * live stream that carries it, for a swipe a session delivers. It must equal
+   * the render space's own token, and the plane refuses it when what it names is
+   * not the stream the swipe is delivered on.
+   *
    * @generated from field: string observation_token = 7;
    */
   observationToken: string;
@@ -261,6 +271,15 @@ export type KeyEventRequest = Message<"drift.v1.KeyEventRequest"> & {
   idempotencyKey: string;
 
   /**
+   * observation_token names the observation the key event was resolved against:
+   * the live stream that carries it, for a key event a session delivers. A key
+   * event states no render space — it carries no coordinate — so there is no
+   * second token to agree with, and the plane still refuses this one when what
+   * it names is not the stream the key event is delivered on. A key event that
+   * names none is refused as well: the catalog requires an observation from this
+   * kind, and the transport's validation is never relaxed to admit a request
+   * that does not satisfy it.
+   *
    * @generated from field: string observation_token = 7;
    */
   observationToken: string;
@@ -519,6 +538,19 @@ export const DeviceInputRefusalReasonSchema: GenEnum<DeviceInputRefusalReason> =
  * surface introduces no second representation of a device input. Typed text is
  * the one input whose payload is a reference rather than a value, because content
  * has no representation in a generated message at all (see below).
+ *
+ * The observation a request names is the observation its input was resolved
+ * against, and for a live frame that is that frame's own live stream: an
+ * operator points at a picture the stream carried, in the frame the stream is
+ * encoded at, so the stream is what the point belongs to. The plane does not take
+ * that on the caller's word. The live session is the one that knows which stream
+ * it is, so the delivery reconciles the token with the stream the input is
+ * written to and refuses an input naming any other observation — another
+ * device's stream, a stream this device has left, a captured observation, or
+ * none at all — as a precondition failure of its own, before the input reaches
+ * the device. The field is therefore a fact the plane checks, not a label the
+ * caller asserts, and the check is not the render space's own comparison of the
+ * two tokens the caller supplied.
  *
  * A refused input answers with a Connect error whose code comes from the
  * boundary's stable vocabulary and which carries a DeviceInputRefusal detail. A

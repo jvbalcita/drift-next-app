@@ -104,6 +104,14 @@ func deviceFrame() execution.RenderSpace {
 	return execution.RenderSpace{Width: deviceFrameW, Height: deviceFrameH, ObservationToken: "observation-1"}
 }
 
+// deviceObservation is the observation an input for this device names: the
+// device's own live stream, which is the identity its session reports. A test
+// that wants a MISMATCH writes a different string rather than emptying this one,
+// so the mismatch is never an accident of the fixture.
+func deviceObservation() string {
+	return liveStubSession{deviceID: deliveryDevice}.StreamKey()
+}
+
 // TestADeliveryRequiresAnEngine: a delivery over nothing would refuse every
 // input, so it is refused at construction rather than bound and discovered later.
 func TestADeliveryRequiresAnEngine(t *testing.T) {
@@ -140,6 +148,7 @@ func TestTheTypedInputBecomesTheEnginesOwnInput(t *testing.T) {
 		if err := delivery.DeliverInput(ctx, execution.MirrorDeliveryInput{
 			DeviceID: deliveryDevice, Kind: action.Tap,
 			Point: execution.Point{X: 540, Y: 960}, Frame: deviceFrame(),
+			ObservationToken: deviceObservation(),
 		}); err != nil {
 			t.Fatalf("deliver a tap: %v", err)
 		}
@@ -161,7 +170,7 @@ func TestTheTypedInputBecomesTheEnginesOwnInput(t *testing.T) {
 		if err := delivery.DeliverInput(ctx, execution.MirrorDeliveryInput{
 			DeviceID: deliveryDevice, Kind: action.Swipe,
 			Point: execution.Point{X: 540, Y: 1600}, End: execution.Point{X: 540, Y: 400},
-			DurationMS: 300, Frame: deviceFrame(),
+			DurationMS: 300, Frame: deviceFrame(), ObservationToken: deviceObservation(),
 		}); err != nil {
 			t.Fatalf("deliver a swipe: %v", err)
 		}
@@ -179,6 +188,7 @@ func TestTheTypedInputBecomesTheEnginesOwnInput(t *testing.T) {
 		delivery := newDelivery(t, engine)
 		if err := delivery.DeliverInput(ctx, execution.MirrorDeliveryInput{
 			DeviceID: deliveryDevice, Kind: action.KeyEvent, KeyCode: 4, Repeat: 2,
+			ObservationToken: deviceObservation(),
 		}); err != nil {
 			t.Fatalf("deliver a key event: %v", err)
 		}
@@ -247,6 +257,7 @@ func TestAFrameTheStreamRefusedKeepsTheRenderSpaceCode(t *testing.T) {
 	err := delivery.DeliverInput(context.Background(), execution.MirrorDeliveryInput{
 		DeviceID: deliveryDevice, Kind: action.Tap,
 		Point: execution.Point{X: 1, Y: 1}, Frame: execution.RenderSpace{Width: 1440, Height: 3040},
+		ObservationToken: deviceObservation(),
 	})
 	if err == nil {
 		t.Fatal("a frame the stream refused was reported as delivered")
@@ -268,6 +279,7 @@ func TestASessionFailureDoesNotEchoTheEnginesOwnText(t *testing.T) {
 	delivery := newDelivery(t, engine)
 	err := delivery.DeliverInput(context.Background(), execution.MirrorDeliveryInput{
 		DeviceID: deliveryDevice, Kind: action.Tap, Point: execution.Point{X: 540, Y: 960}, Frame: deviceFrame(),
+		ObservationToken: deviceObservation(),
 	})
 	if err == nil {
 		t.Fatal("a session that did not carry the input was reported as delivering it")
@@ -277,6 +289,79 @@ func TestASessionFailureDoesNotEchoTheEnginesOwnText(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "something internal") {
 		t.Fatal("the refusal quotes the engine's own text")
+	}
+}
+
+// TestAnInputThatNamesAnotherObservationIsRefused is the assertion ARC-190's
+// block asked for: the token a caller sends is reconciled with the stream the
+// input is delivered ON, so the gate is no longer two strings the caller
+// supplied comparing equal.
+//
+// The key event is the case that proves the check is not a coordinate rule: a
+// key event carries no point and no frame, and its request still names an
+// observation the catalog requires (ARC-194). It is refused for naming a stream
+// that is not the one carrying it exactly as a tap is, because the reconciliation
+// belongs to the delivery and not to the shape of the payload.
+func TestAnInputThatNamesAnotherObservationIsRefused(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name     string
+		kind     action.Kind
+		declared string
+	}{
+		{name: "a tap naming another device's stream", kind: action.Tap, declared: "drift-device-beta"},
+		{name: "a tap naming a stream this device has left", kind: action.Tap, declared: "drift-device-alpha-2"},
+		{name: "a key event naming a captured observation", kind: action.KeyEvent, declared: "observation-1"},
+		{name: "a swipe naming no observation at all", kind: action.Swipe, declared: ""},
+		{name: "a tap naming whitespace", kind: action.Tap, declared: "   "},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			engine := newStubEngine(deliveryDevice)
+			delivery := newDelivery(t, engine)
+			err := delivery.DeliverInput(ctx, execution.MirrorDeliveryInput{
+				DeviceID: deliveryDevice, Kind: test.kind,
+				Point: execution.Point{X: 540, Y: 960}, End: execution.Point{X: 540, Y: 400},
+				Frame: deviceFrame(), ObservationToken: test.declared,
+			})
+			if err == nil {
+				t.Fatal("an input naming an observation that is not the stream carrying it was delivered")
+			}
+			if code := platformerrors.CodeOf(err); code != platformerrors.CodePreconditionFailed {
+				t.Fatalf("refusal code = %q, want %q", code, platformerrors.CodePreconditionFailed)
+			}
+			if !errors.Is(err, mirror.ErrObservationStreamMismatch) {
+				t.Fatal("the typed observation refusal is not in the error chain")
+			}
+			// The refusal names the stream delivering the input, so an operator
+			// can read which stream the input was measured against; the
+			// identities are opaque names of this product's own making.
+			if !strings.Contains(err.Error(), deviceObservation()) {
+				t.Fatalf("the refusal does not name the stream delivering the input: %q", err)
+			}
+			if len(engine.carried()) != 0 {
+				t.Fatal("an input for another observation reached the device's session")
+			}
+		})
+	}
+}
+
+// TestAnInputForADeviceWithNoLiveSessionIsRefused: the reconciliation is made
+// against a session, so a device with none has nothing that could reconcile it
+// and the input is refused instead of being written somewhere the caller did not
+// name.
+func TestAnInputForADeviceWithNoLiveSessionIsRefused(t *testing.T) {
+	delivery := newDelivery(t, newStubEngine())
+	err := delivery.DeliverInput(context.Background(), execution.MirrorDeliveryInput{
+		DeviceID: deliveryDevice, Kind: action.Tap,
+		Point: execution.Point{X: 1, Y: 1}, Frame: deviceFrame(), ObservationToken: deviceObservation(),
+	})
+	if err == nil {
+		t.Fatal("an input for a device with no live session was delivered")
+	}
+	if code := platformerrors.CodeOf(err); code != platformerrors.CodeUnavailable {
+		t.Fatalf("refusal code = %q, want %q", code, platformerrors.CodeUnavailable)
 	}
 }
 

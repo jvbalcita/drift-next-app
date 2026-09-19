@@ -69,6 +69,17 @@ type MirrorDeliveryInput struct {
 	// KeyCode and Repeat are the key event.
 	KeyCode uint32
 	Repeat  uint32
+	// ObservationToken is the observation the input was resolved against, as the
+	// kernel authorized it. It travels with every kind a session can carry, and
+	// not only the kinds that carry a coordinate, because a live frame's
+	// observation IS that frame's own live stream (AGENTS.md section 3): the
+	// session is the only place that can reconcile the two, so the delivery
+	// requires this to name the stream it is about to write to and refuses an
+	// input that names any other one. Without it the gate is two strings the
+	// caller supplied comparing equal at the transport, and nothing anywhere
+	// checks that the observation the caller named is the one the input is
+	// delivered against.
+	ObservationToken string
 	// Frame is the render space the coordinate was measured in - the size the
 	// device presents at. The session independently refuses a coordinate whose
 	// frame is not the frame the stream is encoded at, so this travels with the
