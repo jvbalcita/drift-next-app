@@ -3,11 +3,13 @@ package transportconnect_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
 	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/discovery"
+	"drift.local/drift-next/internal/endpoints"
 	"drift.local/drift-next/internal/organizations"
 	store "drift.local/drift-next/internal/store/sqlite"
 	transportconnect "drift.local/drift-next/internal/transport/connect"
@@ -174,29 +176,122 @@ func TestTheDeviceListReportsAStatusDerivedFromTheObservationsItCarries(t *testi
 	}
 }
 
-// The adapter can enumerate a transport while ADB still refuses it. That
-// observation belongs in history, but it must not create a current endpoint
-// that the console would project as ONLINE.
-func TestAnUnauthorizedObservationDoesNotProjectAsOnline(t *testing.T) {
+// An unauthorized device is ATTACHED, and an operator has to be able to see it,
+// tell it apart from a device that is gone, and read WHY it cannot be used. The
+// transport the adapter read is reported, the authorization state is reported,
+// and the status is not ONLINE: the plane has no usable transport for it.
+func TestAnUnauthorizedObservationIsListedWithItsTransportAndState(t *testing.T) {
 	db := openProductDB(t)
 	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
 	observed, err := svc.RecordArrivals(context.Background(), statusWorkspace, []discovery.ObservedDevice{{
 		Serial: "SER-UNAUTHORIZED-LIST",
-		Host:   "192.0.2.20",
-		Port:   5555,
 		State:  discovery.LinkUnauthorized,
 	}}, "system", "discovery-watcher")
 	if err != nil {
 		t.Fatalf("RecordArrivals() error = %v", err)
 	}
 	projected := statusOf(t, db, observed[0].DeviceID)
-	if got := projected.GetStatus(); got != driftv1.DeviceStatus_DEVICE_STATUS_OFFLINE {
-		t.Fatalf("unauthorized device status = %v, want OFFLINE: an unauthorized transport is observed but not reachable", got)
+	if got := projected.GetStatus(); got != driftv1.DeviceStatus_DEVICE_STATUS_UNAUTHORIZED {
+		t.Fatalf("unauthorized device status = %v, want UNAUTHORIZED: the device is attached and this host is not authorized by it", got)
 	}
-	if projected.GetEndpointId() != "" {
-		t.Fatalf("unauthorized device endpoint = %q, want none", projected.GetEndpointId())
+	if got := projected.GetTransport(); got != driftv1.DeviceTransport_DEVICE_TRANSPORT_USB {
+		t.Fatalf("unauthorized device transport = %v, want USB: the adapter read the transport, so the projection must not report none", got)
+	}
+	if projected.GetEndpointId() == "" {
+		t.Fatal("unauthorized device carries no endpoint id, so nothing downstream can place the unit the operator has to authorize")
 	}
 	if projected.GetLastSeenAt() == "" {
 		t.Fatal("unauthorized observation lost last_seen_at, so the console cannot distinguish it from never observed")
+	}
+
+	// The list path is the path the console's device board reads, and the USB
+	// view it draws is filtered on exactly this transport.
+	listed := listDevicesForTest(t, db)
+	if len(listed) != 1 || listed[0].GetId() != string(observed[0].DeviceID) {
+		t.Fatalf("ListDevices() = %#v, want the unauthorized unit listed", listed)
+	}
+	if got := listed[0].GetTransport(); got != driftv1.DeviceTransport_DEVICE_TRANSPORT_USB {
+		t.Fatalf("listed unauthorized device transport = %v, want USB", got)
+	}
+	if got := listed[0].GetStatus(); got == driftv1.DeviceStatus_DEVICE_STATUS_ONLINE {
+		t.Fatalf("listed unauthorized device status = %v, want anything but ONLINE: no action can be dispatched over it", got)
+	}
+}
+
+// A transport this host may not open is a DIFFERENT reading from a device that
+// refuses this host: one is fixed at the machine, the other on the device. Both
+// are attached, and neither may read as ONLINE.
+func TestANoPermissionsObservationIsListedAsItsOwnState(t *testing.T) {
+	db := openProductDB(t)
+	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
+	observed, err := svc.RecordArrivals(context.Background(), statusWorkspace, []discovery.ObservedDevice{{
+		Serial: "SER-NO-PERMS-LIST",
+		State:  discovery.LinkNoPermissions,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("RecordArrivals() error = %v", err)
+	}
+	projected := statusOf(t, db, observed[0].DeviceID)
+	if got := projected.GetStatus(); got != driftv1.DeviceStatus_DEVICE_STATUS_NO_PERMISSIONS {
+		t.Fatalf("no-permissions device status = %v, want NO_PERMISSIONS", got)
+	}
+	if got := projected.GetTransport(); got != driftv1.DeviceTransport_DEVICE_TRANSPORT_USB {
+		t.Fatalf("no-permissions device transport = %v, want USB", got)
+	}
+}
+
+// A device that is attached but not answering is attached: it is neither "gone"
+// nor "never seen", and the transport it is at is the fact that says so. Only
+// the reading changes, from ONLINE to OFFLINE.
+func TestAnOfflineObservationStillCarriesItsTransport(t *testing.T) {
+	db := openProductDB(t)
+	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
+	observed, err := svc.RecordArrivals(context.Background(), statusWorkspace, []discovery.ObservedDevice{{
+		Serial: "SER-OFFLINE-LIST",
+		State:  discovery.LinkOffline,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("RecordArrivals() error = %v", err)
+	}
+	projected := statusOf(t, db, observed[0].DeviceID)
+	if got := projected.GetStatus(); got != driftv1.DeviceStatus_DEVICE_STATUS_OFFLINE {
+		t.Fatalf("offline device status = %v, want OFFLINE", got)
+	}
+	if got := projected.GetTransport(); got != driftv1.DeviceTransport_DEVICE_TRANSPORT_USB {
+		t.Fatalf("offline device transport = %v, want USB: the transport is listed, and it is where the device is", got)
+	}
+}
+
+// History and the service-bound path write a current endpoint with no link state
+// recorded, and it still reads the way it did: the rule that produced those rows
+// only ever made one current when the adapter could use the device, so an
+// unrecorded link state is usable rather than a fourth, unusable state.
+func TestACurrentEndpointWithoutARecordedLinkStateReadsAsUsable(t *testing.T) {
+	db := openProductDB(t)
+	id := observe(t, db, "SER-HISTORY")
+	if err := store.NewEndpointService(db).BindCurrent(context.Background(), endpoints.Endpoint{
+		ID:         "endpoint-bound",
+		Workspace:  statusWorkspace,
+		DeviceID:   id,
+		Transport:  endpoints.TransportUSB,
+		Serial:     "SER-HISTORY",
+		State:      endpoints.Current,
+		ObservedAt: time.Now().UTC(),
+	}, "operator", "op-1"); err != nil {
+		t.Fatalf("BindCurrent() error = %v", err)
+	}
+	current, err := store.NewEndpointRepository(db).ListCurrent(context.Background(), statusWorkspace, id)
+	if err != nil {
+		t.Fatalf("ListCurrent() error = %v", err)
+	}
+	if len(current) != 1 || current[0].LinkState != endpoints.LinkStateUnrecorded {
+		t.Fatalf("current endpoint = %#v, want one with no recorded link state", current)
+	}
+	projected := statusOf(t, db, id)
+	if got := projected.GetStatus(); got != driftv1.DeviceStatus_DEVICE_STATUS_ONLINE {
+		t.Fatalf("device with unrecorded link state = %v, want ONLINE: the rule that wrote it current only did so for a usable device", got)
+	}
+	if got := projected.GetTransport(); got != driftv1.DeviceTransport_DEVICE_TRANSPORT_USB {
+		t.Fatalf("device with unrecorded link state transport = %v, want USB", got)
 	}
 }

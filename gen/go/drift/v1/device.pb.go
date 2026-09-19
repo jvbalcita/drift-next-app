@@ -25,9 +25,27 @@ type DeviceStatus int32
 
 const (
 	DeviceStatus_DEVICE_STATUS_UNSPECIFIED DeviceStatus = 0
-	DeviceStatus_DEVICE_STATUS_ONLINE      DeviceStatus = 1
-	DeviceStatus_DEVICE_STATUS_ATTENTION   DeviceStatus = 2
-	DeviceStatus_DEVICE_STATUS_OFFLINE     DeviceStatus = 3
+	// DEVICE_STATUS_ONLINE: observed at a current endpoint whose transport
+	// reported the device as usable.
+	DeviceStatus_DEVICE_STATUS_ONLINE DeviceStatus = 1
+	// DEVICE_STATUS_ATTENTION is a lifecycle reading no producer emits; it stays
+	// published for consumers that still map it.
+	DeviceStatus_DEVICE_STATUS_ATTENTION DeviceStatus = 2
+	// DEVICE_STATUS_OFFLINE: observed before and not observed now, or observed at
+	// a current transport that is listed but not answering.
+	DeviceStatus_DEVICE_STATUS_OFFLINE DeviceStatus = 3
+	// DEVICE_STATUS_UNAUTHORIZED: ATTACHED at its current transport, and this host
+	// is not authorized by the device — the device's own debugging prompt has not
+	// been accepted. It is not reachable for work, and it is not gone: no host can
+	// accept that prompt for the device, so the device has to be authorized once
+	// on its own display (or by a key placed on it) before anything can be
+	// dispatched to it.
+	DeviceStatus_DEVICE_STATUS_UNAUTHORIZED DeviceStatus = 4
+	// DEVICE_STATUS_NO_PERMISSIONS: ATTACHED at its current transport and this
+	// host may not open it at all. It is a host-side condition an operator can fix
+	// on the host, and it is deliberately not folded into UNAUTHORIZED: the two
+	// need different things done, and only one of them is fixable at this machine.
+	DeviceStatus_DEVICE_STATUS_NO_PERMISSIONS DeviceStatus = 5
 )
 
 // Enum value maps for DeviceStatus.
@@ -37,12 +55,16 @@ var (
 		1: "DEVICE_STATUS_ONLINE",
 		2: "DEVICE_STATUS_ATTENTION",
 		3: "DEVICE_STATUS_OFFLINE",
+		4: "DEVICE_STATUS_UNAUTHORIZED",
+		5: "DEVICE_STATUS_NO_PERMISSIONS",
 	}
 	DeviceStatus_value = map[string]int32{
-		"DEVICE_STATUS_UNSPECIFIED": 0,
-		"DEVICE_STATUS_ONLINE":      1,
-		"DEVICE_STATUS_ATTENTION":   2,
-		"DEVICE_STATUS_OFFLINE":     3,
+		"DEVICE_STATUS_UNSPECIFIED":    0,
+		"DEVICE_STATUS_ONLINE":         1,
+		"DEVICE_STATUS_ATTENTION":      2,
+		"DEVICE_STATUS_OFFLINE":        3,
+		"DEVICE_STATUS_UNAUTHORIZED":   4,
+		"DEVICE_STATUS_NO_PERMISSIONS": 5,
 	}
 )
 
@@ -159,6 +181,11 @@ type Device struct {
 	// back from the endpoint registry, and never derived by a client from the
 	// shape of an endpoint address — a client that reconstructs it can disagree
 	// with the observation it is reporting on.
+	//
+	// It is reported for EVERY device that has a current endpoint, whether or not
+	// that transport was usable: a device attached over USB and not yet authorized
+	// is attached over USB, and a surface that answers "no transport" about a unit
+	// that is plugged in cannot show it at all (ARC-196).
 	Transport     DeviceTransport `protobuf:"varint,12,opt,name=transport,proto3,enum=drift.v1.DeviceTransport" json:"transport,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -529,12 +556,14 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x124\n" +
 	"\tworkspace\x18\x03 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\"=\n" +
 	"\x11GetDeviceResponse\x12(\n" +
-	"\x06device\x18\x01 \x01(\v2\x10.drift.v1.DeviceR\x06device*\x7f\n" +
+	"\x06device\x18\x01 \x01(\v2\x10.drift.v1.DeviceR\x06device*\xc1\x01\n" +
 	"\fDeviceStatus\x12\x1d\n" +
 	"\x19DEVICE_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14DEVICE_STATUS_ONLINE\x10\x01\x12\x1b\n" +
 	"\x17DEVICE_STATUS_ATTENTION\x10\x02\x12\x19\n" +
-	"\x15DEVICE_STATUS_OFFLINE\x10\x03*g\n" +
+	"\x15DEVICE_STATUS_OFFLINE\x10\x03\x12\x1e\n" +
+	"\x1aDEVICE_STATUS_UNAUTHORIZED\x10\x04\x12 \n" +
+	"\x1cDEVICE_STATUS_NO_PERMISSIONS\x10\x05*g\n" +
 	"\x0fDeviceTransport\x12 \n" +
 	"\x1cDEVICE_TRANSPORT_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14DEVICE_TRANSPORT_USB\x10\x01\x12\x18\n" +

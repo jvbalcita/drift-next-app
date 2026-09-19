@@ -342,7 +342,7 @@ func (d *DB) upsertObservedDevice(ctx context.Context, tx *sql.Tx, workspace org
 		}
 	}
 
-	endpointID, err := d.upsertEndpoint(ctx, tx, workspace, deviceID, observation, at, observation.Actionable())
+	endpointID, err := d.upsertEndpoint(ctx, tx, workspace, deviceID, observation, at)
 	if err != nil {
 		return result, err
 	}
@@ -495,43 +495,65 @@ func observedTransportAddress(observation discovery.ObservedDevice) (string, uin
 	return host, port
 }
 
-// upsertEndpoint keeps one current endpoint per device. An unchanged transport
-// only refreshes its observation time; a changed transport supersedes the
-// previous endpoint and records a new one, so endpoint identity stays mutable
-// while device identity does not.
+// upsertEndpoint records the transport an observation was made over as the
+// device's CURRENT endpoint, keeps exactly one current endpoint per device, and
+// records what that transport reported beside it.
 //
-// The transport is recorded from the observation here, once, and the record is
-// what every later reader reads. The transport address identifies the transport:
-// TransportOf and the resolution below populate an address exactly when the
-// observation was made over TCP and leave it empty exactly when it was made over
-// USB, so comparing the address compares the transport it belongs to.
-func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, deviceID devices.DeviceID, observation discovery.ObservedDevice, at string, actionable bool) (string, error) {
+// An unchanged transport only refreshes its observation time; a changed
+// transport supersedes the previous endpoint and records a new one, so endpoint
+// identity stays mutable while device identity does not. The transport is
+// recorded from the observation here, once, and the record is what every later
+// reader reads: TransportOf and the resolution below populate an address exactly
+// when the observation was made over TCP and leave it empty exactly when it was
+// made over USB, so comparing the address compares the transport it belongs to.
+//
+// Currency is an OBSERVATION fact, not an authorization decision. A device this
+// plane can see attached at a transport is at that transport whether or not the
+// adapter may use it there, and the two questions have two answers that used to
+// be one: the row that answers "where is this device" was written only when the
+// adapter could use the device, so an attached-but-unauthorized unit had no
+// current endpoint at all, its projection reported no transport (UNSPECIFIED,
+// although the adapter had read `usb:<bus>X` for it), its status fell through to
+// OFFLINE while it was plugged in, and the console's USB view showed one device
+// out of twenty (ARC-196).
+//
+// What the transport reported - usable, unauthorized, no permissions, offline -
+// is stored on the row and read back through endpoints.LinkState.Usable(), which
+// is where the action path asks. Nothing that was refused becomes reachable: a
+// dispatch over a transport that was not usable is refused with the fact the
+// transport reported instead of with a missing transport.
+func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizations.WorkspaceID, deviceID devices.DeviceID, observation discovery.ObservedDevice, at string) (string, error) {
 	transport := endpoints.TransportOf(observation.Serial, observation.Host, observation.Port)
 	host, port := observedTransportAddress(observation)
 	endpointType := transportToken(transport)
+	linkState := linkStateToken(observation.State)
+	// An observation that recorded no link state stores NULL, which is the
+	// absence of the fact. The column's CHECK admits no other spelling of it.
+	var recordedLinkState any
+	if linkState != endpoints.LinkStateUnrecorded {
+		recordedLinkState = string(linkState)
+	}
 	var currentID, currentHost string
 	var currentPort int64
 	err := tx.QueryRowContext(ctx, `SELECT id, COALESCE(host, ''), COALESCE(port, 0) FROM device_endpoints WHERE workspace_id=? AND device_id=? AND state='current'`, workspace, deviceID).Scan(&currentID, &currentHost, &currentPort)
 	switch err {
 	case nil:
 		if currentHost == host && uint16(currentPort) == port {
-			if actionable {
-				if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET observed_at=?, endpoint_type=?, state='current' WHERE workspace_id=? AND id=?`, at, endpointType, workspace, currentID); err != nil {
-					return "", err
-				}
-				return currentID, nil
-			}
-			// An unauthorized/offline observation is still retained as history,
-			// but it must not leave the device looking reachable through this
-			// endpoint.
-			if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET state='superseded', superseded_at=? WHERE workspace_id=? AND id=? AND state='current'`, at, workspace, currentID); err != nil {
+			// The device is still at the transport it was observed at, so the
+			// row stays current and the observation refreshes when it was made
+			// and what the transport reported. An observation the adapter could
+			// not act on does NOT end the transport: the device has not moved,
+			// and saying it has is how a refusal read as a disconnection.
+			if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET observed_at=?, endpoint_type=?, link_state=? WHERE workspace_id=? AND id=? AND state='current'`, at, endpointType, recordedLinkState, workspace, currentID); err != nil {
 				return "", err
 			}
+			return currentID, nil
 		}
-		if actionable {
-			if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET state='superseded', superseded_at=? WHERE workspace_id=? AND id=? AND state='current'`, at, workspace, currentID); err != nil {
-				return "", err
-			}
+		// The device answers at another transport now: the transport it left is
+		// superseded at this recorded moment. One current endpoint per device
+		// stays the rule, and a move is a move whatever either link state was.
+		if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET state='superseded', superseded_at=? WHERE workspace_id=? AND id=? AND state='current'`, at, workspace, currentID); err != nil {
+			return "", err
 		}
 	case sql.ErrNoRows:
 	default:
@@ -549,14 +571,30 @@ func (d *DB) upsertEndpoint(ctx context.Context, tx *sql.Tx, workspace organizat
 	if strings.TrimSpace(host) != "" {
 		endpointHost = host
 	}
-	state := endpoints.Observed
-	if actionable {
-		state = endpoints.Current
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id, workspace_id, device_id, endpoint_type, serial, host, port, state, observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, endpointID, workspace, deviceID, endpointType, serial, endpointHost, port, state, at); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id, workspace_id, device_id, endpoint_type, serial, host, port, state, link_state, observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'current', ?, ?)`, endpointID, workspace, deviceID, endpointType, serial, endpointHost, port, recordedLinkState, at); err != nil {
 		return "", mapConstraint(err)
 	}
 	return endpointID, nil
+}
+
+// linkStateToken translates the link state an observation reported into the
+// vocabulary the endpoint record stores. It is the ONE place the translation
+// happens, so the stored fact and the observation that produced it cannot spell
+// a state two ways, and a state the model does not know fails closed into
+// `unauthorized` rather than being stored as a state nothing can read.
+func linkStateToken(state discovery.DeviceLinkState) endpoints.LinkState {
+	switch state {
+	case discovery.LinkOnline:
+		return endpoints.LinkStateOnline
+	case discovery.LinkOffline:
+		return endpoints.LinkStateOffline
+	case discovery.LinkNoPermissions:
+		return endpoints.LinkStateNoPermissions
+	case discovery.LinkUnauthorized:
+		return endpoints.LinkStateUnauthorized
+	default:
+		return endpoints.LinkStateUnauthorized
+	}
 }
 
 func joinHostPort(host string, port uint16) string {
@@ -617,7 +655,11 @@ func (d *DB) reconcileMissingEndpoints(ctx context.Context, tx *sql.Tx, workspac
 
 	observed := make(map[endpointObservationKey]struct{}, len(requested))
 	for index, observation := range requested {
-		if !observation.Actionable() || index >= len(persisted) {
+		// Every transport this scan SAW is a sighting, whatever its link state:
+		// an attached-but-unauthorized unit was observed at that transport, and
+		// reading it as unseen would supersede the very endpoint that records
+		// it - reporting a device that is plugged in as one that left.
+		if index >= len(persisted) {
 			continue
 		}
 		host, port := observedTransportAddress(observation)
@@ -814,7 +856,7 @@ func (d *DB) ListEndpoints(ctx context.Context, workspace organizations.Workspac
 	if err := validateWorkspace(string(workspace)); err != nil {
 		return nil, err
 	}
-	query := `SELECT id, workspace_id, device_id, endpoint_type, serial, host, port, state, observed_at, superseded_at FROM device_endpoints WHERE workspace_id=?`
+	query := `SELECT id, workspace_id, device_id, endpoint_type, serial, host, port, state, link_state, observed_at, superseded_at FROM device_endpoints WHERE workspace_id=?`
 	args := []any{workspace}
 	if deviceID != "" {
 		query += ` AND device_id=?`
@@ -832,13 +874,16 @@ func (d *DB) ListEndpoints(ctx context.Context, workspace organizations.Workspac
 	result := make([]endpoints.Endpoint, 0)
 	for rows.Next() {
 		var endpoint endpoints.Endpoint
-		var serial, host, supersededAt sql.NullString
+		var serial, host, supersededAt, linkState sql.NullString
 		var port sql.NullInt64
 		var endpointType, observed string
-		if err := rows.Scan(&endpoint.ID, &endpoint.Workspace, &endpoint.DeviceID, &endpointType, &serial, &host, &port, &endpoint.State, &observed, &supersededAt); err != nil {
+		if err := rows.Scan(&endpoint.ID, &endpoint.Workspace, &endpoint.DeviceID, &endpointType, &serial, &host, &port, &endpoint.State, &linkState, &observed, &supersededAt); err != nil {
 			return nil, err
 		}
 		endpoint.Transport = transportFromToken(endpointType)
+		if linkState.Valid {
+			endpoint.LinkState = endpoints.LinkState(linkState.String)
+		}
 		if serial.Valid {
 			endpoint.Serial = serial.String
 		}

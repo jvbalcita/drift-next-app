@@ -225,8 +225,16 @@ func NewStoreFleetReader(db *store.DB) *StoreFleetReader {
 	return &StoreFleetReader{db: db}
 }
 
-// Fleet returns the workspace's devices and the serial of each one's current
-// transport endpoint, or the empty string for a device that has none.
+// Fleet returns the workspace's devices and the serial of each one's USABLE
+// current transport endpoint, or the empty string for a device that has no
+// usable one.
+//
+// A device whose current transport reported it as present but unauthorized, not
+// openable by this host, or not answering reads as the empty string here, so a
+// fleet-wide run reports it as its OWN row with nothing dispatched to it rather
+// than sending a write at a device this host may not act on. Its transport is
+// still current - that is where the device is, and the console shows it - and
+// being at a transport is not permission to use it (ARC-196).
 func (r *StoreFleetReader) Fleet(ctx context.Context, workspace string) (map[string]string, error) {
 	if r == nil || r.db == nil {
 		return nil, platformerrors.New(platformerrors.CodeUnavailable, "the device fleet reader is not configured")
@@ -245,7 +253,11 @@ func (r *StoreFleetReader) Fleet(ctx context.Context, workspace string) (map[str
 			// A retired device is retired in place, and nothing acts on it.
 			continue
 		}
-		fleet[string(device.ID)] = current[device.ID].Serial
+		if endpoint, observed := current[device.ID]; observed && endpoint.LinkState.Usable() {
+			fleet[string(device.ID)] = endpoint.Serial
+			continue
+		}
+		fleet[string(device.ID)] = ""
 	}
 	return fleet, nil
 }

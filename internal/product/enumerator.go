@@ -72,9 +72,15 @@ func runtimeLinkState(state adb.DeviceAuthState) discovery.DeviceLinkState {
 		return discovery.LinkOnline
 	case adb.StateOffline:
 		return discovery.LinkOffline
+	case adb.StateNoPermissions:
+		// The adapter listed this transport and the HOST may not open it, which
+		// is a different instruction to an operator from the device refusing
+		// this host: a udev/ACL rule on the host is theirs to fix, and no
+		// amount of prompting on the device would change it.
+		return discovery.LinkNoPermissions
 	default:
-		// Unknown, authorizing, no-permissions, and every other non-usable adb
-		// state remain visible as a refused transport rather than disappearing.
+		// Unknown, authorizing, and every other non-usable adb state remain
+		// visible as a refused transport rather than disappearing.
 		return discovery.LinkUnauthorized
 	}
 }
