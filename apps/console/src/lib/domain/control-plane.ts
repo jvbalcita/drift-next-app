@@ -4,7 +4,7 @@
  * It is derived from observation facts — never from a stored lifecycle column —
  * and it is not a claim that the device answers right now:
  * - "online" is the wire's ONLINE: the transport it was last observed at is
- *   still current.
+ *   still current, and that transport reported the device as usable.
  * - "attention" is the wire's ATTENTION: it was observed with a condition to
  *   review.
  * - "offline" is the wire's OFFLINE: it was observed, and it is not observed
@@ -14,8 +14,18 @@
  *   that has never answered and a device that answered and then left are
  *   different facts an operator acts on differently — and it fails closed:
  *   neither state is ever eligible for control.
+ * - "unauthorized" is the wire's UNAUTHORIZED: the device IS attached at its
+ *   current transport, and this host is not authorized by it. It is not
+ *   "offline" — the unit is right there — and it is not "online": the plane
+ *   cannot act over a transport the device has not authorized. No host can
+ *   accept that prompt for the device, so the device has to be authorized once
+ *   on its own display, or by placing this host's key on it.
+ * - "no_permissions" is the wire's NO_PERMISSIONS: the device is attached at its
+ *   current transport and this host may not open it at all. It is kept apart
+ *   from "unauthorized" because the fix is on the HOST rather than on the
+ *   device, and an operator who reads one for the other fixes the wrong thing.
  */
-export type DeviceStatus = "online" | "attention" | "offline" | "unobserved"
+export type DeviceStatus = "online" | "attention" | "offline" | "unobserved" | "unauthorized" | "no_permissions"
 export type DeviceLifecycleState = "registered" | "active" | "unavailable" | "retired"
 export type ControlEligibility = "eligible" | "offline" | "incompatible" | "policy_denied"
 
