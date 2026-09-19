@@ -8,6 +8,7 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { DeviceView } from "@/lib/domain/control-plane"
 import { liveStreamView, type LiveStreamView } from "@/lib/live-mirror"
+import { liveTileCopy } from "@/lib/live-tiles"
 import { LiveTilePicture } from "./live-tile"
 
 /**
@@ -26,7 +27,7 @@ import { LiveTilePicture } from "./live-tile"
  */
 const workspaceId = "workspace-lab-local"
 
-function stream(overrides: { state?: MirrorStreamState; frames?: bigint } = {}): LiveStreamView {
+function stream(overrides: { state?: MirrorStreamState; frames?: bigint; failure?: string } = {}): LiveStreamView {
   return liveStreamView(create(MirrorStreamSchema, {
     streamId: "stream-atlas-04",
     deviceId: "atlas-04",
@@ -35,6 +36,7 @@ function stream(overrides: { state?: MirrorStreamState; frames?: bigint } = {}):
     renderHeight: 1920,
     state: overrides.state ?? MirrorStreamState.LIVE,
     frames: overrides.frames ?? 4n,
+    failure: overrides.failure ?? "",
   }))
 }
 
@@ -120,6 +122,33 @@ describe("a fleet tile's live picture", () => {
     // the tile's picture: a tile that mounted its element late would be showing
     // its background colour under a state label reading Live.
     expect(screen.getByTestId("live-tile-video-atlas-04")).toHaveProperty("srcObject", media)
+  })
+
+  it("says why in the tile when it cannot show the picture, in the plane's own words", async () => {
+    // The reason the plane classified for THIS tile's stream, which is the one
+    // the operator most needs: the tile has to report it rather than leaving a
+    // mark that reads as a device with nothing to show.
+    const reason = "device has no current transport endpoint"
+    const client: LiveMirrorClient = {
+      ...tileMirror(Promise.resolve({ answerSdp: "answer-sdp", stream: stream() })),
+      async startStream() { return stream({ state: MirrorStreamState.FAILED, failure: reason }) },
+    }
+    render(<LiveTilePicture device={device()} mirror={client} transport="webrtc" workspaceId={workspaceId} viewing />)
+
+    const state = await screen.findByTestId("live-tile-state-atlas-04")
+    await waitFor(() => expect(state).toHaveAttribute("data-tile-state", "failed"))
+    // The whole classified sentence is carried by the tile's own element, as its
+    // accessible name and its tooltip: a tile is a device-shaped box a hundred-odd
+    // pixels wide, so the sentence is carried rather than clipped into it, and the
+    // mark drawn inside says the tile is not live. Nothing here reports a generic
+    // failure in place of the plane's own reason.
+    expect(state).toHaveAttribute("aria-label", `${liveTileCopy.failed} ${reason}`)
+    expect(state).toHaveAttribute("title", `${liveTileCopy.failed} ${reason}`)
+    expect(state).toHaveTextContent("Not live")
+    expect(state).toHaveAttribute("role", "alert")
+    // And the picture is not shown: the element is there, empty and hidden, so no
+    // frame of anything is passed off as the device's screen now.
+    expect(screen.getByTestId("live-tile-video-atlas-04")).toHaveClass("invisible")
   })
 
   it("opens nothing and draws nothing for a tile the console's bound does not reach", async () => {
