@@ -508,7 +508,7 @@ describe("the info control beside the pin", () => {
     await user.keyboard("{Enter}")
 
     await waitFor(() => expect(intents).toHaveLength(1))
-    expect(intents[0]).toMatchObject({ type: "submitDeviceKeyEvent", deviceId: "atlas-04", keyCode: 4 })
+    expect(intents[0]).toMatchObject({ type: "submitDeviceKeyEvent", deviceId: "atlas-04", keyCode: 4, observationToken: streamToken })
   })
 
   it("sends the app switcher and home from the same row, as the device's own bar does", async () => {
@@ -521,8 +521,8 @@ describe("the info control beside the pin", () => {
     await user.click(within(keys).getByRole("button", { name: "Home" }))
 
     await waitFor(() => expect(intents).toHaveLength(2))
-    expect(intents[0]).toMatchObject({ type: "submitDeviceKeyEvent", keyCode: 187 })
-    expect(intents[1]).toMatchObject({ type: "submitDeviceKeyEvent", keyCode: 3 })
+    expect(intents[0]).toMatchObject({ type: "submitDeviceKeyEvent", keyCode: 187, observationToken: streamToken })
+    expect(intents[1]).toMatchObject({ type: "submitDeviceKeyEvent", keyCode: 3, observationToken: streamToken })
   })
 
   it("refuses to describe an input it has no lease for, and names the missing lease", async () => {
@@ -702,7 +702,38 @@ describe("the operator's own keyboard types into the device", () => {
     keystroke(stage, { key: "Enter" })
 
     await waitFor(() => expect(keyEvents(intents)).toHaveLength(1))
-    expect(keyEvents(intents)[0]).toMatchObject({ type: "submitDeviceKeyEvent", deviceId: "atlas-04", keyCode: 66, confirmed: true })
+    expect(keyEvents(intents)[0]).toMatchObject({ type: "submitDeviceKeyEvent", deviceId: "atlas-04", keyCode: 66, confirmed: true, observationToken: streamToken })
+  })
+
+  /**
+   * The measured defect, and the assertion that would have caught it: the key
+   * event the console built named NO observation, and the kernel's catalog
+   * declares a key event as requiring one - so every keystroke and every press
+   * of the device's own navigation keys came back as the single sentence
+   * "device input intent is invalid", with nothing in it to act on.
+   *
+   * Both paths a key event takes are checked here, because both were refused:
+   * the operator's own keyboard, and the device's own navigation bar. What they
+   * must name is the frame's own live stream, the same observation a coordinate
+   * in that frame is measured from - the picture the operator is typing into.
+   */
+  it("names the frame's own observation on every key event, from the keyboard and from the nav row", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents, stage } = renderPanel()
+    await live(intents)
+
+    stage.focus()
+    keystroke(stage, { key: "Enter" })
+    await waitFor(() => expect(keyEvents(intents)).toHaveLength(1))
+    expect(keyEvents(intents)[0]).toMatchObject({ observationToken: streamToken })
+    expect(keyEvents(intents)[0]).not.toHaveProperty("observationToken", "")
+
+    await user.click(within(screen.getByTestId("live-mirror-device-keys")).getByRole("button", { name: "Menu (recent apps)" }))
+    await waitFor(() => expect(keyEvents(intents)).toHaveLength(2))
+
+    for (const event of keyEvents(intents)) {
+      expect(event).toMatchObject({ observationToken: streamToken })
+    }
   })
 
   it("reaches no device while the frame does not hold focus, and is not captured from elsewhere", async () => {

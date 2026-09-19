@@ -67,7 +67,7 @@ function DeviceInputControls({ device, snapshot, dispatch }: { device: DeviceVie
       ? await dispatch({ type: "submitDeviceTap", ...common, x: number("x"), y: number("y"), renderWidth: number("width"), renderHeight: number("height"), observationToken: values.observationToken || token })
       : mode === "swipe"
         ? await dispatch({ type: "submitDeviceSwipe", ...common, startX: number("startX"), startY: number("startY"), endX: number("endX"), endY: number("endY"), durationMs: number("durationMs"), renderWidth: number("width"), renderHeight: number("height"), observationToken: values.observationToken || token })
-        : await dispatch({ type: "submitDeviceKeyEvent", ...common, keyCode: number("keyCode") })
+        : await dispatch({ type: "submitDeviceKeyEvent", ...common, keyCode: number("keyCode"), observationToken: values.observationToken || token })
     setStatus(`${result.ok ? "Kernel outcome" : "Kernel refusal"}: ${result.message}`)
   }
 

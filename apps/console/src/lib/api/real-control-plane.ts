@@ -2153,7 +2153,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       case "submitDeviceKeyEvent": {
         const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
         if (!lease) return failure(intent, "Acquire an active lease before submitting a key event.", { errorCode: "precondition_failed" })
-        const response = await this.services.deviceInput.keyEvent(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: "", approvalGranted: intent.confirmed, keyEvent: { keyCode: intent.keyCode } })
+        const response = await this.services.deviceInput.keyEvent(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: intent.observationToken, approvalGranted: intent.confirmed, keyEvent: { keyCode: intent.keyCode } })
         return mutation(intent, `Key event outcome: ${response.result?.outcome ?? "unknown"}.`, { resourceId: response.result?.actionId })
       }
       case "submitDeviceText": {

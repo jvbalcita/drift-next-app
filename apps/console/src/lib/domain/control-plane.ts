@@ -830,7 +830,22 @@ export type ControlPlaneIntent =
   | { type: "submitDeviceAction"; deviceId: string; kind: DeviceActionKind; confirmed: boolean }
   | { type: "submitDeviceTap"; deviceId: string; x: number; y: number; renderWidth: number; renderHeight: number; observationToken: string; confirmed: boolean }
   | { type: "submitDeviceSwipe"; deviceId: string; startX: number; startY: number; endX: number; endY: number; durationMs: number; renderWidth: number; renderHeight: number; observationToken: string; confirmed: boolean }
-  | { type: "submitDeviceKeyEvent"; deviceId: string; keyCode: number; confirmed: boolean }
+  /**
+   * submitDeviceKeyEvent sends one key event for the device.
+   *
+   * observationToken is the observation the keystroke is measured against, and
+   * it is carried for the same reason a coordinate's is: the kernel's own action
+   * catalog declares a key event as requiring a fresh observation token, so an
+   * intent that names none is refused as malformed before anything is
+   * authorized - which is exactly what an operator saw as "device input intent
+   * is invalid" for every keystroke and every press of the device's own
+   * navigation keys. A keystroke is typed into the frame the operator is looking
+   * at, so it names that frame's own live stream, the same observation a
+   * coordinate in that frame is measured from. It is required rather than
+   * optional because a dispatch that cannot name an observation has nothing to
+   * send: a console that let one through would be asking the kernel to guess.
+   */
+  | { type: "submitDeviceKeyEvent"; deviceId: string; keyCode: number; observationToken: string; confirmed: boolean }
   /**
    * submitDeviceText types text into the device through its live session.
    *

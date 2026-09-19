@@ -250,9 +250,23 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
    * where the operator is looking - the notice beside the controls, and the
    * details' refusal line - because a keystroke the kernel refuses is a fact
    * about the device, not a keystroke to drop.
+   *
+   * The observation it names is this frame's own live stream, the same one a
+   * coordinate in this frame is measured from, and that is not decoration: the
+   * kernel's catalog declares a key event as requiring a fresh observation
+   * token, so an intent naming none is refused as malformed - the sentence an
+   * operator read as "device input intent is invalid" for every keystroke and
+   * every press of the device's own navigation keys. A frame that cannot name an
+   * observation therefore refuses here, with the reason it cannot, rather than
+   * asking the kernel to refuse the intent it built.
    */
   async function sendKey(keyCode: number, label: string) {
-    const result = await dispatch({ type: "submitDeviceKeyEvent", deviceId: device.id, keyCode, confirmed: true })
+    if (coordinateObservation === "") {
+      setNotice(`${label}: ${inputBlockedReason}`)
+      setRefusal(inputBlockedReason)
+      return
+    }
+    const result = await dispatch({ type: "submitDeviceKeyEvent", deviceId: device.id, keyCode, observationToken: coordinateObservation, confirmed: true })
     setNotice(`${label}: ${result.message}`)
     setRefusal(result.ok ? "" : result.message)
   }
