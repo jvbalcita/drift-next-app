@@ -15,6 +15,8 @@ export const deviceStatusLabels: Record<DeviceStatus, string> = {
   attention: "Attention",
   offline: "Offline",
   unobserved: "Not Observed",
+  unauthorized: "Unauthorized",
+  no_permissions: "No Permissions",
 }
 
 /**
@@ -28,6 +30,8 @@ export const deviceStatusMeanings: Record<DeviceStatus, string> = {
   attention: "observed by the control plane with a condition to review",
   offline: "observed before, but no current transport is recorded",
   unobserved: "no observation has been recorded for this device",
+  unauthorized: "observed by the control plane at a transport this host is not authorized to use",
+  no_permissions: "observed by the control plane at a transport this host may not open",
 }
 
 /**
@@ -45,6 +49,10 @@ export function deviceObservationSentence(deviceName: string, status: DeviceStat
       return `${deviceName} is offline: ${deviceStatusMeanings.offline}.`
     case "unobserved":
       return `${deviceName} is not observed: ${deviceStatusMeanings.unobserved}.`
+    case "unauthorized":
+      return `${deviceName} is attached but unauthorized: ${deviceStatusMeanings.unauthorized}, so the device has to be authorized once on its own display before this plane can act on it.`
+    case "no_permissions":
+      return `${deviceName} is attached with no permissions for this host: ${deviceStatusMeanings.no_permissions}, so the permission rule on this host has to be fixed before this plane can act on it.`
   }
 }
 
@@ -54,6 +62,10 @@ export function deviceObservationSentence(deviceName: string, status: DeviceStat
  * absent cannot be answered two ways, and it is never about colour: the callers
  * pair it with the status label and an icon so the fact survives a monochrome
  * view and a screen reader.
+ *
+ * An attached-but-unauthorized device is NOT absent. It is present, it cannot be
+ * acted on, and drawing it as absent would hide the very units an operator has
+ * to authorize — which is the defect this status exists to end.
  */
 export function notObserved(status: DeviceStatus): boolean {
   return status === "offline" || status === "unobserved"

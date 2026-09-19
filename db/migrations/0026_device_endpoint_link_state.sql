@@ -1,0 +1,34 @@
+-- Record the link state an endpoint observation was made at.
+--
+-- A device_endpoints row records WHERE a device was observed - the transport it
+-- answered on - and nothing recorded WHAT that transport reported about the
+-- device. So the two facts were the same fact: the registry made an observation
+-- current only when the adapter could USE the device (`observation.Actionable()`,
+-- i.e. the link read `online`), which meant an attached-but-unauthorized unit -
+-- nineteen of the twenty units on the owner's bench - was written as an
+-- `observed` row and never as a current one. With no current endpoint, the
+-- device projection had no transport to report (UNSPECIFIED, although the
+-- adapter had read `usb:<bus>X` for it), the wire status fell through to OFFLINE
+-- although the unit was plugged in, and the console's USB view showed exactly
+-- one device out of twenty.
+--
+-- The transport a device is at and the state that transport reports are two
+-- different observations, and this column is the second one:
+--
+--   online         the adapter can use the device at this transport
+--   unauthorized   present, and this host is not authorized by the device
+--                  until the operator accepts the debugging prompt on it
+--   no_permissions the transport is present but this host may not open it
+--                  (a host-side udev/ACL condition, not a device prompt)
+--   offline        the transport is listed but the device is not answering on it
+--
+-- The vocabulary is the discovery model's own DeviceLinkState spelling, so the
+-- stored fact and the observation that produced it cannot drift apart.
+--
+-- Rows written before this migration keep link_state NULL, which means "not
+-- recorded" rather than any of the values above. A NULL link_state on a CURRENT
+-- row is a row the registry only ever made current when the device was usable
+-- (the rule 0026 replaces), so a reader reports it as usable exactly as it did
+-- before; a NULL link_state on a non-current row is history and settles nothing.
+ALTER TABLE device_endpoints ADD COLUMN link_state TEXT
+    CHECK (link_state IS NULL OR link_state IN ('online', 'offline', 'unauthorized', 'no_permissions'));

@@ -110,10 +110,14 @@ func TestActivationRefusesADeviceThatIsNotOnUSB(t *testing.T) {
 	}
 }
 
-// An unauthorized device is its own refusal, and the message is an instruction: the
-// operator has to accept the prompt on the device. That is a different problem from
-// "not attached" and from "not on USB", so it is a different reason.
-func TestActivationRefusesAnUnauthorizedDeviceAndNamesThePrompt(t *testing.T) {
+// An unauthorized device is its own refusal, and the message is an instruction —
+// but it must be an instruction the operator of a SCREENSLESS unit can act on.
+// "Accept the prompt on the device's screen" is not: half this fleet is mainboard
+// units with no display attached, and a refusal that names an action nobody can
+// take is not an instruction at all. What is true is that no host can accept that
+// prompt for the device — that is the device-side boundary, and the product does
+// not bypass it — so the sentence says so and names the two things that DO work.
+func TestActivationRefusesAnUnauthorizedDeviceAndNamesTheDeviceSideBoundary(t *testing.T) {
 	activator, runner, _, _ := newActivator(t, [][]adb.DiscoveredDevice{{transport(labSerial, "unauthorized", "usb")}})
 
 	_, err := activator.Activate(context.Background(), labSerial, 5556)
@@ -124,8 +128,14 @@ func TestActivationRefusesAnUnauthorizedDeviceAndNamesThePrompt(t *testing.T) {
 	if refusal.Reason != ActivationRefusalNotAuthorized {
 		t.Fatalf("refusal reason = %q, want %q", refusal.Reason, ActivationRefusalNotAuthorized)
 	}
-	if !strings.Contains(err.Error(), "USB debugging prompt") {
-		t.Fatalf("refusal %q must tell the operator to accept the prompt on the device", err.Error())
+	if !strings.Contains(err.Error(), "no host can accept that prompt for it") {
+		t.Fatalf("refusal %q must say no host can accept the prompt for this device", err.Error())
+	}
+	if !strings.Contains(err.Error(), "authorized once on its own display") {
+		t.Fatalf("refusal %q must name the one thing that does authorize the device", err.Error())
+	}
+	if strings.Contains(err.Error(), "device's screen") {
+		t.Fatalf("refusal %q tells the operator to use a screen the device does not have", err.Error())
 	}
 	if len(runner.argvs) != 0 {
 		t.Fatalf("a refused activation ran %v", runner.argvs)
@@ -170,8 +180,11 @@ func TestActivationReportsUnauthorizedAfterTheChangeRatherThanSuccess(t *testing
 		t.Fatalf("StateAfter = %q, want unauthorized", outcome.StateAfter)
 	}
 	message := outcome.Message()
-	if !strings.Contains(message, "UNAUTHORIZED") || !strings.Contains(message, "Allow USB debugging?") {
-		t.Fatalf("outcome message %q must say the device is unauthorized and name the prompt to accept", message)
+	if !strings.Contains(message, "UNAUTHORIZED") || !strings.Contains(message, "no host can accept that prompt for it") {
+		t.Fatalf("outcome message %q must say the device is unauthorized and that no host can accept the prompt for it", message)
+	}
+	if strings.Contains(message, "device's screen") {
+		t.Fatalf("outcome message %q names a screen the device has not got", message)
 	}
 	if len(runner.argvs) != 1 || runner.argvs[0] != "tcpip 5556" {
 		t.Fatalf("the change ran %v, want exactly [tcpip 5556]", runner.argvs)

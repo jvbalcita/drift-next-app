@@ -502,6 +502,51 @@ describe("ControlPage connection filters", () => {
     expect(screen.getByRole("button", { name: /Orion 03/i })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Nova 02/i })).not.toBeInTheDocument()
   })
+
+  it("shows a device that is attached over USB but not yet authorized in the USB view", async () => {
+    // The owner's own symptom: nineteen units plugged in, one drawn. An
+    // attached-but-unauthorized device IS a USB device - that is where it is -
+    // and a view that filters on the observed transport must show it. It is not
+    // OTG-eligible, so the two filters answer two different questions (ARC-196).
+    const user = userEvent.setup()
+    const client = new MockControlPlaneClient()
+    const snapshot = client.getSnapshot()
+    const unauthorized: DeviceView = {
+      id: "atlas-09",
+      displayName: "Atlas 09",
+      stableIdentity: "device-109",
+      lifecycle: "active",
+      status: "unauthorized",
+      platformVersion: "Android 14",
+      batteryPercent: 0,
+      latencyMs: 0,
+      lastSeen: "2 sec ago",
+      agentId: "",
+      endpointId: "endpoint-atlas-09-current",
+      transport: "usb",
+      location: "",
+      packageName: "",
+      activityName: "",
+      workflow: "",
+      workflowStatus: "idle",
+      taskProgress: 0,
+      controlEligibility: "incompatible",
+      capabilities: [],
+    }
+    render(<ControlPage snapshot={{ ...snapshot, devices: [...snapshot.devices, unauthorized] }} dispatch={async (intent) => client.dispatch(intent)} />)
+
+    await user.click(screen.getByRole("button", { name: "USB" }))
+
+    expect(screen.getByLabelText("Device connection filters")).toHaveTextContent("3 / 7 devices shown")
+    expect(screen.getByRole("button", { name: /Atlas 09/i })).toBeInTheDocument()
+    expect(screen.getByText("Unauthorized")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "OTG" }))
+
+    // Attached is not eligible: the device it cannot act on is still shown by
+    // transport and still withheld from control.
+    expect(screen.queryByRole("button", { name: /Atlas 09/i })).not.toBeInTheDocument()
+  })
 })
 
 describe("ControlPage device observation status", () => {

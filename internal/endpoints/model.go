@@ -101,12 +101,88 @@ type Endpoint struct {
 	Port       uint16
 	State      State
 	ObservedAt time.Time
+	// LinkState is what the transport reported about the device when this
+	// endpoint was observed: usable, present-but-unauthorized,
+	// present-but-not-openable-by-this-host, or listed-but-not-answering. It is
+	// a property of the OBSERVATION, and it is deliberately separate from
+	// State: State says whether this is the transport the device is at, and
+	// LinkState says what that transport reported. Conflating them is what made
+	// an attached-but-unauthorized device read as a device with no transport at
+	// all (ARC-196).
+	//
+	// The zero value means the observation did not record one - history written
+	// before the column existed - and never means "usable".
+	LinkState LinkState
 	// SupersededAt is when this endpoint stopped being the device's current
 	// one, and it is nil for an endpoint that is still current. The endpoint
 	// record is not deleted when the device moves: it stays as the history of
 	// the transport the device was observed at, and this is the date that makes
 	// the history readable rather than only present.
 	SupersededAt *time.Time
+}
+
+// LinkState is what an endpoint's transport reported about the device when it
+// was observed. Its vocabulary is the discovery model's own spelling of an
+// observed link, so the stored fact and the observation that produced it are
+// one vocabulary rather than two.
+type LinkState string
+
+const (
+	// LinkStateUnrecorded is the zero value: no link state was recorded for
+	// this endpoint. It is the state of history written before the column
+	// existed and it settles nothing on its own.
+	LinkStateUnrecorded LinkState = ""
+	// LinkStateOnline is a transport the adapter can use the device at.
+	LinkStateOnline LinkState = "online"
+	// LinkStateOffline is a transport that is listed but not answering.
+	LinkStateOffline LinkState = "offline"
+	// LinkStateUnauthorized is a device that is present and has not authorized
+	// this host: only the device's own operator can accept its debugging prompt,
+	// and no host can accept it for the device.
+	LinkStateUnauthorized LinkState = "unauthorized"
+	// LinkStateNoPermissions is a transport this host may not open at all. It is
+	// a host-side condition an operator can fix, and it is not the device
+	// refusing this host.
+	LinkStateNoPermissions LinkState = "no_permissions"
+)
+
+// Valid reports whether the link state is one an observation can record. The
+// zero value is valid: it is the absence of the fact rather than a third state.
+func (s LinkState) Valid() bool {
+	switch s {
+	case LinkStateUnrecorded, LinkStateOnline, LinkStateOffline, LinkStateUnauthorized, LinkStateNoPermissions:
+		return true
+	default:
+		return false
+	}
+}
+
+// Usable reports whether an action may be dispatched over a transport observed
+// in this state. It fails closed on every recorded state except `online`, and
+// it admits the zero value because a current endpoint written before this
+// column existed was only ever made current when the device was usable.
+//
+// This is the ONE place the action path asks whether a transport may be used,
+// so an observation the adapter could not act on is refused with the fact the
+// transport reported rather than by a reader re-deriving it.
+func (s LinkState) Usable() bool {
+	return s == LinkStateOnline || s == LinkStateUnrecorded
+}
+
+// Condition is the clause that names what an unusable transport reported, for a
+// refusal sentence an operator reads. It is one function so a single dispatch, a
+// fleet-wide run and an error message cannot describe one condition three ways.
+func (s LinkState) Condition() string {
+	switch s {
+	case LinkStateUnauthorized:
+		return "present but unauthorized for this host"
+	case LinkStateNoPermissions:
+		return "present but not openable by this host"
+	case LinkStateOffline:
+		return "present but not answering"
+	default:
+		return "not usable"
+	}
 }
 
 func (s State) Valid() bool {

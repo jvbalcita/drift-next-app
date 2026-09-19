@@ -301,6 +301,14 @@ function mapDeviceStatus(status: DeviceStatus): DeviceStatusView {
       return "offline"
     case DeviceStatus.UNSPECIFIED:
       return "unobserved"
+    case DeviceStatus.UNAUTHORIZED:
+      // The device is attached at a current transport and this host is not
+      // authorized by it. Reporting it as offline would hide a unit that is
+      // plugged in; reporting it as online would offer control this plane
+      // cannot exercise (ARC-196).
+      return "unauthorized"
+    case DeviceStatus.NO_PERMISSIONS:
+      return "no_permissions"
     default: {
       const _exhaustive: never = status
       return _exhaustive
@@ -313,6 +321,10 @@ function eligibilityFor(status: DeviceStatusView): ControlEligibility {
     case "online":
       return "eligible"
     case "attention":
+    case "unauthorized":
+    case "no_permissions":
+      // Present, observed, and not usable for work: the status names the reason
+      // and control fails closed for all three.
       return "incompatible"
     case "offline":
     case "unobserved":

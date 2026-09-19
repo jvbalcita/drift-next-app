@@ -367,6 +367,8 @@ export const liveMirrorCopy = {
   openRefusal: {
     unobserved: "The control plane opened nothing for it: a device nobody has observed has no transport at which to carry a live stream. Observe it first with a scan, which records the device and the transport it is reached at.",
     offline: "The control plane opened nothing for it: the transport it was last reached at is no longer current, so there is none to carry a live stream to it. Observe it again with a scan, which records the transport it is reached at now.",
+    unauthorized: "The control plane opened nothing for it: the device is attached and has not authorized this host, so there is no transport it may act over. No host can accept that prompt for the device — it has to be authorized once on its own display, or by placing this host's key on it.",
+    no_permissions: "The control plane opened nothing for it: the device is attached and this host may not open it, so there is no transport it may act over. That one is fixed on this host rather than on the device.",
     answered: "The control plane answered:",
   },
   /** Why a coordinate never left the console. */
@@ -442,11 +444,20 @@ export function absentTransportSentence(device: MirrorDevice): string {
   switch (device.status) {
     case "online":
     case "attention":
+    // An attached-but-unauthorized device (and one this host may not open) IS
+    // observed: the console having no stream is then the whole of the fact, so it
+    // gets the sentence that does not claim otherwise (ARC-196).
+    case "unauthorized":
+    case "no_permissions":
       return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.noStream.observed}`
     case "unobserved":
       return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.noStream.unobserved}`
     case "offline":
       return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.noStream.offline}`
+    default: {
+      const _exhaustive: never = device.status
+      return _exhaustive
+    }
   }
 }
 
@@ -469,10 +480,18 @@ export function refusedStreamSentence(device: MirrorDevice, planeReason: string)
     case "online":
     case "attention":
       return reason
+    case "unauthorized":
+      return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.openRefusal.unauthorized} ${liveMirrorCopy.openRefusal.answered} ${reason}`
+    case "no_permissions":
+      return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.openRefusal.no_permissions} ${liveMirrorCopy.openRefusal.answered} ${reason}`
     case "unobserved":
       return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.openRefusal.unobserved} ${liveMirrorCopy.openRefusal.answered} ${reason}`
     case "offline":
       return `${deviceObservationSentence(device.displayName, device.status)} ${liveMirrorCopy.openRefusal.offline} ${liveMirrorCopy.openRefusal.answered} ${reason}`
+    default: {
+      const _exhaustive: never = device.status
+      return _exhaustive
+    }
   }
 }
 

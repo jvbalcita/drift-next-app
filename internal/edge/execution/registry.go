@@ -103,9 +103,16 @@ type EndpointSerialResolver interface {
 // reimplementing the rule and drifting from it.
 //
 // It refuses rather than guesses: no current endpoint, more than one current
-// endpoint, and a current endpoint with no serial are all failures that name no
-// serial. A guess here would send an operator's input to whatever device
-// happened to be reachable.
+// endpoint, a current endpoint with no serial, and a current endpoint whose
+// transport reported the device as present but NOT USABLE are all failures that
+// name no usable serial. A guess here would send an operator's input to whatever
+// device happened to be reachable.
+//
+// The usability check is what keeps the registry honest about a device that is
+// attached but unauthorized: its transport IS current - that is where the device
+// is, and the console has to be able to show it - and an action over it must
+// still be refused, with the fact the transport reported rather than with a
+// missing transport (ARC-196).
 func (r *Registry) CurrentSerial(ctx context.Context, workspace, deviceID string) (string, error) {
 	if r == nil || r.db == nil {
 		return "", runner.ErrUnavailable
@@ -123,6 +130,9 @@ func (r *Registry) currentSerial(ctx context.Context, workspace, deviceID string
 	}
 	if len(endpoints) > 1 {
 		return "", platformerrors.New(platformerrors.CodePreconditionFailed, "device has more than one current transport endpoint")
+	}
+	if !endpoints[0].LinkState.Usable() {
+		return "", platformerrors.New(platformerrors.CodePreconditionFailed, "the device's current transport endpoint is "+endpoints[0].LinkState.Condition()+", so no action can be dispatched over it")
 	}
 	serial := endpoints[0].Serial
 	if serial == "" {

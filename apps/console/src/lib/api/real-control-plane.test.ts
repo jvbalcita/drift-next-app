@@ -85,6 +85,43 @@ describe("mapDevice", () => {
     expect(mapDevice(neverObserved).status).not.toBe(mapDevice(departed).status)
   })
 
+  it("maps an attached-but-unauthorized device to its own status, transport and eligibility", () => {
+    // The control plane reports what the transport said, and the console turns it
+    // into a reading an operator acts on: the unit is USB, it is present, and it
+    // is NOT eligible for control until it authorizes this host.
+    const unauthorized = create(DeviceSchema, {
+      id: "device-unauthorized",
+      status: DeviceStatus.UNAUTHORIZED,
+      endpointId: "endpoint-unauthorized",
+      transport: DeviceTransport.USB,
+      lastSeenAt: "10:00:00",
+    })
+    expect(mapDevice(unauthorized)).toMatchObject({
+      status: "unauthorized",
+      transport: "usb",
+      controlEligibility: "incompatible",
+      lifecycle: "active",
+      endpointId: "endpoint-unauthorized",
+      lastSeen: "10:00:00",
+    })
+
+    // A transport this host may not open is its own reading: the two need
+    // different things done, and folding them into one hides which.
+    const noPermissions = create(DeviceSchema, {
+      id: "device-no-permissions",
+      status: DeviceStatus.NO_PERMISSIONS,
+      endpointId: "endpoint-no-permissions",
+      transport: DeviceTransport.USB,
+      lastSeenAt: "10:00:00",
+    })
+    expect(mapDevice(noPermissions)).toMatchObject({ status: "no_permissions", transport: "usb", controlEligibility: "incompatible" })
+    expect(mapDevice(noPermissions).status).not.toBe(mapDevice(unauthorized).status)
+
+    // Neither is absent: an operator drawing these as gone would hide the very
+    // units that have to be authorized (ARC-196).
+    expect(mapDevice(unauthorized).lifecycle).not.toBe("unavailable")
+  })
+
   it("reads the transport the control plane recorded instead of deriving it from the endpoint", () => {
     const tcp = create(DeviceSchema, {
       id: "device-tcp",

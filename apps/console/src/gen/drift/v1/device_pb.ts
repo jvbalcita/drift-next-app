@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device.proto.
  */
 export const file_drift_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChVkcmlmdC92MS9kZXZpY2UucHJvdG8SCGRyaWZ0LnYxIsQCCgZEZXZpY2USCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCGFnZW50X2lkGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLmRyaWZ0LnYxLkRldmljZVN0YXR1cxIYChBwbGF0Zm9ybV92ZXJzaW9uGAUgASgJEhcKD2JhdHRlcnlfcGVyY2VudBgGIAEoDRISCgpsYXRlbmN5X21zGAcgASgNEhQKDGxhc3Rfc2Vlbl9hdBgIIAEoCRIpCgl3b3Jrc3BhY2UYCSABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEwoLZW5kcG9pbnRfaWQYCiABKAkSEwoLcm93X3ZlcnNpb24YCyABKAQSLAoJdHJhbnNwb3J0GAwgASgOMhkuZHJpZnQudjEuRGV2aWNlVHJhbnNwb3J0In0KEkxpc3REZXZpY2VzUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAyABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJeChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiEKB2RldmljZXMYASADKAsyEC5kcmlmdC52MS5EZXZpY2USJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSJpChBHZXREZXZpY2VSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSKQoJd29ya3NwYWNlGAMgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmIjUKEUdldERldmljZVJlc3BvbnNlEiAKBmRldmljZRgBIAEoCzIQLmRyaWZ0LnYxLkRldmljZSp/CgxEZXZpY2VTdGF0dXMSHQoZREVWSUNFX1NUQVRVU19VTlNQRUNJRklFRBAAEhgKFERFVklDRV9TVEFUVVNfT05MSU5FEAESGwoXREVWSUNFX1NUQVRVU19BVFRFTlRJT04QAhIZChVERVZJQ0VfU1RBVFVTX09GRkxJTkUQAypnCg9EZXZpY2VUcmFuc3BvcnQSIAocREVWSUNFX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEhgKFERFVklDRV9UUkFOU1BPUlRfVVNCEAESGAoUREVWSUNFX1RSQU5TUE9SVF9UQ1AQAjKhAQoNRGV2aWNlU2VydmljZRJKCgtMaXN0RGV2aWNlcxIcLmRyaWZ0LnYxLkxpc3REZXZpY2VzUmVxdWVzdBodLmRyaWZ0LnYxLkxpc3REZXZpY2VzUmVzcG9uc2USRAoJR2V0RGV2aWNlEhouZHJpZnQudjEuR2V0RGV2aWNlUmVxdWVzdBobLmRyaWZ0LnYxLkdldERldmljZVJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChVkcmlmdC92MS9kZXZpY2UucHJvdG8SCGRyaWZ0LnYxIsQCCgZEZXZpY2USCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCGFnZW50X2lkGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLmRyaWZ0LnYxLkRldmljZVN0YXR1cxIYChBwbGF0Zm9ybV92ZXJzaW9uGAUgASgJEhcKD2JhdHRlcnlfcGVyY2VudBgGIAEoDRISCgpsYXRlbmN5X21zGAcgASgNEhQKDGxhc3Rfc2Vlbl9hdBgIIAEoCRIpCgl3b3Jrc3BhY2UYCSABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEwoLZW5kcG9pbnRfaWQYCiABKAkSEwoLcm93X3ZlcnNpb24YCyABKAQSLAoJdHJhbnNwb3J0GAwgASgOMhkuZHJpZnQudjEuRGV2aWNlVHJhbnNwb3J0In0KEkxpc3REZXZpY2VzUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAyABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJeChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiEKB2RldmljZXMYASADKAsyEC5kcmlmdC52MS5EZXZpY2USJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSJpChBHZXREZXZpY2VSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSKQoJd29ya3NwYWNlGAMgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmIjUKEUdldERldmljZVJlc3BvbnNlEiAKBmRldmljZRgBIAEoCzIQLmRyaWZ0LnYxLkRldmljZSrBAQoMRGV2aWNlU3RhdHVzEh0KGURFVklDRV9TVEFUVVNfVU5TUEVDSUZJRUQQABIYChRERVZJQ0VfU1RBVFVTX09OTElORRABEhsKF0RFVklDRV9TVEFUVVNfQVRURU5USU9OEAISGQoVREVWSUNFX1NUQVRVU19PRkZMSU5FEAMSHgoaREVWSUNFX1NUQVRVU19VTkFVVEhPUklaRUQQBBIgChxERVZJQ0VfU1RBVFVTX05PX1BFUk1JU1NJT05TEAUqZwoPRGV2aWNlVHJhbnNwb3J0EiAKHERFVklDRV9UUkFOU1BPUlRfVU5TUEVDSUZJRUQQABIYChRERVZJQ0VfVFJBTlNQT1JUX1VTQhABEhgKFERFVklDRV9UUkFOU1BPUlRfVENQEAIyoQEKDURldmljZVNlcnZpY2USSgoLTGlzdERldmljZXMSHC5kcmlmdC52MS5MaXN0RGV2aWNlc1JlcXVlc3QaHS5kcmlmdC52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlEkQKCUdldERldmljZRIaLmRyaWZ0LnYxLkdldERldmljZVJlcXVlc3QaGy5kcmlmdC52MS5HZXREZXZpY2VSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
 
 /**
  * Device is the operator-facing projection of an edge-managed Android device.
@@ -91,6 +91,11 @@ export type Device = Message<"drift.v1.Device"> & {
    * back from the endpoint registry, and never derived by a client from the
    * shape of an endpoint address — a client that reconstructs it can disagree
    * with the observation it is reporting on.
+   *
+   * It is reported for EVERY device that has a current endpoint, whether or not
+   * that transport was usable: a device attached over USB and not yet authorized
+   * is attached over USB, and a surface that answers "no transport" about a unit
+   * that is plugged in cannot show it at all (ARC-196).
    *
    * @generated from field: drift.v1.DeviceTransport transport = 12;
    */
@@ -207,19 +212,50 @@ export enum DeviceStatus {
   UNSPECIFIED = 0,
 
   /**
+   * DEVICE_STATUS_ONLINE: observed at a current endpoint whose transport
+   * reported the device as usable.
+   *
    * @generated from enum value: DEVICE_STATUS_ONLINE = 1;
    */
   ONLINE = 1,
 
   /**
+   * DEVICE_STATUS_ATTENTION is a lifecycle reading no producer emits; it stays
+   * published for consumers that still map it.
+   *
    * @generated from enum value: DEVICE_STATUS_ATTENTION = 2;
    */
   ATTENTION = 2,
 
   /**
+   * DEVICE_STATUS_OFFLINE: observed before and not observed now, or observed at
+   * a current transport that is listed but not answering.
+   *
    * @generated from enum value: DEVICE_STATUS_OFFLINE = 3;
    */
   OFFLINE = 3,
+
+  /**
+   * DEVICE_STATUS_UNAUTHORIZED: ATTACHED at its current transport, and this host
+   * is not authorized by the device — the device's own debugging prompt has not
+   * been accepted. It is not reachable for work, and it is not gone: no host can
+   * accept that prompt for the device, so the device has to be authorized once
+   * on its own display (or by a key placed on it) before anything can be
+   * dispatched to it.
+   *
+   * @generated from enum value: DEVICE_STATUS_UNAUTHORIZED = 4;
+   */
+  UNAUTHORIZED = 4,
+
+  /**
+   * DEVICE_STATUS_NO_PERMISSIONS: ATTACHED at its current transport and this
+   * host may not open it at all. It is a host-side condition an operator can fix
+   * on the host, and it is deliberately not folded into UNAUTHORIZED: the two
+   * need different things done, and only one of them is fixable at this machine.
+   *
+   * @generated from enum value: DEVICE_STATUS_NO_PERMISSIONS = 5;
+   */
+  NO_PERMISSIONS = 5,
 }
 
 /**

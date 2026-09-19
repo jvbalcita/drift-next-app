@@ -218,8 +218,8 @@ func TestATransportModeChangeThatNeedsTheOperatorIsAnOutcomeAndNotAnError(t *tes
 	if response.Msg.GetStateAfter() != "unauthorized" || response.Msg.GetStateBefore() != "device" {
 		t.Fatalf("response = %#v, want both readings reported", response.Msg)
 	}
-	if !strings.Contains(response.Msg.GetMessage(), "USB debugging") {
-		t.Fatalf("message = %q, want it to name the prompt the operator has to accept", response.Msg.GetMessage())
+	if !strings.Contains(response.Msg.GetMessage(), "no host can accept that prompt for it") {
+		t.Fatalf("message = %q, want it to name the boundary the operator cannot cross from this host", response.Msg.GetMessage())
 	}
 	if len(service.modes) != 1 {
 		t.Fatalf("transport-mode calls = %v, want exactly one", service.modes)
@@ -236,7 +236,7 @@ func TestARefusedTransportModeChangeCarriesItsOwnPrecondition(t *testing.T) {
 		want   string
 	}{
 		{"not attached", connection.ActivationRefusalNotAttached, "no such transport is attached"},
-		{"not authorized", connection.ActivationRefusalNotAuthorized, "USB debugging prompt"},
+		{"not authorized", connection.ActivationRefusalNotAuthorized, "no host can accept that prompt for it"},
 		{"not usb", connection.ActivationRefusalNotUSB, "not physically attached"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

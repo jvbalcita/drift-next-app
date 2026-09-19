@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"drift.local/drift-next/internal/discovery"
+	"drift.local/drift-next/internal/endpoints"
 	"drift.local/drift-next/internal/networkprofiles"
 	"drift.local/drift-next/internal/organizations"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
@@ -271,11 +272,12 @@ func TestWatcherArrivalRequiresAnActor(t *testing.T) {
 	}
 }
 
-// An unauthorized transport is an observation, but it is not a current
-// endpoint. Keeping it current would make the device list report ONLINE even
-// though the adapter cannot use the device until the operator accepts its
-// debugging prompt.
-func TestUnauthorizedArrivalIsObservedButNotCurrent(t *testing.T) {
+// An unauthorized transport IS where the device is. The registry records it as
+// the device's current endpoint, carrying the link state the adapter observed, so
+// a surface can show the very unit an operator has to authorize. What the row
+// does NOT do is make the transport usable: the action path reads the link state
+// and refuses over it, naming what the transport reported (ARC-196).
+func TestUnauthorizedArrivalIsTheCurrentTransportAndNotUsable(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 	workspace := organizations.WorkspaceID("w-arrival-unauthorized")
@@ -295,18 +297,75 @@ func TestUnauthorizedArrivalIsObservedButNotCurrent(t *testing.T) {
 	if len(observed) != 1 {
 		t.Fatalf("RecordArrivals() returned %d observations, want one", len(observed))
 	}
-	if got := countRows(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ? AND state = 'current'`, workspace); got != 0 {
-		t.Fatalf("current endpoints = %d, want none for an unauthorized transport", got)
+	if got := countRows(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ? AND state = 'current'`, workspace); got != 1 {
+		t.Fatalf("current endpoints = %d, want the unauthorized transport to be the device's current one: the unit is attached, and a registry that says it is nowhere is why it was invisible", got)
 	}
-	if got := countRows(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ? AND state = 'observed'`, workspace); got != 1 {
-		t.Fatalf("observed endpoints = %d, want the unauthorized observation retained as history", got)
+	if got := countRows(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ? AND state = 'observed'`, workspace); got != 0 {
+		t.Fatalf("observed-only endpoints = %d, want none: an attached transport is the current one", got)
 	}
+	current, err := store.NewEndpointRepository(db).ListCurrent(ctx, workspace, observed[0].DeviceID)
+	if err != nil {
+		t.Fatalf("ListCurrent() error = %v", err)
+	}
+	if len(current) != 1 {
+		t.Fatalf("ListCurrent() = %d endpoint(s), want one", len(current))
+	}
+	if current[0].LinkState != endpoints.LinkStateUnauthorized {
+		t.Fatalf("current endpoint link state = %q, want unauthorized: the adapter's own reading is what the record carries", current[0].LinkState)
+	}
+	if current[0].LinkState.Usable() {
+		t.Fatal("an unauthorized transport reads as usable, so an action could be dispatched over a device that never authorized this host")
+	}
+	if current[0].Serial != "SER-UNAUTHORIZED" || current[0].Host != "192.0.2.9" || current[0].Port != 5555 {
+		t.Fatalf("current endpoint = %#v, want the transport the observation named", current[0])
+	}
+
+	// One current endpoint per device survives a second observation of the same
+	// transport: the row is refreshed, not duplicated.
+	if _, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial: "SER-UNAUTHORIZED", Host: "192.0.2.9", Port: 5555, State: discovery.LinkUnauthorized,
+	}}, "system", "discovery-watcher"); err != nil {
+		t.Fatalf("second RecordArrivals() error = %v", err)
+	}
+	if got := countRows(t, db, `SELECT COUNT(*) FROM device_endpoints WHERE workspace_id = ? AND state = 'current'`, workspace); got != 1 {
+		t.Fatalf("current endpoints after a repeat observation = %d, want still one", got)
+	}
+
 	device, err := store.NewDeviceRepository(db).Get(ctx, workspace, observed[0].DeviceID)
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
 	if device.DisplayName != "SM-G9750" || device.PlatformVersion != "SM-G9750" {
 		t.Fatalf("device projection = %#v, want the adapter model refreshed into name and phone-model source", device)
+	}
+}
+
+// A host that may not open the transport at all is its own reading, not the
+// device refusing this host: the operator fixes that one at the machine, and a
+// registry that spells both `unauthorized` sends them to the wrong place.
+func TestNoPermissionsArrivalIsRecordedAsItsOwnLinkState(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	workspace := organizations.WorkspaceID("w-arrival-no-permissions")
+	newArrivalWorkspace(t, db, workspace)
+
+	svc := discovery.NewService(db, discovery.NewFakeScanner(nil))
+	observed, err := svc.RecordArrivals(ctx, workspace, []discovery.ObservedDevice{{
+		Serial: "SER-NO-PERMISSIONS",
+		State:  discovery.LinkNoPermissions,
+	}}, "system", "discovery-watcher")
+	if err != nil {
+		t.Fatalf("RecordArrivals() error = %v", err)
+	}
+	current, err := store.NewEndpointRepository(db).ListCurrent(ctx, workspace, observed[0].DeviceID)
+	if err != nil {
+		t.Fatalf("ListCurrent() error = %v", err)
+	}
+	if len(current) != 1 || current[0].LinkState != endpoints.LinkStateNoPermissions {
+		t.Fatalf("current endpoint = %#v, want one carrying the no-permissions link state", current)
+	}
+	if current[0].LinkState.Usable() {
+		t.Fatal("a transport this host may not open reads as usable")
 	}
 }
 

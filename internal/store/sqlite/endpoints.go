@@ -19,7 +19,7 @@ func NewEndpointRepository(store *DB) *EndpointRepository { return &EndpointRepo
 // stored record, so a caller reporting it reports the observation rather than
 // rebuilding it from the address.
 func (r *EndpointRepository) ListCurrent(ctx context.Context, w organizations.WorkspaceID, d devices.DeviceID) ([]endpoints.Endpoint, error) {
-	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,device_id,endpoint_type,serial,host,port,state,observed_at FROM device_endpoints WHERE workspace_id=? AND device_id=? AND state='current' ORDER BY id`, w, d)
+	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,device_id,endpoint_type,serial,host,port,state,link_state,observed_at FROM device_endpoints WHERE workspace_id=? AND device_id=? AND state='current' ORDER BY id`, w, d)
 	if err != nil {
 		return nil, classifyContext(err)
 	}
@@ -27,10 +27,10 @@ func (r *EndpointRepository) ListCurrent(ctx context.Context, w organizations.Wo
 	out := []endpoints.Endpoint{}
 	for rows.Next() {
 		var e endpoints.Endpoint
-		var serial, host sql.NullString
+		var serial, host, linkState sql.NullString
 		var port sql.NullInt64
 		var endpointType, at string
-		if err := rows.Scan(&e.ID, &e.Workspace, &e.DeviceID, &endpointType, &serial, &host, &port, &e.State, &at); err != nil {
+		if err := rows.Scan(&e.ID, &e.Workspace, &e.DeviceID, &endpointType, &serial, &host, &port, &e.State, &linkState, &at); err != nil {
 			return nil, err
 		}
 		e.Transport = transportFromToken(endpointType)
@@ -42,6 +42,9 @@ func (r *EndpointRepository) ListCurrent(ctx context.Context, w organizations.Wo
 		}
 		if port.Valid {
 			e.Port = uint16(port.Int64)
+		}
+		if linkState.Valid {
+			e.LinkState = endpoints.LinkState(linkState.String)
 		}
 		e.ObservedAt, _ = time.Parse(time.RFC3339Nano, at)
 		out = append(out, e)
@@ -55,7 +58,7 @@ func (r *EndpointRepository) ListCurrent(ctx context.Context, w organizations.Wo
 // than present with a zero endpoint: no transport observed is not the same fact
 // as a transport with no address.
 func (r *EndpointRepository) ListCurrentByDevice(ctx context.Context, w organizations.WorkspaceID) (map[devices.DeviceID]endpoints.Endpoint, error) {
-	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,device_id,endpoint_type,serial,host,port,state,observed_at FROM device_endpoints WHERE workspace_id=? AND state='current' ORDER BY id`, w)
+	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,device_id,endpoint_type,serial,host,port,state,link_state,observed_at FROM device_endpoints WHERE workspace_id=? AND state='current' ORDER BY id`, w)
 	if err != nil {
 		return nil, classifyContext(err)
 	}
@@ -63,10 +66,10 @@ func (r *EndpointRepository) ListCurrentByDevice(ctx context.Context, w organiza
 	out := make(map[devices.DeviceID]endpoints.Endpoint)
 	for rows.Next() {
 		var e endpoints.Endpoint
-		var serial, host sql.NullString
+		var serial, host, linkState sql.NullString
 		var port sql.NullInt64
 		var endpointType, at string
-		if err := rows.Scan(&e.ID, &e.Workspace, &e.DeviceID, &endpointType, &serial, &host, &port, &e.State, &at); err != nil {
+		if err := rows.Scan(&e.ID, &e.Workspace, &e.DeviceID, &endpointType, &serial, &host, &port, &e.State, &linkState, &at); err != nil {
 			return nil, err
 		}
 		e.Transport = transportFromToken(endpointType)
@@ -78,6 +81,9 @@ func (r *EndpointRepository) ListCurrentByDevice(ctx context.Context, w organiza
 		}
 		if port.Valid {
 			e.Port = uint16(port.Int64)
+		}
+		if linkState.Valid {
+			e.LinkState = endpoints.LinkState(linkState.String)
 		}
 		e.ObservedAt, _ = time.Parse(time.RFC3339Nano, at)
 		out[e.DeviceID] = e

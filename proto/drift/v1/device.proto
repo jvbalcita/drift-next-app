@@ -34,14 +34,37 @@ message Device {
   // back from the endpoint registry, and never derived by a client from the
   // shape of an endpoint address — a client that reconstructs it can disagree
   // with the observation it is reporting on.
+  //
+  // It is reported for EVERY device that has a current endpoint, whether or not
+  // that transport was usable: a device attached over USB and not yet authorized
+  // is attached over USB, and a surface that answers "no transport" about a unit
+  // that is plugged in cannot show it at all (ARC-196).
   DeviceTransport transport = 12;
 }
 
 enum DeviceStatus {
   DEVICE_STATUS_UNSPECIFIED = 0;
+  // DEVICE_STATUS_ONLINE: observed at a current endpoint whose transport
+  // reported the device as usable.
   DEVICE_STATUS_ONLINE = 1;
+  // DEVICE_STATUS_ATTENTION is a lifecycle reading no producer emits; it stays
+  // published for consumers that still map it.
   DEVICE_STATUS_ATTENTION = 2;
+  // DEVICE_STATUS_OFFLINE: observed before and not observed now, or observed at
+  // a current transport that is listed but not answering.
   DEVICE_STATUS_OFFLINE = 3;
+  // DEVICE_STATUS_UNAUTHORIZED: ATTACHED at its current transport, and this host
+  // is not authorized by the device — the device's own debugging prompt has not
+  // been accepted. It is not reachable for work, and it is not gone: no host can
+  // accept that prompt for the device, so the device has to be authorized once
+  // on its own display (or by a key placed on it) before anything can be
+  // dispatched to it.
+  DEVICE_STATUS_UNAUTHORIZED = 4;
+  // DEVICE_STATUS_NO_PERMISSIONS: ATTACHED at its current transport and this
+  // host may not open it at all. It is a host-side condition an operator can fix
+  // on the host, and it is deliberately not folded into UNAUTHORIZED: the two
+  // need different things done, and only one of them is fixable at this machine.
+  DEVICE_STATUS_NO_PERMISSIONS = 5;
 }
 
 // DeviceTransport is the transport a device was observed over.

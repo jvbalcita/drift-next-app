@@ -26,13 +26,20 @@ const (
 )
 
 // DeviceLinkState is the transport state a scan observed for a device. It is
-// transport fact, never stable identity.
+// transport fact, never stable identity, and it is the vocabulary the endpoint
+// record stores about the observation that produced it.
 type DeviceLinkState string
 
 const (
 	LinkOnline       DeviceLinkState = "online"
 	LinkOffline      DeviceLinkState = "offline"
 	LinkUnauthorized DeviceLinkState = "unauthorized"
+	// LinkNoPermissions is a transport the adapter listed but this host may not
+	// open at all. It is kept apart from LinkUnauthorized because the two need
+	// different things done: `no permissions` is a host-side condition an
+	// operator fixes on the HOST, while an unauthorized device can only be
+	// authorized on the DEVICE's own display.
+	LinkNoPermissions DeviceLinkState = "no_permissions"
 )
 
 type ScanRun struct {
@@ -87,6 +94,12 @@ func (d ObservedDevice) Valid() bool {
 
 // Actionable reports whether the observed link permits device-scoped work. An
 // offline or unauthorized device is reported, never silently actionable.
+//
+// It is NOT the test for whether an observation belongs in the registry, and it
+// is not the test for whether an observation's transport is the device's
+// current one: an attached-but-unauthorized unit is a device this plane has
+// observed at a transport it can see, and reporting it is exactly what an
+// operator needs (ARC-196).
 func (d ObservedDevice) Actionable() bool {
 	return d.State == LinkOnline
 }
@@ -104,7 +117,7 @@ func (d ObservedDevice) EvidenceJSON() string {
 
 func (s DeviceLinkState) Valid() bool {
 	switch s {
-	case LinkOnline, LinkOffline, LinkUnauthorized:
+	case LinkOnline, LinkOffline, LinkUnauthorized, LinkNoPermissions:
 		return true
 	default:
 		return false

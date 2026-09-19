@@ -146,10 +146,16 @@ func deviceTransportProto(transport endpoints.Transport) driftv1.DeviceTransport
 // once written as.
 //
 // The facts are the device's current endpoint record - the transport it was last
-// observed answering on - and the time of its last positive observation:
+// observed at - the link state that transport reported, and the time of its last
+// positive observation:
 //
-//   - a current endpoint record means the device has been observed and has not
-//     been observed leaving, so it reads ONLINE;
+//   - a current endpoint whose transport reported a usable link reads ONLINE;
+//   - a current endpoint whose transport reported the device as present but
+//     unauthorized reads UNAUTHORIZED, and one this host may not open reads
+//     NO_PERMISSIONS. Both are devices that are ATTACHED and cannot be acted on,
+//     which is neither "reachable" nor "gone", and an operator has to be able to
+//     see them to act on them at all (ARC-196). A transport that is listed but
+//     not answering reads OFFLINE: it is attached, and it is not reachable;
 //   - no current endpoint and no last observation means the device was NEVER
 //     observed, which reads UNSPECIFIED rather than ONLINE. Fail closed: a device
 //     nobody has seen is not a device anyone can reach, and offering control to it
@@ -162,6 +168,11 @@ func deviceTransportProto(transport endpoints.Transport) driftv1.DeviceTransport
 // into one not-online reading. A device that returns is observed again and resolves
 // to the same identity, so its status returns to ONLINE through this same function.
 //
+// The first three are deliberately different answers too: a device that needs its
+// debugging prompt accepted, a device this host may not open, and a device that is
+// plugged in but not answering need three different things done, and an operator
+// who reads one for another does the wrong one.
+//
 // DEVICE_STATUS_ATTENTION is a lifecycle reading and is no longer produced by
 // anything: the enum value stays published and unchanged (device.proto is
 // additive-only), and a consumer that still maps it keeps working. A later absence
@@ -171,7 +182,22 @@ func deviceTransportProto(transport endpoints.Transport) driftv1.DeviceTransport
 func deviceStatusProto(device devices.Device, endpoint *endpoints.Endpoint) driftv1.DeviceStatus {
 	switch {
 	case endpoint != nil:
-		return driftv1.DeviceStatus_DEVICE_STATUS_ONLINE
+		// The device was observed at this transport and has not been observed
+		// leaving it. What the transport REPORTED about the device decides which
+		// reading an operator gets, and only a usable link is ONLINE.
+		switch endpoint.LinkState {
+		case endpoints.LinkStateUnauthorized:
+			return driftv1.DeviceStatus_DEVICE_STATUS_UNAUTHORIZED
+		case endpoints.LinkStateNoPermissions:
+			return driftv1.DeviceStatus_DEVICE_STATUS_NO_PERMISSIONS
+		case endpoints.LinkStateOffline:
+			return driftv1.DeviceStatus_DEVICE_STATUS_OFFLINE
+		default:
+			// A usable link, and a current endpoint written before the link
+			// state was recorded: the registry only ever made a row current
+			// when the adapter could use the device, so history reads as it did.
+			return driftv1.DeviceStatus_DEVICE_STATUS_ONLINE
+		}
 	case device.LastSeenAt == nil:
 		return driftv1.DeviceStatus_DEVICE_STATUS_UNSPECIFIED
 	default:
