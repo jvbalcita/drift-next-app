@@ -107,7 +107,6 @@ export interface LiveMirrorSessionView {
   leaseRefusal: string
   /** observationToken is the observation this frame's coordinates are measured from. */
   observationToken: string
-  dragging: boolean
   /** Whether this frame has something in its details an operator has not read. */
   detailsAttention: boolean
   reducedMotion: boolean
@@ -176,7 +175,6 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
   const pendingScroll = useRef<FrameScroll>({ x: 0, y: 0 })
   const [notice, setNotice] = useState("")
   const [refusal, setRefusal] = useState("")
-  const [dragging, setDragging] = useState(false)
 
   const attachMirrorVideo = useCallback((element: HTMLVideoElement | null) => {
     video.current = element
@@ -357,7 +355,6 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     setNotice("")
     const atMs = event.timeStamp
     gesture.current = { down: { x: point.x, y: point.y, atMs }, last: { x: point.x, y: point.y, atMs } }
-    setDragging(true)
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }
 
@@ -374,7 +371,6 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
   const endPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     const current = gesture.current
     gesture.current = null
-    setDragging(false)
     if (!current || !frame) return
     const threshold = gestureThresholdFor(drawnRect(), frame)
     const plan = planGesture({ down: current.down, last: current.last, releasedAtMs: event.timeStamp }, frame, threshold)
@@ -389,7 +385,6 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
 
   const cancelPointer = () => {
     gesture.current = null
-    setDragging(false)
   }
 
   /**
@@ -442,7 +437,6 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     inputReady,
     leaseRefusal,
     observationToken: coordinateObservation,
-    dragging,
     // The info control marks itself when it is holding something: a refusal an
     // operator just caused, a stream that failed, the plane's own refusal to leave
     // this console holding the device, or the reason a live frame's input will be
@@ -489,7 +483,10 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
  * The overlay is not chrome: it is painted over the picture while there is no
  * live picture, because a frame left holding a last frame would be read as the
  * device's screen now. Everything an operator used to read here is one control
- * away, in the panel's title bar.
+ * away, in the panel's title bar. And nothing is drawn over the picture while it
+ * IS live - not a state line, not a border, not the hairline this element used to
+ * draw across its top while a pointer was down: the picture is the frame's
+ * content, and a mark over it is a mark on the device's screen.
  */
 export function LiveMirrorSurface({ session }: { session: LiveMirrorSessionView }) {
   const stage = useRef<HTMLDivElement | null>(null)
@@ -522,7 +519,6 @@ export function LiveMirrorSurface({ session }: { session: LiveMirrorSessionView 
     >
       <video ref={session.attachVideo} data-testid="live-mirror-video" muted playsInline autoPlay aria-hidden="true" className="absolute inset-0 size-full max-w-full object-contain" />
       {session.phase === "live" ? null : <StreamStateOverlay phase={session.phase} />}
-      {session.dragging ? <span aria-hidden="true" className="pointer-events-none absolute inset-x-6 top-6 h-px bg-primary" /> : null}
     </div>
   )
 }

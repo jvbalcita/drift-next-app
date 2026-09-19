@@ -233,6 +233,27 @@ describe("the big frame is the device's screen", () => {
     expect(within(details).getByText(liveMirrorCopy.details.pointer)).toBeInTheDocument()
   })
 
+  it("draws nothing over the picture while a pointer is down", async () => {
+    const { intents, stage } = renderPanel()
+    await live(intents)
+
+    fireEvent.pointerDown(stage, { pointerId: 7, clientX: 270, clientY: 480 })
+
+    // Mid-gesture the frame holds the picture and nothing else: the stage's own
+    // children are the video element, and no element is drawn across the top of
+    // the device's screen. The line that used to be drawn there was the defect -
+    // "when tapping or swiping, there's a separator or horizontal line showing on
+    // top" - and it was the only thing `dragging` rendered, so the state that
+    // fed it is gone with it rather than left unread.
+    expect(within(stage).getByTestId("live-mirror-video")).toBeInTheDocument()
+    expect(stage.querySelectorAll("span")).toHaveLength(0)
+    expect(stage.children).toHaveLength(1)
+
+    fireEvent.pointerUp(stage, { pointerId: 7, clientX: 270, clientY: 480 })
+    expect(stage.querySelectorAll("span")).toHaveLength(0)
+    expect(stage.children).toHaveLength(1)
+  })
+
   it("takes the stream's own aspect, so the frame is the screen rather than a box around it", async () => {
     const { frame } = renderPanel({ mirror: fakeMirror(stream({ width: 1080, height: 2280 })).client })
     // The panel sizes the frame from the stream it is carrying: 480px of
