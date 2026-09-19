@@ -706,8 +706,8 @@ func (x *RenameDeviceGroupResponse) GetGroup() *DeviceGroup {
 	return nil
 }
 
-// DeleteDeviceGroup replaces DELETE /groups/:id. A group that carries history is
-// retired in place, never erased: memberships are append-only evidence.
+// DeleteDeviceGroup permanently removes a group from the current inventory.
+// Storage may retain an internal tombstone so append-only evidence stays valid.
 type DeleteDeviceGroupRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`

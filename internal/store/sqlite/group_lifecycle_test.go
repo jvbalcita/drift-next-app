@@ -96,7 +96,7 @@ func TestRenameDeviceGroupAppliesOptimisticRowVersion(t *testing.T) {
 	}
 }
 
-func TestDeleteDeviceGroupRetiresGroupAndReleasesItsDevices(t *testing.T) {
+func TestDeleteDeviceGroupRemovesGroupFromInventoryAndReleasesItsDevices(t *testing.T) {
 	db := openTestDB(t)
 	seedGroupWorkspace(t, db)
 	createGroup(t, db, "group-1", "Fleet")
@@ -115,7 +115,17 @@ func TestDeleteDeviceGroupRetiresGroupAndReleasesItsDevices(t *testing.T) {
 		t.Fatalf("retire error = %v", err)
 	}
 
-	retired := groupByName(t, db, "group-1")
+	listed, err := store.NewGroupRepository(db).List(context.Background(), groupWorkspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 0 {
+		t.Fatalf("current group inventory = %#v, want deleted group absent", listed)
+	}
+	retired, err := store.NewGroupRepository(db).Get(context.Background(), groupWorkspace, "group-1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if retired.State != groups.GroupRetired || retired.RowVersion != 2 {
 		t.Fatalf("retired group = %#v, want retired at row version 2", retired)
 	}
@@ -134,6 +144,25 @@ func TestDeleteDeviceGroupRetiresGroupAndReleasesItsDevices(t *testing.T) {
 	}
 	if err := store.NewGroupService(db).Retire(context.Background(), groupWorkspace, "missing", 1, "operator", "op-1"); platformerrors.CodeOf(err) != platformerrors.CodeNotFound {
 		t.Fatalf("retire of an unknown group code = %v, want not found", platformerrors.CodeOf(err))
+	}
+}
+
+func TestDeleteDeviceGroupCompactsTheRemainingCurrentOrder(t *testing.T) {
+	db := openTestDB(t)
+	seedGroupWorkspace(t, db)
+	createGroup(t, db, "group-1", "One")
+	createGroup(t, db, "group-2", "Two")
+	createGroup(t, db, "group-3", "Three")
+
+	if err := store.NewGroupService(db).Retire(context.Background(), groupWorkspace, "group-2", 1, "operator", "op-1"); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := store.NewGroupRepository(db).List(context.Background(), groupWorkspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 2 || listed[0].ID != "group-1" || listed[0].Position != 1 || listed[1].ID != "group-3" || listed[1].Position != 2 {
+		t.Fatalf("compacted current order = %#v, want group-1 at 1 and group-3 at 2", listed)
 	}
 }
 

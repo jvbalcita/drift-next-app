@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type FormEvent } from "react"
 import { Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -115,7 +116,7 @@ export function SettingsPage({
             <div className="flex flex-wrap gap-2"><StatusBadge label={selected.risk === "safety_critical" ? "Safety Critical" : "Low-Risk Preference"} tone={selected.risk === "safety_critical" ? "attention" : "neutral"} /><StatusBadge label={selected.valueKind} tone="info" /></div>
             <div>
               <FieldLabel htmlFor="setting-value">Value JSON</FieldLabel>
-              <textarea id="setting-value" value={valueJson} onChange={(event) => { setValueJson(event.target.value); setError("") }} aria-invalid={Boolean(error)} aria-describedby={error ? "setting-value-error setting-value-help" : "setting-value-help"} rows={6} className="mt-1 w-full rounded-none border border-input bg-background p-3 font-mono text-xs" />
+              <Textarea id="setting-value" value={valueJson} onChange={(event) => { setValueJson(event.target.value); setError("") }} aria-invalid={Boolean(error)} aria-describedby={error ? "setting-value-error setting-value-help" : "setting-value-help"} rows={6} className="mt-1 rounded-none p-3 font-mono text-xs" />
               {error ? <p id="setting-value-error" className="mt-1 text-xs text-destructive">{error}</p> : null}
               <p id="setting-value-help" className="mt-1 text-[11px] text-muted-foreground">Allowed values: {settingConstraints(selected)}</p>
             </div>

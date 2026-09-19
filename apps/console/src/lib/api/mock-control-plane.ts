@@ -1,52 +1,4 @@
-import type {
-  AccountDeviceAssignmentView,
-  AccountReferenceView,
-  AccountRunEventView,
-  AccountRunView,
-  AccountServiceStateHistoryView,
-  AccountServiceStateView,
-  AccountSourceView,
-  AccountSyncEventView,
-  ArtifactAuditView,
-  ArtifactView,
-  AutomationAgentProfileView,
-  AutomationAgentView,
-  ControlPlaneClient,
-  ControlPlaneIntent,
-  ControlPlaneSnapshot,
-  DeviceView,
-  DeviceSettingOutcomeView,
-  DeviceSettingsApplyView,
-  EdgeAgentView,
-  EndpointView,
-  EventKind,
-  EventView,
-  GroupView,
-  IndeterminateActionView,
-  LabAdapterView,
-  LabDiscoveredDeviceView,
-  LeaseView,
-  MembershipView,
-  MirrorSessionView,
-  MutationResult,
-  NetworkProfileView,
-  ObservationView,
-  ObservedDeviceView,
-  PolicyDecisionView,
-  PolicyView,
-  PrerequisiteErrorCode,
-  RecordingMediaView,
-  RunTargetView,
-  RunView,
-  RuntimeConnectionView,
-  ScanRunView,
-  SettingHistoryView,
-  SettingView,
-  SkillView,
-  SpoolHealthView,
-  StorageHealthView,
-  WorkflowView,
-} from "@/lib/domain/control-plane"
+import type { AccountDeviceAssignmentView, AccountReferenceView, AccountRunEventView, AccountRunView, AccountServiceStateHistoryView, AccountServiceStateView, AccountSourceView, AccountSyncEventView, ArtifactAuditView, ArtifactView, AutomationAgentProfileView, AutomationAgentView, ControlPlaneClient, ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, DeviceSettingOutcomeView, DeviceSettingsApplyView, EdgeAgentView, EndpointView, EventKind, EventView, GroupView, IndeterminateActionView, LabAdapterView, LabDiscoveredDeviceView, LeaseView, MembershipView, MirrorSessionView, MutationResult, NetworkProfileView, ObservationView, ObservedDeviceView, PolicyDecisionView, PolicyView, PrerequisiteErrorCode, RecordingMediaView, RunTargetView, RunView, RuntimeConnectionView, ScanRunView, SettingHistoryView, SettingView, SkillView, SpoolHealthView, StorageHealthView, WorkflowView } from "@/lib/domain/control-plane"
 import { addressPoliciesAreEquivalent, addressRangeContainsHost, isTransportPort, parseDiscoveryRange } from "@/lib/api/address-range"
 
 const workspace = {
@@ -203,9 +155,30 @@ const devices: DeviceView[] = [
 ]
 
 const edgeAgents: EdgeAgentView[] = [
-  { id: "edge-agent-alpha", displayName: "Edge Alpha", version: "fake-edge-1.4.2", state: "active", lastSeen: "just now", deviceIds: ["atlas-04", "atlas-07"] },
-  { id: "edge-agent-beta", displayName: "Edge Beta", version: "fake-edge-1.4.1", state: "unhealthy", lastSeen: "2 min ago", deviceIds: ["nova-02", "nova-05"] },
-  { id: "edge-agent-gamma", displayName: "Edge Gamma", version: "fake-edge-1.4.2", state: "active", lastSeen: "just now", deviceIds: ["orion-01", "orion-03"] },
+  {
+    id: "edge-agent-alpha",
+    displayName: "Edge Alpha",
+    version: "fake-edge-1.4.2",
+    state: "active",
+    lastSeen: "just now",
+    deviceIds: ["atlas-04", "atlas-07"],
+  },
+  {
+    id: "edge-agent-beta",
+    displayName: "Edge Beta",
+    version: "fake-edge-1.4.1",
+    state: "unhealthy",
+    lastSeen: "2 min ago",
+    deviceIds: ["nova-02", "nova-05"],
+  },
+  {
+    id: "edge-agent-gamma",
+    displayName: "Edge Gamma",
+    version: "fake-edge-1.4.2",
+    state: "active",
+    lastSeen: "just now",
+    deviceIds: ["orion-01", "orion-03"],
+  },
 ]
 
 const endpoints: EndpointView[] = devices.flatMap((device) => [
@@ -220,26 +193,52 @@ const endpoints: EndpointView[] = devices.flatMap((device) => [
     observedAt: "2026-09-14T09:42:18Z",
   },
   ...(device.id === "atlas-04"
-    ? [{
-        id: "endpoint-atlas-04-superseded",
-        deviceId: device.id,
-        endpointType: "mock transport",
-        serial: "MOCK-DEVICE-101",
-        host: "192.0.2.9",
-        port: 5555,
-        state: "superseded" as const,
-        observedAt: "2026-09-13T15:10:00Z",
-        // The moment this transport stopped being the device's current one: the
-        // history a moved device keeps, and the date it is read with.
-        supersededAt: "2026-09-14T09:42:18Z",
-      }]
+    ? [
+        {
+          id: "endpoint-atlas-04-superseded",
+          deviceId: device.id,
+          endpointType: "mock transport",
+          serial: "MOCK-DEVICE-101",
+          host: "192.0.2.9",
+          port: 5555,
+          state: "superseded" as const,
+          observedAt: "2026-09-13T15:10:00Z",
+          // The moment this transport stopped being the device's current one: the
+          // history a moved device keeps, and the date it is read with.
+          supersededAt: "2026-09-14T09:42:18Z",
+        },
+      ]
     : []),
 ])
 
 const leases: LeaseView[] = [
-  { id: "lease-atlas-04", deviceId: "atlas-04", controlSessionId: "session-operator-1", holder: "operator-1", fencingToken: 18, state: "active", expiresAt: "in 27 min" },
-  { id: "lease-atlas-07", deviceId: "atlas-07", controlSessionId: "session-operator-1", holder: "operator-1", fencingToken: 7, state: "released", expiresAt: "released" },
-  { id: "lease-nova-02", deviceId: "nova-02", controlSessionId: "session-recovery", holder: "recovery-service", fencingToken: 11, state: "revoked", expiresAt: "revoked" },
+  {
+    id: "lease-atlas-04",
+    deviceId: "atlas-04",
+    controlSessionId: "session-operator-1",
+    holder: "operator-1",
+    fencingToken: 18,
+    state: "active",
+    expiresAt: "in 27 min",
+  },
+  {
+    id: "lease-atlas-07",
+    deviceId: "atlas-07",
+    controlSessionId: "session-operator-1",
+    holder: "operator-1",
+    fencingToken: 7,
+    state: "released",
+    expiresAt: "released",
+  },
+  {
+    id: "lease-nova-02",
+    deviceId: "nova-02",
+    controlSessionId: "session-recovery",
+    holder: "recovery-service",
+    fencingToken: 11,
+    state: "revoked",
+    expiresAt: "revoked",
+  },
 ]
 
 const observations: ObservationView[] = devices.map((device, index) => ({
@@ -257,13 +256,38 @@ const observations: ObservationView[] = devices.map((device, index) => ({
 }))
 
 const networkProfiles: NetworkProfileView[] = [
-  { id: "profile-lab-a", name: "Lab A staging", addressPolicy: "192.0.2.0/24", ports: [5555], isDefault: true },
-  { id: "profile-lab-b", name: "Lab B review", addressPolicy: "198.51.100.0/24", ports: [5555, 5037], isDefault: false },
+  {
+    id: "profile-lab-a",
+    name: "Lab A staging",
+    addressPolicy: "192.0.2.0/24",
+    ports: [5555],
+    isDefault: true,
+  },
+  {
+    id: "profile-lab-b",
+    name: "Lab B review",
+    addressPolicy: "198.51.100.0/24",
+    ports: [5555, 5037],
+    isDefault: false,
+  },
 ]
 
 const scanRuns: ScanRunView[] = [
-  { id: "scan-run-001", networkProfileId: "profile-lab-a", state: "completed", requestedAt: "09:31:02", finishedAt: "09:31:08" },
-  { id: "scan-run-002", networkProfileId: "profile-lab-b", state: "failed", requestedAt: "09:18:44", finishedAt: "09:18:45", failureClass: "infrastructure_error" },
+  {
+    id: "scan-run-001",
+    networkProfileId: "profile-lab-a",
+    state: "completed",
+    requestedAt: "09:31:02",
+    finishedAt: "09:31:08",
+  },
+  {
+    id: "scan-run-002",
+    networkProfileId: "profile-lab-b",
+    state: "failed",
+    requestedAt: "09:18:44",
+    finishedAt: "09:18:45",
+    failureClass: "infrastructure_error",
+  },
 ]
 
 // What a scan observed, in the shape the control plane returns: one row per
@@ -275,9 +299,36 @@ const scanRuns: ScanRunView[] = [
 // scan reports whichever of them its target covers; nothing here is a socket,
 // so a scan never claims a responder this client did not already hold.
 const mockObservedTransports: readonly Omit<ObservedDeviceView, "scanRunId">[] = [
-  { host: "192.0.2.10", port: 5555, serial: "MOCK-DEVICE-101", model: "Mock Pixel 8", state: "online", known: true, deviceId: "atlas-04", endpointId: "endpoint-atlas-04-current" },
-  { host: "192.0.2.12", port: 5555, serial: "MOCK-DEVICE-104", model: "Mock Pixel 7", state: "offline", known: true, deviceId: "nova-05", endpointId: "endpoint-nova-05-current" },
-  { host: "192.0.2.31", port: 5555, serial: "MOCK-DEVICE-207", model: "Unknown Android", state: "unauthorized", known: false, deviceId: "", endpointId: "" },
+  {
+    host: "192.0.2.10",
+    port: 5555,
+    serial: "MOCK-DEVICE-101",
+    model: "Mock Pixel 8",
+    state: "online",
+    known: true,
+    deviceId: "atlas-04",
+    endpointId: "endpoint-atlas-04-current",
+  },
+  {
+    host: "192.0.2.12",
+    port: 5555,
+    serial: "MOCK-DEVICE-104",
+    model: "Mock Pixel 7",
+    state: "offline",
+    known: true,
+    deviceId: "nova-05",
+    endpointId: "endpoint-nova-05-current",
+  },
+  {
+    host: "192.0.2.31",
+    port: 5555,
+    serial: "MOCK-DEVICE-207",
+    model: "Unknown Android",
+    state: "unauthorized",
+    known: false,
+    deviceId: "",
+    endpointId: "",
+  },
 ]
 
 function mockScanObservations(scanRunId: string, profileId: string): ObservedDeviceView[] {
@@ -286,28 +337,113 @@ function mockScanObservations(scanRunId: string, profileId: string): ObservedDev
 }
 
 const scanObservations: ObservedDeviceView[] = [
-  { scanRunId: "scan-run-001", host: "192.0.2.10", port: 5555, serial: "MOCK-DEVICE-101", model: "Mock Pixel 8", state: "online", known: true, deviceId: "atlas-04", endpointId: "endpoint-atlas-04-current" },
-  { scanRunId: "scan-run-001", host: "192.0.2.12", port: 5555, serial: "MOCK-DEVICE-104", model: "Mock Pixel 7", state: "offline", known: true, deviceId: "nova-05", endpointId: "endpoint-nova-05-current" },
+  {
+    scanRunId: "scan-run-001",
+    host: "192.0.2.10",
+    port: 5555,
+    serial: "MOCK-DEVICE-101",
+    model: "Mock Pixel 8",
+    state: "online",
+    known: true,
+    deviceId: "atlas-04",
+    endpointId: "endpoint-atlas-04-current",
+  },
+  {
+    scanRunId: "scan-run-001",
+    host: "192.0.2.12",
+    port: 5555,
+    serial: "MOCK-DEVICE-104",
+    model: "Mock Pixel 7",
+    state: "offline",
+    known: true,
+    deviceId: "nova-05",
+    endpointId: "endpoint-nova-05-current",
+  },
 ]
 
 const groups: GroupView[] = [
-  { id: "group-rack-a", name: "Rack A", state: "active", position: 1, rowVersion: 4 },
-  { id: "group-rack-b", name: "Rack B", state: "active", position: 2, rowVersion: 2 },
-  { id: "group-rack-c", name: "Rack C", state: "active", position: 3, rowVersion: 3 },
+  {
+    id: "group-rack-a",
+    name: "Rack A",
+    state: "active",
+    position: 1,
+    rowVersion: 4,
+  },
+  {
+    id: "group-rack-b",
+    name: "Rack B",
+    state: "active",
+    position: 2,
+    rowVersion: 2,
+  },
+  {
+    id: "group-rack-c",
+    name: "Rack C",
+    state: "active",
+    position: 3,
+    rowVersion: 3,
+  },
 ]
 
 const memberships: MembershipView[] = [
-  { id: "membership-a-04", groupId: "group-rack-a", deviceId: "atlas-04", position: 1, state: "active", startedAt: "2026-09-10" },
-  { id: "membership-a-07", groupId: "group-rack-a", deviceId: "atlas-07", position: 2, state: "active", startedAt: "2026-09-10" },
-  { id: "membership-b-02", groupId: "group-rack-b", deviceId: "nova-02", position: 1, state: "active", startedAt: "2026-09-11" },
-  { id: "membership-b-05", groupId: "group-rack-b", deviceId: "nova-05", position: 2, state: "active", startedAt: "2026-09-11" },
-  { id: "membership-c-01", groupId: "group-rack-c", deviceId: "orion-01", position: 1, state: "active", startedAt: "2026-09-12" },
-  { id: "membership-c-01-old", groupId: "group-rack-a", deviceId: "orion-01", position: 3, state: "ended", startedAt: "2026-09-10", endedAt: "2026-09-12" },
+  {
+    id: "membership-a-04",
+    groupId: "group-rack-a",
+    deviceId: "atlas-04",
+    position: 1,
+    state: "active",
+    startedAt: "2026-09-10",
+  },
+  {
+    id: "membership-a-07",
+    groupId: "group-rack-a",
+    deviceId: "atlas-07",
+    position: 2,
+    state: "active",
+    startedAt: "2026-09-10",
+  },
+  {
+    id: "membership-b-02",
+    groupId: "group-rack-b",
+    deviceId: "nova-02",
+    position: 1,
+    state: "active",
+    startedAt: "2026-09-11",
+  },
+  {
+    id: "membership-b-05",
+    groupId: "group-rack-b",
+    deviceId: "nova-05",
+    position: 2,
+    state: "active",
+    startedAt: "2026-09-11",
+  },
+  {
+    id: "membership-c-01",
+    groupId: "group-rack-c",
+    deviceId: "orion-01",
+    position: 1,
+    state: "active",
+    startedAt: "2026-09-12",
+  },
+  {
+    id: "membership-c-01-old",
+    groupId: "group-rack-a",
+    deviceId: "orion-01",
+    position: 3,
+    state: "ended",
+    startedAt: "2026-09-10",
+    endedAt: "2026-09-12",
+  },
 ]
 
 const automationAgents: AutomationAgentView[] = [
   { id: "automation-agent-ops", name: "Ops steward", state: "active" },
-  { id: "automation-agent-review", name: "Review assistant", state: "suspended" },
+  {
+    id: "automation-agent-review",
+    name: "Review assistant",
+    state: "suspended",
+  },
 ]
 
 const automationAgentProfiles: AutomationAgentProfileView[] = [
@@ -340,109 +476,577 @@ const automationAgentProfiles: AutomationAgentProfileView[] = [
 ]
 
 const workflows: WorkflowView[] = [
-  { id: "workflow-content", name: "Content validation", state: "published", version: 8, stepCount: 12, targetSelector: "Group · Rack A", safetySummary: "Fresh observation before every mutating step" },
-  { id: "workflow-readiness", name: "Morning readiness", state: "validated", version: 2, stepCount: 6, targetSelector: "Capability · observe", safetySummary: "Read-only observation workflow" },
-  { id: "workflow-recovery", name: "Account review", state: "draft", version: 1, stepCount: 4, targetSelector: "Explicit devices", safetySummary: "Not eligible for publication" },
+  {
+    id: "workflow-content",
+    name: "Content validation",
+    state: "published",
+    version: 8,
+    stepCount: 12,
+    targetSelector: "Group · Rack A",
+    safetySummary: "Fresh observation before every mutating step",
+  },
+  {
+    id: "workflow-readiness",
+    name: "Morning readiness",
+    state: "validated",
+    version: 2,
+    stepCount: 6,
+    targetSelector: "Capability · observe",
+    safetySummary: "Read-only observation workflow",
+  },
+  {
+    id: "workflow-recovery",
+    name: "Account review",
+    state: "draft",
+    version: 1,
+    stepCount: 4,
+    targetSelector: "Explicit devices",
+    safetySummary: "Not eligible for publication",
+  },
 ]
 
 const skills: SkillView[] = [
-  { id: "skill-inbox", name: "Inbox triage", version: 4, versionId: "skill-inbox-v4", state: "published", trust: "approved", capabilities: ["observe", "tap", "capture"], sourceRecording: "recording-session-014" },
-  { id: "skill-review", name: "Screen review", version: 1, versionId: "skill-review-v1", state: "validated", trust: "reviewed", capabilities: ["observe", "capture"], sourceRecording: "recording-session-018" },
-  { id: "skill-draft", name: "Draft capture", version: 1, versionId: "skill-draft-v1", state: "draft", trust: "unreviewed", capabilities: ["observe"], sourceRecording: "" },
+  {
+    id: "skill-inbox",
+    name: "Inbox triage",
+    version: 4,
+    versionId: "skill-inbox-v4",
+    state: "published",
+    trust: "approved",
+    capabilities: ["observe", "tap", "capture"],
+    sourceRecording: "recording-session-014",
+  },
+  {
+    id: "skill-review",
+    name: "Screen review",
+    version: 1,
+    versionId: "skill-review-v1",
+    state: "validated",
+    trust: "reviewed",
+    capabilities: ["observe", "capture"],
+    sourceRecording: "recording-session-018",
+  },
+  {
+    id: "skill-draft",
+    name: "Draft capture",
+    version: 1,
+    versionId: "skill-draft-v1",
+    state: "draft",
+    trust: "unreviewed",
+    capabilities: ["observe"],
+    sourceRecording: "",
+  },
 ]
 
 const runs: RunView[] = [
-  { id: "run-1042", workflowName: "Content validation", workflowVersion: 8, state: "running", approval: "approved", selector: "Group · Rack A", targetSnapshotId: "snapshot-1042", concurrencyLimit: 2, retryBudget: 1, createdAt: "09:36:04" },
-  { id: "run-1041", workflowName: "Account review", workflowVersion: 1, state: "paused", approval: "approved", selector: "Explicit devices · 2", targetSnapshotId: "snapshot-1041", concurrencyLimit: 1, retryBudget: 0, createdAt: "09:21:19", failureClass: "policy_denied" },
-  { id: "run-1039", workflowName: "Morning readiness", workflowVersion: 2, state: "completed", approval: "approved", selector: "Capability · observe", targetSnapshotId: "snapshot-1039", concurrencyLimit: 3, retryBudget: 2, createdAt: "08:44:00" },
+  {
+    id: "run-1042",
+    workflowName: "Content validation",
+    workflowVersion: 8,
+    state: "running",
+    approval: "approved",
+    selector: "Group · Rack A",
+    targetSnapshotId: "snapshot-1042",
+    concurrencyLimit: 2,
+    retryBudget: 1,
+    createdAt: "09:36:04",
+  },
+  {
+    id: "run-1041",
+    workflowName: "Account review",
+    workflowVersion: 1,
+    state: "paused",
+    approval: "approved",
+    selector: "Explicit devices · 2",
+    targetSnapshotId: "snapshot-1041",
+    concurrencyLimit: 1,
+    retryBudget: 0,
+    createdAt: "09:21:19",
+    failureClass: "policy_denied",
+  },
+  {
+    id: "run-1039",
+    workflowName: "Morning readiness",
+    workflowVersion: 2,
+    state: "completed",
+    approval: "approved",
+    selector: "Capability · observe",
+    targetSnapshotId: "snapshot-1039",
+    concurrencyLimit: 3,
+    retryBudget: 2,
+    createdAt: "08:44:00",
+  },
 ]
 
 const runTargets: RunTargetView[] = [
-  { id: "target-1042-atlas-04", runId: "run-1042", deviceId: "atlas-04", state: "verifying", leaseId: "lease-atlas-04", observationId: "observation-atlas-04", attemptCount: 2 },
-  { id: "target-1042-atlas-07", runId: "run-1042", deviceId: "atlas-07", state: "running", leaseId: "lease-atlas-07", observationId: "observation-atlas-07", attemptCount: 1 },
-  { id: "target-1041-nova-02", runId: "run-1041", deviceId: "nova-02", state: "failed", failureClass: "policy_denied", attemptCount: 1 },
-  { id: "target-1041-nova-05", runId: "run-1041", deviceId: "nova-05", state: "failed", failureClass: "device_offline", attemptCount: 0 },
-  { id: "target-1039-atlas-04", runId: "run-1039", deviceId: "atlas-04", state: "succeeded", attemptCount: 1 },
-  { id: "target-1039-orion-03", runId: "run-1039", deviceId: "orion-03", state: "succeeded", attemptCount: 1 },
+  {
+    id: "target-1042-atlas-04",
+    runId: "run-1042",
+    deviceId: "atlas-04",
+    state: "verifying",
+    leaseId: "lease-atlas-04",
+    observationId: "observation-atlas-04",
+    attemptCount: 2,
+  },
+  {
+    id: "target-1042-atlas-07",
+    runId: "run-1042",
+    deviceId: "atlas-07",
+    state: "running",
+    leaseId: "lease-atlas-07",
+    observationId: "observation-atlas-07",
+    attemptCount: 1,
+  },
+  {
+    id: "target-1041-nova-02",
+    runId: "run-1041",
+    deviceId: "nova-02",
+    state: "failed",
+    failureClass: "policy_denied",
+    attemptCount: 1,
+  },
+  {
+    id: "target-1041-nova-05",
+    runId: "run-1041",
+    deviceId: "nova-05",
+    state: "failed",
+    failureClass: "device_offline",
+    attemptCount: 0,
+  },
+  {
+    id: "target-1039-atlas-04",
+    runId: "run-1039",
+    deviceId: "atlas-04",
+    state: "succeeded",
+    attemptCount: 1,
+  },
+  {
+    id: "target-1039-orion-03",
+    runId: "run-1039",
+    deviceId: "orion-03",
+    state: "succeeded",
+    attemptCount: 1,
+  },
 ]
 
 const events: EventView[] = [
-  { id: "event-001", kind: "operational", name: "workflow.target_verifying", actor: "run service", resourceType: "run_target", resourceId: "target-1042-atlas-04", correlationId: "corr-1042", occurredAt: "09:42:18", payloadSummary: "Sanitized metadata only; payload omitted" },
-  { id: "event-002", kind: "audit", name: "lease.renewed", actor: "operator · operator-1", resourceType: "device_lease", resourceId: "lease-atlas-04", correlationId: "corr-1042", occurredAt: "09:40:31", payloadSummary: "Actor and resource metadata retained" },
-  { id: "event-003", kind: "operational", name: "observation.captured", actor: "fake edge agent", resourceType: "observation", resourceId: "observation-atlas-04", correlationId: "corr-1042", occurredAt: "09:39:57", payloadSummary: "Artifact bytes omitted from event view" },
-  { id: "event-004", kind: "audit", name: "run.target_failed", actor: "run service", resourceType: "run_target", resourceId: "target-1041-nova-02", correlationId: "corr-1041", occurredAt: "09:35:02", failureClass: "policy_denied", payloadSummary: "Failure label retained; sensitive payload omitted" },
-  { id: "event-005", kind: "operational", name: "agent.heartbeat", actor: "fake edge agent", resourceType: "edge_agent", resourceId: "edge-agent-gamma", correlationId: "corr-agent", occurredAt: "09:38:04", payloadSummary: "Version and health metadata only" },
-  { id: "event-lab-001", kind: "operational", name: "Adapter Readiness", actor: "lab adapter", resourceType: "lab_adapter", resourceId: "lab-adapter-local", correlationId: "corr-lab-000", occurredAt: "09:37:40", payloadSummary: "Mock adapter mode; no ADB transport was opened" },
-  { id: "event-lab-002", kind: "operational", name: "Read-Only Reattach", actor: "lab adapter", resourceType: "lab_adapter", resourceId: "lab-adapter-local", correlationId: "corr-lab-000", occurredAt: "09:37:41", payloadSummary: "Observation boundary reattached read-only; no lease was held" },
+  {
+    id: "event-001",
+    kind: "operational",
+    name: "workflow.target_verifying",
+    actor: "run service",
+    resourceType: "run_target",
+    resourceId: "target-1042-atlas-04",
+    correlationId: "corr-1042",
+    occurredAt: "09:42:18",
+    payloadSummary: "Sanitized metadata only; payload omitted",
+  },
+  {
+    id: "event-002",
+    kind: "audit",
+    name: "lease.renewed",
+    actor: "operator · operator-1",
+    resourceType: "device_lease",
+    resourceId: "lease-atlas-04",
+    correlationId: "corr-1042",
+    occurredAt: "09:40:31",
+    payloadSummary: "Actor and resource metadata retained",
+  },
+  {
+    id: "event-003",
+    kind: "operational",
+    name: "observation.captured",
+    actor: "fake edge agent",
+    resourceType: "observation",
+    resourceId: "observation-atlas-04",
+    correlationId: "corr-1042",
+    occurredAt: "09:39:57",
+    payloadSummary: "Artifact bytes omitted from event view",
+  },
+  {
+    id: "event-004",
+    kind: "audit",
+    name: "run.target_failed",
+    actor: "run service",
+    resourceType: "run_target",
+    resourceId: "target-1041-nova-02",
+    correlationId: "corr-1041",
+    occurredAt: "09:35:02",
+    failureClass: "policy_denied",
+    payloadSummary: "Failure label retained; sensitive payload omitted",
+  },
+  {
+    id: "event-005",
+    kind: "operational",
+    name: "agent.heartbeat",
+    actor: "fake edge agent",
+    resourceType: "edge_agent",
+    resourceId: "edge-agent-gamma",
+    correlationId: "corr-agent",
+    occurredAt: "09:38:04",
+    payloadSummary: "Version and health metadata only",
+  },
+  {
+    id: "event-lab-001",
+    kind: "operational",
+    name: "Adapter Readiness",
+    actor: "lab adapter",
+    resourceType: "lab_adapter",
+    resourceId: "lab-adapter-local",
+    correlationId: "corr-lab-000",
+    occurredAt: "09:37:40",
+    payloadSummary: "Mock adapter mode; no ADB transport was opened",
+  },
+  {
+    id: "event-lab-002",
+    kind: "operational",
+    name: "Read-Only Reattach",
+    actor: "lab adapter",
+    resourceType: "lab_adapter",
+    resourceId: "lab-adapter-local",
+    correlationId: "corr-lab-000",
+    occurredAt: "09:37:41",
+    payloadSummary: "Observation boundary reattached read-only; no lease was held",
+  },
 ]
 
 const accountSources: AccountSourceView[] = [
-  { id: "source-demo", provider: "fixture", displayName: "Sanitized fixture source", state: "active", externalReference: "fixture-catalog-v1", metadataJson: `{"environment":"demo","connector":"disabled"}`, rowVersion: 2 },
+  {
+    id: "source-demo",
+    provider: "fixture",
+    displayName: "Sanitized fixture source",
+    state: "active",
+    externalReference: "fixture-catalog-v1",
+    metadataJson: `{"environment":"demo","connector":"disabled"}`,
+    rowVersion: 2,
+  },
 ]
 
 const accounts: AccountReferenceView[] = [
-  { id: "account-ops-01", sourceId: "source-demo", sourceProvider: "fixture", externalReference: "demo-account-01", label: "Operations demo", metadataJson: `{"tier":"operator"}`, rowVersion: 3, state: "active", assignedDeviceId: "atlas-04", serviceState: "healthy", lastRun: "run-1042 · running" },
-  { id: "account-review-02", sourceId: "source-demo", sourceProvider: "fixture", externalReference: "demo-account-02", label: "Review fixture", metadataJson: `{"tier":"review"}`, rowVersion: 2, state: "inactive", assignedDeviceId: "nova-02", serviceState: "degraded", lastRun: "run-1041 · policy denied" },
+  {
+    id: "account-ops-01",
+    sourceId: "source-demo",
+    sourceProvider: "fixture",
+    externalReference: "demo-account-01",
+    label: "Operations demo",
+    metadataJson: `{"tier":"operator"}`,
+    rowVersion: 3,
+    state: "active",
+    assignedDeviceId: "atlas-04",
+    serviceState: "healthy",
+    lastRun: "run-1042 · running",
+  },
+  {
+    id: "account-review-02",
+    sourceId: "source-demo",
+    sourceProvider: "fixture",
+    externalReference: "demo-account-02",
+    label: "Review fixture",
+    metadataJson: `{"tier":"review"}`,
+    rowVersion: 2,
+    state: "inactive",
+    assignedDeviceId: "nova-02",
+    serviceState: "degraded",
+    lastRun: "run-1041 · policy denied",
+  },
 ]
 
 const settings: SettingView[] = [
-  { id: "setting-workspace-retention", scope: "workspace", targetId: "", key: "event_retention_days", valueSummary: "30 days", valueJson: "30", state: "active", rowVersion: 2, valueKind: "integer", risk: "safety_critical", minValue: 1, maxValue: 3650 },
-  { id: "setting-control-approval", scope: "control_plane", targetId: "control-plane-local", key: "require_explicit_approval", valueSummary: "Enabled", valueJson: "true", state: "active", rowVersion: 4, valueKind: "boolean", risk: "safety_critical" },
-  { id: "setting-operator-density", scope: "operator_preference", targetId: "operator-1", key: "table_density", valueSummary: "comfortable", valueJson: "\"comfortable\"", state: "active", rowVersion: 1, valueKind: "enum", risk: "low_preference", allowedValues: ["compact", "comfortable", "spacious"] },
+  {
+    id: "setting-workspace-retention",
+    scope: "workspace",
+    targetId: "",
+    key: "event_retention_days",
+    valueSummary: "30 days",
+    valueJson: "30",
+    state: "active",
+    rowVersion: 2,
+    valueKind: "integer",
+    risk: "safety_critical",
+    minValue: 1,
+    maxValue: 3650,
+  },
+  {
+    id: "setting-control-approval",
+    scope: "control_plane",
+    targetId: "control-plane-local",
+    key: "require_explicit_approval",
+    valueSummary: "Enabled",
+    valueJson: "true",
+    state: "active",
+    rowVersion: 4,
+    valueKind: "boolean",
+    risk: "safety_critical",
+  },
+  {
+    id: "setting-operator-density",
+    scope: "operator_preference",
+    targetId: "operator-1",
+    key: "table_density",
+    valueSummary: "comfortable",
+    valueJson: '"comfortable"',
+    state: "active",
+    rowVersion: 1,
+    valueKind: "enum",
+    risk: "low_preference",
+    allowedValues: ["compact", "comfortable", "spacious"],
+  },
 ]
 
 const policies: PolicyView[] = [
-  { id: "policy-default-safety", name: "Default action safety", version: 4, state: "active", ruleSummary: "Allow only approved low-risk actions with fresh observations.", ruleJson: `{"allow":"approved_low_risk_with_fresh_observation"}`, rowVersion: 4 },
-  { id: "policy-lab-review", name: "Lab review boundary", version: 2, state: "draft", ruleSummary: "Deny actions for unavailable or incompatible targets.", ruleJson: `{"deny":["unavailable","incompatible"]}`, rowVersion: 2 },
+  {
+    id: "policy-default-safety",
+    name: "Default action safety",
+    version: 4,
+    state: "active",
+    ruleSummary: "Allow only approved low-risk actions with fresh observations.",
+    ruleJson: `{"allow":"approved_low_risk_with_fresh_observation"}`,
+    rowVersion: 4,
+  },
+  {
+    id: "policy-lab-review",
+    name: "Lab review boundary",
+    version: 2,
+    state: "draft",
+    ruleSummary: "Deny actions for unavailable or incompatible targets.",
+    ruleJson: `{"deny":["unavailable","incompatible"]}`,
+    rowVersion: 2,
+  },
 ]
 
 const accountServiceStates: AccountServiceStateView[] = [
-  { id: "account-state-ops", accountId: "account-ops-01", serviceName: "fixture", stage: "running", state: "healthy", observedAt: "just now", detailsJson: `{"status":"ready_for_review"}`, rowVersion: 3 },
-  { id: "account-state-review", accountId: "account-review-02", serviceName: "fixture", stage: "blocked", state: "degraded", observedAt: "2 min ago", failureClass: "policy_denied", detailsJson: `{"status":"requires_review"}`, rowVersion: 2 },
+  {
+    id: "account-state-ops",
+    accountId: "account-ops-01",
+    serviceName: "fixture",
+    stage: "running",
+    state: "healthy",
+    observedAt: "just now",
+    detailsJson: `{"status":"ready_for_review"}`,
+    rowVersion: 3,
+  },
+  {
+    id: "account-state-review",
+    accountId: "account-review-02",
+    serviceName: "fixture",
+    stage: "blocked",
+    state: "degraded",
+    observedAt: "2 min ago",
+    failureClass: "policy_denied",
+    detailsJson: `{"status":"requires_review"}`,
+    rowVersion: 2,
+  },
 ]
 
 const accountServiceStateHistory: AccountServiceStateHistoryView[] = [
-  { id: "account-state-history-ops-1", accountId: "account-ops-01", serviceName: "fixture", stage: "ready", state: "healthy", observedAt: "09:38:10", recordedAt: "09:38:11", detailsJson: `{"status":"ready"}`, rowVersion: 2 },
-  { id: "account-state-history-ops-2", accountId: "account-ops-01", serviceName: "fixture", stage: "running", state: "healthy", observedAt: "09:42:18", recordedAt: "09:42:19", detailsJson: `{"status":"ready_for_review"}`, rowVersion: 3 },
-  { id: "account-state-history-review-1", accountId: "account-review-02", serviceName: "fixture", stage: "blocked", state: "degraded", observedAt: "09:35:02", recordedAt: "09:35:03", failureClass: "policy_denied", detailsJson: `{"status":"requires_review"}`, rowVersion: 2 },
+  {
+    id: "account-state-history-ops-1",
+    accountId: "account-ops-01",
+    serviceName: "fixture",
+    stage: "ready",
+    state: "healthy",
+    observedAt: "09:38:10",
+    recordedAt: "09:38:11",
+    detailsJson: `{"status":"ready"}`,
+    rowVersion: 2,
+  },
+  {
+    id: "account-state-history-ops-2",
+    accountId: "account-ops-01",
+    serviceName: "fixture",
+    stage: "running",
+    state: "healthy",
+    observedAt: "09:42:18",
+    recordedAt: "09:42:19",
+    detailsJson: `{"status":"ready_for_review"}`,
+    rowVersion: 3,
+  },
+  {
+    id: "account-state-history-review-1",
+    accountId: "account-review-02",
+    serviceName: "fixture",
+    stage: "blocked",
+    state: "degraded",
+    observedAt: "09:35:02",
+    recordedAt: "09:35:03",
+    failureClass: "policy_denied",
+    detailsJson: `{"status":"requires_review"}`,
+    rowVersion: 2,
+  },
 ]
 
 const accountRuns: AccountRunView[] = [
-  { id: "account-run-ops-1042", accountId: "account-ops-01", state: "running", requestedAt: "09:36:04", startedAt: "09:36:09", correlationId: "corr-1042", rowVersion: 2 },
-  { id: "account-run-review-1041", accountId: "account-review-02", state: "failed", requestedAt: "09:21:19", startedAt: "09:21:22", finishedAt: "09:35:02", failureClass: "policy_denied", correlationId: "corr-1041", rowVersion: 3 },
+  {
+    id: "account-run-ops-1042",
+    accountId: "account-ops-01",
+    state: "running",
+    requestedAt: "09:36:04",
+    startedAt: "09:36:09",
+    correlationId: "corr-1042",
+    rowVersion: 2,
+  },
+  {
+    id: "account-run-review-1041",
+    accountId: "account-review-02",
+    state: "failed",
+    requestedAt: "09:21:19",
+    startedAt: "09:21:22",
+    finishedAt: "09:35:02",
+    failureClass: "policy_denied",
+    correlationId: "corr-1041",
+    rowVersion: 3,
+  },
 ]
 
 const accountRunEvents: AccountRunEventView[] = [
-  { id: "account-run-event-ops-requested", runId: "account-run-ops-1042", state: "requested", occurredAt: "09:36:04", actorType: "operator", actorId: "operator-1", correlationId: "corr-1042" },
-  { id: "account-run-event-ops-running", runId: "account-run-ops-1042", state: "running", occurredAt: "09:36:09", actorType: "account-service", actorId: "account-service-1", correlationId: "corr-1042" },
-  { id: "account-run-event-review-failed", runId: "account-run-review-1041", state: "failed", occurredAt: "09:35:02", actorType: "policy-service", actorId: "policy-service-1", correlationId: "corr-1041", failureClass: "policy_denied" },
+  {
+    id: "account-run-event-ops-requested",
+    runId: "account-run-ops-1042",
+    state: "requested",
+    occurredAt: "09:36:04",
+    actorType: "operator",
+    actorId: "operator-1",
+    correlationId: "corr-1042",
+  },
+  {
+    id: "account-run-event-ops-running",
+    runId: "account-run-ops-1042",
+    state: "running",
+    occurredAt: "09:36:09",
+    actorType: "account-service",
+    actorId: "account-service-1",
+    correlationId: "corr-1042",
+  },
+  {
+    id: "account-run-event-review-failed",
+    runId: "account-run-review-1041",
+    state: "failed",
+    occurredAt: "09:35:02",
+    actorType: "policy-service",
+    actorId: "policy-service-1",
+    correlationId: "corr-1041",
+    failureClass: "policy_denied",
+  },
 ]
 
 const accountDeviceAssignments: AccountDeviceAssignmentView[] = [
-  { id: "assignment-ops-atlas-04", accountId: "account-ops-01", deviceId: "atlas-04", state: "active", assignedAt: "2026-09-12", rowVersion: 1 },
-  { id: "assignment-review-nova-02", accountId: "account-review-02", deviceId: "nova-02", state: "active", assignedAt: "2026-09-12", rowVersion: 1 },
+  {
+    id: "assignment-ops-atlas-04",
+    accountId: "account-ops-01",
+    deviceId: "atlas-04",
+    state: "active",
+    assignedAt: "2026-09-12",
+    rowVersion: 1,
+  },
+  {
+    id: "assignment-review-nova-02",
+    accountId: "account-review-02",
+    deviceId: "nova-02",
+    state: "active",
+    assignedAt: "2026-09-12",
+    rowVersion: 1,
+  },
 ]
 
 const accountSyncEvents: AccountSyncEventView[] = [
-  { id: "sync-event-001", sourceId: "source-demo", eventName: "connector.sync", accountId: "account-ops-01", outcome: "disabled", idempotencyKey: "sync-demo-001", correlationId: "corr-sync-001", occurredAt: "09:42:18", detailsJson: `{"connector":"disabled","attempted":false}` },
+  {
+    id: "sync-event-001",
+    sourceId: "source-demo",
+    eventName: "connector.sync",
+    accountId: "account-ops-01",
+    outcome: "disabled",
+    idempotencyKey: "sync-demo-001",
+    correlationId: "corr-sync-001",
+    occurredAt: "09:42:18",
+    detailsJson: `{"connector":"disabled","attempted":false}`,
+  },
 ]
 
 const settingHistory: SettingHistoryView[] = [
-  { id: "setting-history-retention-1", settingId: "setting-workspace-retention", scope: "workspace", targetId: "", key: "event_retention_days", valueJson: "14", state: "active", rowVersion: 1, actorType: "operator", actorId: "operator-1", changedAt: "2026-09-12" },
-  { id: "setting-history-retention-2", settingId: "setting-workspace-retention", scope: "workspace", targetId: "", key: "event_retention_days", valueJson: "30", state: "active", rowVersion: 2, actorType: "operator", actorId: "operator-1", changedAt: "2026-09-14" },
+  {
+    id: "setting-history-retention-1",
+    settingId: "setting-workspace-retention",
+    scope: "workspace",
+    targetId: "",
+    key: "event_retention_days",
+    valueJson: "14",
+    state: "active",
+    rowVersion: 1,
+    actorType: "operator",
+    actorId: "operator-1",
+    changedAt: "2026-09-12",
+  },
+  {
+    id: "setting-history-retention-2",
+    settingId: "setting-workspace-retention",
+    scope: "workspace",
+    targetId: "",
+    key: "event_retention_days",
+    valueJson: "30",
+    state: "active",
+    rowVersion: 2,
+    actorType: "operator",
+    actorId: "operator-1",
+    changedAt: "2026-09-14",
+  },
 ]
 
 const policyDecisions: PolicyDecisionView[] = [
-  { id: "decision-001", policyId: "policy-default-safety", resourceType: "run_target", resourceId: "target-1042-atlas-04", action: "tap", decision: "allow", reasonCode: "allowed", correlationId: "corr-1042", actorId: "policy-service-1", decidedAt: "09:42:10" },
-  { id: "decision-002", policyId: "policy-default-safety", resourceType: "run_target", resourceId: "target-1041-nova-02", action: "tap", decision: "deny", reasonCode: "policy_definition_blocked", correlationId: "corr-1041", actorId: "policy-service-1", decidedAt: "09:35:02" },
-  { id: "decision-003", policyId: "policy-lab-review", resourceType: "mirror_target", resourceId: "orion-01", action: "mirror", decision: "inconclusive", reasonCode: "capability_unavailable", correlationId: "corr-preview", actorId: "policy-service-1", decidedAt: "09:28:09" },
+  {
+    id: "decision-001",
+    policyId: "policy-default-safety",
+    resourceType: "run_target",
+    resourceId: "target-1042-atlas-04",
+    action: "tap",
+    decision: "allow",
+    reasonCode: "allowed",
+    correlationId: "corr-1042",
+    actorId: "policy-service-1",
+    decidedAt: "09:42:10",
+  },
+  {
+    id: "decision-002",
+    policyId: "policy-default-safety",
+    resourceType: "run_target",
+    resourceId: "target-1041-nova-02",
+    action: "tap",
+    decision: "deny",
+    reasonCode: "policy_definition_blocked",
+    correlationId: "corr-1041",
+    actorId: "policy-service-1",
+    decidedAt: "09:35:02",
+  },
+  {
+    id: "decision-003",
+    policyId: "policy-lab-review",
+    resourceType: "mirror_target",
+    resourceId: "orion-01",
+    action: "mirror",
+    decision: "inconclusive",
+    reasonCode: "capability_unavailable",
+    correlationId: "corr-preview",
+    actorId: "policy-service-1",
+    decidedAt: "09:28:09",
+  },
 ]
 
 // labAttachedFixture is the deterministic set of attached mock transports. The
 // second entry stays unusable so a capture that names it has to be refused.
 const labAttachedFixture: LabDiscoveredDeviceView[] = [
-  { serial: "MOCKSERIAL0001", state: "device", model: "Mock Pixel 7a", transportId: "3", connectionType: "usb" },
-  { serial: "MOCKSERIAL0002", state: "unauthorized", model: "Mock Pixel 6", transportId: "4", connectionType: "tcp" },
+  {
+    serial: "MOCKSERIAL0001",
+    state: "device",
+    model: "Mock Pixel 7a",
+    transportId: "3",
+    connectionType: "usb",
+  },
+  {
+    serial: "MOCKSERIAL0002",
+    state: "unauthorized",
+    model: "Mock Pixel 6",
+    transportId: "4",
+    connectionType: "tcp",
+  },
 ]
 
 // labPreviewPixel is a 1x1 transparent PNG standing in for a sanitized,
@@ -812,7 +1416,13 @@ export function buildMockSnapshot(): ControlPlaneSnapshot {
     recordingMedia,
     storageHealth,
     artifactAudits,
-    halt: { state: "clear", reason: "", updatedAt: "", rowVersion: 0, lastActorId: "" },
+    halt: {
+      state: "clear",
+      reason: "",
+      updatedAt: "",
+      rowVersion: 0,
+      lastActorId: "",
+    },
   }
 }
 
@@ -821,15 +1431,16 @@ function cloneSnapshot(snapshot: ControlPlaneSnapshot): ControlPlaneSnapshot {
 }
 
 function result(intent: ControlPlaneIntent, message: string, resourceId?: string, conflict = false): MutationResult {
-  return { ok: !conflict, kind: intent.type, message, ...(resourceId ? { resourceId } : {}), ...(conflict ? { conflict: true } : {}) }
+  return {
+    ok: !conflict,
+    kind: intent.type,
+    message,
+    ...(resourceId ? { resourceId } : {}),
+    ...(conflict ? { conflict: true } : {}),
+  }
 }
 
-function rejection(
-  intent: ControlPlaneIntent,
-  message: string,
-  resourceId?: string,
-  errorCode?: PrerequisiteErrorCode,
-): MutationResult {
+function rejection(intent: ControlPlaneIntent, message: string, resourceId?: string, errorCode?: PrerequisiteErrorCode): MutationResult {
   return {
     ok: false,
     kind: intent.type,
@@ -859,7 +1470,18 @@ function labDigest(value: string): string {
 }
 
 function labEvent(id: string, name: string, kind: EventKind, correlationId: string, occurredAt: string, payloadSummary: string, failureClass?: string): EventView {
-  return { id, kind, name, actor: "lab adapter", resourceType: "lab_adapter", resourceId: "lab-adapter-local", correlationId, occurredAt, payloadSummary, ...(failureClass ? { failureClass } : {}) }
+  return {
+    id,
+    kind,
+    name,
+    actor: "lab adapter",
+    resourceType: "lab_adapter",
+    resourceId: "lab-adapter-local",
+    correlationId,
+    occurredAt,
+    payloadSummary,
+    ...(failureClass ? { failureClass } : {}),
+  }
 }
 
 function isTerminalTarget(state: RunTargetView["state"]): boolean {
@@ -885,11 +1507,25 @@ function settingDefinition(key: string): Pick<SettingView, "valueKind" | "risk" 
     case "require_explicit_approval":
       return { valueKind: "boolean", risk: "safety_critical" }
     case "max_action_timeout_ms":
-      return { valueKind: "integer", risk: "safety_critical", minValue: 1, maxValue: 300000 }
+      return {
+        valueKind: "integer",
+        risk: "safety_critical",
+        minValue: 1,
+        maxValue: 300000,
+      }
     case "event_retention_days":
-      return { valueKind: "integer", risk: "safety_critical", minValue: 1, maxValue: 3650 }
+      return {
+        valueKind: "integer",
+        risk: "safety_critical",
+        minValue: 1,
+        maxValue: 3650,
+      }
     case "table_density":
-      return { valueKind: "enum", risk: "low_preference", allowedValues: ["compact", "comfortable", "spacious"] }
+      return {
+        valueKind: "enum",
+        risk: "low_preference",
+        allowedValues: ["compact", "comfortable", "spacious"],
+      }
     default:
       return { valueKind: "json", risk: "low_preference" }
   }
@@ -947,7 +1583,28 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       case "setHalt":
         if (!intent.confirmed) return rejection(intent, `${intent.state === "emergency_stop" ? "Engaging" : "Releasing"} the emergency stop requires confirmation.`, undefined, "precondition_failed")
         if (!intent.reason.trim()) return rejection(intent, "A reason is required for the emergency stop change.", undefined, "invalid_input")
-        this.snapshot = { ...this.snapshot, halt: { ...this.snapshot.halt, state: intent.state, reason: intent.reason.trim(), updatedAt: "just now", rowVersion: this.snapshot.halt.rowVersion + 1, lastActorId: "operator-demo" }, events: addEvent(this.snapshot, { id: `event-halt-${this.nextSequence++}`, kind: "audit", name: intent.state === "emergency_stop" ? "Emergency Stop Engaged" : "Emergency Stop Released", actor: "operator-demo", resourceType: "control_halt", resourceId: "halt-demo", correlationId: "corr-halt", occurredAt: "just now", payloadSummary: intent.reason.trim() }) }
+        this.snapshot = {
+          ...this.snapshot,
+          halt: {
+            ...this.snapshot.halt,
+            state: intent.state,
+            reason: intent.reason.trim(),
+            updatedAt: "just now",
+            rowVersion: this.snapshot.halt.rowVersion + 1,
+            lastActorId: "operator-demo",
+          },
+          events: addEvent(this.snapshot, {
+            id: `event-halt-${this.nextSequence++}`,
+            kind: "audit",
+            name: intent.state === "emergency_stop" ? "Emergency Stop Engaged" : "Emergency Stop Released",
+            actor: "operator-demo",
+            resourceType: "control_halt",
+            resourceId: "halt-demo",
+            correlationId: "corr-halt",
+            occurredAt: "just now",
+            payloadSummary: intent.reason.trim(),
+          }),
+        }
         return result(intent, intent.state === "emergency_stop" ? "Emergency stop engaged and audited." : "Emergency stop released and audited.")
       case "startMirrorPreview":
         return this.startMirrorPreview(intent)
@@ -1100,7 +1757,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         failureClass: "unauthorized",
       }
       this.nextSequence += 1
-      this.snapshot = { ...this.snapshot, artifactAudits: this.appendArtifactAudit(audit) }
+      this.snapshot = {
+        ...this.snapshot,
+        artifactAudits: this.appendArtifactAudit(audit),
+      }
       return rejection(intent, "Unauthorized — artifact content is withheld.", artifact.id, "unauthorized")
     }
     const audit: ArtifactAuditView = {
@@ -1113,7 +1773,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       summary: `Authorized Metadata Read For ${artifact.sanitizedPreviewLabel}`,
     }
     this.nextSequence += 1
-    this.snapshot = { ...this.snapshot, artifactAudits: this.appendArtifactAudit(audit) }
+    this.snapshot = {
+      ...this.snapshot,
+      artifactAudits: this.appendArtifactAudit(audit),
+    }
     return result(intent, "Authorized artifact metadata loaded; bytes and secrets remain omitted.", artifact.id)
   }
 
@@ -1132,7 +1795,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         failureClass: "precondition_failed",
       }
       this.nextSequence += 1
-      this.snapshot = { ...this.snapshot, artifactAudits: this.appendArtifactAudit(audit) }
+      this.snapshot = {
+        ...this.snapshot,
+        artifactAudits: this.appendArtifactAudit(audit),
+      }
       return rejection(intent, "Confirm deletion before removing an artifact.", artifact.id, "precondition_failed")
     }
     if (!artifact.deletionEligible || artifact.retentionClass === "audit_security") {
@@ -1147,7 +1813,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         failureClass: "policy_denied",
       }
       this.nextSequence += 1
-      this.snapshot = { ...this.snapshot, artifactAudits: this.appendArtifactAudit(audit) }
+      this.snapshot = {
+        ...this.snapshot,
+        artifactAudits: this.appendArtifactAudit(audit),
+      }
       return rejection(intent, artifact.protectedReason ?? "Protected artifacts cannot be deleted.", artifact.id, "policy_denied")
     }
     const updated: ArtifactView = {
@@ -1180,10 +1849,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         usedBytes,
         // Metadata rows remain after delete (matches backend Usage COUNT).
         quotaWarning: usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6,
-        warningSummary:
-          usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6
-            ? "Workspace Storage Is Above 60% Of The Local Budget"
-            : "Workspace Storage Is Within The Local Budget",
+        warningSummary: usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6 ? "Workspace Storage Is Above 60% Of The Local Budget" : "Workspace Storage Is Within The Local Budget",
       },
       events: addEvent(this.snapshot, {
         id: `event-artifact-delete-${this.nextSequence}`,
@@ -1262,10 +1928,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         // Metadata rows remain after cleanup (matches backend Usage COUNT).
         cleanupFailures: Math.max(0, this.snapshot.storageHealth.cleanupFailures - (artifact.lifecycleState === "cleanup_failed" ? 1 : 0)),
         quotaWarning: usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6,
-        warningSummary:
-          usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6
-            ? "Workspace Storage Is Above 60% Of The Local Budget"
-            : "Workspace Storage Is Within The Local Budget",
+        warningSummary: usedBytes / this.snapshot.storageHealth.budgetBytes > 0.6 ? "Workspace Storage Is Above 60% Of The Local Budget" : "Workspace Storage Is Within The Local Budget",
       },
     }
     return result(intent, "Cleanup completed after confirmation.", artifact.id)
@@ -1301,7 +1964,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (!lease) return rejection(intent, "No active lease for this device.", intent.deviceId, "precondition_failed")
     this.snapshot = {
       ...this.snapshot,
-      leases: this.snapshot.leases.map((candidate) => candidate.id === lease.id ? { ...candidate, state: "released" as const } : candidate),
+      leases: this.snapshot.leases.map((candidate) => (candidate.id === lease.id ? { ...candidate, state: "released" as const } : candidate)),
     }
     return result(intent, "Device lease released and control session closed.", lease.id)
   }
@@ -1332,7 +1995,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       lowResPreviewLabel: "Preview withheld",
       fullResAuthorized: false,
     }
-    this.snapshot = { ...this.snapshot, recordingMedia: [session, ...this.snapshot.recordingMedia] }
+    this.snapshot = {
+      ...this.snapshot,
+      recordingMedia: [session, ...this.snapshot.recordingMedia],
+    }
     return result(intent, "Recording session started.", sessionId)
   }
 
@@ -1343,7 +2009,13 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     this.snapshot = {
       ...this.snapshot,
       recordingMedia: this.snapshot.recordingMedia.map((candidate) =>
-        candidate.sessionId === intent.sessionId ? { ...candidate, state: "completed" as const, endedAt: labStamp(this.nextSequence) } : candidate,
+        candidate.sessionId === intent.sessionId
+          ? {
+              ...candidate,
+              state: "completed" as const,
+              endedAt: labStamp(this.nextSequence),
+            }
+          : candidate,
       ),
     }
     return result(intent, "Recording session stopped.", intent.sessionId)
@@ -1355,7 +2027,13 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     this.snapshot = {
       ...this.snapshot,
       recordingMedia: this.snapshot.recordingMedia.map((candidate) =>
-        candidate.sessionId === intent.sessionId ? { ...candidate, state: "omitted" as const, endedAt: labStamp(this.nextSequence) } : candidate,
+        candidate.sessionId === intent.sessionId
+          ? {
+              ...candidate,
+              state: "omitted" as const,
+              endedAt: labStamp(this.nextSequence),
+            }
+          : candidate,
       ),
     }
     return result(intent, "Recording session discarded.", intent.sessionId)
@@ -1378,9 +2056,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (!skill) return rejection(intent, "Skill version was not found.", intent.versionId, "invalid_input")
     this.snapshot = {
       ...this.snapshot,
-      skills: this.snapshot.skills.map((candidate) =>
-        candidate.id === skill.id ? { ...candidate, trust: "reviewed" as const } : candidate,
-      ),
+      skills: this.snapshot.skills.map((candidate) => (candidate.id === skill.id ? { ...candidate, trust: "reviewed" as const } : candidate)),
     }
     return result(intent, "Skill version reviewed.", intent.versionId)
   }
@@ -1393,7 +2069,13 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     this.snapshot = {
       ...this.snapshot,
       skills: this.snapshot.skills.map((candidate) =>
-        candidate.id === skill.id ? { ...candidate, trust: "approved" as const, state: "published" as const } : candidate,
+        candidate.id === skill.id
+          ? {
+              ...candidate,
+              trust: "approved" as const,
+              state: "published" as const,
+            }
+          : candidate,
       ),
     }
     return result(intent, "Skill version published.", intent.versionId)
@@ -1418,12 +2100,24 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       // Latency stays 0 and the hierarchy summary says so: nothing here was
       // measured against a device, and a fabricated number would read as
       // evidence in the UI.
-      labAdapter: { ...adapter, readiness: "ready", connectionState: target.state, connectionType: target.connectionType, discovered: structuredClone(labAttachedFixture), lastObservedSerial: serial, correlationId, lastObservationAt: occurredAt, lastHealthAt: occurredAt, lastScreenshotHash: hash, lastScreenshotPreviewDataUrl: labPreviewPixel, lastHierarchySummary: "mock hierarchy summary (not measured)", observationLatencyMs: 0, failureClass: undefined, indeterminate: false },
-      events: [
-        labEvent(`event-lab-tree-${sequence}`, "UI-Tree Capture", "operational", correlationId, occurredAt, "Bounded node summary retained; node text and raw hierarchy omitted"),
-        labEvent(`event-lab-observation-${sequence}`, "Observation Capture", "operational", correlationId, occurredAt, `Sanitized preview and hash retained; artifact bytes omitted · ${hash}`),
-        ...this.snapshot.events,
-      ],
+      labAdapter: {
+        ...adapter,
+        readiness: "ready",
+        connectionState: target.state,
+        connectionType: target.connectionType,
+        discovered: structuredClone(labAttachedFixture),
+        lastObservedSerial: serial,
+        correlationId,
+        lastObservationAt: occurredAt,
+        lastHealthAt: occurredAt,
+        lastScreenshotHash: hash,
+        lastScreenshotPreviewDataUrl: labPreviewPixel,
+        lastHierarchySummary: "mock hierarchy summary (not measured)",
+        observationLatencyMs: 0,
+        failureClass: undefined,
+        indeterminate: false,
+      },
+      events: [labEvent(`event-lab-tree-${sequence}`, "UI-Tree Capture", "operational", correlationId, occurredAt, "Bounded node summary retained; node text and raw hierarchy omitted"), labEvent(`event-lab-observation-${sequence}`, "Observation Capture", "operational", correlationId, occurredAt, `Sanitized preview and hash retained; artifact bytes omitted · ${hash}`), ...this.snapshot.events],
     }
     return result(intent, `Observation captured for ${serial}. Preview is sanitized metadata only; no device was registered.`, serial)
   }
@@ -1447,18 +2141,22 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     }
     this.snapshot = {
       ...this.snapshot,
-      labAdapter: { ...adapter, correlationId, readiness: "indeterminate", indeterminate: true, failureClass: "indeterminate", lastHealthAt: occurredAt, observationLatencyMs: 0 },
+      labAdapter: {
+        ...adapter,
+        correlationId,
+        readiness: "indeterminate",
+        indeterminate: true,
+        failureClass: "indeterminate",
+        lastHealthAt: occurredAt,
+        observationLatencyMs: 0,
+      },
       indeterminateActions: [indeterminate, ...this.snapshot.indeterminateActions],
       runtimeConnection: {
         ...this.snapshot.runtimeConnection,
         pendingIndeterminate: this.snapshot.runtimeConnection.pendingIndeterminate + 1,
         updatedAt: occurredAt,
       },
-      events: [
-        labEvent(`event-lab-timeout-${sequence}`, "Timeout", "operational", correlationId, occurredAt, "Deadline expired after the observation command may already have been dispatched", "timeout"),
-        labEvent(`event-lab-indeterminate-${sequence}`, "Indeterminate Outcome", "audit", correlationId, occurredAt, "Outcome is unknown; this idempotency key is never replayed automatically", "indeterminate"),
-        ...this.snapshot.events,
-      ],
+      events: [labEvent(`event-lab-timeout-${sequence}`, "Timeout", "operational", correlationId, occurredAt, "Deadline expired after the observation command may already have been dispatched", "timeout"), labEvent(`event-lab-indeterminate-${sequence}`, "Indeterminate Outcome", "audit", correlationId, occurredAt, "Outcome is unknown; this idempotency key is never replayed automatically", "indeterminate"), ...this.snapshot.events],
     }
     return result(intent, "Simulated an indeterminate capture. Confirm or drop the blocked action; never blind-replay.", adapter.lastObservedSerial)
   }
@@ -1500,17 +2198,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         blockedSequences: [...this.blockedSequences],
       },
       indeterminateActions: [indeterminate, ...this.snapshot.indeterminateActions],
-      events: addEvent(
-        this.snapshot,
-        labEvent(
-          `event-runtime-disconnect-${sequence}`,
-          "Runtime Disconnected",
-          "operational",
-          `corr-lab-${String(sequence).padStart(3, "0")}`,
-          occurredAt,
-          `Mock runtime marked disconnected · ${reason}`,
-        ),
-      ),
+      events: addEvent(this.snapshot, labEvent(`event-runtime-disconnect-${sequence}`, "Runtime Disconnected", "operational", `corr-lab-${String(sequence).padStart(3, "0")}`, occurredAt, `Mock runtime marked disconnected · ${reason}`)),
     }
     return result(intent, "Mock runtime marked Disconnected. Indeterminate outcomes require operator confirmation — not blind replay.")
   }
@@ -1528,18 +2216,11 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         state: "reconnecting",
         updatedAt: occurredAt,
       },
-      spoolHealth: { ...this.snapshot.spoolHealth, connectionState: "reconnecting" },
-      events: addEvent(
-        this.snapshot,
-        labEvent(
-          `event-runtime-reconnect-${sequence}`,
-          "Runtime Reconnecting",
-          "operational",
-          `corr-lab-${String(sequence).padStart(3, "0")}`,
-          occurredAt,
-          "Mock runtime entered Reconnecting; spool items still require confirmation before replay",
-        ),
-      ),
+      spoolHealth: {
+        ...this.snapshot.spoolHealth,
+        connectionState: "reconnecting",
+      },
+      events: addEvent(this.snapshot, labEvent(`event-runtime-reconnect-${sequence}`, "Runtime Reconnecting", "operational", `corr-lab-${String(sequence).padStart(3, "0")}`, occurredAt, "Mock runtime entered Reconnecting; spool items still require confirmation before replay")),
     }
     return result(intent, "Mock runtime is Reconnecting. Spool items stay blocked until confirmed.")
   }
@@ -1568,17 +2249,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         connectionState: "connected",
         fenceToken: this.snapshot.spoolHealth.fenceToken + 1,
       },
-      events: addEvent(
-        this.snapshot,
-        labEvent(
-          `event-runtime-connected-${sequence}`,
-          "Runtime Connected",
-          "operational",
-          `corr-lab-${String(sequence).padStart(3, "0")}`,
-          occurredAt,
-          "Mock runtime Connected; fence token advanced as observation only — not a lease",
-        ),
-      ),
+      events: addEvent(this.snapshot, labEvent(`event-runtime-connected-${sequence}`, "Runtime Connected", "operational", `corr-lab-${String(sequence).padStart(3, "0")}`, occurredAt, "Mock runtime Connected; fence token advanced as observation only — not a lease")),
     }
     return result(intent, "Mock runtime Connected. Fence token is an observation, not a lease. Confirm blocked spool items before any replay.")
   }
@@ -1592,9 +2263,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const sequence = this.nextLabSequence()
     const occurredAt = labStamp(sequence)
     const remaining = this.snapshot.indeterminateActions.filter((item) => item.actionId !== intent.actionId)
-    const resolved = intent.confirm
-      ? `Operator confirmed resolution via ${intent.resolution.replaceAll("_", " ")}`
-      : "Operator dropped the indeterminate action without replay"
+    const resolved = intent.confirm ? `Operator confirmed resolution via ${intent.resolution.replaceAll("_", " ")}` : "Operator dropped the indeterminate action without replay"
     this.snapshot = {
       ...this.snapshot,
       indeterminateActions: remaining,
@@ -1603,20 +2272,16 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         pendingIndeterminate: Math.max(0, this.snapshot.runtimeConnection.pendingIndeterminate - 1),
         updatedAt: occurredAt,
       },
-      labAdapter: this.snapshot.labAdapter.indeterminate && remaining.length === 0
-        ? { ...this.snapshot.labAdapter, indeterminate: false, readiness: this.snapshot.labAdapter.lastObservedSerial ? "ready" : this.snapshot.labAdapter.readiness, failureClass: undefined }
-        : this.snapshot.labAdapter,
-      events: addEvent(
-        this.snapshot,
-        labEvent(
-          `event-indeterminate-resolve-${sequence}`,
-          intent.confirm ? "Indeterminate Confirmed" : "Indeterminate Dropped",
-          "audit",
-          `corr-lab-${String(sequence).padStart(3, "0")}`,
-          occurredAt,
-          `${resolved}; blind replay was not performed`,
-        ),
-      ),
+      labAdapter:
+        this.snapshot.labAdapter.indeterminate && remaining.length === 0
+          ? {
+              ...this.snapshot.labAdapter,
+              indeterminate: false,
+              readiness: this.snapshot.labAdapter.lastObservedSerial ? "ready" : this.snapshot.labAdapter.readiness,
+              failureClass: undefined,
+            }
+          : this.snapshot.labAdapter,
+      events: addEvent(this.snapshot, labEvent(`event-indeterminate-resolve-${sequence}`, intent.confirm ? "Indeterminate Confirmed" : "Indeterminate Dropped", "audit", `corr-lab-${String(sequence).padStart(3, "0")}`, occurredAt, `${resolved}; blind replay was not performed`)),
     }
     return result(intent, intent.confirm ? "Indeterminate outcome confirmed. No automatic replay occurred." : "Indeterminate outcome dropped. No replay was scheduled.", intent.actionId)
   }
@@ -1640,33 +2305,18 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         exhausted: this.snapshot.spoolHealth.pending + blocked >= this.snapshot.spoolHealth.maxSize,
         blockedSequences: [...this.blockedSequences],
       },
-      events: addEvent(
-        this.snapshot,
-        labEvent(
-          `event-spool-confirm-${sequence}`,
-          intent.confirm ? "Spool Replay Confirmed" : "Spool Item Dropped",
-          "audit",
-          `corr-lab-${String(sequence).padStart(3, "0")}`,
-          occurredAt,
-          intent.confirm
-            ? `Operator confirmed spool sequence ${intent.sequence}; automatic replay never occurred`
-            : `Operator dropped spool sequence ${intent.sequence}; no replay scheduled`,
-        ),
-      ),
+      events: addEvent(this.snapshot, labEvent(`event-spool-confirm-${sequence}`, intent.confirm ? "Spool Replay Confirmed" : "Spool Item Dropped", "audit", `corr-lab-${String(sequence).padStart(3, "0")}`, occurredAt, intent.confirm ? `Operator confirmed spool sequence ${intent.sequence}; automatic replay never occurred` : `Operator dropped spool sequence ${intent.sequence}; no replay scheduled`)),
     }
-    return result(
-      intent,
-      intent.confirm
-        ? `Spool sequence ${intent.sequence} confirmed by operator. This is not automatic replay.`
-        : `Spool sequence ${intent.sequence} dropped. No replay was scheduled.`,
-      String(intent.sequence),
-    )
+    return result(intent, intent.confirm ? `Spool sequence ${intent.sequence} confirmed by operator. This is not automatic replay.` : `Spool sequence ${intent.sequence} dropped. No replay was scheduled.`, String(intent.sequence))
   }
 
   private enqueueMockSpoolItem(intent: Extract<ControlPlaneIntent, { type: "enqueueMockSpoolItem" }>): MutationResult {
     const health = this.snapshot.spoolHealth
     if (health.pending + health.blocked >= health.maxSize) {
-      this.snapshot = { ...this.snapshot, spoolHealth: { ...health, exhausted: true } }
+      this.snapshot = {
+        ...this.snapshot,
+        spoolHealth: { ...health, exhausted: true },
+      }
       return rejection(intent, "Mock spool is exhausted; raise capacity is not automatic.", undefined, "precondition_failed")
     }
     if (this.snapshot.runtimeConnection.state === "disconnected" && intent.risk !== "low") {
@@ -1687,17 +2337,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         exhausted: pending + health.blocked >= health.maxSize,
         connectionState: this.snapshot.runtimeConnection.state,
       },
-      events: addEvent(
-        this.snapshot,
-        labEvent(
-          `event-spool-enqueue-${sequence}`,
-          "Spool Enqueued",
-          "operational",
-          `corr-lab-${String(sequence).padStart(3, "0")}`,
-          occurredAt,
-          `Mock spool ${intent.kind} enqueued · risk ${intent.risk} · key ${intent.idempotencyKey} · fence ${health.fenceToken} (observation, not lease)`,
-        ),
-      ),
+      events: addEvent(this.snapshot, labEvent(`event-spool-enqueue-${sequence}`, "Spool Enqueued", "operational", `corr-lab-${String(sequence).padStart(3, "0")}`, occurredAt, `Mock spool ${intent.kind} enqueued · risk ${intent.risk} · key ${intent.idempotencyKey} · fence ${health.fenceToken} (observation, not lease)`)),
     }
     return result(intent, `Mock spool item enqueued (${intent.kind}). Fence ${health.fenceToken} is an observation, not a lease.`, String(this.spoolSequence))
   }
@@ -1720,12 +2360,24 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const sessionId = `mirror-preview-${this.nextSequence++}`
     const followerResults = followers.map((device) => {
       if (!device) {
-        return { deviceId: "unknown", outcome: "target_resolution_failed" as const, detail: "Target was not resolved in the mock projection." }
+        return {
+          deviceId: "unknown",
+          outcome: "target_resolution_failed" as const,
+          detail: "Target was not resolved in the mock projection.",
+        }
       }
       if (device.controlEligibility !== "eligible") {
-        return { deviceId: device.id, outcome: device.controlEligibility, detail: `Preview withheld: ${device.controlEligibility.replaceAll("_", " ")}.` }
+        return {
+          deviceId: device.id,
+          outcome: device.controlEligibility,
+          detail: `Preview withheld: ${device.controlEligibility.replaceAll("_", " ")}.`,
+        }
       }
-      return { deviceId: device.id, outcome: "simulated_success" as const, detail: "Preview accepted; no command sent." }
+      return {
+        deviceId: device.id,
+        outcome: "simulated_success" as const,
+        detail: "Preview accepted; no command sent.",
+      }
     })
     const session: MirrorSessionView = {
       id: sessionId,
@@ -1761,7 +2413,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     }
     this.snapshot = {
       ...this.snapshot,
-      mirrorSessions: this.snapshot.mirrorSessions.map((candidate) => candidate.id === session.id ? { ...candidate, state: "completed", stoppedAt: "just now" } : candidate),
+      mirrorSessions: this.snapshot.mirrorSessions.map((candidate) => (candidate.id === session.id ? { ...candidate, state: "completed", stoppedAt: "just now" } : candidate)),
     }
     return result(intent, "Simulation stopped; no device command was sent.", session.id)
   }
@@ -1771,16 +2423,34 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       return rejection(intent, "Profile name, bounded address policy, and at least one port are required.")
     }
     const id = `profile-mock-${this.nextSequence++}`
-    const profile: NetworkProfileView = { id, name: intent.name.trim(), addressPolicy: intent.addressPolicy.trim(), ports: [...intent.ports], isDefault: intent.isDefault }
-    this.snapshot = { ...this.snapshot, networkProfiles: [profile, ...this.snapshot.networkProfiles] }
+    const profile: NetworkProfileView = {
+      id,
+      name: intent.name.trim(),
+      addressPolicy: intent.addressPolicy.trim(),
+      ports: [...intent.ports],
+      isDefault: intent.isDefault,
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      networkProfiles: [profile, ...this.snapshot.networkProfiles],
+    }
     return result(intent, "Network Profile saved; no scan was started.", id)
   }
 
   private updateNetworkProfile(intent: Extract<ControlPlaneIntent, { type: "updateNetworkProfile" }>): MutationResult {
     const profile = this.snapshot.networkProfiles.find((candidate) => candidate.id === intent.profileId)
     if (!profile) return rejection(intent, "Network Profile was not found.")
-    const updated: NetworkProfileView = { ...profile, name: intent.name.trim(), addressPolicy: intent.addressPolicy.trim(), ports: [...intent.ports], isDefault: intent.isDefault }
-    this.snapshot = { ...this.snapshot, networkProfiles: this.snapshot.networkProfiles.map((candidate) => candidate.id === profile.id ? updated : candidate) }
+    const updated: NetworkProfileView = {
+      ...profile,
+      name: intent.name.trim(),
+      addressPolicy: intent.addressPolicy.trim(),
+      ports: [...intent.ports],
+      isDefault: intent.isDefault,
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      networkProfiles: this.snapshot.networkProfiles.map((candidate) => (candidate.id === profile.id ? updated : candidate)),
+    }
     return result(intent, "Network Profile updated in the mock projection.", profile.id)
   }
 
@@ -1792,7 +2462,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     this.snapshot = {
       ...this.snapshot,
       networkProfiles: this.snapshot.networkProfiles.filter((candidate) => candidate.id !== profile.id),
-      scanRuns: this.snapshot.scanRuns.map((run) => run.networkProfileId === profile.id ? { ...run, networkProfileId: "" } : run),
+      scanRuns: this.snapshot.scanRuns.map((run) => (run.networkProfileId === profile.id ? { ...run, networkProfileId: "" } : run)),
     }
     return result(intent, "Network Profile deleted in the mock projection.", profile.id)
   }
@@ -1803,7 +2473,13 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const id = `scan-run-${String(this.nextSequence++).padStart(3, "0")}`
     // A mock scan completes in place, like the control plane: it observes, it
     // never holds a candidate lifecycle open.
-    const scan: ScanRunView = { id, networkProfileId: profile.id, state: "completed", requestedAt: "just now", finishedAt: "just now" }
+    const scan: ScanRunView = {
+      id,
+      networkProfileId: profile.id,
+      state: "completed",
+      requestedAt: "just now",
+      finishedAt: "just now",
+    }
     const observed = mockScanObservations(id, profile.id)
     this.snapshot = {
       ...this.snapshot,
@@ -1830,10 +2506,14 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const id = `scan-run-${String(this.nextSequence++).padStart(3, "0")}`
     // An entered range is not saved policy, so the run holds no profile
     // reference: nothing was written to saved discovery policy by scanning it.
-    const scan: ScanRunView = { id, networkProfileId: "", state: "completed", requestedAt: "just now", finishedAt: "just now" }
-    const observed = mockObservedTransports
-      .filter((device) => addressRangeContainsHost(parsed.range.addressPolicy, device.host))
-      .map((device) => ({ ...device, scanRunId: id }))
+    const scan: ScanRunView = {
+      id,
+      networkProfileId: "",
+      state: "completed",
+      requestedAt: "just now",
+      finishedAt: "just now",
+    }
+    const observed = mockObservedTransports.filter((device) => addressRangeContainsHost(parsed.range.addressPolicy, device.host)).map((device) => ({ ...device, scanRunId: id }))
     this.snapshot = {
       ...this.snapshot,
       scanRuns: [scan, ...this.snapshot.scanRuns],
@@ -1848,9 +2528,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
    * detailed inspection elsewhere in the console.
    */
   private reloadDevices(intent: Extract<ControlPlaneIntent, { type: "reloadDevices" }>): MutationResult {
-    const deviceSummary = this.snapshot.devices.length === 0
-      ? "No known devices were re-read."
-      : `${this.snapshot.devices.length} known device${this.snapshot.devices.length === 1 ? "" : "s"} re-read.`
+    const deviceSummary = this.snapshot.devices.length === 0 ? "No known devices were re-read." : `${this.snapshot.devices.length} known device${this.snapshot.devices.length === 1 ? "" : "s"} re-read.`
     return result(intent, `${deviceSummary} No adb server was restarted and no device was contacted.`)
   }
 
@@ -1884,9 +2562,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       // An endpoint's port is the port this device was OBSERVED on, so "already
       // answers" here is a fact about the projection rather than a guess about a
       // device this client cannot reach.
-      return endpoint.port === intent.port
-        ? `${endpoint.serial} already answers on port ${intent.port}, so nothing was sent for it`
-        : `${endpoint.serial} would have been moved to port ${intent.port}`
+      return endpoint.port === intent.port ? `${endpoint.serial} already answers on port ${intent.port}, so nothing was sent for it` : `${endpoint.serial} would have been moved to port ${intent.port}`
     })
     if (sentences.length === 0) {
       return result(intent, `Mock fleet activation on port ${intent.port} found no device in this client's projection. No adbd was restarted and no device was contacted.`)
@@ -1916,22 +2592,49 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       const endpoint = this.snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
       const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === device.id && candidate.state === "active")
       const refusal = !endpoint
-        ? { reason: "no_transport_serial", claim: "the device has no single current transport endpoint, so nothing was sent" }
+        ? {
+            reason: "no_transport_serial",
+            claim: "the device has no single current transport endpoint, so nothing was sent",
+          }
         : lease && lease.holder !== mockOperatorId
-          ? { reason: "lease_unavailable", claim: "another controller holds this device's lease, so nothing was sent" }
+          ? {
+              reason: "lease_unavailable",
+              claim: "another controller holds this device's lease, so nothing was sent",
+            }
           : null
       for (const setting of intent.settings) {
-        outcomes.push(refusal
-          ? { deviceId: device.id, setting, applied: false, verified: false, refusal: refusal.reason, failureClass: "transport", message: refusal.claim }
-          : { deviceId: device.id, setting, applied: true, verified: true, refusal: "", failureClass: "", message: "the setting would have been written and read back (mock: no device was contacted)" })
+        outcomes.push(
+          refusal
+            ? {
+                deviceId: device.id,
+                setting,
+                applied: false,
+                verified: false,
+                refusal: refusal.reason,
+                failureClass: "transport",
+                message: refusal.claim,
+              }
+            : {
+                deviceId: device.id,
+                setting,
+                applied: true,
+                verified: true,
+                refusal: "",
+                failureClass: "",
+                message: "the setting would have been written and read back (mock: no device was contacted)",
+              },
+        )
       }
       if (refusal) failedDevices += 1
       else appliedDevices += 1
     }
-    const view: DeviceSettingsApplyView = { totalDevices: this.snapshot.devices.length, appliedDevices, failedDevices, outcomes }
-    const sentence = view.totalDevices === 0
-      ? "Mock fleet settings apply found no device in this client's projection. No device was contacted."
-      : `Mock fleet settings apply: ${view.appliedDevices} of ${view.totalDevices} device(s) would have applied every requested setting, ${view.failedDevices} would not. No device was contacted.`
+    const view: DeviceSettingsApplyView = {
+      totalDevices: this.snapshot.devices.length,
+      appliedDevices,
+      failedDevices,
+      outcomes,
+    }
+    const sentence = view.totalDevices === 0 ? "Mock fleet settings apply found no device in this client's projection. No device was contacted." : `Mock fleet settings apply: ${view.appliedDevices} of ${view.totalDevices} device(s) would have applied every requested setting, ${view.failedDevices} would not. No device was contacted.`
     return { ...result(intent, sentence), deviceSettingsApply: view }
   }
 
@@ -1953,8 +2656,17 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       return result(intent, `Range ${parsed.range.addressPolicy} already exists as the Network Profile "${existing.name}". Nothing was written.`, existing.id)
     }
     const id = `profile-mock-${this.nextSequence++}`
-    const profile: NetworkProfileView = { id, name: parsed.range.name, addressPolicy: parsed.range.addressPolicy, ports: [intent.port], isDefault: false }
-    this.snapshot = { ...this.snapshot, networkProfiles: [profile, ...this.snapshot.networkProfiles] }
+    const profile: NetworkProfileView = {
+      id,
+      name: parsed.range.name,
+      addressPolicy: parsed.range.addressPolicy,
+      ports: [intent.port],
+      isDefault: false,
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      networkProfiles: [profile, ...this.snapshot.networkProfiles],
+    }
     return result(intent, `Range ${parsed.range.addressPolicy} created as a saved Network Profile for port ${intent.port}.`, id)
   }
 
@@ -1964,7 +2676,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (intent.groupId !== "ungrouped" && !this.snapshot.groups.some((group) => group.id === intent.groupId && group.state === "active")) {
       return rejection(intent, "Target group was not found or is retired.")
     }
-    const nowEnded = this.snapshot.memberships.map((membership) => membership.deviceId === device.id && membership.state === "active" ? { ...membership, state: "ended" as const, endedAt: "just now" } : membership)
+    const nowEnded = this.snapshot.memberships.map((membership) => (membership.deviceId === device.id && membership.state === "active" ? { ...membership, state: "ended" as const, endedAt: "just now" } : membership))
     if (intent.groupId === "ungrouped") {
       this.snapshot = { ...this.snapshot, memberships: nowEnded }
       return result(intent, `${device.displayName} moved to computed Ungrouped.`, device.id)
@@ -1972,8 +2684,18 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     // A move into an occupied position shifts the displaced placements down, the
     // same renumber the control plane applies inside one transaction. Mirroring
     // this keeps the mock projection a faithful stand-in for the real store.
-    const shifted = nowEnded.map((membership) => membership.groupId === intent.groupId && membership.state === "active" && membership.position >= intent.position ? { ...membership, position: membership.position + 1 } : membership)
-    const nextMemberships = [...shifted, { id: `membership-${this.nextSequence++}`, groupId: intent.groupId, deviceId: device.id, position: intent.position, state: "active" as const, startedAt: "just now" }]
+    const shifted = nowEnded.map((membership) => (membership.groupId === intent.groupId && membership.state === "active" && membership.position >= intent.position ? { ...membership, position: membership.position + 1 } : membership))
+    const nextMemberships = [
+      ...shifted,
+      {
+        id: `membership-${this.nextSequence++}`,
+        groupId: intent.groupId,
+        deviceId: device.id,
+        position: intent.position,
+        state: "active" as const,
+        startedAt: "just now",
+      },
+    ]
     this.snapshot = { ...this.snapshot, memberships: nextMemberships }
     return result(intent, `${device.displayName} moved in the mock projection.`, device.id)
   }
@@ -1985,7 +2707,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (!active) return rejection(intent, `${device.displayName} is already ungrouped.`, device.id, "precondition_failed")
     // Removing a device ends one placement; it never creates a persisted
     // Ungrouped authority, so the computed view stays the only source of it.
-    const nextMemberships = this.snapshot.memberships.map((membership) => membership.id === active.id ? { ...membership, state: "ended" as const, endedAt: "just now" } : membership)
+    const nextMemberships = this.snapshot.memberships.map((membership) => (membership.id === active.id ? { ...membership, state: "ended" as const, endedAt: "just now" } : membership))
     this.snapshot = { ...this.snapshot, memberships: nextMemberships }
     return result(intent, `${device.displayName} removed from its group.`, device.id)
   }
@@ -1993,6 +2715,17 @@ export class MockControlPlaneClient implements ControlPlaneClient {
   private createDeviceGroup(intent: Extract<ControlPlaneIntent, { type: "createDeviceGroup" }>): MutationResult {
     const name = intent.name.trim()
     if (!name) return rejection(intent, "Group name is required.", "", "invalid_input")
+    if (
+      this.snapshot.groups.some(
+        (group) =>
+          group.state === "active" &&
+          group.name.localeCompare(name, undefined, {
+            sensitivity: "accent",
+          }) === 0,
+      )
+    ) {
+      return rejection(intent, "resource violates a database constraint", "", "precondition_failed")
+    }
     const id = `group-${this.nextSequence++}`
     const position = this.snapshot.groups.reduce((highest, group) => Math.max(highest, group.position), 0) + 1
     this.snapshot = {
@@ -2009,7 +2742,19 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (!group) return rejection(intent, "Group was not found.", intent.groupId)
     if (group.state !== "active") return rejection(intent, "A retired group cannot be renamed.", intent.groupId, "precondition_failed")
     if (group.rowVersion !== intent.rowVersion) return result(intent, "Group changed since it was loaded.", intent.groupId, true)
-    const groups = this.snapshot.groups.map((candidate) => candidate.id === group.id ? { ...candidate, name, rowVersion: candidate.rowVersion + 1 } : candidate)
+    if (
+      this.snapshot.groups.some(
+        (candidate) =>
+          candidate.id !== group.id &&
+          candidate.state === "active" &&
+          candidate.name.localeCompare(name, undefined, {
+            sensitivity: "accent",
+          }) === 0,
+      )
+    ) {
+      return rejection(intent, "resource violates a database constraint", intent.groupId, "precondition_failed")
+    }
+    const groups = this.snapshot.groups.map((candidate) => (candidate.id === group.id ? { ...candidate, name, rowVersion: candidate.rowVersion + 1 } : candidate))
     this.snapshot = { ...this.snapshot, groups }
     return result(intent, "Device group renamed.", group.id)
   }
@@ -2018,14 +2763,14 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (!intent.confirmed) return rejection(intent, "Deleting a group requires confirmation.", intent.groupId, "precondition_failed")
     const group = this.snapshot.groups.find((candidate) => candidate.id === intent.groupId)
     if (!group) return rejection(intent, "Group was not found.", intent.groupId)
-    if (group.state !== "active") return rejection(intent, "Group is already retired.", intent.groupId, "precondition_failed")
+    if (group.state !== "active") return rejection(intent, "Group was not found.", intent.groupId, "precondition_failed")
     if (group.rowVersion !== intent.rowVersion) return result(intent, "Group changed since it was loaded.", intent.groupId, true)
-    // The group is retired in place and its current placements end, so the
-    // devices fall back into the computed Ungrouped view.
-    const groups = this.snapshot.groups.map((candidate) => candidate.id === group.id ? { ...candidate, state: "retired" as const, rowVersion: candidate.rowVersion + 1 } : candidate)
-    const memberships = this.snapshot.memberships.map((membership) => membership.groupId === group.id && membership.state === "active" ? { ...membership, state: "ended" as const, endedAt: "just now" } : membership)
+    // The mock snapshot is the current inventory projection, so deletion
+    // removes the group while ended memberships remain as historical evidence.
+    const groups = this.snapshot.groups.filter((candidate) => candidate.id !== group.id)
+    const memberships = this.snapshot.memberships.map((membership) => (membership.groupId === group.id && membership.state === "active" ? { ...membership, state: "ended" as const, endedAt: "just now" } : membership))
     this.snapshot = { ...this.snapshot, groups, memberships }
-    return result(intent, "Device group retired.", group.id)
+    return result(intent, "Device group deleted.", group.id)
   }
 
   private reorderDeviceGroups(intent: Extract<ControlPlaneIntent, { type: "reorderDeviceGroups" }>): MutationResult {
@@ -2034,7 +2779,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       return rejection(intent, "Group order must name every group exactly once.", "", "invalid_input")
     }
     const positions = new Map(intent.groupIds.map((id, index) => [id, index + 1]))
-    const groups = this.snapshot.groups.map((group) => ({ ...group, position: positions.get(group.id) ?? group.position }))
+    const groups = this.snapshot.groups.map((group) => ({
+      ...group,
+      position: positions.get(group.id) ?? group.position,
+    }))
     this.snapshot = { ...this.snapshot, groups }
     return result(intent, "Group order saved.")
   }
@@ -2073,9 +2821,7 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (!agent || !device) return rejection(intent, "Choose an agent and a device before assigning.", "", "invalid_input")
     this.snapshot = {
       ...this.snapshot,
-      automationAgentProfiles: this.snapshot.automationAgentProfiles.map((profile) =>
-        profile.automationAgentId === agent.id ? { ...profile, assignmentSummary: device.displayName } : profile,
-      ),
+      automationAgentProfiles: this.snapshot.automationAgentProfiles.map((profile) => (profile.automationAgentId === agent.id ? { ...profile, assignmentSummary: device.displayName } : profile)),
     }
     return result(intent, "Automation agent assigned to the selected device.", agent.id)
   }
@@ -2174,8 +2920,8 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (run.state === "completed" || run.state === "failed" || run.state === "cancelled") return rejection(intent, "Only an active or paused run can be cancelled.", run.id)
     this.snapshot = {
       ...this.snapshot,
-      runs: this.snapshot.runs.map((candidate) => candidate.id === run.id ? { ...candidate, state: "cancelled" as const } : candidate),
-      runTargets: this.snapshot.runTargets.map((target) => target.runId === run.id && !isTerminalTarget(target.state) ? { ...target, state: "cancelled" as const } : target),
+      runs: this.snapshot.runs.map((candidate) => (candidate.id === run.id ? { ...candidate, state: "cancelled" as const } : candidate)),
+      runTargets: this.snapshot.runTargets.map((target) => (target.runId === run.id && !isTerminalTarget(target.state) ? { ...target, state: "cancelled" as const } : target)),
     }
     return result(intent, "Run cancelled at the mock safe boundary.", run.id)
   }
@@ -2217,8 +2963,17 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (source.rowVersion !== intent.rowVersion) return result(intent, "This account source changed elsewhere. Reload before saving.", source.id, true)
     if (source.state === "retired") return rejection(intent, "A retired account source cannot be edited.", source.id)
     if (intent.displayName.trim() === "" || !isSafeJson(intent.metadataJson)) return rejection(intent, "Source name and sanitized metadata are required.", source.id)
-    const updated: AccountSourceView = { ...source, displayName: intent.displayName.trim(), externalReference: intent.externalReference.trim(), metadataJson: intent.metadataJson, rowVersion: source.rowVersion + 1 }
-    this.snapshot = { ...this.snapshot, accountSources: this.snapshot.accountSources.map((candidate) => candidate.id === source.id ? updated : candidate) }
+    const updated: AccountSourceView = {
+      ...source,
+      displayName: intent.displayName.trim(),
+      externalReference: intent.externalReference.trim(),
+      metadataJson: intent.metadataJson,
+      rowVersion: source.rowVersion + 1,
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      accountSources: this.snapshot.accountSources.map((candidate) => (candidate.id === source.id ? updated : candidate)),
+    }
     return result(intent, "Account source updated in the mock projection.", source.id)
   }
 
@@ -2227,8 +2982,15 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (!source) return rejection(intent, "Account source was not found.")
     if (source.rowVersion !== intent.rowVersion) return result(intent, "This account source changed elsewhere. Reload before retiring.", source.id, true)
     if (source.state === "retired") return rejection(intent, "Account source is already retired.", source.id)
-    const updated = { ...source, state: "retired" as const, rowVersion: source.rowVersion + 1 }
-    this.snapshot = { ...this.snapshot, accountSources: this.snapshot.accountSources.map((candidate) => candidate.id === source.id ? updated : candidate) }
+    const updated = {
+      ...source,
+      state: "retired" as const,
+      rowVersion: source.rowVersion + 1,
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      accountSources: this.snapshot.accountSources.map((candidate) => (candidate.id === source.id ? updated : candidate)),
+    }
     return result(intent, "Account source retired; no connector call was made.", source.id)
   }
 
@@ -2274,8 +3036,17 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (account.rowVersion !== intent.rowVersion) return result(intent, "This account changed elsewhere. Reload before saving.", account.id, true)
     if (account.state === "retired") return rejection(intent, "A retired account cannot be edited.", account.id)
     if (intent.externalReference.trim() === "" || intent.label.trim() === "" || !isSafeJson(intent.metadataJson)) return rejection(intent, "Account reference and sanitized metadata are required.", account.id)
-    const updated: AccountReferenceView = { ...account, externalReference: intent.externalReference.trim(), label: intent.label.trim(), metadataJson: intent.metadataJson, rowVersion: account.rowVersion + 1 }
-    this.snapshot = { ...this.snapshot, accounts: this.snapshot.accounts.map((candidate) => candidate.id === account.id ? updated : candidate) }
+    const updated: AccountReferenceView = {
+      ...account,
+      externalReference: intent.externalReference.trim(),
+      label: intent.label.trim(),
+      metadataJson: intent.metadataJson,
+      rowVersion: account.rowVersion + 1,
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      accounts: this.snapshot.accounts.map((candidate) => (candidate.id === account.id ? updated : candidate)),
+    }
     return result(intent, "Account reference updated in the mock projection.", account.id)
   }
 
@@ -2285,11 +3056,26 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (!account || !device) return rejection(intent, "Choose an existing account and device.")
     if (account.state === "retired" || device.lifecycle === "retired") return rejection(intent, "Retired accounts and devices cannot receive an assignment.")
     if (this.snapshot.accountDeviceAssignments.some((assignment) => assignment.state === "active" && (assignment.accountId === account.id || assignment.deviceId === device.id))) return rejection(intent, "Each account and device may have only one active account assignment.")
-    const assignment: AccountDeviceAssignmentView = { id: `assignment-mock-${this.nextSequence++}`, accountId: account.id, deviceId: device.id, state: "active", assignedAt: "just now", rowVersion: 1 }
+    const assignment: AccountDeviceAssignmentView = {
+      id: `assignment-mock-${this.nextSequence++}`,
+      accountId: account.id,
+      deviceId: device.id,
+      state: "active",
+      assignedAt: "just now",
+      rowVersion: 1,
+    }
     this.snapshot = {
       ...this.snapshot,
       accountDeviceAssignments: [assignment, ...this.snapshot.accountDeviceAssignments],
-      accounts: this.snapshot.accounts.map((candidate) => candidate.id === account.id ? { ...candidate, assignedDeviceId: device.id, rowVersion: candidate.rowVersion + 1 } : candidate),
+      accounts: this.snapshot.accounts.map((candidate) =>
+        candidate.id === account.id
+          ? {
+              ...candidate,
+              assignedDeviceId: device.id,
+              rowVersion: candidate.rowVersion + 1,
+            }
+          : candidate,
+      ),
       events: addEvent(this.snapshot, {
         id: `event-account-assignment-${this.nextSequence++}`,
         kind: "audit",
@@ -2310,11 +3096,24 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (!assignment) return rejection(intent, "Account-device assignment was not found.")
     if (assignment.rowVersion !== intent.rowVersion) return result(intent, "This assignment changed elsewhere. Reload before ending it.", assignment.id, true)
     if (assignment.state === "ended") return rejection(intent, "Assignment is already ended.", assignment.id)
-    const updated: AccountDeviceAssignmentView = { ...assignment, state: "ended", endedAt: "just now", rowVersion: assignment.rowVersion + 1 }
+    const updated: AccountDeviceAssignmentView = {
+      ...assignment,
+      state: "ended",
+      endedAt: "just now",
+      rowVersion: assignment.rowVersion + 1,
+    }
     this.snapshot = {
       ...this.snapshot,
-      accountDeviceAssignments: this.snapshot.accountDeviceAssignments.map((candidate) => candidate.id === assignment.id ? updated : candidate),
-      accounts: this.snapshot.accounts.map((candidate) => candidate.id === assignment.accountId && candidate.assignedDeviceId === assignment.deviceId ? { ...candidate, assignedDeviceId: undefined, rowVersion: candidate.rowVersion + 1 } : candidate),
+      accountDeviceAssignments: this.snapshot.accountDeviceAssignments.map((candidate) => (candidate.id === assignment.id ? updated : candidate)),
+      accounts: this.snapshot.accounts.map((candidate) =>
+        candidate.id === assignment.accountId && candidate.assignedDeviceId === assignment.deviceId
+          ? {
+              ...candidate,
+              assignedDeviceId: undefined,
+              rowVersion: candidate.rowVersion + 1,
+            }
+          : candidate,
+      ),
     }
     return result(intent, "Account-device assignment ended in the mock projection.", assignment.id)
   }
@@ -2325,9 +3124,30 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (setting.rowVersion !== intent.rowVersion) return result(intent, "This setting changed elsewhere. Reload before saving.", setting.id, true)
     const validationMessage = validateSettingValue(setting, intent.valueJson)
     if (validationMessage) return rejection(intent, validationMessage, setting.id)
-    const updated: SettingView = { ...setting, valueJson: intent.valueJson, valueSummary: settingSummary(intent.valueJson, setting.valueKind), rowVersion: setting.rowVersion + 1 }
-    const history: SettingHistoryView = { id: `setting-history-mock-${this.nextSequence++}`, settingId: setting.id, scope: setting.scope, targetId: setting.targetId, key: setting.key, valueJson: intent.valueJson, state: setting.state, rowVersion: updated.rowVersion, actorType: "operator", actorId: "mock", changedAt: "just now" }
-    this.snapshot = { ...this.snapshot, settings: this.snapshot.settings.map((candidate) => candidate.id === setting.id ? updated : candidate), settingHistory: [history, ...this.snapshot.settingHistory] }
+    const updated: SettingView = {
+      ...setting,
+      valueJson: intent.valueJson,
+      valueSummary: settingSummary(intent.valueJson, setting.valueKind),
+      rowVersion: setting.rowVersion + 1,
+    }
+    const history: SettingHistoryView = {
+      id: `setting-history-mock-${this.nextSequence++}`,
+      settingId: setting.id,
+      scope: setting.scope,
+      targetId: setting.targetId,
+      key: setting.key,
+      valueJson: intent.valueJson,
+      state: setting.state,
+      rowVersion: updated.rowVersion,
+      actorType: "operator",
+      actorId: "mock",
+      changedAt: "just now",
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      settings: this.snapshot.settings.map((candidate) => (candidate.id === setting.id ? updated : candidate)),
+      settingHistory: [history, ...this.snapshot.settingHistory],
+    }
     return result(intent, "Setting updated in the mock projection.", setting.id)
   }
 
@@ -2337,9 +3157,35 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const validationMessage = validateSettingValue({ key: intent.key.trim(), ...definition }, intent.valueJson)
     if (validationMessage) return rejection(intent, validationMessage)
     const id = `setting-mock-${this.nextSequence++}`
-    const setting: SettingView = { id, scope: intent.scope, targetId: intent.targetId.trim(), key: intent.key.trim(), valueJson: intent.valueJson, valueSummary: settingSummary(intent.valueJson, definition.valueKind), state: "active", rowVersion: 1, ...definition }
-    const history: SettingHistoryView = { id: `setting-history-mock-${this.nextSequence++}`, settingId: id, scope: setting.scope, targetId: setting.targetId, key: setting.key, valueJson: setting.valueJson, state: setting.state, rowVersion: 1, actorType: "operator", actorId: "mock", changedAt: "just now" }
-    this.snapshot = { ...this.snapshot, settings: [setting, ...this.snapshot.settings], settingHistory: [history, ...this.snapshot.settingHistory] }
+    const setting: SettingView = {
+      id,
+      scope: intent.scope,
+      targetId: intent.targetId.trim(),
+      key: intent.key.trim(),
+      valueJson: intent.valueJson,
+      valueSummary: settingSummary(intent.valueJson, definition.valueKind),
+      state: "active",
+      rowVersion: 1,
+      ...definition,
+    }
+    const history: SettingHistoryView = {
+      id: `setting-history-mock-${this.nextSequence++}`,
+      settingId: id,
+      scope: setting.scope,
+      targetId: setting.targetId,
+      key: setting.key,
+      valueJson: setting.valueJson,
+      state: setting.state,
+      rowVersion: 1,
+      actorType: "operator",
+      actorId: "mock",
+      changedAt: "just now",
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      settings: [setting, ...this.snapshot.settings],
+      settingHistory: [history, ...this.snapshot.settingHistory],
+    }
     return result(intent, "Typed setting created in the mock projection.", id)
   }
 
@@ -2348,9 +3194,29 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (!setting) return rejection(intent, "Setting was not found.")
     if (setting.rowVersion !== intent.rowVersion) return result(intent, "This setting changed elsewhere. Reload before transitioning.", setting.id, true)
     if (!canTransitionSetting(setting.state, intent.state)) return rejection(intent, `Setting cannot transition from ${setting.state} to ${intent.state}.`, setting.id)
-    const updated: SettingView = { ...setting, state: intent.state, rowVersion: setting.rowVersion + 1 }
-    const history: SettingHistoryView = { id: `setting-history-mock-${this.nextSequence++}`, settingId: setting.id, scope: setting.scope, targetId: setting.targetId, key: setting.key, valueJson: setting.valueJson, state: updated.state, rowVersion: updated.rowVersion, actorType: "operator", actorId: "mock", changedAt: "just now" }
-    this.snapshot = { ...this.snapshot, settings: this.snapshot.settings.map((candidate) => candidate.id === setting.id ? updated : candidate), settingHistory: [history, ...this.snapshot.settingHistory] }
+    const updated: SettingView = {
+      ...setting,
+      state: intent.state,
+      rowVersion: setting.rowVersion + 1,
+    }
+    const history: SettingHistoryView = {
+      id: `setting-history-mock-${this.nextSequence++}`,
+      settingId: setting.id,
+      scope: setting.scope,
+      targetId: setting.targetId,
+      key: setting.key,
+      valueJson: setting.valueJson,
+      state: updated.state,
+      rowVersion: updated.rowVersion,
+      actorType: "operator",
+      actorId: "mock",
+      changedAt: "just now",
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      settings: this.snapshot.settings.map((candidate) => (candidate.id === setting.id ? updated : candidate)),
+      settingHistory: [history, ...this.snapshot.settingHistory],
+    }
     return result(intent, `Setting marked ${intent.state}.`, setting.id)
   }
 
@@ -2360,8 +3226,19 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (base.state === "retired") return rejection(intent, "A retired policy cannot receive a new version.", base.id)
     if (!isSafeJson(intent.ruleJson)) return rejection(intent, "Policy rule must be bounded valid JSON without sensitive keys.", base.id)
     const version = Math.max(...this.snapshot.policies.filter((candidate) => candidate.name === base.name).map((candidate) => candidate.version), 0) + 1
-    const policy: PolicyView = { id: `policy-mock-${this.nextSequence++}`, name: base.name, version, state: "draft", ruleSummary: summarizeRule(intent.ruleJson), ruleJson: intent.ruleJson, rowVersion: 1 }
-    this.snapshot = { ...this.snapshot, policies: [policy, ...this.snapshot.policies] }
+    const policy: PolicyView = {
+      id: `policy-mock-${this.nextSequence++}`,
+      name: base.name,
+      version,
+      state: "draft",
+      ruleSummary: summarizeRule(intent.ruleJson),
+      ruleJson: intent.ruleJson,
+      rowVersion: 1,
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      policies: [policy, ...this.snapshot.policies],
+    }
     return result(intent, `Draft policy version ${version} created; activation is a separate audited step.`, policy.id)
   }
 
@@ -2372,7 +3249,21 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (policy.state !== "draft") return rejection(intent, "Only a draft policy version can be activated.", policy.id)
     this.snapshot = {
       ...this.snapshot,
-      policies: this.snapshot.policies.map((candidate) => candidate.name === policy.name && candidate.state === "active" ? { ...candidate, state: "superseded" as const, rowVersion: candidate.rowVersion + 1 } : candidate.id === policy.id ? { ...candidate, state: "active" as const, rowVersion: candidate.rowVersion + 1 } : candidate),
+      policies: this.snapshot.policies.map((candidate) =>
+        candidate.name === policy.name && candidate.state === "active"
+          ? {
+              ...candidate,
+              state: "superseded" as const,
+              rowVersion: candidate.rowVersion + 1,
+            }
+          : candidate.id === policy.id
+            ? {
+                ...candidate,
+                state: "active" as const,
+                rowVersion: candidate.rowVersion + 1,
+              }
+            : candidate,
+      ),
     }
     return result(intent, `Policy version ${policy.version} activated; prior active versions were superseded.`, policy.id)
   }
@@ -2382,7 +3273,18 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (!policy) return rejection(intent, "Policy was not found.")
     if (policy.rowVersion !== intent.rowVersion) return result(intent, "This policy changed elsewhere. Reload before retiring.", policy.id, true)
     if (policy.state === "retired") return rejection(intent, "Policy is already retired.", policy.id)
-    this.snapshot = { ...this.snapshot, policies: this.snapshot.policies.map((candidate) => candidate.id === policy.id ? { ...candidate, state: "retired" as const, rowVersion: candidate.rowVersion + 1 } : candidate) }
+    this.snapshot = {
+      ...this.snapshot,
+      policies: this.snapshot.policies.map((candidate) =>
+        candidate.id === policy.id
+          ? {
+              ...candidate,
+              state: "retired" as const,
+              rowVersion: candidate.rowVersion + 1,
+            }
+          : candidate,
+      ),
+    }
     return result(intent, "Policy version retired in the mock projection.", policy.id)
   }
 
@@ -2397,7 +3299,18 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     if (account.state === "retired" || intent.state === account.state) return rejection(intent, "Account state transition is not available.", account.id)
     const allowed = account.state === "draft" ? intent.state === "active" || intent.state === "retired" : account.state === "active" ? intent.state === "inactive" || intent.state === "retired" : account.state === "inactive" && intent.state === "active"
     if (!allowed) return rejection(intent, `Account cannot transition from ${account.state} to ${intent.state}.`, account.id)
-    this.snapshot = { ...this.snapshot, accounts: this.snapshot.accounts.map((candidate) => candidate.id === account.id ? { ...candidate, state: intent.state, rowVersion: candidate.rowVersion + 1 } : candidate) }
+    this.snapshot = {
+      ...this.snapshot,
+      accounts: this.snapshot.accounts.map((candidate) =>
+        candidate.id === account.id
+          ? {
+              ...candidate,
+              state: intent.state,
+              rowVersion: candidate.rowVersion + 1,
+            }
+          : candidate,
+      ),
+    }
     return result(intent, "Account state updated in the mock projection.", account.id)
   }
 }

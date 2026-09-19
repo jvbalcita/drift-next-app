@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { AlertTriangle, Check, ChevronLeft, ChevronRight, CircleHelp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Card,
   CardContent,
@@ -103,6 +104,15 @@ export function FieldLabel({ htmlFor, children }: { htmlFor: string; children: R
   return <label htmlFor={htmlFor} className="text-xs font-semibold text-foreground">{children}</label>
 }
 
+export type FormSelectOption = { value: string; label: string; disabled?: boolean }
+
+export function FormSelect({ id, value, options, onValueChange, ariaLabel, disabled = false, size = "default", className = "" }: { id?: string; value: string; options: readonly FormSelectOption[]; onValueChange: (value: string) => void; ariaLabel?: string; disabled?: boolean; size?: "sm" | "default"; className?: string }) {
+  return <Select items={options} value={value} onValueChange={(next) => { if (next !== null) onValueChange(next) }} disabled={disabled}>
+    <SelectTrigger id={id} aria-label={ariaLabel} size={size} className={`rounded-none bg-background text-xs ${className}`}><SelectValue /></SelectTrigger>
+    <SelectContent align="start" className="rounded-none">{options.map((option) => <SelectItem key={option.value} value={option.value} disabled={option.disabled} className="rounded-none text-xs">{option.label}</SelectItem>)}</SelectContent>
+  </Select>
+}
+
 export function EmptyState({ label, detail }: { label: string; detail: string }) {
   return <div className="border border-dashed border-border bg-muted/40 px-4 py-8 text-center"><p className="text-sm font-medium">{label}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div>
 }
@@ -126,11 +136,7 @@ export function DataTablePagination({
   return (
     <div className="flex flex-wrap items-center gap-3 border-x border-b border-border bg-muted/30 px-3 py-2 text-xs">
       <p className="mr-auto text-muted-foreground" aria-live="polite">Showing {start}–{end} of {total} results</p>
-      <label className="flex items-center gap-2">Rows per page
-        <select aria-label="Rows per page" value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))} className="h-8 border border-input bg-background px-2 text-xs">
-          <option value={5}>5</option><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option>
-        </select>
-      </label>
+      <div className="flex items-center gap-2"><span>Rows per page</span><FormSelect ariaLabel="Rows per page" value={String(pageSize)} onValueChange={(next) => onPageSizeChange(Number(next))} options={[5, 10, 25, 50].map((size) => ({ value: String(size), label: String(size) }))} className="w-16" /></div>
       <span className="drift-data text-[10px]">Page {page + 1} of {pageCount}</span>
       <Button size="icon-sm" variant="outline" aria-label="Previous page" disabled={page === 0} onClick={() => onPageChange(page - 1)}><ChevronLeft className="size-3.5" aria-hidden="true" /></Button>
       <Button size="icon-sm" variant="outline" aria-label="Next page" disabled={page >= pageCount - 1} onClick={() => onPageChange(page + 1)}><ChevronRight className="size-3.5" aria-hidden="true" /></Button>

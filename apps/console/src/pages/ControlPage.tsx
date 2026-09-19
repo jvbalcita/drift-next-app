@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -312,9 +313,9 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
       onFeedback={showToastMessage}
       notice={labNotice}
     />
-    {!workspacePinned ? <WorkspaceToggle side={settings.workspaceSide} onToggle={() => { setWorkspaceOpen(true); setWorkspacePinned(true) }} /> : null}
     <div className="mt-6 flex flex-wrap items-center gap-2 border-y border-border py-3" aria-label="Control workspace toolbar">
       <span className="mr-auto text-xs"><span className="drift-data font-semibold">{selectedCount}</span> selected · {settings.controlSmall ? "compact-frame control enabled" : source ? "click another phone to select followers" : "click a phone to open its large frame"}</span>
+      {!workspacePinned ? <WorkspaceToggle side={settings.workspaceSide} onToggle={() => { setWorkspaceOpen(true); setWorkspacePinned(true) }} /> : null}
       <ConsoleSettingsDialog settings={settings} onChange={setSettings} modalPinned={modalPinned} onModalPinnedChange={setModalPinned} dispatch={dispatch} />
       <DeviceListDialog devices={snapshot.devices} endpoints={snapshot.endpoints} onReload={() => { void runTask("refreshDeviceList", { type: "refresh" }) }} pendingAction={pendingAction} />
       {source ? <Button size="sm" variant="outline" onClick={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }}><X className="size-3.5" aria-hidden="true" />Close Screen</Button> : null}
@@ -350,7 +351,7 @@ function matchesConnectionFilter(device: DeviceView, filter: ConnectionFilter) {
   return device.controlEligibility === "eligible"
 }
 function WorkspaceToggle({ side, onToggle }: { side: "left" | "right"; onToggle: () => void }) {
-  return <div className="group absolute left-0 top-1/2 z-20 flex h-24 w-10 -translate-y-1/2 items-center justify-start"><Button size="icon-sm" variant="outline" className="bg-card/95 opacity-80 transition-opacity group-hover:opacity-100 focus-visible:opacity-100" aria-label="Open Workspace Settings" onClick={onToggle}>{side === "left" ? <ChevronLeft className="size-3.5" aria-hidden="true" /> : <ChevronRight className="size-3.5" aria-hidden="true" />}</Button></div>
+  return <Button size="sm" variant="outline" aria-label="Open Workspace Settings" onClick={onToggle}>{side === "left" ? <ChevronLeft className="size-3.5" aria-hidden="true" /> : <ChevronRight className="size-3.5" aria-hidden="true" />}Workspace Settings</Button>
 }
 
 function TaskButton({ action, pendingAction, icon: Icon, children, className, disabled = false, onClick, variant = "default" }: { action: TaskAction; pendingAction: TaskAction | null; icon?: typeof Network; children: string; className?: string; disabled?: boolean; onClick: () => void; variant?: "default" | "outline" }) {
@@ -657,7 +658,7 @@ export function FloatingDevice({ device, followers, workspace, settings, positio
   </div>
 }
 function ControlButton({ icon: Icon, label, onClick }: { icon: typeof Smartphone; label: string; onClick: () => void }) { return <Button variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={onClick}><Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />{label}</Button> }
-function SettingToggle({ label, description, checked, onChange, onLabel = "On", offLabel = "Off" }: { label: string; description: string; checked: boolean; onChange: (value: boolean) => void; onLabel?: string; offLabel?: string }) { const id = label.toLowerCase().replaceAll(" ", "-"); return <div className="flex items-start gap-3 border-t border-border pt-4"><input id={id} type="checkbox" role="switch" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 size-4 accent-primary focus-visible:ring-2 focus-visible:ring-primary" /><label htmlFor={id} className="min-w-0 flex-1 cursor-pointer"><span className="flex justify-between gap-2 text-xs font-medium"><span>{label}</span><span className="text-muted-foreground">{checked ? onLabel : offLabel}</span></span><span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{description}</span></label></div> }
+function SettingToggle({ label, description, checked, onChange, onLabel = "On", offLabel = "Off" }: { label: string; description: string; checked: boolean; onChange: (value: boolean) => void; onLabel?: string; offLabel?: string }) { const id = label.toLowerCase().replaceAll(" ", "-"); return <div className="flex items-start gap-3 border-t border-border pt-4"><Switch id={id} checked={checked} onCheckedChange={onChange} className="mt-0.5 shrink-0" /><label htmlFor={id} className="min-w-0 flex-1 cursor-pointer"><span className="flex justify-between gap-2 text-xs font-medium"><span>{label}</span><span className="text-muted-foreground">{checked ? onLabel : offLabel}</span></span><span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{description}</span></label></div> }
 /**
  * rangeEndIp is the second range: its first three octets are the first range's,
  * so they follow it, and only the final octet is the operator's own. The locked

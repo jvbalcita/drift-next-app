@@ -149,8 +149,9 @@ func (h *GroupHandler) RenameDeviceGroup(ctx context.Context, request *connectrp
 	return connectrpc.NewResponse(&driftv1.RenameDeviceGroupResponse{Group: deviceGroupProto(renamed)}), nil
 }
 
-// DeleteDeviceGroup restores the legacy DELETE /groups/:id capability. It
-// retires the group and releases its placements, preserving membership history.
+// DeleteDeviceGroup permanently removes a group from the current inventory and
+// releases its placements. Storage retains only the tombstone required by
+// append-only membership and audit history.
 func (h *GroupHandler) DeleteDeviceGroup(ctx context.Context, request *connectrpc.Request[driftv1.DeleteDeviceGroupRequest]) (*connectrpc.Response[driftv1.DeleteDeviceGroupResponse], error) {
 	if request == nil {
 		return nil, invalidArgument("delete device group request is required")

@@ -440,6 +440,9 @@ func TestGroupRenameDeleteReorderAndUngroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(listed.Msg.Groups) != 1 || listed.Msg.Groups[0].GetId() != "group-1" {
+		t.Fatalf("groups after delete = %#v, want only group-1", listed.Msg.Groups)
+	}
 	active := 0
 	for _, membership := range listed.Msg.Memberships {
 		if membership.GetState() == "active" {

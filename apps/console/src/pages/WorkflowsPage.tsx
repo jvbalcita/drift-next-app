@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react"
 import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { reportDispatch } from "@/lib/api/report-dispatch"
@@ -35,7 +36,7 @@ export function WorkflowsPage({ snapshot, dispatch, view = "definitions", onView
           <form onSubmit={createWorkflow} className="mb-4 flex flex-wrap items-end gap-3 border border-border p-4">
             <div>
               <FieldLabel htmlFor="new-workflow-name">Workflow Name</FieldLabel>
-              <input id="new-workflow-name" value={workflowName} onChange={(event) => setWorkflowName(event.target.value)} className="mt-1 h-9 rounded-none border border-input bg-background px-2 text-xs" />
+              <Input id="new-workflow-name" value={workflowName} onChange={(event) => setWorkflowName(event.target.value)} className="mt-1 h-9 rounded-none text-xs" />
             </div>
             <Button type="submit" size="sm" variant="outline" disabled={!workflowName.trim()}>Create Workflow</Button>
           </form>

@@ -1,16 +1,22 @@
 import { Children, useMemo, useState, type FormEvent, type ReactNode } from "react"
 import { Database, Link2, Plus, ShieldOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent } from "@/lib/domain/control-plane"
 import { reportDispatch } from "@/lib/api/report-dispatch"
-import { DataTablePagination, EmptyState, FieldLabel, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
+import { DataTablePagination, EmptyState, FieldLabel, FormSelect, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 import { resolvedId } from "./page-utils"
 
-function accountTabForView(view: string) { return view === "service-history" ? "service" : view === "run-history" ? "runs" : view }
-function viewForAccountTab(view: string) { return view === "service" ? "service-history" : view === "runs" ? "run-history" : view }
+function accountTabForView(view: string) {
+  return view === "service-history" ? "service" : view === "run-history" ? "runs" : view
+}
+function viewForAccountTab(view: string) {
+  return view === "service" ? "service-history" : view === "runs" ? "run-history" : view
+}
 
 export function AccountsPage({ snapshot, dispatch, view = "sources", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
   const [selectedAccountId, setSelectedAccountId] = useState(snapshot.accounts[0]?.id ?? "")
@@ -23,7 +29,10 @@ export function AccountsPage({ snapshot, dispatch, view = "sources", onViewChang
   const [accountLabel, setAccountLabel] = useState("")
   const [accountMetadata, setAccountMetadata] = useState(`{"tier":"review"}`)
   const [assignmentDeviceId, setAssignmentDeviceId] = useState("")
-  const selectedAssignmentDeviceId = resolvedId(snapshot.devices.map((device) => device.id), assignmentDeviceId)
+  const selectedAssignmentDeviceId = resolvedId(
+    snapshot.devices.map((device) => device.id),
+    assignmentDeviceId,
+  )
   const [feedback, setFeedback] = useState("")
   const [createKind, setCreateKind] = useState<"source" | "account" | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -34,51 +43,460 @@ export function AccountsPage({ snapshot, dispatch, view = "sources", onViewChang
   const assignments = useMemo(() => snapshot.accountDeviceAssignments.filter((assignment) => assignment.accountId === selectedAccountId), [selectedAccountId, snapshot.accountDeviceAssignments])
   const selectedSyncEvents = useMemo(() => snapshot.accountSyncEvents.filter((event) => event.accountId === selectedAccountId || event.sourceId === selectedAccount?.sourceId), [selectedAccountId, selectedAccount?.sourceId, snapshot.accountSyncEvents])
 
-  function selectAccount(id: string) { const account = snapshot.accounts.find((item) => item.id === id); if (!account) return; setSelectedAccountId(id); setAccountSourceId(account.sourceId); setAccountReference(account.externalReference); setAccountLabel(account.label); setAccountMetadata(account.metadataJson); setDetailsOpen(true) }
+  function selectAccount(id: string) {
+    const account = snapshot.accounts.find((item) => item.id === id)
+    if (!account) return
+    setSelectedAccountId(id)
+    setAccountSourceId(account.sourceId)
+    setAccountReference(account.externalReference)
+    setAccountLabel(account.label)
+    setAccountMetadata(account.metadataJson)
+    setDetailsOpen(true)
+  }
   async function createSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const result = await dispatch({ type: "createAccountSource", provider: sourceProvider, displayName: sourceName, externalReference: sourceReference, metadataJson: sourceMetadata })
+    const result = await dispatch({
+      type: "createAccountSource",
+      provider: sourceProvider,
+      displayName: sourceName,
+      externalReference: sourceReference,
+      metadataJson: sourceMetadata,
+    })
     setFeedback(result.message)
     if (result.ok) setCreateKind(null)
   }
   async function createAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const result = await dispatch({ type: "createAccount", sourceId: accountSourceId, externalReference: accountReference, label: accountLabel, metadataJson: accountMetadata })
+    const result = await dispatch({
+      type: "createAccount",
+      sourceId: accountSourceId,
+      externalReference: accountReference,
+      label: accountLabel,
+      metadataJson: accountMetadata,
+    })
     setFeedback(result.message)
     if (result.ok) setCreateKind(null)
   }
   function saveAccount() {
     if (!selectedAccount) return
-    void reportDispatch(dispatch, { type: "updateAccount", accountId: selectedAccount.id, externalReference: accountReference || selectedAccount.externalReference, label: accountLabel || selectedAccount.label, metadataJson: accountMetadata || selectedAccount.metadataJson, rowVersion: selectedAccount.rowVersion }, setFeedback)
+    void reportDispatch(
+      dispatch,
+      {
+        type: "updateAccount",
+        accountId: selectedAccount.id,
+        externalReference: accountReference || selectedAccount.externalReference,
+        label: accountLabel || selectedAccount.label,
+        metadataJson: accountMetadata || selectedAccount.metadataJson,
+        rowVersion: selectedAccount.rowVersion,
+      },
+      setFeedback,
+    )
   }
   function updateAccountState(state: string) {
     if (!selectedAccount || !isAccountState(state)) return
-    void reportDispatch(dispatch, { type: "updateAccountState", accountId: selectedAccount.id, state, rowVersion: selectedAccount.rowVersion }, setFeedback)
+    void reportDispatch(
+      dispatch,
+      {
+        type: "updateAccountState",
+        accountId: selectedAccount.id,
+        state,
+        rowVersion: selectedAccount.rowVersion,
+      },
+      setFeedback,
+    )
   }
   function assignDevice(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selectedAccount) return
-    void reportDispatch(dispatch, { type: "assignAccountDevice", accountId: selectedAccount.id, deviceId: selectedAssignmentDeviceId }, setFeedback)
+    void reportDispatch(
+      dispatch,
+      {
+        type: "assignAccountDevice",
+        accountId: selectedAccount.id,
+        deviceId: selectedAssignmentDeviceId,
+      },
+      setFeedback,
+    )
   }
 
-  return <>
-    <PageIntro eyebrow="IDENTITY / ACCOUNT REFERENCES" title="Accounts" description="Manage non-secret account references, explicit device assignments, service projections, and bounded run history without enabling a connector." actions={<div className="flex gap-2"><StatusBadge label={`${snapshot.accounts.length} accounts`} tone="info" /><Button size="sm" variant="outline" onClick={() => setCreateKind("source")}><Plus className="size-3.5" aria-hidden="true" />Source</Button><Button size="sm" onClick={() => setCreateKind("account")}><Plus className="size-3.5" aria-hidden="true" />Account</Button></div>} />
-    <OperatorNotice>Account records contain provider references and sanitized metadata only. External connectors are unavailable until a complete secure implementation exists.</OperatorNotice>
-    <Tabs value={accountTabForView(view)} onValueChange={(nextView) => onViewChange?.(viewForAccountTab(nextView))} className="mt-6"><TabsList aria-label="Account views"><TabsTrigger value="sources">Sources</TabsTrigger><TabsTrigger value="accounts">Accounts</TabsTrigger><TabsTrigger value="assignments">Device Assignments</TabsTrigger><TabsTrigger value="service">Service History</TabsTrigger><TabsTrigger value="runs">Run History</TabsTrigger></TabsList>
-      <TabsContent value="sources" className="mt-6"><Panel title="Account Sources" description="A source identifies an authority without storing credentials or connector configuration." action={<Button size="sm" onClick={() => setCreateKind("source")}><Plus className="size-3.5" aria-hidden="true" />Add Source</Button>}>{snapshot.accountSources.length === 0 ? <EmptyState label="No Account Sources" detail="External connectors are unavailable until a complete secure implementation exists. Sources listed here are local references only; no connector sync is implied." /> : <DenseTable headings={["Source", "Provider", "Reference", "State"]}>{snapshot.accountSources.map((source) => <tr key={source.id}><td><p className="font-medium">{source.displayName}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{source.id} · row v{source.rowVersion}</p></td><td>{source.provider}</td><td className="font-mono text-[11px]">{source.externalReference || "—"}</td><td><StatusBadge label={source.state} tone={source.state === "active" ? "healthy" : "neutral"} /></td></tr>)}</DenseTable>}</Panel></TabsContent>
-      <TabsContent value="accounts" className="mt-6"><Panel title="Account References" description="Select a row to inspect or edit its bounded metadata in a sheet." action={<Button size="sm" onClick={() => setCreateKind("account")}><Plus className="size-3.5" aria-hidden="true" />Add Account</Button>}><DenseTable headings={["Account", "Source", "Reference", "Service", "State", ""]}>{snapshot.accounts.map((account) => <tr key={account.id}><td><p className="font-medium">{account.label}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{account.id} · row v{account.rowVersion}</p></td><td>{account.sourceProvider}</td><td className="font-mono text-[11px]">{account.externalReference}</td><td><StatusBadge label={account.serviceState} tone={serviceTone(account.serviceState)} /></td><td><StatusBadge label={account.state} tone={account.state === "active" ? "healthy" : account.state === "retired" ? "neutral" : "attention"} /></td><td className="text-right"><Button size="sm" variant="outline" onClick={() => selectAccount(account.id)}>Inspect</Button></td></tr>)}</DenseTable></Panel></TabsContent>
-      <TabsContent value="assignments" className="mt-6"><Panel title="Explicit Device Assignments" description="Assignments store stable account and device IDs. No connector or device command is implied."><DenseTable headings={["Account", "Device", "Assigned", "State", ""]}>{snapshot.accountDeviceAssignments.map((assignment) => { const account = snapshot.accounts.find((item) => item.id === assignment.accountId); const device = snapshot.devices.find((item) => item.id === assignment.deviceId); return <tr key={assignment.id}><td>{account?.label ?? assignment.accountId}</td><td><p>{device?.displayName ?? "Unknown device"}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{assignment.deviceId}</p></td><td>{assignment.assignedAt}</td><td><StatusBadge label={assignment.state} tone={assignment.state === "active" ? "healthy" : "neutral"} /></td><td className="text-right">{assignment.state === "active" ? <Button size="sm" variant="outline" onClick={() => void reportDispatch(dispatch, { type: "endAccountDeviceAssignment", assignmentId: assignment.id, rowVersion: assignment.rowVersion }, setFeedback)}>End</Button> : null}</td></tr> })}</DenseTable></Panel></TabsContent>
-      <TabsContent value="service" className="mt-6"><Panel title="Service History" description="Current service projections remain distinct from append-only observations."><DenseTable headings={["Account", "Service", "Stage", "State", "Observed"]}>{snapshot.accountServiceStateHistory.map((state) => <tr key={state.id}><td>{snapshot.accounts.find((account) => account.id === state.accountId)?.label ?? state.accountId}</td><td>{state.serviceName}</td><td>{state.stage}</td><td><StatusBadge label={state.state} tone={serviceTone(state.state)} /></td><td>{state.observedAt}</td></tr>)}</DenseTable></Panel></TabsContent>
-      <TabsContent value="runs" className="mt-6"><Panel title="Account Run History" description="Runs and connector outcomes remain independently auditable, including disabled attempts."><DenseTable headings={["Run", "Account", "Requested", "Outcome", "Correlation"]}>{snapshot.accountRuns.map((run) => <tr key={run.id}><td className="drift-data text-[10px]">{run.id}</td><td>{snapshot.accounts.find((account) => account.id === run.accountId)?.label ?? run.accountId}</td><td>{run.requestedAt}</td><td><StatusBadge label={run.state} tone={run.state === "completed" ? "healthy" : run.state === "failed" ? "danger" : "attention"} /></td><td className="drift-data text-[10px]">{run.correlationId}</td></tr>)}</DenseTable></Panel></TabsContent>
-    </Tabs>
-    <p aria-live="polite" className="mt-6 border-l-2 border-primary bg-secondary/60 p-3 text-xs text-muted-foreground">{feedback || "Connector unavailable. Account and sync views show sanitized local records only."}</p>
-    <Dialog open={createKind !== null} onOpenChange={(open) => { if (!open) setCreateKind(null) }}><DialogContent className="rounded-none sm:max-w-xl"><DialogHeader><DialogTitle>{createKind === "source" ? "Create Account Source" : "Create Account Reference"}</DialogTitle><DialogDescription>{createKind === "source" ? "Define a sanitized source authority only; credentials and connector configuration are excluded." : "Create a bounded reference attached to a source. No external account is contacted."}</DialogDescription></DialogHeader>{createKind === "source" ? <form className="space-y-3" onSubmit={createSource}><TextField id="source-provider" label="Provider" value={sourceProvider} onChange={setSourceProvider} /><TextField id="source-name" label="Display name" value={sourceName} onChange={setSourceName} /><TextField id="source-reference" label="External reference" value={sourceReference} onChange={setSourceReference} /><JsonField id="source-metadata" label="Sanitized metadata JSON" value={sourceMetadata} onChange={setSourceMetadata} /><DialogFooter><Button type="submit"><Database className="size-3.5" aria-hidden="true" />Save source</Button></DialogFooter></form> : <form className="space-y-3" onSubmit={createAccount}><div><FieldLabel htmlFor="account-source">Account source</FieldLabel><select id="account-source" value={accountSourceId} onChange={(event) => setAccountSourceId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">{snapshot.accountSources.map((source) => <option key={source.id} value={source.id}>{source.displayName}</option>)}</select></div><TextField id="account-reference" label="External reference" value={accountReference} onChange={setAccountReference} /><TextField id="account-label" label="Account label" value={accountLabel} onChange={setAccountLabel} /><JsonField id="account-metadata" label="Sanitized metadata JSON" value={accountMetadata} onChange={setAccountMetadata} /><DialogFooter><Button type="submit"><Plus className="size-3.5" aria-hidden="true" />Create account</Button></DialogFooter></form>}</DialogContent></Dialog>
-    <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}><SheetContent className="w-full rounded-none sm:max-w-lg"><SheetHeader><SheetTitle>{selectedAccount?.label ?? "Account Detail"}</SheetTitle><SheetDescription>Bounded metadata and device assignment; the connector remains disabled.</SheetDescription></SheetHeader>{selectedAccount ? <div className="space-y-5 overflow-y-auto px-4 pb-5"><dl className="grid gap-3 border-y border-border py-4 text-xs"><div><dt className="text-muted-foreground">Reference</dt><dd className="mt-1 font-mono">{selectedAccount.externalReference}</dd></div><div><dt className="text-muted-foreground">Source</dt><dd className="mt-1">{selectedSource?.displayName ?? selectedAccount.sourceId}</dd></div><div><dt className="text-muted-foreground">Metadata</dt><dd className="mt-1 break-all font-mono text-[10px]">{selectedAccount.metadataJson}</dd></div></dl><TextField id="detail-account-label" label="Account Label" value={accountLabel} onChange={setAccountLabel} /><TextField id="detail-account-reference" label="External reference" value={accountReference} onChange={setAccountReference} /><JsonField id="detail-account-metadata" label="Sanitized metadata JSON" value={accountMetadata} onChange={setAccountMetadata} /><div><FieldLabel htmlFor="account-state">Account state</FieldLabel><select id="account-state" value={selectedAccount.state} onChange={(event) => updateAccountState(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs"><option value="draft">Draft</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="retired">Retired</option></select></div><Button onClick={saveAccount}>Save selected account</Button><form className="border-t border-border pt-4" onSubmit={assignDevice}><FieldLabel htmlFor="assignment-device">Assign device by stable ID</FieldLabel><div className="mt-1 flex gap-2"><select id="assignment-device" value={selectedAssignmentDeviceId} onChange={(event) => setAssignmentDeviceId(event.target.value)} className="h-9 min-w-0 flex-1 rounded-none border border-input bg-background px-2 text-xs">{snapshot.devices.map((device) => <option key={device.id} value={device.id}>{device.displayName} · {device.id}</option>)}</select><Button type="submit" variant="outline"><Link2 className="size-3.5" aria-hidden="true" />Assign</Button></div></form><Panel title="Selected service state" description="Current state is separate from history."><div className="space-y-2">{selectedServiceStates.map((state) => <div key={state.id} className="flex items-center justify-between border-b border-border/70 py-2 text-xs"><span>{state.serviceName} · {state.stage}</span><StatusBadge label={state.state} tone={serviceTone(state.state)} /></div>)}</div></Panel><Panel title="Selected run and sync history" description="No external account access was attempted."><div className="space-y-2 text-xs">{selectedRuns.map((run) => <p key={run.id}>{run.id} · {run.state} · {run.requestedAt}</p>)}{selectedSyncEvents.map((event) => <p key={event.id} className="flex gap-2"><ShieldOff className="size-3.5 shrink-0 text-primary" aria-hidden="true" />{event.eventName} · connector {event.outcome}</p>)}</div></Panel><div className="space-y-2 border-t border-border pt-4">{assignments.map((assignment) => <div key={assignment.id} className="flex items-center justify-between text-xs"><span className="font-mono">{assignment.deviceId}</span><StatusBadge label={assignment.state} tone={assignment.state === "active" ? "healthy" : "neutral"} /></div>)}</div></div> : null}</SheetContent></Sheet>
-  </>
+  return (
+    <>
+      <PageIntro
+        eyebrow="IDENTITY / ACCOUNT REFERENCES"
+        title="Accounts"
+        description="Manage non-secret account references, explicit device assignments, service projections, and bounded run history without enabling a connector."
+        actions={
+          <div className="flex gap-2">
+            <StatusBadge label={`${snapshot.accounts.length} accounts`} tone="info" />
+            <Button size="sm" variant="outline" onClick={() => setCreateKind("source")}>
+              <Plus className="size-3.5" aria-hidden="true" />
+              Source
+            </Button>
+            <Button size="sm" onClick={() => setCreateKind("account")}>
+              <Plus className="size-3.5" aria-hidden="true" />
+              Account
+            </Button>
+          </div>
+        }
+      />
+      <OperatorNotice>Account records contain provider references and sanitized metadata only. External connectors are unavailable until a complete secure implementation exists.</OperatorNotice>
+      <Tabs value={accountTabForView(view)} onValueChange={(nextView) => onViewChange?.(viewForAccountTab(nextView))} className="mt-6">
+        <TabsList aria-label="Account views">
+          <TabsTrigger value="sources">Sources</TabsTrigger>
+          <TabsTrigger value="accounts">Accounts</TabsTrigger>
+          <TabsTrigger value="assignments">Device Assignments</TabsTrigger>
+          <TabsTrigger value="service">Service History</TabsTrigger>
+          <TabsTrigger value="runs">Run History</TabsTrigger>
+        </TabsList>
+        <TabsContent value="sources" className="mt-6">
+          <Panel
+            title="Account Sources"
+            description="A source identifies an authority without storing credentials or connector configuration."
+            action={
+              <Button size="sm" onClick={() => setCreateKind("source")}>
+                <Plus className="size-3.5" aria-hidden="true" />
+                Add Source
+              </Button>
+            }
+          >
+            {snapshot.accountSources.length === 0 ? (
+              <EmptyState label="No Account Sources" detail="External connectors are unavailable until a complete secure implementation exists. Sources listed here are local references only; no connector sync is implied." />
+            ) : (
+              <DenseTable headings={["Source", "Provider", "Reference", "State"]}>
+                {snapshot.accountSources.map((source) => (
+                  <tr key={source.id}>
+                    <td>
+                      <p className="font-medium">{source.displayName}</p>
+                      <p className="drift-data mt-1 text-[10px] text-muted-foreground">
+                        {source.id} · row v{source.rowVersion}
+                      </p>
+                    </td>
+                    <td>{source.provider}</td>
+                    <td className="font-mono text-[11px]">{source.externalReference || "—"}</td>
+                    <td>
+                      <StatusBadge label={source.state} tone={source.state === "active" ? "healthy" : "neutral"} />
+                    </td>
+                  </tr>
+                ))}
+              </DenseTable>
+            )}
+          </Panel>
+        </TabsContent>
+        <TabsContent value="accounts" className="mt-6">
+          <Panel
+            title="Account References"
+            description="Select a row to inspect or edit its bounded metadata in a sheet."
+            action={
+              <Button size="sm" onClick={() => setCreateKind("account")}>
+                <Plus className="size-3.5" aria-hidden="true" />
+                Add Account
+              </Button>
+            }
+          >
+            <DenseTable headings={["Account", "Source", "Reference", "Service", "State", ""]}>
+              {snapshot.accounts.map((account) => (
+                <tr key={account.id}>
+                  <td>
+                    <p className="font-medium">{account.label}</p>
+                    <p className="drift-data mt-1 text-[10px] text-muted-foreground">
+                      {account.id} · row v{account.rowVersion}
+                    </p>
+                  </td>
+                  <td>{account.sourceProvider}</td>
+                  <td className="font-mono text-[11px]">{account.externalReference}</td>
+                  <td>
+                    <StatusBadge label={account.serviceState} tone={serviceTone(account.serviceState)} />
+                  </td>
+                  <td>
+                    <StatusBadge label={account.state} tone={account.state === "active" ? "healthy" : account.state === "retired" ? "neutral" : "attention"} />
+                  </td>
+                  <td className="text-right">
+                    <Button size="sm" variant="outline" onClick={() => selectAccount(account.id)}>
+                      Inspect
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </DenseTable>
+          </Panel>
+        </TabsContent>
+        <TabsContent value="assignments" className="mt-6">
+          <Panel title="Explicit Device Assignments" description="Assignments store stable account and device IDs. No connector or device command is implied.">
+            <DenseTable headings={["Account", "Device", "Assigned", "State", ""]}>
+              {snapshot.accountDeviceAssignments.map((assignment) => {
+                const account = snapshot.accounts.find((item) => item.id === assignment.accountId)
+                const device = snapshot.devices.find((item) => item.id === assignment.deviceId)
+                return (
+                  <tr key={assignment.id}>
+                    <td>{account?.label ?? assignment.accountId}</td>
+                    <td>
+                      <p>{device?.displayName ?? "Unknown device"}</p>
+                      <p className="drift-data mt-1 text-[10px] text-muted-foreground">{assignment.deviceId}</p>
+                    </td>
+                    <td>{assignment.assignedAt}</td>
+                    <td>
+                      <StatusBadge label={assignment.state} tone={assignment.state === "active" ? "healthy" : "neutral"} />
+                    </td>
+                    <td className="text-right">
+                      {assignment.state === "active" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            void reportDispatch(
+                              dispatch,
+                              {
+                                type: "endAccountDeviceAssignment",
+                                assignmentId: assignment.id,
+                                rowVersion: assignment.rowVersion,
+                              },
+                              setFeedback,
+                            )
+                          }
+                        >
+                          End
+                        </Button>
+                      ) : null}
+                    </td>
+                  </tr>
+                )
+              })}
+            </DenseTable>
+          </Panel>
+        </TabsContent>
+        <TabsContent value="service" className="mt-6">
+          <Panel title="Service History" description="Current service projections remain distinct from append-only observations.">
+            <DenseTable headings={["Account", "Service", "Stage", "State", "Observed"]}>
+              {snapshot.accountServiceStateHistory.map((state) => (
+                <tr key={state.id}>
+                  <td>{snapshot.accounts.find((account) => account.id === state.accountId)?.label ?? state.accountId}</td>
+                  <td>{state.serviceName}</td>
+                  <td>{state.stage}</td>
+                  <td>
+                    <StatusBadge label={state.state} tone={serviceTone(state.state)} />
+                  </td>
+                  <td>{state.observedAt}</td>
+                </tr>
+              ))}
+            </DenseTable>
+          </Panel>
+        </TabsContent>
+        <TabsContent value="runs" className="mt-6">
+          <Panel title="Account Run History" description="Runs and connector outcomes remain independently auditable, including disabled attempts.">
+            <DenseTable headings={["Run", "Account", "Requested", "Outcome", "Correlation"]}>
+              {snapshot.accountRuns.map((run) => (
+                <tr key={run.id}>
+                  <td className="drift-data text-[10px]">{run.id}</td>
+                  <td>{snapshot.accounts.find((account) => account.id === run.accountId)?.label ?? run.accountId}</td>
+                  <td>{run.requestedAt}</td>
+                  <td>
+                    <StatusBadge label={run.state} tone={run.state === "completed" ? "healthy" : run.state === "failed" ? "danger" : "attention"} />
+                  </td>
+                  <td className="drift-data text-[10px]">{run.correlationId}</td>
+                </tr>
+              ))}
+            </DenseTable>
+          </Panel>
+        </TabsContent>
+      </Tabs>
+      <p aria-live="polite" className="mt-6 border-l-2 border-primary bg-secondary/60 p-3 text-xs text-muted-foreground">
+        {feedback || "Connector unavailable. Account and sync views show sanitized local records only."}
+      </p>
+      <Dialog
+        open={createKind !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreateKind(null)
+        }}
+      >
+        <DialogContent className="rounded-none sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{createKind === "source" ? "Create Account Source" : "Create Account Reference"}</DialogTitle>
+            <DialogDescription>{createKind === "source" ? "Define a sanitized source authority only; credentials and connector configuration are excluded." : "Create a bounded reference attached to a source. No external account is contacted."}</DialogDescription>
+          </DialogHeader>
+          {createKind === "source" ? (
+            <form className="space-y-3" onSubmit={createSource}>
+              <TextField id="source-provider" label="Provider" value={sourceProvider} onChange={setSourceProvider} />
+              <TextField id="source-name" label="Display name" value={sourceName} onChange={setSourceName} />
+              <TextField id="source-reference" label="External reference" value={sourceReference} onChange={setSourceReference} />
+              <JsonField id="source-metadata" label="Sanitized metadata JSON" value={sourceMetadata} onChange={setSourceMetadata} />
+              <DialogFooter>
+                <Button type="submit">
+                  <Database className="size-3.5" aria-hidden="true" />
+                  Save source
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <form className="space-y-3" onSubmit={createAccount}>
+              <div>
+                <FieldLabel htmlFor="account-source">Account source</FieldLabel>
+                <FormSelect id="account-source" value={accountSourceId} onValueChange={setAccountSourceId} className="mt-1 h-9 w-full" options={snapshot.accountSources.map((source) => ({ value: source.id, label: source.displayName }))} />
+              </div>
+              <TextField id="account-reference" label="External reference" value={accountReference} onChange={setAccountReference} />
+              <TextField id="account-label" label="Account label" value={accountLabel} onChange={setAccountLabel} />
+              <JsonField id="account-metadata" label="Sanitized metadata JSON" value={accountMetadata} onChange={setAccountMetadata} />
+              <DialogFooter>
+                <Button type="submit">
+                  <Plus className="size-3.5" aria-hidden="true" />
+                  Create account
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <SheetContent className="w-full rounded-none sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>{selectedAccount?.label ?? "Account Detail"}</SheetTitle>
+            <SheetDescription>Bounded metadata and device assignment; the connector remains disabled.</SheetDescription>
+          </SheetHeader>
+          {selectedAccount ? (
+            <div className="space-y-5 overflow-y-auto px-4 pb-5">
+              <dl className="grid gap-3 border-y border-border py-4 text-xs">
+                <div>
+                  <dt className="text-muted-foreground">Reference</dt>
+                  <dd className="mt-1 font-mono">{selectedAccount.externalReference}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Source</dt>
+                  <dd className="mt-1">{selectedSource?.displayName ?? selectedAccount.sourceId}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Metadata</dt>
+                  <dd className="mt-1 break-all font-mono text-[10px]">{selectedAccount.metadataJson}</dd>
+                </div>
+              </dl>
+              <TextField id="detail-account-label" label="Account Label" value={accountLabel} onChange={setAccountLabel} />
+              <TextField id="detail-account-reference" label="External reference" value={accountReference} onChange={setAccountReference} />
+              <JsonField id="detail-account-metadata" label="Sanitized metadata JSON" value={accountMetadata} onChange={setAccountMetadata} />
+              <div>
+                <FieldLabel htmlFor="account-state">Account state</FieldLabel>
+                <FormSelect
+                  id="account-state"
+                  value={selectedAccount.state}
+                  onValueChange={updateAccountState}
+                  className="mt-1 h-9 w-full"
+                  options={[
+                    { value: "draft", label: "Draft" },
+                    { value: "active", label: "Active" },
+                    { value: "inactive", label: "Inactive" },
+                    { value: "retired", label: "Retired" },
+                  ]}
+                />
+              </div>
+              <Button onClick={saveAccount}>Save selected account</Button>
+              <form className="border-t border-border pt-4" onSubmit={assignDevice}>
+                <FieldLabel htmlFor="assignment-device">Assign device by stable ID</FieldLabel>
+                <div className="mt-1 flex gap-2">
+                  <FormSelect id="assignment-device" value={selectedAssignmentDeviceId} onValueChange={setAssignmentDeviceId} className="h-9 min-w-0 flex-1" options={snapshot.devices.map((device) => ({ value: device.id, label: `${device.displayName} · ${device.id}` }))} />
+                  <Button type="submit" variant="outline">
+                    <Link2 className="size-3.5" aria-hidden="true" />
+                    Assign
+                  </Button>
+                </div>
+              </form>
+              <Panel title="Selected service state" description="Current state is separate from history.">
+                <div className="space-y-2">
+                  {selectedServiceStates.map((state) => (
+                    <div key={state.id} className="flex items-center justify-between border-b border-border/70 py-2 text-xs">
+                      <span>
+                        {state.serviceName} · {state.stage}
+                      </span>
+                      <StatusBadge label={state.state} tone={serviceTone(state.state)} />
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+              <Panel title="Selected run and sync history" description="No external account access was attempted.">
+                <div className="space-y-2 text-xs">
+                  {selectedRuns.map((run) => (
+                    <p key={run.id}>
+                      {run.id} · {run.state} · {run.requestedAt}
+                    </p>
+                  ))}
+                  {selectedSyncEvents.map((event) => (
+                    <p key={event.id} className="flex gap-2">
+                      <ShieldOff className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                      {event.eventName} · connector {event.outcome}
+                    </p>
+                  ))}
+                </div>
+              </Panel>
+              <div className="space-y-2 border-t border-border pt-4">
+                {assignments.map((assignment) => (
+                  <div key={assignment.id} className="flex items-center justify-between text-xs">
+                    <span className="font-mono">{assignment.deviceId}</span>
+                    <StatusBadge label={assignment.state} tone={assignment.state === "active" ? "healthy" : "neutral"} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+    </>
+  )
 }
 
-function DenseTable({ headings, children }: { headings: readonly string[]; children: ReactNode }) { const [page, setPage] = useState(0); const [pageSize, setPageSize] = useState(10); const rows = Children.toArray(children); const visibleRows = rows.slice(page * pageSize, (page + 1) * pageSize); return <>{rows.length === 0 ? <EmptyState label="No Records" detail="No records are available for this view." /> : <div className="overflow-x-auto border border-border"><table className="w-full min-w-[760px] text-left text-xs"><caption className="sr-only">Account records</caption><thead><tr className="border-b border-border text-[10px] tracking-[0.08em] text-muted-foreground">{headings.map((heading, index) => <th key={`${heading}-${index}`} className="p-3">{heading || <span className="sr-only">Actions</span>}</th>)}</tr></thead><tbody className="[&>tr]:border-b [&>tr]:border-border/70 [&>tr:last-child]:border-0 [&>tr>td]:p-3 [&>tr]:hover:bg-muted/50">{visibleRows}</tbody></table></div>}<DataTablePagination page={page} pageSize={pageSize} total={rows.length} onPageChange={setPage} onPageSizeChange={(next) => { setPageSize(next); setPage(0) }} /></> }
-function TextField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) { return <div><FieldLabel htmlFor={id}>{label}</FieldLabel><input id={id} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs" /></div> }
-function JsonField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) { return <div><FieldLabel htmlFor={id}>{label}</FieldLabel><textarea id={id} value={value} onChange={(event) => onChange(event.target.value)} rows={3} className="mt-1 w-full rounded-none border border-input bg-background p-2 font-mono text-[11px]" /></div> }
-function isAccountState(value: string): value is "draft" | "active" | "inactive" | "retired" { return value === "draft" || value === "active" || value === "inactive" || value === "retired" }
-function serviceTone(state: "unknown" | "healthy" | "degraded" | "failed" | "disabled"): StatusTone { return state === "healthy" ? "healthy" : state === "failed" ? "danger" : state === "degraded" ? "attention" : "neutral" }
+function DenseTable({ headings, children }: { headings: readonly string[]; children: ReactNode }) {
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const rows = Children.toArray(children)
+  const visibleRows = rows.slice(page * pageSize, (page + 1) * pageSize)
+  return (
+    <>
+      {rows.length === 0 ? (
+        <EmptyState label="No Records" detail="No records are available for this view." />
+      ) : (
+        <div className="overflow-x-auto border border-border">
+          <table className="w-full min-w-[760px] text-left text-xs">
+            <caption className="sr-only">Account records</caption>
+            <thead>
+              <tr className="border-b border-border text-[10px] tracking-[0.08em] text-muted-foreground">
+                {headings.map((heading, index) => (
+                  <th key={`${heading}-${index}`} className="p-3">
+                    {heading || <span className="sr-only">Actions</span>}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="[&>tr]:border-b [&>tr]:border-border/70 [&>tr:last-child]:border-0 [&>tr>td]:p-3 [&>tr]:hover:bg-muted/50">{visibleRows}</tbody>
+          </table>
+        </div>
+      )}
+      <DataTablePagination
+        page={page}
+        pageSize={pageSize}
+        total={rows.length}
+        onPageChange={setPage}
+        onPageSizeChange={(next) => {
+          setPageSize(next)
+          setPage(0)
+        }}
+      />
+    </>
+  )
+}
+function TextField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <div>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-9 rounded-none text-xs" />
+    </div>
+  )
+}
+function JsonField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <div>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Textarea id={id} value={value} onChange={(event) => onChange(event.target.value)} rows={3} className="mt-1 rounded-none p-2 font-mono text-[11px]" />
+    </div>
+  )
+}
+function isAccountState(value: string): value is "draft" | "active" | "inactive" | "retired" {
+  return value === "draft" || value === "active" || value === "inactive" || value === "retired"
+}
+function serviceTone(state: "unknown" | "healthy" | "degraded" | "failed" | "disabled"): StatusTone {
+  return state === "healthy" ? "healthy" : state === "failed" ? "danger" : state === "degraded" ? "attention" : "neutral"
+}

@@ -68,8 +68,8 @@ message RenameDeviceGroupRequest {
 message RenameDeviceGroupResponse {
   DeviceGroup group = 1;
 }
-// DeleteDeviceGroup replaces DELETE /groups/:id. A group that carries history is
-// retired in place, never erased: memberships are append-only evidence.
+// DeleteDeviceGroup permanently removes a group from the current inventory.
+// Storage may retain an internal tombstone so append-only evidence stays valid.
 message DeleteDeviceGroupRequest {
   RequestContext context = 1;
   WorkspaceRef workspace = 2;
