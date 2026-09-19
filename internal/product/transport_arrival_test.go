@@ -366,6 +366,68 @@ func TestAWatcherArrivalOnASecondTransportKeepsOneConsoleIdentity(t *testing.T) 
 	}
 }
 
+// TestAnArrivalDerivesOnlineWhileItIsAttached is criterion 1 of ARC-146 on the
+// arrival path, and it is the assertion the card asks to be stated: a device that
+// is physically attached and has just been observed arriving must read ONLINE.
+// Presence alone is not the assertion - the endpoint and the transport are - the
+// defect this card is about is a device that HAD a live observation and still
+// derived OFFLINE from it, so this test fails if an arrival leaves the device with
+// no current endpoint, or with a current endpoint the single status seam does not
+// read. It fails on the pre-ARC-196 tree, where an arrival was written as
+// `observed` and the projection warned nothing about it.
+func TestAnArrivalDerivesOnlineWhileItIsAttached(t *testing.T) {
+	ctx := context.Background()
+	db := openTransportDB(t)
+
+	// The unit that is already there is registered by the startup scan; the unit
+	// that arrives after launch is scripted for the poll after the watcher's
+	// launch baseline.
+	enumerator := (&fakeTransportEnumerator{}).script(
+		view(transport("SER-AT-LAUNCH", "1")),
+		view(transport("SER-AT-LAUNCH", "1")),
+		view(transport("SER-AT-LAUNCH", "1"), transport("SER-ARRIVED", "2")),
+	)
+	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{Authorized: true, LabMode: true, Enumerator: enumerator})
+	discoveryService := discovery.NewService(db, scanner)
+	if _, _, err := discoveryService.StartScan(ctx, transportWorkspace, transportProfile, "startup-scan", "system", "control-plane"); err != nil {
+		t.Fatalf("StartScan() = %v", err)
+	}
+
+	watcher, _ := newTestWatcher(t, enumerator, product.TransportWatcherConfig{
+		Interval: 5 * time.Millisecond,
+		Sink: func(sinkCtx context.Context, arrivals []discovery.ObservedDevice) error {
+			_, err := discoveryService.RecordArrivals(sinkCtx, transportWorkspace, arrivals, product.WatcherActorType, product.WatcherActorID)
+			return err
+		},
+	})
+	stop := startWatcher(t, watcher)
+	waitFor(t, func() bool { return len(listDevices(t, db)) == 2 }, "the arrival to appear in the device list")
+	stop()
+
+	arrived := deviceByDisplayName(listDevices(t, db), "SER-ARRIVED")
+	if arrived == nil {
+		t.Fatal("the arrival is missing from the device list the console reads")
+	}
+	if got := arrived.GetStatus(); got != driftv1.DeviceStatus_DEVICE_STATUS_ONLINE {
+		t.Fatalf("an attached, just-observed arrival reads %v, want ONLINE: it has a live observation", got)
+	}
+	if got := arrived.GetTransport(); got != driftv1.DeviceTransport_DEVICE_TRANSPORT_USB {
+		t.Fatalf("arrival transport = %v, want the transport it was observed on", got)
+	}
+	if arrived.GetEndpointId() == "" {
+		t.Fatalf("arrival = %#v, want the current endpoint it was observed at", arrived)
+	}
+	if arrived.GetLastSeenAt() == "" {
+		t.Fatal("the arrival carries no last_seen_at, so nothing records that it was observed at all")
+	}
+
+	// The arrival does not disturb the unit that was attached at launch.
+	atLaunch := deviceByDisplayName(listDevices(t, db), "SER-AT-LAUNCH")
+	if atLaunch == nil || atLaunch.GetStatus() != driftv1.DeviceStatus_DEVICE_STATUS_ONLINE {
+		t.Fatalf("the unit attached at launch = %#v, want it still ONLINE beside the arrival", atLaunch)
+	}
+}
+
 // listDevices reads the device list through the same Connect call the console
 // makes, so an assertion here is an assertion about what the console is handed
 // rather than about what the repository happens to hold.
