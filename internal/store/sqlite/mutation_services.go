@@ -136,7 +136,7 @@ func (s *GroupService) Create(ctx context.Context, g groups.Group, actorType, ac
 		// A new group lands at the end of the persisted operator order. Order is
 		// never inferred from insertion, so it must be assigned explicitly.
 		var next int64
-		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(position),0)+1 FROM device_groups WHERE workspace_id=?`, g.Workspace).Scan(&next); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(position),0)+1 FROM device_groups WHERE workspace_id=? AND state='active'`, g.Workspace).Scan(&next); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO device_groups (id,workspace_id,name,state,created_at,updated_at,row_version,position) VALUES (?,?,?,?,?,?,1,?)`, g.ID, g.Workspace, g.Name, g.State, now, now, next); err != nil {
@@ -177,11 +177,9 @@ func (s *GroupService) Rename(ctx context.Context, w organizations.WorkspaceID, 
 	})
 }
 
-// Retire replaces DELETE /groups/:id. A group that carries placement history is
-// retired in place and its current placements end, so the devices fall back
-// into the computed Ungrouped view. The rows themselves are never erased:
-// memberships are evidence, and the schema restricts deleting a referenced
-// group.
+// Retire implements permanent deletion from the current inventory. The group
+// is retained only as an internal tombstone because memberships are append-only
+// evidence and the schema prevents erasing a referenced row.
 func (s *GroupService) Retire(ctx context.Context, w organizations.WorkspaceID, id groups.GroupID, expectedVersion uint64, actorType, actorID string) error {
 	if ctx == nil || s == nil || s.store == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite store are required")
@@ -211,7 +209,30 @@ func (s *GroupService) Retire(ctx context.Context, w organizations.WorkspaceID, 
 		if _, err := tx.ExecContext(ctx, `UPDATE device_group_memberships SET state='ended', ended_at=? WHERE workspace_id=? AND group_id=? AND state='active'`, now, w, id); err != nil {
 			return err
 		}
-		return s.store.recordMutation(ctx, tx, string(w), "device_group", string(id), "group.retired", actorType, actorID)
+		rows, err := tx.QueryContext(ctx, `SELECT id FROM device_groups WHERE workspace_id=? AND state='active' ORDER BY position,id`, w)
+		if err != nil {
+			return err
+		}
+		remaining := []groups.GroupID{}
+		for rows.Next() {
+			var remainingID groups.GroupID
+			if err := rows.Scan(&remainingID); err != nil {
+				rows.Close()
+				return err
+			}
+			remaining = append(remaining, remainingID)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return err
+		}
+		rows.Close()
+		for index, remainingID := range remaining {
+			if _, err := tx.ExecContext(ctx, `UPDATE device_groups SET position=?, updated_at=? WHERE workspace_id=? AND id=? AND state='active'`, index+1, now, w, remainingID); err != nil {
+				return mapConstraint(err)
+			}
+		}
+		return s.store.recordMutation(ctx, tx, string(w), "device_group", string(id), "group.deleted", actorType, actorID)
 	})
 }
 
@@ -226,7 +247,7 @@ func (s *GroupService) Reorder(ctx context.Context, w organizations.WorkspaceID,
 	}
 	now := s.store.clock.Now().UTC().Format(time.RFC3339Nano)
 	return WithTx(ctx, s.store.db, func(tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, `SELECT id FROM device_groups WHERE workspace_id=?`, w)
+		rows, err := tx.QueryContext(ctx, `SELECT id FROM device_groups WHERE workspace_id=? AND state='active'`, w)
 		if err != nil {
 			return err
 		}
@@ -255,7 +276,7 @@ func (s *GroupService) Reorder(ctx context.Context, w organizations.WorkspaceID,
 			seen[id] = true
 		}
 		for index, id := range ordered {
-			if _, err := tx.ExecContext(ctx, `UPDATE device_groups SET position=?, updated_at=? WHERE workspace_id=? AND id=?`, index+1, now, w, id); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE device_groups SET position=?, updated_at=? WHERE workspace_id=? AND id=? AND state='active'`, index+1, now, w, id); err != nil {
 				return mapConstraint(err)
 			}
 		}

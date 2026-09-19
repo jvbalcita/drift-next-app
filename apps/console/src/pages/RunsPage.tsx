@@ -2,11 +2,12 @@ import { useState } from "react"
 import { Ban, FileText, ListChecks, ShieldCheck } from "lucide-react"
 import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DispatchIntent, RunState } from "@/lib/domain/control-plane"
 import { reportDispatch } from "@/lib/api/report-dispatch"
-import { DataTablePagination, EmptyState, FailureBadge, FieldLabel, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
+import { DataTablePagination, EmptyState, FailureBadge, FieldLabel, FormSelect, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 import { resolvedDeviceIds, resolvedId, textForDevice } from "./page-utils"
 
 export function RunsPage({ snapshot, dispatch, view = "active", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
@@ -38,18 +39,14 @@ export function RunsPage({ snapshot, dispatch, view = "active", onViewChange }: 
     <form className="mt-6 grid gap-3 border border-border p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]" onSubmit={(event) => event.preventDefault()}>
       <div>
         <FieldLabel htmlFor="start-run-workflow">Published Workflow</FieldLabel>
-        <select id="start-run-workflow" value={selectedWorkflowId} onChange={(event) => setWorkflowId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">
-          {publishedWorkflows.length === 0 ? <option value="">No Published Workflows</option> : null}
-          {selectedWorkflowId.length === 0 && publishedWorkflows.length > 1 ? <option value="">Select Workflow</option> : null}
-          {publishedWorkflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name} · v{workflow.version}</option>)}
-        </select>
+        <FormSelect id="start-run-workflow" value={selectedWorkflowId} onValueChange={setWorkflowId} className="mt-1 h-9 w-full" options={[...(publishedWorkflows.length === 0 ? [{ value: "", label: "No Published Workflows", disabled: true }] : []), ...(selectedWorkflowId.length === 0 && publishedWorkflows.length > 1 ? [{ value: "", label: "Select Workflow" }] : []), ...publishedWorkflows.map((workflow) => ({ value: workflow.id, label: `${workflow.name} · v${workflow.version}` }))]} />
       </div>
       <fieldset className="min-w-0">
         <legend className="text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">Devices</legend>
         <div className="mt-1 max-h-28 overflow-y-auto border border-border p-2">
           {snapshot.devices.length === 0 ? <p className="text-xs text-muted-foreground">No Registered Devices</p> : snapshot.devices.map((device) => (
             <label key={device.id} className="flex items-center gap-2 py-1 text-xs">
-              <input type="checkbox" checked={effectiveDeviceIds.includes(device.id)} onChange={() => toggleDevice(device.id)} />
+              <Checkbox checked={effectiveDeviceIds.includes(device.id)} onCheckedChange={() => toggleDevice(device.id)} />
               {device.displayName}
             </label>
           ))}

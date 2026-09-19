@@ -1,20 +1,13 @@
-import { useMemo, useState, type ReactNode } from "react"
+import { Children, isValidElement, useMemo, useState, type ReactElement, type ReactNode } from "react"
 import { Archive, Filter, HardDrive, RefreshCw, Search, Trash2 } from "lucide-react"
 import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { reportDispatch } from "@/lib/api/report-dispatch"
-import type {
-  ArtifactCategory,
-  ArtifactLifecycleState,
-  ArtifactRetentionClass,
-  ArtifactView,
-  ControlPlaneSnapshot,
-  DispatchIntent,
-  RecordingMediaView,
-} from "@/lib/domain/control-plane"
-import { DataTablePagination, EmptyState, FailureBadge, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
+import type { ArtifactCategory, ArtifactLifecycleState, ArtifactRetentionClass, ArtifactView, ControlPlaneSnapshot, DispatchIntent, RecordingMediaView } from "@/lib/domain/control-plane"
+import { DataTablePagination, EmptyState, FailureBadge, FormSelect, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
 import { resolvedId } from "./page-utils"
 
 type ArtifactLoadState = "ready" | "loading" | "error"
@@ -108,25 +101,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function ArtifactsPage({
-  snapshot,
-  dispatch,
-  view = "library",
-  onViewChange,
-}: {
-  snapshot: ControlPlaneSnapshot
-  dispatch: DispatchIntent
-  view?: string
-  onViewChange?: (view: string) => void
-}) {
+export function ArtifactsPage({ snapshot, dispatch, view = "library", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
   const [loadState, setLoadState] = useState<ArtifactLoadState>("ready")
   const [feedback, setFeedback] = useState("")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedDeviceId, setSelectedDeviceId] = useState("")
-  const effectiveDeviceId = resolvedId(snapshot.devices.map((device) => device.id), selectedDeviceId)
-    || snapshot.devices.find((device) => device.status === "online")?.id
-    || snapshot.devices[0]?.id
-    || ""
+  const effectiveDeviceId =
+    resolvedId(
+      snapshot.devices.map((device) => device.id),
+      selectedDeviceId,
+    ) ||
+    snapshot.devices.find((device) => device.status === "online")?.id ||
+    snapshot.devices[0]?.id ||
+    ""
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState<ArtifactCategory | "all">("all")
   const [lifecycle, setLifecycle] = useState<ArtifactLifecycleState | "all">("all")
@@ -140,19 +127,14 @@ export function ArtifactsPage({
       if (category !== "all" && artifact.category !== category) return false
       if (lifecycle !== "all" && artifact.lifecycleState !== lifecycle) return false
       if (retention !== "all" && artifact.retentionClass !== retention) return false
-      return includes(
-        `${artifact.id} ${artifact.contentHash} ${artifact.ownerId} ${artifact.referenceId} ${artifact.sanitizedPreviewLabel}`,
-        search,
-      )
+      return includes(`${artifact.id} ${artifact.contentHash} ${artifact.ownerId} ${artifact.referenceId} ${artifact.sanitizedPreviewLabel}`, search)
     })
   }, [category, lifecycle, retention, search, snapshot.artifacts])
 
   const visible = filtered.slice(page * pageSize, (page + 1) * pageSize)
   const selected = snapshot.artifacts.find((artifact) => artifact.id === selectedId)
   const storage = snapshot.storageHealth
-  const deviceArtifacts = snapshot.artifacts.filter(
-    (artifact) => artifact.deviceId === effectiveDeviceId && artifact.previewKind === "screenshot" && artifact.visibility === "authorized",
-  )
+  const deviceArtifacts = snapshot.artifacts.filter((artifact) => artifact.deviceId === effectiveDeviceId && artifact.previewKind === "screenshot" && artifact.visibility === "authorized")
   const selectedDevice = snapshot.devices.find((device) => device.id === effectiveDeviceId)
 
   function resetPage() {
@@ -189,9 +171,7 @@ export function ArtifactsPage({
           </>
         }
       />
-      <OperatorNotice>
-        Artifact bytes stay in object storage. Screenshots are sanitized placeholders, UI trees are bounded summaries, and unauthorized content is withheld.
-      </OperatorNotice>
+      <OperatorNotice>Artifact bytes stay in object storage. Screenshots are sanitized placeholders, UI trees are bounded summaries, and unauthorized content is withheld.</OperatorNotice>
 
       {storage.quotaWarning ? (
         <div role="status" className="mb-4 border border-border bg-muted/40 p-3 text-xs" aria-label="Storage Quota Warning">
@@ -229,27 +209,33 @@ export function ArtifactsPage({
       {loadState === "ready" ? (
         <Tabs value={view} onValueChange={onViewChange} className="mt-2">
           <TabsList aria-label="Artifact Views">
-            <TabsTrigger value="library">
-              Library
-            </TabsTrigger>
-            <TabsTrigger value="media">
-              Media
-            </TabsTrigger>
-            <TabsTrigger value="recordings">
-              Recordings
-            </TabsTrigger>
-            <TabsTrigger value="storage">
-              Storage
-            </TabsTrigger>
-            <TabsTrigger value="audit">
-              Audit
-            </TabsTrigger>
+            <TabsTrigger value="library">Library</TabsTrigger>
+            <TabsTrigger value="media">Media</TabsTrigger>
+            <TabsTrigger value="recordings">Recordings</TabsTrigger>
+            <TabsTrigger value="storage">Storage</TabsTrigger>
+            <TabsTrigger value="audit">Audit</TabsTrigger>
           </TabsList>
 
           <TabsContent value="library" className="mt-4">
             <div className="flex flex-wrap items-end gap-3 border-y border-border py-3" aria-label="Artifact Filters">
-              <FilterInput id="artifact-search" label="Search" value={search} onChange={(next) => { setSearch(next); resetPage() }} />
-              <FilterSelect id="artifact-category" label="Type / Category" value={category} onChange={(next) => { setCategory(next as ArtifactCategory | "all"); resetPage() }}>
+              <FilterInput
+                id="artifact-search"
+                label="Search"
+                value={search}
+                onChange={(next) => {
+                  setSearch(next)
+                  resetPage()
+                }}
+              />
+              <FilterSelect
+                id="artifact-category"
+                label="Type / Category"
+                value={category}
+                onChange={(next) => {
+                  setCategory(next as ArtifactCategory | "all")
+                  resetPage()
+                }}
+              >
                 <option value="all">All Categories</option>
                 <option value="screenshot">Screenshot</option>
                 <option value="ui_tree">UI Tree</option>
@@ -257,7 +243,15 @@ export function ArtifactsPage({
                 <option value="structured_evidence">Structured Evidence</option>
                 <option value="other">Other</option>
               </FilterSelect>
-              <FilterSelect id="artifact-lifecycle" label="Lifecycle State" value={lifecycle} onChange={(next) => { setLifecycle(next as ArtifactLifecycleState | "all"); resetPage() }}>
+              <FilterSelect
+                id="artifact-lifecycle"
+                label="Lifecycle State"
+                value={lifecycle}
+                onChange={(next) => {
+                  setLifecycle(next as ArtifactLifecycleState | "all")
+                  resetPage()
+                }}
+              >
                 <option value="all">All States</option>
                 <option value="admitted">Admitted</option>
                 <option value="active">Active</option>
@@ -269,7 +263,15 @@ export function ArtifactsPage({
                 <option value="partial">Partial</option>
                 <option value="unauthorized">Unauthorized</option>
               </FilterSelect>
-              <FilterSelect id="artifact-retention" label="Retention Class" value={retention} onChange={(next) => { setRetention(next as ArtifactRetentionClass | "all"); resetPage() }}>
+              <FilterSelect
+                id="artifact-retention"
+                label="Retention Class"
+                value={retention}
+                onChange={(next) => {
+                  setRetention(next as ArtifactRetentionClass | "all")
+                  resetPage()
+                }}
+              >
                 <option value="all">All Retention Classes</option>
                 <option value="execution_evidence">Execution Evidence</option>
                 <option value="audit_security">Audit Security</option>
@@ -285,11 +287,7 @@ export function ArtifactsPage({
               </span>
             </div>
             <div className="mt-4">
-              {filtered.length === 0 ? (
-                <EmptyState label="No Artifacts Match" detail="Adjust filters or refresh the artifact projection." />
-              ) : (
-                <ArtifactTable artifacts={visible} onOpen={openArtifact} />
-              )}
+              {filtered.length === 0 ? <EmptyState label="No Artifacts Match" detail="Adjust filters or refresh the artifact projection." /> : <ArtifactTable artifacts={visible} onOpen={openArtifact} />}
               <DataTablePagination
                 page={page}
                 pageSize={pageSize}
@@ -307,42 +305,18 @@ export function ArtifactsPage({
             <div className="flex flex-wrap items-end gap-3 border-y border-border py-3">
               <label htmlFor="artifact-media-device" className="text-xs font-semibold text-foreground">
                 Selected Device
-                <select
-                  id="artifact-media-device"
-                  value={effectiveDeviceId}
-                  onChange={(event) => setSelectedDeviceId(event.target.value)}
-                  className="mt-1 block h-9 rounded-none border border-input bg-background px-2 text-xs"
-                >
-                  {snapshot.devices.map((device) => (
-                    <option key={device.id} value={device.id}>
-                      {device.displayName}
-                    </option>
-                  ))}
-                </select>
+                <FormSelect id="artifact-media-device" value={effectiveDeviceId} onValueChange={setSelectedDeviceId} className="mt-1 h-9" options={snapshot.devices.map((device) => ({ value: device.id, label: device.displayName }))} />
               </label>
               <StatusBadge label={selectedDevice?.controlEligibility === "eligible" ? "Authorized Device" : "Limited Access"} tone={selectedDevice?.controlEligibility === "eligible" ? "healthy" : "attention"} />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Grid views use low-resolution sanitized previews. Full-resolution media is limited to the selected authorized device.
-            </p>
+            <p className="text-xs text-muted-foreground">Grid views use low-resolution sanitized previews. Full-resolution media is limited to the selected authorized device.</p>
             {deviceArtifacts.length === 0 ? (
               <EmptyState label="No Media Previews" detail="No authorized screenshot artifacts are available for this device." />
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Low Resolution Media Grid">
                 {deviceArtifacts.map((artifact) => (
-                  <button
-                    key={artifact.id}
-                    type="button"
-                    onClick={() => openArtifact(artifact.id)}
-                    className="border border-border bg-card p-3 text-left focus-visible:outline-2 focus-visible:outline-primary"
-                  >
-                    <div className="mb-2 aspect-video border border-border bg-muted motion-safe:transition-opacity">
-                      {artifact.sanitizedPreviewDataUrl ? (
-                        <img src={artifact.sanitizedPreviewDataUrl} alt="" className="size-full object-contain opacity-80" />
-                      ) : (
-                        <div className="flex size-full items-center justify-center text-[10px] text-muted-foreground">Preview Withheld</div>
-                      )}
-                    </div>
+                  <button key={artifact.id} type="button" onClick={() => openArtifact(artifact.id)} className="border border-border bg-card p-3 text-left focus-visible:outline-2 focus-visible:outline-primary">
+                    <div className="mb-2 aspect-video border border-border bg-muted motion-safe:transition-opacity">{artifact.sanitizedPreviewDataUrl ? <img src={artifact.sanitizedPreviewDataUrl} alt="" className="size-full object-contain opacity-80" /> : <div className="flex size-full items-center justify-center text-[10px] text-muted-foreground">Preview Withheld</div>}</div>
                     <p className="text-xs font-medium">{artifact.sanitizedPreviewLabel}</p>
                     <p className="drift-data mt-1 text-[10px] text-muted-foreground">{artifact.contentHash}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -356,11 +330,7 @@ export function ArtifactsPage({
             {selectedDevice?.controlEligibility === "eligible" && deviceArtifacts[0]?.sanitizedPreviewDataUrl ? (
               <Panel title="Full-Resolution Authorized Preview" description="Shown only for the selected authorized device. Placeholder pixels only — no raw capture.">
                 <div className="mx-auto max-w-md border border-border bg-muted p-2">
-                  <img
-                    src={deviceArtifacts[0].sanitizedPreviewDataUrl}
-                    alt={`Full-resolution sanitized preview for ${selectedDevice.displayName}`}
-                    className="w-full object-contain"
-                  />
+                  <img src={deviceArtifacts[0].sanitizedPreviewDataUrl} alt={`Full-resolution sanitized preview for ${selectedDevice.displayName}`} className="w-full object-contain" />
                 </div>
               </Panel>
             ) : (
@@ -378,23 +348,15 @@ export function ArtifactsPage({
                   </option>
                 ))}
               </FilterSelect>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!effectiveDeviceId}
-                onClick={() => void reportDispatch(dispatch, { type: "beginRecording", deviceId: effectiveDeviceId }, setFeedback)}
-              >
+              <Button size="sm" variant="outline" disabled={!effectiveDeviceId} onClick={() => void reportDispatch(dispatch, { type: "beginRecording", deviceId: effectiveDeviceId }, setFeedback)}>
                 Start Recording
               </Button>
             </div>
-            {snapshot.recordingMedia.length === 0 ? (
-              <EmptyState label="No Recording Sessions" detail="Choose a registered device, then start a recording session. Only one active session is allowed in the workspace." />
-            ) : (
-              <RecordingTable recordings={snapshot.recordingMedia} dispatch={dispatch} onFeedback={setFeedback} onOpenArtifact={openArtifact} />
-            )}
+            {snapshot.recordingMedia.length === 0 ? <EmptyState label="No Recording Sessions" detail="Choose a registered device, then start a recording session. Only one active session is allowed in the workspace." /> : <RecordingTable recordings={snapshot.recordingMedia} dispatch={dispatch} onFeedback={setFeedback} onOpenArtifact={openArtifact} />}
             {snapshot.recordingMedia.length > 0 ? (
               <p className="mt-3 text-xs text-muted-foreground" aria-live="polite">
-                {snapshot.recordingMedia.length} Recording Session{snapshot.recordingMedia.length === 1 ? "" : "s"} In Workspace
+                {snapshot.recordingMedia.length} Recording Session
+                {snapshot.recordingMedia.length === 1 ? "" : "s"} In Workspace
               </p>
             ) : null}
           </TabsContent>
@@ -407,7 +369,9 @@ export function ArtifactsPage({
               </Panel>
               <Panel title="Object Count" description="Metadata rows in the artifact projection.">
                 <p className="text-2xl font-semibold tabular-nums">{storage.objectCount}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Orphan Metadata {storage.orphanMetadataCount} · Orphan Bytes {storage.orphanBytesCount}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Orphan Metadata {storage.orphanMetadataCount} · Orphan Bytes {storage.orphanBytesCount}
+                </p>
               </Panel>
               <Panel title="Cleanup Failures" description="Retention worker outcomes.">
                 <p className="text-2xl font-semibold tabular-nums">{storage.cleanupFailures}</p>
@@ -423,11 +387,7 @@ export function ArtifactsPage({
           </TabsContent>
 
           <TabsContent value="audit" className="mt-4">
-            {snapshot.artifactAudits.length === 0 ? (
-              <EmptyState label="No Artifact Audit Entries" detail="Reads, deletes, rejected admissions, and cleanup failures appear here." />
-            ) : (
-              <AuditTable audits={snapshot.artifactAudits} />
-            )}
+            {snapshot.artifactAudits.length === 0 ? <EmptyState label="No Artifact Audit Entries" detail="Reads, deletes, rejected admissions, and cleanup failures appear here." /> : <AuditTable audits={snapshot.artifactAudits} />}
           </TabsContent>
         </Tabs>
       ) : null}
@@ -503,7 +463,11 @@ export function ArtifactsPage({
                     description="Deletes eligible artifact metadata after confirmation. Protected retention classes and active references remain blocked. No filesystem paths are exposed."
                     confirmLabel="Confirm Delete"
                     onConfirm={() => {
-                      void dispatch({ type: "deleteArtifact", artifactId: selected.id, confirmed: true }).then((outcome) => {
+                      void dispatch({
+                        type: "deleteArtifact",
+                        artifactId: selected.id,
+                        confirmed: true,
+                      }).then((outcome) => {
                         setFeedback(outcome.message)
                         if (outcome.ok) setSelectedId(null)
                       })
@@ -513,11 +477,7 @@ export function ArtifactsPage({
                 <AlertDialog>
                   <AlertDialogTrigger
                     render={
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={selected.lifecycleState !== "cleanup_failed" && selected.lifecycleState !== "eligible_for_deletion"}
-                      >
+                      <Button size="sm" variant="outline" disabled={selected.lifecycleState !== "cleanup_failed" && selected.lifecycleState !== "eligible_for_deletion"}>
                         <Archive className="size-3.5" aria-hidden="true" />
                         Retry Cleanup
                       </Button>
@@ -528,7 +488,11 @@ export function ArtifactsPage({
                     description="Runs retention cleanup for an eligible or failed-cleanup artifact after confirmation. Failures remain visible in audit."
                     confirmLabel="Confirm Cleanup"
                     onConfirm={() => {
-                      void dispatch({ type: "cleanupArtifact", artifactId: selected.id, confirmed: true }).then((outcome) => {
+                      void dispatch({
+                        type: "cleanupArtifact",
+                        artifactId: selected.id,
+                        confirmed: true,
+                      }).then((outcome) => {
                         setFeedback(outcome.message)
                         if (outcome.ok) setSelectedId(null)
                       })
@@ -544,25 +508,12 @@ export function ArtifactsPage({
   )
 }
 
-function FilterSelect({
-  id,
-  label,
-  value,
-  onChange,
-  children,
-}: {
-  id: string
-  label: string
-  value: string
-  onChange: (value: string) => void
-  children: ReactNode
-}) {
+function FilterSelect({ id, label, value, onChange, children }: { id: string; label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
+  const options = Children.toArray(children).flatMap((child) => (isValidElement(child) ? [{ value: String((child as ReactElement<{ value: string }>).props.value), label: String((child as ReactElement<{ children: ReactNode }>).props.children) }] : []))
   return (
     <label htmlFor={id} className="text-xs font-semibold text-foreground">
       {label}
-      <select id={id} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 block h-9 rounded-none border border-input bg-background px-2 text-xs text-foreground">
-        {children}
-      </select>
+      <FormSelect id={id} value={value} onValueChange={onChange} options={options} className="mt-1 h-9" />
     </label>
   )
 }
@@ -573,13 +524,7 @@ function FilterInput({ id, label, value, onChange }: { id: string; label: string
       {label}
       <span className="relative mt-1 block">
         <Search className="absolute left-2 top-2.5 size-3.5 text-muted-foreground" aria-hidden="true" />
-        <input
-          id={id}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={`Filter ${label.toLowerCase()}`}
-          className="h-9 rounded-none border border-input bg-background pl-7 pr-2 text-xs text-foreground"
-        />
+        <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} placeholder={`Filter ${label.toLowerCase()}`} className="h-9 rounded-none pl-7 pr-2 text-xs" />
       </span>
     </label>
   )
@@ -618,7 +563,9 @@ function ArtifactTable({ artifacts, onOpen }: { artifacts: readonly ArtifactView
               <td className="drift-data p-3 text-[10px]">{artifact.contentHash}</td>
               <td className="p-3">
                 <p>{artifact.ownerType}</p>
-                <p className="drift-data mt-1 text-[10px] text-muted-foreground">{artifact.referenceType} · {artifact.referenceId}</p>
+                <p className="drift-data mt-1 text-[10px] text-muted-foreground">
+                  {artifact.referenceType} · {artifact.referenceId}
+                </p>
               </td>
               <td className="p-3">
                 <StatusBadge label={artifact.deletionEligible ? "Eligible" : "Protected"} tone={artifact.deletionEligible ? "attention" : "neutral"} />
@@ -631,17 +578,7 @@ function ArtifactTable({ artifacts, onOpen }: { artifacts: readonly ArtifactView
   )
 }
 
-function RecordingTable({
-  recordings,
-  dispatch,
-  onFeedback,
-  onOpenArtifact,
-}: {
-  recordings: readonly RecordingMediaView[]
-  dispatch: DispatchIntent
-  onFeedback: (message: string) => void
-  onOpenArtifact: (id: string) => void
-}) {
+function RecordingTable({ recordings, dispatch, onFeedback, onOpenArtifact }: { recordings: readonly RecordingMediaView[]; dispatch: DispatchIntent; onFeedback: (message: string) => void; onOpenArtifact: (id: string) => void }) {
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(10)
   const visible = recordings.slice(page * pageSize, (page + 1) * pageSize)
@@ -693,7 +630,16 @@ function RecordingTable({
                       size="sm"
                       variant="outline"
                       disabled={recording.state !== "recording"}
-                      onClick={() => void reportDispatch(dispatch, { type: "stopRecording", sessionId: recording.sessionId }, onFeedback)}
+                      onClick={() =>
+                        void reportDispatch(
+                          dispatch,
+                          {
+                            type: "stopRecording",
+                            sessionId: recording.sessionId,
+                          },
+                          onFeedback,
+                        )
+                      }
                     >
                       Stop Recording
                     </Button>
@@ -701,17 +647,42 @@ function RecordingTable({
                       size="sm"
                       variant="outline"
                       disabled={recording.state === "omitted"}
-                      onClick={() => void reportDispatch(dispatch, { type: "discardRecording", sessionId: recording.sessionId }, onFeedback)}
+                      onClick={() =>
+                        void reportDispatch(
+                          dispatch,
+                          {
+                            type: "discardRecording",
+                            sessionId: recording.sessionId,
+                          },
+                          onFeedback,
+                        )
+                      }
                     >
                       Discard Recording
                     </Button>
                     <AlertDialog>
-                      <AlertDialogTrigger render={<Button size="sm" variant="outline">Delete Recording</Button>} />
+                      <AlertDialogTrigger
+                        render={
+                          <Button size="sm" variant="outline">
+                            Delete Recording
+                          </Button>
+                        }
+                      />
                       <AlertDialogContent
                         title="Delete Recording?"
                         description="Deletes the recording session after confirmation. Evidence bytes stay in authorized artifact access. This does not replay device actions."
                         confirmLabel="Confirm Delete"
-                        onConfirm={() => void reportDispatch(dispatch, { type: "deleteRecording", sessionId: recording.sessionId, confirmed: true }, onFeedback)}
+                        onConfirm={() =>
+                          void reportDispatch(
+                            dispatch,
+                            {
+                              type: "deleteRecording",
+                              sessionId: recording.sessionId,
+                              confirmed: true,
+                            },
+                            onFeedback,
+                          )
+                        }
                       />
                     </AlertDialog>
                   </div>

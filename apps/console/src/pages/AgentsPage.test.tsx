@@ -23,8 +23,10 @@ describe("AgentsPage", () => {
     rerender(view("assignments"))
 
     expect(client.getSnapshot().automationAgents.some((agent) => agent.name === "Night steward")).toBe(true)
-    await user.selectOptions(screen.getByLabelText("Automation Agent"), "Night steward")
-    await user.selectOptions(screen.getByLabelText("Device"), "Atlas 04")
+    await user.click(screen.getByLabelText("Automation Agent"))
+    await user.click(await screen.findByRole("option", { name: "Night steward" }))
+    await user.click(screen.getByLabelText("Device"))
+    await user.click(await screen.findByRole("option", { name: "Atlas 04" }))
     await user.click(screen.getByRole("button", { name: "Assign Device" }))
     rerender(view("assignments"))
 

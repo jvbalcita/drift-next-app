@@ -503,6 +503,21 @@ describe("ControlPage connection filters", () => {
     expect(screen.queryByRole("button", { name: /Nova 02/i })).not.toBeInTheDocument()
   })
 
+  it("keeps Workspace Settings in the toolbar when there are no devices", async () => {
+    const user = userEvent.setup()
+    const client = new MockControlPlaneClient()
+    const snapshot = { ...client.getSnapshot(), devices: [], endpoints: [] }
+    render(<ControlPage snapshot={snapshot} dispatch={async (intent) => client.dispatch(intent)} />)
+
+    const toolbar = screen.getByLabelText("Control workspace toolbar")
+    const settings = within(toolbar).getByRole("button", { name: "Open Workspace Settings" })
+    expect(settings).toHaveTextContent("Workspace Settings")
+    expect(screen.getByText("No Devices for This Connection")).toBeInTheDocument()
+
+    await user.click(settings)
+    expect(screen.getByRole("complementary", { name: "Workspace Settings" })).toBeInTheDocument()
+  })
+
   it("shows a device that is attached over USB but not yet authorized in the USB view", async () => {
     // The owner's own symptom: nineteen units plugged in, one drawn. An
     // attached-but-unauthorized device IS a USB device - that is where it is -

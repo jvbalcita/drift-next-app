@@ -18,7 +18,7 @@ describe("RunsPage", () => {
     const { rerender } = render(view())
 
     expect(screen.getByRole("heading", { name: "Runs and Targets" })).toBeInTheDocument()
-    expect(screen.getByLabelText("Published Workflow")).toHaveDisplayValue(/Content validation/)
+    expect(screen.getByLabelText("Published Workflow")).toHaveTextContent(/Content validation/)
     expect(screen.getByRole("checkbox", { name: "Atlas 04" })).not.toBeChecked()
 
     await user.click(screen.getByRole("checkbox", { name: "Atlas 04" }))

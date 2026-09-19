@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
 import type { ControlPlaneSnapshot, DispatchIntent, PolicyDecisionView, PolicyView } from "@/lib/domain/control-plane"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, EmptyState, FailureBadge, FieldLabel, OperatorNotice, PageIntro, Panel, StatusBadge, type StatusTone } from "./shared"
@@ -17,11 +18,20 @@ export function PoliciesPage({ snapshot, dispatch, view = "active", onViewChange
   const [compareOpen, setCompareOpen] = useState(false)
   const [haltReason, setHaltReason] = useState("")
   const selectedPolicy = snapshot.policies.find((policy) => policy.id === selectedPolicyId)
-  function selectPolicy(id: string) { const policy = snapshot.policies.find((candidate) => candidate.id === id); setSelectedPolicyId(id); setRuleJson(policy?.ruleJson ?? "{}"); setFeedback("") }
+  function selectPolicy(id: string) {
+    const policy = snapshot.policies.find((candidate) => candidate.id === id)
+    setSelectedPolicyId(id)
+    setRuleJson(policy?.ruleJson ?? "{}")
+    setFeedback("")
+  }
   async function createVersion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selectedPolicy) return
-    const result = await dispatch({ type: "createPolicyVersion", basePolicyId: selectedPolicy.id, ruleJson })
+    const result = await dispatch({
+      type: "createPolicyVersion",
+      basePolicyId: selectedPolicy.id,
+      ruleJson,
+    })
     setFeedback(result.message)
     if (result.ok && result.resourceId) {
       setSelectedPolicyId(result.resourceId)
@@ -30,11 +40,27 @@ export function PoliciesPage({ snapshot, dispatch, view = "active", onViewChange
   }
   function activate() {
     if (!selectedPolicy) return
-    void reportDispatch(dispatch, { type: "activatePolicy", policyId: selectedPolicy.id, rowVersion: selectedPolicy.rowVersion }, setFeedback)
+    void reportDispatch(
+      dispatch,
+      {
+        type: "activatePolicy",
+        policyId: selectedPolicy.id,
+        rowVersion: selectedPolicy.rowVersion,
+      },
+      setFeedback,
+    )
   }
   function retire() {
     if (!selectedPolicy) return
-    void reportDispatch(dispatch, { type: "retirePolicy", policyId: selectedPolicy.id, rowVersion: selectedPolicy.rowVersion }, setFeedback)
+    void reportDispatch(
+      dispatch,
+      {
+        type: "retirePolicy",
+        policyId: selectedPolicy.id,
+        rowVersion: selectedPolicy.rowVersion,
+      },
+      setFeedback,
+    )
   }
   function setHalt() {
     const next = snapshot.halt.state === "emergency_stop" ? "clear" : "emergency_stop"
@@ -42,22 +68,328 @@ export function PoliciesPage({ snapshot, dispatch, view = "active", onViewChange
     void reportDispatch(dispatch, { type: "setHalt", state: next, reason: haltReason, confirmed: true }, setFeedback)
   }
 
-  return <><PageIntro eyebrow="SAFETY / POLICY DECISIONS" title="Policies" description="Review versioned policy definitions and the decisions persisted with protected runs and actions." actions={<StatusBadge label="Fail Closed" tone="attention" />} /><OperatorNotice>Policy definitions are immutable version records in this phase. Create a draft version, review bounded rule JSON, then activate it explicitly; this console cannot approve a real action.</OperatorNotice>
-    <Tabs value={view} onValueChange={onViewChange} className="mt-6"><TabsList aria-label="Policy Views"><TabsTrigger value="active">Active Policies</TabsTrigger><TabsTrigger value="versions">Versions</TabsTrigger><TabsTrigger value="decisions">Decision Log</TabsTrigger><TabsTrigger value="access">Access</TabsTrigger></TabsList>
-      <TabsContent value="active" className="mt-6"><div className="grid gap-6 xl:grid-cols-[minmax(260px,0.7fr)_minmax(0,1.3fr)]"><Panel title="Policy Catalog" description="Policy state and version remain separate from a decision record."><div className="space-y-2">{snapshot.policies.map((policy) => <button key={policy.id} type="button" onClick={() => selectPolicy(policy.id)} className={`w-full border p-3 text-left transition-colors hover:bg-muted focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/30 ${policy.id === selectedPolicyId ? "border-primary bg-secondary/70" : "border-border"}`}><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-medium">{policy.name}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{policy.id} · v{policy.version} · row v{policy.rowVersion}</p></div><StatusBadge label={policy.state} tone={policyTone(policy.state)} /></div><p className="mt-2 text-[11px] text-muted-foreground">{policy.ruleSummary}</p></button>)}</div></Panel><Panel title="Selected Policy" description="Definitions are edited in a sheet; changes create a new immutable draft version.">{selectedPolicy ? <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4"><div><p className="text-sm font-semibold">{selectedPolicy.name}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{selectedPolicy.id}</p></div><div className="flex gap-2"><StatusBadge label={`Version ${selectedPolicy.version}`} tone="info" /><StatusBadge label={selectedPolicy.state} tone={policyTone(selectedPolicy.state)} /></div></div><p className="text-xs leading-5 text-muted-foreground">{selectedPolicy.ruleSummary}</p><div className="flex flex-wrap gap-2"><Button onClick={() => setEditorOpen(true)} disabled={selectedPolicy.state === "retired"}><Save className="size-3.5" aria-hidden="true" />Edit Policy</Button><Button variant="outline" onClick={() => setCompareOpen(true)}><Scale className="size-3.5" aria-hidden="true" />Compare Versions</Button></div></div> : <EmptyState label="No Selected Policy" detail="Select a policy definition to inspect it." />}</Panel></div></TabsContent>
-      <TabsContent value="versions" className="mt-6"><Panel title="Policy Versions" description="Each definition is durable. Compare one selected version with the rest of the catalog."><PolicyVersionsTable policies={snapshot.policies} onCompare={(id) => { selectPolicy(id); setCompareOpen(true) }} /></Panel></TabsContent>
-      <TabsContent value="decisions" className="mt-6"><Panel title="Recorded Policy Decisions" description="Each protected resource retains decision, reason code, actor, and correlation ID."><DecisionTable decisions={snapshot.policyDecisions} /></Panel></TabsContent>
-      <TabsContent value="access" className="mt-6"><div className="grid gap-6 md:grid-cols-2"><Panel title="Emergency Stop" description="A typed, audited control-plane action. Both directions require operator confirmation."><div className="space-y-3 text-xs"><div className={`border p-3 ${snapshot.halt.state === "emergency_stop" ? "border-destructive bg-destructive/10" : "border-border bg-muted/40"}`}><p className="font-semibold">{snapshot.halt.state === "emergency_stop" ? "EMERGENCY STOP ENGAGED" : "Fleet running"}</p><p className="mt-1 text-muted-foreground">{snapshot.halt.reason || "No halt is active."}</p><p className="mt-1 text-[10px] text-muted-foreground">Last changed by {snapshot.halt.lastActorId || "—"} · {snapshot.halt.updatedAt || "—"}</p></div><label htmlFor="halt-reason" className="font-medium">Reason</label><textarea id="halt-reason" value={haltReason} onChange={(event) => setHaltReason(event.target.value)} rows={3} maxLength={1024} className="w-full rounded-none border border-input bg-background p-2" placeholder="Why is the fleet being stopped or released?" /><Button variant={snapshot.halt.state === "emergency_stop" ? "outline" : "destructive"} onClick={setHalt} disabled={!haltReason.trim()}>{snapshot.halt.state === "emergency_stop" ? "Release Emergency Stop" : "Engage Emergency Stop"}</Button></div></Panel><Panel title="Access Boundary" description="This console is a request surface, not an authorization authority."><div className="space-y-3 text-xs"><AccessRow label="Policy Activation" detail="Requires an explicit active draft transition." tone="attention" /><AccessRow label="Decision Evidence" detail="Reason and correlation remain retained per resource." tone="healthy" /></div></Panel><Panel title="Operator Authority" description="No device transport, credentials, or external policy connector is exposed in this phase."><p className="border border-border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">The stop and release actions use the same operator authority and are recorded as audit events.</p></Panel></div></TabsContent>
-    </Tabs>
-    <p aria-live="polite" className="mt-6 border-l-2 border-primary bg-secondary/60 p-3 text-xs text-muted-foreground">{feedback || "Policy feedback appears here. The browser cannot approve a real action."}</p>
-    <Sheet open={editorOpen} onOpenChange={setEditorOpen}><SheetContent className="w-full rounded-none sm:max-w-lg"><SheetHeader><SheetTitle>Edit Policy Definition</SheetTitle><SheetDescription>Saving creates a new draft version; it never mutates the selected version.</SheetDescription></SheetHeader>{selectedPolicy ? <form className="space-y-5 px-4 pb-5" onSubmit={createVersion}><div className="border-y border-border py-3 text-xs"><p className="font-medium">{selectedPolicy.name}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{selectedPolicy.id} · Version {selectedPolicy.version}</p></div><div><FieldLabel htmlFor="policy-rule-json">Rule JSON</FieldLabel><textarea id="policy-rule-json" value={ruleJson} onChange={(event) => setRuleJson(event.target.value)} rows={12} className="mt-1 w-full rounded-none border border-input bg-background p-3 font-mono text-xs leading-5" aria-describedby="policy-rule-help" /><p id="policy-rule-help" className="mt-1 text-[10px] text-muted-foreground">Bounded JSON rejects sensitive keys. Credentials and connector instructions are not accepted.</p></div><div className="flex flex-wrap gap-2"><Button type="submit" disabled={selectedPolicy.state === "retired"}><Save className="size-3.5" aria-hidden="true" />Create Draft Version</Button><Button type="button" variant="outline" disabled={selectedPolicy.state !== "draft"} onClick={activate}>Activate Draft</Button><Button type="button" variant="outline" disabled={selectedPolicy.state === "retired"} onClick={retire}>Retire Version</Button></div></form> : null}</SheetContent></Sheet>
-    <Dialog open={compareOpen} onOpenChange={setCompareOpen}><DialogContent className="rounded-none sm:max-w-2xl"><DialogHeader><DialogTitle>Compare Policy Versions</DialogTitle><DialogDescription>Compare the selected immutable definition against another recorded version.</DialogDescription></DialogHeader><div className="grid gap-4 md:grid-cols-2"><PolicyJson title="Selected" policy={selectedPolicy} /><PolicyJson title="Reference" policy={snapshot.policies.find((policy) => policy.id !== selectedPolicy?.id)} /></div><DialogFooter><Button variant="outline" onClick={() => setEditorOpen(true)} disabled={!selectedPolicy}>Edit Selected Version</Button></DialogFooter></DialogContent></Dialog>
-  </>
+  return (
+    <>
+      <PageIntro eyebrow="SAFETY / POLICY DECISIONS" title="Policies" description="Review versioned policy definitions and the decisions persisted with protected runs and actions." actions={<StatusBadge label="Fail Closed" tone="attention" />} />
+      <OperatorNotice>Policy definitions are immutable version records in this phase. Create a draft version, review bounded rule JSON, then activate it explicitly; this console cannot approve a real action.</OperatorNotice>
+      <Tabs value={view} onValueChange={onViewChange} className="mt-6">
+        <TabsList aria-label="Policy Views">
+          <TabsTrigger value="active">Active Policies</TabsTrigger>
+          <TabsTrigger value="versions">Versions</TabsTrigger>
+          <TabsTrigger value="decisions">Decision Log</TabsTrigger>
+          <TabsTrigger value="access">Access</TabsTrigger>
+        </TabsList>
+        <TabsContent value="active" className="mt-6">
+          <div className="grid gap-6 xl:grid-cols-[minmax(260px,0.7fr)_minmax(0,1.3fr)]">
+            <Panel title="Policy Catalog" description="Policy state and version remain separate from a decision record.">
+              <div className="space-y-2">
+                {snapshot.policies.map((policy) => (
+                  <button key={policy.id} type="button" onClick={() => selectPolicy(policy.id)} className={`w-full border p-3 text-left transition-colors hover:bg-muted focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/30 ${policy.id === selectedPolicyId ? "border-primary bg-secondary/70" : "border-border"}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">{policy.name}</p>
+                        <p className="drift-data mt-1 text-[10px] text-muted-foreground">
+                          {policy.id} · v{policy.version} · row v{policy.rowVersion}
+                        </p>
+                      </div>
+                      <StatusBadge label={policy.state} tone={policyTone(policy.state)} />
+                    </div>
+                    <p className="mt-2 text-[11px] text-muted-foreground">{policy.ruleSummary}</p>
+                  </button>
+                ))}
+              </div>
+            </Panel>
+            <Panel title="Selected Policy" description="Definitions are edited in a sheet; changes create a new immutable draft version.">
+              {selectedPolicy ? (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
+                    <div>
+                      <p className="text-sm font-semibold">{selectedPolicy.name}</p>
+                      <p className="drift-data mt-1 text-[10px] text-muted-foreground">{selectedPolicy.id}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <StatusBadge label={`Version ${selectedPolicy.version}`} tone="info" />
+                      <StatusBadge label={selectedPolicy.state} tone={policyTone(selectedPolicy.state)} />
+                    </div>
+                  </div>
+                  <p className="text-xs leading-5 text-muted-foreground">{selectedPolicy.ruleSummary}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => setEditorOpen(true)} disabled={selectedPolicy.state === "retired"}>
+                      <Save className="size-3.5" aria-hidden="true" />
+                      Edit Policy
+                    </Button>
+                    <Button variant="outline" onClick={() => setCompareOpen(true)}>
+                      <Scale className="size-3.5" aria-hidden="true" />
+                      Compare Versions
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState label="No Selected Policy" detail="Select a policy definition to inspect it." />
+              )}
+            </Panel>
+          </div>
+        </TabsContent>
+        <TabsContent value="versions" className="mt-6">
+          <Panel title="Policy Versions" description="Each definition is durable. Compare one selected version with the rest of the catalog.">
+            <PolicyVersionsTable
+              policies={snapshot.policies}
+              onCompare={(id) => {
+                selectPolicy(id)
+                setCompareOpen(true)
+              }}
+            />
+          </Panel>
+        </TabsContent>
+        <TabsContent value="decisions" className="mt-6">
+          <Panel title="Recorded Policy Decisions" description="Each protected resource retains decision, reason code, actor, and correlation ID.">
+            <DecisionTable decisions={snapshot.policyDecisions} />
+          </Panel>
+        </TabsContent>
+        <TabsContent value="access" className="mt-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Panel title="Emergency Stop" description="A typed, audited control-plane action. Both directions require operator confirmation.">
+              <div className="space-y-3 text-xs">
+                <div className={`border p-3 ${snapshot.halt.state === "emergency_stop" ? "border-destructive bg-destructive/10" : "border-border bg-muted/40"}`}>
+                  <p className="font-semibold">{snapshot.halt.state === "emergency_stop" ? "EMERGENCY STOP ENGAGED" : "Fleet running"}</p>
+                  <p className="mt-1 text-muted-foreground">{snapshot.halt.reason || "No halt is active."}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Last changed by {snapshot.halt.lastActorId || "—"} · {snapshot.halt.updatedAt || "—"}
+                  </p>
+                </div>
+                <label htmlFor="halt-reason" className="font-medium">
+                  Reason
+                </label>
+                <Textarea id="halt-reason" value={haltReason} onChange={(event) => setHaltReason(event.target.value)} rows={3} maxLength={1024} className="rounded-none p-2" placeholder="Why is the fleet being stopped or released?" />
+                <Button variant={snapshot.halt.state === "emergency_stop" ? "outline" : "destructive"} onClick={setHalt} disabled={!haltReason.trim()}>
+                  {snapshot.halt.state === "emergency_stop" ? "Release Emergency Stop" : "Engage Emergency Stop"}
+                </Button>
+              </div>
+            </Panel>
+            <Panel title="Access Boundary" description="This console is a request surface, not an authorization authority.">
+              <div className="space-y-3 text-xs">
+                <AccessRow label="Policy Activation" detail="Requires an explicit active draft transition." tone="attention" />
+                <AccessRow label="Decision Evidence" detail="Reason and correlation remain retained per resource." tone="healthy" />
+              </div>
+            </Panel>
+            <Panel title="Operator Authority" description="No device transport, credentials, or external policy connector is exposed in this phase.">
+              <p className="border border-border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">The stop and release actions use the same operator authority and are recorded as audit events.</p>
+            </Panel>
+          </div>
+        </TabsContent>
+      </Tabs>
+      <p aria-live="polite" className="mt-6 border-l-2 border-primary bg-secondary/60 p-3 text-xs text-muted-foreground">
+        {feedback || "Policy feedback appears here. The browser cannot approve a real action."}
+      </p>
+      <Sheet open={editorOpen} onOpenChange={setEditorOpen}>
+        <SheetContent className="w-full rounded-none sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Edit Policy Definition</SheetTitle>
+            <SheetDescription>Saving creates a new draft version; it never mutates the selected version.</SheetDescription>
+          </SheetHeader>
+          {selectedPolicy ? (
+            <form className="space-y-5 px-4 pb-5" onSubmit={createVersion}>
+              <div className="border-y border-border py-3 text-xs">
+                <p className="font-medium">{selectedPolicy.name}</p>
+                <p className="drift-data mt-1 text-[10px] text-muted-foreground">
+                  {selectedPolicy.id} · Version {selectedPolicy.version}
+                </p>
+              </div>
+              <div>
+                <FieldLabel htmlFor="policy-rule-json">Rule JSON</FieldLabel>
+                <Textarea id="policy-rule-json" value={ruleJson} onChange={(event) => setRuleJson(event.target.value)} rows={12} className="mt-1 rounded-none p-3 font-mono text-xs leading-5" aria-describedby="policy-rule-help" />
+                <p id="policy-rule-help" className="mt-1 text-[10px] text-muted-foreground">
+                  Bounded JSON rejects sensitive keys. Credentials and connector instructions are not accepted.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={selectedPolicy.state === "retired"}>
+                  <Save className="size-3.5" aria-hidden="true" />
+                  Create Draft Version
+                </Button>
+                <Button type="button" variant="outline" disabled={selectedPolicy.state !== "draft"} onClick={activate}>
+                  Activate Draft
+                </Button>
+                <Button type="button" variant="outline" disabled={selectedPolicy.state === "retired"} onClick={retire}>
+                  Retire Version
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+      <Dialog open={compareOpen} onOpenChange={setCompareOpen}>
+        <DialogContent className="rounded-none sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Compare Policy Versions</DialogTitle>
+            <DialogDescription>Compare the selected immutable definition against another recorded version.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 md:grid-cols-2">
+            <PolicyJson title="Selected" policy={selectedPolicy} />
+            <PolicyJson title="Reference" policy={snapshot.policies.find((policy) => policy.id !== selectedPolicy?.id)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditorOpen(true)} disabled={!selectedPolicy}>
+              Edit Selected Version
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
 }
 
-function PolicyVersionsTable({ policies, onCompare }: { policies: readonly PolicyView[]; onCompare: (id: string) => void }) { const [page, setPage] = useState(0); const [pageSize, setPageSize] = useState(10); const visible = policies.slice(page * pageSize, (page + 1) * pageSize); return <>{policies.length === 0 ? <EmptyState label="No Policy Versions" detail="No policy versions are available." /> : <ScrollArea className="border border-border"><table className="w-full min-w-[780px] text-left text-xs"><caption className="sr-only">Policy versions</caption><thead><tr className="border-b border-border text-[10px] tracking-[.08em] text-muted-foreground"><th className="p-3">Definition</th><th className="p-3">Version</th><th className="p-3">State</th><th className="p-3">Summary</th><th className="p-3"><span className="sr-only">Actions</span></th></tr></thead><tbody>{visible.map((policy) => <tr key={policy.id} className="border-b border-border/70 hover:bg-muted/50"><td className="p-3"><p className="font-medium">{policy.name}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{policy.id}</p></td><td className="p-3">v{policy.version} · row v{policy.rowVersion}</td><td className="p-3"><StatusBadge label={policy.state} tone={policyTone(policy.state)} /></td><td className="p-3 text-muted-foreground">{policy.ruleSummary}</td><td className="p-3 text-right"><Button size="sm" variant="outline" onClick={() => onCompare(policy.id)}>Compare</Button></td></tr>)}</tbody></table></ScrollArea>}<DataTablePagination page={page} pageSize={pageSize} total={policies.length} onPageChange={setPage} onPageSizeChange={(next) => { setPageSize(next); setPage(0) }} /></> }
-function DecisionTable({ decisions }: { decisions: readonly PolicyDecisionView[] }) { const [page, setPage] = useState(0); const [pageSize, setPageSize] = useState(10); const visible = decisions.slice(page * pageSize, (page + 1) * pageSize); return <>{decisions.length === 0 ? <EmptyState label="No Policy Decisions" detail="No protected resource decisions are available." /> : <ScrollArea className="border border-border"><table className="w-full min-w-[860px] text-left text-xs"><caption className="sr-only">Policy decisions for protected resources</caption><thead><tr className="border-b border-border text-[10px] tracking-[.08em] text-muted-foreground"><th className="p-3">Decision</th><th className="p-3">Resource</th><th className="p-3">Action</th><th className="p-3">Reason</th><th className="p-3">Actor</th><th className="p-3">Correlation</th><th className="p-3">Decided</th></tr></thead><tbody>{visible.map((decision) => <DecisionRow key={decision.id} decision={decision} />)}</tbody></table></ScrollArea>}<DataTablePagination page={page} pageSize={pageSize} total={decisions.length} onPageChange={setPage} onPageSizeChange={(next) => { setPageSize(next); setPage(0) }} /></> }
-function DecisionRow({ decision }: { decision: PolicyDecisionView }) { const tone: StatusTone = decision.decision === "allow" ? "healthy" : decision.decision === "deny" ? "danger" : "attention"; return <tr className="border-b border-border/70 last:border-0 hover:bg-muted/50"><td className="p-3"><StatusBadge label={decision.decision} tone={tone} /></td><td className="p-3"><p className="font-medium">{decision.resourceType}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{decision.resourceId}</p></td><td className="p-3 font-mono text-[11px]">{decision.action}</td><td className="p-3"><div className="flex items-center gap-2"><span>{decision.reasonCode.replaceAll("_", " ")}</span>{decision.decision !== "allow" ? <FailureBadge failureClass={decision.reasonCode} /> : null}</div></td><td className="drift-data p-3 text-[10px]">{decision.actorId}</td><td className="drift-data p-3 text-[10px]">{decision.correlationId}</td><td className="drift-data p-3 text-[10px] text-muted-foreground">{decision.decidedAt}</td></tr> }
-function PolicyJson({ title, policy }: { title: string; policy?: PolicyView }) { return <section className="border border-border"><header className="border-b border-border px-3 py-2"><p className="text-xs font-semibold">{title}</p><p className="drift-data mt-1 text-[10px] text-muted-foreground">{policy ? `${policy.name} · v${policy.version}` : "No comparison record"}</p></header><pre className="max-h-72 overflow-auto p-3 text-[10px] leading-5 text-muted-foreground">{policy?.ruleJson ?? "—"}</pre></section> }
-function AccessRow({ label, detail, tone }: { label: string; detail: string; tone: StatusTone }) { return <div className="flex items-start justify-between gap-3 border-b border-border/70 pb-3 last:border-0"><div><p className="font-medium">{label}</p><p className="mt-1 text-muted-foreground">{detail}</p></div><StatusBadge label={tone === "healthy" ? "Retained" : tone === "danger" ? "Denied" : "Explicit"} tone={tone} /></div> }
-function policyTone(state: PolicyView["state"]): StatusTone { return state === "active" ? "healthy" : state === "retired" ? "neutral" : "attention" }
+function PolicyVersionsTable({ policies, onCompare }: { policies: readonly PolicyView[]; onCompare: (id: string) => void }) {
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const visible = policies.slice(page * pageSize, (page + 1) * pageSize)
+  return (
+    <>
+      {policies.length === 0 ? (
+        <EmptyState label="No Policy Versions" detail="No policy versions are available." />
+      ) : (
+        <ScrollArea className="border border-border">
+          <table className="w-full min-w-[780px] text-left text-xs">
+            <caption className="sr-only">Policy versions</caption>
+            <thead>
+              <tr className="border-b border-border text-[10px] tracking-[.08em] text-muted-foreground">
+                <th className="p-3">Definition</th>
+                <th className="p-3">Version</th>
+                <th className="p-3">State</th>
+                <th className="p-3">Summary</th>
+                <th className="p-3">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((policy) => (
+                <tr key={policy.id} className="border-b border-border/70 hover:bg-muted/50">
+                  <td className="p-3">
+                    <p className="font-medium">{policy.name}</p>
+                    <p className="drift-data mt-1 text-[10px] text-muted-foreground">{policy.id}</p>
+                  </td>
+                  <td className="p-3">
+                    v{policy.version} · row v{policy.rowVersion}
+                  </td>
+                  <td className="p-3">
+                    <StatusBadge label={policy.state} tone={policyTone(policy.state)} />
+                  </td>
+                  <td className="p-3 text-muted-foreground">{policy.ruleSummary}</td>
+                  <td className="p-3 text-right">
+                    <Button size="sm" variant="outline" onClick={() => onCompare(policy.id)}>
+                      Compare
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollArea>
+      )}
+      <DataTablePagination
+        page={page}
+        pageSize={pageSize}
+        total={policies.length}
+        onPageChange={setPage}
+        onPageSizeChange={(next) => {
+          setPageSize(next)
+          setPage(0)
+        }}
+      />
+    </>
+  )
+}
+function DecisionTable({ decisions }: { decisions: readonly PolicyDecisionView[] }) {
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const visible = decisions.slice(page * pageSize, (page + 1) * pageSize)
+  return (
+    <>
+      {decisions.length === 0 ? (
+        <EmptyState label="No Policy Decisions" detail="No protected resource decisions are available." />
+      ) : (
+        <ScrollArea className="border border-border">
+          <table className="w-full min-w-[860px] text-left text-xs">
+            <caption className="sr-only">Policy decisions for protected resources</caption>
+            <thead>
+              <tr className="border-b border-border text-[10px] tracking-[.08em] text-muted-foreground">
+                <th className="p-3">Decision</th>
+                <th className="p-3">Resource</th>
+                <th className="p-3">Action</th>
+                <th className="p-3">Reason</th>
+                <th className="p-3">Actor</th>
+                <th className="p-3">Correlation</th>
+                <th className="p-3">Decided</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((decision) => (
+                <DecisionRow key={decision.id} decision={decision} />
+              ))}
+            </tbody>
+          </table>
+        </ScrollArea>
+      )}
+      <DataTablePagination
+        page={page}
+        pageSize={pageSize}
+        total={decisions.length}
+        onPageChange={setPage}
+        onPageSizeChange={(next) => {
+          setPageSize(next)
+          setPage(0)
+        }}
+      />
+    </>
+  )
+}
+function DecisionRow({ decision }: { decision: PolicyDecisionView }) {
+  const tone: StatusTone = decision.decision === "allow" ? "healthy" : decision.decision === "deny" ? "danger" : "attention"
+  return (
+    <tr className="border-b border-border/70 last:border-0 hover:bg-muted/50">
+      <td className="p-3">
+        <StatusBadge label={decision.decision} tone={tone} />
+      </td>
+      <td className="p-3">
+        <p className="font-medium">{decision.resourceType}</p>
+        <p className="drift-data mt-1 text-[10px] text-muted-foreground">{decision.resourceId}</p>
+      </td>
+      <td className="p-3 font-mono text-[11px]">{decision.action}</td>
+      <td className="p-3">
+        <div className="flex items-center gap-2">
+          <span>{decision.reasonCode.replaceAll("_", " ")}</span>
+          {decision.decision !== "allow" ? <FailureBadge failureClass={decision.reasonCode} /> : null}
+        </div>
+      </td>
+      <td className="drift-data p-3 text-[10px]">{decision.actorId}</td>
+      <td className="drift-data p-3 text-[10px]">{decision.correlationId}</td>
+      <td className="drift-data p-3 text-[10px] text-muted-foreground">{decision.decidedAt}</td>
+    </tr>
+  )
+}
+function PolicyJson({ title, policy }: { title: string; policy?: PolicyView }) {
+  return (
+    <section className="border border-border">
+      <header className="border-b border-border px-3 py-2">
+        <p className="text-xs font-semibold">{title}</p>
+        <p className="drift-data mt-1 text-[10px] text-muted-foreground">{policy ? `${policy.name} · v${policy.version}` : "No comparison record"}</p>
+      </header>
+      <pre className="max-h-72 overflow-auto p-3 text-[10px] leading-5 text-muted-foreground">{policy?.ruleJson ?? "—"}</pre>
+    </section>
+  )
+}
+function AccessRow({ label, detail, tone }: { label: string; detail: string; tone: StatusTone }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-border/70 pb-3 last:border-0">
+      <div>
+        <p className="font-medium">{label}</p>
+        <p className="mt-1 text-muted-foreground">{detail}</p>
+      </div>
+      <StatusBadge label={tone === "healthy" ? "Retained" : tone === "danger" ? "Denied" : "Explicit"} tone={tone} />
+    </div>
+  )
+}
+function policyTone(state: PolicyView["state"]): StatusTone {
+  return state === "active" ? "healthy" : state === "retired" ? "neutral" : "attention"
+}

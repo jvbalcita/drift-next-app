@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from "react"
 import { Cpu, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import type { AutomationAgentProfileView, ControlPlaneSnapshot, DispatchIntent } from "@/lib/domain/control-plane"
-import { DataTablePagination, EmptyState, FieldLabel, OperatorNotice, PageIntro, StatusBadge, type StatusTone } from "./shared"
+import { DataTablePagination, EmptyState, FieldLabel, FormSelect, OperatorNotice, PageIntro, StatusBadge, type StatusTone } from "./shared"
 import { resolvedId } from "./page-utils"
 
 export function AgentsPage({ snapshot, dispatch, view = "runtimes", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: string) => void }) {
@@ -35,7 +36,7 @@ export function AgentsPage({ snapshot, dispatch, view = "runtimes", onViewChange
         <form onSubmit={createAgent} className="mt-4 flex flex-wrap items-end gap-3 border border-border p-4">
           <div>
             <FieldLabel htmlFor="new-agent-name">Agent Name</FieldLabel>
-            <input id="new-agent-name" value={agentName} onChange={(event) => setAgentName(event.target.value)} className="mt-1 h-9 rounded-none border border-input bg-background px-2 text-xs" />
+            <Input id="new-agent-name" value={agentName} onChange={(event) => setAgentName(event.target.value)} className="mt-1 h-9 rounded-none text-xs" />
           </div>
           <Button type="submit" size="sm" variant="outline" disabled={!agentName.trim()}>Create Agent</Button>
           <p aria-live="polite" className="text-[11px] text-muted-foreground">{feedback}</p>
@@ -50,19 +51,11 @@ export function AgentsPage({ snapshot, dispatch, view = "runtimes", onViewChange
         <form onSubmit={assignAgent} className="mt-4 grid gap-3 border border-border p-4 md:grid-cols-3">
           <div>
             <FieldLabel htmlFor="assign-agent">Automation Agent</FieldLabel>
-            <select id="assign-agent" value={selectedAssignAgentId} onChange={(event) => setAssignAgentId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">
-              {snapshot.automationAgents.length === 0 ? <option value="">No Automation Agents</option> : null}
-              {selectedAssignAgentId.length === 0 && snapshot.automationAgents.length > 1 ? <option value="">Select Agent</option> : null}
-              {snapshot.automationAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
-            </select>
+            <FormSelect id="assign-agent" value={selectedAssignAgentId} onValueChange={setAssignAgentId} className="mt-1 h-9 w-full" options={[...(snapshot.automationAgents.length === 0 ? [{ value: "", label: "No Automation Agents", disabled: true }] : []), ...(selectedAssignAgentId.length === 0 && snapshot.automationAgents.length > 1 ? [{ value: "", label: "Select Agent" }] : []), ...snapshot.automationAgents.map((agent) => ({ value: agent.id, label: agent.name }))]} />
           </div>
           <div>
             <FieldLabel htmlFor="assign-device">Device</FieldLabel>
-            <select id="assign-device" value={selectedAssignDeviceId} onChange={(event) => setAssignDeviceId(event.target.value)} className="mt-1 h-9 w-full rounded-none border border-input bg-background px-2 text-xs">
-              {snapshot.devices.length === 0 ? <option value="">No Registered Devices</option> : null}
-              {selectedAssignDeviceId.length === 0 && snapshot.devices.length > 1 ? <option value="">Select Device</option> : null}
-              {snapshot.devices.map((device) => <option key={device.id} value={device.id}>{device.displayName}</option>)}
-            </select>
+            <FormSelect id="assign-device" value={selectedAssignDeviceId} onValueChange={setAssignDeviceId} className="mt-1 h-9 w-full" options={[...(snapshot.devices.length === 0 ? [{ value: "", label: "No Registered Devices", disabled: true }] : []), ...(selectedAssignDeviceId.length === 0 && snapshot.devices.length > 1 ? [{ value: "", label: "Select Device" }] : []), ...snapshot.devices.map((device) => ({ value: device.id, label: device.displayName }))]} />
           </div>
           <Button type="submit" size="sm" variant="outline" className="self-end" disabled={!selectedAssignAgentId || !selectedAssignDeviceId}>Assign Device</Button>
           <p aria-live="polite" className="text-[11px] text-muted-foreground md:col-span-3">{feedback}</p>

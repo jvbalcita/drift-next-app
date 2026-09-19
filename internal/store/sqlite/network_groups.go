@@ -76,7 +76,10 @@ func (r *GroupRepository) Get(ctx context.Context, w organizations.WorkspaceID, 
 }
 
 func (r *GroupRepository) List(ctx context.Context, w organizations.WorkspaceID) ([]groups.Group, error) {
-	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,name,state,position,row_version FROM device_groups WHERE workspace_id=? ORDER BY position,id`, w)
+	// List is the current inventory projection. Deleted groups retain an
+	// internal tombstone so append-only membership and audit references remain
+	// valid, but they never return to product surfaces as dead space.
+	rows, err := r.store.db.QueryContext(ctx, `SELECT id,workspace_id,name,state,position,row_version FROM device_groups WHERE workspace_id=? AND state='active' ORDER BY position,id`, w)
 	if err != nil {
 		return nil, classifyContext(err)
 	}

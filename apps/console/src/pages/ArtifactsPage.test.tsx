@@ -8,6 +8,10 @@ import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import { ArtifactsPage } from "./ArtifactsPage"
 
 describe("ArtifactsPage", () => {
+  async function choose(user: ReturnType<typeof userEvent.setup>, label: string, option: string) {
+    await user.click(screen.getByLabelText(label))
+    await user.click(await screen.findByRole("option", { name: option }))
+  }
   it("lists artifacts with filters, pagination, and sanitized detail states", async () => {
     const user = userEvent.setup()
     const client = new MockControlPlaneClient()
@@ -21,15 +25,15 @@ describe("ArtifactsPage", () => {
     expect(screen.getByLabelText("Storage Quota Warning")).toBeInTheDocument()
     expect(screen.getByText("9 Results")).toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText("Lifecycle State"), "unauthorized")
+    await choose(user, "Lifecycle State", "Unauthorized")
     expect(screen.getByText("1 Results")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /Unauthorized — Content Withheld/i }))
     expect(screen.getByText(/Unauthorized — artifact content is withheld/i)).toBeInTheDocument()
     expect(screen.getAllByText("Unauthorized").length).toBeGreaterThan(0)
 
     await user.keyboard("{Escape}")
-    await user.selectOptions(screen.getByLabelText("Lifecycle State"), "all")
-    await user.selectOptions(screen.getByLabelText("Type / Category"), "ui_tree")
+    await choose(user, "Lifecycle State", "All States")
+    await choose(user, "Type / Category", "UI Tree")
     expect(screen.getByText("1 Results")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /Bounded UI-Tree Summary/i }))
     expect(screen.getByText(/nodes=42/i)).toBeInTheDocument()
@@ -56,7 +60,7 @@ describe("ArtifactsPage", () => {
     const view = () => <ArtifactsPage snapshot={client.getSnapshot()} dispatch={dispatch} view="library" onViewChange={() => undefined} />
     const { rerender } = render(view())
 
-    await user.selectOptions(screen.getByLabelText("Lifecycle State"), "eligible_for_deletion")
+    await choose(user, "Lifecycle State", "Eligible For Deletion")
     await user.click(screen.getByRole("button", { name: /Low-Res Session Thumbnail/i }))
 
     const dialog = within(document.body)
@@ -84,7 +88,7 @@ describe("ArtifactsPage", () => {
     expect(screen.queryByText(/\/var\//i)).not.toBeInTheDocument()
     expect(screen.queryByText(/password/i)).not.toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText("Selected Device"), "atlas-04")
+    await choose(user, "Selected Device", "Atlas 04")
     expect(screen.getByText("Full-Resolution Authorized Preview")).toBeInTheDocument()
   })
 
@@ -104,7 +108,7 @@ describe("ArtifactsPage", () => {
     rerender(view())
     expect(screen.getByText(/Recording session stopped/i)).toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText("Recording Device"), "atlas-04")
+    await choose(user, "Recording Device", "Atlas 04")
     await user.click(screen.getByRole("button", { name: "Start Recording" }))
     rerender(view())
     expect(screen.getByText(/Recording session started/i)).toBeInTheDocument()

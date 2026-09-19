@@ -31,7 +31,8 @@ function renderNetworkProfilesPage(control: { failIntent?: ControlPlaneIntent["t
 
 /** Selects a catalog profile in the page selector and runs one scan against it. */
 async function runScanForProfile(user: ReturnType<typeof userEvent.setup>, profileId: string) {
-  await user.selectOptions(screen.getByLabelText("Discovery profile"), profileId)
+  await user.click(screen.getByLabelText("Discovery profile"))
+  await user.click(await screen.findByRole("option", { name: profileId === "profile-lab-b" ? "Lab B review" : "Lab A staging (default)" }))
   await user.click(screen.getAllByRole("button", { name: "Configure Scan" })[0])
   const dialog = screen.getByRole("dialog")
   await user.click(within(dialog).getByRole("button", { name: "Start scan" }))
@@ -187,7 +188,7 @@ describe("NetworkProfilesPage discovery profile selection", () => {
     }
     render(<NetworkProfilesPage snapshot={reordered} dispatch={noopDispatch} view="scans" onViewChange={() => undefined} />)
 
-    expect(screen.getByLabelText("Discovery profile")).toHaveValue("profile-lab-b")
+    expect(screen.getByLabelText("Discovery profile")).toHaveTextContent("Lab B review")
     await user.click(screen.getAllByRole("button", { name: "Configure Scan" })[0])
     expect(within(screen.getByRole("dialog")).getByText("Lab B review")).toBeInTheDocument()
   })
@@ -196,7 +197,8 @@ describe("NetworkProfilesPage discovery profile selection", () => {
     const user = userEvent.setup()
     const page = renderNetworkProfilesPage({ view: "scans" })
 
-    await user.selectOptions(screen.getByLabelText("Discovery profile"), "profile-lab-b")
+    await user.click(screen.getByLabelText("Discovery profile"))
+    await user.click(await screen.findByRole("option", { name: "Lab B review" }))
     await user.click(screen.getAllByRole("button", { name: "Configure Scan" })[0])
     const dialog = screen.getByRole("dialog")
 
@@ -217,7 +219,7 @@ describe("NetworkProfilesPage discovery profile selection", () => {
     // A profile now exists while the page stays mounted. The same instance must
     // be able to scan it: the selection is part of the catalog, not of mount.
     rerender(<NetworkProfilesPage snapshot={client.getSnapshot()} dispatch={dispatch} view="scans" onViewChange={() => undefined} />)
-    expect(screen.getByLabelText("Discovery profile")).toHaveValue("profile-lab-a")
+    expect(screen.getByLabelText("Discovery profile")).toHaveTextContent("Lab A staging")
     for (const button of screen.getAllByRole("button", { name: "Configure Scan" })) {
       expect(button).toBeEnabled()
     }
@@ -227,12 +229,13 @@ describe("NetworkProfilesPage discovery profile selection", () => {
     const user = userEvent.setup()
     const page = renderNetworkProfilesPage()
 
-    await user.selectOptions(screen.getByLabelText("Discovery profile"), "profile-lab-b")
+    await user.click(screen.getByLabelText("Discovery profile"))
+    await user.click(await screen.findByRole("option", { name: "Lab B review" }))
     await user.click(screen.getAllByRole("button", { name: "Delete Profile" })[1])
     await user.click(within(document.body).getByRole("button", { name: "Confirm Delete" }))
     page.refreshView()
 
-    expect(screen.getByLabelText("Discovery profile")).toHaveValue("profile-lab-a")
+    expect(screen.getByLabelText("Discovery profile")).toHaveTextContent("Lab A staging")
     for (const button of screen.getAllByRole("button", { name: "Configure Scan" })) {
       expect(button).toBeEnabled()
     }

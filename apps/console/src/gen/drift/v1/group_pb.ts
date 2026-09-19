@@ -312,8 +312,8 @@ export const RenameDeviceGroupResponseSchema: GenMessage<RenameDeviceGroupRespon
   messageDesc(file_drift_v1_group, 9);
 
 /**
- * DeleteDeviceGroup replaces DELETE /groups/:id. A group that carries history is
- * retired in place, never erased: memberships are append-only evidence.
+ * DeleteDeviceGroup permanently removes a group from the current inventory.
+ * Storage may retain an internal tombstone so append-only evidence stays valid.
  *
  * @generated from message drift.v1.DeleteDeviceGroupRequest
  */
