@@ -26,6 +26,7 @@ function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
 
 function TooltipContent({
   className,
+  positionerClassName,
   side = "top",
   sideOffset = 4,
   align = "center",
@@ -36,7 +37,20 @@ function TooltipContent({
   Pick<
     TooltipPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset"
-  >) {
+  > & {
+    /**
+     * positionerClassName is the LAYER this tooltip is drawn in, for a trigger
+     * that lives inside a surface above the standard overlay layer.
+     *
+     * The popup is portaled to the document, so it leaves its trigger's stacking
+     * context: a control inside a surface that outranks `z-50` - the console's
+     * floating device is `z-[100]` - would otherwise have its tooltip painted
+     * UNDERNEATH that surface, and a tooltip a reader cannot see is a control
+     * with no description. The layer belongs to the surface that knows what it
+     * outranks, so it is passed in rather than guessed here.
+     */
+    positionerClassName?: string
+  }) {
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Positioner
@@ -44,7 +58,7 @@ function TooltipContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
-        className="isolate z-50"
+        className={cn("isolate z-50", positionerClassName)}
       >
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"

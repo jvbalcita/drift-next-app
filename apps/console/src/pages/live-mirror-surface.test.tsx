@@ -233,6 +233,27 @@ describe("the big frame is the device's screen", () => {
     expect(within(details).getByText(liveMirrorCopy.details.pointer)).toBeInTheDocument()
   })
 
+  it("draws nothing over the picture while a pointer is down", async () => {
+    const { intents, stage } = renderPanel()
+    await live(intents)
+
+    fireEvent.pointerDown(stage, { pointerId: 7, clientX: 270, clientY: 480 })
+
+    // Mid-gesture the frame holds the picture and nothing else: the stage's own
+    // children are the video element, and no element is drawn across the top of
+    // the device's screen. The line that used to be drawn there was the defect -
+    // "when tapping or swiping, there's a separator or horizontal line showing on
+    // top" - and it was the only thing `dragging` rendered, so the state that
+    // fed it is gone with it rather than left unread.
+    expect(within(stage).getByTestId("live-mirror-video")).toBeInTheDocument()
+    expect(stage.querySelectorAll("span")).toHaveLength(0)
+    expect(stage.children).toHaveLength(1)
+
+    fireEvent.pointerUp(stage, { pointerId: 7, clientX: 270, clientY: 480 })
+    expect(stage.querySelectorAll("span")).toHaveLength(0)
+    expect(stage.children).toHaveLength(1)
+  })
+
   it("takes the stream's own aspect, so the frame is the screen rather than a box around it", async () => {
     const { frame } = renderPanel({ mirror: fakeMirror(stream({ width: 1080, height: 2280 })).client })
     // The panel sizes the frame from the stream it is carrying: 480px of
@@ -489,6 +510,37 @@ describe("the info control beside the pin", () => {
     expect(within(details).getByTestId("live-mirror-drawn")).toHaveTextContent("A point is measured through this box")
   })
 
+  it("draws the info tooltip above the floating device it belongs to", async () => {
+    const user = userEvent.setup({ delay: null })
+    renderPanel()
+    await live([])
+
+    // The measured defect behind "the tooltip is showing below the frame": the
+    // popup is portaled to the document, so it leaves the floating device's
+    // stacking context, and at the console's standard overlay layer it was
+    // painted UNDERNEATH the frame it describes - in Chromium, at the frame's own
+    // header, every point inside the tooltip's box hit the frame instead, so the
+    // sentence was drawn where nobody could read it. jsdom computes no paint
+    // order, so what is pinned here is the two layers the surfaces declare and
+    // that the tooltip's outranks the frame's; the paint was measured in a real
+    // browser.
+    const info = screen.getByTestId("live-mirror-info")
+    await user.hover(info)
+    const popup = await screen.findByText(liveMirrorCopy.details.tooltip)
+    const positioner = popup.parentElement as HTMLElement
+    const widget = screen.getByLabelText(/floating device controls/i).parentElement as HTMLElement
+    const layerOf = (element: HTMLElement) => {
+      const match = (element.className || "").match(/(?:^|\s)z-\[(\d+)\]/)
+      expect(match ? match[1] : null).not.toBeNull()
+      return Number(match?.[1])
+    }
+
+    expect(layerOf(positioner)).toBeGreaterThan(layerOf(widget))
+    // And it is not a descendant of the frame: being portaled away from the
+    // frame's own stacking context is exactly why its layer has to be its own.
+    expect(widget.contains(popup)).toBe(false)
+  })
+
   it("draws the device's own navigation bar in the footer, reachable without a mouse", async () => {
     const user = userEvent.setup()
     const { intents } = renderPanel()
@@ -508,7 +560,7 @@ describe("the info control beside the pin", () => {
     await user.keyboard("{Enter}")
 
     await waitFor(() => expect(intents).toHaveLength(1))
-    expect(intents[0]).toMatchObject({ type: "submitDeviceKeyEvent", deviceId: "atlas-04", keyCode: 4 })
+    expect(intents[0]).toMatchObject({ type: "submitDeviceKeyEvent", deviceId: "atlas-04", keyCode: 4, observationToken: streamToken })
   })
 
   it("sends the app switcher and home from the same row, as the device's own bar does", async () => {
@@ -521,8 +573,29 @@ describe("the info control beside the pin", () => {
     await user.click(within(keys).getByRole("button", { name: "Home" }))
 
     await waitFor(() => expect(intents).toHaveLength(2))
-    expect(intents[0]).toMatchObject({ type: "submitDeviceKeyEvent", keyCode: 187 })
-    expect(intents[1]).toMatchObject({ type: "submitDeviceKeyEvent", keyCode: 3 })
+    expect(intents[0]).toMatchObject({ type: "submitDeviceKeyEvent", keyCode: 187, observationToken: streamToken })
+    expect(intents[1]).toMatchObject({ type: "submitDeviceKeyEvent", keyCode: 3, observationToken: streamToken })
+  })
+
+  /**
+   * The owner's instruction: the menu row and the follower count are inverted.
+   * The row belongs where the phone puts its own navigation - the bottom of the
+   * panel - and the count reads above it. Asserted as ORDER rather than as
+   * presence, because both elements were already present and it is their order
+   * that was wrong; the row is also asserted to be the panel's last element, so
+   * nothing the panel draws can end up under the device's own navigation bar.
+   */
+  it("reads the follower count above the nav row, which is the panel's last element", async () => {
+    const { intents } = renderPanel()
+    await live(intents)
+
+    const followers = screen.getByTestId("live-mirror-followers")
+    const keys = screen.getByTestId("live-mirror-device-keys")
+    const footer = followers.parentElement as HTMLElement
+
+    expect(followers.compareDocumentPosition(keys) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(footer.lastElementChild).toBe(keys)
+    expect(screen.getByLabelText(/floating device controls/i).lastElementChild).toBe(footer)
   })
 
   it("refuses to describe an input it has no lease for, and names the missing lease", async () => {
@@ -702,7 +775,38 @@ describe("the operator's own keyboard types into the device", () => {
     keystroke(stage, { key: "Enter" })
 
     await waitFor(() => expect(keyEvents(intents)).toHaveLength(1))
-    expect(keyEvents(intents)[0]).toMatchObject({ type: "submitDeviceKeyEvent", deviceId: "atlas-04", keyCode: 66, confirmed: true })
+    expect(keyEvents(intents)[0]).toMatchObject({ type: "submitDeviceKeyEvent", deviceId: "atlas-04", keyCode: 66, confirmed: true, observationToken: streamToken })
+  })
+
+  /**
+   * The measured defect, and the assertion that would have caught it: the key
+   * event the console built named NO observation, and the kernel's catalog
+   * declares a key event as requiring one - so every keystroke and every press
+   * of the device's own navigation keys came back as the single sentence
+   * "device input intent is invalid", with nothing in it to act on.
+   *
+   * Both paths a key event takes are checked here, because both were refused:
+   * the operator's own keyboard, and the device's own navigation bar. What they
+   * must name is the frame's own live stream, the same observation a coordinate
+   * in that frame is measured from - the picture the operator is typing into.
+   */
+  it("names the frame's own observation on every key event, from the keyboard and from the nav row", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents, stage } = renderPanel()
+    await live(intents)
+
+    stage.focus()
+    keystroke(stage, { key: "Enter" })
+    await waitFor(() => expect(keyEvents(intents)).toHaveLength(1))
+    expect(keyEvents(intents)[0]).toMatchObject({ observationToken: streamToken })
+    expect(keyEvents(intents)[0]).not.toHaveProperty("observationToken", "")
+
+    await user.click(within(screen.getByTestId("live-mirror-device-keys")).getByRole("button", { name: "Menu (recent apps)" }))
+    await waitFor(() => expect(keyEvents(intents)).toHaveLength(2))
+
+    for (const event of keyEvents(intents)) {
+      expect(event).toMatchObject({ observationToken: streamToken })
+    }
   })
 
   it("reaches no device while the frame does not hold focus, and is not captured from elsewhere", async () => {
@@ -718,7 +822,7 @@ describe("the operator's own keyboard types into the device", () => {
     // And it is not captured from elsewhere while the frame DOES hold focus: the
     // listener is the frame's own, so a keystroke outside it is not the frame's.
     stage.focus()
-    await waitFor(() => expect(screen.getByTestId("live-mirror-capture")).toHaveTextContent(liveMirrorCopy.capture.on))
+    expect(stage).toHaveFocus()
     keystroke(document.body, { key: "Enter" })
     expect(intents).toHaveLength(0)
 
@@ -726,42 +830,59 @@ describe("the operator's own keyboard types into the device", () => {
     await waitFor(() => expect(keyEvents(intents)).toHaveLength(1))
   })
 
-  it("shows the capture state where the controls are, and never over the device's screen", async () => {
-    const { intents, stage } = renderPanel()
+  /**
+   * The owner's instruction: the keyboard-capture block leaves the panel. The
+   * behaviour stays, and so does the fact - an operator can still read whether
+   * this frame holds their keyboard, and that the frame can be left from the
+   * keyboard alone - but it is stated ONCE, in the info control, and the panel
+   * carries no block, no paragraph and no release control for it.
+   */
+  it("states the keyboard once, in the info control, and carries no capture block in the panel", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents } = renderPanel()
     await live(intents)
 
-    const inputs = screen.getByTestId("live-mirror-keyboard-capture")
-    const line = within(inputs).getByTestId("live-mirror-capture")
-    expect(line).toHaveTextContent(liveMirrorCopy.capture.off)
-    // Nothing leaves capture before the frame holds it.
-    expect(within(inputs).queryByTestId("live-mirror-release")).not.toBeInTheDocument()
+    // Gone from the panel: the block, its line and the control that handed the
+    // keyboard back. Nothing in the panel restates any of it.
+    expect(screen.queryByTestId("live-mirror-keyboard-capture")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("live-mirror-release")).not.toBeInTheDocument()
+    expect(screen.queryByText(liveMirrorCopy.capture.note)).not.toBeInTheDocument()
 
-    stage.focus()
-    await waitFor(() => expect(line).toHaveTextContent(liveMirrorCopy.capture.on))
-    expect(within(inputs).getByTestId("live-mirror-release")).toBeInTheDocument()
-    // The frame's body is the device's screen: the state is not drawn over it.
-    expect(within(screen.getByLabelText(/floating phone frame/i)).queryByTestId("live-mirror-capture")).not.toBeInTheDocument()
-    expect(within(screen.getByLabelText(/floating phone frame/i)).queryByTestId("live-mirror-release")).not.toBeInTheDocument()
+    // Stated once, where the rest of the frame's state is read: how the keyboard
+    // reaches the device, and how it is given back - which is the fact that keeps
+    // capture leavable from the keyboard alone, now that no control leaves it.
+    const details = await openDetails(user)
+    expect(within(details).getByTestId("live-mirror-capture")).toHaveTextContent(liveMirrorCopy.capture.note)
+    expect(within(details).getByText(liveMirrorCopy.details.field.keyboard)).toBeInTheDocument()
   })
 
-  it("leaves capture by one explicit, named action the device cannot swallow", async () => {
+  /**
+   * Capture is leavable from the keyboard ALONE, and that is the whole of it: the
+   * frame's focus is the gate, so Tab - which this surface deliberately does not
+   * preventDefault - moves focus out of the frame and ends capture. There is no
+   * control to press and nothing a device or the control plane could swallow.
+   */
+  it("leaves capture from the keyboard alone, and the keystroke after it reaches no device", async () => {
     const user = userEvent.setup({ delay: null })
     const { intents, stage } = renderPanel()
     await live(intents)
     stage.focus()
 
-    await user.click(await screen.findByTestId("live-mirror-release"))
+    keystroke(stage, { key: "Enter" })
+    await waitFor(() => expect(keyEvents(intents)).toHaveLength(1))
 
-    // It is this console's own action: it ends capture, it gives the focus back,
-    // and it dispatches nothing for a device or the control plane to refuse.
-    expect(intents).toHaveLength(0)
+    await user.tab()
+
+    // Tab is dispatched for the device, and it also leaves: the frame no longer
+    // holds the keyboard, and nothing had to be pressed to give it back.
+    await waitFor(() => expect(keyEvents(intents)).toHaveLength(2))
+    expect(keyEvents(intents)[1]).toMatchObject({ keyCode: 61 })
     expect(stage).not.toHaveFocus()
-    expect(screen.getByTestId("live-mirror-capture")).toHaveTextContent(liveMirrorCopy.capture.off)
-    expect(screen.queryByTestId("live-mirror-release")).not.toBeInTheDocument()
+
     // The keyboard is the console's again: the keystroke reaches no device even
     // though this dispatch would have accepted it.
     keystroke(stage, { key: "Enter" })
-    expect(intents).toHaveLength(0)
+    expect(keyEvents(intents)).toHaveLength(2)
   })
 
   it("names a key the contract cannot express instead of sending a key nobody pressed", async () => {
@@ -802,6 +923,27 @@ describe("the operator's own keyboard types into the device", () => {
     await waitFor(() => expect(screen.getByTestId("live-mirror-notice")).toHaveTextContent(liveMirrorCopy.input.noLease))
     const details = await openDetails(user)
     expect(within(details).getByTestId("live-mirror-refusal")).toHaveTextContent(liveMirrorCopy.input.noLease)
+  })
+
+  /**
+   * The other half of the observation binding: a key event is built with the
+   * observation it is measured against, so a frame that has none refuses HERE,
+   * in the console's own words, and sends nothing. It never asks the kernel to
+   * refuse a malformed intent - which is what put "device input intent is
+   * invalid" in front of the operator with no field named and nothing to do.
+   */
+  it("refuses a keystroke it cannot measure, naming the missing observation, and sends nothing", async () => {
+    const user = userEvent.setup()
+    const { intents, stage } = renderPanel({ mirror: undefined })
+    await live(intents)
+    stage.focus()
+
+    keystroke(stage, { key: "Enter" })
+
+    expect(intents).toHaveLength(0)
+    await waitFor(() => expect(screen.getByTestId("live-mirror-notice")).toHaveTextContent(liveMirrorCopy.input.noObservation))
+    const details = await openDetails(user)
+    expect(within(details).getByTestId("live-mirror-refusal")).toHaveTextContent(liveMirrorCopy.input.noObservation)
   })
 
   it("bounds a held key by the control session's own rate, not by the browser's event rate", async () => {

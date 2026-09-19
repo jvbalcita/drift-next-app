@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -401,6 +402,70 @@ func TestInputDispatcherRefusesAnIncompleteOrMismatchedPayload(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAKeyEventNamesNoObservationIsRefusedAndNamesOneIsDispatched is the
+// kernel's half of the regression an operator reported: every keystroke, and
+// every press of the device's own navigation keys, came back to the console as
+// the single sentence "device input intent is invalid".
+//
+// That sentence is a client message and it is correct: the catalog declares
+// KeyEvent as requiring a fresh observation token, `intentFor` validates the
+// intent it built against that declaration, and the console was sending an
+// EMPTY token for this kind while it sent the frame's own stream for a
+// coordinate. The two cases below are the two halves of the contract the
+// console now satisfies, and neither weakens the kernel: an intent that names
+// no observation is refused before the kernel is asked and reaches no device,
+// and the same intent naming the frame's own live stream is dispatched.
+func TestAKeyEventNamesNoObservationIsRefusedAndNamesOneIsDispatched(t *testing.T) {
+	t.Run("a key event that names no observation is refused and reaches no device", func(t *testing.T) {
+		fixture := newDispatchFixture(t)
+		request := inputRequest("attempt-keyevent-no-observation", "key-keyevent-no-observation", keyEventPayload())
+		request.ObservationToken = ""
+
+		_, err := fixture.dispatcher.Run(context.Background(), request, "operator", "operator-1")
+
+		if platformerrors.CodeOf(err) != platformerrors.CodeInvalidInput {
+			t.Fatalf("refusal code = %v, want invalid_input", platformerrors.CodeOf(err))
+		}
+		// The sentence the operator reads is the client message, so it is
+		// pinned here verbatim: this is the text the owner reported.
+		var classified *platformerrors.Error
+		if !errors.As(err, &classified) {
+			t.Fatalf("refusal = %v, want a classified platform error", err)
+		}
+		if got := classified.ClientMessage(); got != "device input intent is invalid" {
+			t.Fatalf("client message = %q, want %q", got, "device input intent is invalid")
+		}
+		// The cause is what names the field that was missing, and it is the
+		// observation token rather than anything else in the intent.
+		if want := `action "key_event" requires a fresh observation token`; !strings.Contains(err.Error(), want) {
+			t.Fatalf("cause = %v, want it to name %q", err, want)
+		}
+		if fixture.control.called("authorize") {
+			t.Fatal("a key event naming no observation reached the kernel's authorize step")
+		}
+		if calls := fixture.transport.invocationCount(); calls != 0 {
+			t.Fatalf("device calls = %d, want 0", calls)
+		}
+	})
+
+	t.Run("the same key event naming the frame's own observation is dispatched", func(t *testing.T) {
+		fixture := newDispatchFixture(t)
+		request := inputRequest("attempt-keyevent-observation", "key-keyevent-observation", keyEventPayload())
+
+		result, err := fixture.dispatcher.Run(context.Background(), request, "operator", "operator-1")
+		if err != nil {
+			t.Fatalf("dispatch: %v", err)
+		}
+		if result.Outcome != action.OutcomeVerified || !result.PostconditionPassed {
+			t.Fatalf("result = %#v, want verified with a passed postcondition", result)
+		}
+		if calls := fixture.transport.invocationCount(); calls != 1 {
+			t.Fatalf("device calls = %d, want exactly 1", calls)
+		}
+		matchArgs(t, fixture.transport.invocation(0).args, "shell", "input", "keyevent", "4")
+	})
 }
 
 // --- the successful path ----------------------------------------------------

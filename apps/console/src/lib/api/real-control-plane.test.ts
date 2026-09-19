@@ -1445,3 +1445,57 @@ describe("RealControlPlaneClient typed text", () => {
     expect(JSON.stringify(result)).not.toContain(value)
   })
 })
+
+describe("RealControlPlaneClient key events", () => {
+  const jsonResponse = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } })
+  const emptyResponse = () => new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+  const onlineDevice = () => jsonResponse({ devices: [{ id: "device-pixel-1", displayName: "Pixel One", status: "DEVICE_STATUS_ONLINE" }] })
+  const activeLease = () =>
+    jsonResponse({
+      leases: [{
+        id: "lease-1",
+        deviceId: "device-pixel-1",
+        controlSessionId: "session-1",
+        holderId: "console-local-operator",
+        fencingToken: "7",
+        state: "LEASE_STATE_ACTIVE",
+      }],
+    })
+
+  /**
+   * The measured defect, pinned at the line that carried it: the key event's
+   * request was built with `observationToken: ""`, hard-coded, while the tap and
+   * swipe requests beside it sent the observation the gesture was measured
+   * against.
+   *
+   * The kernel's own action catalog declares a key event as requiring a fresh
+   * observation token, so an intent naming none is refused as malformed before
+   * it can be authorized - and what an operator read was the refusal's client
+   * message, "device input intent is invalid", for every keystroke and every
+   * press of the device's own navigation keys. A hard-coded empty token is the
+   * whole of the cause: it is asserted against the request body rather than
+   * against the console's own object, so the two cannot drift apart.
+   */
+  it("carries the observation the keystroke is measured against, never an empty token", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.DeviceService/ListDevices")) return onlineDevice()
+      if (url.includes("/drift.v1.LeaseService/ListDeviceLeases")) return activeLease()
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+    const result = await client.dispatch({ type: "submitDeviceKeyEvent", deviceId: "device-pixel-1", keyCode: 4, observationToken: "stream-1", confirmed: true })
+
+    expect(result.ok).toBe(true)
+    const sent = fetchSpy.mock.calls.find((call) => String(call[0]).includes("/drift.v1.DeviceInputService/KeyEvent"))
+    expect(sent).toBeDefined()
+    const body = JSON.parse(String(sent?.[1]?.body)) as { observationToken?: string; keyEvent?: { keyCode?: number }; deviceId?: string; leaseId?: string; fencingToken?: string }
+    expect(body.observationToken).toBe("stream-1")
+    expect(body.keyEvent).toEqual({ keyCode: 4 })
+    expect(body.deviceId).toBe("device-pixel-1")
+    expect(body.leaseId).toBe("lease-1")
+    expect(body.fencingToken).toBe("7")
+  })
+})
