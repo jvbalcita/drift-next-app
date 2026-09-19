@@ -376,8 +376,12 @@ describe("the frame controls the device with the mouse", () => {
     const step = scrollStepUnits({ width: 1080, height: 1920 }, "y")
     // The point maps to the frame's middle, and the gesture moves against the
     // scroll (a wheel turned down scrolls the content up, as a finger drag up
-    // does) by exactly one step of the frame.
-    expect(scroll).toMatchObject({ startX: 540, startY: 960, endX: 540, endY: 960 - step, renderWidth: 1080, renderHeight: 1920 })
+    // does) by exactly one step of the frame. The observation is asserted here
+    // with the frame, the endpoints and the duration, because the wheel is the
+    // one gesture that reaches the device by a route of its own: a scroll that
+    // named a different observation from the picture it was measured in is the
+    // divergence this assertion exists to catch.
+    expect(scroll).toMatchObject({ startX: 540, startY: 960, endX: 540, endY: 960 - step, renderWidth: 1080, renderHeight: 1920, observationToken: streamToken })
     expect(scroll.durationMs).toBeGreaterThanOrEqual(16)
   })
 

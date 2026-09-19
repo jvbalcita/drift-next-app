@@ -216,6 +216,9 @@ func TestALiveSessionCarriesTheTypedInputAndNoAdbProcessRuns(t *testing.T) {
 				t.Fatalf("the session carried %d inputs, want exactly 1", len(delivered))
 			}
 			test.check(t, delivered[0])
+			if delivered[0].ObservationToken != obsToken {
+				t.Fatalf("delivered observation = %q, want %q: the observation the kernel authorized has to travel with the input, because the session is the only place that can reconcile it with the stream it writes to (ARC-195)", delivered[0].ObservationToken, obsToken)
+			}
 			if delivered[0].DeviceID != inputDevice {
 				t.Fatalf("delivered to %q, want %q", delivered[0].DeviceID, inputDevice)
 			}

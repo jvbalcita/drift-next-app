@@ -3,6 +3,8 @@ package mirror
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"drift.local/drift-next/internal/action"
@@ -10,6 +12,16 @@ import (
 	"drift.local/drift-next/internal/media"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 )
+
+// ErrObservationStreamMismatch reports an input whose declared observation does
+// not name the live stream that would carry it.
+//
+// It is a typed error for the same reason ErrCoordinateFrameRefused is one: the
+// input never reached the device, and an operator surface that read only a
+// message would classify it as the transport's failure rather than as the gate
+// it is. A caller reconciles it with errors.Is rather than by matching a
+// sentence.
+var ErrObservationStreamMismatch = errors.New("mirror: the input names an observation that is not the stream carrying it")
 
 // LiveSessions is the engine surface a delivery needs: one device's live
 // session, and the typed input path into it. *media.MirrorEngine satisfies it.
@@ -67,12 +79,20 @@ func (d *InputDelivery) Mirrored(deviceID string) bool {
 // gate's own code, so the operator surface reads "the frame is stale" rather
 // than "the device refused the input" - the input never reached the device, and
 // reporting it as a device refusal would send an operator to the wrong place.
+//
+// The observation the input names is reconciled with the stream it is about to
+// travel on, before anything is encoded: see requireSessionObservation. An input
+// naming another observation is a precondition failure of its own and is
+// reported as one.
 func (d *InputDelivery) DeliverInput(ctx context.Context, input execution.MirrorDeliveryInput) error {
 	if d == nil || d.engine == nil {
 		return platformerrors.New(platformerrors.CodeUnavailable, "the live-session delivery is not constructed")
 	}
 	typed, err := mirrorInput(input)
 	if err != nil {
+		return err
+	}
+	if err := d.requireSessionObservation(input.DeviceID, input.ObservationToken); err != nil {
 		return err
 	}
 	if err := d.engine.Input(ctx, input.DeviceID, typed); err != nil {
@@ -82,6 +102,35 @@ func (d *InputDelivery) DeliverInput(ctx context.Context, input execution.Mirror
 		return platformerrors.Wrap(platformerrors.CodeUnavailable, "the live session did not carry the device input", errors.New("the device's mirror did not accept the input"))
 	}
 	return nil
+}
+
+// requireSessionObservation reconciles the observation an authorized input names
+// with the stream that would carry it.
+//
+// The transport already refuses a render space that does not name the
+// observation its request names, and that check is two strings the CALLER
+// supplied comparing equal: it says the caller was self-consistent, not that the
+// observation is the one the input travels on, and a console that kept a stale
+// or another device's stream identity would satisfy it. A live frame's
+// observation is that frame's own live stream (AGENTS.md section 3), and the
+// session is the only thing that knows which stream that is - so the
+// reconciliation is made HERE, against the session the input is about to be
+// written to, and an input naming any other observation is refused instead of
+// delivered. An input that names none is refused too: it states no observation,
+// and the kinds a session can carry are exactly the kinds the catalog requires
+// one from.
+func (d *InputDelivery) requireSessionObservation(deviceID, declared string) error {
+	session, live := d.engine.Session(deviceID)
+	if !live {
+		return platformerrors.New(platformerrors.CodeUnavailable, "the device has no live mirror, so this input has no stream to travel on")
+	}
+	observation := strings.TrimSpace(declared)
+	if observation != "" && observation == session.StreamKey() {
+		return nil
+	}
+	return platformerrors.Wrap(platformerrors.CodePreconditionFailed,
+		"the input names an observation that is not the stream carrying it, so it is refused rather than dispatched",
+		fmt.Errorf("%w: the input names %q and the stream delivering it is %q", ErrObservationStreamMismatch, observation, session.StreamKey()))
 }
 
 // DeliverText carries one released typed-text value to the device's live

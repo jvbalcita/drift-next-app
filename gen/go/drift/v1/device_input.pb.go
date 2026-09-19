@@ -218,16 +218,20 @@ func (x *DeviceInputRefusal) GetMessage() string {
 // the render space it was measured in. A tap that names neither, or both, is
 // refused before the kernel is asked.
 type TapRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Context          *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	Workspace        *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	DeviceId         string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
-	LeaseId          string                 `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
-	FencingToken     uint64                 `protobuf:"varint,5,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
-	IdempotencyKey   string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	ObservationToken string                 `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
-	Tap              *TapInput              `protobuf:"bytes,8,opt,name=tap,proto3" json:"tap,omitempty"`
-	ApprovalGranted  bool                   `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Context        *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace      *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId       string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	LeaseId        string                 `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	FencingToken   uint64                 `protobuf:"varint,5,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	// observation_token names the observation the tap was resolved against: the
+	// live stream that carries it, for a tap a session delivers. It must equal the
+	// render space's own token, and the plane refuses it when what it names is not
+	// the stream the tap is delivered on (see DeviceInputService).
+	ObservationToken string    `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
+	Tap              *TapInput `protobuf:"bytes,8,opt,name=tap,proto3" json:"tap,omitempty"`
+	ApprovalGranted  bool      `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -372,16 +376,20 @@ func (x *TapResponse) GetResult() *ActionResult {
 // SwipeRequest submits one swipe. Both endpoints belong to the one
 // render space carried with the request, and that frame is required.
 type SwipeRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Context          *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	Workspace        *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	DeviceId         string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
-	LeaseId          string                 `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
-	FencingToken     uint64                 `protobuf:"varint,5,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
-	IdempotencyKey   string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	ObservationToken string                 `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
-	Swipe            *SwipeInput            `protobuf:"bytes,8,opt,name=swipe,proto3" json:"swipe,omitempty"`
-	ApprovalGranted  bool                   `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Context        *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace      *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId       string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	LeaseId        string                 `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	FencingToken   uint64                 `protobuf:"varint,5,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	// observation_token names the observation the swipe was resolved against: the
+	// live stream that carries it, for a swipe a session delivers. It must equal
+	// the render space's own token, and the plane refuses it when what it names is
+	// not the stream the swipe is delivered on.
+	ObservationToken string      `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
+	Swipe            *SwipeInput `protobuf:"bytes,8,opt,name=swipe,proto3" json:"swipe,omitempty"`
+	ApprovalGranted  bool        `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -526,16 +534,24 @@ func (x *SwipeResponse) GetResult() *ActionResult {
 // KeyEventRequest submits one key event. It carries a bounded key
 // code from the device's key vocabulary and no command text.
 type KeyEventRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Context          *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	Workspace        *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	DeviceId         string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
-	LeaseId          string                 `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
-	FencingToken     uint64                 `protobuf:"varint,5,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
-	IdempotencyKey   string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	ObservationToken string                 `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
-	KeyEvent         *KeyEventInput         `protobuf:"bytes,8,opt,name=key_event,json=keyEvent,proto3" json:"key_event,omitempty"`
-	ApprovalGranted  bool                   `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Context        *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace      *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId       string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	LeaseId        string                 `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	FencingToken   uint64                 `protobuf:"varint,5,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	// observation_token names the observation the key event was resolved against:
+	// the live stream that carries it, for a key event a session delivers. A key
+	// event states no render space — it carries no coordinate — so there is no
+	// second token to agree with, and the plane still refuses this one when what
+	// it names is not the stream the key event is delivered on. A key event that
+	// names none is refused as well: the catalog requires an observation from this
+	// kind, and the transport's validation is never relaxed to admit a request
+	// that does not satisfy it.
+	ObservationToken string         `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
+	KeyEvent         *KeyEventInput `protobuf:"bytes,8,opt,name=key_event,json=keyEvent,proto3" json:"key_event,omitempty"`
+	ApprovalGranted  bool           `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
