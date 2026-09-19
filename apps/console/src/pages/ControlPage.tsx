@@ -1,6 +1,6 @@
-import { useRef, useState, type PointerEvent } from "react"
+import { useEffect, useRef, useState, type PointerEvent } from "react"
 import { createPortal } from "react-dom"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardCopy, Crosshair, Download, Grid3X3, Image, Info, Keyboard, LoaderCircle, MousePointer2, Network, Pin, Power, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Unplug, Upload, Volume1, Volume2, X } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardCopy, Crosshair, Download, Grid3X3, Image, Info, Keyboard, LoaderCircle, Network, Pin, Power, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Unplug, Upload, Volume1, Volume2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -9,11 +9,11 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceSettingName, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult, ObservationView } from "@/lib/domain/control-plane"
+import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceSettingName, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import { liveMirrorCopy, observationTokenFor, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
+import { liveMirrorCopy, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
 import { allocateTileViewers } from "@/lib/live-tiles"
-import { LiveMirrorInfo, LiveMirrorInputs, LiveMirrorSurface, useLiveMirrorSession } from "./live-mirror-surface"
+import { LiveMirrorDeviceKeys, LiveMirrorInfo, LiveMirrorKeyboardCapture, LiveMirrorSurface, useLiveMirrorSession } from "./live-mirror-surface"
 import { LiveTilePicture } from "./live-tile"
 import { deviceObservationSentence, deviceStatusLabels, notObserved } from "@/lib/device-status"
 import { deviceSettingLabels, deviceSettingNames } from "@/lib/device-settings"
@@ -69,11 +69,24 @@ function errorMessage(error: unknown): string {
   return "The action could not be completed."
 }
 
-export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", mirror, observationsForDevice }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; dispatchLab?: (intent: ControlPlaneIntent) => Promise<MutationResult>; labNotice?: string; mirror?: LiveMirrorClient; observationsForDevice?: (deviceId: string) => Promise<readonly ObservationView[]> }) {
+export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", mirror }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; dispatchLab?: (intent: ControlPlaneIntent) => Promise<MutationResult>; labNotice?: string; mirror?: LiveMirrorClient }) {
   const [workspace, setWorkspace] = useState(workspaceDefaults)
   const [settings, setSettings] = useState(settingsDefaults)
   const [sourceId, setSourceId] = useState<string | null>(null)
   const [followerIds, setFollowerIds] = useState<string[]>([])
+  /**
+   * What the control plane answered when this frame's control session and lease
+   * were requested, when the answer did not leave the console holding the device.
+   *
+   * Opening a device dispatches the intent that asks for both, and until now the
+   * answer was a toast: a console that was refused the lease looked exactly like
+   * one that had it - a live picture under a `not-allowed` pointer - and the
+   * operator had nothing to read. The plane's own sentence is held here and
+   * rendered in the frame's details (see `LiveMirrorInfo`), so the refusal is
+   * named at the frame rather than scrolling past in a notification.
+   */
+  const [controlRefusal, setControlRefusal] = useState("")
+  const [previewStarted, setPreviewStarted] = useState("")
   const [position, setPosition] = useState(initialPosition)
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [workspacePinned, setWorkspacePinned] = useState(false)
@@ -139,7 +152,15 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
     if (!source) {
       setSourceId(device.id)
       setFollowerIds([])
-      void reportDispatch(dispatch, { type: "beginDeviceControl", deviceId: device.id }, showToastMessage)
+      setControlRefusal("")
+      // Opening a frame asks the plane for the device's control session and its
+      // lease. The answer decides whether this frame's input can reach anything,
+      // so it is kept rather than only announced: a refusal names itself at the
+      // frame (see `controlRefusal`), and the gate in `useLiveMirrorSession`
+      // still refuses the input either way.
+      void reportDispatch(dispatch, { type: "beginDeviceControl", deviceId: device.id }, showToastMessage).then((result) => {
+        setControlRefusal(result.ok ? "" : result.message)
+      })
       return
     }
     if (source.id === device.id) {
@@ -185,10 +206,30 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
   function endDrag(event: PointerEvent<HTMLDivElement>) {
     if (drag.current?.pointerId === event.pointerId) { drag.current = null; event.currentTarget.releasePointerCapture(event.pointerId) }
   }
-  function startPreview() {
-    if (!source) return
+  /**
+   * The follower selection IS the preview, with no control in between.
+   *
+   * The panel used to carry a `Start Preview` button and a sentence beside it
+   * saying what a preview does; the owner removed both and asked for selecting a
+   * small frame to be what makes it follow. So the selection is the trigger:
+   * whenever this frame has a source and at least one follower, the console asks
+   * the plane to carry the preview for exactly that set, and it asks again only
+   * when the set changes - a selection that has not moved must not open a second
+   * session on the plane, and closing the frame ends the selection that was.
+   */
+  const previewSignature = source ? `${source.id}|${[...followerIds].sort().join(",")}` : ""
+  useEffect(() => {
+    if (source === undefined || followerIds.length === 0) {
+      setPreviewStarted("")
+      return
+    }
+    if (previewSignature === previewStarted) return
+    setPreviewStarted(previewSignature)
     void reportDispatch(dispatch, { type: "startMirrorPreview", sourceDeviceId: source.id, followerDeviceIds: followerIds }, showToastMessage)
-  }
+    // The signature is the selection: re-running this effect on a render that did
+    // not move the selection would start the same preview again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewSignature])
   /**
    * The saved network's own scan. It names the profile the operator selected, so
    * this control's target is the saved network and nothing else.
@@ -246,24 +287,16 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
   }
 
   /**
-   * The facts the live frame's input is bound to, read from the projection this
-   * console already holds rather than fetched again. The observation token is the
-   * observation the coordinates are bound to, and the lease is what makes input
-   * dispatchable at all: the console refuses locally only what it can see it
-   * cannot describe, and the kernel remains the authority for everything it does
-   * send (AGENTS.md section 3).
-   *
-   * Which observation the token names is read by `observationTokenFor`, which
-   * takes the newest COMPLETE observation for this device rather than the first
-   * match in list order, and the frame reads the device's own observations from
-   * the control plane when the projection's page holds none for it (see
-   * `useLiveMirrorSession`): a workspace-wide page is not this device's
-   * observation, and a live frame that refused every click for want of one was
-   * the defect this answers.
+   * Whether this console holds this device's active lease, read from the
+   * projection it already holds. It is what makes input dispatchable at all: the
+   * console refuses locally only what it can see it cannot describe, and the
+   * kernel remains the authority for everything it does send (AGENTS.md
+   * section 3). Which observation a coordinate is measured from is the frame's
+   * own business now - the live stream it draws - so nothing about it is read
+   * here.
    */
-  const sourceObservation = source ? observationTokenFor(snapshot.observations, source.id) : ""
   const sourceLease = source ? snapshot.leases.some((candidate) => candidate.deviceId === source.id && candidate.state === "active") : false
-  const deviceModal = source ? <FloatingDevice device={source} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]) }} onPreview={startPreview} onAction={handleDeviceAction} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} observationToken={sourceObservation} hasLease={sourceLease} dispatch={dispatch} observationsForDevice={observationsForDevice} /> : null
+  const deviceModal = source ? <FloatingDevice device={source} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onAction={handleDeviceAction} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease} dispatch={dispatch} /> : null
   const selectedCount = (source ? 1 : 0) + followers.length
 
   return <div className="relative min-h-full">
@@ -284,7 +317,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
       <span className="mr-auto text-xs"><span className="drift-data font-semibold">{selectedCount}</span> selected · {settings.controlSmall ? "compact-frame control enabled" : source ? "click another phone to select followers" : "click a phone to open its large frame"}</span>
       <ConsoleSettingsDialog settings={settings} onChange={setSettings} modalPinned={modalPinned} onModalPinnedChange={setModalPinned} dispatch={dispatch} />
       <DeviceListDialog devices={snapshot.devices} endpoints={snapshot.endpoints} onReload={() => { void runTask("refreshDeviceList", { type: "refresh" }) }} pendingAction={pendingAction} />
-      {source ? <Button size="sm" variant="outline" onClick={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]) }}><X className="size-3.5" aria-hidden="true" />Close Screen</Button> : null}
+      {source ? <Button size="sm" variant="outline" onClick={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }}><X className="size-3.5" aria-hidden="true" />Close Screen</Button> : null}
       <Button size="sm" variant="outline" disabled={!source || modalPinned} onClick={() => setPosition(initialPosition)}><Crosshair className="size-3.5" aria-hidden="true" />Reset Position</Button>
     </div>
     <div className={`mt-4 grid items-start gap-4 ${workspaceOpen ? settings.workspaceSide === "right" ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
@@ -563,14 +596,23 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
  * nothing else. Everything that used to be printed over that screen is here,
  * in the panel that is a separate surface from the frame:
  *
- *  - the title bar keeps the device's name and its controls (pin, close), keeps
- *    the battery the frame's own header used to show, and gains the info control
- *    that holds the stream's state, transport, encoded frame, drawn box and
- *    refusals;
- *  - the action column keeps every device command it had and gains the ones that
- *    were inside the frame: key events, typing into the device, and stopping or
- *    reopening the stream;
- *  - the footer keeps the preview sentence and the follower count.
+ *  - the title bar keeps the device's NAME, which now has the room the battery
+ *    percentage used to take: the percentage was a second copy of what the
+ *    device's own status bar draws in the picture, and a name an operator cannot
+ *    read is worse than a number they can already see. It keeps its controls -
+ *    pin, close, the info control that holds the stream's state, transport,
+ *    encoded frame, the observation its coordinates are measured from, and every
+ *    refusal;
+ *  - the action column keeps every device command it had, the one control that
+ *    stops the stream, and the operator's own keyboard and its capture state.
+ *    The added block that lived here - a row of key buttons and a field to type
+ *    into the device - is gone: the keys were the device's own, so they are the
+ *    device's own navigation bar in the footer, and typing into a device is the
+ *    operator's own keyboard, which is the surface that already carded it;
+ *  - the footer IS the device's navigation bar - menu/recents, home, back - and
+ *    the follower count. The `Start Preview` control and its sentence are gone
+ *    with the button: selecting a small frame is what makes it a follower now, so
+ *    there is nothing left to press.
  *
  * The frame takes the STREAM's aspect: `phoneHeight` is read from the session's
  * frame rather than pinned at 9:16, so an operator sees the device's screen AS
@@ -579,8 +621,8 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
  * with no aspect to take - and the picture's drawn box stays honest either way,
  * so a pointer is still measured through the box the picture is actually in.
  */
-export function FloatingDevice({ device, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onPreview, onAction, mirror, mirrorTransport, workspaceId, observationToken, hasLease, dispatch, observationsForDevice }: { device: DeviceView; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onPreview: () => void; onAction: (value: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; observationToken: string; hasLease: boolean; dispatch: DispatchIntent; observationsForDevice?: (deviceId: string) => Promise<readonly ObservationView[]> }) {
-  const session = useLiveMirrorSession({ device, mirror, transport: mirrorTransport, workspaceId, observationToken, hasLease, dispatch, observationsForDevice })
+export function FloatingDevice({ device, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onAction, mirror, mirrorTransport, workspaceId, leaseRefusal, hasLease, dispatch }: { device: DeviceView; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onAction: (value: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; leaseRefusal?: string; hasLease: boolean; dispatch: DispatchIntent }) {
+  const session = useLiveMirrorSession({ device, mirror, transport: mirrorTransport, workspaceId, hasLease, leaseRefusal, dispatch })
   const controlsWidth = 220
   const frameGap = 12
   const viewportWidth = typeof window === "undefined" ? Number.POSITIVE_INFINITY : window.innerWidth
@@ -600,12 +642,11 @@ export function FloatingDevice({ device, followers, workspace, settings, positio
       <LiveMirrorSurface session={session} />
     </div>
     <div aria-label={`${device.displayName} floating device controls`} className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-popover text-foreground" style={controlsFrameStyle}>
-      <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><span className="shrink-0 font-mono text-[10px] text-muted-foreground">{device.batteryPercent}%</span><LiveMirrorInfo session={session} /><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2"><LiveMirrorInputs session={session} /><div className="my-2 border-t border-border" /><ControlButton icon={Smartphone} label="Change Device" onClick={() => onAction("Change Device")} /><ControlButton icon={Volume2} label="Volume Up" onClick={() => onAction("Volume Up")} /><ControlButton icon={Volume1} label="Volume Down" onClick={() => onAction("Volume Down")} /><ControlButton icon={Image} label="Screenshot" onClick={() => onAction("Screenshot")} /><ControlButton icon={Power} label="Power Button" onClick={() => onAction("Power Button")} /><ControlButton icon={RotateCw} label="Lock Rotate" onClick={() => onAction("Lock Rotate")} /><ControlButton icon={Grid3X3} label="Install APK" onClick={() => onAction("Install APK")} /><ControlButton icon={Upload} label="Import File" onClick={() => onAction("Import File")} /><ControlButton icon={Download} label="Export File" onClick={() => onAction("Export File")} /><ControlButton icon={ClipboardCopy} label="ADB Command" onClick={() => onAction("ADB Command")} /><ControlButton icon={Keyboard} label="Quick Phrase" onClick={() => onAction("Quick Phrase")} /><ControlButton icon={RotateCw} label="Reboot" onClick={() => onAction("Reboot")} /><ControlButton icon={Keyboard} label="Switch Keyboard" onClick={() => onAction("Switch Keyboard")} /></div>
-      <div className="shrink-0 space-y-2 border-t border-border px-3 py-2">
-        <p className="text-[10px] leading-3 text-muted-foreground">Preview mirrors the selected followers independently; it copies no commands to them.</p>
-        <Button size="sm" variant="outline" className="w-full" disabled={followers.length === 0} onClick={onPreview}><MousePointer2 className="size-3.5" aria-hidden="true" />Start Preview</Button>
-        <p className="text-[10px] text-muted-foreground">{followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
+      <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><LiveMirrorInfo session={session} /><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2"><div className="mb-2"><LiveMirrorKeyboardCapture session={session} /></div>{session.phase === "live" || session.phase === "starting" ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><ControlButton icon={Smartphone} label="Change Device" onClick={() => onAction("Change Device")} /><ControlButton icon={Volume2} label="Volume Up" onClick={() => onAction("Volume Up")} /><ControlButton icon={Volume1} label="Volume Down" onClick={() => onAction("Volume Down")} /><ControlButton icon={Image} label="Screenshot" onClick={() => onAction("Screenshot")} /><ControlButton icon={Power} label="Power Button" onClick={() => onAction("Power Button")} /><ControlButton icon={RotateCw} label="Lock Rotate" onClick={() => onAction("Lock Rotate")} /><ControlButton icon={Grid3X3} label="Install APK" onClick={() => onAction("Install APK")} /><ControlButton icon={Upload} label="Import File" onClick={() => onAction("Import File")} /><ControlButton icon={Download} label="Export File" onClick={() => onAction("Export File")} /><ControlButton icon={ClipboardCopy} label="ADB Command" onClick={() => onAction("ADB Command")} /><ControlButton icon={Keyboard} label="Quick Phrase" onClick={() => onAction("Quick Phrase")} /><ControlButton icon={RotateCw} label="Reboot" onClick={() => onAction("Reboot")} /><ControlButton icon={Keyboard} label="Switch Keyboard" onClick={() => onAction("Switch Keyboard")} /></div>
+      <div className="shrink-0 border-t border-border px-2 py-2">
+        <LiveMirrorDeviceKeys session={session} />
+        <p className="mt-1 text-center text-[10px] text-muted-foreground">{followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
       </div>
     </div>
   </div>

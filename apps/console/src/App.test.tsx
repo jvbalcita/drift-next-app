@@ -220,7 +220,7 @@ describe("Drift command center", () => {
     expect(screen.getByRole("button", { name: /Atlas 07/i })).toHaveStyle({ width: "108px", height: "192px" })
   })
 
-  it("opens a source and selects followers by clicking compact frames", async () => {
+  it("opens a source and selects followers by clicking compact frames, with no preview control to press", async () => {
     const user = setupUser()
     render(<App />)
 
@@ -228,12 +228,11 @@ describe("Drift command center", () => {
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
     await user.click(screen.getByRole("button", { name: /Atlas 07/i }))
 
-    const startButton = screen.getByRole("button", { name: /Start preview/i })
-    expect(startButton).toBeEnabled()
-
-    await user.click(startButton)
-
-    expect(screen.getByText(/no device command was sent/i)).toBeInTheDocument()
+    // Selecting a frame IS what makes it a follower: the panel carries no
+    // preview control at all now, and the selection told the plane itself.
+    expect(screen.queryByRole("button", { name: /Start preview/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Preview mirrors the selected followers/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/1 follower selected/i)).toBeInTheDocument()
   })
 
   it("opens the workspace sheet and exposes OTG octet inputs", async () => {

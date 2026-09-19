@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
-import { CornerDownLeft, Info, Keyboard, KeyboardOff, LoaderCircle, MousePointer2, RotateCw, Smartphone, X } from "lucide-react"
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
+import { ChevronLeft, Circle, Info, Keyboard, KeyboardOff, LoaderCircle, MousePointer2, RotateCw, Smartphone, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
-import type { DeviceView, DispatchIntent, ObservationView } from "@/lib/domain/control-plane"
-import { drawnContentRect, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, liveStreamFrame, observationTokenFor, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamPoint, transportSentence, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect } from "@/lib/live-mirror"
+import type { DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
+import { drawnContentRect, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, transportSentence, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect } from "@/lib/live-mirror"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 
 /**
@@ -16,13 +15,14 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion"
  * that carry what the frame itself no longer holds.
  *
  * The frame's body is the device's screen: the picture and the pointer, and
- * nothing else. The state, the transport, the encoded frame, the box the picture
- * is drawn in, and every refusal and warning are read from the info control
- * beside the pin (`LiveMirrorInfo`), and the device controls - key events, typed
- * text, stopping the stream - live in the panel's action column
- * (`LiveMirrorInputs`). One session is opened for one device and all three
- * surfaces read it, so there is exactly one stream and one state machine behind
- * them; the composition is `FloatingDevice`'s, in ControlPage.
+ * nothing else. The state, the transport, the encoded frame, the observation its
+ * coordinates are measured from, and every refusal and warning are read from the
+ * info control beside the pin (`LiveMirrorInfo`), the operator's own keyboard and
+ * its capture state are the panel's action column (`LiveMirrorKeyboardCapture`),
+ * and the device's own navigation bar is the panel's footer
+ * (`LiveMirrorDeviceKeys`). One session is opened for one device and all of these
+ * read it, so there is exactly one stream and one state machine behind them; the
+ * composition is `FloatingDevice`'s, in ControlPage.
  *
  * Five things here are deliberate rather than incidental:
  *
@@ -42,10 +42,13 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion"
  *    reaches no device - it is refused and named, not scaled onto the frame;
  *  - input is dispatched through the console's dispatch, which is the
  *    lease/fencing/policy/control-session kernel's path, and the render frame
- *    travels with every coordinate. The surface refuses locally only what it
- *    knows it cannot describe - no lease, no observation, no frame, no drawn
- *    picture, a point beside the picture - and never invents a value the kernel
- *    would have to guess about;
+ *    travels with every coordinate. The observation a coordinate is measured from
+ *    is the frame's OWN live stream (`streamObservationToken`), because the point
+ *    is read off a picture that stream carried; the kernel still cross-checks the
+ *    declared frame against the size the device presents at. The surface refuses
+ *    locally only what it knows it cannot describe - no lease, no stream, no
+ *    frame, no drawn picture, a point beside the picture - and never invents a
+ *    value the kernel would have to guess about;
  *  - the operator's own keyboard reaches the device through that same path while
  *    the frame holds focus. The frame is focusable, a keystroke is planned into
  *    one key event (`planKeystroke`) and dispatched as the key event the panel's
@@ -62,25 +65,21 @@ export interface LiveMirrorSurfaceProps {
   /** transport is the transport Console Settings chose for this console's streams. */
   transport?: LiveMirrorTransportChoice
   workspaceId: string
-  /** observationToken is the observation this device's coordinates are bound to. */
-  observationToken: string
   /** hasLease is whether this console holds this device's active control lease. */
   hasLease: boolean
-  dispatch: DispatchIntent
   /**
-   * observationsForDevice reads THIS device's own observations from the control
-   * plane, and it exists because the projection cannot answer the question the
-   * frame asks.
+   * leaseRefusal is the control plane's own answer when opening this frame's
+   * control session or acquiring its lease did not leave the console holding the
+   * device. It is empty when the console holds it.
    *
-   * `snapshot.observations` is one bounded page of a WORKSPACE's observations,
-   * so a device whose newest observation is older than that page has none as far
-   * as the projection is concerned - which is how a live frame comes to refuse
-   * every click with "this console has none for this device". The control plane
-   * lists observations for one device on request, so the frame asks for its own
-   * device's when the projection names none, and only while it has a live
-   * session to measure a coordinate against.
+   * It exists because the gate below it is silent on its own: a console that never
+   * obtained the lease shows a `not-allowed` pointer over a live picture, which
+   * names nothing and tells the operator nothing about what to do. The sentence
+   * the plane gave travels here and is rendered in the frame's details, complete,
+   * so a refusal is readable rather than merely visible.
    */
-  observationsForDevice?: (deviceId: string) => Promise<readonly ObservationView[]>
+  leaseRefusal?: string
+  dispatch: DispatchIntent
 }
 
 /**
@@ -101,15 +100,15 @@ export interface LiveMirrorSessionView {
   notice: string
   refusal: string
   inputBlockedReason: string
-  textBlockedReason: string
   inputReady: boolean
-  textReady: boolean
+  /** leaseRefusal is the plane's own words when this console did not obtain the device's lease. */
+  leaseRefusal: string
+  /** observationToken is the observation this frame's coordinates are measured from. */
+  observationToken: string
   dragging: boolean
-  draft: string
   /** Whether this frame has something in its details an operator has not read. */
   detailsAttention: boolean
   reducedMotion: boolean
-  setDraft: (value: string) => void
   attachVideo: (element: HTMLVideoElement | null) => void
   retry: () => void
   stop: () => void
@@ -121,7 +120,6 @@ export interface LiveMirrorSessionView {
   cancelPointer: () => void
   wheelScroll: (event: WheelEvent) => void
   sendKey: (keyCode: number, label: string) => void
-  sendText: (event: FormEvent<HTMLFormElement>) => void
   /**
    * capturing is whether the frame holds the operator's keyboard, which is the
    * same fact as whether the frame has focus. A keystroke that arrives while it
@@ -142,13 +140,14 @@ export interface LiveMirrorSessionView {
  * useLiveMirrorSession opens the device's stream and holds everything the frame
  * and its neighbouring surfaces need.
  *
- * The observation the coordinates are measured from is resolved here, in the one
- * place that knows both what the projection holds and what the live session is
- * doing: the projection's answer is preferred, the device's own observations are
- * read from the control plane when it has none, and a frame that still has none
- * refuses the input with the sentence naming what is missing.
+ * The observation a coordinate is measured from is the frame's own live stream
+ * (see `streamObservationToken`): a pointer is read off a picture this stream
+ * carried, so the stream is the observation the coordinate belongs to. That is
+ * the whole of the binding - a coordinate this console cannot describe is refused
+ * and named, and the kernel cross-checks the declared frame against the size the
+ * device presents at before anything reaches it.
  */
-export function useLiveMirrorSession({ device, mirror, transport = "webrtc", workspaceId, observationToken, hasLease, dispatch, observationsForDevice }: LiveMirrorSurfaceProps): LiveMirrorSessionView {
+export function useLiveMirrorSession({ device, mirror, transport = "webrtc", workspaceId, hasLease, leaseRefusal = "", dispatch }: LiveMirrorSurfaceProps): LiveMirrorSessionView {
   const reducedMotion = useReducedMotion()
   const { phase, stream, failure, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport })
   const frame = liveStreamFrame(stream)
@@ -170,61 +169,36 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
   const [notice, setNotice] = useState("")
   const [refusal, setRefusal] = useState("")
   const [dragging, setDragging] = useState(false)
-  const [draft, setDraft] = useState("")
-  const [observationRead, setObservationRead] = useState<{ deviceId: string; token: string; reading: boolean }>({ deviceId: "", token: "", reading: false })
 
   const attachMirrorVideo = useCallback((element: HTMLVideoElement | null) => {
     video.current = element
     attachVideo(element)
   }, [attachVideo])
 
-  // The lookup is held in a ref so a caller that rebuilds it every render cannot
-  // restart the read: what re-runs the read is the device, whether a token is
-  // missing, and whether there is a live session to measure against.
-  const deviceObservations = useRef(observationsForDevice)
-  deviceObservations.current = observationsForDevice
-  const hasProjectedObservation = observationToken.trim() !== ""
   const sessionOpen = phase === "live" || phase === "starting"
-  useEffect(() => {
-    const read = deviceObservations.current
-    if (!read || hasProjectedObservation || !sessionOpen) return
-    let active = true
-    setObservationRead({ deviceId: device.id, token: "", reading: true })
-    void read(device.id).then(
-      (observations) => {
-        if (!active) return
-        const found = observationTokenFor(observations, device.id)
-        setObservationRead({ deviceId: device.id, token: found, reading: false })
-      },
-      () => { if (active) setObservationRead({ deviceId: device.id, token: "", reading: false }) },
-    )
-    return () => { active = false }
-  }, [device.id, hasProjectedObservation, sessionOpen])
-
-  const readObservation = observationRead.deviceId === device.id ? observationRead : { deviceId: device.id, token: "", reading: false }
-  const coordinateObservation = hasProjectedObservation ? observationToken : readObservation.token
-  const readingObservation = readObservation.reading
+  /**
+   * The observation this frame's coordinates are measured from is the stream
+   * itself, and the reason is that nothing else here has been measured.
+   *
+   * A coordinate is read off the picture the stream carried, in the frame the
+   * stream is encoded at, so the observation the point belongs to is this stream
+   * and no other: binding it to a capture taken at some other moment would name a
+   * screen the operator did not point at. What makes the coordinate safe is not
+   * the token - the kernel carries it as the frame's own label - it is the
+   * render-space cross-check on the other side, which refuses a declared frame the
+   * device does not present at. A frame with no live stream has no observation to
+   * measure in, and says so rather than inventing one.
+   */
+  const coordinateObservation = streamObservationToken(stream)
 
   const inputBlockedReason = !hasLease
     ? liveMirrorCopy.input.noLease
-    : readingObservation
-      ? liveMirrorCopy.input.readingObservation
-      : coordinateObservation === ""
-        ? liveMirrorCopy.input.noObservation
-        : frame === null
-          ? liveMirrorCopy.input.noFrame
-          : ""
+    : coordinateObservation === ""
+      ? liveMirrorCopy.input.noObservation
+      : frame === null
+        ? liveMirrorCopy.input.noFrame
+        : ""
   const inputReady = inputBlockedReason === "" && sessionOpen
-  // Typed text is held to a different rule than a coordinate, and the difference
-  // is the point: it carries no frame, so an unobserved frame is not a reason to
-  // refuse it, and it travels the device's live session, so a stream that is not
-  // open is.
-  const textBlockedReason = !hasLease
-    ? liveMirrorCopy.text.noLease
-    : sessionOpen
-      ? ""
-      : liveMirrorCopy.text.noStream
-  const textReady = textBlockedReason === ""
 
   /**
    * picture is the two DOM facts the mapping needs, read at the moment a pointer
@@ -281,29 +255,6 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     const result = await dispatch({ type: "submitDeviceKeyEvent", deviceId: device.id, keyCode, confirmed: true })
     setNotice(`${label}: ${result.message}`)
     setRefusal(result.ok ? "" : result.message)
-  }
-
-  /**
-   * sendText types what the operator typed into the device.
-   *
-   * The value is read once, dispatched once, and dropped from this component's
-   * state only when the control plane accepted the dispatch: a value the console
-   * keeps after it was typed is a value that will be typed a second time, and a
-   * value it drops after a refusal is one the operator has to type again. Nothing
-   * here renders it — the notice names the outcome, never the content.
-   */
-  async function sendText(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!textReady) return
-    const value = draft
-    if (value.trim() === "") {
-      setRefusal(liveMirrorCopy.text.empty)
-      return
-    }
-    setRefusal("")
-    const result = await dispatch({ type: "submitDeviceText", deviceId: device.id, text: value, confirmed: true })
-    setNotice(`${result.message}`)
-    if (result.ok) setDraft("")
   }
 
   /**
@@ -468,18 +419,17 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     notice,
     refusal,
     inputBlockedReason,
-    textBlockedReason,
     inputReady,
-    textReady,
+    leaseRefusal,
+    observationToken: coordinateObservation,
     dragging,
-    draft,
     // The info control marks itself when it is holding something: a refusal an
-    // operator just caused, a stream that failed, or the reason a live frame's
-    // input will be refused. A refusal behind an unopened control with no mark on
-    // it would be the silent failure this product does not do.
-    detailsAttention: refusal !== "" || failure !== "" || coordinateRuleHolds,
+    // operator just caused, a stream that failed, the plane's own refusal to leave
+    // this console holding the device, or the reason a live frame's input will be
+    // refused. A refusal behind an unopened control with no mark on it would be
+    // the silent failure this product does not do.
+    detailsAttention: refusal !== "" || failure !== "" || leaseRefusal !== "" || coordinateRuleHolds,
     reducedMotion,
-    setDraft,
     attachVideo: attachMirrorVideo,
     retry,
     stop,
@@ -490,7 +440,6 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     cancelPointer,
     wheelScroll,
     sendKey: (keyCode, label) => void sendKey(keyCode, label),
-    sendText: (event) => void sendText(event),
     capturing,
     attachStage,
     beginCapture,
@@ -567,23 +516,33 @@ export function LiveMirrorSurface({ session }: { session: LiveMirrorSessionView 
  * sentence over a device's screen is a sentence over the thing an operator is
  * reading. The control marks itself while it holds something unread, so moving
  * the copy out of the frame did not make it silent.
+ *
+ * The dialog is CONTROLLED and the tooltip's trigger is the button itself, which
+ * is the whole of the fix for the owner's detached tooltip: nesting a trigger
+ * inside another trigger left the positioner with an anchor it could not measure,
+ * and it drew the sentence away from the icon - outside the frame it belongs to.
+ * One element, named by `aria-label` and anchored where it is drawn, is what the
+ * tooltip's position is computed from. It is placed BELOW the icon inside the
+ * panel, so a sentence about the frame is read on the frame rather than dropped
+ * off the top of the window.
  */
 export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) {
-  const { phase, stream, frame, failure, refusal, inputBlockedReason, textBlockedReason, detailsAttention } = session
+  const { phase, stream, frame, failure, refusal, leaseRefusal, inputBlockedReason, observationToken, detailsAttention } = session
+  const [open, setOpen] = useState(false)
   const drawn = session.readDrawn()
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <TooltipProvider delay={0}>
         <Tooltip>
           <TooltipTrigger
-            render={<DialogTrigger render={<Button size="icon-sm" variant="ghost" data-testid="live-mirror-info" aria-label={detailsAttention ? `${liveMirrorCopy.details.label}. ${liveMirrorCopy.details.unread}` : liveMirrorCopy.details.label} />} />}
+            render={<Button size="icon-sm" variant="ghost" data-testid="live-mirror-info" onClick={() => setOpen(true)} aria-label={detailsAttention ? `${liveMirrorCopy.details.label}. ${liveMirrorCopy.details.unread}` : liveMirrorCopy.details.label} />}
           >
             <span className="relative inline-flex items-center justify-center">
               <Info className="size-3.5" aria-hidden="true" />
               {detailsAttention ? <span data-testid="live-mirror-info-mark" aria-hidden="true" className="absolute -right-1 -top-1 size-1.5 rounded-full bg-amber-400" /> : null}
             </span>
           </TooltipTrigger>
-          <TooltipContent>{liveMirrorCopy.details.tooltip}</TooltipContent>
+          <TooltipContent side="bottom" align="end" sideOffset={6}>{liveMirrorCopy.details.tooltip}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
       <DialogContent className="max-w-lg rounded-none">
@@ -613,6 +572,12 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
             </dd>
           </div>
           <div>
+            <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">{liveMirrorCopy.details.field.observation}</dt>
+            <dd className="mt-1" data-testid="live-mirror-observation">
+              {observationToken === "" ? liveMirrorCopy.details.observationAbsent : liveMirrorCopy.details.observationPresent(observationToken)}
+            </dd>
+          </div>
+          <div>
             <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">{liveMirrorCopy.details.field.drawn}</dt>
             <dd className="mt-1" data-testid="live-mirror-drawn">{drawnSentence(drawn)}</dd>
           </div>
@@ -632,10 +597,10 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
               <dd className="mt-1 text-amber-600 dark:text-amber-400" data-testid="live-mirror-input-blocked">{inputBlockedReason}</dd>
             </div>
           ) : null}
-          {textBlockedReason !== "" ? (
+          {leaseRefusal !== "" ? (
             <div>
-              <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">{liveMirrorCopy.details.field.typing}</dt>
-              <dd className="mt-1 text-amber-600 dark:text-amber-400" data-testid="live-mirror-text-blocked">{textBlockedReason}</dd>
+              <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">{liveMirrorCopy.details.field.controlSession}</dt>
+              <dd className="mt-1 text-amber-600 dark:text-amber-400" role="alert" data-testid="live-mirror-lease-refusal">{leaseRefusal}</dd>
             </div>
           ) : null}
           {refusal !== "" ? (
@@ -651,100 +616,103 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
 }
 
 /**
- * LiveMirrorInputs is the device controls the frame's body no longer holds: the
- * operator's own keyboard and its capture state, key events, typed text, and
- * stopping or reopening the stream.
+ * LiveMirrorKeyboardCapture is the operator's own keyboard, as the panel states
+ * it: whether this frame holds the console's keystrokes, and the one named action
+ * that hands them back.
  *
- * They live in the panel's action column, which is a separate surface from the
- * frame and keeps every command it had. The outcome of a dispatch is stated here
- * beside the controls that caused it, and the value an operator typed is never
- * rendered back: the notice names the outcome, never the content.
+ * It lives in the panel's action column rather than over the device's screen,
+ * because it is a fact about the operator's keyboard and the frame's focus, and
+ * the panel is where the keyboard controls are. It is stated whichever way it
+ * stands - a state an operator cannot read is a state they will assume - and the
+ * action that leaves capture is a control rather than a key, so the device
+ * cannot swallow it.
  *
- * The capture state is here rather than over the device's screen because it is a
- * fact about the operator's keyboard and the frame's focus, and the panel is
- * where the keyboard controls are. It is stated whichever way it stands - a
- * state an operator cannot read is a state they will assume - and the one action
- * that leaves capture is a named control rather than a key, so the device cannot
- * swallow it.
+ * The key row and the type-into-the-device field this block used to sit above are
+ * gone: typing into a device is the operator's own keyboard, and the device's own
+ * keys are the navigation bar in this panel's footer.
  */
-export function LiveMirrorInputs({ session }: { session: LiveMirrorSessionView }) {
+export function LiveMirrorKeyboardCapture({ session }: { session: LiveMirrorSessionView }) {
   return (
-    <div data-testid="live-mirror-inputs" className="space-y-2">
-      <div data-testid="live-mirror-capture-state" className="space-y-1 border border-border p-2">
-        <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
-          <Keyboard className="size-3" aria-hidden="true" />
-          {liveMirrorCopy.capture.label}
-        </p>
-        <p data-testid="live-mirror-capture" aria-live="polite" className="text-[10px] leading-4 text-muted-foreground">
-          {session.capturing ? liveMirrorCopy.capture.on : liveMirrorCopy.capture.off}
-        </p>
-        {session.capturing ? (
-          <TooltipProvider delay={0}>
-            <Tooltip>
-              <TooltipTrigger render={<Button type="button" size="sm" variant="outline" className="w-full" data-testid="live-mirror-release" onClick={session.releaseCapture} />}>
-                <KeyboardOff className="size-3.5" aria-hidden="true" />
-                {liveMirrorCopy.capture.release}
-              </TooltipTrigger>
-              <TooltipContent>{liveMirrorCopy.capture.releaseHint}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap gap-1" role="group" aria-label="Device key input">
-        {liveMirrorCopy.keys.map((key) => (
-          <Button
-            key={key.keyCode}
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={!session.inputReady}
-            aria-label={`Send ${key.label} key`}
-            onClick={() => session.sendKey(key.keyCode, key.label)}
-          >
-            <Keyboard className="size-3.5" aria-hidden="true" />
-            {key.label}
-          </Button>
-        ))}
-      </div>
-      <form className="space-y-1" onSubmit={session.sendText}>
-        <label className="block text-[10px] leading-4 text-muted-foreground" htmlFor="live-mirror-text">
-          {liveMirrorCopy.text.label}
-        </label>
-        <div className="flex gap-1">
-          <Input
-            id="live-mirror-text"
-            data-testid="live-mirror-text"
-            className="h-7 flex-1 text-[11px]"
-            value={session.draft}
-            placeholder={liveMirrorCopy.text.placeholder}
-            autoComplete="off"
-            spellCheck={false}
-            disabled={!session.textReady}
-            onChange={(event) => session.setDraft(event.target.value)}
-          />
-          <Button type="submit" size="sm" variant="outline" disabled={!session.textReady} data-testid="live-mirror-text-send">
-            <CornerDownLeft className="size-3.5" aria-hidden="true" />
-            {liveMirrorCopy.text.send}
-          </Button>
-        </div>
-        <p className="text-[10px] leading-4 text-muted-foreground">{liveMirrorCopy.text.hint}</p>
-      </form>
-      {session.phase === "live" || session.phase === "starting" ? (
-        <Button type="button" size="sm" variant="outline" className="w-full" onClick={session.stop} data-testid="live-mirror-stop">
-          <X className="size-3.5" aria-hidden="true" />
-          Stop mirror
-        </Button>
+    <div data-testid="live-mirror-keyboard-capture" className="space-y-1 border border-border p-2">
+      <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
+        <Keyboard className="size-3" aria-hidden="true" />
+        {liveMirrorCopy.capture.label}
+      </p>
+      <p data-testid="live-mirror-capture" aria-live="polite" className="text-[10px] leading-4 text-muted-foreground">
+        {session.capturing ? liveMirrorCopy.capture.on : liveMirrorCopy.capture.off}
+      </p>
+      {session.capturing ? (
+        <TooltipProvider delay={0}>
+          <Tooltip>
+            <TooltipTrigger render={<Button type="button" size="sm" variant="outline" className="w-full" data-testid="live-mirror-release" onClick={session.releaseCapture} />}>
+              <KeyboardOff className="size-3.5" aria-hidden="true" />
+              {liveMirrorCopy.capture.release}
+            </TooltipTrigger>
+            <TooltipContent>{liveMirrorCopy.capture.releaseHint}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * LiveMirrorDeviceKeys is the panel's footer: the device's OWN navigation bar,
+ * drawn as the phone draws it - menu/recents, home, back - in one row of three.
+ *
+ * It is not a second input contract: each key is dispatched as the device's own
+ * key event through the kernel, the control session and the lease, the same path
+ * a tap travels. The keys are the device's own, so an operator reaches what the
+ * phone itself puts in that row, including the app switcher, which is what
+ * "menu" is on this fleet's Android.
+ *
+ * The outcome of a dispatch is stated beside the row, and the row states why it
+ * cannot act rather than only looking disabled: the info control beside the pin
+ * carries the same reason in full.
+ */
+export function LiveMirrorDeviceKeys({ session }: { session: LiveMirrorSessionView }) {
+  return (
+    <div data-testid="live-mirror-device-keys" className="space-y-1">
+      <div className="flex items-stretch justify-center gap-1 border-t border-border pt-2" role="group" aria-label={liveMirrorCopy.navigationKeys.label}>
+        {liveMirrorCopy.navigationKeys.keys.map((key) => {
+          const KeyIcon = navigationKeyIcons[key.name]
+          return (
+            <Button
+              key={key.keyCode}
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={!session.inputReady}
+              aria-label={key.label}
+              title={key.label}
+              data-testid={`live-mirror-key-${key.name}`}
+              className="h-8 flex-1 rounded-none"
+              onClick={() => session.sendKey(key.keyCode, key.label)}
+            >
+              <KeyIcon className={navigationKeyIconClass[key.name]} aria-hidden="true" />
+            </Button>
+          )
+        })}
+      </div>
+      <p className="min-h-4 text-[10px] leading-4 text-muted-foreground" aria-live="polite" data-testid="live-mirror-notice">{session.notice}</p>
       {session.phase === "failed" || session.phase === "ended" ? (
         <Button type="button" size="sm" variant="outline" className="w-full" onClick={session.retry} data-testid="live-mirror-retry">
           <RotateCw className="size-3.5" aria-hidden="true" />
           Reopen the live stream
         </Button>
       ) : null}
-      <p className="min-h-4 text-[10px] leading-4 text-muted-foreground" aria-live="polite" data-testid="live-mirror-notice">{session.notice}</p>
     </div>
   )
 }
+
+/**
+ * The three glyphs, drawn as the device's own bar draws them: a triangle for
+ * back, a circle for home, a square for the app switcher. They are decoration on
+ * a control whose name and key code are the contract, so each button is named by
+ * its `aria-label` rather than by its shape.
+ */
+const navigationKeyIcons = { back: ChevronLeft, home: Circle, recents: Square } as const
+const navigationKeyIconClass = { back: "size-5", home: "size-4", recents: "size-3.5" } as const
 
 /**
  * StreamStateOverlay paints what is true over the video element.

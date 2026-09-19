@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { ConnectJsonClient, configuredLabToken, controlPlaneBaseUrl, defaultOperatorId, usesMockControlPlane } from "@/lib/api/connect-json"
-import { DeviceMirrorClient, ObservationClient, type LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import { mapObservation } from "@/lib/api/real-control-plane"
-import type { ObservationView } from "@/lib/domain/control-plane"
+import { DeviceMirrorClient, type LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { loadRuntimeConfig } from "@/lib/runtime-config"
 
 /**
@@ -32,19 +30,8 @@ export function createLiveMirrorClient(options: LiveMirrorClientOptions = {}): L
 }
 
 /**
- * The console's read of ONE device's own observations.
- *
- * It exists because the projection cannot answer the frame's question.
- * `snapshot.observations` is one bounded page of a WORKSPACE's observations, so
- * a device whose newest observation is older than that page has none as far as
- * the projection is concerned - which is how a live frame came to refuse every
- * click with "input needs the observation the coordinates are measured from, and
- * this console has none for this device". The control plane lists observations
- * for one device on request, and this is that read.
+ * What this console reaches the control plane with, resolved once.
  */
-export type DeviceObservationLookup = (workspaceId: string, deviceId: string) => Promise<readonly ObservationView[]>
-
-/** What this console reaches the control plane with, resolved once. */
 interface ControlPlaneConnection {
   json: ConnectJsonClient
   operatorId: string
@@ -83,28 +70,11 @@ function connectFromEnvironment(): ControlPlaneConnection | undefined {
   return { json: new ConnectJsonClient(baseUrl, configuredLabToken()), operatorId: defaultOperatorId }
 }
 
-/** useLiveMirrorClient is the live-path client, or nothing when this console has no control plane. */
+/**
+ * useLiveMirrorClient is the live-path client, or nothing when this console has
+ * no control plane.
+ */
 export function useLiveMirrorClient(): LiveMirrorClient | undefined {
   const connection = useControlPlaneConnection()
   return useMemo(() => (connection ? new DeviceMirrorClient(connection.json, connection.operatorId) : undefined), [connection])
-}
-
-/**
- * useDeviceObservationLookup is the device-scoped observation read, or nothing
- * at all when this console has no control plane behind it.
- *
- * Nothing at all is the same answer the live client gives, and for the same
- * reason: a console on fixture data cannot reach a control plane, so the frame
- * reports the observation it lacks rather than pretending it read one.
- */
-export function useDeviceObservationLookup(): DeviceObservationLookup | undefined {
-  const connection = useControlPlaneConnection()
-  return useMemo(() => {
-    if (!connection) return undefined
-    const client = new ObservationClient(connection.json)
-    return async (workspaceId: string, deviceId: string) => {
-      const response = await client.listObservationSnapshots(workspaceId, deviceId)
-      return response.observations.map(mapObservation)
-    }
-  }, [connection])
 }
