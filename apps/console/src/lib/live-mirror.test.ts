@@ -18,7 +18,7 @@ import {
   liveStreamView,
   liveTransportOf,
   maximumScrollStepsPerEvent,
-  observationTokenFor,
+  streamObservationToken,
   planGesture,
   planKeystroke,
   planWheelScrolls,
@@ -35,7 +35,6 @@ import {
   type MirrorDevice,
   type SurfaceRect,
 } from "./live-mirror"
-import type { ObservationView } from "./domain/control-plane"
 
 const frame = { width: 1080, height: 1920 }
 
@@ -292,54 +291,20 @@ describe("one gesture, one action", () => {
   })
 })
 
-describe("the observation a coordinate is dispatched against", () => {
-  function observed(overrides: Partial<ObservationView>): ObservationView {
-    return {
-      id: "observation-1",
-      deviceId: "atlas-04",
-      capturedAt: "2026-09-18T09:00:00Z",
-      source: "device",
-      captureStatus: "complete",
-      packageName: "",
-      activityName: "",
-      coordinateSpace: "display:1080x1920",
-      freshnessToken: "fresh-1",
-      artifactCount: 1,
-      ...overrides,
-    }
-  }
-
-  it("takes the newest complete observation of THIS device, and never another device's", () => {
-    const observations = [
-      observed({ id: "old", capturedAt: "2026-09-18T08:00:00Z", freshnessToken: "fresh-old" }),
-      observed({ id: "other", deviceId: "nova-05", capturedAt: "2026-09-18T10:00:00Z", freshnessToken: "fresh-other" }),
-      observed({ id: "new", capturedAt: "2026-09-18T09:30:00Z", freshnessToken: "fresh-new" }),
-    ]
-    expect(observationTokenFor(observations, "atlas-04")).toBe("fresh-new")
-    expect(observationTokenFor(observations, "nova-05")).toBe("fresh-other")
-    expect(observationTokenFor(observations, "orion-01")).toBe("")
+describe("the observation a coordinate is measured from", () => {
+  /**
+   * The binding is the frame's own live stream, and that is the whole of it: a
+   * pointer is read off a picture the stream carried, so the stream is the
+   * observation the coordinate belongs to. Nothing here looks a capture up, and
+   * a frame with no stream binds nothing.
+   */
+  it("is the stream the picture came from, and nothing at all without one", () => {
+    expect(streamObservationToken(liveStreamView(create(MirrorStreamSchema, { streamId: "stream-9", deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920 })))).toBe("stream-9")
+    expect(streamObservationToken(null)).toBe("")
   })
 
-  it("skips an observation that is not a complete capture, and one that names no token", () => {
-    const observations = [
-      observed({ id: "partial", capturedAt: "2026-09-18T11:00:00Z", captureStatus: "partial", freshnessToken: "fresh-partial" }),
-      observed({ id: "failed", capturedAt: "2026-09-18T10:30:00Z", captureStatus: "failed", freshnessToken: "fresh-failed" }),
-      observed({ id: "tokenless", capturedAt: "2026-09-18T10:00:00Z", freshnessToken: "   " }),
-      observed({ id: "complete", capturedAt: "2026-09-18T09:00:00Z", freshnessToken: "fresh-complete" }),
-    ]
-    expect(observationTokenFor(observations, "atlas-04")).toBe("fresh-complete")
-  })
-
-  it("falls back to the projection's own order when the times cannot be compared", () => {
-    // The control plane lists observations newest first, so the first one that
-    // qualifies is the newest when a fixture's times are not comparable - and the
-    // console reports no token rather than inventing an order.
-    const unorderable = [
-      observed({ id: "first", capturedAt: "just now", freshnessToken: "fresh-first" }),
-      observed({ id: "second", capturedAt: "2 min ago", freshnessToken: "fresh-second" }),
-    ]
-    expect(observationTokenFor(unorderable, "atlas-04")).toBe("fresh-first")
-    expect(observationTokenFor([], "atlas-04")).toBe("")
+  it("binds nothing to a stream that names itself with only whitespace", () => {
+    expect(streamObservationToken(liveStreamView(create(MirrorStreamSchema, { streamId: "   ", deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920 })))).toBe("")
   })
 })
 

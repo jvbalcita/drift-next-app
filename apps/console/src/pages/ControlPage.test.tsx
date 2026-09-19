@@ -905,9 +905,14 @@ describe("ControlPage fleet tiles", () => {
     const failed = await screen.findByTestId("live-tile-state-atlas-04")
     expect(failed).toHaveAttribute("data-tile-state", "failed")
     // The classification reaches the operator: the plane's own reason, in the
-    // tile's own element, and no picture kept from before the failure.
+    // tile's own element, and NO picture kept from before the failure. The tile
+    // holds the element its picture would be written into - it is what makes the
+    // first frame land - so what is checked is that the element carries no
+    // picture and is not shown, rather than that it is absent.
     expect(failed).toHaveAttribute("aria-label", expect.stringContaining(refusal) as unknown as string)
-    expect(screen.queryByTestId("live-tile-video-atlas-04")).not.toBeInTheDocument()
+    const droppedElement = screen.getByTestId("live-tile-video-atlas-04")
+    expect(droppedElement).toHaveProperty("srcObject", null)
+    expect(droppedElement).toHaveClass("invisible")
 
     // The other observed tiles are unaffected: one tile's failure is not a reason
     // for the grid to stop carrying every other device.

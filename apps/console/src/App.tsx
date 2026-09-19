@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import { Bell, Settings2 } from "lucide-react"
 import { AppSidebar } from "./components/app-sidebar"
 import {
@@ -20,9 +20,8 @@ import { TooltipProvider } from "./components/ui/tooltip"
 import { Toaster } from "./components/ui/sonner"
 import { Skeleton } from "./components/ui/skeleton"
 import { useControlPlane } from "./lib/api/use-control-plane"
-import { useDeviceObservationLookup, useLiveMirrorClient } from "./lib/api/live-mirror-client"
+import { useLiveMirrorClient } from "./lib/api/live-mirror-client"
 import type { LiveMirrorClient } from "./lib/api/control-plane-clients"
-import type { ObservationView } from "./lib/domain/control-plane"
 import { hashForRoute, routeFromHash, viewLabel, type Route, type Section } from "./lib/navigation"
 import { AgentsPage } from "./pages/AgentsPage"
 import { ControlPage } from "./pages/ControlPage"
@@ -42,19 +41,6 @@ function App() {
   const [route, setRoute] = useState<Route>(() => routeFromHash(window.location.hash))
   const { snapshot, dispatch, dispatchLab, labNotice, loading, connectionError, reload } = useControlPlane()
   const liveMirror = useLiveMirrorClient()
-  /**
-   * The frame's read of a device's own observations, bound to this workspace.
-   *
-   * It is a separate read from the projection for a stated reason: the projection
-   * carries one page of the WORKSPACE's observations, so a device whose newest
-   * observation is older than that page looks like a device with none - and a
-   * frame that cannot name the observation its coordinates are measured from
-   * refuses every click. Nothing is read until a frame asks (see
-   * `useLiveMirrorSession`).
-   */
-  const observationLookup = useDeviceObservationLookup()
-  const workspaceId = snapshot.workspaceId
-  const observationsForDevice = useMemo(() => (observationLookup ? (deviceId: string) => observationLookup(workspaceId, deviceId) : undefined), [observationLookup, workspaceId])
   useEffect(() => {
     const syncRoute = () => setRoute(routeFromHash(window.location.hash))
     window.addEventListener("hashchange", syncRoute)
@@ -98,7 +84,7 @@ function App() {
               </div>
             ) : null}
             <Suspense fallback={<ConsoleLoadingState />}>
-              {renderSection(route, snapshot, dispatch, dispatchLab, labNotice, (view) => navigate(route.section, view), liveMirror, observationsForDevice)}
+              {renderSection(route, snapshot, dispatch, dispatchLab, labNotice, (view) => navigate(route.section, view), liveMirror)}
             </Suspense>
           </main>
         </SidebarInset>
@@ -112,9 +98,9 @@ function ConsoleLoadingState() {
   return <div role="status" className="space-y-4 border border-border bg-card p-6" aria-label="Loading console surface"><Skeleton className="h-4 w-32 rounded-none" /><Skeleton className="h-10 w-2/5 rounded-none" /><div className="grid gap-3 md:grid-cols-3"><Skeleton className="h-28 rounded-none" /><Skeleton className="h-28 rounded-none" /><Skeleton className="h-28 rounded-none" /></div></div>
 }
 
-function renderSection(route: Route, snapshot: ReturnType<typeof useControlPlane>["snapshot"], dispatch: ReturnType<typeof useControlPlane>["dispatch"], dispatchLab: ReturnType<typeof useControlPlane>["dispatchLab"], labNotice: string, onViewChange: (view: string) => void, liveMirror?: LiveMirrorClient, observationsForDevice?: (deviceId: string) => Promise<readonly ObservationView[]>) {
+function renderSection(route: Route, snapshot: ReturnType<typeof useControlPlane>["snapshot"], dispatch: ReturnType<typeof useControlPlane>["dispatch"], dispatchLab: ReturnType<typeof useControlPlane>["dispatchLab"], labNotice: string, onViewChange: (view: string) => void, liveMirror?: LiveMirrorClient) {
   switch (route.section) {
-    case "Control": return <ControlPage snapshot={snapshot} dispatch={dispatch} dispatchLab={dispatchLab} labNotice={labNotice} mirror={liveMirror} observationsForDevice={observationsForDevice} />
+    case "Control": return <ControlPage snapshot={snapshot} dispatch={dispatch} dispatchLab={dispatchLab} labNotice={labNotice} mirror={liveMirror} />
     case "Devices": return <DevicesPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Accounts": return <AccountsPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />
     case "Network Profiles": return <NetworkProfilesPage snapshot={snapshot} dispatch={dispatch} view={route.view} onViewChange={onViewChange} />

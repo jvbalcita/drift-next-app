@@ -18,10 +18,20 @@ import { tilePictureSentence } from "@/lib/live-tiles"
  *    viewer places (`viewing`). A tile the bound does not reach says so in the
  *    tile rather than quietly opening a fifth stream, which is what keeps the
  *    subscriber set the console's own decision rather than the grid's size;
- *  - a picture that is not live is not shown at all. The last frame a stream
- *    carried is not the device's screen now, and a still image sitting in a tile
- *    reads as exactly that, so the element is dropped and the tile's own
- *    sentence takes its place;
+ *  - the video element is mounted for the whole lifetime of the SUBSCRIPTION,
+ *    exactly as the big frame mounts its own. It is the element the device's
+ *    picture is written into, so an element that appears only once the stream
+ *    says it is up is an element that can miss the picture it was opened for: the
+ *    track arrives with the handshake, and a tile that mounts its element after
+ *    the handshake drops that first picture and shows its background colour under
+ *    a state label reading Live. What keeps a stale frame off the grid is not the
+ *    element's absence but the teardown: the session clears the element's source
+ *    before it states that a stream ended or failed, so an element that outlives
+ *    its stream is empty;
+ *  - a picture that is not live is not SHOWN. `showing` still gates what is
+ *    painted rather than what is mounted, so a tile whose stream has not carried
+ *    a picture yet, or has failed, draws no picture over the device's colour and
+ *    reports the state it is in;
  *  - the sentence a tile shows is the classified one: a tile whose stream failed
  *    reports the control plane's own reason, the same sentence the big frame
  *    reports, and never a generic failure.
@@ -40,13 +50,15 @@ export interface LiveTilePictureProps {
 export function LiveTilePicture({ device, mirror, transport, workspaceId, viewing }: LiveTilePictureProps) {
   // The session is opened for this device only while this tile holds a place:
   // an empty device id keeps the hook idle, so a tile that is not viewing opens
-  // nothing and captures nothing.
+  // nothing and captures nothing. The element below follows the same condition,
+  // so a tile that subscribes is an element the picture can be written into from
+  // the first frame the handshake delivers.
   const subscribes = viewing && Boolean(mirror)
   const { phase, failure, attachVideo } = useLiveMirror(subscribes ? device.id : "", { client: mirror, workspaceId, transport })
   const showing = phase === "live" || phase === "starting"
   const sentence = tilePictureSentence(phase, failure, device, viewing, Boolean(mirror))
   return <>
-    {showing ? <video ref={attachVideo} data-testid={`live-tile-video-${device.id}`} muted playsInline autoPlay aria-hidden="true" className="absolute inset-0 size-full object-contain" /> : null}
+    {subscribes ? <video ref={attachVideo} data-testid={`live-tile-video-${device.id}`} muted playsInline autoPlay aria-hidden="true" className={`absolute inset-0 size-full object-contain ${showing ? "" : "invisible"}`} /> : null}
     <span
       data-testid={`live-tile-state-${device.id}`}
       data-tile-state={phase}

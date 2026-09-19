@@ -9,7 +9,7 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import type { ControlPlaneIntent, DispatchIntent, DeviceView, ObservationView } from "@/lib/domain/control-plane"
+import type { ControlPlaneIntent, DispatchIntent, DeviceView } from "@/lib/domain/control-plane"
 import { deviceStatusMeanings } from "@/lib/device-status"
 import { keyRepeatIntervalMs, liveMirrorCopy, liveStreamView, scrollStepUnits, type LiveStreamView } from "@/lib/live-mirror"
 import { FloatingDevice } from "./ControlPage"
@@ -24,7 +24,12 @@ import { FloatingDevice } from "./ControlPage"
  * column. Rendering one of those surfaces on its own would pass while the panel
  * around it put the chrome straight back over the device's screen.
  */
-const observationToken = "fresh-atlas-04"
+/**
+ * The observation a coordinate is bound to is the frame's own live stream, so
+ * what a dispatched input names is the stream the picture came from - the fake
+ * mirror below answers every start with this stream identity.
+ */
+const streamToken = "stream-1"
 const workspaceId = "workspace-lab-local"
 
 const workspace = { largeHeight: 480, smallHeight: 192, quality: "High", frameRate: 15, orientation: "portrait" } as const
@@ -73,29 +78,13 @@ function device(): DeviceView {
   return found
 }
 
-function observation(overrides: Partial<ObservationView> = {}): ObservationView {
-  return {
-    id: "observation-atlas-04",
-    deviceId: "atlas-04",
-    capturedAt: "2026-09-18T09:00:00Z",
-    source: "device",
-    captureStatus: "complete",
-    packageName: "",
-    activityName: "",
-    coordinateSpace: "display:1080x1920",
-    freshnessToken: "fresh-read-1",
-    artifactCount: 1,
-    ...overrides,
-  }
-}
-
 /**
  * renderPanel supplies the two boxes the pointer mapping reads the way a layout
  * is: the element's own box, and the size of the picture the browser decoded into
  * it. `picture` is the stream's shape unless a test says otherwise, which is the
  * case with no letterbox.
  */
-function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; token?: string; rect?: DOMRect; picture?: { width: number; height: number }; device?: DeviceView; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string }; observationsForDevice?: (deviceId: string) => Promise<readonly ObservationView[]> } = {}) {
+function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; leaseRefusal?: string; rect?: DOMRect; picture?: { width: number; height: number }; device?: DeviceView; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
   const intents: ControlPlaneIntent[] = []
   const dispatch: DispatchIntent = async (intent) => {
     intents.push(intent)
@@ -115,15 +104,13 @@ function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; t
       onPointerMove={() => undefined}
       onPointerUp={() => undefined}
       onClose={() => undefined}
-      onPreview={() => undefined}
       onAction={() => undefined}
       mirror={mirror}
       mirrorTransport="webrtc"
       workspaceId={workspaceId}
-      observationToken={options.token ?? observationToken}
+      leaseRefusal={options.leaseRefusal}
       hasLease={options.hasLease ?? true}
       dispatch={dispatch}
-      observationsForDevice={options.observationsForDevice}
     />,
   )
   const frame = screen.getByLabelText(/floating phone frame/i)
@@ -270,7 +257,7 @@ describe("the big frame is the device's screen", () => {
       y: 960,
       renderWidth: 1080,
       renderHeight: 1920,
-      observationToken,
+      observationToken: streamToken,
     })
   })
 
@@ -404,65 +391,79 @@ describe("the frame controls the device with the mouse", () => {
   })
 })
 
-describe("the observation a frame's input is dispatched against", () => {
+describe("the observation a frame's input is bound to", () => {
   /**
-   * The reported defect: a live frame refused every click with "input needs the
-   * observation the coordinates are measured from, and this console has none for
-   * this device", because the projection is one page of a WORKSPACE's
-   * observations and this device's own were not in it.
+   * The reported defect: a live frame refused every click for want of an
+   * OBSERVATION, and the observation it wanted was a capture the plane had never
+   * recorded. What the operator is actually pointing at is the picture this
+   * stream carried, in the frame this stream is encoded at, so the stream is the
+   * observation the coordinate belongs to - and the kernel still refuses a
+   * declared frame the device does not present at.
    */
-  it("reads the device's own observation when the projection holds none, and dispatches with it", async () => {
-    const reads: string[] = []
-    const observationsForDevice = async (deviceId: string) => { reads.push(deviceId); return [observation()] }
-    const { intents, stage } = renderPanel({ token: "", observationsForDevice })
+  it("binds a tap to the frame's own live stream and dispatches it with that", async () => {
+    const { intents, stage } = renderPanel()
     await live(intents)
-    await waitFor(() => expect(reads).toEqual(["atlas-04"]))
 
     fireEvent.pointerDown(stage, { pointerId: 9, clientX: 270, clientY: 480 })
     fireEvent.pointerUp(stage, { pointerId: 9, clientX: 270, clientY: 480 })
 
     await waitFor(() => expect(intents).toHaveLength(1))
-    expect(intents[0]).toMatchObject({ type: "submitDeviceTap", observationToken: "fresh-read-1" })
+    expect(intents[0]).toMatchObject({ type: "submitDeviceTap", observationToken: streamToken })
   })
 
-  it("refuses the input while it is reading, naming what it is doing, rather than claiming the device has none", async () => {
-    let resolveRead: ((value: readonly ObservationView[]) => void) | undefined
-    const observationsForDevice = () => new Promise<readonly ObservationView[]>((resolve) => { resolveRead = resolve })
-    const { intents, stage } = renderPanel({ token: "", observationsForDevice })
+  it("binds a swipe to the same stream the picture it was measured in came from", async () => {
+    const { intents, stage } = renderPanel()
     await live(intents)
 
-    const user = userEvent.setup()
-    const details = await openDetails(user)
-    expect(await within(details).findByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.readingObservation)
-
-    fireEvent.pointerDown(stage, { pointerId: 10, clientX: 270, clientY: 480 })
-    fireEvent.pointerUp(stage, { pointerId: 10, clientX: 270, clientY: 480 })
-    expect(intents).toHaveLength(0)
-
-    resolveRead?.([observation()])
-  })
-
-  it("keeps the named refusal when the device genuinely has no observation", async () => {
-    const user = userEvent.setup()
-    const { intents } = renderPanel({ token: "", observationsForDevice: async () => [] })
-    await live(intents)
-
-    const details = await openDetails(user)
-    await waitFor(() => expect(within(details).getByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.noObservation))
-    expect(intents).toHaveLength(0)
-  })
-
-  it("prefers the observation the projection names over reading the device's own", async () => {
-    const reads: string[] = []
-    const { intents, stage } = renderPanel({ observationsForDevice: async (deviceId: string) => { reads.push(deviceId); return [observation({ freshnessToken: "fresh-read-2" })] } })
-    await live(intents)
-
-    fireEvent.pointerDown(stage, { pointerId: 11, clientX: 270, clientY: 480 })
-    fireEvent.pointerUp(stage, { pointerId: 11, clientX: 270, clientY: 480 })
+    fireEvent.pointerDown(stage, { pointerId: 12, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(stage, { pointerId: 12, clientX: 200, clientY: 300 })
+    fireEvent.pointerUp(stage, { pointerId: 12, clientX: 200, clientY: 300 })
 
     await waitFor(() => expect(intents).toHaveLength(1))
-    expect(intents[0]).toMatchObject({ observationToken })
-    expect(reads).toEqual([])
+    expect(intents[0]).toMatchObject({ type: "submitDeviceSwipe", observationToken: streamToken })
+  })
+
+  it("names the observation a coordinate is measured from, in the frame's own details", async () => {
+    const user = userEvent.setup()
+    const { intents } = renderPanel()
+    await live(intents)
+
+    const details = await openDetails(user)
+    expect(within(details).getByTestId("live-mirror-observation")).toHaveTextContent(streamToken)
+    expect(within(details).getByTestId("live-mirror-observation")).toHaveTextContent(liveMirrorCopy.details.observationPresent(streamToken))
+  })
+
+  it("refuses a coordinate when the frame has no live stream to measure it in, and says so", async () => {
+    const user = userEvent.setup()
+    // A stream this console cannot open: there is no picture, and so no frame and
+    // no observation either - the input is refused rather than bound to anything.
+    const mirror: LiveMirrorClient = {
+      ...fakeMirror().client,
+      async startStream() { throw new ConnectJsonError("failed_precondition", "device has no current transport endpoint") },
+    }
+    const { intents, stage } = renderPanel({ mirror })
+    await waitFor(() => expect(screen.getByTestId("live-mirror-retry")).toBeInTheDocument())
+
+    fireEvent.pointerDown(stage, { pointerId: 13, clientX: 270, clientY: 480 })
+    fireEvent.pointerUp(stage, { pointerId: 13, clientX: 270, clientY: 480 })
+    expect(intents).toHaveLength(0)
+
+    const details = await openDetails(user)
+    expect(within(details).getByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.noObservation)
+    expect(within(details).getByTestId("live-mirror-observation")).toHaveTextContent(liveMirrorCopy.details.observationAbsent)
+  })
+
+  it("refuses a coordinate rather than binding it to a frame the stream has not reported", async () => {
+    const user = userEvent.setup()
+    const { intents, stage } = renderPanel({ mirror: fakeMirror(stream({ width: 0, height: 0 })).client })
+    await live(intents)
+
+    fireEvent.pointerDown(stage, { pointerId: 14, clientX: 270, clientY: 480 })
+    fireEvent.pointerUp(stage, { pointerId: 14, clientX: 270, clientY: 480 })
+    expect(intents).toHaveLength(0)
+
+    const details = await openDetails(user)
+    expect(within(details).getByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.noFrame)
   })
 })
 
@@ -488,13 +489,19 @@ describe("the info control beside the pin", () => {
     expect(within(details).getByTestId("live-mirror-drawn")).toHaveTextContent("A point is measured through this box")
   })
 
-  it("keeps the device controls on the panel's action column, reachable without a mouse", async () => {
+  it("draws the device's own navigation bar in the footer, reachable without a mouse", async () => {
     const user = userEvent.setup()
     const { intents } = renderPanel()
     await live(intents)
 
-    const inputs = screen.getByTestId("live-mirror-inputs")
-    const back = within(inputs).getByRole("button", { name: "Send Back key" })
+    // Three controls, as the device's own bottom bar has three - menu/recents,
+    // home, back - and each dispatches the device's own key code through the
+    // kernel rather than a console-invented action.
+    const keys = screen.getByTestId("live-mirror-device-keys")
+    expect(within(keys).getByRole("group", { name: liveMirrorCopy.navigationKeys.label })).toBeInTheDocument()
+    const back = within(keys).getByRole("button", { name: "Back" })
+    expect(within(keys).getByRole("button", { name: "Home" })).toBeEnabled()
+    expect(within(keys).getByRole("button", { name: "Menu (recent apps)" })).toBeEnabled()
     expect(back).toBeEnabled()
     back.focus()
     expect(back).toHaveFocus()
@@ -504,12 +511,26 @@ describe("the info control beside the pin", () => {
     expect(intents[0]).toMatchObject({ type: "submitDeviceKeyEvent", deviceId: "atlas-04", keyCode: 4 })
   })
 
-  it("refuses to describe an input it has no lease, observation or frame for", async () => {
+  it("sends the app switcher and home from the same row, as the device's own bar does", async () => {
+    const user = userEvent.setup()
+    const { intents } = renderPanel()
+    await live(intents)
+
+    const keys = screen.getByTestId("live-mirror-device-keys")
+    await user.click(within(keys).getByRole("button", { name: "Menu (recent apps)" }))
+    await user.click(within(keys).getByRole("button", { name: "Home" }))
+
+    await waitFor(() => expect(intents).toHaveLength(2))
+    expect(intents[0]).toMatchObject({ type: "submitDeviceKeyEvent", keyCode: 187 })
+    expect(intents[1]).toMatchObject({ type: "submitDeviceKeyEvent", keyCode: 3 })
+  })
+
+  it("refuses to describe an input it has no lease for, and names the missing lease", async () => {
     const user = userEvent.setup()
     const { intents } = renderPanel({ hasLease: false })
     await live(intents)
 
-    expect(within(screen.getByTestId("live-mirror-inputs")).getByRole("button", { name: "Send Back key" })).toBeDisabled()
+    expect(within(screen.getByTestId("live-mirror-device-keys")).getByRole("button", { name: "Back" })).toBeDisabled()
     fireEvent.pointerDown(screen.getByTestId("live-mirror-stage"), { pointerId: 3, clientX: 10, clientY: 10 })
     fireEvent.pointerUp(screen.getByTestId("live-mirror-stage"), { pointerId: 3, clientX: 10, clientY: 10 })
     expect(intents).toHaveLength(0)
@@ -518,13 +539,18 @@ describe("the info control beside the pin", () => {
     expect(within(details).getByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.noLease)
   })
 
-  it("names the observation it is missing rather than inventing one", async () => {
+  it("reads the plane's own refusal of the lease at the frame, not only as a not-allowed pointer", async () => {
     const user = userEvent.setup()
-    const { intents } = renderPanel({ token: "" })
+    const refusal = "This device is already under another operator's control."
+    const { intents } = renderPanel({ hasLease: false, leaseRefusal: refusal })
     await live(intents)
+
+    // The control marks itself, so a refusal is never behind a control an
+    // operator has no reason to open.
+    expect(screen.getByTestId("live-mirror-info-mark")).toBeInTheDocument()
     const details = await openDetails(user)
-    expect(within(details).getByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.noObservation)
-    expect(intents).toHaveLength(0)
+    expect(within(details).getByTestId("live-mirror-lease-refusal")).toHaveTextContent(refusal)
+    expect(within(details).getByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.noLease)
   })
 
   it("surfaces the control plane's refusal instead of reporting a delivered input", async () => {
@@ -591,7 +617,7 @@ describe("the info control beside the pin", () => {
       async startStream() { throw new ConnectJsonError("failed_precondition", refusal) },
     }
     const unobserved: DeviceView = { ...device(), status: "unobserved", transport: "unspecified" }
-    const { intents } = renderPanel({ mirror, device: unobserved, token: "" })
+    const { intents } = renderPanel({ mirror, device: unobserved })
     await waitFor(() => expect(screen.getByTestId("live-mirror-retry")).toBeInTheDocument())
 
     const details = await openDetails(user)
@@ -662,82 +688,6 @@ describe("the info control beside the pin", () => {
   })
 })
 
-describe("typing into the device from the panel's action column", () => {
-  it("types what the operator entered into the device, and clears it once it was typed", async () => {
-    const user = userEvent.setup()
-    const { intents } = renderPanel()
-    await live(intents)
-
-    const field = screen.getByTestId("live-mirror-text")
-    await user.type(field, "hello device")
-    await user.click(screen.getByTestId("live-mirror-text-send"))
-
-    await waitFor(() => expect(intents).toHaveLength(1))
-    expect(intents[0]).toMatchObject({ type: "submitDeviceText", deviceId: device().id, text: "hello device" })
-    // The console keeps no copy of a value it typed: the field is empty again,
-    // and nothing it renders carries the text back.
-    await waitFor(() => expect(field).toHaveValue(""))
-    expect(screen.getByTestId("live-mirror-notice")).not.toHaveTextContent("hello device")
-  })
-
-  it("keeps what the operator typed when the control plane refused it, and says so", async () => {
-    const user = userEvent.setup()
-    const { intents } = renderPanel({ reply: () => ({ ok: false, message: "The device lease has expired." }) })
-    await live(intents)
-
-    const field = screen.getByTestId("live-mirror-text")
-    await user.type(field, "hello device")
-    await user.click(screen.getByTestId("live-mirror-text-send"))
-
-    await waitFor(() => expect(screen.getByTestId("live-mirror-notice")).toHaveTextContent("The device lease has expired."))
-    expect(field).toHaveValue("hello device")
-    expect(intents).toHaveLength(1)
-  })
-
-  it("refuses an empty entry rather than dispatching it", async () => {
-    const user = userEvent.setup()
-    const { intents } = renderPanel()
-    await live(intents)
-
-    await user.click(screen.getByTestId("live-mirror-text-send"))
-
-    expect(intents).toHaveLength(0)
-    const details = await openDetails(user)
-    expect(within(details).getByTestId("live-mirror-refusal")).toHaveTextContent(liveMirrorCopy.text.empty)
-  })
-
-  it("offers no way to type into a device it holds no lease for, and says why", async () => {
-    const user = userEvent.setup()
-    const { intents } = renderPanel({ hasLease: false })
-    await live(intents)
-
-    expect(screen.getByTestId("live-mirror-text")).toBeDisabled()
-    expect(screen.getByTestId("live-mirror-text-send")).toBeDisabled()
-    const details = await openDetails(user)
-    expect(within(details).getByTestId("live-mirror-text-blocked")).toHaveTextContent(liveMirrorCopy.text.noLease)
-  })
-
-  it("stops offering typed text when the stream it would travel is over, and says why", async () => {
-    const user = userEvent.setup()
-    const mirror = fakeMirror(stream({ state: MirrorStreamState.ENDED, frames: 20n }))
-    const { intents } = renderPanel({ mirror: mirror.client })
-    await waitFor(() => expect(screen.getByTestId("live-mirror-retry")).toBeInTheDocument())
-
-    expect(screen.getByTestId("live-mirror-text")).toBeDisabled()
-    const details = await openDetails(user)
-    expect(within(details).getByTestId("live-mirror-text-blocked")).toHaveTextContent(liveMirrorCopy.text.noStream)
-    expect(intents).toHaveLength(0)
-  })
-})
-
-/**
- * The operator's own keyboard, as `FloatingDevice` composes it.
- *
- * The frame's focus IS the capture boundary, so every test here has to put the
- * operator's keyboard somewhere: a keystroke is this frame's to send only while
- * the frame holds focus, and the tests that check it is NOT sent are as
- * load-bearing as the one that checks it is.
- */
 describe("the operator's own keyboard types into the device", () => {
   it("sends the key the operator pressed while the frame holds focus, as one key event through the kernel", async () => {
     const user = userEvent.setup({ delay: null })
@@ -780,7 +730,7 @@ describe("the operator's own keyboard types into the device", () => {
     const { intents, stage } = renderPanel()
     await live(intents)
 
-    const inputs = screen.getByTestId("live-mirror-inputs")
+    const inputs = screen.getByTestId("live-mirror-keyboard-capture")
     const line = within(inputs).getByTestId("live-mirror-capture")
     expect(line).toHaveTextContent(liveMirrorCopy.capture.off)
     // Nothing leaves capture before the frame holds it.

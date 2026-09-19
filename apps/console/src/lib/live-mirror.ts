@@ -1,7 +1,7 @@
 import { MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import type { MirrorStream } from "@/gen/drift/v1/device_mirror_pb"
 import { deviceObservationSentence } from "@/lib/device-status"
-import type { DeviceStatus, ObservationView } from "@/lib/domain/control-plane"
+import type { DeviceStatus } from "@/lib/domain/control-plane"
 
 /**
  * The console's own view of one device's live mirror.
@@ -123,6 +123,31 @@ export function liveStreamFrame(view: LiveStreamView | null): { width: number; h
 }
 
 /**
+ * The observation a coordinate measured in this stream is bound to.
+ *
+ * It is the stream's own identity, because the stream IS the observation: an
+ * operator points at a picture this stream carried, in the frame this stream is
+ * encoded at, and the coordinate travels with that frame. It is also the session
+ * the input travels on a mirrored device, so the token names the very thing that
+ * carries the coordinate rather than a second fact about it. There is nothing to
+ * look up and nothing to invent - a frame with no stream has no observation, and
+ * this returns the empty string so the surface refuses and names it.
+ *
+ * It is deliberately NOT a captured observation's freshness token. The console
+ * used to demand one, on the theory that a coordinate belongs to a capture; on a
+ * real host that demand can never be met (nothing in the product records an
+ * observation snapshot outside the lab adapter) and a live frame therefore
+ * refused every click with an observation it could not have, while the plane
+ * cross-checked nothing at all. Naming the stream is both the truthful answer and
+ * the one the kernel can verify: the declared frame still has to match the size
+ * the device presents at, and a frame it does not present at is still refused.
+ */
+export function streamObservationToken(view: LiveStreamView | null): string {
+  if (!view) return ""
+  return view.streamId.trim()
+}
+
+/**
  * The copy this feature renders.
  *
  * It lives in one place because the copy beside a control is part of the control
@@ -172,44 +197,31 @@ export const liveMirrorCopy = {
     failed: "The stream failed.",
   },
   /** Key input: the labels an operator reads, and the codes they dispatch. */
-  keys: [
-    { label: "Back", keyCode: 4 },
-    { label: "Home", keyCode: 3 },
-    { label: "Recents", keyCode: 187 },
-    { label: "Enter", keyCode: 66 },
-    { label: "Backspace", keyCode: 67 },
-  ] as const,
   /**
-   * Typing into the device. The value an operator types here is the one input
-   * content the console handles at all, so every sentence about it is explicit:
-   * where it goes, what it is measured in (nothing — it carries no coordinate),
-   * and that the request which types it never carries it.
-   */
-  text: {
-    label: "Type into the device",
-    placeholder: "Text to type on the device",
-    send: "Send text",
-    /** Reported after a dispatch the control plane accepted. */
-    sent: "Text dispatched to the device.",
-    /** Said before anything is dispatched, when there is nothing to send. */
-    empty: "Type something before sending it.",
-    /** Why the control is unavailable, said before anything is dispatched. */
-    noLease: "Typing into the device needs this device's active lease, which this console has not acquired.",
-    noStream: "Typing into the device needs an open live stream, because the text travels the device's own mirror session.",
-    /** What the control does with what is typed into it. */
-    hint: "Type here and press Enter. The text is registered with the control plane under an opaque handle and typed over the device's live session; the request that types it names the handle, never the text.",
-  },
-  /**
-   * The operator's own keyboard, and the one control that hands it back.
+   * The panel footer is the DEVICE's own navigation bar, drawn as the phone's
+   * bottom bar draws it: menu (the app switcher), home, back.
    *
-   * The frame IS the device's screen, so the state of the operator's keyboard is
-   * never printed over it: it is stated in the panel's action column, beside the
-   * key and typed-text controls that say the same thing as commands. The frame's
-   * own accessible name says what the frame is and that typing starts by giving
-   * it focus, and nothing more. The frame's focus IS the capture boundary, so
-   * these sentences say what focus decides rather than that something was
-   * switched on elsewhere in the console.
+   * The keys are the device's own key events - KEYCODE_APP_SWITCH, HOME and BACK
+   * - dispatched through the kernel like every other input, so the row reaches
+   * what the phone itself puts in that bar rather than a console's idea of what
+   * an operator might want there. It is named `navigationKeys` rather than
+   * `deviceKeys` because this module already holds the device's own key VOCABULARY
+   * under that name (the keys the operator's own keyboard can send), and two
+   * tables called the same thing is one table too many.
+   *
+   * The row is three controls because the device's bar is three controls. The key
+   * row and the type-into-the-device field this replaces are gone: every other key
+   * an operator might send travels the operator's own keyboard (see `capture`),
+   * which is the surface that carded typing into a device.
    */
+  navigationKeys: {
+    label: "Device navigation",
+    keys: [
+      { name: "recents", label: "Menu (recent apps)", keyCode: 187 },
+      { name: "home", label: "Home", keyCode: 3 },
+      { name: "back", label: "Back", keyCode: 4 },
+    ],
+  },
   capture: {
     /** The frame's accessible name: the frame is where the operator's keyboard starts. */
     frameLabel: "Device screen: click it, or focus it with Tab, to type into the device with your own keyboard. A keystroke reaches the device only while this frame holds focus.",
@@ -227,16 +239,15 @@ export const liveMirrorCopy = {
   /** Why input cannot be sent, said before anything is dispatched. */
   input: {
     noLease: "Input needs this device's active lease, which this console has not acquired.",
-    noObservation: "Input needs the observation the coordinates are measured from, and this console has none for this device.",
     /**
-     * Said while the console is reading the device's own observations.
+     * Said when this frame has no live stream to measure a coordinate in.
      *
-     * It is its own sentence rather than a longer refusal because it is not a
-     * refusal: nothing has been asked of the kernel yet, and an operator who
-     * clicks during the read is told the console is still finding the value the
-     * click will be measured against instead of being told the device has none.
+     * The observation a coordinate is measured from is the frame's own live
+     * stream, so a frame with no stream has nothing to measure in and nothing to
+     * bind a point to. It is a refusal and not a request to observe the device:
+     * the stream is what the operator is looking at, and this sentence names it.
      */
-    readingObservation: "Reading the observation these coordinates will be measured from, from the control plane. Nothing has been sent to the device.",
+    noObservation: "Input needs the observation the coordinates are measured from, which is this frame's own live stream, and this frame has no stream open.",
     noFrame: "Input needs the frame the stream is encoded at, and this stream has not reported one.",
     refused: "The control plane refused that input.",
     tapSent: "Tap dispatched.",
@@ -265,13 +276,24 @@ export const liveMirrorCopy = {
       state: "State",
       transport: "Transport",
       frame: "Encoded frame",
+      observation: "Observation",
       drawn: "Drawn picture",
       pointer: "Pointer",
       failure: "Failure reason",
       refusal: "Refusal",
+      controlSession: "Control session",
       warning: "Input warning",
-      typing: "Typing into the device",
     },
+    /**
+     * The observation this frame's coordinates are measured from, stated with the
+     * value that travels with them.
+     *
+     * It is the frame's own live stream, and the line says so rather than leaving
+     * the operator to infer which of a device's many observations a click will be
+     * tagged with: the value below is the one the kernel receives.
+     */
+    observationPresent: (token: string) => `This frame's live stream, ${token}: the observation every coordinate you point at here is measured from and dispatched against.`,
+    observationAbsent: "This frame has no live stream, so there is no observation for a coordinate to be measured from and every input is refused until one is open.",
     /** The drawn box has no measurement to state yet, and says which fact is missing. */
     drawnUnmeasured: "No picture has been drawn from this stream yet, so there is no drawn box for a point to be measured in.",
     /**
@@ -579,11 +601,6 @@ function insideFrame(point: PointerSample, frame: StreamFrame): boolean {
   return Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= 0 && point.y >= 0 && point.x < frame.width && point.y < frame.height
 }
 
-/** The code a key control dispatches, or nothing when the console does not offer it. */
-export function liveMirrorKeyCodes(): readonly { label: string; keyCode: number }[] {
-  return liveMirrorCopy.keys
-}
-
 /**
  * The keys this console can name in the device's own vocabulary.
  *
@@ -720,48 +737,6 @@ export function repeatDue(lastDispatchAtMs: number | undefined, atMs: number): b
   if (lastDispatchAtMs === undefined) return true
   if (!Number.isFinite(lastDispatchAtMs) || !Number.isFinite(atMs)) return false
   return atMs - lastDispatchAtMs >= keyRepeatIntervalMs
-}
-
-/**
- * The observation a device's coordinates are measured from, out of the
- * observations this console holds.
- *
- * A coordinate is dispatched with the observation it was measured from, and a
- * token the control plane cannot resolve is refused at the boundary, so which
- * observation a frame names is not a detail: it is the input path.
- *
- * Two rules, and the reason for each:
- *
- *  - the token must name a COMPLETE capture. A partial capture's observation is
- *    a device nobody finished looking at, and its coordinates are not a frame
- *    the device's screen can be pointed at;
- *  - the newest one wins, by the observation's own captured time where the
- *    console can compare them, and by the projection's own order (the control
- *    plane lists observations newest first) where it cannot. A console that took
- *    the first match it found in an arbitrary order would name an observation
- *    the device has since replaced.
- *
- * It returns the empty string when this device has none, and that is a fact the
- * caller reports: a console that invented a token would dispatch a coordinate
- * measured from nothing.
- */
-export function observationTokenFor(observations: readonly ObservationView[], deviceId: string): string {
-  let newest: ObservationView | undefined
-  for (const candidate of observations) {
-    if (candidate.deviceId !== deviceId) continue
-    if (candidate.captureStatus !== "complete") continue
-    if (candidate.freshnessToken.trim() === "") continue
-    if (!newest || newerThan(candidate, newest)) newest = candidate
-  }
-  return newest?.freshnessToken ?? ""
-}
-
-/** newerThan compares two observations' captured times, and answers no when they are not comparable. */
-function newerThan(candidate: ObservationView, current: ObservationView): boolean {
-  const left = Date.parse(candidate.capturedAt)
-  const right = Date.parse(current.capturedAt)
-  if (Number.isNaN(left) || Number.isNaN(right)) return false
-  return left > right
 }
 
 /**
