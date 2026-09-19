@@ -89,12 +89,21 @@ func (e *ActivationRefusalError) Error() string { return e.Reason.Sentence(e.Ser
 // function so that a single activation, a fleet activation and the refusal error
 // itself cannot describe the same condition in three different ways: the reason
 // is classified, and the words that go with it live here.
+//
+// The unauthorized sentence names the device-side security boundary rather than
+// instructing the operator to tap a prompt: half this fleet is screensless
+// mainboard units, "accept the prompt on the device's screen" is not an
+// instruction they can follow, and a refusal that names an action nobody can
+// take is a refusal an operator cannot act on. What IS true is that no host can
+// accept that prompt for the device - which is the point of the boundary, and
+// this product does not bypass it - so the sentence says so and names what the
+// operator can do instead (ARC-196).
 func (r ActivationRefusalReason) Sentence(serial string) string {
 	switch r {
 	case ActivationRefusalNotAttached:
 		return fmt.Sprintf("refusing to change the transport mode of %s: no such transport is attached to this host", serial)
 	case ActivationRefusalNotAuthorized:
-		return fmt.Sprintf("refusing to change the transport mode of %s: it is present but unauthorized, so accept the USB debugging prompt on the device's screen and try again", serial)
+		return fmt.Sprintf("refusing to change the transport mode of %s: it is present but unauthorized for this host, and no host can accept that prompt for it — the device has to be authorized once on its own display, or by placing this host's ADB key on it from a session that can already write to it. Until then nothing can be dispatched to it", serial)
 	default:
 		return fmt.Sprintf("refusing to change the transport mode of %s: it is present and authorized but its transport is not USB, and a device that is not physically attached cannot be recovered if the change strands it", serial)
 	}
@@ -128,9 +137,14 @@ func (o ActivationOutcome) Message() string {
 // activationMessage is the single place that says what one device's transport-mode
 // change did, so a single activation and a fleet activation cannot describe the same
 // outcome differently.
+//
+// The unauthorized outcome names the boundary and what the operator can do about
+// it, for the same reason the refusal does: a device with no display cannot have
+// its debugging prompt tapped by anyone, and no host can accept that prompt for
+// it (ARC-196).
 func activationMessage(serial string, port uint16, needsOperatorAuthorization bool, stateAfter string) string {
 	if needsOperatorAuthorization {
-		return fmt.Sprintf("%s is now listening on port %d, but it is UNAUTHORIZED for this host: accept the \"Allow USB debugging?\" prompt on the device's screen. It cannot be used until that is done, and no action will be dispatched to it.", serial, port)
+		return fmt.Sprintf("%s is now listening on port %d, but it is UNAUTHORIZED for this host: no host can accept that prompt for it, so it has to be authorized once on its own display, or by placing this host's ADB key on it from a session that can already write to it. It cannot be used until that is done, and no action will be dispatched to it.", serial, port)
 	}
 	return fmt.Sprintf("%s is listening on port %d and is %s", serial, port, stateAfter)
 }
