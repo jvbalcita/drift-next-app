@@ -222,19 +222,28 @@ export const liveMirrorCopy = {
       { name: "back", label: "Back", keyCode: 4 },
     ],
   },
+  /**
+   * The operator's own keyboard, as the info control states it.
+   *
+   * It is stated ONCE, in the details, and never in the panel: the panel's
+   * capture block, its paragraph and its release button are gone, because the
+   * behaviour they restated was never a control - the frame's focus IS the
+   * capture boundary, and focus leaving the frame is what ends it. `frameLabel`
+   * still names the frame itself, because the frame is the element an operator
+   * focuses to type and a focusable element with no name names nothing.
+   *
+   * `note` states a FACT rather than a live reading of the state, and that is
+   * deliberate rather than a loss: the control it is read from is one an operator
+   * OPENS, and opening it takes focus off the frame - so a line that claimed
+   * capture was on could never be read while it was true. What is true whichever
+   * way it stands is how the keyboard reaches the device and how it is given
+   * back, and the frame's own focus ring is the live state.
+   */
   capture: {
     /** The frame's accessible name: the frame is where the operator's keyboard starts. */
-    frameLabel: "Device screen: click it, or focus it with Tab, to type into the device with your own keyboard. A keystroke reaches the device only while this frame holds focus.",
-    /** The line's own subject, so the state below it cannot be read as another control's. */
-    label: "Keyboard capture",
-    /** Said while the frame holds focus. */
-    on: "Keyboard capture is on: this frame holds focus, so your keystrokes are dispatched to the device through the same lease, policy and control session as every other input, and one the control plane refuses is reported with its refusal. Tab is dispatched too, and also moves focus out of the frame, which ends capture: that is what keeps capture leavable from the keyboard alone.",
-    /** Said while the frame does not hold focus, naming the action that changes it. */
-    off: "Keyboard capture is off: nothing typed on this console's keyboard reaches the device. Click the device's screen, or focus it with Tab, to type into it.",
-    /** The one action that leaves capture, named. */
-    release: "Release keyboard",
-    /** What the control does, on the control: it is this console's own action. */
-    releaseHint: "Leaves capture and hands this console's keyboard back to it. It is this console's own action rather than a device input, so no refusal a device or the control plane reports can swallow it.",
+    frameLabel: "Device screen. Click it, or focus it with Tab, to type into the device with your own keyboard.",
+    /** How the operator's own keyboard works, said once, where a state readout could not be read. */
+    note: "Your own keyboard reaches the device while this frame holds focus: click the device's screen, or focus it with Tab, to type into it. A keystroke travels the same lease, policy and control session as every other input, a key the contract cannot express is refused and named, and a key the control plane refuses is reported with its refusal. Focus leaving the frame is what ends capture, and Tab is dispatched too and moves focus out of the frame, so capture is leavable from the keyboard alone - there is no control to press to leave it.",
   },
   /** Why input cannot be sent, said before anything is dispatched. */
   input: {
@@ -279,6 +288,16 @@ export const liveMirrorCopy = {
       observation: "Observation",
       drawn: "Drawn picture",
       pointer: "Pointer",
+      /**
+       * The operator's own keyboard, stated with the state it is in and with the
+       * one way it is left.
+       *
+       * It is the line the panel's removed capture block used to carry. The
+       * state had to stay readable - a state an operator cannot read is one they
+       * will assume - so it moved here with the rest of what the frame's body no
+       * longer prints, and it is stated once.
+       */
+      keyboard: "Keyboard",
       failure: "Failure reason",
       refusal: "Refusal",
       controlSession: "Control session",

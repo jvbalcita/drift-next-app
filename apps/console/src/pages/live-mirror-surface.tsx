@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
-import { ChevronLeft, Circle, Info, Keyboard, KeyboardOff, LoaderCircle, MousePointer2, RotateCw, Smartphone, Square } from "lucide-react"
+import { ChevronLeft, Circle, Info, LoaderCircle, MousePointer2, RotateCw, Smartphone, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -16,13 +16,13 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion"
  *
  * The frame's body is the device's screen: the picture and the pointer, and
  * nothing else. The state, the transport, the encoded frame, the observation its
- * coordinates are measured from, and every refusal and warning are read from the
- * info control beside the pin (`LiveMirrorInfo`), the operator's own keyboard and
- * its capture state are the panel's action column (`LiveMirrorKeyboardCapture`),
- * and the device's own navigation bar is the panel's footer
- * (`LiveMirrorDeviceKeys`). One session is opened for one device and all of these
- * read it, so there is exactly one stream and one state machine behind them; the
- * composition is `FloatingDevice`'s, in ControlPage.
+ * coordinates are measured from, the operator's own keyboard and the fact that
+ * focus leaving the frame is what ends it, and every refusal and warning are read
+ * from the info control beside the pin (`LiveMirrorInfo`), and the device's own
+ * navigation bar is the panel's footer (`LiveMirrorDeviceKeys`). One session is
+ * opened for one device and all of these read it, so there is exactly one stream
+ * and one state machine behind them; the composition is `FloatingDevice`'s, in
+ * ControlPage.
  *
  * Five things here are deliberate rather than incidental:
  *
@@ -54,9 +54,11 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion"
  *    one key event (`planKeystroke`) and dispatched as the key event the panel's
  *    key controls send, a key the contract cannot express is refused and named
  *    rather than mapped to a code nobody checked, and a held key repeats at the
- *    control session's own rate rather than at the browser's event rate. The
- *    capture state is stated in the panel's action column, never over the
- *    device's screen.
+ *    control session's own rate rather than at the browser's event rate. That
+ *    state is stated once, in the info control, and never in the panel: the
+ *    panel's capture block and its release action are gone, because leaving
+ *    capture was always the browser's own focus change and the block only
+ *    restated it.
  */
 export interface LiveMirrorSurfaceProps {
   device: DeviceView
@@ -121,16 +123,22 @@ export interface LiveMirrorSessionView {
   wheelScroll: (event: WheelEvent) => void
   sendKey: (keyCode: number, label: string) => void
   /**
-   * capturing is whether the frame holds the operator's keyboard, which is the
-   * same fact as whether the frame has focus. A keystroke that arrives while it
-   * is false reaches no device: it was not this frame's to send.
+   * attachStage hands the session the element whose focus IS the capture boundary.
+   *
+   * That focus is the WHOLE of the capture state, which is why there is no
+   * `capturing` field to read: a keystroke reaches the device because the frame
+   * holds focus and for no other reason, the focus ring is what an operator sees,
+   * and the info control states how the keyboard is given back.
    */
-  capturing: boolean
-  /** attachStage hands the session the element whose focus IS the capture boundary. */
   attachStage: (element: HTMLDivElement | null) => void
   /** beginCapture is the frame gaining focus: the keyboard becomes the device's. */
   beginCapture: () => void
-  /** releaseCapture is the one action that leaves capture, and the device cannot swallow it. */
+  /**
+   * releaseCapture is focus leaving the frame, which is the one action that ends
+   * capture and the one the device cannot swallow: it is the browser's own focus
+   * change rather than a device input, and it happens whether focus left by Tab,
+   * by a click elsewhere or by the element being blurred.
+   */
   releaseCapture: () => void
   /** pressKey dispatches one keystroke from the operator's own keyboard. */
   pressKey: (event: ReactKeyboardEvent<HTMLDivElement>) => void
@@ -157,13 +165,13 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
   // auto-repeat to this control session's own rate.
   const stage = useRef<HTMLDivElement | null>(null)
   const heldKeys = useRef<Map<string, number>>(new Map())
-  // holdKeyboard is the gate pressKey reads, and it is a ref rather than the
-  // rendered state below because a gate must not be one render behind the event
-  // that closed it: the same focus event that sets it is what the keystroke
-  // arrives after, and a keystroke is dispatched or refused in the handler that
-  // receives it.
+  // holdKeyboard is the gate pressKey reads, and it is a ref rather than state
+  // because a gate must not be one render behind the event that closed it: the
+  // same focus event that sets it is what the keystroke arrives after, and a
+  // keystroke is dispatched or refused in the handler that receives it. Nothing
+  // renders it either: the frame's own focus ring is the state an operator sees,
+  // and the info control states how the keyboard is given back.
   const holdKeyboard = useRef(false)
-  const [capturing, setCapturing] = useState(false)
   const gesture = useRef<{ down: PointerSample; last: PointerSample } | null>(null)
   const pendingScroll = useRef<FrameScroll>({ x: 0, y: 0 })
   const [notice, setNotice] = useState("")
@@ -282,11 +290,9 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
   const attachStage = useCallback((element: HTMLDivElement | null) => { stage.current = element }, [])
   const beginCapture = useCallback(() => {
     holdKeyboard.current = true
-    setCapturing(true)
   }, [])
   const releaseCapture = useCallback(() => {
     holdKeyboard.current = false
-    setCapturing(false)
     stage.current?.blur()
   }, [])
 
@@ -454,7 +460,6 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     cancelPointer,
     wheelScroll,
     sendKey: (keyCode, label) => void sendKey(keyCode, label),
-    capturing,
     attachStage,
     beginCapture,
     releaseCapture,
@@ -599,6 +604,19 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
             <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">{liveMirrorCopy.details.field.pointer}</dt>
             <dd className="mt-1 leading-5 text-muted-foreground">{liveMirrorCopy.details.pointer}</dd>
           </div>
+          {/*
+            The operator's own keyboard, stated once and here: the panel no
+            longer carries a capture block, and what an operator needs to know
+            about it - that the frame's focus is what sends a keystroke, and that
+            focus leaving the frame is what ends it, which is what keeps capture
+            leavable from the keyboard alone - is a fact about the frame, not a
+            control to press. It is a fact rather than a live reading because
+            opening this control is itself what takes focus off the frame.
+          */}
+          <div>
+            <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">{liveMirrorCopy.details.field.keyboard}</dt>
+            <dd className="mt-1 leading-5 text-muted-foreground" data-testid="live-mirror-capture">{liveMirrorCopy.capture.note}</dd>
+          </div>
           {failure !== "" ? (
             <div>
               <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">{liveMirrorCopy.details.field.failure}</dt>
@@ -626,47 +644,6 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
         </dl>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/**
- * LiveMirrorKeyboardCapture is the operator's own keyboard, as the panel states
- * it: whether this frame holds the console's keystrokes, and the one named action
- * that hands them back.
- *
- * It lives in the panel's action column rather than over the device's screen,
- * because it is a fact about the operator's keyboard and the frame's focus, and
- * the panel is where the keyboard controls are. It is stated whichever way it
- * stands - a state an operator cannot read is a state they will assume - and the
- * action that leaves capture is a control rather than a key, so the device
- * cannot swallow it.
- *
- * The key row and the type-into-the-device field this block used to sit above are
- * gone: typing into a device is the operator's own keyboard, and the device's own
- * keys are the navigation bar in this panel's footer.
- */
-export function LiveMirrorKeyboardCapture({ session }: { session: LiveMirrorSessionView }) {
-  return (
-    <div data-testid="live-mirror-keyboard-capture" className="space-y-1 border border-border p-2">
-      <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
-        <Keyboard className="size-3" aria-hidden="true" />
-        {liveMirrorCopy.capture.label}
-      </p>
-      <p data-testid="live-mirror-capture" aria-live="polite" className="text-[10px] leading-4 text-muted-foreground">
-        {session.capturing ? liveMirrorCopy.capture.on : liveMirrorCopy.capture.off}
-      </p>
-      {session.capturing ? (
-        <TooltipProvider delay={0}>
-          <Tooltip>
-            <TooltipTrigger render={<Button type="button" size="sm" variant="outline" className="w-full" data-testid="live-mirror-release" onClick={session.releaseCapture} />}>
-              <KeyboardOff className="size-3.5" aria-hidden="true" />
-              {liveMirrorCopy.capture.release}
-            </TooltipTrigger>
-            <TooltipContent>{liveMirrorCopy.capture.releaseHint}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ) : null}
-    </div>
   )
 }
 
