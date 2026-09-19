@@ -118,8 +118,11 @@ func TestTheDeviceStatusIsDerivedFromObservationFactsNotTheLifecycleColumn(t *te
 	}
 
 	neverObservedDevice := statusOf(t, db, neverObserved)
-	if got := neverObservedDevice.GetStatus(); got == driftv1.DeviceStatus_DEVICE_STATUS_ONLINE {
-		t.Fatalf("never-observed device status = %v, want anything but ONLINE: a device nobody has seen is not a device anyone can reach", got)
+	// Criterion 2 of ARC-146: "never observed" is its own reading, and pinning it
+	// to UNSPECIFIED is what keeps it distinguishable from the device that was
+	// observed and is not observed now (ARC-130's distinction).
+	if got := neverObservedDevice.GetStatus(); got != driftv1.DeviceStatus_DEVICE_STATUS_UNSPECIFIED {
+		t.Fatalf("never-observed device status = %v, want UNSPECIFIED: a device nobody has seen is not a device anyone can reach, and it is not the same reading as one that left", got)
 	}
 	if neverObservedDevice.GetLastSeenAt() != "" {
 		t.Fatalf("never-observed device last_seen_at = %q, want empty", neverObservedDevice.GetLastSeenAt())

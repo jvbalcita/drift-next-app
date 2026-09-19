@@ -1193,6 +1193,17 @@ function mapLinkState(state: ProtoDeviceLinkState): ObservedDeviceView["state"] 
       return "offline"
     case ProtoDeviceLinkState.UNAUTHORIZED:
       return "unauthorized"
+    case ProtoDeviceLinkState.NO_PERMISSIONS:
+      // A transport this host may not open at all. The control plane keeps it
+      // apart from UNAUTHORIZED because the two need different things done (the
+      // host's permission rule vs the device's own display), and the device
+      // status surface already reads it as its own state. This scan surface has
+      // one reading for "attached and not usable here", so it renders as
+      // unauthorized - which is exactly what it rendered while the wire answered
+      // UNSPECIFIED for it. Giving it its own rendering is a console change
+      // (ARC-126 owns wire-to-pixel) rather than a reason to lose the fact on
+      // the wire.
+      return "unauthorized"
     case ProtoDeviceLinkState.UNSPECIFIED:
       // An unspecified link is not an assertion of health.
       return "unauthorized"

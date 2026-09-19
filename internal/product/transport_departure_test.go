@@ -322,8 +322,8 @@ func TestATransportStillAttachedAfterADepartureIsCurrentAgainOnTheNextPoll(t *te
 	if after.GetId() != identity {
 		t.Fatalf("device identity after the return = %q, want %q", after.GetId(), identity)
 	}
-	if after.GetStatus() == driftv1.DeviceStatus_DEVICE_STATUS_OFFLINE {
-		t.Fatalf("the returned device still reads OFFLINE while its transport is attached: %#v", after)
+	if after.GetStatus() != driftv1.DeviceStatus_DEVICE_STATUS_ONLINE {
+		t.Fatalf("the returned device reads %v while its transport is attached: a departure that a later observation undid must leave the device reachable again, not merely not-offline (%#v)", after.GetStatus(), after)
 	}
 }
 
@@ -386,5 +386,18 @@ func TestATransportReidentifiedWhileAttachedIsNotADeparture(t *testing.T) {
 	}
 	if after[0].GetEndpointId() == "" {
 		t.Fatalf("the re-registered transport left the device with no current endpoint while it is attached: %#v", after[0])
+	}
+	// The three readings Sentinel reproduced as one: an attached unit whose
+	// transport changed its own identifier answered with no endpoint, no
+	// transport, and OFFLINE while the enumerator kept reporting it attached.
+	// Criterion 1 of ARC-146 is exactly this shape, so all three are asserted.
+	if got := after[0].GetStatus(); got != driftv1.DeviceStatus_DEVICE_STATUS_ONLINE {
+		t.Fatalf("a re-identified transport still attached reads %v, want ONLINE: the poll that saw it re-registered also observed it present", got)
+	}
+	if got := after[0].GetTransport(); got != driftv1.DeviceTransport_DEVICE_TRANSPORT_USB {
+		t.Fatalf("re-identified transport = %v, want the transport it answers on", got)
+	}
+	if after[0].GetLastSeenAt() == "" {
+		t.Fatal("the re-identified transport left no observation behind on the device")
 	}
 }

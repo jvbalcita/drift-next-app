@@ -898,6 +898,10 @@ describe("RealControlPlaneClient", () => {
               host: "192.0.2.6", port: 5555, serial: "mock-serial-2", model: "Mock Six",
               state: "DEVICE_LINK_STATE_UNAUTHORIZED", known: false,
             },
+            {
+              host: "192.0.2.7", port: 5555, serial: "mock-serial-3", model: "Mock Seven",
+              state: "DEVICE_LINK_STATE_NO_PERMISSIONS", known: false,
+            },
           ],
         }), { status: 200, headers: { "content-type": "application/json" } })
       }
@@ -917,6 +921,15 @@ describe("RealControlPlaneClient", () => {
       }),
       expect.objectContaining({
         scanRunId: "scan-9", host: "192.0.2.6", serial: "mock-serial-2",
+        state: "unauthorized", known: false, deviceId: "", endpointId: "",
+      }),
+      // A transport this host may not open at all. The wire carries it as its
+      // own value now (it used to arrive as UNSPECIFIED); this surface has one
+      // reading for "attached and not usable here", so it renders as
+      // unauthorized exactly as it did before, and the fact is not lost on the
+      // wire for other consumers.
+      expect.objectContaining({
+        scanRunId: "scan-9", host: "192.0.2.7", serial: "mock-serial-3",
         state: "unauthorized", known: false, deviceId: "", endpointId: "",
       }),
     ])
