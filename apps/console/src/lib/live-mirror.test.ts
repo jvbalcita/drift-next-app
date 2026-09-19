@@ -8,6 +8,9 @@ import {
   absentTransportSentence,
   drawnContentRect,
   gestureThresholdFor,
+  keyRepeatIntervalMs,
+  keystrokeCombinationRefusal,
+  keystrokeUnknownRefusal,
   liveMirrorCopy,
   livePhaseSentence,
   liveStateOf,
@@ -17,8 +20,10 @@ import {
   maximumScrollStepsPerEvent,
   observationTokenFor,
   planGesture,
+  planKeystroke,
   planWheelScrolls,
   refusedStreamSentence,
+  repeatDue,
   scrollStepUnits,
   scrollSwipeMs,
   streamPoint,
@@ -26,6 +31,7 @@ import {
   wheelLinePixels,
   wheelScrollDelta,
   type DrawnPicture,
+  type KeystrokeSample,
   type MirrorDevice,
   type SurfaceRect,
 } from "./live-mirror"
@@ -410,5 +416,88 @@ describe("a wheel turn as the gesture it becomes", () => {
     const plan = planWheelScrolls({ x: 540, y: 1680 }, { x: 0, y: frame.height * 4 }, frame)
     expect(plan.swipes.length).toBeLessThanOrEqual(maximumScrollStepsPerEvent)
     expect(plan.swipes.length).toBe(maximumScrollStepsPerEvent)
+  })
+})
+
+describe("the operator's own keyboard, as the device's key events", () => {
+  /** stroke is one key the operator pressed, the way the browser reports it. */
+  function stroke(key: string, modifiers: Partial<Omit<KeystrokeSample, "key">> = {}): KeystrokeSample {
+    return { key, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, ...modifiers }
+  }
+
+  it("names every key it sends, with the device's own code", () => {
+    const named: readonly (readonly [string, number])[] = [
+      ["Enter", 66],
+      ["Backspace", 67],
+      ["Delete", 112],
+      ["Tab", 61],
+      ["Escape", 111],
+      ["ArrowUp", 19],
+      ["ArrowDown", 20],
+      ["ArrowLeft", 21],
+      ["ArrowRight", 22],
+      ["Home", 3],
+      ["End", 123],
+      ["PageUp", 92],
+      ["PageDown", 93],
+    ]
+    for (const [key, keyCode] of named) {
+      expect(planKeystroke(stroke(key))).toEqual({ kind: "key", keyCode, label: expect.any(String) })
+    }
+  })
+
+  it("sends a character the operator typed as the key it is on, whatever its case", () => {
+    // The console names the KEY and lets the device's own keyboard decide what it
+    // produces, so caps lock is the same key as no caps lock.
+    expect(planKeystroke(stroke("a"))).toEqual({ kind: "key", keyCode: 29, label: "A" })
+    expect(planKeystroke(stroke("A"))).toEqual({ kind: "key", keyCode: 29, label: "A" })
+    expect(planKeystroke(stroke("z"))).toMatchObject({ kind: "key", keyCode: 54 })
+    expect(planKeystroke(stroke("0"))).toMatchObject({ kind: "key", keyCode: 7 })
+    expect(planKeystroke(stroke("9"))).toMatchObject({ kind: "key", keyCode: 16 })
+    expect(planKeystroke(stroke(" "))).toMatchObject({ kind: "key", keyCode: 62 })
+  })
+
+  it("sends a modifier key the contract can express, and names one held with another key", () => {
+    expect(planKeystroke(stroke("Shift", { shiftKey: true }))).toEqual({ kind: "key", keyCode: 59, label: "Shift" })
+    expect(planKeystroke(stroke("Control", { ctrlKey: true }))).toEqual({ kind: "key", keyCode: 113, label: "Control" })
+
+    // A modifier held WITH another key is two keys, and `KeyEventInput` carries
+    // one key code and no modifier state: the console refuses it by name rather
+    // than sending the bare key, which would type something the operator did not
+    // press.
+    for (const sample of [stroke("a", { shiftKey: true }), stroke("A", { shiftKey: true }), stroke("c", { ctrlKey: true }), stroke("ArrowLeft", { shiftKey: true })]) {
+      const plan = planKeystroke(sample)
+      if (plan.kind !== "unsupported") throw new Error(`${sample.key} with a modifier held is not one key code`)
+      expect(plan.refusal).toContain(sample.key)
+      expect(plan.refusal).toContain("one key code")
+      expect(plan.refusal).toContain("Nothing was sent to the device")
+    }
+    // Two modifiers at once are two keys as well.
+    const both = planKeystroke(stroke("Shift", { shiftKey: true, ctrlKey: true }))
+    if (both.kind !== "unsupported") throw new Error("Shift held with Control is not one key code")
+    expect(both.refusal).toBe(keystrokeCombinationRefusal("Shift+Control", "Shift"))
+  })
+
+  it("names a key the device's vocabulary has no code for, and never invents one", () => {
+    for (const key of ["F13", "£", "Unidentified"]) {
+      const plan = planKeystroke(stroke(key))
+      if (plan.kind !== "unsupported") throw new Error(`${key} has no key code this console can name`)
+      expect(plan).not.toHaveProperty("keyCode")
+      expect(plan.refusal).toBe(keystrokeUnknownRefusal(key))
+    }
+    expect(keystrokeUnknownRefusal("F13")).toContain("F13")
+    expect(keystrokeCombinationRefusal("Shift", "a")).toContain("Shift held with a")
+  })
+
+  it("bounds a held key by the control session's own rate, not by the browser's event rate", () => {
+    expect(keyRepeatIntervalMs).toBe(50)
+    expect(repeatDue(undefined, 1_000)).toBe(true)
+    expect(repeatDue(1_000, 1_000)).toBe(false)
+    expect(repeatDue(1_000, 1_000 + keyRepeatIntervalMs - 1)).toBe(false)
+    expect(repeatDue(1_000, 1_000 + keyRepeatIntervalMs)).toBe(true)
+    // A repeat whose timing cannot be measured is not repeated: the bound fails
+    // closed rather than passing a burst through.
+    expect(repeatDue(Number.NaN, 1_000)).toBe(false)
+    expect(repeatDue(1_000, Number.NaN)).toBe(false)
   })
 })
