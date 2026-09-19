@@ -3,10 +3,12 @@ package product_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	driftv1 "drift.local/drift-next/gen/go/drift/v1"
 	"drift.local/drift-next/internal/discovery"
 	"drift.local/drift-next/internal/product"
 )
@@ -143,14 +145,19 @@ func TestAWatcherWithoutADepartureSinkDetectsDeparturesAndRecordsNothing(t *test
 // list the console reads no longer carries a current endpoint for it. The device
 // is still in the list - it has an identity and an observation history - but it is
 // no longer reported as observed.
+//
+// The answer that observes the departure still observes a transport: an answer
+// that names nobody is not an observation of absence at all (see
+// TestAnEmptyAnswerIsNotAFleetWideDeparture), so a departure is exercised here
+// the way a readable enumeration produces one.
 func TestAWatcherDepartureLeavesTheDeviceListTheConsoleReads(t *testing.T) {
 	ctx := context.Background()
 	db := openTransportDB(t)
 
 	enumerator := (&fakeTransportEnumerator{}).script(
 		view(transport("SER-UNPLUGGED", "1")),
-		view(transport("SER-UNPLUGGED", "1")),
-		view(),
+		view(transport("SER-UNPLUGGED", "1"), transport("SER-STAYS", "2")),
+		view(transport("SER-STAYS", "2")),
 	)
 	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{Authorized: true, LabMode: true, Enumerator: enumerator})
 	discoveryService := discovery.NewService(db, scanner)
@@ -190,5 +197,194 @@ func TestAWatcherDepartureLeavesTheDeviceListTheConsoleReads(t *testing.T) {
 	}
 	if after[0].GetLastSeenAt() == "" {
 		t.Fatal("the departed device lost its last positive observation, so gone and never seen became the same fact")
+	}
+}
+
+// TestAnEmptyAnswerIsNotAFleetWideDeparture is the defect this card was opened
+// for, asserted where the operator sees it. The enumeration answers with no
+// transport at all while two attached units are in view - the shape an
+// unreadable adapter produces, and the shape that emptied the live fleet - and
+// nothing may be recorded from it: every current endpoint survives, so the fleet
+// keeps reading as observed, and the answer is named rather than totalled as a
+// departure.
+func TestAnEmptyAnswerIsNotAFleetWideDeparture(t *testing.T) {
+	ctx := context.Background()
+	db := openTransportDB(t)
+
+	enumerator := (&fakeTransportEnumerator{}).script(
+		view(transport("SER-ATTACHED", "1"), transport("SER-ALSO-ATTACHED", "2")),
+		view(transport("SER-ATTACHED", "1"), transport("SER-ALSO-ATTACHED", "2")),
+		view(),
+	)
+	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{Authorized: true, LabMode: true, Enumerator: enumerator})
+	discoveryService := discovery.NewService(db, scanner)
+	if _, _, err := discoveryService.StartScan(ctx, transportWorkspace, transportProfile, "startup-scan", "system", "control-plane"); err != nil {
+		t.Fatalf("StartScan() = %v", err)
+	}
+	if before := listDevices(t, db); len(before) != 2 {
+		t.Fatalf("device list after launch = %d device(s), want the two attached units", len(before))
+	}
+
+	sink := &departureSink{}
+	watcher, logs := newTestWatcher(t, enumerator, product.TransportWatcherConfig{
+		Interval:      5 * time.Millisecond,
+		DepartureSink: sink.record,
+	})
+	stop := startWatcher(t, watcher)
+	waitFor(t, func() bool { return enumerator.callCount() >= 4 }, "the watcher to poll past the empty answer")
+	outcome := stop()
+
+	if serials := sink.recordedSerials(); len(serials) != 0 {
+		t.Fatalf("the departure sink was handed %v, want nothing: an enumeration that names no transport is not an observation of absence", serials)
+	}
+	if outcome.Departures != 0 || outcome.DeparturesRecorded != 0 || outcome.DepartureErrors != 0 {
+		t.Fatalf("outcome departures=%d recorded=%d errors=%d, want none: nothing left, the enumeration answered nobody",
+			outcome.Departures, outcome.DeparturesRecorded, outcome.DepartureErrors)
+	}
+	if outcome.EmptyPolls == 0 {
+		t.Fatal("the empty answer was not counted, so a fleet that stopped being observable leaves no number behind")
+	}
+	if outcome.Attached != 2 {
+		t.Fatalf("attached = %d, want the 2 transports the last readable answer observed", outcome.Attached)
+	}
+	if !logs.contains("enumeration answered empty") {
+		t.Fatalf("the empty answer was not named in the watcher's own log:\n%s", logs.joined())
+	}
+	if !strings.Contains(outcome.Report(), "answered empty") {
+		t.Fatalf("the closing record does not name the empty polls: %s", outcome.Report())
+	}
+
+	after := listDevices(t, db)
+	if len(after) != 2 {
+		t.Fatalf("device list = %d device(s), want both units to keep their identity", len(after))
+	}
+	for _, device := range after {
+		if device.GetEndpointId() == "" {
+			t.Fatalf("device %q lost its current endpoint to an answer that named no transport", device.GetDisplayName())
+		}
+	}
+}
+
+// TestATransportStillAttachedAfterADepartureIsCurrentAgainOnTheNextPoll is the
+// other half of the card: a departure must be followed by an arrival while the
+// transport is still attached. The watcher departs a transport that really is
+// absent from a readable answer, and the next poll that observes it attached
+// records its arrival - through the same arrival path a scan-less arrival uses -
+// so the device the console reads carries a current endpoint again, under the
+// identity it already had.
+func TestATransportStillAttachedAfterADepartureIsCurrentAgainOnTheNextPoll(t *testing.T) {
+	ctx := context.Background()
+	db := openTransportDB(t)
+
+	enumerator := (&fakeTransportEnumerator{}).script(
+		view(transport("SER-RETURNS", "1"), transport("SER-STAYS", "2")),
+		view(transport("SER-RETURNS", "1"), transport("SER-STAYS", "2")),
+		view(transport("SER-STAYS", "2")),
+		view(transport("SER-STAYS", "2")),
+		view(transport("SER-RETURNS", "1"), transport("SER-STAYS", "2")),
+	)
+	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{Authorized: true, LabMode: true, Enumerator: enumerator})
+	discoveryService := discovery.NewService(db, scanner)
+	if _, _, err := discoveryService.StartScan(ctx, transportWorkspace, transportProfile, "startup-scan", "system", "control-plane"); err != nil {
+		t.Fatalf("StartScan() = %v", err)
+	}
+	listed := listDevices(t, db)
+	returns := deviceByDisplayName(listed, "SER-RETURNS")
+	if returns == nil || returns.GetEndpointId() == "" {
+		t.Fatalf("device list after launch = %#v, want the attached unit with its current endpoint", listed)
+	}
+	identity := returns.GetId()
+
+	watcher, _ := newTestWatcher(t, enumerator, product.TransportWatcherConfig{
+		Interval: 5 * time.Millisecond,
+		Sink: func(sinkCtx context.Context, arrivals []discovery.ObservedDevice) error {
+			_, err := discoveryService.RecordArrivals(sinkCtx, transportWorkspace, arrivals, product.WatcherActorType, product.WatcherActorID)
+			return err
+		},
+		DepartureSink: func(sinkCtx context.Context, departures []discovery.ObservedDevice) error {
+			return discoveryService.RecordDepartures(sinkCtx, transportWorkspace, departures, product.WatcherActorType, product.WatcherActorID)
+		},
+	})
+	stop := startWatcher(t, watcher)
+
+	waitFor(t, func() bool {
+		departed := deviceByDisplayName(listDevices(t, db), "SER-RETURNS")
+		return departed != nil && departed.GetEndpointId() == ""
+	}, "the departure to reach the device list")
+
+	waitFor(t, func() bool {
+		attached := deviceByDisplayName(listDevices(t, db), "SER-RETURNS")
+		return attached != nil && attached.GetEndpointId() != ""
+	}, "the transport that is still attached to become current again")
+
+	stop()
+	after := deviceByDisplayName(listDevices(t, db), "SER-RETURNS")
+	if after.GetId() != identity {
+		t.Fatalf("device identity after the return = %q, want %q", after.GetId(), identity)
+	}
+	if after.GetStatus() == driftv1.DeviceStatus_DEVICE_STATUS_OFFLINE {
+		t.Fatalf("the returned device still reads OFFLINE while its transport is attached: %#v", after)
+	}
+}
+
+// TestATransportReidentifiedWhileAttachedIsNotADeparture covers the shape the
+// live fleet was in when this card was opened: the adapter re-registers a
+// transport - a hub mode change, an adapter restart - and the same transport
+// answers under a new identifier of its own. The transport is IN the answer, so
+// it has not left, and the departure its former identifier would record ends the
+// very endpoint that answer just made current. It must record nothing: the
+// device keeps a current endpoint and the change is named as a re-identification.
+func TestATransportReidentifiedWhileAttachedIsNotADeparture(t *testing.T) {
+	ctx := context.Background()
+	db := openTransportDB(t)
+
+	enumerator := (&fakeTransportEnumerator{}).script(
+		view(transport("SER-REGISTERED", "1")),
+		view(transport("SER-REGISTERED", "1")),
+		view(transport("SER-REGISTERED", "9")),
+	)
+	scanner := discovery.NewAuthorizedLabScanner(discovery.LabScannerConfig{Authorized: true, LabMode: true, Enumerator: enumerator})
+	discoveryService := discovery.NewService(db, scanner)
+	if _, _, err := discoveryService.StartScan(ctx, transportWorkspace, transportProfile, "startup-scan", "system", "control-plane"); err != nil {
+		t.Fatalf("StartScan() = %v", err)
+	}
+	listed := listDevices(t, db)
+	if len(listed) != 1 || listed[0].GetEndpointId() == "" {
+		t.Fatalf("device list after launch = %#v, want the attached unit with its current endpoint", listed)
+	}
+
+	sink := &departureSink{}
+	watcher, logs := newTestWatcher(t, enumerator, product.TransportWatcherConfig{
+		Interval: 5 * time.Millisecond,
+		Sink: func(sinkCtx context.Context, arrivals []discovery.ObservedDevice) error {
+			_, err := discoveryService.RecordArrivals(sinkCtx, transportWorkspace, arrivals, product.WatcherActorType, product.WatcherActorID)
+			return err
+		},
+		DepartureSink: func(sinkCtx context.Context, departures []discovery.ObservedDevice) error {
+			if err := sink.record(sinkCtx, departures); err != nil {
+				return err
+			}
+			return discoveryService.RecordDepartures(sinkCtx, transportWorkspace, departures, product.WatcherActorType, product.WatcherActorID)
+		},
+	})
+	stop := startWatcher(t, watcher)
+	waitFor(t, func() bool { return enumerator.callCount() >= 4 }, "the re-identified transport to be polled")
+	outcome := stop()
+
+	if serials := sink.recordedSerials(); len(serials) != 0 {
+		t.Fatalf("the departure sink was handed %v, want nothing: the transport was in the answer that saw it re-registered", serials)
+	}
+	if outcome.Reidentified == 0 {
+		t.Fatal("the re-identification was not counted")
+	}
+	if !logs.contains("reidentified") {
+		t.Fatalf("the re-identification was not named in the watcher's own log:\n%s", logs.joined())
+	}
+	after := listDevices(t, db)
+	if len(after) != 1 {
+		t.Fatalf("device list = %d device(s), want one identity for one unit", len(after))
+	}
+	if after[0].GetEndpointId() == "" {
+		t.Fatalf("the re-registered transport left the device with no current endpoint while it is attached: %#v", after[0])
 	}
 }
