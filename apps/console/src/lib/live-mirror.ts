@@ -186,6 +186,25 @@ export const liveMirrorCopy = {
     offline: "The transport it was last reached at is no longer current, so no live stream can be carried: observe it again, with a scan, which records the transport it is reached at now.",
     observed: "This console has no stream open for it, so there is no transport to state.",
   },
+  /**
+   * The layers this surface's two stacking decisions are stated in.
+   *
+   * They are one table because they are one relationship, and it is a
+   * relationship that has already been got wrong: the info control's tooltip is
+   * portaled to the document, so it leaves the floating device's stacking context
+   * and is drawn in its own layer. At the console's standard overlay layer
+   * (`z-50`) it was painted UNDERNEATH the floating device - which is above that
+   * layer precisely because it floats over the whole workspace - so the sentence
+   * describing the info control was unreadable exactly where the operator was
+   * looking. These are the console's two highest layers, and the tooltip's is
+   * above the frame's on purpose.
+   */
+  layers: {
+    /** The floating device, above every overlay the console draws. */
+    floatingFrame: "z-[100]",
+    /** The floating device's own tooltip, above the surface it describes. */
+    frameTooltip: "z-[110]",
+  },
   /** The state line, per phase. */
   phase: {
     idle: "Choose a phone to open its live frame.",

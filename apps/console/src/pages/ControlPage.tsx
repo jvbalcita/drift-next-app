@@ -642,7 +642,7 @@ export function FloatingDevice({ device, followers, workspace, settings, positio
   const positionStyle = pinned ? frameSize : { ...frameSize, left: Math.min(Math.max(viewportMargin, position.x), maxLeft), top: Math.max(viewportMargin, position.y) }
   const phoneFrameStyle = { width: phoneWidth, minWidth: phoneWidth, maxWidth: phoneWidth, height: phoneHeight, boxSizing: "border-box" as const }
   const controlsFrameStyle = { width: controlsWidth, minWidth: controlsWidth, maxWidth: controlsWidth, height: phoneHeight, boxSizing: "border-box" as const }
-  return <div className={`${pinned ? "relative z-20 self-start" : "fixed z-[100]"} flex items-start gap-3 ${controlsLeft ? "flex-row-reverse" : ""}`} style={positionStyle}>
+  return <div className={`${pinned ? "relative z-20 self-start" : `fixed ${liveMirrorCopy.layers.floatingFrame}`} flex items-start gap-3 ${controlsLeft ? "flex-row-reverse" : ""}`} style={positionStyle}>
     <div aria-label={`${device.displayName} floating phone frame`} className="flex shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-slate-900 text-white" style={phoneFrameStyle}>
       <LiveMirrorSurface session={session} />
     </div>

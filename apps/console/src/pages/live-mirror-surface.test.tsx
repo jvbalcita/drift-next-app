@@ -489,6 +489,37 @@ describe("the info control beside the pin", () => {
     expect(within(details).getByTestId("live-mirror-drawn")).toHaveTextContent("A point is measured through this box")
   })
 
+  it("draws the info tooltip above the floating device it belongs to", async () => {
+    const user = userEvent.setup({ delay: null })
+    renderPanel()
+    await live([])
+
+    // The measured defect behind "the tooltip is showing below the frame": the
+    // popup is portaled to the document, so it leaves the floating device's
+    // stacking context, and at the console's standard overlay layer it was
+    // painted UNDERNEATH the frame it describes - in Chromium, at the frame's own
+    // header, every point inside the tooltip's box hit the frame instead, so the
+    // sentence was drawn where nobody could read it. jsdom computes no paint
+    // order, so what is pinned here is the two layers the surfaces declare and
+    // that the tooltip's outranks the frame's; the paint was measured in a real
+    // browser.
+    const info = screen.getByTestId("live-mirror-info")
+    await user.hover(info)
+    const popup = await screen.findByText(liveMirrorCopy.details.tooltip)
+    const positioner = popup.parentElement as HTMLElement
+    const widget = screen.getByLabelText(/floating device controls/i).parentElement as HTMLElement
+    const layerOf = (element: HTMLElement) => {
+      const match = (element.className || "").match(/(?:^|\s)z-\[(\d+)\]/)
+      expect(match ? match[1] : null).not.toBeNull()
+      return Number(match?.[1])
+    }
+
+    expect(layerOf(positioner)).toBeGreaterThan(layerOf(widget))
+    // And it is not a descendant of the frame: being portaled away from the
+    // frame's own stacking context is exactly why its layer has to be its own.
+    expect(widget.contains(popup)).toBe(false)
+  })
+
   it("draws the device's own navigation bar in the footer, reachable without a mouse", async () => {
     const user = userEvent.setup()
     const { intents } = renderPanel()

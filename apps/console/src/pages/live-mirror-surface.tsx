@@ -541,9 +541,18 @@ export function LiveMirrorSurface({ session }: { session: LiveMirrorSessionView 
  * inside another trigger left the positioner with an anchor it could not measure,
  * and it drew the sentence away from the icon - outside the frame it belongs to.
  * One element, named by `aria-label` and anchored where it is drawn, is what the
- * tooltip's position is computed from. It is placed BELOW the icon inside the
- * panel, so a sentence about the frame is read on the frame rather than dropped
- * off the top of the window.
+ * tooltip's position is computed from.
+ *
+ * It is drawn ABOVE the floating device, which is the second half of the same
+ * defect and the one that made it worse: the popup is portaled to the document,
+ * so it is not in the frame's stacking context, and at the console's standard
+ * overlay layer it was painted underneath the frame it belongs to - measured, not
+ * reasoned about: at the frame's own header every point inside the tooltip's box
+ * hit the frame, so an operator saw nothing where the sentence was. The layer is
+ * `liveMirrorCopy.layers.frameTooltip`, stated beside the frame's own, and the
+ * placement is the default one (`side="top"`), restored rather than reinvented:
+ * the workaround that moved the sentence below the icon is what put it inside the
+ * frame's own box in the first place.
  */
 export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) {
   const { phase, stream, frame, failure, refusal, leaseRefusal, inputBlockedReason, observationToken, detailsAttention } = session
@@ -561,7 +570,7 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
               {detailsAttention ? <span data-testid="live-mirror-info-mark" aria-hidden="true" className="absolute -right-1 -top-1 size-1.5 rounded-full bg-amber-400" /> : null}
             </span>
           </TooltipTrigger>
-          <TooltipContent side="bottom" align="end" sideOffset={6}>{liveMirrorCopy.details.tooltip}</TooltipContent>
+          <TooltipContent positionerClassName={liveMirrorCopy.layers.frameTooltip}>{liveMirrorCopy.details.tooltip}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
       <DialogContent className="max-w-lg rounded-none">
