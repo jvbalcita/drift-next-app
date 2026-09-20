@@ -1,10 +1,11 @@
 import { useRef, useState } from "react"
-import { ArrowLeft, ShieldCheck } from "lucide-react"
+import { ArrowLeft, ChevronDown, Network, ShieldCheck } from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { ControlPlaneSnapshot, DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
-import { deviceName, endpointsFor, type InspectionSection, type InspectionTab } from "./device-inspection"
+import { deviceName, endpointsFor, type InspectionItem, type InspectionSection, type InspectionTab } from "./device-inspection"
 
 type DeviceRefreshState = { deviceId: string; status: "refreshing" | "success" | "error"; message: string }
 
@@ -34,17 +35,23 @@ export function DeviceInspectSheet({
   const endpoints = device ? endpointsFor(device.id, snapshot.endpoints) : []
   const name = device ? deviceName(device, endpoints) : undefined
   const [accessOpen, setAccessOpen] = useState(false)
+  const [connectionOpen, setConnectionOpen] = useState(false)
   const accessTriggerRef = useRef<HTMLButtonElement>(null)
+  const connectionTriggerRef = useRef<HTMLButtonElement>(null)
   const mainTabs = tabs.filter((tab) => tab.id !== "access")
   const accessTab = tabs.find((tab) => tab.id === "access")
+  const connectionTab = tabs.find((tab) => tab.id === "endpoint")
+  const endpointItems = connectionTab?.sections.flatMap((section) => section.items ?? []) ?? []
 
-  function returnToDetails() {
+  function returnToDetails(sheet: "access" | "connection") {
     setAccessOpen(false)
-    requestAnimationFrame(() => accessTriggerRef.current?.focus())
+    setConnectionOpen(false)
+    const triggerRef = sheet === "access" ? accessTriggerRef : connectionTriggerRef
+    requestAnimationFrame(() => triggerRef.current?.focus())
   }
   return (
     <>
-    <Sheet open={Boolean(device) && !accessOpen} onOpenChange={(open) => { if (!open && !accessOpen) onClose() }}>
+    <Sheet open={Boolean(device) && !accessOpen && !connectionOpen} onOpenChange={(open) => { if (!open && !accessOpen && !connectionOpen) onClose() }}>
       <SheetContent className="w-full rounded-none bg-popover p-0 sm:max-w-xl lg:max-w-2xl">
         <SheetHeader className="border-b border-border px-4 py-4 pr-12 sm:px-5">
           <SheetTitle className="break-words text-lg tracking-[-0.025em]">{name?.primary ?? "Device Inspection"}</SheetTitle>
@@ -54,8 +61,11 @@ export function DeviceInspectSheet({
         {device ? (
           <SheetBody>
             <div>
-              {mainTabs.flatMap((tab) => tab.sections.map((section, index) => <InspectionSectionView key={`${tab.id}-${section.title ?? index}`} section={section} />))}
-              {accessTab ? <div className="border-b border-border p-3"><Button ref={accessTriggerRef} type="button" variant="outline" className="w-full justify-between" onClick={() => setAccessOpen(true)}><span className="flex items-center gap-2"><ShieldCheck className="size-4" aria-hidden="true" />Access &amp; Control</span><span className="text-xs text-muted-foreground">Leases and assignments</span></Button></div> : null}
+              {mainTabs.filter((tab) => tab.id !== "endpoint").flatMap((tab) => tab.sections.map((section, index) => <InspectionSectionView key={`${tab.id}-${section.title ?? index}`} section={section} />))}
+              {accessTab || connectionTab ? <div className="grid gap-2 border-b border-border p-3 sm:grid-cols-2">
+                {connectionTab ? <Button ref={connectionTriggerRef} type="button" variant="ghost" className="w-full justify-between border border-border" onClick={() => { setAccessOpen(false); setConnectionOpen(true) }}><span className="flex items-center gap-2"><Network className="size-4" aria-hidden="true" />Connection &amp; Endpoints</span><span className="text-xs text-muted-foreground">{endpointItems.length} record{endpointItems.length === 1 ? "" : "s"}</span></Button> : null}
+                {accessTab ? <Button ref={accessTriggerRef} type="button" variant="ghost" className="w-full justify-between border border-border" onClick={() => { setConnectionOpen(false); setAccessOpen(true) }}><span className="flex items-center gap-2"><ShieldCheck className="size-4" aria-hidden="true" />Access &amp; Control</span><span className="text-xs text-muted-foreground">Leases and assignments</span></Button> : null}
+              </div> : null}
               <div className="px-4 pb-5 sm:px-5">
                 <DeviceInputControls device={device} snapshot={snapshot} dispatch={dispatch} />
               </div>
@@ -64,14 +74,24 @@ export function DeviceInspectSheet({
         ) : null}
       </SheetContent>
     </Sheet>
-    <Sheet open={Boolean(device) && accessOpen} onOpenChange={(open) => { if (!open) returnToDetails() }}>
+    <Sheet open={Boolean(device) && accessOpen} onOpenChange={(open) => { if (!open) returnToDetails("access") }}>
       <SheetContent className="w-full rounded-none bg-popover p-0 sm:max-w-xl lg:max-w-2xl" showCloseButton={false}>
         <SheetHeader className="border-b border-border px-3 py-3">
-          <Button type="button" size="sm" variant="ghost" className="mb-2 w-fit px-0" onClick={returnToDetails}><ArrowLeft className="size-4" aria-hidden="true" />Back to device details</Button>
+          <Button type="button" size="sm" variant="ghost" className="mb-2 w-fit px-0" onClick={() => returnToDetails("access")}><ArrowLeft className="size-4" aria-hidden="true" />Back to device details</Button>
           <SheetTitle>Access &amp; Control</SheetTitle>
           <SheetDescription>Control leases and account assignments for {name?.primary ?? "this device"}.</SheetDescription>
         </SheetHeader>
         <SheetBody>{accessTab?.sections.map((section, index) => <InspectionSectionView key={`${accessTab.id}-${section.title ?? index}`} section={section} />)}</SheetBody>
+      </SheetContent>
+    </Sheet>
+    <Sheet open={Boolean(device) && connectionOpen} onOpenChange={(open) => { if (!open) returnToDetails("connection") }}>
+      <SheetContent className="w-full rounded-none bg-popover p-0 sm:max-w-xl lg:max-w-2xl" showCloseButton={false}>
+        <SheetHeader className="border-b border-border px-3 py-3">
+          <Button type="button" size="sm" variant="ghost" className="mb-2 w-fit px-0" onClick={() => returnToDetails("connection")}><ArrowLeft className="size-4" aria-hidden="true" />Back to device details</Button>
+          <SheetTitle>Connection &amp; Endpoints</SheetTitle>
+          <SheetDescription>Current and historical transport records for {name?.primary ?? "this device"}, grouped by observation date.</SheetDescription>
+        </SheetHeader>
+        <SheetBody><EndpointHistoryView items={endpointItems} /></SheetBody>
       </SheetContent>
     </Sheet>
     </>
@@ -171,4 +191,57 @@ function InspectionField({ label, value, mono = false, exact }: { label: string;
       <dd title={exact} className={`mt-1 break-words font-medium ${mono ? "drift-data text-[11px]" : "text-xs"}`}>{value}</dd>
     </div>
   )
+}
+
+function EndpointHistoryView({ items }: { items: readonly InspectionItem[] }) {
+  const groups = groupEndpointItems(items)
+  if (groups.length === 0) return <p className="p-4 text-xs text-muted-foreground">No endpoint history is available for this device.</p>
+
+  return <div>{groups.map((group, index) => (
+    <Collapsible key={group.key} defaultOpen={index === 0} className="border-b border-border last:border-b-0">
+      <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 px-3 py-3 text-left text-xs font-semibold hover:bg-muted/50 focus-visible:bg-muted/50">
+        <span>{group.label}</span>
+        <span className="flex items-center gap-2 text-[10px] font-normal uppercase tracking-[.08em] text-muted-foreground">
+          {group.items.length} record{group.items.length === 1 ? "" : "s"}
+          <ChevronDown className="size-4 transition-transform group-data-[panel-open]:rotate-180" aria-hidden="true" />
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="border-t border-border/70">
+          {group.items.map((item) => <div key={item.key} className="border-b border-border/70 last:border-b-0"><dl className="grid text-xs">{item.rows.map((entry) => <InspectionField key={entry.label} label={entry.label} value={entry.value} mono={entry.mono} exact={entry.exact} />)}</dl></div>)}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  ))}</div>
+}
+
+type EndpointHistoryItem = InspectionItem
+
+function groupEndpointItems(items: readonly EndpointHistoryItem[]) {
+  const groups = new Map<string, { key: string; label: string; sort: number; items: EndpointHistoryItem[] }>()
+  for (const item of items) {
+    const observedAt = item.rows.find((row) => row.label === "Observed At")?.value ?? ""
+    const timestamp = Date.parse(observedAt)
+    const key = Number.isFinite(timestamp) ? new Date(timestamp).toISOString().slice(0, 10) : "unknown"
+    const existing = groups.get(key)
+    if (existing) {
+      existing.items.push(item)
+      existing.sort = Math.max(existing.sort, Number.isFinite(timestamp) ? timestamp : -1)
+      continue
+    }
+    groups.set(key, { key, label: endpointDateLabel(key), sort: Number.isFinite(timestamp) ? timestamp : -1, items: [item] })
+  }
+  return [...groups.values()]
+    .map((group) => ({ ...group, items: [...group.items].sort((left, right) => endpointTimestamp(right) - endpointTimestamp(left)) }))
+    .sort((left, right) => right.sort - left.sort)
+}
+
+function endpointTimestamp(item: EndpointHistoryItem) {
+  const value = Date.parse(item.rows.find((row) => row.label === "Observed At")?.value ?? "")
+  return Number.isFinite(value) ? value : -1
+}
+
+function endpointDateLabel(key: string) {
+  if (key === "unknown") return "Date not reported"
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${key}T00:00:00Z`))
 }
