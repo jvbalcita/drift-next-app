@@ -11,6 +11,7 @@ import { buildInspection, deviceName, endpointHost, endpointPort, humanTimestamp
 import { DeviceInspectSheet } from "./DeviceInspectSheet"
 
 type Filter = "all" | "online" | "attention" | "replaced" | "retired"
+type DeviceRefreshState = { deviceId: string; status: "refreshing" | "success" | "error"; message: string }
 
 const filters: { value: Filter; label: string }[] = [
   { value: "all", label: "All" },
@@ -27,6 +28,7 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
   const filter: Filter = isFilter(view) ? view : "all"
   const [query, setQuery] = useState("")
   const [inspectedId, setInspectedId] = useState<string | null>(null)
+  const [deviceRefresh, setDeviceRefresh] = useState<DeviceRefreshState | undefined>()
   const [refreshing, setRefreshing] = useState(false)
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(10)
@@ -43,6 +45,12 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
 
   function inspect(device: DeviceView) {
     setInspectedId(device.id)
+    setDeviceRefresh({ deviceId: device.id, status: "refreshing", message: "Refreshing device facts…" })
+    void dispatch({ type: "refresh", deviceId: device.id }).then((outcome) => {
+      setDeviceRefresh({ deviceId: device.id, status: outcome.ok ? "success" : "error", message: outcome.message })
+    }).catch(() => {
+      setDeviceRefresh({ deviceId: device.id, status: "error", message: "The device facts could not be refreshed." })
+    })
   }
   async function refresh() {
     if (refreshing) return
@@ -103,7 +111,7 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
         </>}
       </TabsContent>
     </Tabs>
-    <DeviceInspectSheet device={detail} tabs={inspection} onClose={() => setInspectedId(null)} snapshot={snapshot} dispatch={dispatch} />
+    <DeviceInspectSheet device={detail} tabs={inspection} refreshState={detail && deviceRefresh?.deviceId === detail.id ? deviceRefresh : undefined} onClose={() => { setInspectedId(null); setDeviceRefresh(undefined) }} snapshot={snapshot} dispatch={dispatch} />
   </>
 }
 

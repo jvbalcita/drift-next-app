@@ -97,6 +97,7 @@ import {
 import {
   ListDeviceEndpointsRequestSchema,
   ListDeviceEndpointsResponseSchema,
+  type DeviceEndpoint,
 } from "@/gen/drift/v1/endpoint_pb"
 import {
   ListAuditEventsRequestSchema,
@@ -292,8 +293,8 @@ export class DeviceClient {
   getDevice(workspaceId: string, deviceId: string) {
     return this.rpc.call("GetDevice", GetDeviceRequestSchema, GetDeviceResponseSchema, { workspace: workspaceRef(workspaceId), deviceId })
   }
-  refreshDeviceDiagnostics(workspaceId: string) {
-    return this.rpc.call("RefreshDeviceDiagnostics", RefreshDeviceDiagnosticsRequestSchema, RefreshDeviceDiagnosticsResponseSchema, { workspace: workspaceRef(workspaceId) })
+  refreshDeviceDiagnostics(workspaceId: string, deviceId = "") {
+    return this.rpc.call("RefreshDeviceDiagnostics", RefreshDeviceDiagnosticsRequestSchema, RefreshDeviceDiagnosticsResponseSchema, { workspace: workspaceRef(workspaceId), deviceId })
   }
 }
 
@@ -415,12 +416,24 @@ export class EndpointClient {
   constructor(json: ConnectJsonClient) {
     this.rpc = new TypedConnectClient(json, "drift.v1.EndpointService")
   }
-  listDeviceEndpoints(workspaceId: string, deviceId = "") {
-    return this.rpc.call("ListDeviceEndpoints", ListDeviceEndpointsRequestSchema, ListDeviceEndpointsResponseSchema, {
-      workspace: workspaceRef(workspaceId),
-      deviceId,
-      page: listPage,
-    })
+  async listDeviceEndpoints(workspaceId: string, deviceId = "") {
+    // Endpoint history is append-only and can exceed the normal 200-row page
+    // even for a modest fleet. Reading only the first page makes current rows
+    // disappear behind old history, which leaves an online device with blank
+    // serial/host/port cells. Follow the server cursor until the whole bounded
+    // workspace projection has been joined.
+    const endpoints: DeviceEndpoint[] = []
+    let pageToken = ""
+    do {
+      const response = await this.rpc.call("ListDeviceEndpoints", ListDeviceEndpointsRequestSchema, ListDeviceEndpointsResponseSchema, {
+        workspace: workspaceRef(workspaceId),
+        deviceId,
+        page: create(PageRequestSchema, { pageSize: 200, pageToken }),
+      })
+      endpoints.push(...response.endpoints)
+      pageToken = response.page?.nextPageToken ?? ""
+    } while (pageToken)
+    return { endpoints }
   }
 }
 

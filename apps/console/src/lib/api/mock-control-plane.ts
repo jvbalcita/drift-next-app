@@ -1602,7 +1602,9 @@ export class MockControlPlaneClient implements ControlPlaneClient {
   dispatch(intent: ControlPlaneIntent): MutationResult {
     switch (intent.type) {
       case "refresh":
-        return result(intent, "Mock projection refreshed; no external service was contacted.")
+        return result(intent, intent.deviceId
+          ? `Mock diagnostics refreshed for ${intent.deviceId}; no external service was contacted.`
+          : "Mock projection refreshed; no external service was contacted.")
       case "setHalt":
         if (!intent.confirmed) return rejection(intent, `${intent.state === "emergency_stop" ? "Engaging" : "Releasing"} the emergency stop requires confirmation.`, undefined, "precondition_failed")
         if (!intent.reason.trim()) return rejection(intent, "A reason is required for the emergency stop change.", undefined, "invalid_input")

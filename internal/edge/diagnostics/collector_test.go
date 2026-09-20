@@ -92,6 +92,22 @@ func TestCollectorRetainsPartialFactsAndBoundsUntrustedValues(t *testing.T) {
 	}
 }
 
+func TestCollectorTreatsBatteryTemperatureSentinelAsUnreported(t *testing.T) {
+	runner := &scriptedRunner{outputs: map[string]string{
+		argvKey(adb.DiagnosticsBatteryArgv()): "level: 83\ntemperature: -200\nstatus: 3\n",
+	}}
+	got, err := NewCollector(runner).Collect(context.Background(), "SERIAL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.BatteryLevelPercent == nil || *got.BatteryLevelPercent != 83 || got.BatteryStatus == nil || *got.BatteryStatus != "discharging" {
+		t.Fatalf("battery facts = %#v", got)
+	}
+	if got.BatteryTemperatureCelsius != nil {
+		t.Fatalf("sentinel battery temperature was reported: %#v", got.BatteryTemperatureCelsius)
+	}
+}
+
 func TestCollectorFailsOnlyWhenEveryCommandFails(t *testing.T) {
 	runner := &scriptedRunner{fail: map[string]bool{}}
 	for _, argv := range [][]string{adb.DiagnosticsPropertiesArgv(), {"shell", "wm", "size"}, adb.DiagnosticsDensityArgv(), adb.DiagnosticsBatteryArgv(), adb.DiagnosticsStorageArgv(), adb.DiagnosticsMemoryArgv(), adb.DiagnosticsUptimeArgv(), adb.DiagnosticsForegroundArgv()} {

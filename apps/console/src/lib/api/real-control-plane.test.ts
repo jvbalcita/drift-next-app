@@ -235,6 +235,43 @@ describe("RealControlPlaneClient", () => {
     ]))
   })
 
+  it("follows endpoint pages so current rows beyond endpoint history remain visible", async () => {
+    let endpointReads = 0
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.DeviceService/ListDevices")) {
+        return new Response(JSON.stringify({
+          devices: [{ id: "device-mekeni-40", status: "DEVICE_STATUS_ONLINE", endpointId: "endpoint-current" }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      if (url.includes("/drift.v1.EndpointService/ListDeviceEndpoints")) {
+        endpointReads += 1
+        const body = JSON.parse(String(init?.body ?? "{}")) as { page?: { pageToken?: string } }
+        if (endpointReads === 1) {
+          expect(body.page?.pageToken ?? "").toBe("")
+          return new Response(JSON.stringify({
+            endpoints: [{ id: "endpoint-history", deviceId: "device-mekeni-40", serial: "192.168.1.119:5555", host: "192.168.1.119", port: 5555, state: "ENDPOINT_STATE_SUPERSEDED" }],
+            page: { nextPageToken: "200" },
+          }), { status: 200, headers: { "content-type": "application/json" } })
+        }
+        expect(body.page?.pageToken).toBe("200")
+        return new Response(JSON.stringify({
+          endpoints: [{ id: "endpoint-current", deviceId: "device-mekeni-40", serial: "192.168.1.124:5555", host: "192.168.1.124", port: 5555, state: "ENDPOINT_STATE_CURRENT" }],
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } })
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    const snapshot = await client.refresh()
+
+    expect(endpointReads).toBe(2)
+    expect(snapshot.projectionWarnings).toEqual([])
+    expect(snapshot.endpoints).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "endpoint-current", host: "192.168.1.124", port: 5555, state: "current" }),
+    ]))
+  })
+
   it("does not join a device to a different current endpoint", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input)

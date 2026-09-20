@@ -93,4 +93,13 @@ func TestRefreshDiagnosticsIsOnlineOnlyPartialAndRetainsLastKnownProjection(t *t
 	if fetched.Msg.GetDevice().GetDiagnostics().GetObservedAt() != now.Format(time.RFC3339Nano) {
 		t.Fatalf("last-known diagnostics were replaced: %#v", fetched.Msg.GetDevice().GetDiagnostics())
 	}
+
+	collector.calls = nil
+	targeted, err := handler.RefreshDeviceDiagnostics(ctx, connectrpc.NewRequest(&driftv1.RefreshDeviceDiagnosticsRequest{Workspace: ref, DeviceId: "online-ok"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if targeted.Msg.GetAttempted() != 1 || targeted.Msg.GetSucceeded() != 0 || targeted.Msg.GetFailed() != 1 || len(collector.calls) != 1 || collector.calls[0] != "SERIAL-OK" {
+		t.Fatalf("targeted refresh = %#v calls=%v", targeted.Msg, collector.calls)
+	}
 }
