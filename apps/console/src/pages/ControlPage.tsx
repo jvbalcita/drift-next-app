@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react"
 import { createPortal } from "react-dom"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Crosshair, Download, Image, Info, Keyboard, LoaderCircle, Network, Package, Pin, Power, RotateCcw, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Terminal, Unplug, Upload, Volume1, Volume2, X } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Crosshair, Download, Image, Info, Keyboard, LoaderCircle, MessageSquareText, Network, Package, Pin, Power, RotateCcw, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Terminal, Unplug, Upload, Volume1, Volume2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { ArtifactView, ControlPlaneIntent, ControlPlaneSnapshot, DeviceOperationName, DeviceOperationOutcomeView, DeviceOperationReportedName, DeviceSettingName, DeviceSettingOutcomeView, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
+import type { ArtifactView, ControlPlaneIntent, ControlPlaneSnapshot, DeviceOperationName, DeviceOperationOutcomeView, DeviceSettingName, DeviceSettingOutcomeView, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, livePictureHeld, type LiveMirrorPreview, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
 import { useMirrorCapacity } from "@/lib/api/use-mirror-capacity"
@@ -837,7 +837,8 @@ function PanelOperationCommands({ device, artifacts, dispatch }: { device: Devic
   const [pending, setPending] = useState("")
   const [outcome, setOutcome] = useState<DeviceOperationOutcomeView | null>(null)
   const [refusal, setRefusal] = useState("")
-  async function run(intent: ControlPlaneIntent, name: DeviceOperationReportedName) {
+  const [message, setMessage] = useState("")
+  async function run(intent: ControlPlaneIntent, name: string) {
     setPending(name)
     const result = await dispatch(intent)
     setPending("")
@@ -848,8 +849,13 @@ function PanelOperationCommands({ device, artifacts, dispatch }: { device: Devic
     }
     setRefusal("")
     setOutcome(result.deviceOperation ?? null)
+    // A device command answers with a row and the row is what is rendered. A
+    // control that is not a device command — Quick Phrase dispatches typed text
+    // — has no row, so the plane's own sentence is what the operator reads
+    // rather than an empty line that reads as "nothing happened".
+    setMessage(result.deviceOperation ? "" : result.message)
   }
-  const reported = refusal !== "" ? refusal : outcome ? deviceOperationOutcomeSentence(outcome) : ""
+  const reported = refusal !== "" ? refusal : outcome ? deviceOperationOutcomeSentence(outcome) : message
   const busy = pending !== ""
   return <>
     <ControlButton icon={RotateCcw} label={deviceOperationLabels.reboot} disabled={busy} onClick={() => { void run({ type: "runDeviceOperation", deviceId: device.id, operation: "reboot", fileName: "", artifactId: "", packageName: "", confirmed: true }, "reboot") }} />
@@ -858,6 +864,7 @@ function PanelOperationCommands({ device, artifacts, dispatch }: { device: Devic
     <PanelFileCommand device={device} artifacts={artifacts} operation="import_file" icon={Upload} needsArtifact busy={busy} run={run} />
     <PanelFileCommand device={device} artifacts={artifacts} operation="export_file" icon={Download} busy={busy} run={run} />
     <PanelAdvancedCommand device={device} busy={busy} run={run} />
+    <PanelQuickPhrase device={device} busy={busy} run={run} />
     <p data-testid="panel-operation-outcome" role="status" aria-live="polite" className="px-2 pb-1 text-[10px] leading-4 text-muted-foreground">{reported}</p>
   </>
 }
@@ -875,6 +882,14 @@ function PanelOperationCommands({ device, artifacts, dispatch }: { device: Devic
 const deviceFileNamePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 
 /**
+ * The label Quick Phrase is rendered under. It is deliberately NOT a member of
+ * `deviceOperationLabels`: that table names device OPERATIONS, and Quick Phrase
+ * is typed text rather than a device command. Writing it here keeps the two
+ * kinds of control from being read as one.
+ */
+const quickPhraseLabel = "Quick Phrase"
+
+/**
  * PanelFileCommand draws ONE file or package operation as a dialog.
  *
  * The dialog states what will be sent before anything is: the bounded file name
@@ -884,7 +899,7 @@ const deviceFileNamePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
  * control that cannot act must not act; the refusals an operator reads come from
  * the control plane, not from this dialog.
  */
-function PanelFileCommand({ device, artifacts, operation, icon: Icon, needsArtifact = false, needsPackageName = false, busy, run }: { device: DeviceView; artifacts: readonly ArtifactView[]; operation: DeviceOperationName; icon: typeof Smartphone; needsArtifact?: boolean; needsPackageName?: boolean; busy: boolean; run: (intent: ControlPlaneIntent, name: DeviceOperationReportedName) => Promise<void> }) {
+function PanelFileCommand({ device, artifacts, operation, icon: Icon, needsArtifact = false, needsPackageName = false, busy, run }: { device: DeviceView; artifacts: readonly ArtifactView[]; operation: DeviceOperationName; icon: typeof Smartphone; needsArtifact?: boolean; needsPackageName?: boolean; busy: boolean; run: (intent: ControlPlaneIntent, name: string) => Promise<void> }) {
   const [open, setOpen] = useState(false)
   const [fileName, setFileName] = useState("")
   const [artifactId, setArtifactId] = useState("")
@@ -932,7 +947,7 @@ function PanelFileCommand({ device, artifacts, operation, icon: Icon, needsArtif
  * or a host path outside the admitted set — with its own reason, before anything
  * reaches a device.
  */
-function PanelAdvancedCommand({ device, busy, run }: { device: DeviceView; busy: boolean; run: (intent: ControlPlaneIntent, name: DeviceOperationReportedName) => Promise<void> }) {
+function PanelAdvancedCommand({ device, busy, run }: { device: DeviceView; busy: boolean; run: (intent: ControlPlaneIntent, name: string) => Promise<void> }) {
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState("")
   const argv = value.split("\n").map((line) => line.trim()).filter((line) => line !== "")
@@ -952,6 +967,47 @@ function PanelAdvancedCommand({ device, busy, run }: { device: DeviceView; busy:
         <ol data-testid="advanced-argv-preview" className="mt-1 list-decimal pl-4 font-mono">{argv.map((argument, index) => <li key={`${index}-${argument}`}>{argument}</li>)}</ol>
       </div>
       <div className="mt-2 flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button><Button size="sm" disabled={argv.length === 0} onClick={() => { void confirm() }}>Confirm and dispatch</Button></div>
+    </DialogContent>
+  </Dialog>
+}
+
+/**
+ * PanelQuickPhrase draws Quick Phrase: typed text, for the SELECTED device.
+ *
+ * It is not a device command at all — it types text into the device through the
+ * live session, which is the same typed-text action the kernel already admits —
+ * so it is the one control here whose outcome is the plane's own sentence rather
+ * than a device-operation row.
+ *
+ * The phrase leaves this process through the content surface and nowhere else:
+ * the console registers the value once, the dispatch names it by an opaque
+ * handle, and the length that travels is the number of BYTES the control plane
+ * will hold. Nothing about the phrase is rendered back, and the plane's own
+ * kernel is what types it, so the console never becomes a second path to a
+ * device's input.
+ *
+ * What this control deliberately does NOT add is a DURABLE phrase catalogue. The
+ * reference registry is in-memory, bounded and releases a value at most once —
+ * it is explicitly not a store — so a phrase an operator wants to keep is a
+ * content-at-rest decision about their own text rather than an implementation
+ * choice, and it stays parked on that ruling. The control dispatches; it stores
+ * nothing.
+ */
+function PanelQuickPhrase({ device, busy, run }: { device: DeviceView; busy: boolean; run: (intent: ControlPlaneIntent, name: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState("")
+  async function confirm() {
+    setOpen(false)
+    await run({ type: "submitDeviceText", deviceId: device.id, text: value, confirmed: true }, "quick_phrase")
+  }
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <DialogTrigger render={<Button variant="ghost" disabled={busy} className="h-9 w-full justify-start rounded-none px-2 text-xs" />}><MessageSquareText className="size-3.5 text-muted-foreground" aria-hidden="true" />{quickPhraseLabel}</DialogTrigger>
+    <DialogContent>
+      <DialogHeader><DialogTitle>{`${quickPhraseLabel} on ${device.displayName}`}</DialogTitle><DialogDescription>{`The phrase is typed into ${device.displayName} through the control plane's own typed-text action, over the live session the device holds. It is registered once on this console's content surface and named afterwards by an opaque handle, so it is never echoed back into this page.`}</DialogDescription></DialogHeader>
+      <label className="mt-2 block text-xs font-medium" htmlFor="quick-phrase">Phrase to type
+        <Textarea id="quick-phrase" value={value} onChange={(event) => setValue(event.target.value)} rows={3} className="mt-2 text-xs" />
+      </label>
+      <div className="mt-2 flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button><Button size="sm" disabled={value.trim() === ""} onClick={() => { void confirm() }}>Confirm and type</Button></div>
     </DialogContent>
   </Dialog>
 }

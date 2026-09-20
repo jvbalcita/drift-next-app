@@ -1129,20 +1129,19 @@ describe("ControlPage big-frame device commands", () => {
   })
 
   /**
-   * The twelve controls the panel renders, and the one label it must NOT render.
+   * All thirteen controls, which is every control the panel renders.
    *
-   * `withdrawn` is what is left of "nine commands do nothing". Six of them —
-   * Reboot, Switch Keyboard, Install APK, Import File, Export File and the
-   * advanced form — NOW have a typed per-device action and are rendered, so they
-   * moved out of this list into `rendered`. Quick Phrase still has none: it is a
-   * text-reference surface of its own rather than a device command, so it is the
-   * one label with nothing behind it and stays withdrawn — a control whose click
-   * is the end of the interaction is the defect this column exists to remove. The
-   * list is written out here rather than read from the rendering table, because a
-   * test that asked the table what to expect would pass whatever the table said.
+   * This is the list the card started from ("12 of 13 do nothing today"), written
+   * out here rather than read from the rendering table, because a test that asked
+   * the table what to expect would pass whatever the table said. Twelve of the
+   * thirteen dispatch a device action; Change Device is panel navigation and
+   * moves the frame's control session, which is a dispatch of its own.
+   *
+   * There is no `withdrawn` list any more: the card's ruling is that no control is
+   * removed and every one is completed, so a label leaving this list would be a
+   * control that stopped being rendered and the assertion below is what says so.
    */
-  const rendered = ["Change Device", "Volume Up", "Volume Down", "Screenshot", "Power Button", "Lock Rotate", "Reboot", "Switch Keyboard", "Install APK", "Import File", "Export File", "ADB Command"]
-  const withdrawn = ["Quick Phrase"]
+  const rendered = ["Change Device", "Volume Up", "Volume Down", "Screenshot", "Power Button", "Lock Rotate", "Reboot", "Switch Keyboard", "Install APK", "Import File", "Export File", "ADB Command", "Quick Phrase"]
 
   /** frameHarness renders the page over the mock plane and records every dispatch. */
   function frameHarness(snapshot?: ReturnType<MockControlPlaneClient["getSnapshot"]>) {
@@ -1218,14 +1217,42 @@ describe("ControlPage big-frame device commands", () => {
     expect(await screen.findByLabelText(/Atlas 07 floating phone frame/i)).toBeInTheDocument()
   })
 
-  it("renders the controls it can dispatch and none of the ones it cannot", async () => {
+  it("renders every one of the thirteen controls, because every one of them dispatches", async () => {
     const user = userEvent.setup({ delay: null })
     frameHarness()
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
     const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
 
+    // The rule is "render a control only when it performs its action", so the
+    // assertion is the whole list: a control silently dropped from the column
+    // fails here rather than being noticed by an operator who cannot find it.
+    expect(rendered).toHaveLength(13)
     for (const label of rendered) expect(within(controls).getByRole("button", { name: label })).toBeInTheDocument()
-    for (const label of withdrawn) expect(within(controls).queryByRole("button", { name: label })).toBeNull()
+  })
+
+  it("types the operator's phrase into the selected device, named by an opaque handle", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents } = frameHarness()
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+
+    await user.click(within(controls).getByRole("button", { name: "Quick Phrase" }))
+    const dialog = await screen.findByRole("dialog")
+    const confirm = within(dialog).getByRole("button", { name: "Confirm and type" })
+    // Nothing can be typed before there is something to type.
+    expect(confirm).toBeDisabled()
+    await user.type(within(dialog).getByLabelText(/Phrase to type/i), "on my way")
+    expect(confirm).toBeEnabled()
+    await user.click(confirm)
+
+    const dispatched = intents.filter((intent) => intent.type === "submitDeviceText")
+    await waitFor(() => expect(dispatched).toHaveLength(1))
+    // The DISPATCH is what is asserted, never a toast: the phrase goes to the
+    // device the frame has open, through the kernel's typed-text action, carrying
+    // the operator's own approval. The plane's own sentence is then what the panel
+    // reports, because typed text is not a device-operation row.
+    expect(dispatched[0]).toMatchObject({ deviceId: "atlas-04", text: "on my way", confirmed: true })
+    await waitFor(() => expect(within(controls).getByTestId("panel-operation-outcome")).not.toBeEmptyDOMElement())
   })
 
   it("dispatches one per-device settings apply for Lock Rotate, for the selected device", async () => {
