@@ -1,5 +1,5 @@
 import { useRef, useState } from "react"
-import { ArrowLeft, ChevronDown, Network, ShieldCheck } from "lucide-react"
+import { ArrowLeft, ChevronDown, ChevronRight, Network, ShieldCheck } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
@@ -62,9 +62,15 @@ export function DeviceInspectSheet({
           <SheetBody>
             <div>
               {mainTabs.filter((tab) => tab.id !== "endpoint").flatMap((tab) => tab.sections.map((section, index) => <InspectionSectionView key={`${tab.id}-${section.title ?? index}`} section={section} />))}
-              {accessTab || connectionTab ? <div className="grid gap-2 border-b border-border p-3 sm:grid-cols-2">
-                {connectionTab ? <Button ref={connectionTriggerRef} type="button" variant="ghost" className="w-full justify-between border border-border" onClick={() => { setAccessOpen(false); setConnectionOpen(true) }}><span className="flex items-center gap-2"><Network className="size-4" aria-hidden="true" />Connection &amp; Endpoints</span><span className="text-xs text-muted-foreground">{endpointItems.length} record{endpointItems.length === 1 ? "" : "s"}</span></Button> : null}
-                {accessTab ? <Button ref={accessTriggerRef} type="button" variant="ghost" className="w-full justify-between border border-border" onClick={() => { setConnectionOpen(false); setAccessOpen(true) }}><span className="flex items-center gap-2"><ShieldCheck className="size-4" aria-hidden="true" />Access &amp; Control</span><span className="text-xs text-muted-foreground">Leases and assignments</span></Button> : null}
+              {accessTab || connectionTab ? <div className="grid gap-2 border-b border-border p-3 lg:grid-cols-2">
+                {connectionTab ? <Button ref={connectionTriggerRef} type="button" variant="ghost" className="h-auto min-w-0 justify-between gap-3 border border-border bg-popover px-3 py-2.5 text-left text-foreground hover:bg-muted/50" onClick={() => { setAccessOpen(false); setConnectionOpen(true) }}>
+                  <span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-2 font-medium"><Network className="size-4 shrink-0" aria-hidden="true" /><span className="truncate">Connection &amp; Endpoints</span></span><span className="mt-1 block text-[10px] font-normal text-muted-foreground">{endpointItems.length} record{endpointItems.length === 1 ? "" : "s"}</span></span>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                </Button> : null}
+                {accessTab ? <Button ref={accessTriggerRef} type="button" variant="ghost" className="h-auto min-w-0 justify-between gap-3 border border-border bg-popover px-3 py-2.5 text-left text-foreground hover:bg-muted/50" onClick={() => { setConnectionOpen(false); setAccessOpen(true) }}>
+                  <span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-2 font-medium"><ShieldCheck className="size-4 shrink-0" aria-hidden="true" /><span className="truncate">Access &amp; Control</span></span><span className="mt-1 block text-[10px] font-normal text-muted-foreground">Leases and assignments</span></span>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                </Button> : null}
               </div> : null}
               <div className="px-4 pb-5 sm:px-5">
                 <DeviceInputControls device={device} snapshot={snapshot} dispatch={dispatch} />
@@ -208,7 +214,13 @@ function EndpointHistoryView({ items }: { items: readonly InspectionItem[] }) {
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="border-t border-border/70">
-          {group.items.map((item) => <div key={item.key} className="border-b border-border/70 last:border-b-0"><dl className="grid text-xs">{item.rows.map((entry) => <InspectionField key={entry.label} label={entry.label} value={entry.value} mono={entry.mono} exact={entry.exact} />)}</dl></div>)}
+          {group.items.map((item, index) => <article key={item.key} className="border-b border-border/70 p-3 last:border-b-0">
+            <div className="mb-2 flex items-start justify-between gap-3 border-b border-border/70 pb-2">
+              <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-primary">Record {index + 1}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{endpointObservedLabel(item)}</p></div>
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">{endpointStateLabel(item)}</span>
+            </div>
+            <dl className="grid text-xs">{item.rows.map((entry) => <InspectionField key={entry.label} label={entry.label} value={entry.value} mono={entry.mono} exact={entry.exact} />)}</dl>
+          </article>)}
         </div>
       </CollapsibleContent>
     </Collapsible>
@@ -244,4 +256,18 @@ function endpointTimestamp(item: EndpointHistoryItem) {
 function endpointDateLabel(key: string) {
   if (key === "unknown") return "Date not reported"
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${key}T00:00:00Z`))
+}
+
+function endpointStateLabel(item: EndpointHistoryItem) {
+  const state = item.rows.find((row) => row.label === "State")?.value.trim().toLowerCase()
+  if (state === "current") return "Current"
+  if (state === "superseded") return "Historical"
+  return state ? state[0].toUpperCase() + state.slice(1) : "Unspecified"
+}
+
+function endpointObservedLabel(item: EndpointHistoryItem) {
+  const value = item.rows.find((row) => row.label === "Observed At")?.value ?? ""
+  const timestamp = Date.parse(value)
+  if (!Number.isFinite(timestamp)) return "Observation time not reported"
+  return `Observed ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(timestamp))} UTC`
 }
