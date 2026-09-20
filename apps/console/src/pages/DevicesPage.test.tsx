@@ -83,7 +83,7 @@ function warningSnapshot(): ControlPlaneSnapshot {
 }
 
 async function openInspect(user: ReturnType<typeof userEvent.setup>, index = 0) {
-  await user.click(screen.getAllByRole("button", { name: /^Inspect / })[index])
+  await user.click(screen.getAllByRole("row", { name: /^Open details for / })[index])
   return await screen.findByRole("dialog")
 }
 
@@ -128,6 +128,17 @@ describe("DevicesPage registry table", () => {
     expect(cells[5]).toHaveTextContent("Online")
     expect(cells[5]).not.toHaveTextContent("Registered")
     expect(cells[6]).toHaveTextContent("12 sec ago")
+    expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Inspect / })).not.toBeInTheDocument()
+  })
+
+  it("opens device details from a focused row with Enter", async () => {
+    const user = userEvent.setup()
+    renderDevicesPage(scannedSnapshot())
+    const row = screen.getByRole("row", { name: "Open details for SM-G9750" })
+    row.focus()
+    await user.keyboard("{Enter}")
+    expect(await screen.findByRole("dialog")).toHaveTextContent("SM-G9750")
   })
 
   it("withholds a stale endpoint when the device projection names another record", () => {
@@ -298,10 +309,15 @@ describe("DevicesPage inspection surface", () => {
     expect(within(sheet).getByText("run-1042 · Content validation")).toBeInTheDocument()
     expect(within(sheet).getByText("lease.renewed")).toBeInTheDocument()
 
-    expect(within(sheet).getByRole("heading", { name: "Control Leases" })).toBeInTheDocument()
-    expect(within(sheet).getByText("operator-1")).toBeInTheDocument()
-    expect(within(sheet).getByText("18")).toBeInTheDocument()
-    expect(within(sheet).getByText("Operations demo")).toBeInTheDocument()
+    expect(within(sheet).queryByRole("heading", { name: "Control Leases" })).not.toBeInTheDocument()
+    await user.click(within(sheet).getByRole("button", { name: /Access & Control/ }))
+    const accessSheet = screen.getByRole("dialog", { name: "Access & Control" })
+    expect(within(accessSheet).getByRole("heading", { name: "Control Leases" })).toBeInTheDocument()
+    expect(within(accessSheet).getByText("operator-1")).toBeInTheDocument()
+    expect(within(accessSheet).getByText("18")).toBeInTheDocument()
+    expect(within(accessSheet).getByText("Operations demo")).toBeInTheDocument()
+    await user.click(within(accessSheet).getByRole("button", { name: "Back to device details" }))
+    expect(screen.getByRole("dialog", { name: "Atlas 04" })).toBeInTheDocument()
   })
 
   it("hides an inspection section the device has no data source for", async () => {
@@ -322,6 +338,7 @@ describe("DevicesPage inspection surface", () => {
 
     const sheet = await openInspect(user)
 
-    expect(within(sheet).getByRole("heading", { name: "Control Leases" })).toBeInTheDocument()
+    await user.click(within(sheet).getByRole("button", { name: /Access & Control/ }))
+    expect(within(screen.getByRole("dialog", { name: "Access & Control" })).getByRole("heading", { name: "Control Leases" })).toBeInTheDocument()
   })
 })

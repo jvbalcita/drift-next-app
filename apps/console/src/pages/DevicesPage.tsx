@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react"
-import { Loader2, RefreshCw, Search, Smartphone, TriangleAlert } from "lucide-react"
+import { useMemo, useState, type KeyboardEvent } from "react"
+import { Loader2, RefreshCw, Search, TriangleAlert } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,7 +29,7 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
   const [inspectedId, setInspectedId] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [page, setPage] = useState(0)
-  const [pageSize, setPageSize] = useState(5)
+  const [pageSize, setPageSize] = useState(10)
   const normalizedQuery = query.trim().toLowerCase()
   const devices = useMemo(
     () => snapshot.devices.filter((device) => matches(device, filter) && searchable(device, snapshot.endpoints).includes(normalizedQuery)),
@@ -83,7 +83,7 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
         {devices.length === 0 ? <EmptyState label="No Devices in This View" detail="Change the active view or search term." /> : <>
           {/* The registry sizes to its rows and caps its own height: a fixed height would reserve an empty box below a short page. */}
           <div role="region" aria-label="Device Registry" tabIndex={0} className="max-h-[min(62vh,680px)] overflow-x-auto overflow-y-auto border-x border-t border-border focus-visible:outline-2 focus-visible:outline-primary">
-            <table className="w-full min-w-[1080px] border-collapse text-left text-xs">
+            <table className="w-full min-w-[980px] border-collapse text-left text-xs">
               <caption className="sr-only">Device Registry</caption>
               <thead className="sticky top-0 z-10 bg-background">
                 <tr className="border-b border-border text-[10px] uppercase tracking-[.08em] text-muted-foreground">
@@ -94,7 +94,6 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
                   <th scope="col" className="w-20 p-3">Port</th>
                   <th scope="col" className="min-w-32 p-3">Status</th>
                   <th scope="col" className="min-w-40 p-3">Last Seen</th>
-                  <th scope="col" className="p-3"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>{visibleDevices.map((device) => <DeviceRow key={device.id} device={device} endpoints={snapshot.endpoints} onInspect={() => inspect(device)} />)}</tbody>
@@ -116,7 +115,12 @@ function DeviceRow({ device, endpoints, onInspect }: { device: DeviceView; endpo
     ? endpoints.find((candidate) => candidate.id === device.endpointId && candidate.state === "current")
     : endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
   const lastSeen = humanTimestamp(device.lastSeen)
-  return <tr className="border-b border-border/70 hover:bg-muted/50 focus-within:bg-muted/50">
+  function activate(event: KeyboardEvent<HTMLTableRowElement>) {
+    if (event.key !== "Enter" && event.key !== " ") return
+    event.preventDefault()
+    onInspect()
+  }
+  return <tr tabIndex={0} aria-label={`Open details for ${name.primary}`} onClick={onInspect} onKeyDown={activate} className="cursor-pointer border-b border-border/70 outline-none hover:bg-muted/50 focus:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
     <td className="min-w-0 p-3"><p className={`truncate text-sm font-semibold ${name.mono ? "drift-data" : ""}`} title={name.primary}>{name.primary}</p></td>
     <td className="drift-data p-3 text-[11px]">{device.phoneModel?.trim() || "—"}</td>
     <td className="drift-data p-3 text-[11px]">{endpoint?.serial.trim() || "—"}</td>
@@ -124,7 +128,6 @@ function DeviceRow({ device, endpoints, onInspect }: { device: DeviceView; endpo
     <td className="drift-data p-3 text-[11px]">{endpoint ? endpointPort(endpoint) || "—" : "—"}</td>
     <td className="p-3"><DeviceStatus device={device} /></td>
     <td className="p-3 text-muted-foreground">{lastSeen.label ? lastSeen.exact ? <time dateTime={lastSeen.exact} title={lastSeen.exact}>{lastSeen.label}</time> : lastSeen.label : "—"}</td>
-    <td className="p-3 text-right"><Button size="sm" variant="outline" aria-label={`Inspect ${name.primary}`} onClick={onInspect}><Smartphone className="size-3.5" aria-hidden="true" />Inspect</Button></td>
   </tr>
 }
 

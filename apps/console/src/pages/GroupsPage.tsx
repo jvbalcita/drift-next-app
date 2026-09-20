@@ -6,6 +6,7 @@ import {
   FolderPlus,
   Pencil,
   Plus,
+  Search,
   Trash2,
   UserPlus,
   Users,
@@ -36,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type {
   ControlPlaneIntent,
   ControlPlaneSnapshot,
@@ -96,6 +98,7 @@ export function GroupsPage({
   const [createError, setCreateError] = useState("");
   const [renameError, setRenameError] = useState("");
   const [assignmentError, setAssignmentError] = useState("");
+  const [assignmentQuery, setAssignmentQuery] = useState("");
 
   const memberships = useMemo(
     () => activeMemberships(snapshot.memberships),
@@ -110,7 +113,7 @@ export function GroupsPage({
     [groups],
   );
   const ungrouped = useMemo(
-    () => ungroupedDevices(snapshot.devices, snapshot.memberships),
+    () => ungroupedDevices(snapshot.devices, snapshot.memberships).filter((device) => device.lifecycle !== "retired"),
     [snapshot.devices, snapshot.memberships],
   );
 
@@ -179,12 +182,14 @@ export function GroupsPage({
   function openGroupAssignment(group: GroupView) {
     setAssignmentError("");
     setSelectedDeviceIds([]);
+    setAssignmentQuery("");
     setAssignmentGroupId(group.id);
     setAssignment({ kind: "group", group });
   }
   function openUngroupedAssignment() {
     setAssignmentError("");
     setSelectedDeviceIds([]);
+    setAssignmentQuery("");
     setAssignmentGroupId(activeGroups[0]?.id ?? "");
     setAssignment({ kind: "ungrouped" });
   }
@@ -228,15 +233,35 @@ export function GroupsPage({
     setSelectedDeviceIds([]);
   }
 
-  const assignmentCandidates =
+  const eligibleAssignmentCandidates =
     assignment?.kind === "group"
       ? snapshot.devices.filter(
           (device) =>
+            device.lifecycle !== "retired" &&
             !membersOf(assignment.group.id).some(
               (membership) => membership.deviceId === device.id,
             ),
         )
       : ungrouped;
+  const normalizedAssignmentQuery = assignmentQuery.trim().toLowerCase();
+  const assignmentCandidates = eligibleAssignmentCandidates.filter((device) => {
+    const endpointText = snapshot.endpoints
+      .filter((endpoint) => endpoint.deviceId === device.id && endpoint.state === "current")
+      .flatMap((endpoint) => [endpoint.host, endpoint.serial, String(endpoint.port)])
+      .join(" ");
+    return `${device.displayName} ${device.status} ${endpointText}`.toLowerCase().includes(normalizedAssignmentQuery);
+  });
+  const visibleCandidateIds = assignmentCandidates.map((device) => device.id);
+  const selectedVisibleCount = visibleCandidateIds.filter((id) => selectedDeviceIds.includes(id)).length;
+  const allVisibleSelected = visibleCandidateIds.length > 0 && selectedVisibleCount === visibleCandidateIds.length;
+  const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+
+  function toggleAllVisible(checked: boolean) {
+    const visible = new Set(visibleCandidateIds);
+    setSelectedDeviceIds((current) => checked
+      ? [...new Set([...current, ...visibleCandidateIds])]
+      : current.filter((id) => !visible.has(id)));
+  }
 
   return (
     <>
@@ -481,6 +506,7 @@ export function GroupsPage({
                   />
                 </div>
               ) : (
+                <ScrollArea className="h-72 xl:h-[26rem]">
                 <ul className="divide-y divide-border">
                   {ungrouped.map((device) => (
                     <li
@@ -497,6 +523,7 @@ export function GroupsPage({
                     </li>
                   ))}
                 </ul>
+                </ScrollArea>
               )}
             </CardContent>
             <CardFooter className="rounded-none">
@@ -645,6 +672,7 @@ export function GroupsPage({
           if (!open) {
             setAssignment(null);
             setAssignmentError("");
+            setAssignmentQuery("");
           }
         }}
       >
@@ -677,8 +705,18 @@ export function GroupsPage({
                 />
               </div>
             ) : null}
-            <fieldset className="my-4 max-h-72 overflow-y-auto border border-border">
+            <div className="relative mt-4">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input aria-label="Search devices to assign" value={assignmentQuery} onChange={(event) => setAssignmentQuery(event.target.value)} placeholder="Search name, IP, serial, or status" className="pl-8" />
+            </div>
+            <label className="group/field-label mt-3 flex cursor-pointer items-center gap-3 border border-border px-3 py-3 text-xs font-medium">
+              <Checkbox checked={allVisibleSelected} indeterminate={someVisibleSelected} disabled={visibleCandidateIds.length === 0} onCheckedChange={(checked) => toggleAllVisible(checked === true)} />
+              Select all visible devices
+              <span className="ml-auto text-[10px] text-muted-foreground">{selectedVisibleCount}/{visibleCandidateIds.length}</span>
+            </label>
+            <fieldset className="my-3 border border-border">
               <legend className="sr-only">Devices to assign</legend>
+              <ScrollArea className="h-72">
               {assignmentCandidates.length === 0 ? (
                 <p className="p-4 text-xs text-muted-foreground">
                   No devices are available for this assignment.
@@ -704,6 +742,7 @@ export function GroupsPage({
                   </label>
                 ))
               )}
+              </ScrollArea>
             </fieldset>
             {assignmentError ? (
               <p role="alert" className="mb-4 text-xs text-destructive">

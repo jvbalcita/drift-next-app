@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device.proto.
  */
 export const file_drift_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChVkcmlmdC92MS9kZXZpY2UucHJvdG8SCGRyaWZ0LnYxIsQCCgZEZXZpY2USCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCGFnZW50X2lkGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLmRyaWZ0LnYxLkRldmljZVN0YXR1cxIYChBwbGF0Zm9ybV92ZXJzaW9uGAUgASgJEhcKD2JhdHRlcnlfcGVyY2VudBgGIAEoDRISCgpsYXRlbmN5X21zGAcgASgNEhQKDGxhc3Rfc2Vlbl9hdBgIIAEoCRIpCgl3b3Jrc3BhY2UYCSABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEwoLZW5kcG9pbnRfaWQYCiABKAkSEwoLcm93X3ZlcnNpb24YCyABKAQSLAoJdHJhbnNwb3J0GAwgASgOMhkuZHJpZnQudjEuRGV2aWNlVHJhbnNwb3J0In0KEkxpc3REZXZpY2VzUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAyABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdCJeChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiEKB2RldmljZXMYASADKAsyEC5kcmlmdC52MS5EZXZpY2USJAoEcGFnZRgCIAEoCzIWLmRyaWZ0LnYxLlBhZ2VSZXNwb25zZSJpChBHZXREZXZpY2VSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSKQoJd29ya3NwYWNlGAMgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmIjUKEUdldERldmljZVJlc3BvbnNlEiAKBmRldmljZRgBIAEoCzIQLmRyaWZ0LnYxLkRldmljZSrBAQoMRGV2aWNlU3RhdHVzEh0KGURFVklDRV9TVEFUVVNfVU5TUEVDSUZJRUQQABIYChRERVZJQ0VfU1RBVFVTX09OTElORRABEhsKF0RFVklDRV9TVEFUVVNfQVRURU5USU9OEAISGQoVREVWSUNFX1NUQVRVU19PRkZMSU5FEAMSHgoaREVWSUNFX1NUQVRVU19VTkFVVEhPUklaRUQQBBIgChxERVZJQ0VfU1RBVFVTX05PX1BFUk1JU1NJT05TEAUqZwoPRGV2aWNlVHJhbnNwb3J0EiAKHERFVklDRV9UUkFOU1BPUlRfVU5TUEVDSUZJRUQQABIYChRERVZJQ0VfVFJBTlNQT1JUX1VTQhABEhgKFERFVklDRV9UUkFOU1BPUlRfVENQEAIyoQEKDURldmljZVNlcnZpY2USSgoLTGlzdERldmljZXMSHC5kcmlmdC52MS5MaXN0RGV2aWNlc1JlcXVlc3QaHS5kcmlmdC52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlEkQKCUdldERldmljZRIaLmRyaWZ0LnYxLkdldERldmljZVJlcXVlc3QaGy5kcmlmdC52MS5HZXREZXZpY2VSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
+  fileDesc("ChVkcmlmdC92MS9kZXZpY2UucHJvdG8SCGRyaWZ0LnYxIvYCCgZEZXZpY2USCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCGFnZW50X2lkGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLmRyaWZ0LnYxLkRldmljZVN0YXR1cxIYChBwbGF0Zm9ybV92ZXJzaW9uGAUgASgJEhcKD2JhdHRlcnlfcGVyY2VudBgGIAEoDRISCgpsYXRlbmN5X21zGAcgASgNEhQKDGxhc3Rfc2Vlbl9hdBgIIAEoCRIpCgl3b3Jrc3BhY2UYCSABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEwoLZW5kcG9pbnRfaWQYCiABKAkSEwoLcm93X3ZlcnNpb24YCyABKAQSLAoJdHJhbnNwb3J0GAwgASgOMhkuZHJpZnQudjEuRGV2aWNlVHJhbnNwb3J0EjAKC2RpYWdub3N0aWNzGA0gASgLMhsuZHJpZnQudjEuRGV2aWNlRGlhZ25vc3RpY3MiiwgKEURldmljZURpYWdub3N0aWNzEhMKC29ic2VydmVkX2F0GAEgASgJEh0KFWludmVudG9yeV9vYnNlcnZlZF9hdBgCIAEoCRISCgVicmFuZBgDIAEoCUgAiAEBEhwKD2RldmljZV9jb2RlbmFtZRgEIAEoCUgBiAEBEhUKCGhhcmR3YXJlGAUgASgJSAKIAQESHAoPYW5kcm9pZF92ZXJzaW9uGAYgASgJSAOIAQESFgoJc2RrX2xldmVsGAcgASgNSASIAQESHAoPc2NyZWVuX3dpZHRoX3B4GAggASgNSAWIAQESHQoQc2NyZWVuX2hlaWdodF9weBgJIAEoDUgGiAEBEhgKC2RlbnNpdHlfZHBpGAogASgNSAeIAQESIgoVYmF0dGVyeV9sZXZlbF9wZXJjZW50GAsgASgNSAiIAQESKAobYmF0dGVyeV90ZW1wZXJhdHVyZV9jZWxzaXVzGAwgASgBSAmIAQESGwoOYmF0dGVyeV9zdGF0dXMYDSABKAlICogBARIgChNzdG9yYWdlX3RvdGFsX2J5dGVzGA4gASgESAuIAQESHwoSc3RvcmFnZV9mcmVlX2J5dGVzGA8gASgESAyIAQESHAoPcmFtX3RvdGFsX2J5dGVzGBAgASgESA2IAQESGwoOcmFtX2ZyZWVfYnl0ZXMYESABKARIDogBARIgChNyYW1fYXZhaWxhYmxlX2J5dGVzGBIgASgESA+IAQESGwoOdXB0aW1lX3NlY29uZHMYEyABKARIEIgBARIfChJmb3JlZ3JvdW5kX3BhY2thZ2UYFCABKAlIEYgBARIgChNmb3JlZ3JvdW5kX2FjdGl2aXR5GBUgASgJSBKIAQFCCAoGX2JyYW5kQhIKEF9kZXZpY2VfY29kZW5hbWVCCwoJX2hhcmR3YXJlQhIKEF9hbmRyb2lkX3ZlcnNpb25CDAoKX3Nka19sZXZlbEISChBfc2NyZWVuX3dpZHRoX3B4QhMKEV9zY3JlZW5faGVpZ2h0X3B4Qg4KDF9kZW5zaXR5X2RwaUIYChZfYmF0dGVyeV9sZXZlbF9wZXJjZW50Qh4KHF9iYXR0ZXJ5X3RlbXBlcmF0dXJlX2NlbHNpdXNCEQoPX2JhdHRlcnlfc3RhdHVzQhYKFF9zdG9yYWdlX3RvdGFsX2J5dGVzQhUKE19zdG9yYWdlX2ZyZWVfYnl0ZXNCEgoQX3JhbV90b3RhbF9ieXRlc0IRCg9fcmFtX2ZyZWVfYnl0ZXNCFgoUX3JhbV9hdmFpbGFibGVfYnl0ZXNCEQoPX3VwdGltZV9zZWNvbmRzQhUKE19mb3JlZ3JvdW5kX3BhY2thZ2VCFgoUX2ZvcmVncm91bmRfYWN0aXZpdHkifQoSTGlzdERldmljZXNSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgDIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0Il4KE0xpc3REZXZpY2VzUmVzcG9uc2USIQoHZGV2aWNlcxgBIAMoCzIQLmRyaWZ0LnYxLkRldmljZRIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlImkKEEdldERldmljZVJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhEKCWRldmljZV9pZBgCIAEoCRIpCgl3b3Jrc3BhY2UYAyABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYiNQoRR2V0RGV2aWNlUmVzcG9uc2USIAoGZGV2aWNlGAEgASgLMhAuZHJpZnQudjEuRGV2aWNlIkwKH1JlZnJlc2hEZXZpY2VEaWFnbm9zdGljc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmInMKIFJlZnJlc2hEZXZpY2VEaWFnbm9zdGljc1Jlc3BvbnNlEhEKCWF0dGVtcHRlZBgBIAEoDRIRCglzdWNjZWVkZWQYAiABKA0SDgoGZmFpbGVkGAMgASgNEhkKEWZhaWxlZF9kZXZpY2VfaWRzGAQgAygJKsEBCgxEZXZpY2VTdGF0dXMSHQoZREVWSUNFX1NUQVRVU19VTlNQRUNJRklFRBAAEhgKFERFVklDRV9TVEFUVVNfT05MSU5FEAESGwoXREVWSUNFX1NUQVRVU19BVFRFTlRJT04QAhIZChVERVZJQ0VfU1RBVFVTX09GRkxJTkUQAxIeChpERVZJQ0VfU1RBVFVTX1VOQVVUSE9SSVpFRBAEEiAKHERFVklDRV9TVEFUVVNfTk9fUEVSTUlTU0lPTlMQBSpnCg9EZXZpY2VUcmFuc3BvcnQSIAocREVWSUNFX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEhgKFERFVklDRV9UUkFOU1BPUlRfVVNCEAESGAoUREVWSUNFX1RSQU5TUE9SVF9UQ1AQAjKUAgoNRGV2aWNlU2VydmljZRJKCgtMaXN0RGV2aWNlcxIcLmRyaWZ0LnYxLkxpc3REZXZpY2VzUmVxdWVzdBodLmRyaWZ0LnYxLkxpc3REZXZpY2VzUmVzcG9uc2USRAoJR2V0RGV2aWNlEhouZHJpZnQudjEuR2V0RGV2aWNlUmVxdWVzdBobLmRyaWZ0LnYxLkdldERldmljZVJlc3BvbnNlEnEKGFJlZnJlc2hEZXZpY2VEaWFnbm9zdGljcxIpLmRyaWZ0LnYxLlJlZnJlc2hEZXZpY2VEaWFnbm9zdGljc1JlcXVlc3QaKi5kcmlmdC52MS5SZWZyZXNoRGV2aWNlRGlhZ25vc3RpY3NSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
 
 /**
  * Device is the operator-facing projection of an edge-managed Android device.
@@ -100,6 +100,11 @@ export type Device = Message<"drift.v1.Device"> & {
    * @generated from field: drift.v1.DeviceTransport transport = 12;
    */
   transport: DeviceTransport;
+
+  /**
+   * @generated from field: drift.v1.DeviceDiagnostics diagnostics = 13;
+   */
+  diagnostics?: DeviceDiagnostics;
 };
 
 /**
@@ -108,6 +113,128 @@ export type Device = Message<"drift.v1.Device"> & {
  */
 export const DeviceSchema: GenMessage<Device> = /*@__PURE__*/
   messageDesc(file_drift_v1_device, 0);
+
+/**
+ * DeviceDiagnostics is a bounded, last-known snapshot collected from one
+ * online device. Optional scalars distinguish an observed zero from a fact the
+ * device did not report. observed_at names the collection; inventory_observed_at
+ * names the persisted inventory record backing this projection.
+ *
+ * @generated from message drift.v1.DeviceDiagnostics
+ */
+export type DeviceDiagnostics = Message<"drift.v1.DeviceDiagnostics"> & {
+  /**
+   * @generated from field: string observed_at = 1;
+   */
+  observedAt: string;
+
+  /**
+   * @generated from field: string inventory_observed_at = 2;
+   */
+  inventoryObservedAt: string;
+
+  /**
+   * @generated from field: optional string brand = 3;
+   */
+  brand?: string;
+
+  /**
+   * @generated from field: optional string device_codename = 4;
+   */
+  deviceCodename?: string;
+
+  /**
+   * @generated from field: optional string hardware = 5;
+   */
+  hardware?: string;
+
+  /**
+   * @generated from field: optional string android_version = 6;
+   */
+  androidVersion?: string;
+
+  /**
+   * @generated from field: optional uint32 sdk_level = 7;
+   */
+  sdkLevel?: number;
+
+  /**
+   * @generated from field: optional uint32 screen_width_px = 8;
+   */
+  screenWidthPx?: number;
+
+  /**
+   * @generated from field: optional uint32 screen_height_px = 9;
+   */
+  screenHeightPx?: number;
+
+  /**
+   * @generated from field: optional uint32 density_dpi = 10;
+   */
+  densityDpi?: number;
+
+  /**
+   * @generated from field: optional uint32 battery_level_percent = 11;
+   */
+  batteryLevelPercent?: number;
+
+  /**
+   * @generated from field: optional double battery_temperature_celsius = 12;
+   */
+  batteryTemperatureCelsius?: number;
+
+  /**
+   * @generated from field: optional string battery_status = 13;
+   */
+  batteryStatus?: string;
+
+  /**
+   * @generated from field: optional uint64 storage_total_bytes = 14;
+   */
+  storageTotalBytes?: bigint;
+
+  /**
+   * @generated from field: optional uint64 storage_free_bytes = 15;
+   */
+  storageFreeBytes?: bigint;
+
+  /**
+   * @generated from field: optional uint64 ram_total_bytes = 16;
+   */
+  ramTotalBytes?: bigint;
+
+  /**
+   * @generated from field: optional uint64 ram_free_bytes = 17;
+   */
+  ramFreeBytes?: bigint;
+
+  /**
+   * @generated from field: optional uint64 ram_available_bytes = 18;
+   */
+  ramAvailableBytes?: bigint;
+
+  /**
+   * @generated from field: optional uint64 uptime_seconds = 19;
+   */
+  uptimeSeconds?: bigint;
+
+  /**
+   * @generated from field: optional string foreground_package = 20;
+   */
+  foregroundPackage?: string;
+
+  /**
+   * @generated from field: optional string foreground_activity = 21;
+   */
+  foregroundActivity?: string;
+};
+
+/**
+ * Describes the message drift.v1.DeviceDiagnostics.
+ * Use `create(DeviceDiagnosticsSchema)` to create a new message.
+ */
+export const DeviceDiagnosticsSchema: GenMessage<DeviceDiagnostics> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device, 1);
 
 /**
  * @generated from message drift.v1.ListDevicesRequest
@@ -134,7 +261,7 @@ export type ListDevicesRequest = Message<"drift.v1.ListDevicesRequest"> & {
  * Use `create(ListDevicesRequestSchema)` to create a new message.
  */
 export const ListDevicesRequestSchema: GenMessage<ListDevicesRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device, 1);
+  messageDesc(file_drift_v1_device, 2);
 
 /**
  * @generated from message drift.v1.ListDevicesResponse
@@ -156,7 +283,7 @@ export type ListDevicesResponse = Message<"drift.v1.ListDevicesResponse"> & {
  * Use `create(ListDevicesResponseSchema)` to create a new message.
  */
 export const ListDevicesResponseSchema: GenMessage<ListDevicesResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device, 2);
+  messageDesc(file_drift_v1_device, 3);
 
 /**
  * @generated from message drift.v1.GetDeviceRequest
@@ -183,7 +310,7 @@ export type GetDeviceRequest = Message<"drift.v1.GetDeviceRequest"> & {
  * Use `create(GetDeviceRequestSchema)` to create a new message.
  */
 export const GetDeviceRequestSchema: GenMessage<GetDeviceRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device, 3);
+  messageDesc(file_drift_v1_device, 4);
 
 /**
  * @generated from message drift.v1.GetDeviceResponse
@@ -200,7 +327,56 @@ export type GetDeviceResponse = Message<"drift.v1.GetDeviceResponse"> & {
  * Use `create(GetDeviceResponseSchema)` to create a new message.
  */
 export const GetDeviceResponseSchema: GenMessage<GetDeviceResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device, 4);
+  messageDesc(file_drift_v1_device, 5);
+
+/**
+ * @generated from message drift.v1.RefreshDeviceDiagnosticsRequest
+ */
+export type RefreshDeviceDiagnosticsRequest = Message<"drift.v1.RefreshDeviceDiagnosticsRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+};
+
+/**
+ * Describes the message drift.v1.RefreshDeviceDiagnosticsRequest.
+ * Use `create(RefreshDeviceDiagnosticsRequestSchema)` to create a new message.
+ */
+export const RefreshDeviceDiagnosticsRequestSchema: GenMessage<RefreshDeviceDiagnosticsRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device, 6);
+
+/**
+ * @generated from message drift.v1.RefreshDeviceDiagnosticsResponse
+ */
+export type RefreshDeviceDiagnosticsResponse = Message<"drift.v1.RefreshDeviceDiagnosticsResponse"> & {
+  /**
+   * @generated from field: uint32 attempted = 1;
+   */
+  attempted: number;
+
+  /**
+   * @generated from field: uint32 succeeded = 2;
+   */
+  succeeded: number;
+
+  /**
+   * @generated from field: uint32 failed = 3;
+   */
+  failed: number;
+
+  /**
+   * @generated from field: repeated string failed_device_ids = 4;
+   */
+  failedDeviceIds: string[];
+};
+
+/**
+ * Describes the message drift.v1.RefreshDeviceDiagnosticsResponse.
+ * Use `create(RefreshDeviceDiagnosticsResponseSchema)` to create a new message.
+ */
+export const RefreshDeviceDiagnosticsResponseSchema: GenMessage<RefreshDeviceDiagnosticsResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device, 7);
 
 /**
  * @generated from enum drift.v1.DeviceStatus
@@ -319,6 +495,14 @@ export const DeviceService: GenService<{
     methodKind: "unary";
     input: typeof GetDeviceRequestSchema;
     output: typeof GetDeviceResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.DeviceService.RefreshDeviceDiagnostics
+   */
+  refreshDeviceDiagnostics: {
+    methodKind: "unary";
+    input: typeof RefreshDeviceDiagnosticsRequestSchema;
+    output: typeof RefreshDeviceDiagnosticsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_device, 0);

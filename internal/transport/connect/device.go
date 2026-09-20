@@ -2,19 +2,33 @@ package transportconnect
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
 	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/endpoints"
+	"drift.local/drift-next/internal/health"
+	"drift.local/drift-next/internal/inventory"
 	"drift.local/drift-next/internal/organizations"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 	store "drift.local/drift-next/internal/store/sqlite"
 )
 
-type DeviceHandler struct{ db *store.DB }
+type DeviceDiagnosticsCollector interface {
+	Collect(context.Context, string) (devices.Diagnostics, error)
+}
+
+type DeviceHandler struct {
+	db          *store.DB
+	diagnostics DeviceDiagnosticsCollector
+}
 
 func NewDeviceHandler(db *store.DB) *DeviceHandler { return &DeviceHandler{db: db} }
+func (h *DeviceHandler) SetDiagnosticsCollector(collector DeviceDiagnosticsCollector) {
+	h.diagnostics = collector
+}
 
 func (h *DeviceHandler) ListDevices(ctx context.Context, request *connectrpc.Request[driftv1.ListDevicesRequest]) (*connectrpc.Response[driftv1.ListDevicesResponse], error) {
 	if request == nil {
@@ -45,11 +59,12 @@ func (h *DeviceHandler) ListDevices(ctx context.Context, request *connectrpc.Req
 		// with a zero endpoint: no transport observed is not the same fact as a
 		// transport with no address.
 		endpoint, observed := current[device.ID]
+		diagnostics := currentDiagnostics(ctx, h.db, workspace, device.ID)
 		if !observed {
-			out = append(out, deviceProto(device, nil))
+			out = append(out, deviceProto(device, nil, diagnostics))
 			continue
 		}
-		out = append(out, deviceProto(device, &endpoint))
+		out = append(out, deviceProto(device, &endpoint, diagnostics))
 	}
 	return connectrpc.NewResponse(&driftv1.ListDevicesResponse{Devices: out, Page: pageResponse(next)}), nil
 }
@@ -74,7 +89,71 @@ func (h *DeviceHandler) GetDevice(ctx context.Context, request *connectrpc.Reque
 	if endpointErr != nil {
 		return nil, MapError(endpointErr)
 	}
-	return connectrpc.NewResponse(&driftv1.GetDeviceResponse{Device: deviceProto(device, endpoint)}), nil
+	return connectrpc.NewResponse(&driftv1.GetDeviceResponse{Device: deviceProto(device, endpoint, currentDiagnostics(ctx, h.db, workspace, device.ID))}), nil
+}
+
+func (h *DeviceHandler) RefreshDeviceDiagnostics(ctx context.Context, request *connectrpc.Request[driftv1.RefreshDeviceDiagnosticsRequest]) (*connectrpc.Response[driftv1.RefreshDeviceDiagnosticsResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("refresh device diagnostics request is required")
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	if h.diagnostics == nil {
+		return nil, MapError(platformerrors.New(platformerrors.CodePreconditionFailed, "device diagnostics collector is unavailable"))
+	}
+	listed, err := store.NewDeviceRepository(h.db).List(ctx, workspace)
+	if err != nil {
+		return nil, MapError(err)
+	}
+	current, err := store.NewEndpointRepository(h.db).ListCurrentByDevice(ctx, workspace)
+	if err != nil {
+		return nil, MapError(err)
+	}
+	response := &driftv1.RefreshDeviceDiagnosticsResponse{}
+	for _, device := range listed {
+		endpoint, ok := current[device.ID]
+		if !ok || deviceStatusProto(device, &endpoint) != driftv1.DeviceStatus_DEVICE_STATUS_ONLINE || endpoint.Serial == "" {
+			continue
+		}
+		response.Attempted++
+		deviceCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+		diagnostics, collectErr := h.diagnostics.Collect(deviceCtx, endpoint.Serial)
+		cancel()
+		if collectErr != nil || h.persistDiagnostics(ctx, workspace, device.ID, diagnostics) != nil {
+			response.Failed++
+			response.FailedDeviceIds = append(response.FailedDeviceIds, string(device.ID))
+			continue
+		}
+		response.Succeeded++
+	}
+	return connectrpc.NewResponse(response), nil
+}
+
+func (h *DeviceHandler) persistDiagnostics(ctx context.Context, workspace organizations.WorkspaceID, deviceID devices.DeviceID, diagnostics devices.Diagnostics) error {
+	payload, err := json.Marshal(diagnostics)
+	if err != nil {
+		return err
+	}
+	inventoryID, err := h.db.IDs().NewID()
+	if err != nil {
+		return err
+	}
+	_, err = store.NewInventoryService(h.db).Record(ctx, inventory.Record{ID: inventory.InventoryID(inventoryID), Workspace: workspace, DeviceID: deviceID, InventoryJSON: string(payload), ObservedAt: diagnostics.ObservedAt}, "control_plane", "diagnostics-refresh")
+	if err != nil {
+		return err
+	}
+	healthID, err := h.db.IDs().NewID()
+	if err != nil {
+		return err
+	}
+	var battery *int
+	if diagnostics.BatteryLevelPercent != nil {
+		value := int(*diagnostics.BatteryLevelPercent)
+		battery = &value
+	}
+	return store.NewHealthService(h.db).Record(ctx, health.Sample{ID: health.SampleID(healthID), Workspace: workspace, DeviceID: deviceID, Status: health.Healthy, Battery: battery, SampledAt: diagnostics.ObservedAt, DetailsJSON: `{}`}, "control_plane", "diagnostics-refresh")
 }
 
 // currentEndpoint reads a device's current transport endpoint, or nil when it
@@ -107,7 +186,7 @@ func currentEndpoint(ctx context.Context, db *store.DB, workspace organizations.
 // The transport is read from the endpoint record. It is never inferred here from
 // the endpoint's address: a boundary that reconstructs it can report a transport
 // the control plane never observed.
-func deviceProto(device devices.Device, endpoint *endpoints.Endpoint) *driftv1.Device {
+func deviceProto(device devices.Device, endpoint *endpoints.Endpoint, diagnostics *driftv1.DeviceDiagnostics) *driftv1.Device {
 	projected := &driftv1.Device{
 		Id:              string(device.ID),
 		DisplayName:     device.DisplayName,
@@ -116,6 +195,7 @@ func deviceProto(device devices.Device, endpoint *endpoints.Endpoint) *driftv1.D
 		LastSeenAt:      formatTimePtr(device.LastSeenAt),
 		Workspace:       workspaceRef(device.Workspace),
 		RowVersion:      device.RowVersion,
+		Diagnostics:     diagnostics,
 	}
 	if endpoint == nil {
 		return projected
@@ -123,6 +203,22 @@ func deviceProto(device devices.Device, endpoint *endpoints.Endpoint) *driftv1.D
 	projected.EndpointId = string(endpoint.ID)
 	projected.Transport = deviceTransportProto(endpoint.Transport)
 	return projected
+}
+
+func currentDiagnostics(ctx context.Context, db *store.DB, workspace organizations.WorkspaceID, deviceID devices.DeviceID) *driftv1.DeviceDiagnostics {
+	record, err := store.NewInventoryRepository(db).Current(ctx, workspace, string(deviceID))
+	if err != nil {
+		return nil
+	}
+	var diagnostics devices.Diagnostics
+	if json.Unmarshal([]byte(record.InventoryJSON), &diagnostics) != nil {
+		return nil
+	}
+	return diagnosticsProto(diagnostics, record.ObservedAt)
+}
+
+func diagnosticsProto(value devices.Diagnostics, inventoryObservedAt time.Time) *driftv1.DeviceDiagnostics {
+	return &driftv1.DeviceDiagnostics{ObservedAt: value.ObservedAt.UTC().Format(time.RFC3339Nano), InventoryObservedAt: inventoryObservedAt.UTC().Format(time.RFC3339Nano), Brand: value.Brand, DeviceCodename: value.DeviceCodename, Hardware: value.Hardware, AndroidVersion: value.AndroidVersion, SdkLevel: value.SDKLevel, ScreenWidthPx: value.ScreenWidthPx, ScreenHeightPx: value.ScreenHeightPx, DensityDpi: value.DensityDPI, BatteryLevelPercent: value.BatteryLevelPercent, BatteryTemperatureCelsius: value.BatteryTemperatureCelsius, BatteryStatus: value.BatteryStatus, StorageTotalBytes: value.StorageTotalBytes, StorageFreeBytes: value.StorageFreeBytes, RamTotalBytes: value.RAMTotalBytes, RamFreeBytes: value.RAMFreeBytes, RamAvailableBytes: value.RAMAvailableBytes, UptimeSeconds: value.UptimeSeconds, ForegroundPackage: value.ForegroundPackage, ForegroundActivity: value.ForegroundActivity}
 }
 
 func deviceTransportProto(transport endpoints.Transport) driftv1.DeviceTransport {

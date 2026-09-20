@@ -38,12 +38,16 @@ const (
 	DeviceServiceListDevicesProcedure = "/drift.v1.DeviceService/ListDevices"
 	// DeviceServiceGetDeviceProcedure is the fully-qualified name of the DeviceService's GetDevice RPC.
 	DeviceServiceGetDeviceProcedure = "/drift.v1.DeviceService/GetDevice"
+	// DeviceServiceRefreshDeviceDiagnosticsProcedure is the fully-qualified name of the DeviceService's
+	// RefreshDeviceDiagnostics RPC.
+	DeviceServiceRefreshDeviceDiagnosticsProcedure = "/drift.v1.DeviceService/RefreshDeviceDiagnostics"
 )
 
 // DeviceServiceClient is a client for the drift.v1.DeviceService service.
 type DeviceServiceClient interface {
 	ListDevices(context.Context, *connect.Request[v1.ListDevicesRequest]) (*connect.Response[v1.ListDevicesResponse], error)
 	GetDevice(context.Context, *connect.Request[v1.GetDeviceRequest]) (*connect.Response[v1.GetDeviceResponse], error)
+	RefreshDeviceDiagnostics(context.Context, *connect.Request[v1.RefreshDeviceDiagnosticsRequest]) (*connect.Response[v1.RefreshDeviceDiagnosticsResponse], error)
 }
 
 // NewDeviceServiceClient constructs a client for the drift.v1.DeviceService service. By default, it
@@ -69,13 +73,20 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("GetDevice")),
 			connect.WithClientOptions(opts...),
 		),
+		refreshDeviceDiagnostics: connect.NewClient[v1.RefreshDeviceDiagnosticsRequest, v1.RefreshDeviceDiagnosticsResponse](
+			httpClient,
+			baseURL+DeviceServiceRefreshDeviceDiagnosticsProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("RefreshDeviceDiagnostics")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // deviceServiceClient implements DeviceServiceClient.
 type deviceServiceClient struct {
-	listDevices *connect.Client[v1.ListDevicesRequest, v1.ListDevicesResponse]
-	getDevice   *connect.Client[v1.GetDeviceRequest, v1.GetDeviceResponse]
+	listDevices              *connect.Client[v1.ListDevicesRequest, v1.ListDevicesResponse]
+	getDevice                *connect.Client[v1.GetDeviceRequest, v1.GetDeviceResponse]
+	refreshDeviceDiagnostics *connect.Client[v1.RefreshDeviceDiagnosticsRequest, v1.RefreshDeviceDiagnosticsResponse]
 }
 
 // ListDevices calls drift.v1.DeviceService.ListDevices.
@@ -88,10 +99,16 @@ func (c *deviceServiceClient) GetDevice(ctx context.Context, req *connect.Reques
 	return c.getDevice.CallUnary(ctx, req)
 }
 
+// RefreshDeviceDiagnostics calls drift.v1.DeviceService.RefreshDeviceDiagnostics.
+func (c *deviceServiceClient) RefreshDeviceDiagnostics(ctx context.Context, req *connect.Request[v1.RefreshDeviceDiagnosticsRequest]) (*connect.Response[v1.RefreshDeviceDiagnosticsResponse], error) {
+	return c.refreshDeviceDiagnostics.CallUnary(ctx, req)
+}
+
 // DeviceServiceHandler is an implementation of the drift.v1.DeviceService service.
 type DeviceServiceHandler interface {
 	ListDevices(context.Context, *connect.Request[v1.ListDevicesRequest]) (*connect.Response[v1.ListDevicesResponse], error)
 	GetDevice(context.Context, *connect.Request[v1.GetDeviceRequest]) (*connect.Response[v1.GetDeviceResponse], error)
+	RefreshDeviceDiagnostics(context.Context, *connect.Request[v1.RefreshDeviceDiagnosticsRequest]) (*connect.Response[v1.RefreshDeviceDiagnosticsResponse], error)
 }
 
 // NewDeviceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -113,12 +130,20 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("GetDevice")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServiceRefreshDeviceDiagnosticsHandler := connect.NewUnaryHandler(
+		DeviceServiceRefreshDeviceDiagnosticsProcedure,
+		svc.RefreshDeviceDiagnostics,
+		connect.WithSchema(deviceServiceMethods.ByName("RefreshDeviceDiagnostics")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.DeviceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceServiceListDevicesProcedure:
 			deviceServiceListDevicesHandler.ServeHTTP(w, r)
 		case DeviceServiceGetDeviceProcedure:
 			deviceServiceGetDeviceHandler.ServeHTTP(w, r)
+		case DeviceServiceRefreshDeviceDiagnosticsProcedure:
+			deviceServiceRefreshDeviceDiagnosticsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -134,4 +159,8 @@ func (UnimplementedDeviceServiceHandler) ListDevices(context.Context, *connect.R
 
 func (UnimplementedDeviceServiceHandler) GetDevice(context.Context, *connect.Request[v1.GetDeviceRequest]) (*connect.Response[v1.GetDeviceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceService.GetDevice is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) RefreshDeviceDiagnostics(context.Context, *connect.Request[v1.RefreshDeviceDiagnosticsRequest]) (*connect.Response[v1.RefreshDeviceDiagnosticsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceService.RefreshDeviceDiagnostics is not implemented"))
 }

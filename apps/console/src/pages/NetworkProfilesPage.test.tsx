@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
+import { Toaster } from "@/components/ui/sonner"
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import type { ControlPlaneIntent, ControlPlaneSnapshot, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import { NetworkProfilesPage } from "./NetworkProfilesPage"
@@ -22,25 +23,18 @@ function renderNetworkProfilesPage(control: { failIntent?: ControlPlaneIntent["t
     }
     return await client.dispatch(intent)
   }
-  const view = () => (
-    <NetworkProfilesPage snapshot={client.getSnapshot()} dispatch={dispatch} view={control.view ?? "profiles"} onViewChange={() => undefined} />
-  )
+  const view = () => <><Toaster /><NetworkProfilesPage snapshot={client.getSnapshot()} dispatch={dispatch} view={control.view ?? "profiles"} onViewChange={() => undefined} /></>
   const rendered = render(view())
   return { client, control, intents, refreshView: () => rendered.rerender(view()), ...rendered }
 }
 
-/** Selects a catalog profile in the page selector and runs one scan against it. */
+/** Opens Configure Scan, selects a catalog profile, and starts it. */
 async function runScanForProfile(user: ReturnType<typeof userEvent.setup>, profileId: string) {
-  await user.click(screen.getByLabelText("Discovery profile"))
-  await user.click(await screen.findByRole("option", { name: profileId === "profile-lab-b" ? "Lab B review" : "Lab A staging (default)" }))
   await user.click(screen.getAllByRole("button", { name: "Configure Scan" })[0])
   const dialog = screen.getByRole("dialog")
+  await user.click(within(dialog).getByLabelText("Discovery profile"))
+  await user.click(await screen.findByRole("option", { name: profileId === "profile-lab-b" ? "Lab B review" : "Lab A staging (default)" }))
   await user.click(within(dialog).getByRole("button", { name: "Start scan" }))
-}
-
-function pageBanner() {
-  // The modal marks outside content aria-hidden, so query past the accessibility tree for the page banner.
-  return screen.getByRole("status", { hidden: true })
 }
 
 async function openCreateDialog(user: ReturnType<typeof userEvent.setup>) {
@@ -49,7 +43,7 @@ async function openCreateDialog(user: ReturnType<typeof userEvent.setup>) {
 }
 
 async function openEditDialog(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getAllByRole("button", { name: "Edit Profile" })[0])
+  await user.click(screen.getAllByRole("button", { name: /^Edit / })[0])
   return screen.getByRole("dialog")
 }
 
@@ -68,7 +62,7 @@ describe("NetworkProfilesPage profile save failures", () => {
     expect(failure).toHaveAttribute("role", "alert")
     expect(within(stillOpen).getByText(/save failed/i)).toBeInTheDocument()
     expect(page.intents).toHaveLength(1)
-    expect(pageBanner()).not.toHaveTextContent(genericFailureMessage)
+    expect(screen.queryByText(genericFailureMessage, { selector: "[data-sonner-toast] *" })).not.toBeInTheDocument()
   })
 
   it("surfaces a control-plane rejection from the real client inside the dialog", async () => {
@@ -83,7 +77,6 @@ describe("NetworkProfilesPage profile save failures", () => {
 
     const failure = within(screen.getByRole("dialog")).getByRole("alert")
     expect(failure).toHaveTextContent("Network Profile was not found.")
-    expect(pageBanner()).not.toHaveTextContent("was not found")
   })
 
   it("closes the dialog and clears the failure notice after a successful save", async () => {
@@ -100,7 +93,7 @@ describe("NetworkProfilesPage profile save failures", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
-    expect(pageBanner()).toHaveTextContent(/Network Profile saved; no scan was started/i)
+    expect(await screen.findByText(/Network Profile saved; no scan was started/i)).toBeInTheDocument()
   })
 
   it("keeps per-field validation errors reported and distinguishable from a save failure", async () => {
@@ -126,7 +119,7 @@ describe("NetworkProfilesPage saved profile catalog", () => {
     renderNetworkProfilesPage()
     // A saved profile has no lifecycle: it is either saved or deleted. Selecting
     // the second catalog row must be enough to start configuring a scan.
-    await user.click(screen.getAllByRole("button", { name: "Edit Profile" })[1])
+    await user.click(screen.getAllByRole("button", { name: /^Edit / })[1])
     await user.keyboard("{Escape}")
 
     const scanButtons = screen.getAllByRole("button", { name: "Configure Scan" })
@@ -141,7 +134,7 @@ describe("NetworkProfilesPage saved profile catalog", () => {
     const page = renderNetworkProfilesPage()
     expect(screen.getByText("Lab A staging")).toBeInTheDocument()
 
-    await user.click(screen.getAllByRole("button", { name: "Delete Profile" })[0])
+    await user.click(screen.getAllByRole("button", { name: /^Delete / })[0])
     await user.click(within(document.body).getByRole("button", { name: "Confirm Delete" }))
 
     expect(page.intents).toEqual([{ type: "deleteNetworkProfile", profileId: "profile-lab-a", confirmed: true }])
@@ -149,14 +142,14 @@ describe("NetworkProfilesPage saved profile catalog", () => {
     expect(screen.queryByText("Lab A staging")).not.toBeInTheDocument()
   })
 
-  it("surfaces a failed delete in the page banner and keeps the profile listed", async () => {
+  it("surfaces a failed delete with Sonner and keeps the profile listed", async () => {
     const user = userEvent.setup()
     const page = renderNetworkProfilesPage({ failIntent: "deleteNetworkProfile", message: "Network Profile was not found." })
 
-    await user.click(screen.getAllByRole("button", { name: "Delete Profile" })[0])
+    await user.click(screen.getAllByRole("button", { name: /^Delete / })[0])
     await user.click(within(document.body).getByRole("button", { name: "Confirm Delete" }))
 
-    expect(pageBanner()).toHaveTextContent("Network Profile was not found.")
+    expect(await screen.findByText("Network Profile was not found.")).toBeInTheDocument()
     page.refreshView()
     expect(screen.getByText("Lab A staging")).toBeInTheDocument()
   })
@@ -186,23 +179,21 @@ describe("NetworkProfilesPage discovery profile selection", () => {
       ...seeded,
       networkProfiles: [{ ...first, isDefault: false }, { ...second, isDefault: true }],
     }
-    render(<NetworkProfilesPage snapshot={reordered} dispatch={noopDispatch} view="scans" onViewChange={() => undefined} />)
-
-    expect(screen.getByLabelText("Discovery profile")).toHaveTextContent("Lab B review")
+    render(<><Toaster /><NetworkProfilesPage snapshot={reordered} dispatch={noopDispatch} view="scans" onViewChange={() => undefined} /></>)
     await user.click(screen.getAllByRole("button", { name: "Configure Scan" })[0])
-    expect(within(screen.getByRole("dialog")).getByText("Lab B review")).toBeInTheDocument()
+    expect(within(screen.getByRole("dialog")).getByLabelText("Discovery profile")).toHaveTextContent("Lab B review")
   })
 
   it("scans a non-newest profile the operator selects, without editing it first", async () => {
     const user = userEvent.setup()
     const page = renderNetworkProfilesPage({ view: "scans" })
 
-    await user.click(screen.getByLabelText("Discovery profile"))
-    await user.click(await screen.findByRole("option", { name: "Lab B review" }))
     await user.click(screen.getAllByRole("button", { name: "Configure Scan" })[0])
     const dialog = screen.getByRole("dialog")
+    await user.click(within(dialog).getByLabelText("Discovery profile"))
+    await user.click(await screen.findByRole("option", { name: "Lab B review" }))
 
-    expect(within(dialog).getByText("Lab B review")).toBeInTheDocument()
+    expect(within(dialog).getByLabelText("Discovery profile")).toHaveTextContent("Lab B review")
     await user.click(within(dialog).getByRole("button", { name: "Start scan" }))
     expect(page.intents).toEqual([{ type: "startScan", profileId: "profile-lab-b" }])
   })
@@ -219,7 +210,6 @@ describe("NetworkProfilesPage discovery profile selection", () => {
     // A profile now exists while the page stays mounted. The same instance must
     // be able to scan it: the selection is part of the catalog, not of mount.
     rerender(<NetworkProfilesPage snapshot={client.getSnapshot()} dispatch={dispatch} view="scans" onViewChange={() => undefined} />)
-    expect(screen.getByLabelText("Discovery profile")).toHaveTextContent("Lab A staging")
     for (const button of screen.getAllByRole("button", { name: "Configure Scan" })) {
       expect(button).toBeEnabled()
     }
@@ -229,13 +219,16 @@ describe("NetworkProfilesPage discovery profile selection", () => {
     const user = userEvent.setup()
     const page = renderNetworkProfilesPage()
 
-    await user.click(screen.getByLabelText("Discovery profile"))
+    await user.click(screen.getAllByRole("button", { name: "Configure Scan" })[0])
+    const scanDialog = screen.getByRole("dialog")
+    await user.click(within(scanDialog).getByLabelText("Discovery profile"))
     await user.click(await screen.findByRole("option", { name: "Lab B review" }))
-    await user.click(screen.getAllByRole("button", { name: "Delete Profile" })[1])
+    await user.keyboard("{Escape}")
+    await user.keyboard("{Escape}")
+    await user.click(screen.getAllByRole("button", { name: /^Delete / })[1])
     await user.click(within(document.body).getByRole("button", { name: "Confirm Delete" }))
     page.refreshView()
 
-    expect(screen.getByLabelText("Discovery profile")).toHaveTextContent("Lab A staging")
     for (const button of screen.getAllByRole("button", { name: "Configure Scan" })) {
       expect(button).toBeEnabled()
     }

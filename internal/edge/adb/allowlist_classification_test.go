@@ -76,6 +76,14 @@ func inputArrays() [][]string {
 	}
 }
 
+func diagnosticsArrays() [][]string {
+	return [][]string{
+		DiagnosticsPropertiesArgv(), DiagnosticsBatteryArgv(), DiagnosticsStorageArgv(),
+		DiagnosticsMemoryArgv(), DiagnosticsUptimeArgv(), DiagnosticsDensityArgv(),
+		DiagnosticsForegroundArgv(),
+	}
+}
+
 // hostArrays are the connection-management admissions. They are part of the same
 // corpus as every other admitted array, so a mutation of any of their positions
 // is exercised by the same near-miss loop and a collision with another admission
@@ -199,6 +207,7 @@ func admissionFamilies(t *testing.T) []admissionFamily {
 		{"input", matchesDeviceInputAllowlist, inputArrays(), 6},
 		{"settings", matchesDeviceSettingsAllowlist, settingsArrays(), 10},
 		{"read-only", matchesReadOnlyAllowlist, readOnlyArrays(t), 8},
+		{"diagnostics", matchesDiagnosticsAllowlist, diagnosticsArrays(), 7},
 		{"host", matchesHostAllowlist, hostArrays(t), 3},
 		{"transport", matchesTransportAllowlist, transportArrays(t), 1},
 		{"mirror", matchesMirrorAllowlist, mirrorArrays(t), 4},

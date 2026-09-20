@@ -395,6 +395,29 @@ export function mapDevice(device: Device): DeviceView {
     taskProgress: 0,
     controlEligibility: eligibilityFor(status),
     capabilities: [],
+    ...(device.diagnostics ? { diagnostics: {
+      observedAt: device.diagnostics.observedAt,
+      inventoryObservedAt: device.diagnostics.inventoryObservedAt,
+      brand: device.diagnostics.brand,
+      deviceCodename: device.diagnostics.deviceCodename,
+      hardware: device.diagnostics.hardware,
+      androidVersion: device.diagnostics.androidVersion,
+      sdkLevel: device.diagnostics.sdkLevel,
+      screenWidthPx: device.diagnostics.screenWidthPx,
+      screenHeightPx: device.diagnostics.screenHeightPx,
+      densityDpi: device.diagnostics.densityDpi,
+      batteryLevelPercent: device.diagnostics.batteryLevelPercent,
+      batteryTemperatureCelsius: device.diagnostics.batteryTemperatureCelsius,
+      batteryStatus: device.diagnostics.batteryStatus,
+      storageTotalBytes: device.diagnostics.storageTotalBytes !== undefined ? Number(device.diagnostics.storageTotalBytes) : undefined,
+      storageFreeBytes: device.diagnostics.storageFreeBytes !== undefined ? Number(device.diagnostics.storageFreeBytes) : undefined,
+      ramTotalBytes: device.diagnostics.ramTotalBytes !== undefined ? Number(device.diagnostics.ramTotalBytes) : undefined,
+      ramFreeBytes: device.diagnostics.ramFreeBytes !== undefined ? Number(device.diagnostics.ramFreeBytes) : undefined,
+      ramAvailableBytes: device.diagnostics.ramAvailableBytes !== undefined ? Number(device.diagnostics.ramAvailableBytes) : undefined,
+      uptimeSeconds: device.diagnostics.uptimeSeconds !== undefined ? Number(device.diagnostics.uptimeSeconds) : undefined,
+      foregroundPackage: device.diagnostics.foregroundPackage,
+      foregroundActivity: device.diagnostics.foregroundActivity,
+    } } : {}),
   }
 }
 
@@ -1842,7 +1865,11 @@ export class RealControlPlaneClient implements ControlPlaneClient {
   private async execute(intent: ControlPlaneIntent, requestId: string, workspaceId: string): Promise<MutationResult> {
     switch (intent.type) {
       case "refresh":
-        return mutation(intent, "Control plane projection refreshed.")
+        {
+          const result = await this.services.device.refreshDeviceDiagnostics(workspaceId)
+          const summary = result.failed > 0 ? `${result.succeeded}/${result.attempted} online devices refreshed; ${result.failed} failed.` : `${result.succeeded}/${result.attempted} online devices refreshed.`
+          return mutation(intent, summary)
+        }
       case "setHalt": {
         if (!intent.confirmed) return failure(intent, `${intent.state === "emergency_stop" ? "Engaging" : "Releasing"} the emergency stop requires confirmation.`, { errorCode: "precondition_failed" })
         if (!intent.reason.trim()) return failure(intent, "A reason is required for the emergency stop change.", { errorCode: "invalid_input" })
