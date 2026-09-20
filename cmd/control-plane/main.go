@@ -171,6 +171,27 @@ func main() {
 		log.Printf("%s", autoScan.Run(ctx).Report())
 	}()
 
+	// One bounded sweep of the mirror sessions a previous process left open. A
+	// mirror session carries no expiry, so a session whose process died stays
+	// 'active' with no finished_at and reports running work that is not running -
+	// silently, once per restart. This finds them, ends each one with the plane's
+	// own class for the engine that was carrying it going away, names every
+	// session it ended in the startup line, and deletes nothing: these rows are
+	// history. It is cancelled by the same shutdown context as the listener and is
+	// owned by main (see the wait below). It never aborts startup, and it is
+	// bounded by the moment this process started: only a session opened BEFORE
+	// this start can be a previous process's leftover.
+	mirrorSweep := product.NewStartupMirrorSweep(product.StartupMirrorSweepConfig{
+		Workspaces: store.NewWorkspaceRepository(db),
+		Sessions:   store.NewMirrorService(db),
+		StartedAt:  time.Now().UTC(),
+	})
+	mirrorSweepDone := make(chan struct{})
+	go func() {
+		defer close(mirrorSweepDone)
+		log.Printf("%s", mirrorSweep.Run(ctx).Report())
+	}()
+
 	// Post-launch arrivals: the startup scan covers what is attached when the
 	// process starts, and this covers what attaches after it. The watcher polls
 	// the same adapter enumeration the scan reads, is cancelled by the same
@@ -338,12 +359,13 @@ func main() {
 	server := service.NewHTTPServer("control-plane", address, routes...)
 	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, device settings surface %s, text reference surface %s, transport surface %s, live mirror surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), mountState(settingsMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted), mirrorMountState(mirrorMounted))
 	serveErr := service.Serve(ctx, server)
-	// The startup scan, the post-launch watcher, the frame engine and the live
-	// mirror are owned work, not detached workers: wait for all four to obey
-	// cancellation before the process returns. The mirror's own line reports what
-	// it started and stopped, so this wait is also where "no capture outlived
-	// this process" is answered.
+	// The startup scan, the post-launch watcher, the mirror-session sweep, the
+	// frame engine and the live mirror are owned work, not detached workers: wait
+	// for all five to obey cancellation before the process returns. The mirror's
+	// own line reports what it started and stopped, so this wait is also where "no
+	// capture outlived this process" is answered.
 	<-autoScanDone
+	<-mirrorSweepDone
 	<-transportWatchDone
 	<-frameEngineDone
 	<-mirrorDone
