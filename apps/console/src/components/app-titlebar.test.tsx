@@ -6,7 +6,9 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 
 import { AppTitlebar } from "@/components/app-titlebar"
+import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarProvider } from "@/components/ui/sidebar"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { routeFromHash } from "@/lib/navigation"
 
 function renderTitlebar(platform: "macos" | "windows") {
@@ -55,5 +57,28 @@ describe("AppTitlebar", () => {
     expect(sidebarSurface).toHaveClass("w-0", "border-r-0")
     expect(document.querySelector('[data-slot="titlebar-toolbar-separator"]')).toHaveClass("left-32", "h-4")
     expect(document.querySelector('[data-slot="titlebar-content"]')).toHaveClass("ml-32")
+  })
+
+  it("reopens the collapsed sidebar after a navigation tooltip is shown", async () => {
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TooltipProvider delay={0}>
+        <SidebarProvider defaultOpen>
+          <AppTitlebar platform="macos" route={routeFromHash("#devices/all")} />
+          <AppSidebar activeSection="Devices" />
+        </SidebarProvider>
+      </TooltipProvider>,
+    )
+
+    const toggle = screen.getByRole("button", { name: "Toggle sidebar" })
+    await user.click(toggle)
+    expect(screen.getByRole("banner")).toHaveAttribute("data-sidebar-state", "collapsed")
+
+    const devicesLink = document.querySelector<HTMLAnchorElement>('[data-sidebar="menu-button"][href="#devices/all"]')
+    expect(devicesLink).not.toBeNull()
+    await user.hover(devicesLink!)
+
+    await user.click(toggle)
+    expect(screen.getByRole("banner")).toHaveAttribute("data-sidebar-state", "expanded")
   })
 })

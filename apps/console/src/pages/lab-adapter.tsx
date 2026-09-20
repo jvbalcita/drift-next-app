@@ -29,6 +29,7 @@ const runtimeTones: Record<RuntimeConnectionState, StatusTone> = { connected: "h
 
 const placeholder = "—"
 const value = (input: string | undefined) => (input && input.length > 0 ? input : placeholder)
+const sentenceCase = (input: string) => input.replaceAll("_", " ").replace(/^./, (character) => character.toUpperCase())
 
 export function LabModeBadges({ adapter }: { adapter: LabAdapterView }) {
   return (
@@ -177,19 +178,28 @@ export function CaptureObservationDialog({ dispatch, dispatchLab, onFeedback, di
   )
 }
 
-export function LabDiagnosticsSheet({ adapter }: { adapter: LabAdapterView }) {
+export function LabDiagnosticsSheet({ adapter, triggerLabel = "Adapter Diagnostics" }: { adapter: LabAdapterView; triggerLabel?: string }) {
+  const available = adapter.mode === "lab" && adapter.readiness !== "unavailable"
   return (
     <Sheet>
-      <SheetTrigger render={<Button size="sm" variant="outline" />}><Stethoscope className="size-3.5" aria-hidden="true" />Adapter Diagnostics</SheetTrigger>
+      <SheetTrigger render={<Button size="sm" variant="outline" />}><Stethoscope className="size-3.5" aria-hidden="true" />{triggerLabel}</SheetTrigger>
       <SheetContent className="w-full rounded-none sm:max-w-xl">
         <SheetHeader className="border-b border-border">
           <SheetTitle>Device Adapter Diagnostics</SheetTitle>
           <SheetDescription>Bounded adapter metadata. Raw hierarchies, screenshot bytes, and protocol output stay out of this view.</SheetDescription>
         </SheetHeader>
         <div className="space-y-4 p-4">
+          <div role="note" className="border-l-2 border-primary bg-secondary/60 p-3 text-xs leading-5 text-muted-foreground">
+            <p className="font-semibold text-foreground">{available ? "Adapter ready" : "Adapter unavailable"}</p>
+            <p>Diagnostics are read-only. Observed transports are devices the adapter saw while resolving a diagnostic target; they are not added to the Device Registry.</p>
+          </div>
           <dl className="grid gap-4 text-xs sm:grid-cols-2">
-            <LabField label="Mode" detail={adapter.mode === "lab" && adapter.readiness !== "unavailable" ? "Connected Adapter" : "Unavailable"} mono={false} />
+            <LabField label="Connection" detail={available ? "Connected" : "Not connected"} mono={false} />
             <LabField label="Readiness" detail={readinessLabels[adapter.readiness]} mono={false} />
+            <LabField label="Last Adapter Result" detail={adapter.failureClass ? sentenceCase(adapter.failureClass) : "No failure recorded"} mono={false} />
+            <LabField label="Observed Transports" detail={`${adapter.discovered.length}`} mono={false} />
+            <LabField label="Registry Changes" detail="None — diagnostics do not register devices" mono={false} />
+            <LabField label="Mode" detail={adapter.mode === "lab" ? "Local adapter" : "Mock adapter"} mono={false} />
             <LabField label="Adapter Version" detail={value(adapter.adapterVersion)} mono={false} />
             <LabField label="Platform Tools" detail={value(adapter.platformToolsVersion)} mono={false} />
             <LabField label="Last Observed Serial" detail={value(adapter.lastObservedSerial)} />
@@ -260,12 +270,11 @@ export function LabObservationFrame({ adapter, height }: { adapter: LabAdapterVi
 // is not "registered") in one line and exposes the detail on demand, so the
 // adapter never spends permanent header space. It dispatches nothing.
 export function LabAdapterIndicator({ adapter }: { adapter: LabAdapterView }) {
+  const available = adapter.mode === "lab" && adapter.readiness !== "unavailable"
   return (
     <div role="group" aria-label="Device Adapter" className="flex flex-wrap items-center gap-2">
-      <span className="text-[11px] font-medium text-muted-foreground">Device Adapter</span>
-      <LabModeBadges adapter={adapter} />
-      <span className="text-[11px] text-muted-foreground">{`${adapter.discovered.length} observed · 0 registered`}</span>
-      <LabDiagnosticsSheet adapter={adapter} />
+      <StatusBadge label={available ? "Adapter ready" : "Adapter unavailable"} tone={available ? "healthy" : "neutral"} />
+      <LabDiagnosticsSheet adapter={adapter} triggerLabel="Adapter details" />
     </div>
   )
 }

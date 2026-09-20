@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react"
-import { RefreshCw, Search, Smartphone, TriangleAlert } from "lucide-react"
+import { Loader2, RefreshCw, Search, Smartphone, TriangleAlert } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
 import { LabAdapterIndicator } from "./lab-adapter"
-import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, DeviceStatus, EmptyState, PageIntro } from "./shared"
 import { buildInspection, deviceName, endpointHost, endpointPort, humanTimestamp } from "./device-inspection"
 import { DeviceInspectSheet } from "./DeviceInspectSheet"
@@ -27,7 +27,7 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
   const filter: Filter = isFilter(view) ? view : "all"
   const [query, setQuery] = useState("")
   const [inspectedId, setInspectedId] = useState<string | null>(null)
-  const [message, setMessage] = useState("")
+  const [refreshing, setRefreshing] = useState(false)
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(5)
   const normalizedQuery = query.trim().toLowerCase()
@@ -44,8 +44,18 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
   function inspect(device: DeviceView) {
     setInspectedId(device.id)
   }
-  function refresh() {
-    void reportDispatch(dispatch, { type: "refresh" }, setMessage)
+  async function refresh() {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      const outcome = await dispatch({ type: "refresh" })
+      if (outcome.ok) toast.success("Device registry refreshed", { description: outcome.message })
+      else toast.error("Device registry refresh failed", { description: outcome.message })
+    } catch {
+      toast.error("Device registry refresh failed", { description: "The control plane could not refresh the registry projection." })
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   return <>
@@ -53,7 +63,7 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
       eyebrow="INVENTORY / DEVICES"
       title="Device Registry"
       description="Names come from the captured Android device name when available. Status and endpoint values come from the current transport observation."
-      actions={<><LabAdapterIndicator adapter={snapshot.labAdapter} /><Button variant="outline" size="sm" onClick={refresh}><RefreshCw className="size-3.5" aria-hidden="true" />Refresh</Button></>}
+      actions={<><LabAdapterIndicator adapter={snapshot.labAdapter} /><Button variant="outline" size="sm" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="size-3.5" aria-hidden="true" />}{refreshing ? "Refreshing…" : "Refresh"}</Button></>}
     />
     {snapshot.projectionWarnings.length > 0 ? <div role="alert" className="mb-5 flex items-start gap-2 border-l-2 border-amber-600 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
       <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -69,7 +79,6 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
           <Input aria-label="Search Device Registry" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0) }} placeholder="Search devices" className="h-9 rounded-none pl-7 text-xs" />
         </div>
       </div>
-      <p aria-live="polite" className="mt-2 min-h-4 text-[11px] text-muted-foreground">{message}</p>
       <TabsContent value={filter} className="mt-4">
         {devices.length === 0 ? <EmptyState label="No Devices in This View" detail="Change the active view or search term." /> : <>
           {/* The registry sizes to its rows and caps its own height: a fixed height would reserve an empty box below a short page. */}

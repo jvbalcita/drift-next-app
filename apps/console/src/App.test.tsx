@@ -409,12 +409,15 @@ describe("Drift command center", () => {
     expect(await screen.findByRole("heading", { name: /Device Registry/i })).toBeInTheDocument()
     // the adapter is a compact on-demand signal, not a permanent header panel
     expect(screen.queryByRole("heading", { name: "Device Adapter Status" })).not.toBeInTheDocument()
-    expect(screen.getByText("0 observed · 0 registered")).toBeInTheDocument()
+    expect(within(screen.getByRole("group", { name: "Device Adapter" })).getByText(/Adapter (ready|unavailable)/i)).toBeInTheDocument()
+    expect(screen.queryByText(/observed · 0 registered/i)).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: /Adapter Diagnostics/ }))
+    await user.click(screen.getByRole("button", { name: /Adapter details/ }))
     const sheet = await screen.findByRole("dialog")
     expect(within(sheet).getByRole("heading", { name: "Device Adapter Diagnostics" })).toBeInTheDocument()
     expect(within(sheet).getByText(/Observation is not registration/i)).toBeInTheDocument()
+    expect(within(sheet).getByText("Registry Changes")).toBeInTheDocument()
+    expect(within(sheet).getByText("None — diagnostics do not register devices")).toBeInTheDocument()
     expect(screen.queryByText(/MOCKSERIAL/)).not.toBeInTheDocument()
   })
 
