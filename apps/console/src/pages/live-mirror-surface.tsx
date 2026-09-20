@@ -527,7 +527,7 @@ export function LiveMirrorSurface({ session }: { session: LiveMirrorSessionView 
       onPointerCancel={session.cancelPointer}
     >
       <video ref={session.attachVideo} data-testid="live-mirror-video" muted playsInline autoPlay aria-hidden="true" className="absolute inset-0 size-full max-w-full object-contain" />
-      {livePictureHeld(session.phase) ? null : <StreamStateOverlay phase={session.phase} />}
+      {livePictureHeld(session.phase) ? null : <StreamStateOverlay phase={session.phase} sentence={session.failure} />}
     </div>
   )
 }
@@ -735,12 +735,26 @@ const navigationKeyIconClass = { back: "size-5", home: "size-4", recents: "size-
  * it. The starting state is deliberately translucent - a first picture may
  * already be arriving - but it never says Live.
  *
- * It states the state and nothing else: the reason a stream failed, the
- * transport it was using and the frame it was encoded at are the info control's
- * (see `LiveMirrorInfo`), because a sentence about a stream over the device's
- * own screen is the clutter the frame's body no longer carries.
+ * A failed stream states the PLANE's own sentence here, in the frame's body,
+ * because this is where the operator is looking. It used to state the console's
+ * generic copy - "The stream failed." - and leave the reason to the info control,
+ * on the theory that a sentence over the device's own screen is clutter. The
+ * owner's screen says what that cost: a frame refused for the plane's capacity,
+ * whose refusal named the device, the actor, the purpose, the bound and the
+ * session, drew "The stream failed." over a black rectangle, and the sentence
+ * that explained it was behind a control nobody had a reason to open. A frame
+ * that shows nothing is diagnosable only from what it was told, so what it was
+ * told is what it says.
+ *
+ * The console's own copy is kept as the FALLBACK and never as a replacement: it
+ * is rendered only when the plane supplied no sentence of its own, which is the
+ * case for a stream whose state this console could not read at all.
+ *
+ * The transport the stream was using and the frame it was encoded at stay the
+ * info control's: they are facts about the stream rather than about the failure,
+ * and the failure is the one the operator has to act on.
  */
-function StreamStateOverlay({ phase }: { phase: LiveMirrorPhase }) {
+function StreamStateOverlay({ phase, sentence }: { phase: LiveMirrorPhase; sentence: string }) {
   if (phase === "opening") {
     return (
       <div className="absolute inset-0 grid place-items-center bg-slate-950 p-4" role="status">
@@ -762,12 +776,13 @@ function StreamStateOverlay({ phase }: { phase: LiveMirrorPhase }) {
     )
   }
   const AbsentIcon = phase === "idle" ? MousePointer2 : Smartphone
+  const reason = sentence.trim()
   return (
     <div className="absolute inset-0 grid place-items-center bg-slate-950 p-4 text-center">
       <div className="space-y-2">
         <AbsentIcon className="mx-auto size-6 text-white/70" aria-hidden="true" />
-        <p className="text-[11px] font-semibold text-white/90" role={phase === "failed" ? "alert" : undefined}>
-          {livePhaseSentence(phase, null)}
+        <p className="text-[11px] font-semibold text-white/90" role={phase === "failed" ? "alert" : undefined} data-testid="live-mirror-overlay">
+          {phase === "failed" && reason !== "" ? reason : livePhaseSentence(phase, null)}
         </p>
       </div>
     </div>

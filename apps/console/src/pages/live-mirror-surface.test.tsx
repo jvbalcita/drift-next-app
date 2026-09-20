@@ -676,6 +676,25 @@ describe("the info control beside the pin", () => {
     expect(within(details).getByTestId("live-mirror-failure")).toHaveTextContent("device session capacity")
     expect(within(details).getByTestId("live-mirror-failure")).toHaveTextContent("4 devices are already being mirrored")
     expect(within(details).getByTestId("live-mirror-phase")).toHaveTextContent(/failed/i)
+    // And the frame's own body carries it too. The details panel is behind the
+    // info control and the frame is what the operator is looking at: a body that
+    // substituted "The stream failed." would put the plane's sentence one click
+    // away from the picture it explains.
+    expect(screen.getByTestId("live-mirror-overlay")).toHaveTextContent(refusal)
+    expect(screen.getByTestId("live-mirror-overlay")).not.toHaveTextContent(liveMirrorCopy.phase.failed)
+  })
+
+  it("keeps the plane's own sentence in the frame for a stream the plane reported as failed", async () => {
+    // The other path to a failed frame: the stream was live and the plane then
+    // reported it failed, with the reason it classified. The frame renders that
+    // sentence rather than the console's own copy, because the console has no
+    // idea why the device's stream stopped and the plane does.
+    const failure = "media: the stream from atlas-04 ended: scrcpy: the device-side server exited"
+    renderPanel({ mirror: fakeMirror(stream({ state: MirrorStreamState.FAILED, failure })).client })
+    await waitFor(() => expect(screen.getByTestId("live-mirror-retry")).toBeInTheDocument())
+
+    expect(screen.getByTestId("live-mirror-overlay")).toHaveTextContent(failure)
+    expect(screen.getByTestId("live-mirror-overlay")).not.toHaveTextContent(liveMirrorCopy.phase.failed)
   })
 
   it("says a stream ended rather than leaving its last frame looking current", async () => {

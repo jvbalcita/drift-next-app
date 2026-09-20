@@ -163,7 +163,7 @@ func (d *Dialer) Dial(ctx context.Context, deviceID, serial string, purpose medi
 		KeepAwake:  d.config.KeepAwake,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("mirror: opening %s: %w", deviceID, err)
+		return nil, fmt.Errorf("mirror: opening %s: %w", deviceID, media.ClassifyMirrorEnd(err, dialEndClass(err)))
 	}
 	return &stream{deviceID: deviceID, session: session}, nil
 }
@@ -192,6 +192,47 @@ func encodeProfileFor(purpose media.MirrorViewerPurpose, preview media.MirrorPre
 	}
 }
 
+// dialEndClass classifies a session that could not be opened.
+//
+// It is the one place the two halves of this failure are told apart, and it is
+// here because here is where the device's own process is: a server that is not
+// there, that will not launch, or that exits the moment it is launched is the
+// DEVICE-side server failing, while everything else - the push, the loopback
+// listener, the reverse tunnel, the handshake - is the adapter or the tunnel
+// failing to be established. The two have different fixes and an operator
+// reading "the stream failed" has neither of them.
+//
+// The sentinels are read rather than the words: this fleet's errors are sentences
+// for people, and a classifier that matched on prose would break the first time
+// somebody improved one.
+func dialEndClass(err error) media.MirrorEndClass {
+	switch {
+	case errors.Is(err, scrcpy.ErrServerMissing),
+		errors.Is(err, scrcpy.ErrServerStart),
+		errors.Is(err, scrcpy.ErrServerExited):
+		return media.MirrorEndDeviceServerFailed
+	default:
+		return media.MirrorEndTransportUnavailable
+	}
+}
+
+// readEndClass classifies a stream that stopped carrying.
+//
+// A read failure is the device's own stream ending, and that is what it is
+// classified as. The exception is the device-side server having died: the two
+// sockets stop carrying with no other symptom at all, so a reader that is told
+// only "the stream ended" is left with the device's server as the one thing
+// nothing named.
+func readEndClass(err error) media.MirrorEndClass {
+	switch {
+	case errors.Is(err, scrcpy.ErrServerExited),
+		errors.Is(err, scrcpy.ErrServerStart):
+		return media.MirrorEndDeviceServerFailed
+	default:
+		return media.MirrorEndDeviceStreamEnded
+	}
+}
+
 // stream is one device's live session as the media engine reads it.
 type stream struct {
 	deviceID string
@@ -210,10 +251,15 @@ func (s *stream) FrameSize(context.Context) (int, int, error) {
 }
 
 // ReadFrame reads the next access unit, returning when ctx ends.
+//
+// A failure here is the device's own stream ending, and it is classified as
+// itself rather than as a generic failure: the class is stated where the device's
+// process is, so the engine above records what happened rather than only that
+// something did.
 func (s *stream) ReadFrame(ctx context.Context) (media.StreamFrame, error) {
 	unit, err := s.session.ReadAccessUnitContext(ctx)
 	if err != nil {
-		return media.StreamFrame{}, err
+		return media.StreamFrame{}, media.ClassifyMirrorEnd(err, readEndClass(err))
 	}
 	return media.StreamFrame{
 		Config: unit.Config,

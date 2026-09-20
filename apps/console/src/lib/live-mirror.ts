@@ -325,7 +325,16 @@ export const liveMirrorCopy = {
     /** The floating device's own tooltip, above the surface it describes. */
     frameTooltip: "z-[110]",
   },
-  /** The state line, per phase. */
+  /**
+   * The state line, per phase.
+   *
+   * `failed` is the console's own FALLBACK and never a replacement: the frame's
+   * body renders the control plane's sentence when the plane supplied one (see
+   * StreamStateOverlay), and this copy is what stands in only for a stream whose
+   * state this console could not read from the plane at all. It is stated here
+   * because a surface with nothing to say still has to say something, and saying
+   * nothing over a black rectangle is the frame the owner could not diagnose.
+   */
   phase: {
     idle: "Choose a phone to open its live frame.",
     unavailable: "This console has no control plane behind it, so no device screen can be carried. Fixture data only.",

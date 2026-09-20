@@ -40,6 +40,7 @@ func (s liveStubSession) FrameSize() (int, int)            { return deviceFrameW
 func (s liveStubSession) StreamKey() string                { return "drift-" + s.deviceID }
 func (s liveStubSession) Frames() <-chan media.StreamFrame { return nil }
 func (s liveStubSession) Fails() error                     { return nil }
+func (s liveStubSession) EndClass() media.MirrorEndClass   { return "" }
 func (s liveStubSession) Done() <-chan struct{}            { return nil }
 func (s liveStubSession) LastFrameAt() time.Time           { return time.Time{} }
 func (s liveStubSession) Subscribe(media.MirrorViewerPurpose) (media.MirrorViewer, error) {

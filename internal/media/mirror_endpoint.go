@@ -170,6 +170,7 @@ func (e *MirrorEndpoint) Stats() StreamStats {
 		Bytes:        e.bytes,
 		StartedAt:    e.started,
 		LastFrameAt:  e.lastAt,
+		EndClass:     e.session.EndClass(),
 	}
 	if e.failure != nil {
 		stats.Failure = e.failure.Error()
@@ -269,10 +270,16 @@ func (e *MirrorEndpoint) Serve(ctx context.Context, writer io.Writer, flush func
 			return nil
 		case frame, ok := <-browser.viewer.Frames():
 			if !ok {
-				if failure := e.session.Fails(); failure != nil {
-					wrapped := fmt.Errorf("media: the live mirror for %s ended: %w", e.session.DeviceID(), failure)
-					e.fail(wrapped)
-					return wrapped
+				// The session ended under this response. A FAILURE is reported
+				// with the session's own reason; an ENDING - the device's last
+				// viewer detached - is reported as an end, because the response
+				// ending is not something that went wrong.
+				if end := e.session.EndClass(); end.Failed() {
+					if reason := e.session.Fails(); reason != nil {
+						wrapped := fmt.Errorf("media: the live mirror for %s ended: %w", e.session.DeviceID(), reason)
+						e.fail(wrapped)
+						return wrapped
+					}
 				}
 				return nil
 			}
@@ -318,7 +325,7 @@ func (e *MirrorEndpoint) forget(browser *endpointBrowser) {
 	// that ended while the device is still live is a browser that left: the
 	// stream stays, because the device is still being watched or a second
 	// browser is still attached.
-	ended := len(e.browsers) == 0 && e.session.Fails() != nil
+	ended := len(e.browsers) == 0 && e.session.EndClass() != ""
 	e.mu.Unlock()
 	browser.viewer.Close()
 	if ended {
@@ -390,8 +397,10 @@ func (e *MirrorEndpoint) firstPicture(ctx context.Context, browser *endpointBrow
 			return StreamFrame{}, false, fmt.Errorf("%w: the stream for %s carried no picture to start from", ErrNoPictures, e.session.DeviceID())
 		case frame, ok := <-browser.viewer.Frames():
 			if !ok {
-				if failure := e.session.Fails(); failure != nil {
-					return StreamFrame{}, false, fmt.Errorf("media: the live mirror for %s ended: %w", e.session.DeviceID(), failure)
+				if end := e.session.EndClass(); end.Failed() {
+					if reason := e.session.Fails(); reason != nil {
+						return StreamFrame{}, false, fmt.Errorf("media: the live mirror for %s ended: %w", e.session.DeviceID(), reason)
+					}
 				}
 				return StreamFrame{}, false, fmt.Errorf("media: the live mirror for %s ended before it carried a picture", e.session.DeviceID())
 			}

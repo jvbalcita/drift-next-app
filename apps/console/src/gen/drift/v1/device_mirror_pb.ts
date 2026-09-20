@@ -60,8 +60,18 @@ export type MirrorStream = Message<"drift.v1.MirrorStream"> & {
   state: MirrorStreamState;
 
   /**
-   * failure is why a stream ended or why it is not a working stream. It is empty
-   * while the stream is live, and a state of FAILED always carries one.
+   * failure is the plane's own sentence about why this stream is not live: the
+   * transport's error, the adapter's, or the plane's own classification of how
+   * the session ended. It is empty while the stream is live, and a state of
+   * FAILED always carries one - the boundary that states the state fills it in
+   * from the end class when no carrier had words of its own, because a frame
+   * that shows nothing is diagnosable only from what it was told.
+   *
+   * A state of ENDED carries none, and that is deliberate rather than an
+   * omission: ENDED means the stream stopped because its last viewer detached,
+   * which is a state and not a fault, and the sentence an operator needs there -
+   * that the picture they are looking at is the last one it carried rather than
+   * the device's screen now - is about the frame, which the plane does not own.
    *
    * @generated from field: string failure = 7;
    */

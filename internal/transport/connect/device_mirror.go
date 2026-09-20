@@ -279,14 +279,36 @@ func carryingSentence(streams DeviceMirrors) string {
 // encoder that emits one IDR per session will happily produce a connection that is
 // up and showing nothing, and reporting that as live is the silent black screen
 // this card exists to close.
+//
+// A stream that is not live always carries the plane's own sentence, and the
+// sentence is filled in here when the stream's carrier reported none. That is the
+// contract this field has always promised - "a state of FAILED always carries
+// one" - and it is enforced at the boundary that makes the promise rather than
+// left to each carrier, because a frame that shows nothing and says only "the
+// stream failed" is diagnosable from nothing.
 func mirrorStreamProto(stream DeviceMirrorStream) *driftv1.MirrorStream {
 	stats := stream.Stats()
+	state := mirrorStreamState(stats)
+	failure := stats.Failure
+	switch state {
+	case driftv1.MirrorStreamState_MIRROR_STREAM_STATE_FAILED:
+		if strings.TrimSpace(failure) == "" {
+			failure = stats.EndClass.Sentence()
+		}
+	case driftv1.MirrorStreamState_MIRROR_STREAM_STATE_ENDED:
+		// A stream that ENDED has nothing to report as a failure, whatever a
+		// carrier put beside its class. The session's own words for an idle end
+		// are about why the capture stopped, and stating them in this field would
+		// hand an operator a failure sentence for a stream that did not fail -
+		// which is the reading this whole change exists to remove.
+		failure = ""
+	}
 	message := &driftv1.MirrorStream{
 		StreamId:  stream.StreamKey(),
 		DeviceId:  stats.DeviceID,
 		Transport: driftv1.MirrorTransport_MIRROR_TRANSPORT_WEBRTC,
-		State:     mirrorStreamState(stats),
-		Failure:   stats.Failure,
+		State:     state,
+		Failure:   failure,
 		Frames:    stats.Frames,
 		KeyFrames: stats.KeyFrames,
 	}
@@ -307,8 +329,20 @@ func mirrorStreamProto(stream DeviceMirrorStream) *driftv1.MirrorStream {
 
 // mirrorStreamState is the state an operator surface renders, from the stream's
 // own numbers.
+//
+// The class is read BEFORE the sentence, and that ordering is the whole of the
+// honesty this surface owes an operator: a stream whose session ended because its
+// last viewer detached is an ENDED stream, and a surface that inferred FAILED
+// from the presence of a sentence reported the operator's own departure back to
+// them as something going wrong. Everything else that has stopped carrying is a
+// failure, and a failure always states why.
 func mirrorStreamState(stats media.StreamStats) driftv1.MirrorStreamState {
 	switch {
+	case stats.EndClass.Valid():
+		if stats.EndClass.Failed() {
+			return driftv1.MirrorStreamState_MIRROR_STREAM_STATE_FAILED
+		}
+		return driftv1.MirrorStreamState_MIRROR_STREAM_STATE_ENDED
 	case stats.Failure != "":
 		return driftv1.MirrorStreamState_MIRROR_STREAM_STATE_FAILED
 	case stats.Frames == 0:

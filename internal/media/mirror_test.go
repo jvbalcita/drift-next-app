@@ -183,6 +183,11 @@ type fakeDialer struct {
 	dials   []string
 	asks    []dialAsk
 	err     error
+	// sizeErr is what every stream this dialer opens reports for its frame size,
+	// so a device that streams no usable screen can be exercised. It is set
+	// before the dial rather than injected after it: the frame size is the first
+	// thing a session's worker reads.
+	sizeErr error
 }
 
 // dialAsk is one dial as the engine made it: the device, the purpose the session
@@ -206,6 +211,7 @@ func (d *fakeDialer) Dial(_ context.Context, deviceID, _ string, purpose MirrorV
 	d.dials = append(d.dials, deviceID)
 	d.asks = append(d.asks, dialAsk{deviceID: deviceID, purpose: purpose, preview: preview})
 	stream := newFakeStream(deviceID)
+	stream.sizeErr = d.sizeErr
 	d.streams[deviceID] = stream
 	return stream, nil
 }
