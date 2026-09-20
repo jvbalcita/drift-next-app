@@ -23,7 +23,7 @@ describe("AppTitlebar", () => {
 
     const toggle = screen.getByRole("button", { name: "Toggle sidebar" })
     expect(toggle).toHaveAttribute("data-platform", "macos")
-    expect(toggle).toHaveClass("data-[platform=macos]:left-24")
+    expect(toggle).toHaveClass("top-1/2", "-translate-y-1/2", "data-[platform=macos]:left-[88px]")
     expect(screen.queryByLabelText("Window controls")).not.toBeInTheDocument()
   })
 

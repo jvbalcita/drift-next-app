@@ -56,7 +56,7 @@ export function AppTitlebar({
       <SidebarTrigger
         data-platform={platform}
         aria-label="Toggle sidebar"
-        className="absolute left-2 size-7 rounded-md text-muted-foreground hover:bg-foreground/7 hover:text-foreground focus-visible:ring-ring data-[platform=macos]:left-24 data-[platform=windows]:left-auto data-[platform=windows]:right-[146px]"
+        className="absolute top-1/2 left-2 size-7 -translate-y-1/2 rounded-md text-muted-foreground hover:bg-foreground/7 hover:text-foreground focus-visible:ring-ring data-[platform=macos]:left-[88px] data-[platform=windows]:left-auto data-[platform=windows]:right-[146px]"
       />
 
       <div
