@@ -42,7 +42,7 @@ func (s liveStubSession) Frames() <-chan media.StreamFrame { return nil }
 func (s liveStubSession) Fails() error                     { return nil }
 func (s liveStubSession) Done() <-chan struct{}            { return nil }
 func (s liveStubSession) LastFrameAt() time.Time           { return time.Time{} }
-func (s liveStubSession) Subscribe() (media.MirrorViewer, error) {
+func (s liveStubSession) Subscribe(media.MirrorViewerPurpose) (media.MirrorViewer, error) {
 	return nil, errors.New("this session is a stub")
 }
 

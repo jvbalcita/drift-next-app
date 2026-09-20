@@ -47,6 +47,13 @@ type MirrorEndpoint struct {
 	// capture alive between the opening request and the first fetch, and it is
 	// released when the stream is closed.
 	owned MirrorViewer
+	// purpose is what the browser that opened this stream IS - the operator's
+	// own frame or one of the console's ambient tiles - and it is what every
+	// subscription this endpoint takes is made as: the fetch that carries the
+	// pictures spends the plane's capacity exactly as the open did, so a
+	// subscription made here without the purpose would spend the operator's own
+	// place as if it were the grid's.
+	purpose MirrorViewerPurpose
 
 	started time.Time
 
@@ -106,11 +113,12 @@ var (
 // nobody.
 const DefaultEndpointServeTimeout = 10 * time.Second
 
-func newMirrorEndpoint(transport *StreamTransport, session MirrorSession, owned MirrorViewer) *MirrorEndpoint {
+func newMirrorEndpoint(transport *StreamTransport, session MirrorSession, owned MirrorViewer, purpose MirrorViewerPurpose) *MirrorEndpoint {
 	return &MirrorEndpoint{
 		transport:  transport,
 		session:    session,
 		owned:      owned,
+		purpose:    purposeOrDefault(purpose),
 		started:    time.Now().UTC(),
 		browsers:   make(map[*endpointBrowser]struct{}),
 		served:     make(chan struct{}),
@@ -208,7 +216,7 @@ func (e *MirrorEndpoint) Serve(ctx context.Context, writer io.Writer, flush func
 		return fmt.Errorf("%w: the stream for %s had already ended", ErrNoSuchStream, e.StreamKey())
 	default:
 	}
-	viewer, err := e.session.Subscribe()
+	viewer, err := e.session.Subscribe(e.purpose)
 	if err != nil {
 		return fmt.Errorf("media: the stream for %s could not be carried: %w", e.session.DeviceID(), err)
 	}

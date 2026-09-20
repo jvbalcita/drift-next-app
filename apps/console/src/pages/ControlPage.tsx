@@ -13,7 +13,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceSettingName, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
-import { allocateTileViewers } from "@/lib/live-tiles"
+import { useMirrorCapacity } from "@/lib/api/use-mirror-capacity"
+import { allocateTileViewers, tileViewerBudget, type TileViewerBudget } from "@/lib/live-tiles"
 import { LiveMirrorDeviceKeys, LiveMirrorInfo, LiveMirrorSurface, useLiveMirrorSession } from "./live-mirror-surface"
 import { LiveTilePicture } from "./live-tile"
 import { deviceObservationSentence, deviceStatusLabels, notObserved } from "@/lib/device-status"
@@ -117,14 +118,21 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
   const observedEndpoints = Array.from(new Set(snapshot.endpoints.filter((endpoint) => endpoint.state === "current" && endpoint.host.trim() !== "").map((endpoint) => `${endpoint.host}:${endpoint.port}`))).sort()
   const visibleDevices = snapshot.devices.filter((device) => matchesConnectionFilter(device, connectionFilter))
   /**
-   * The tiles that carry a live picture, in the grid's own order.
+   * What this console may spend on tiles, as the CONTROL PLANE stated it.
    *
-   * The bound is the console's, not the projection's (see `allocateTileViewers`):
-   * a fleet grid is a fleet view, and each live tile is a stream on the control
-   * plane, so how many tiles subscribe is decided here rather than by how many
-   * devices happen to be in the view.
+   * The bound is the plane's, not the projection's and not this console's: a live
+   * tile is a device session on the plane, so how many tiles may subscribe is read
+   * from the plane's own capacity less the place it keeps for the operator's own
+   * frame. This console used to hold the number itself, which let a grid of four
+   * tiles be opened against a plane that could carry one - and the refusals that
+   * followed had nothing on screen to explain them. Until the reading arrives, the
+   * budget is unmeasured and no tile subscribes, which is the same thing a plane
+   * that refused every stream would produce but is reported as the reading it is.
    */
-  const tileViewers = allocateTileViewers(visibleDevices)
+  const capacityReading = useMirrorCapacity(mirror, snapshot.workspaceId)
+  const tileBudget: TileViewerBudget = tileViewerBudget(capacityReading.capacity)
+  /** The tiles that carry a live picture, in the grid's own order. */
+  const tileViewers = allocateTileViewers(visibleDevices, tileBudget)
 
   function showToastMessage(message: string) {
     if (message.trim() !== "") toast.info(message)
@@ -327,7 +335,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
         <LabObservationFrame adapter={snapshot.labAdapter} height={workspace.largeHeight} />
         <ConnectionFilterBar filter={connectionFilter} onChange={setConnectionFilter} shown={visibleDevices.length} total={snapshot.devices.length} />
         <div className={`grid items-start gap-4 ${modalPinned && source ? "xl:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
-          {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail="No device in the current view has an observed transport matching this filter." /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${workspace.orientation === "portrait" ? Math.round(workspace.smallHeight * 9 / 16) : workspace.smallHeight}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} mirror={mirror} transport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} viewing={tileViewers.includes(device.id)} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
+          {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail="No device in the current view has an observed transport matching this filter." /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${workspace.orientation === "portrait" ? Math.round(workspace.smallHeight * 9 / 16) : workspace.smallHeight}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} mirror={mirror} transport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} viewing={tileViewers.includes(device.id)} budget={tileBudget} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
           {modalPinned ? deviceModal : null}
         </div>
       </section>
@@ -568,7 +576,7 @@ function DeviceListDialog({ devices, endpoints, onReload, pendingAction }: { dev
   })}</tbody></table></div></DialogContent></Dialog>
 }
 
-function CompactPhone({ device, index, size, orientation, active, follower, settings, mirror, transport, workspaceId, viewing, onClick }: { device: DeviceView; index: number; size: number; orientation: Workspace["orientation"]; active: boolean; follower: boolean; settings: ConsoleSettings; mirror?: LiveMirrorClient; transport: LiveMirrorTransportChoice; workspaceId: string; viewing: boolean; onClick: () => void }) {
+function CompactPhone({ device, index, size, orientation, active, follower, settings, mirror, transport, workspaceId, viewing, budget, onClick }: { device: DeviceView; index: number; size: number; orientation: Workspace["orientation"]; active: boolean; follower: boolean; settings: ConsoleSettings; mirror?: LiveMirrorClient; transport: LiveMirrorTransportChoice; workspaceId: string; viewing: boolean; budget: TileViewerBudget; onClick: () => void }) {
   const width = orientation === "portrait" ? Math.round(size * 9 / 16) : size
   const height = orientation === "portrait" ? size : Math.round(size * 9 / 16)
   // A device that is not currently observed carries a mark CENTRED in its frame,
@@ -587,7 +595,7 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
   const absent = notObserved(device.status)
   const AbsentIcon = device.status === "unobserved" ? SearchX : Unplug
   const frameColor = absent ? absentPhoneColor : phoneColors[index % phoneColors.length]
-  return <button type="button" aria-pressed={active || follower} onClick={onClick} className={`relative justify-self-center overflow-hidden rounded-[9px] border-[3px] text-left text-white transition-colors focus-visible:outline-3 focus-visible:outline-primary ${active ? "border-primary ring-2 ring-primary/40" : follower ? "border-primary/70" : "border-slate-500"} ${frameColor}`} style={{ width, height, boxSizing: "border-box" }}>{absent ? null : <LiveTilePicture device={device} mirror={mirror} transport={transport} workspaceId={workspaceId} viewing={viewing} />}<span className="absolute inset-0 bg-black/10" style={{ opacity: 1 - settings.opacity / 100 }} />{settings.showTag ? <span className="absolute left-0 top-0 bg-red-500 px-1 text-[8px] font-bold leading-4">{device.controlEligibility === "eligible" ? "OTG" : "HOLD"}</span> : null}<span className="absolute inset-x-0 top-6 text-center">{settings.showIndex ? <span className="block text-lg font-bold leading-none">{index + 1}</span> : null}{settings.showName ? <span className="mt-1 block text-[10px] font-semibold">{device.displayName}</span> : null}{settings.showIp ? <span className="mt-1 block font-mono text-[8px] text-white/80">{device.endpointId}</span> : null}</span>{absent ? <span className="pointer-events-none absolute inset-0 grid place-items-center"><span className="grid place-items-center border border-white/40 bg-slate-950/75 p-1.5"><AbsentIcon role="img" aria-label={deviceObservationSentence(device.displayName, device.status)} className="size-5" /></span></span> : null}<span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] text-white/90"><Smartphone className="size-3" aria-hidden="true" /><span>{deviceStatusLabels[device.status]}</span></span>{active ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Open</span> : follower ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Follower</span> : null}</button>
+  return <button type="button" aria-pressed={active || follower} onClick={onClick} className={`relative justify-self-center overflow-hidden rounded-[9px] border-[3px] text-left text-white transition-colors focus-visible:outline-3 focus-visible:outline-primary ${active ? "border-primary ring-2 ring-primary/40" : follower ? "border-primary/70" : "border-slate-500"} ${frameColor}`} style={{ width, height, boxSizing: "border-box" }}>{absent ? null : <LiveTilePicture device={device} mirror={mirror} transport={transport} workspaceId={workspaceId} viewing={viewing} budget={budget} />}<span className="absolute inset-0 bg-black/10" style={{ opacity: 1 - settings.opacity / 100 }} />{settings.showTag ? <span className="absolute left-0 top-0 bg-red-500 px-1 text-[8px] font-bold leading-4">{device.controlEligibility === "eligible" ? "OTG" : "HOLD"}</span> : null}<span className="absolute inset-x-0 top-6 text-center">{settings.showIndex ? <span className="block text-lg font-bold leading-none">{index + 1}</span> : null}{settings.showName ? <span className="mt-1 block text-[10px] font-semibold">{device.displayName}</span> : null}{settings.showIp ? <span className="mt-1 block font-mono text-[8px] text-white/80">{device.endpointId}</span> : null}</span>{absent ? <span className="pointer-events-none absolute inset-0 grid place-items-center"><span className="grid place-items-center border border-white/40 bg-slate-950/75 p-1.5"><AbsentIcon role="img" aria-label={deviceObservationSentence(device.displayName, device.status)} className="size-5" /></span></span> : null}<span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] text-white/90"><Smartphone className="size-3" aria-hidden="true" /><span>{deviceStatusLabels[device.status]}</span></span>{active ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Open</span> : follower ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Follower</span> : null}</button>
 }
 
 /**

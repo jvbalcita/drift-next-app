@@ -2,7 +2,7 @@ import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
 import type { DeviceView } from "@/lib/domain/control-plane"
 import type { LiveMirrorTransportChoice } from "@/lib/live-mirror"
-import { tilePictureSentence } from "@/lib/live-tiles"
+import { tilePictureSentence, type TileViewerBudget } from "@/lib/live-tiles"
 
 /**
  * One fleet tile's live picture.
@@ -45,18 +45,29 @@ export interface LiveTilePictureProps {
   workspaceId: string
   /** viewing is whether this tile holds one of the console's bounded viewer places. */
   viewing: boolean
+  /**
+   * budget is what the CONTROL PLANE stated this console may carry, which is what
+   * decides how many tiles subscribe. It is passed down rather than derived here so
+   * that every tile in one grid reads the same number, and so a tile that holds no
+   * place says which bound it did not reach.
+   */
+  budget: TileViewerBudget
 }
 
-export function LiveTilePicture({ device, mirror, transport, workspaceId, viewing }: LiveTilePictureProps) {
+export function LiveTilePicture({ device, mirror, transport, workspaceId, viewing, budget }: LiveTilePictureProps) {
   // The session is opened for this device only while this tile holds a place:
   // an empty device id keeps the hook idle, so a tile that is not viewing opens
   // nothing and captures nothing. The element below follows the same condition,
   // so a tile that subscribes is an element the picture can be written into from
   // the first frame the handshake delivers.
   const subscribes = viewing && Boolean(mirror)
-  const { phase, failure, attachVideo } = useLiveMirror(subscribes ? device.id : "", { client: mirror, workspaceId, transport })
+  // A tile states its PURPOSE because the plane's capacity is spent per purpose and
+  // its reserve is the place the operator's own frame needs: this is a picture and
+  // nothing else, so it is an ambient viewer, and it is the kind the plane may
+  // refuse when the grid's share is spent.
+  const { phase, failure, attachVideo } = useLiveMirror(subscribes ? device.id : "", { client: mirror, workspaceId, transport, purpose: "ambient" })
   const showing = phase === "live" || phase === "starting"
-  const sentence = tilePictureSentence(phase, failure, device, viewing, Boolean(mirror))
+  const sentence = tilePictureSentence(phase, failure, device, viewing, Boolean(mirror), budget)
   return <>
     {subscribes ? <video ref={attachVideo} data-testid={`live-tile-video-${device.id}`} muted playsInline autoPlay aria-hidden="true" className={`absolute inset-0 size-full object-contain ${showing ? "" : "invisible"}`} /> : null}
     <span

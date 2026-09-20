@@ -89,7 +89,7 @@ func startFetch(t *testing.T, transport *StreamTransport, streamKey string) *fet
 // openTCP opens one device's stream over the TCP transport.
 func openTCP(t *testing.T, transport *StreamTransport, deviceID, serial string) *MirrorEndpoint {
 	t.Helper()
-	carrier, err := transport.Open(context.Background(), deviceID, serial, TransportTCP)
+	carrier, err := transport.Open(context.Background(), deviceID, serial, TransportTCP, PurposeOperator)
 	if err != nil {
 		t.Fatalf("open the stream endpoint for %s: %v", deviceID, err)
 	}
@@ -450,7 +450,7 @@ func TestAServeOnAStreamTheTransportIsNotCarryingIsItsOwnRefusal(t *testing.T) {
 // for is honoured or refused, never quietly replaced.
 func TestATransportThisServiceDoesNotCarryIsRefused(t *testing.T) {
 	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
-	if _, err := fixture.transport.Open(context.Background(), "device-1", "SERIAL-device-1", "hls"); err == nil {
+	if _, err := fixture.transport.Open(context.Background(), "device-1", "SERIAL-device-1", "hls", PurposeOperator); err == nil {
 		t.Fatal("a transport this service does not carry was opened")
 	}
 	if _, live := fixture.engine.Session("device-1"); live {

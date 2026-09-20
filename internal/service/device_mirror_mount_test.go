@@ -29,7 +29,7 @@ func (mountMirrorStream) Close() error { return nil }
 // mountMirrors is the stream transport the route needs.
 type mountMirrors struct{ stream mountMirrorStream }
 
-func (m mountMirrors) Open(context.Context, string, string, media.MirrorTransportKind) (transportconnect.DeviceMirrorStream, error) {
+func (m mountMirrors) Open(context.Context, string, string, media.MirrorTransportKind, media.MirrorViewerPurpose) (transportconnect.DeviceMirrorStream, error) {
 	return m.stream, nil
 }
 
@@ -39,13 +39,21 @@ func (m mountMirrors) Stream(string) (transportconnect.DeviceMirrorStream, bool)
 
 func (m mountMirrors) Carrying() []string { return []string{m.stream.key} }
 
+// mountCapacity is the engine's own bound as this route reads it. The route is not
+// gated on it - a route that exists was built over an engine - but the surface
+// answers a capacity request with it, so the mount cases carry one.
+type mountCapacity struct{}
+
+func (mountCapacity) Capacity() int        { return media.DefaultMirrorSessionCapacity }
+func (mountCapacity) OperatorReserve() int { return media.DefaultOperatorReserve }
+
 // The compiler is what proves the transport satisfies the port the route serves:
 // if this stops compiling, the route has no production mount again.
 var _ transportconnect.DeviceMirrors = mountMirrors{}
 
 // TestAConstructedLiveMirrorMountsTheRoute is the positive half of the gate.
 func TestAConstructedLiveMirrorMountsTheRoute(t *testing.T) {
-	route := service.DeviceMirrorRoute(mountMirrors{stream: mountMirrorStream{key: "drift-device-alpha-2abc1234"}}, mountSerials{}, "lab-token-value")
+	route := service.DeviceMirrorRoute(mountMirrors{stream: mountMirrorStream{key: "drift-device-alpha-2abc1234"}}, mountSerials{}, mountCapacity{}, nil, "lab-token-value")
 	if route.Path == "" {
 		t.Fatal("a constructed stream transport mounted no route: the live mirror is unreachable even though the whole path exists")
 	}
@@ -69,7 +77,7 @@ func TestAnAbsentLiveMirrorMountsNothing(t *testing.T) {
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			route := service.DeviceMirrorRoute(test.streams, test.serials, "lab-token-value")
+			route := service.DeviceMirrorRoute(test.streams, test.serials, mountCapacity{}, nil, "lab-token-value")
 			if route.Path != "" || route.Handler != nil {
 				t.Fatalf("an incomplete live mirror mounted %q: it advertises a surface that cannot work", route.Path)
 			}
@@ -122,7 +130,7 @@ func typedNilMirrors() transportconnect.DeviceMirrors {
 
 type mountMirrorPointer struct{ mountMirrors }
 
-func (m *mountMirrorPointer) Open(context.Context, string, string, media.MirrorTransportKind) (transportconnect.DeviceMirrorStream, error) {
+func (m *mountMirrorPointer) Open(context.Context, string, string, media.MirrorTransportKind, media.MirrorViewerPurpose) (transportconnect.DeviceMirrorStream, error) {
 	return m.mountMirrors.stream, nil
 }
 

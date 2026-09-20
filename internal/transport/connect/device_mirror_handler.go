@@ -2,29 +2,48 @@ package transportconnect
 
 import (
 	"context"
+	"log"
 	"strings"
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
+	"drift.local/drift-next/internal/media"
+	platformerrors "drift.local/drift-next/internal/platform/errors"
 )
 
 // DeviceMirrorHandler serves the live mirror surface from one constructed stream
 // transport and the registry that resolves a device to the transport it is
 // currently reachable at.
 type DeviceMirrorHandler struct {
-	streams DeviceMirrors
-	serials DeviceSerialResolver
+	streams  DeviceMirrors
+	serials  DeviceSerialResolver
+	capacity MirrorCapacitySource
+	refusals MirrorRefusalRecorder
 }
 
 // NewDeviceMirrorHandler binds the surface to the stream transport and the
 // device-to-serial resolver. It returns nil when either is absent - including a
 // non-nil interface holding a nil pointer - so a caller cannot obtain a handler
 // that has nothing to call, and the route is never mounted (AGENTS.md section 6).
-func NewDeviceMirrorHandler(streams DeviceMirrors, serials DeviceSerialResolver) *DeviceMirrorHandler {
+//
+// capacity and refusals are not gates on the mount: a deployment whose mirror
+// engine was not constructed has no transport either, so a route that exists at
+// all always has both facts to answer with. They are separate arguments because
+// they are separate facts - how much room the plane has, and where a refusal is
+// written down - and a handler given neither still serves streams; it just cannot
+// answer what the plane's bound is, and answers that it cannot rather than
+// claiming a bound of zero.
+func NewDeviceMirrorHandler(streams DeviceMirrors, serials DeviceSerialResolver, capacity MirrorCapacitySource, refusals MirrorRefusalRecorder) *DeviceMirrorHandler {
 	if isAbsentDeviceMirrors(streams) || serials == nil {
 		return nil
 	}
-	return &DeviceMirrorHandler{streams: streams, serials: serials}
+	if isNilInterface(capacity) {
+		capacity = nil
+	}
+	if isNilInterface(refusals) {
+		refusals = nil
+	}
+	return &DeviceMirrorHandler{streams: streams, serials: serials, capacity: capacity, refusals: refusals}
 }
 
 // isAbsentDeviceMirrors reports a stream transport this boundary has nothing to
@@ -48,7 +67,8 @@ func (h *DeviceMirrorHandler) StartMirrorStream(ctx context.Context, request *co
 		return nil, invalidArgument("a start mirror stream request is required")
 	}
 	message := request.Msg
-	if _, _, err := requireActor(message.GetContext()); err != nil {
+	actorType, actorID, err := requireActor(message.GetContext())
+	if err != nil {
 		return nil, err
 	}
 	workspaceID := ""
@@ -66,15 +86,99 @@ func (h *DeviceMirrorHandler) StartMirrorStream(ctx context.Context, request *co
 	if err != nil {
 		return nil, err
 	}
+	purpose := wantedPurpose(message.GetPurpose())
 	serial, err := h.serials.CurrentSerial(ctx, workspaceID, deviceID)
 	if err != nil {
 		return nil, MapError(err)
 	}
-	stream, openErr := h.streams.Open(ctx, deviceID, serial, transport)
+	stream, openErr := h.streams.Open(ctx, deviceID, serial, transport, purpose)
 	if openErr != nil {
+		// A refusal the plane's own capacity caused is recorded before it is
+		// answered, and it is answered in the plane's OWN sentence rather than
+		// through the shared generic mapping: the mapper renders an unclassified
+		// error as a fixed internal message, which would put "the stream failed"
+		// in front of an operator whose capacity was spent and leave the reason
+		// nowhere but the log. That is the whole of what an operator could not
+		// read, and it is why a refusal is carried here instead.
+		if capacity, refused := isCapacityRefusal(openErr); refused {
+			h.recordRefusal(ctx, workspaceID, deviceID, actorType, actorID, purpose, capacity)
+			return nil, MapError(platformerrors.Wrap(platformerrors.CodeUnavailable, capacity.Error(), openErr))
+		}
 		return nil, MapError(openErr)
 	}
 	return connectrpc.NewResponse(&driftv1.StartMirrorStreamResponse{Stream: mirrorStreamProto(stream)}), nil
+}
+
+// recordRefusal writes the plane's own record of a stream it refused.
+//
+// Nothing here changes what the caller is answered: the refusal is reported from
+// the engine, and a record that could not be written is logged rather than
+// turned into a second, different refusal. A refusal recorded nowhere is a defect
+// in the deployment's wiring, not in the operator's request.
+func (h *DeviceMirrorHandler) recordRefusal(ctx context.Context, workspaceID, deviceID, actorType, actorID string, purpose media.MirrorViewerPurpose, capacity *media.SessionCapacityError) {
+	if h.refusals == nil {
+		log.Printf("live mirror refused %s for %s and no mirror event recorder is constructed: %v", purpose, deviceID, capacity)
+		return
+	}
+	refusal := StreamRefusal{
+		WorkspaceID:     workspaceID,
+		DeviceID:        deviceID,
+		ActorType:       actorType,
+		ActorID:         actorID,
+		ViewerPurpose:   string(purpose),
+		Reason:          capacity.Error(),
+		Capacity:        capacity.Capacity,
+		OperatorReserve: h.reserveFor(capacity),
+	}
+	if err := h.refusals.RecordStreamRefusal(ctx, refusal); err != nil {
+		log.Printf("live mirror refused %s for %s and the record of it could not be written: %v", purpose, deviceID, err)
+	}
+}
+
+// reserveFor states the place kept for the operator's own frame beside the
+// refusal. The capacity error carries the share the refused viewer may hold, so
+// the reserve is derived from the plane's own answer rather than from a second
+// reading of the engine - which could have moved between the refusal and the
+// record.
+func (h *DeviceMirrorHandler) reserveFor(capacity *media.SessionCapacityError) int {
+	if capacity.Purpose != media.PurposeAmbient {
+		return 0
+	}
+	reserve := capacity.Capacity - capacity.AmbientShare
+	if reserve < 0 {
+		return 0
+	}
+	return reserve
+}
+
+// GetMirrorCapacity answers with the plane's own device-session bound.
+//
+// It exists because the console's grid must not carry a copy of a number the
+// plane owns: the tile allocation used to be a constant that happened to hold the
+// same value as the engine's bound, so the two agreed by luck. A handler with no
+// capacity source answers unavailable rather than zero, because zero is not a
+// bound this plane stated and a console would read it as one.
+//
+// The workspace the caller names is validated rather than used: the bound belongs
+// to the plane and is the same for every workspace on it, so there is no
+// per-workspace capacity to read. It is still required, because a surface a
+// console reads its own allocation from should say which workspace it is reading
+// for - the same demand every other call from that console makes - and a request
+// that named none would be a request this surface could not account for.
+func (h *DeviceMirrorHandler) GetMirrorCapacity(ctx context.Context, request *connectrpc.Request[driftv1.GetMirrorCapacityRequest]) (*connectrpc.Response[driftv1.GetMirrorCapacityResponse], error) {
+	if err := h.ready(); err != nil {
+		return nil, err
+	}
+	if h.capacity == nil {
+		return nil, unavailableError("this control plane cannot state its device session capacity")
+	}
+	if request == nil || request.Msg == nil {
+		return nil, invalidArgument("a get mirror capacity request is required")
+	}
+	if err := validateWorkspace(request.Msg.GetWorkspace()); err != nil {
+		return nil, err
+	}
+	return connectrpc.NewResponse(&driftv1.GetMirrorCapacityResponse{Capacity: mirrorCapacityProto(h.capacity)}), nil
 }
 
 // NegotiateMirrorStream completes the handshake with a browser's offer and

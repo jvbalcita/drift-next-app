@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { browserMirrorPlaybackFactory, type MirrorPlayback, type MirrorPlaybackFactory } from "@/lib/api/mirror-playback"
-import { liveMirrorCopy, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView } from "@/lib/live-mirror"
+import { liveMirrorCopy, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
 
 /**
  * The browser's half of one live stream.
@@ -99,6 +99,19 @@ export interface UseLiveMirrorOptions {
    * arrived over a transport the operator did not pick.
    */
   transport?: LiveMirrorTransportChoice
+  /**
+   * purpose is what this stream IS to the control plane: one of the grid's tiles
+   * (`ambient`, a picture and nothing else) or the operator's own big frame
+   * (`operator`, where a device is worked from).
+   *
+   * The plane spends its device-session capacity per purpose and keeps a place of
+   * it for the operator's frame, so the caller has to say which it is: a grid that
+   * opened its tiles as the operator's own frames would spend the place the frame
+   * needs, and a frame that opened as a tile could be refused for the grid's
+   * spending while the operator is looking at it. The default is the frame, which
+   * is the demand the reserve exists for.
+   */
+  purpose?: LiveMirrorViewerPurpose
   /** peerFactory is the seam a test supplies in place of the browser's WebRTC stack. */
   peerFactory?: MirrorPeerFactory
   /** playbackFactory is the seam a test supplies in place of the browser's media stack. */
@@ -129,7 +142,7 @@ export const defaultMirrorPollIntervalMs = 1_000
 export const defaultMirrorPollFailureLimit = 2
 
 export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = {}): LiveMirrorSession {
-  const { client, workspaceId = "", transport = "webrtc", peerFactory, playbackFactory, pollIntervalMs = defaultMirrorPollIntervalMs, pollFailureLimit = defaultMirrorPollFailureLimit } = options
+  const { client, workspaceId = "", transport = "webrtc", purpose = "operator", peerFactory, playbackFactory, pollIntervalMs = defaultMirrorPollIntervalMs, pollFailureLimit = defaultMirrorPollFailureLimit } = options
   const [phase, setPhase] = useState<LiveMirrorPhase>("idle")
   const [stream, setStream] = useState<LiveStreamView | null>(null)
   const [failure, setFailure] = useState("")
@@ -237,7 +250,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
 
     void (async () => {
       try {
-        const opened = await client.startStream({ workspaceId, deviceId, transport })
+        const opened = await client.startStream({ workspaceId, deviceId, transport, purpose })
         if (disposed) {
           void client.stopStream(opened.streamId).catch(() => undefined)
           return
@@ -320,7 +333,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       release()
       teardownRef.current = null
     }
-  }, [attempt, client, deviceId, peerFactory, playbackFactory, pollFailureLimit, pollIntervalMs, transport, workspaceId])
+  }, [attempt, client, deviceId, peerFactory, playbackFactory, pollFailureLimit, pollIntervalMs, purpose, transport, workspaceId])
 
   return { phase, stream, failure, attachVideo, retry, stop }
 }

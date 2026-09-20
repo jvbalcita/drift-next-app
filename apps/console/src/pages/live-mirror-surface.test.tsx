@@ -55,7 +55,8 @@ function fakeMirror(initial: LiveStreamView = stream()): { client: LiveMirrorCli
     calls,
     setState(next) { state = next },
     client: {
-      async startStream(request) { calls.push(`start:${request.deviceId}`); return state },
+      async startStream(request) { calls.push(`start:${request.deviceId}:${request.purpose}`); return state },
+      async getCapacity() { return { sessionCapacity: 4, operatorReserve: 1, tilePlaces: 3 } },
       async negotiate(_streamId, offerSdp) { calls.push(`negotiate:${offerSdp}`); return { answerSdp: "answer-sdp", stream: state } },
       async stopStream(streamId) { calls.push(`stop:${streamId}`); return { ...state, state: "ended" } },
       async getStream() { return state },
@@ -657,6 +658,23 @@ describe("the info control beside the pin", () => {
     expect(within(details).getByTestId("live-mirror-phase")).toHaveTextContent(/failed/i)
     expect(within(details).getByTestId("live-mirror-mark")).not.toHaveClass("animate-pulse")
     expect(intents).toHaveLength(0)
+  })
+
+  it("shows the PLANE's own capacity refusal on the frame, not a generic failure", async () => {
+    // The card's scene: the grid is showing its tiles, the operator opens a fifth
+    // device's frame, and the plane refuses the stream for its capacity. What the
+    // frame has to carry is the plane's own sentence - a frame that said only "The
+    // stream failed" would leave the operator closing tiles that are not the reason.
+    const user = userEvent.setup()
+    const refusal = "media: 4 devices are already being mirrored, which is the configured device session capacity"
+    const mirror = { ...fakeMirror().client, async startStream(): Promise<LiveStreamView> { throw new Error(refusal) } }
+    renderPanel({ mirror })
+    await waitFor(() => expect(screen.getByTestId("live-mirror-retry")).toBeInTheDocument())
+
+    const details = await openDetails(user)
+    expect(within(details).getByTestId("live-mirror-failure")).toHaveTextContent("device session capacity")
+    expect(within(details).getByTestId("live-mirror-failure")).toHaveTextContent("4 devices are already being mirrored")
+    expect(within(details).getByTestId("live-mirror-phase")).toHaveTextContent(/failed/i)
   })
 
   it("says a stream ended rather than leaving its last frame looking current", async () => {

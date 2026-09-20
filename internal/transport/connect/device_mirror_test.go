@@ -114,7 +114,12 @@ type fakeMirrors struct {
 	openErr    error
 	opened     []string
 	transports []string
-	openFunc   func(deviceID, serial string) *fakeMirrorStream
+	// purposes is what each open said it was: the operator's own frame or one of
+	// the console's ambient tiles. It is recorded because the purpose is what the
+	// plane's capacity is spent against, so a surface that dropped it would be
+	// recorded here as a grid that may spend the operator's place.
+	purposes []string
+	openFunc func(deviceID, serial string) *fakeMirrorStream
 }
 
 func newFakeMirrors(streams ...transportconnect.DeviceMirrorStream) *fakeMirrors {
@@ -125,9 +130,10 @@ func newFakeMirrors(streams ...transportconnect.DeviceMirrorStream) *fakeMirrors
 	return &fakeMirrors{streams: byKey}
 }
 
-func (m *fakeMirrors) Open(_ context.Context, deviceID, serial string, transport media.MirrorTransportKind) (transportconnect.DeviceMirrorStream, error) {
+func (m *fakeMirrors) Open(_ context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose) (transportconnect.DeviceMirrorStream, error) {
 	m.opened = append(m.opened, deviceID+"/"+serial)
 	m.transports = append(m.transports, string(transport))
+	m.purposes = append(m.purposes, string(purpose))
 	if m.openErr != nil {
 		return nil, m.openErr
 	}
@@ -183,7 +189,7 @@ func mirrorRequestContext() *driftv1.RequestContext {
 
 func mirrorHandler(t *testing.T, mirrors transportconnect.DeviceMirrors) *transportconnect.DeviceMirrorHandler {
 	t.Helper()
-	handler := transportconnect.NewDeviceMirrorHandler(mirrors, &fixedSerials{serial: mirrorSerial})
+	handler := transportconnect.NewDeviceMirrorHandler(mirrors, &fixedSerials{serial: mirrorSerial}, nil, nil)
 	if handler == nil {
 		t.Fatal("the live mirror handler was not constructed")
 	}
@@ -205,14 +211,14 @@ func startRequest(workspace, device string, transport driftv1.MirrorTransport) *
 // typed-nil shape a plain nil check misses.
 func TestANewDeviceMirrorHandlerWithNothingToCallIsNil(t *testing.T) {
 	serials := &fixedSerials{serial: mirrorSerial}
-	if handler := transportconnect.NewDeviceMirrorHandler(nil, serials); handler != nil {
+	if handler := transportconnect.NewDeviceMirrorHandler(nil, serials, nil, nil); handler != nil {
 		t.Fatal("a handler with no stream transport was constructed")
 	}
 	var typedNil *fakeMirrors
-	if handler := transportconnect.NewDeviceMirrorHandler(typedNil, serials); handler != nil {
+	if handler := transportconnect.NewDeviceMirrorHandler(typedNil, serials, nil, nil); handler != nil {
 		t.Fatal("a handler over a typed-nil stream transport was constructed")
 	}
-	if handler := transportconnect.NewDeviceMirrorHandler(newFakeMirrors(), nil); handler != nil {
+	if handler := transportconnect.NewDeviceMirrorHandler(newFakeMirrors(), nil, nil, nil); handler != nil {
 		t.Fatal("a handler with no device resolver was constructed")
 	}
 }
@@ -363,7 +369,7 @@ func TestStartMirrorStreamCarriesTheTransportTheOperatorAskedFor(t *testing.T) {
 // classified refusal rather than an internal failure.
 func TestStartMirrorStreamReportsARefusedDeviceAsARefusal(t *testing.T) {
 	mirrors := newFakeMirrors()
-	handler := transportconnect.NewDeviceMirrorHandler(mirrors, &fixedSerials{err: platformerrors.New(platformerrors.CodeUnavailable, "the device has no current transport")})
+	handler := transportconnect.NewDeviceMirrorHandler(mirrors, &fixedSerials{err: platformerrors.New(platformerrors.CodeUnavailable, "the device has no current transport")}, nil, nil)
 	if handler == nil {
 		t.Fatal("the live mirror handler was not constructed")
 	}

@@ -10,9 +10,9 @@ import type { ControlPlaneIntent, DeviceView, MutationResult } from "@/lib/domai
 import { create } from "@bufbuild/protobuf"
 import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import { liveMirrorCopy, liveStreamView } from "@/lib/live-mirror"
+import { liveMirrorCopy, liveStreamView, type MirrorCapacityView } from "@/lib/live-mirror"
 import { ControlPage } from "./ControlPage"
-import { liveTileCopy, liveTileViewerLimit } from "@/lib/live-tiles"
+import { liveTileCopy, tileViewerBudget, tileViewerLimit, type TileViewerBudget } from "@/lib/live-tiles"
 
 /**
  * The browser's WebRTC stack is stubbed rather than exercised: what these tests
@@ -44,17 +44,25 @@ function fakeMirror(state: "starting" | "live" | "ended" = "live", transport: Mi
     frames: state === "live" ? 9n : 0n,
   }))
   const calls: string[] = []
+  /** purposes are what each stream was opened AS: the frame, or one of the grid's tiles. */
+  const purposes: string[] = []
   const client: LiveMirrorClient = {
     // The transport the operator chose travels with the request, so a case can
     // assert the choice reached the control plane rather than a default.
-    async startStream(request) { calls.push(`start:${request.deviceId}:${request.transport ?? "unspecified"}`); return view },
+    async startStream(request) { calls.push(`start:${request.deviceId}:${request.transport ?? "unspecified"}`); purposes.push(request.purpose); return view },
+    async getCapacity() { return gridPlane },
     async negotiate(_streamId, offerSdp) { calls.push(`negotiate:${offerSdp}`); return { answerSdp: "answer-sdp", stream: view } },
     async stopStream(streamId) { calls.push(`stop:${streamId}`); return { ...view, state: "ended" } },
     async getStream() { return view },
     streamEndpoint(path) { calls.push(`endpoint:${path}`); return { url: `http://control-plane.test${path}`, headers: {} } },
   }
-  return { client, calls }
+  return { client, calls, purposes }
 }
+
+/** The plane the page's fixtures run against: five sessions, one kept for the frame. */
+const gridPlane: MirrorCapacityView = { sessionCapacity: 5, operatorReserve: 1, tilePlaces: 4 }
+/** The grid's own budget, derived from that plane rather than stated. */
+const gridBudget: TileViewerBudget = tileViewerBudget(gridPlane)
 
 /** openLiveMirrorDetails opens the info control beside the pin and returns what it holds. */
 async function openLiveMirrorDetails(user: ReturnType<typeof userEvent.setup>) {
@@ -792,6 +800,11 @@ describe("ControlPage live mirror frame", () => {
 
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
     expect(mirror.calls.some((call) => call === "start:atlas-04:webrtc")).toBe(true)
+    // The frame states its purpose: it is the operator's OWN viewer, which is the
+    // demand the plane's reserve of its capacity exists for. A frame that opened as
+    // one of the grid's tiles could be refused for the grid's spending while the
+    // operator is looking at it.
+    expect(mirror.purposes).toContain("operator")
     expect(screen.queryByText("Interactive phone surface")).not.toBeInTheDocument()
 
     // The stream's own frame is stated, because every coordinate is measured in
@@ -870,20 +883,23 @@ describe("ControlPage fleet tiles", () => {
     vi.unstubAllGlobals()
   })
 
-  /** mirrorFor answers each device's own stream, and records every subscription. */
-  function mirrorFor(): { client: LiveMirrorClient; started: string[] } {
+  /** mirrorFor answers each device's own stream, its purpose, and the plane's capacity. */
+  function mirrorFor(): { client: LiveMirrorClient; started: string[]; purposes: string[] } {
     const started: string[] = []
+    const purposes: string[] = []
     const client: LiveMirrorClient = {
       async startStream(request) {
         started.push(request.deviceId)
+        purposes.push(request.purpose)
         return liveStreamView(create(MirrorStreamSchema, { streamId: `stream-${request.deviceId}`, deviceId: request.deviceId, transport: MirrorTransport.WEBRTC, renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n }))
       },
+      async getCapacity() { return gridPlane },
       async negotiate(_streamId, _offerSdp) { return { answerSdp: "answer-sdp", stream: liveStreamView(create(MirrorStreamSchema, { streamId: "stream", deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n })) } },
       async stopStream() { return liveStreamView(create(MirrorStreamSchema, { streamId: "stream", deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.ENDED })) },
       async getStream(streamId) { return liveStreamView(create(MirrorStreamSchema, { streamId, deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n })) },
       streamEndpoint(path) { return { url: `http://control-plane.test${path}`, headers: {} } },
     }
-    return { client, started }
+    return { client, started, purposes }
   }
 
   function grid() {
@@ -923,18 +939,22 @@ describe("ControlPage fleet tiles", () => {
     expect(within(unseen).getByText("Not Observed")).toBeInTheDocument()
   })
 
-  it("carries a live picture on an observed tile, subscribed no further than the console's own bound", async () => {
+  it("carries a live picture on an observed tile, subscribed no further than the plane's own share", async () => {
     const { snapshot, dispatch } = grid()
     const mirror = mirrorFor()
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={mirror.client} />)
 
-    // The observed tiles carry a picture, and the grid holds five of them while
-    // the console carries four: the subscriber set is the console's bound, not
-    // the grid's size.
+    // The observed tiles carry a picture, and the grid holds five of them while the
+    // PLANE offers four: the subscriber set is the share the control plane stated,
+    // not the grid's size and not a number this console keeps.
     expect(await screen.findByTestId("live-tile-video-atlas-04")).toBeInTheDocument()
     const pictures = screen.getAllByTestId(/^live-tile-video-/)
-    expect(pictures).toHaveLength(liveTileViewerLimit)
+    expect(pictures).toHaveLength(tileViewerLimit(gridBudget))
     expect(mirror.started.sort()).toEqual(["atlas-04", "atlas-07", "nova-02", "orion-01"])
+    // And every one of them asked as an ambient viewer: the plane's capacity is
+    // spent per purpose, so a grid that opened as the operator's own frames would
+    // spend the place the big frame is kept for.
+    expect(mirror.purposes).toEqual(["ambient", "ambient", "ambient", "ambient"])
 
     // The device with no current observation is not subscribed at all, and spends
     // none of the bound: there is nothing to carry for it.
@@ -945,9 +965,46 @@ describe("ControlPage fleet tiles", () => {
     // The tile the bound does not reach says so in the tile, and does not imply
     // it is live: no picture element, and the whole sentence behind the mark.
     const unshown = screen.getByTestId("live-tile-state-orion-03")
-    expect(unshown).toHaveAttribute("aria-label", liveTileCopy.unshown(liveTileViewerLimit))
+    expect(unshown).toHaveAttribute("aria-label", liveTileCopy.unshown(tileViewerLimit(gridBudget)))
     expect(unshown).toHaveTextContent(liveTileCopy.unshownShort)
     expect(screen.queryByTestId("live-tile-video-orion-03")).not.toBeInTheDocument()
+  })
+
+  it("carries only as many tiles as the PLANE's own capacity leaves, not a number of its own", async () => {
+    // The plane carries two device sessions and keeps one of them for the
+    // operator's own big frame, so the grid may hold exactly one tile. This console
+    // used to carry four regardless - and the three streams the plane refused left
+    // three tiles that showed nothing with nothing on screen to explain them.
+    const { snapshot, dispatch } = grid()
+    const mirror = mirrorFor()
+    const singlePlace = { ...mirror, client: { ...mirror.client, async getCapacity() { return { sessionCapacity: 2, operatorReserve: 1, tilePlaces: 1 } } } }
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={singlePlace.client} />)
+
+    expect(await screen.findByTestId("live-tile-video-atlas-04")).toBeInTheDocument()
+    await waitFor(() => expect(mirror.started).toEqual(["atlas-04"]))
+    // No second tile subscribes, and the tiles the plane's share does not reach say
+    // which bound kept them out rather than reading as devices with nothing to show.
+    expect(screen.getAllByTestId(/^live-tile-video-/)).toHaveLength(1)
+    const unshown = screen.getByTestId("live-tile-state-atlas-07")
+    expect(unshown).toHaveAttribute("aria-label", liveTileCopy.unshown(1))
+    expect(unshown).toHaveTextContent(liveTileCopy.unshownShort)
+  })
+
+  it("carries no tile pictures at all, and says so, when the plane's capacity cannot be read", async () => {
+    const { snapshot, dispatch } = grid()
+    const mirror = mirrorFor()
+    const unreadable = { ...mirror, client: { ...mirror.client, async getCapacity(): Promise<MirrorCapacityView> { throw new Error("the control plane is not answering") } } }
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={unreadable.client} />)
+
+    // Nothing subscribes: the number this console used to carry tiles at was its own
+    // invention, and carrying pictures at it here would be carrying more than the
+    // plane was ever asked to hold.
+    await waitFor(() => expect(screen.getByTestId("live-tile-state-atlas-04")).toHaveAttribute("aria-label", liveTileCopy.unmeasured.long))
+    expect(mirror.started).toEqual([])
+    expect(screen.queryAllByTestId(/^live-tile-video-/)).toHaveLength(0)
+    // And the frames that do not depend on the plane's capacity still work: opening
+    // the operator's own big frame is not gated on a reading of it.
+    expect(screen.getByRole("button", { name: /Atlas 04/i })).toBeInTheDocument()
   })
 
   it("says a tile is not live rather than showing the last frame a failed stream produced", async () => {
@@ -962,8 +1019,11 @@ describe("ControlPage fleet tiles", () => {
     }
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={client} />)
 
+    // The allocation is a READ of the plane's capacity, so no tile subscribes
+    // until that reading has arrived: this waits for the state rather than for the
+    // element, which is rendered from the first frame and starts out idle.
     const failed = await screen.findByTestId("live-tile-state-atlas-04")
-    expect(failed).toHaveAttribute("data-tile-state", "failed")
+    await waitFor(() => expect(failed).toHaveAttribute("data-tile-state", "failed"))
     // The classification reaches the operator: the plane's own reason, in the
     // tile's own element, and NO picture kept from before the failure. The tile
     // holds the element its picture would be written into - it is what makes the

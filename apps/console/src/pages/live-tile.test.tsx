@@ -7,8 +7,8 @@ import { create } from "@bufbuild/protobuf"
 import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { DeviceView } from "@/lib/domain/control-plane"
-import { liveStreamView, type LiveStreamView } from "@/lib/live-mirror"
-import { liveTileCopy } from "@/lib/live-tiles"
+import { liveStreamView, type LiveStreamView, type MirrorCapacityView } from "@/lib/live-mirror"
+import { liveTileCopy, type TileViewerBudget } from "@/lib/live-tiles"
 import { LiveTilePicture } from "./live-tile"
 
 /**
@@ -80,9 +80,17 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   return { promise, resolve }
 }
 
+/** The plane's own bound, as this tile's console reads it: four sessions, one kept for the frame. */
+const planeCapacity: MirrorCapacityView = { sessionCapacity: 5, operatorReserve: 1, tilePlaces: 4 }
+
+/** The budget a measured plane leaves the grid, and the one a console with no reading has. */
+const measuredBudget: TileViewerBudget = { kind: "measured", limit: 4 }
+const unmeasuredBudget: TileViewerBudget = { kind: "unmeasured" }
+
 function tileMirror(negotiation: Promise<{ answerSdp: string; stream: LiveStreamView }>): LiveMirrorClient {
   return {
     async startStream() { return stream() },
+    async getCapacity() { return planeCapacity },
     async negotiate() { return negotiation },
     async stopStream() { return stream({ state: MirrorStreamState.ENDED }) },
     async getStream() { return stream() },
@@ -103,7 +111,7 @@ afterEach(() => {
 describe("a fleet tile's live picture", () => {
   it("keeps the element its picture is written into for as long as it subscribes", async () => {
     const held = deferred<{ answerSdp: string; stream: LiveStreamView }>()
-    render(<LiveTilePicture device={device()} mirror={tileMirror(held.promise)} transport="webrtc" workspaceId={workspaceId} viewing />)
+    render(<LiveTilePicture device={device()} mirror={tileMirror(held.promise)} transport="webrtc" workspaceId={workspaceId} viewing budget={measuredBudget} />)
 
     // The stream is open and has not been negotiated: the tile is not live yet,
     // and the element is already there - invisible, because a picture that is not
@@ -133,7 +141,7 @@ describe("a fleet tile's live picture", () => {
       ...tileMirror(Promise.resolve({ answerSdp: "answer-sdp", stream: stream() })),
       async startStream() { return stream({ state: MirrorStreamState.FAILED, failure: reason }) },
     }
-    render(<LiveTilePicture device={device()} mirror={client} transport="webrtc" workspaceId={workspaceId} viewing />)
+    render(<LiveTilePicture device={device()} mirror={client} transport="webrtc" workspaceId={workspaceId} viewing budget={measuredBudget} />)
 
     const state = await screen.findByTestId("live-tile-state-atlas-04")
     await waitFor(() => expect(state).toHaveAttribute("data-tile-state", "failed"))
@@ -151,10 +159,35 @@ describe("a fleet tile's live picture", () => {
     expect(screen.getByTestId("live-tile-video-atlas-04")).toHaveClass("invisible")
   })
 
-  it("opens nothing and draws nothing for a tile the console's bound does not reach", async () => {
+  it("opens its stream as an AMBIENT viewer, because a tile is the kind the plane may refuse", async () => {
+    // The plane spends its capacity per purpose and keeps a place for the operator's
+    // own frame, so a tile that opened without saying it was a tile would spend the
+    // place the big frame needs - and the frame is where a device is worked from.
+    const purposes: string[] = []
+    const client: LiveMirrorClient = {
+      ...tileMirror(Promise.resolve({ answerSdp: "answer-sdp", stream: stream() })),
+      async startStream(request) { purposes.push(request.purpose); return stream() },
+    }
+    render(<LiveTilePicture device={device()} mirror={client} transport="webrtc" workspaceId={workspaceId} viewing budget={measuredBudget} />)
+
+    await waitFor(() => expect(purposes).toEqual(["ambient"]))
+  })
+
+  it("says the capacity was never read when the console has no reading, and opens nothing on a guess", async () => {
     const started: string[] = []
     const client: LiveMirrorClient = { ...tileMirror(Promise.resolve({ answerSdp: "answer-sdp", stream: stream() })), async startStream(request) { started.push(request.deviceId); return stream() } }
-    render(<LiveTilePicture device={device()} mirror={client} transport="webrtc" workspaceId={workspaceId} viewing={false} />)
+    render(<LiveTilePicture device={device()} mirror={client} transport="webrtc" workspaceId={workspaceId} viewing={false} budget={unmeasuredBudget} />)
+
+    const state = await screen.findByTestId("live-tile-state-atlas-04")
+    expect(state).toHaveAttribute("aria-label", liveTileCopy.unmeasured.long)
+    expect(state).toHaveTextContent(liveTileCopy.unmeasured.short)
+    expect(started).toEqual([])
+  })
+
+  it("opens nothing and draws nothing for a tile the plane's capacity does not reach", async () => {
+    const started: string[] = []
+    const client: LiveMirrorClient = { ...tileMirror(Promise.resolve({ answerSdp: "answer-sdp", stream: stream() })), async startStream(request) { started.push(request.deviceId); return stream() } }
+    render(<LiveTilePicture device={device()} mirror={client} transport="webrtc" workspaceId={workspaceId} viewing={false} budget={measuredBudget} />)
 
     expect(screen.queryByTestId("live-tile-video-atlas-04")).not.toBeInTheDocument()
     expect(started).toEqual([])

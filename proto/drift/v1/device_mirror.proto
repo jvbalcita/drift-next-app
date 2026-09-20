@@ -89,6 +89,48 @@ message MirrorStream {
   string stream_url = 10;
 }
 
+// MirrorViewerPurpose is what a viewer of a device's live stream IS, and it is
+// the fact the plane's device-session capacity is spent against.
+//
+// One service carries two very different demands. The console's grid draws
+// ambient tiles: a fleet VIEW, one stream per tile, bounded so that a fleet view
+// stays a view rather than a wall of simultaneous captures. The operator's big
+// frame is the surface a device is worked from, and a frame that cannot open
+// because the grid is already holding every session is a control room whose
+// pictures cannot be touched. The plane therefore keeps a place below its
+// capacity for the operator's own frame and refuses an AMBIENT viewer once the
+// grid's share of the capacity is spent.
+//
+// A request that states neither is read as the operator's own frame, because the
+// two mistakes are not equal: an undeclared viewer read as the grid loses the
+// operator a place, while one read as the operator's frame can only spend a place
+// that was held for exactly it.
+enum MirrorViewerPurpose {
+  MIRROR_VIEWER_PURPOSE_UNSPECIFIED = 0;
+  // AMBIENT is one of the console's grid tiles: a picture and nothing else.
+  MIRROR_VIEWER_PURPOSE_AMBIENT = 1;
+  // OPERATOR is the operator's own big frame: where a device is worked from.
+  MIRROR_VIEWER_PURPOSE_OPERATOR = 2;
+}
+
+// MirrorCapacity is the plane's own device-session bound, as the deployment
+// stated it, together with the place its ambient viewers may not spend.
+//
+// It is published rather than agreed, and that is the whole point: the console's
+// tile allocation used to be a constant of its own that happened to hold the same
+// number as the plane's bound, so the two could agree by luck and disagree by
+// edit. The console now derives how many tiles subscribe from THIS, which is the
+// bound the plane is actually carrying.
+message MirrorCapacity {
+  // session_capacity is how many devices this plane mirrors at once.
+  uint32 session_capacity = 1;
+  // operator_reserve is how many of session_capacity are kept for the
+  // operator's own frame: the grid may hold at most
+  // session_capacity - operator_reserve tiles between them.
+  uint32 operator_reserve = 2;
+}
+
+// StartMirrorStreamRequest opens one device's live stream for one viewer.
 message StartMirrorStreamRequest {
   RequestContext context = 1;
   WorkspaceRef workspace = 2;
@@ -98,6 +140,11 @@ message StartMirrorStreamRequest {
   // rather than silently replaced, so a caller never believes it is receiving
   // something other than what it asked for.
   MirrorTransport transport = 4;
+  // purpose is what this viewer is. UNSPECIFIED is read as the operator's own
+  // frame (see MirrorViewerPurpose), so a caller that has not been taught the
+  // distinction is treated as the surface that must not be refused on the
+  // grid's account.
+  MirrorViewerPurpose purpose = 5;
 }
 
 message StartMirrorStreamResponse {
@@ -134,9 +181,21 @@ message GetMirrorStreamResponse {
   MirrorStream stream = 1;
 }
 
+// GetMirrorCapacityRequest asks how much room this plane has for streams.
+message GetMirrorCapacityRequest {
+  WorkspaceRef workspace = 1;
+}
+
+message GetMirrorCapacityResponse {
+  MirrorCapacity capacity = 1;
+}
+
 service DeviceMirrorService {
   rpc StartMirrorStream(StartMirrorStreamRequest) returns (StartMirrorStreamResponse);
   rpc NegotiateMirrorStream(NegotiateMirrorStreamRequest) returns (NegotiateMirrorStreamResponse);
   rpc StopMirrorStream(StopMirrorStreamRequest) returns (StopMirrorStreamResponse);
   rpc GetMirrorStream(GetMirrorStreamRequest) returns (GetMirrorStreamResponse);
+  // GetMirrorCapacity reads the plane's device-session bound. It reads; it never
+  // opens, negotiates or ends anything.
+  rpc GetMirrorCapacity(GetMirrorCapacityRequest) returns (GetMirrorCapacityResponse);
 }

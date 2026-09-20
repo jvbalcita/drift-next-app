@@ -1,5 +1,5 @@
-import { MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
-import type { MirrorStream } from "@/gen/drift/v1/device_mirror_pb"
+import { MirrorStreamState, MirrorTransport, MirrorViewerPurpose } from "@/gen/drift/v1/device_mirror_pb"
+import type { MirrorCapacity, MirrorStream } from "@/gen/drift/v1/device_mirror_pb"
 import { deviceObservationSentence } from "@/lib/device-status"
 import type { DeviceStatus } from "@/lib/domain/control-plane"
 
@@ -73,6 +73,46 @@ export interface MirrorDevice {
 
 export function transportRequestFor(choice: LiveMirrorTransportChoice): MirrorTransport {
   return choice === "tcp" ? MirrorTransport.TCP : MirrorTransport.WEBRTC
+}
+
+/**
+ * The two things a viewer of a device's stream can be, as the control plane
+ * counts them.
+ *
+ * The plane's device-session capacity is spent per VIEWER PURPOSE, and it keeps a
+ * place of that capacity for the operator's own frame. A grid tile is `ambient`:
+ * a picture and nothing else, which is what makes it the spendable kind. The big
+ * frame an operator works a device from is `operator`, and it is the reason the
+ * reserve exists. This console knows which of the two a stream is because it knows
+ * what the operator clicked, so it states the purpose rather than letting the plane
+ * guess.
+ */
+export type LiveMirrorViewerPurpose = "ambient" | "operator"
+
+export function purposeRequestFor(purpose: LiveMirrorViewerPurpose): MirrorViewerPurpose {
+  return purpose === "ambient" ? MirrorViewerPurpose.AMBIENT : MirrorViewerPurpose.OPERATOR
+}
+
+/**
+ * MirrorCapacityView is the plane's own device-session bound, as this console
+ * reads it.
+ *
+ * `tilePlaces` is derived rather than read: it is the plane's capacity less the
+ * place the plane keeps for the operator's own frame, which is the number of grid
+ * tiles the plane can actually carry. A plane that stated a reserve larger than
+ * its capacity offers the grid nothing, and this is where that reads as zero
+ * places rather than as a negative number of tiles.
+ */
+export interface MirrorCapacityView {
+  sessionCapacity: number
+  operatorReserve: number
+  tilePlaces: number
+}
+
+export function mirrorCapacityView(capacity: MirrorCapacity): MirrorCapacityView {
+  const sessionCapacity = Math.max(0, capacity.sessionCapacity)
+  const operatorReserve = Math.max(0, capacity.operatorReserve)
+  return { sessionCapacity, operatorReserve, tilePlaces: Math.max(0, sessionCapacity - operatorReserve) }
 }
 
 export function liveTransportOf(transport: MirrorTransport): LiveMirrorTransport {
@@ -347,6 +387,7 @@ export const liveMirrorCopy = {
   /** The sentences that stand in for a stream the console cannot show. */
   failure: {
     noStream: "The control plane answered without a stream, so there is nothing to show.",
+    noCapacity: "The control plane answered without its live-stream capacity, so this console cannot tell how many pictures it may carry and is carrying none.",
     openFailed: "The live stream could not be opened.",
     lost: "The control plane stopped answering for this stream, so the frame you would see is no longer known to be live.",
     noEndpoint: "The control plane opened a stream over the TCP transport and named no stream endpoint to fetch, so there is nothing to read.",

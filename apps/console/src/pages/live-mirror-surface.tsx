@@ -156,7 +156,7 @@ export interface LiveMirrorSessionView {
  */
 export function useLiveMirrorSession({ device, mirror, transport = "webrtc", workspaceId, hasLease, leaseRefusal = "", dispatch }: LiveMirrorSurfaceProps): LiveMirrorSessionView {
   const reducedMotion = useReducedMotion()
-  const { phase, stream, failure, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport })
+  const { phase, stream, failure, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport, purpose: "operator" })
   const frame = liveStreamFrame(stream)
   const video = useRef<HTMLVideoElement | null>(null)
   // stage is the element whose FOCUS is the capture boundary, and heldKeys is

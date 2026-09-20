@@ -33,8 +33,8 @@ import (
 // what the composition root does (cmd/control-plane/main.go's mirrorStreamPort).
 type mirrorPort struct{ transport *media.StreamTransport }
 
-func (p mirrorPort) Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind) (transportconnect.DeviceMirrorStream, error) {
-	carrier, err := p.transport.Open(ctx, deviceID, serial, transport)
+func (p mirrorPort) Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose) (transportconnect.DeviceMirrorStream, error) {
+	carrier, err := p.transport.Open(ctx, deviceID, serial, transport, purpose)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func liveSurface(t *testing.T) (driftv1connect.DeviceMirrorServiceClient, *scrip
 	if err != nil {
 		t.Fatalf("the stream transport was not constructed: %v", err)
 	}
-	handler := transportconnect.NewDeviceMirrorHandler(mirrorPort{transport: transport}, &fixedSerials{serial: mirrorSerial})
+	handler := transportconnect.NewDeviceMirrorHandler(mirrorPort{transport: transport}, &fixedSerials{serial: mirrorSerial}, nil, nil)
 	if handler == nil {
 		t.Fatal("the live mirror handler was not constructed")
 	}

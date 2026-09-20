@@ -9,7 +9,7 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { MirrorPlayback, MirrorPlaybackFactory, MirrorPlaybackRequest } from "@/lib/api/mirror-playback"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
-import { liveMirrorCopy, liveStreamView, type LiveMirrorTransportChoice, type LiveStreamView } from "@/lib/live-mirror"
+import { liveMirrorCopy, liveStreamView, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
 
 interface StreamOverrides {
   state?: MirrorStreamState
@@ -59,6 +59,8 @@ interface FakeClient {
   calls: string[]
   /** transports are the transports this console asked the control plane for. */
   transports: string[]
+  /** purposes are the purposes each stream was opened as: a tile or the operator's frame. */
+  purposes: string[]
   setState(next: LiveStreamView): void
   failReads(failure: unknown | null): void
   reads: number
@@ -67,11 +69,13 @@ interface FakeClient {
 function fakeClient(initial: LiveStreamView = stream()): FakeClient {
   const calls: string[] = []
   const transports: string[] = []
+  const purposes: string[] = []
   let state = initial
   let readFailure: unknown | null = null
   const handle: FakeClient = {
     calls,
     transports,
+    purposes,
     get reads() { return calls.filter((call) => call.startsWith("get:")).length },
     setState(next) { state = next },
     failReads(failure) { readFailure = failure },
@@ -79,8 +83,10 @@ function fakeClient(initial: LiveStreamView = stream()): FakeClient {
       async startStream(request) {
         calls.push(`start:${request.deviceId}`)
         transports.push(request.transport ?? "unspecified")
+        purposes.push(request.purpose)
         return state
       },
+      async getCapacity() { return { sessionCapacity: 4, operatorReserve: 1, tilePlaces: 3 } },
       async negotiate(streamId, offerSdp) {
         calls.push(`negotiate:${streamId}:${offerSdp}`)
         return { answerSdp: "answer-sdp", stream: state }
@@ -123,8 +129,8 @@ function fakePeer(): FakePeer {
   return { factory: () => peer, calls, emitStream: () => listener?.(media), media }
 }
 
-function Harness({ client, peerFactory, playbackFactory, transport, deviceId = "device-1" }: { client?: LiveMirrorClient; peerFactory?: FakePeer["factory"]; playbackFactory?: MirrorPlaybackFactory; transport?: LiveMirrorTransportChoice; deviceId?: string }) {
-  const session = useLiveMirror(deviceId, { client, peerFactory, playbackFactory, transport, workspaceId: "workspace-lab-local", pollIntervalMs: 5, pollFailureLimit: 2 })
+function Harness({ client, peerFactory, playbackFactory, transport, purpose, deviceId = "device-1" }: { client?: LiveMirrorClient; peerFactory?: FakePeer["factory"]; playbackFactory?: MirrorPlaybackFactory; transport?: LiveMirrorTransportChoice; purpose?: LiveMirrorViewerPurpose; deviceId?: string }) {
+  const session = useLiveMirror(deviceId, { client, peerFactory, playbackFactory, transport, purpose, workspaceId: "workspace-lab-local", pollIntervalMs: 5, pollFailureLimit: 2 })
   return (
     <div>
       <span data-testid="phase">{session.phase}</span>
@@ -148,6 +154,25 @@ describe("the console's live mirror session", () => {
 
     peer.emitStream()
     await waitFor(() => expect(screen.getByTestId("video")).toHaveProperty("srcObject", peer.media))
+  })
+
+  it("opens the stream AS what it is, because the plane spends its capacity per purpose", async () => {
+    // The plane keeps a place of its device-session capacity for the operator's own
+    // frame, so the purpose decides whether the plane can carry this stream at all:
+    // a grid tile that opened as the operator's frame would spend the place the big
+    // frame needs, and the frame is where a device is worked from.
+    const tiled = fakeClient()
+    const tiledPeer = fakePeer()
+    render(<Harness client={tiled.client} peerFactory={tiledPeer.factory} purpose="ambient" />)
+    await waitFor(() => expect(tiled.purposes).toEqual(["ambient"]))
+
+    // A surface that did not say which it is gets the OPERATOR's place, which is
+    // the demand the reserve exists for: an undeclared viewer must never be the one
+    // that loses the operator a frame.
+    const undeclared = fakeClient()
+    const undeclaredPeer = fakePeer()
+    render(<Harness client={undeclared.client} peerFactory={undeclaredPeer.factory} />)
+    await waitFor(() => expect(undeclared.purposes).toEqual(["operator"]))
   })
 
   it("reports LIVE only when the control plane reports pictures carried", async () => {
