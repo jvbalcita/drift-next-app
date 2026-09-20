@@ -305,7 +305,7 @@ func main() {
 	acceptedPorts, acceptedErr := acceptedProfilePorts(context.Background(), store.NewNetworkProfileRepository(db), workspaceID)
 	if acceptedErr != nil {
 		log.Printf("transport surface not mounted: %v", acceptedErr)
-	} else if operations, operationsErr := connectionOperations(labService, acceptedPorts); operationsErr != nil {
+	} else if operations, operationsErr := connectionOperations(labService, acceptedPorts, currentEndpointSource(db, workspaceID)); operationsErr != nil {
 		log.Printf("transport surface not mounted: %v", operationsErr)
 	} else if connectionRoute := service.ConnectionRoute(operations, labToken); connectionRoute.Path != "" {
 		routes = append(routes, connectionRoute)
@@ -648,6 +648,17 @@ func acceptedProfilePorts(ctx context.Context, profiles *store.NetworkProfileRep
 	return nil, platformerrors.New(platformerrors.CodeInvalidInput, "no default network profile is configured, so no port is accepted for a transport")
 }
 
+// currentEndpointSource is the registry read every connect is bounded by: the
+// addresses this workspace currently holds as current. It is wired here rather
+// than inside the connection package because the workspace is a composition fact -
+// the domain is handed the set it may dial and never learns which workspace it came
+// from (ARC-231).
+func currentEndpointSource(db *store.DB, workspaceID organizations.WorkspaceID) connection.CurrentEndpointSource {
+	return connection.CurrentEndpointSourceFunc(func(ctx context.Context) ([]string, error) {
+		return store.NewEndpointRepository(db).ListCurrentAddresses(ctx, workspaceID)
+	})
+}
+
 // connectionOperations builds the transport boundary over the lab service's own
 // runners. It is the composition root's job: the service exposes the host and
 // device runners it was constructed with, and this assembles them into the single
@@ -662,7 +673,11 @@ func acceptedProfilePorts(ctx context.Context, profiles *store.NetworkProfileRep
 // The activator is given no Wait: NewActivator fills the production default, which
 // bounds the settle after tcpip against the caller's context rather than sleeping
 // through a cancellation. Only a test injects one.
-func connectionOperations(labService *lab.Service, acceptedPorts []uint16) (transportconnect.ConnectionOperations, error) {
+//
+// The connector and the restarter are both given the registry's current endpoints,
+// so an address this plane does not currently observe is refused before any device
+// call whichever surface asked for it (ARC-231).
+func connectionOperations(labService *lab.Service, acceptedPorts []uint16, current connection.CurrentEndpointSource) (transportconnect.ConnectionOperations, error) {
 	host := labService.HostTransport()
 	device := labService.DeviceTransport()
 	enumerator := labService.Enumerator()
@@ -674,11 +689,11 @@ func connectionOperations(labService *lab.Service, acceptedPorts []uint16) (tran
 	// process memory because nothing durable is required for it yet: a restart
 	// forgets it, which is fail-closed rather than permissive.
 	activations := connection.NewPortActivations()
-	connector, connectorErr := connection.NewConnector(connection.ConnectorConfig{Runner: host, Policy: policy, Activations: activations})
+	connector, connectorErr := connection.NewConnector(connection.ConnectorConfig{Runner: host, Policy: policy, Activations: activations, Current: current})
 	if connectorErr != nil {
 		return transportconnect.ConnectionOperations{}, connectorErr
 	}
-	restarter, restarterErr := connection.NewRestarter(connection.RestarterConfig{Runner: host, Enumerator: enumerator, Policy: policy})
+	restarter, restarterErr := connection.NewRestarter(connection.RestarterConfig{Runner: host, Enumerator: enumerator, Policy: policy, Current: current})
 	if restarterErr != nil {
 		return transportconnect.ConnectionOperations{}, restarterErr
 	}

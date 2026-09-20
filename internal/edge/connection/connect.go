@@ -24,12 +24,20 @@ type ConnectorConfig struct {
 	// activation is something an operator does, not something that happens because a
 	// field was left empty.
 	Activations *PortActivations
+	// Current is the registry read every connect is bounded by: an address is only
+	// dialled when this plane currently observes it there. A connector built without
+	// one refuses EVERY connect, which is the fail-closed default for the same
+	// reason an absent activation is - the alternative is an adapter that dials
+	// addresses from a list it cannot check, which is how a retired range keeps
+	// being re-dialled (ARC-231).
+	Current CurrentEndpointSource
 }
 
 type Connector struct {
 	runner      HostCommandRunner
 	policy      PortPolicy
 	activations *PortActivations
+	current     CurrentEndpointSource
 }
 
 func NewConnector(cfg ConnectorConfig) (*Connector, error) {
@@ -40,7 +48,7 @@ func NewConnector(cfg ConnectorConfig) (*Connector, error) {
 	if activations == nil {
 		activations = NewPortActivations()
 	}
-	return &Connector{runner: cfg.Runner, policy: cfg.Policy, activations: activations}, nil
+	return &Connector{runner: cfg.Runner, policy: cfg.Policy, activations: activations, current: cfg.Current}, nil
 }
 
 // ConnectOutcome is what a connect actually did for one endpoint: the operation
@@ -119,9 +127,31 @@ func (c *Connector) admittedPort(ctx context.Context, endpoint, serial string, a
 	return 0, err
 }
 
-// connectTo is the single path both entries share, so a policy decision and the array
-// that follows it cannot drift between them.
+// connectTo is the single path both entries share, so a policy decision, the
+// currency check and the array that follows them cannot drift between them.
+//
+// The currency check is first and it is the one that makes a retired range
+// undialable: an address this plane does not currently observe costs no device
+// call at all, and the refusal says which fact is missing rather than only that
+// the connect failed. Every connect this adapter makes goes through here -
+// including the recovery path's, which re-establishes the endpoints it was handed
+// - so a reconnect cannot reach an address that nothing has observed, whichever
+// surface asked for it (ARC-231).
 func (c *Connector) connectTo(ctx context.Context, endpoint string, port uint16) (ConnectOutcome, error) {
+	current, err := currentEndpointSet(ctx, c.current)
+	if err != nil {
+		return ConnectOutcome{}, err
+	}
+	canonical, spellable := CanonicalEndpoint(endpoint)
+	if !spellable {
+		// An address this adapter's own rule cannot spell is refused by the
+		// builder below with its own reason; the currency check simply cannot
+		// admit it, and it must not read as "current" by accident.
+		return ConnectOutcome{}, platformerrors.New(platformerrors.CodeInvalidInput, "an endpoint must be IPv4:port")
+	}
+	if _, observed := current[canonical]; !observed {
+		return ConnectOutcome{}, &EndpointNotCurrentError{Endpoint: canonical, Current: len(current)}
+	}
 	argv, err := adb.ConnectArgv(endpoint)
 	if err != nil {
 		return ConnectOutcome{}, err

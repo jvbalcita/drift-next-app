@@ -7,6 +7,7 @@ import (
 	"drift.local/drift-next/internal/endpoints"
 	"drift.local/drift-next/internal/organizations"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -92,6 +93,35 @@ func (r *EndpointRepository) ListCurrentByDevice(ctx context.Context, w organiza
 }
 
 type EndpointService struct{ store *DB }
+
+// ListCurrentAddresses reads the address of every current endpoint, as the
+// canonical `IPv4:port` a connect names. It is the set a connect is bounded by: an
+// address this workspace does not currently observe is not one this plane may
+// dial, so a reconnect cannot reach a retired range, a lease that moved, or a
+// handset that answers somewhere else now (ARC-231).
+//
+// A device with no current endpoint contributes nothing, which is the same
+// reading the projection makes: no transport observed is not an address.
+func (r *EndpointRepository) ListCurrentAddresses(ctx context.Context, w organizations.WorkspaceID) ([]string, error) {
+	rows, err := r.store.db.QueryContext(ctx, `SELECT host,port FROM device_endpoints WHERE workspace_id=? AND state='current' AND host IS NOT NULL AND host <> '' AND port IS NOT NULL ORDER BY id`, w)
+	if err != nil {
+		return nil, classifyContext(err)
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var host string
+		var port int64
+		if err := rows.Scan(&host, &port); err != nil {
+			return nil, err
+		}
+		if port <= 0 || port > 65535 {
+			continue
+		}
+		out = append(out, host+":"+strconv.FormatInt(port, 10))
+	}
+	return out, rows.Err()
+}
 
 func NewEndpointService(store *DB) *EndpointService { return &EndpointService{store: store} }
 

@@ -20,12 +20,19 @@ type RestarterConfig struct {
 	Runner     HostCommandRunner
 	Enumerator TransportEnumerator
 	Policy     PortPolicy
+	// Current is the registry read this restart is bounded by. A restart that
+	// cannot read it must not drop the adb server: the kill has already happened
+	// by the time an endpoint is dialled, so a restart that discovered there that
+	// nothing is current would have stranded every device it held. The set is
+	// therefore read BEFORE the kill, and only endpoints in it are re-established.
+	Current CurrentEndpointSource
 }
 
 type Restarter struct {
 	connector  *Connector
 	runner     HostCommandRunner
 	enumerator TransportEnumerator
+	current    CurrentEndpointSource
 }
 
 func NewRestarter(cfg RestarterConfig) (*Restarter, error) {
@@ -36,12 +43,13 @@ func NewRestarter(cfg RestarterConfig) (*Restarter, error) {
 		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "a transport enumerator is required, so that a restart can measure what it drops")
 	}
 	// The recovery re-establishes through the SAME connect path an operator uses, so
-	// the policy, the refusal and the array cannot drift between the two.
-	connector, err := NewConnector(ConnectorConfig{Runner: cfg.Runner, Policy: cfg.Policy})
+	// the policy, the currency bound, the refusal and the array cannot drift between
+	// the two.
+	connector, err := NewConnector(ConnectorConfig{Runner: cfg.Runner, Policy: cfg.Policy, Current: cfg.Current})
 	if err != nil {
 		return nil, err
 	}
-	return &Restarter{connector: connector, runner: cfg.Runner, enumerator: cfg.Enumerator}, nil
+	return &Restarter{connector: connector, runner: cfg.Runner, enumerator: cfg.Enumerator, current: cfg.Current}, nil
 }
 
 // EndpointOutcome is one endpoint's result. It is reported PER ENDPOINT because an
@@ -94,6 +102,17 @@ func (r *Restarter) Restart(ctx context.Context, endpoints []string) (RestartOut
 	}
 	outcome := RestartOutcome{TransportsBefore: len(before)}
 
+	// The endpoints this plane currently observes are read BEFORE the kill, for the
+	// same reason the transport count is: once the server is down, an endpoint that
+	// turns out to be un-dialable is a device this restart has already stranded. An
+	// address the registry does not hold as current is not re-dialled at all - it is
+	// reported against its own entry - so a retired range handed to this path
+	// re-establishes nothing and costs no device call.
+	current, err := currentEndpointSet(ctx, r.current)
+	if err != nil {
+		return RestartOutcome{}, fmt.Errorf("refusing to restart the adb server: %w", err)
+	}
+
 	killResult, killErr := r.runner.RunHostAllowlisted(ctx, adb.KillServerArgv())
 	outcome.KillExitCode, outcome.KillFailed = killResult.ExitCode, killErr != nil
 
@@ -114,9 +133,28 @@ func (r *Restarter) Restart(ctx context.Context, endpoints []string) (RestartOut
 	}
 
 	for _, endpoint := range endpoints {
-		connected, connectErr := r.connector.Connect(ctx, endpoint)
+		canonical, spellable := CanonicalEndpoint(endpoint)
+		if !spellable {
+			outcome.Failed++
+			outcome.Endpoints = append(outcome.Endpoints, EndpointOutcome{
+				Endpoint: endpoint,
+				Err:      platformerrors.New(platformerrors.CodeInvalidInput, "an endpoint must be IPv4:port"),
+			})
+			continue
+		}
+		if _, observed := current[canonical]; !observed {
+			// Nothing this plane observes is at that address, so there is nothing
+			// to re-establish and no dial is attempted: the refusal is the fact.
+			outcome.Failed++
+			outcome.Endpoints = append(outcome.Endpoints, EndpointOutcome{
+				Endpoint: canonical,
+				Err:      &EndpointNotCurrentError{Endpoint: canonical, Current: len(current)},
+			})
+			continue
+		}
+		connected, connectErr := r.connector.Connect(ctx, canonical)
 		entry := EndpointOutcome{
-			Endpoint: endpoint,
+			Endpoint: canonical,
 			Port:     connected.Port,
 			ExitCode: connected.Result.ExitCode,
 			Err:      connectErr,

@@ -9,6 +9,17 @@ import (
 	"drift.local/drift-next/internal/edge/adb"
 )
 
+// restartTestEndpoints are the addresses these tests hand a restart. The registry
+// the restarter is bounded by holds exactly these, so a test that exercises the
+// port policy still exercises the PORT policy rather than being refused earlier for
+// an address nothing observes.
+var restartTestEndpoints = []string{
+	"192.168.1.109:5555",
+	"192.168.1.110:5555",
+	"192.168.1.111:5556",
+	"192.168.1.115:5000",
+}
+
 // scriptedEnumerator answers the before and after counts a restart measures, and it
 // records how many times it was asked so a test can prove the measurement happened
 // BEFORE the kill rather than after it.
@@ -39,6 +50,7 @@ func newRestarter(t *testing.T, accepted []uint16, counts []int) (*Restarter, *r
 		Runner:     runner,
 		Enumerator: enumerator,
 		Policy:     NewPortPolicy(accepted),
+		Current:    currentSource(restartTestEndpoints...),
 	})
 	if err != nil {
 		t.Fatalf("NewRestarter: %v", err)
@@ -124,6 +136,7 @@ func TestARestartRefusesWhenItCannotMeasureWhatItWouldDrop(t *testing.T) {
 		Runner:     runner,
 		Enumerator: enumerator,
 		Policy:     NewPortPolicy([]uint16{5555}),
+		Current:    currentSource(restartTestEndpoints...),
 	})
 	if err != nil {
 		t.Fatalf("NewRestarter: %v", err)
