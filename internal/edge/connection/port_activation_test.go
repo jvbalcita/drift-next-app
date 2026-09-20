@@ -19,6 +19,7 @@ func newActivatableConnector(t *testing.T, accepted []uint16) (*Connector, *reco
 		Runner:      runner,
 		Policy:      NewPortPolicy(accepted),
 		Activations: NewPortActivations(),
+		Current:     currentSource(acceptedEndpoint, offPortEndpoint),
 	})
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
@@ -183,7 +184,7 @@ func TestActivationRefusesAMalformedEndpointAndRecordsNothing(t *testing.T) {
 // default, so a forgotten field cannot open a port.
 func TestAConnectorWithoutActivationsRefusesEveryOffPortEndpoint(t *testing.T) {
 	runner := &recordingRunner{}
-	connector, err := NewConnector(ConnectorConfig{Runner: runner, Policy: NewPortPolicy([]uint16{5555})})
+	connector, err := NewConnector(ConnectorConfig{Runner: runner, Policy: NewPortPolicy([]uint16{5555}), Current: currentSource(offPortEndpoint)})
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
 	}

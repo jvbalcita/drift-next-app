@@ -75,6 +75,24 @@ func TestRestartRecoversTheLabFleetThroughTheToolsOwnPath(t *testing.T) {
 		Runner:     adapter,
 		Enumerator: adapter,
 		Policy:     NewPortPolicy(ports),
+		// The registry read this lab path is bounded by IS the adapter's own
+		// observation: only an address the adapter currently reports is
+		// re-established. An endpoint named in the environment that nothing
+		// observes - a retired range, a handset that moved - is therefore
+		// reported and not dialled, which is the behaviour under test.
+		Current: CurrentEndpointSourceFunc(func(sourceCtx context.Context) ([]string, error) {
+			found, enumerateErr := adapter.Enumerate(sourceCtx)
+			if enumerateErr != nil {
+				return nil, enumerateErr
+			}
+			addresses := make([]string, 0, len(found))
+			for _, device := range found {
+				if _, endpointErr := adb.EndpointPort(device.Serial); endpointErr == nil {
+					addresses = append(addresses, device.Serial)
+				}
+			}
+			return addresses, nil
+		}),
 	})
 	if err != nil {
 		t.Fatalf("NewRestarter: %v", err)

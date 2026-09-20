@@ -34,7 +34,7 @@ const acceptedEndpoint = "192.168.1.109:5555"
 func newConnector(t *testing.T, accepted []uint16) (*Connector, *recordingRunner) {
 	t.Helper()
 	runner := &recordingRunner{}
-	connector, err := NewConnector(ConnectorConfig{Runner: runner, Policy: NewPortPolicy(accepted)})
+	connector, err := NewConnector(ConnectorConfig{Runner: runner, Policy: NewPortPolicy(accepted), Current: currentSource(acceptedEndpoint)})
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
 	}
