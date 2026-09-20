@@ -31,6 +31,20 @@ var (
 	// The server is a deployed artifact, so a deployment without it fails at the
 	// boundary rather than after pushing an empty file.
 	ErrServerMissing = errors.New("scrcpy: the server file is not a readable file")
+
+	// ErrServerStart reports a device-side server that could not be started. It
+	// is its own sentinel rather than a sentence because the caller above has to
+	// tell it apart from the two failures either side of it: a server that is
+	// not there is a deployment input, and a tunnel that will not open is the
+	// transport, while a server that is there and will not launch is the device.
+	// A caller that read only the message could classify none of the three.
+	ErrServerStart = errors.New("scrcpy: the device-side server could not be started")
+
+	// ErrServerExited reports a device-side server that started and then exited.
+	// It is the failure that has no other symptom: the two sockets simply stop
+	// carrying, and a reader that is not told this names its own timeout instead
+	// of the device's server.
+	ErrServerExited = errors.New("scrcpy: the device-side server exited")
 )
 
 // Runner is the device's own allow-listed runner: one bounded adb command over
@@ -178,7 +192,11 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 	// should happen for a launch that will not be built.
 	argv, err := adb.MirrorServerLaunchArgv(session.scid, opts.LogLevel, opts.KeepAwake, opts.Encode)
 	if err != nil {
-		return nil, fmt.Errorf("scrcpy: building the device server launch: %w", err)
+		// The launch could not be built, so the device's own server is the
+		// thing that failed: the sentinel is stated here so a caller above
+		// classifies it as the device-side server rather than as a transport
+		// it can do nothing about.
+		return nil, fmt.Errorf("%w: building the device server launch: %w", ErrServerStart, err)
 	}
 
 	// The server is pushed on every session rather than reused from a previous
@@ -223,7 +241,7 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 
 	proc, err := opts.Starter.StartAllowlisted(ctx, opts.Serial, argv)
 	if err != nil {
-		return nil, fmt.Errorf("scrcpy: starting the device server: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrServerStart, err)
 	}
 	session.proc = proc
 
@@ -250,7 +268,7 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 	// server is gone.
 	go func() {
 		_ = proc.Wait()
-		session.end(errors.New("scrcpy: the device server exited"))
+		session.end(ErrServerExited)
 	}()
 	// Whatever the device sends back on the control socket is read and dropped.
 	// Leaving it unread blocks the server's own writer thread, which stops input

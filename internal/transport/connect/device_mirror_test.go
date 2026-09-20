@@ -35,8 +35,13 @@ type fakeMirrorStream struct {
 	frames    uint64
 	keyFrames uint64
 	failure   string
-	width     int
-	height    int
+	// endClass is how the stream's session ended, in the plane's own vocabulary.
+	// It is what tells an ENDED stream from a FAILED one, and it is stated
+	// separately from failure on purpose: the surface must never read the state
+	// out of the presence of a sentence.
+	endClass media.MirrorEndClass
+	width    int
+	height   int
 
 	answer    string
 	answerErr error
@@ -65,6 +70,7 @@ func (s *fakeMirrorStream) Stats() media.StreamStats {
 		Frames:       s.frames,
 		KeyFrames:    s.keyFrames,
 		Failure:      s.failure,
+		EndClass:     s.endClass,
 	}
 }
 

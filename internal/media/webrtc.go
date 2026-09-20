@@ -479,6 +479,17 @@ type StreamStats struct {
 	// Failure names why this stream ended, or why it is not a working stream.
 	// It is empty while the stream is live.
 	Failure string
+	// EndClass classifies how this stream's session ended, in the plane's own
+	// closed vocabulary. It is empty while the session is live, and it is what
+	// tells an ENDED stream from a FAILED one: a class for which Failed is false
+	// is a stream that ended - the last viewer detached - and the sentence in
+	// Failure beside it says why it stopped rather than that something broke.
+	//
+	// It is carried separately from Failure because the two are different facts
+	// and one of them used to be inferred from the other: a surface that read
+	// FAILED out of "there is a sentence" reported every end as a failure, which
+	// is how an operator came to be told their own departure had gone wrong.
+	EndClass MirrorEndClass
 }
 
 // StreamPeer is one browser's peer connection carrying one device's live mirror.
@@ -670,6 +681,7 @@ func (p *StreamPeer) Stats() StreamStats {
 		Bytes:           p.bytes,
 		StartedAt:       p.started,
 		LastFrameAt:     p.lastAt,
+		EndClass:        p.session.EndClass(),
 	}
 	if p.failure != nil {
 		stats.Failure = p.failure.Error()
@@ -745,12 +757,18 @@ func (p *StreamPeer) forward() {
 			p.prime()
 		case frame, ok := <-p.viewer.Frames():
 			if !ok {
-				// The queue closes when the viewer detaches or the session ends.
-				// An ordinary end is reported as an ordinary end; a failed one
-				// carries the session's own reason, so a device that went away
-				// is told apart from a mirror somebody stopped.
-				if failure := p.session.Fails(); failure != nil {
-					p.fail(fmt.Errorf("media: the live mirror for %s ended: %w", p.session.DeviceID(), failure))
+				// The queue closes when the viewer detaches or the session
+				// ends. An end that is a FAILURE carries the session's own
+				// reason, so a device that went away is told apart from a
+				// mirror somebody stopped; a session that merely ENDED - its
+				// last viewer detached and the idle bound expired - records no
+				// failure at all, because nothing failed. What a surface reads
+				// the two apart with is the class, which is reported on the
+				// stats whether or not there is a sentence.
+				if end := p.session.EndClass(); end.Failed() {
+					if reason := p.session.Fails(); reason != nil {
+						p.fail(fmt.Errorf("media: the live mirror for %s ended: %w", p.session.DeviceID(), reason))
+					}
 				}
 				return
 			}

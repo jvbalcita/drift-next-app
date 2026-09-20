@@ -98,6 +98,191 @@ const (
 // the transport's rather than this gate's.
 var ErrCoordinateFrameRefused = errors.New("media: the coordinate is refused because the stream is not encoded at the frame it was measured in")
 
+// MirrorEndClass names how one device's live mirror ended, in the plane's own
+// closed vocabulary.
+//
+// A sentence alone is not a classification, and this engine's end paths are where
+// that showed: the session carried a reason nobody could group, the surface
+// derived FAILED from the mere presence of one, and an operator was therefore
+// told that a stream "failed" whichever of five very different things had
+// happened - and told nothing at all when the frame they were looking at had
+// simply ended. The classes below are the five things that can happen, and they
+// are deliberately not five names for one event:
+//
+//   - ViewerDetached is a stream that ENDED. Its last viewer detached and the
+//     idle bound expired, so the device stopped being captured on purpose. It is
+//     not a failure, it must never be reported as one, and the class exists
+//     precisely so that reporting can be honest about it.
+//   - EngineStopped is the process's own shutdown. Nothing went wrong; the
+//     plane that was carrying the stream went away.
+//   - DeviceStreamEnded is the device's own stream ending, and it carries the
+//     transport's own error beside it when the transport had one.
+//   - TransportUnavailable is the adapter or the reverse tunnel failing to be
+//     established: there was never a stream, because there was never a path to
+//     one.
+//   - DeviceServerFailed is the device-side server failing to start or dying
+//     after it started. It is the one class a reader would otherwise have to
+//     guess at from a generic failure, which is the whole reason it is its own.
+//
+// The vocabulary is closed and the values are stable, because a class written
+// into a record is read later by somebody who was not there.
+type MirrorEndClass string
+
+const (
+	// MirrorEndViewerDetached: the session's last viewer detached and its idle
+	// bound expired. The stream ENDED; it did not fail.
+	MirrorEndViewerDetached MirrorEndClass = "viewer_detached"
+	// MirrorEndEngineStopped: the engine that owned the session was stopped,
+	// which is what the process's shutdown does.
+	MirrorEndEngineStopped MirrorEndClass = "engine_stopped"
+	// MirrorEndDeviceStreamEnded: the device's own stream ended. The transport's
+	// own error is carried in the sentence beside it where there was one.
+	MirrorEndDeviceStreamEnded MirrorEndClass = "device_stream_ended"
+	// MirrorEndTransportUnavailable: the adapter, or the reverse tunnel the
+	// device's sockets travel back through, could not be established.
+	MirrorEndTransportUnavailable MirrorEndClass = "transport_unavailable"
+	// MirrorEndDeviceServerFailed: the device-side server failed to start, or it
+	// started and then died.
+	MirrorEndDeviceServerFailed MirrorEndClass = "device_server_failed"
+	// MirrorEndNoStreamableScreen: the device reported no screen this plane can
+	// stream, so a coordinate would have no frame to be measured in.
+	MirrorEndNoStreamableScreen MirrorEndClass = "no_streamable_screen"
+)
+
+// Valid reports whether this class is one the plane states. A class this
+// vocabulary does not name is refused rather than rendered: an unnamed class
+// renders as "failed" to an operator, which is the generic reading this whole
+// vocabulary exists to remove.
+func (c MirrorEndClass) Valid() bool {
+	switch c {
+	case MirrorEndViewerDetached, MirrorEndEngineStopped, MirrorEndDeviceStreamEnded,
+		MirrorEndTransportUnavailable, MirrorEndDeviceServerFailed, MirrorEndNoStreamableScreen:
+		return true
+	default:
+		return false
+	}
+}
+
+// Failed reports whether this class is a failure an operator has to be told
+// about, as opposed to a stream that ended.
+//
+// It is the one question a surface renders on, and it is answered here rather
+// than at each surface so both state the same thing: an idle end after the last
+// viewer detached is a stream that ENDED, and everything else in the vocabulary
+// is a stream that failed. The zero class is not a failure either, because a
+// session that has not ended has no class to be one.
+func (c MirrorEndClass) Failed() bool {
+	switch c {
+	case "", MirrorEndViewerDetached:
+		return false
+	default:
+		return true
+	}
+}
+
+// Sentence is the plane's own sentence for a class: what this end IS, in words
+// an operator reads.
+//
+// It exists so that a surface holding a class and no other words still has
+// something to say, which is the promise the wire contract makes - a stream that
+// is not live always carries the plane's own sentence - and it is stated here,
+// beside the vocabulary, so a class added later cannot be added without the
+// sentence that makes it renderable.
+//
+// The zero class has no sentence, because a session that has not ended has
+// nothing to explain.
+func (c MirrorEndClass) Sentence() string {
+	switch c {
+	case MirrorEndViewerDetached:
+		return "media: the last viewer detached, so the device stopped being captured"
+	case MirrorEndEngineStopped:
+		return "media: the mirror engine was stopped, so its captures were ended"
+	case MirrorEndDeviceStreamEnded:
+		return "media: the device's own stream ended"
+	case MirrorEndTransportUnavailable:
+		return "media: the transport to the device could not be established"
+	case MirrorEndDeviceServerFailed:
+		return "media: the device-side server failed"
+	case MirrorEndNoStreamableScreen:
+		return "media: the device reported no screen this plane can stream"
+	default:
+		return ""
+	}
+}
+
+// MirrorEndError tags an error with the plane's own classification of a mirror's
+// end.
+//
+// It exists because the thing that knows WHY a mirror ended is not the thing that
+// has to record it. The adapter knows the device-side server died - it is the
+// layer holding the device's own process - while the engine is the layer that
+// owns the session and the surface is the layer that renders it, and neither of
+// those can see the adapter's sentinels. The class therefore travels with the
+// error, so a failure classified where it happened reaches the record and the
+// operator as itself instead of being flattened into a generic failure by every
+// hop in between.
+type MirrorEndError struct {
+	// Class is how the plane classifies this end.
+	Class MirrorEndClass
+	// Reason is the error that carried the failure, unchanged.
+	Reason error
+}
+
+func (e *MirrorEndError) Error() string {
+	if e == nil || e.Reason == nil {
+		return "media: the mirror ended"
+	}
+	return e.Reason.Error()
+}
+
+func (e *MirrorEndError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Reason
+}
+
+// ClassifyMirrorEnd tags an error with the class of the end it caused.
+//
+// An error that already carries a class is left exactly as it is, because a class
+// a nearer layer stated is a fact about that layer's own failure, and a caller
+// that overwrote it would replace what happened with what it assumed. A class
+// this vocabulary does not name is refused rather than attached: an unnamed class
+// is a reading no surface can render.
+func ClassifyMirrorEnd(err error, class MirrorEndClass) error {
+	if err == nil {
+		return nil
+	}
+	if _, classified := MirrorEndClassOf(err); classified {
+		return err
+	}
+	if !class.Valid() {
+		return err
+	}
+	return &MirrorEndError{Class: class, Reason: err}
+}
+
+// MirrorEndClassOf reports the class an error carries, and whether it carries
+// one. It reads the whole chain, so a class stated at the adapter is still
+// readable through every wrap between there and here.
+func MirrorEndClassOf(err error) (MirrorEndClass, bool) {
+	var classified *MirrorEndError
+	if errors.As(err, &classified) && classified.Class.Valid() {
+		return classified.Class, true
+	}
+	return "", false
+}
+
+// endClassOf reads the class an error carries, answering with the class a caller
+// states for an error that carries none. It is how an end path states what it
+// knows while still honouring a nearer layer that knew more.
+func endClassOf(err error, fallback MirrorEndClass) MirrorEndClass {
+	if class, classified := MirrorEndClassOf(err); classified {
+		return class
+	}
+	return fallback
+}
+
 // MirrorSession is one device's live mirror, as the engine holds it.
 //
 // A session is live while it has a viewer. It is stopped by its owning worker
@@ -120,7 +305,18 @@ type MirrorSession interface {
 	// Fails reports why the stream ended, once it has. It is nil while the
 	// session is live, and a viewer must read it to tell an ordinary end from a
 	// failure.
+	//
+	// It says WHY the stream stopped, and it is not by itself the answer to
+	// whether stopping was a failure: an idle end after the last viewer detached
+	// carries a sentence exactly as a dead device-side server does. Read
+	// EndClass for that, because it is the question an operator surface renders
+	// on and the two must never be answered by the presence of a sentence.
 	Fails() error
+	// EndClass classifies how this session ended, in the plane's own closed
+	// vocabulary. It is the empty class while the session is live, and a class
+	// for which Failed is false is a stream that ENDED rather than one that
+	// failed - which is what a surface renders ENDED for.
+	EndClass() MirrorEndClass
 	// Done is closed when the stream has ended, for any reason.
 	Done() <-chan struct{}
 	// Subscribe attaches one viewer as the purpose it is given and reports the
@@ -703,10 +899,10 @@ func (e *MirrorEngine) Stop(ctx context.Context) error {
 		sessions = append(sessions, session)
 	}
 	e.mu.Unlock()
-	reason := errors.New("media: the mirror engine was stopped")
+	reason := errors.New("media: the mirror engine was stopped, so its captures were ended")
 	outstanding := make([]string, 0, len(sessions))
 	for _, session := range sessions {
-		if err := session.stop(ctx, reason); err != nil {
+		if err := session.stop(ctx, MirrorEndEngineStopped, reason); err != nil {
 			outstanding = append(outstanding, session.deviceID)
 		}
 	}
@@ -754,6 +950,7 @@ type mirrorSession struct {
 	width      int
 	height     int
 	failed     error
+	endClass   MirrorEndClass
 	done       chan struct{}
 	finished   chan struct{}
 	stopOnce   sync.Once
@@ -896,6 +1093,14 @@ func (s *mirrorSession) Fails() error {
 	return s.failed
 }
 
+// EndClass reports how this session ended, in the plane's own closed vocabulary,
+// or the empty class while it is live.
+func (s *mirrorSession) EndClass() MirrorEndClass {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.endClass
+}
+
 // Subscribe attaches one viewer as the purpose it is given. A session that has
 // ended refuses: the console renders a session that failed, and it must never be
 // handed a live-looking viewer on a dead stream.
@@ -974,13 +1179,19 @@ func (s *mirrorSession) askForKeyFrame(stream MirrorStream) {
 
 // detach removes a viewer and, when it was the last one, schedules the end of a
 // session nothing is watching.
+//
+// The end it schedules is an ENDING rather than a FAILURE, and the class it
+// records says so: the device stopped being captured because nobody was looking,
+// which is this engine working exactly as it should. A surface that rendered it
+// as a failure would be telling an operator something went wrong when the last
+// thing that happened was that they left.
 func (s *mirrorSession) detach(id string) {
 	s.mu.Lock()
 	delete(s.viewers, id)
 	last := len(s.viewers) == 0 && !s.closed
 	if last {
 		s.idleTimer = time.AfterFunc(s.engine.idle, func() {
-			s.end(errors.New("media: no viewer is watching this device"))
+			s.end(MirrorEndViewerDetached, errors.New("media: no viewer is watching this device, so the capture was stopped"))
 		})
 	}
 	s.mu.Unlock()
@@ -993,8 +1204,8 @@ func (s *mirrorSession) detach(id string) {
 // leave its read loop and release the device's stream. Waiting on done alone
 // would let a caller believe a stream was closed while it was still open, which
 // is the whole difference between an owned capture and an orphaned one.
-func (s *mirrorSession) stop(ctx context.Context, reason error) error {
-	s.end(reason)
+func (s *mirrorSession) stop(ctx context.Context, class MirrorEndClass, reason error) error {
+	s.end(class, reason)
 	select {
 	case <-s.finished:
 		return nil
@@ -1003,11 +1214,19 @@ func (s *mirrorSession) stop(ctx context.Context, reason error) error {
 	}
 }
 
-// end closes the session once, with the reason it ended.
-func (s *mirrorSession) end(reason error) {
+// end closes the session once, with the class and the reason it ended.
+//
+// The class is recorded beside the reason and both are recorded once, because
+// they are two different facts about one end: the reason is the sentence an
+// operator reads, and the class is what a surface renders a state from and what a
+// record is grouped by. A caller that stated only a sentence would leave every
+// surface to guess the class from the words, which is how an idle end came to be
+// reported as a failure - the words are not the fact.
+func (s *mirrorSession) end(class MirrorEndClass, reason error) {
 	s.stopOnce.Do(func() {
 		s.mu.Lock()
 		s.closed = true
+		s.endClass = class
 		if s.failed == nil {
 			s.failed = reason
 		}
@@ -1035,8 +1254,8 @@ func (s *mirrorSession) end(reason error) {
 		close(s.frames)
 		close(s.done)
 		s.engine.forget(s)
-		s.engine.accounting.sessionEnded()
-		log.Printf("live mirror ended for %s: %v", s.deviceID, reason)
+		s.engine.accounting.sessionEnded(class)
+		log.Printf("live mirror ended for %s (%s): %v", s.deviceID, class, reason)
 	})
 }
 
@@ -1087,7 +1306,21 @@ func insideFrame(x, y, width, height int) bool {
 
 // run owns one session's whole lifetime: it opens the stream, publishes frames
 // until it ends, and closes everything it started before returning. Every path
-// out of it goes through end, so a session that returns has reported why.
+// out of it goes through end, so a session that returns has reported why - and
+// what KIND of why, because the class an end path states is what a surface
+// renders and what a record is grouped by.
+//
+// The three failures it can meet are told apart rather than collapsed, and each
+// is stated at the class a nearer layer would have used if it knew:
+//
+//   - the dial, which is the adapter and the reverse tunnel: a failure here
+//     classified itself at the adapter, because the adapter is the layer holding
+//     the device's own process, and what it did not classify is a transport that
+//     could not be established;
+//   - the frame size, which is the device reporting no screen this plane can
+//     stream;
+//   - the read, which is the device's own stream ending, carrying the
+//     transport's error and whatever class that error already stated.
 //
 // It reads the session's own context rather than a caller's, so a session that
 // ends for a reason of its own - its last viewer leaving, its stream failing -
@@ -1120,6 +1353,22 @@ func (s *mirrorSession) run() {
 // publishes what the device carries, and releases it before returning. It reports
 // whether the session should open another one, which it should exactly when a
 // viewer needing a stronger profile attached while this stream was being carried.
+//
+// Each path out of it states the CLASS of the end it caused, beside the sentence:
+// the class is what a surface renders a state from and what a record is grouped
+// by, so a caller that stated only words would leave every surface above it to
+// guess the state from them. The three failures it can meet are told apart rather
+// than collapsed, and each is stated at the class a nearer layer would have used
+// if it knew:
+//
+//   - the dial, which is the adapter and the reverse tunnel: a failure here
+//     classified itself at the adapter, because the adapter is the layer holding
+//     the device's own process, and what it did not classify is a transport that
+//     could not be established;
+//   - the frame size, which is the device reporting no screen this plane can
+//     stream;
+//   - the read, which is the device's own stream ending, carrying the
+//     transport's error and whatever class that error already stated.
 func (s *mirrorSession) carryStream(redial bool) bool {
 	ctx := s.context()
 	dialCtx, cancel := context.WithCancel(ctx)
@@ -1129,7 +1378,7 @@ func (s *mirrorSession) carryStream(redial bool) bool {
 
 	stream, err := s.engine.dialer.Dial(dialCtx, s.deviceID, s.serial, purpose, s.preview)
 	if err != nil {
-		s.end(fmt.Errorf("media: opening the mirror for %s: %w", s.deviceID, err))
+		s.end(endClassOf(err, MirrorEndTransportUnavailable), fmt.Errorf("media: opening the mirror for %s: %w", s.deviceID, err))
 		return false
 	}
 	s.engine.accounting.streamDialed()
@@ -1137,7 +1386,7 @@ func (s *mirrorSession) carryStream(redial bool) bool {
 
 	width, height, err := stream.FrameSize(dialCtx)
 	if err != nil {
-		s.end(fmt.Errorf("media: %s reported no streamable screen: %w", s.deviceID, err))
+		s.end(endClassOf(err, MirrorEndNoStreamableScreen), fmt.Errorf("media: %s reported no streamable screen: %w", s.deviceID, err))
 		return false
 	}
 	s.publishStream(stream, width, height, purpose)
@@ -1160,10 +1409,14 @@ func (s *mirrorSession) carryStream(redial bool) bool {
 			return true
 		}
 		if ctx.Err() != nil {
-			s.end(ctx.Err())
+			// The session is ending, and this read is how the worker
+			// learns it. The end that is already recorded stands - end is
+			// once - so this states the same class rather than a second
+			// reason.
+			s.end(endClassOf(readErr, MirrorEndDeviceStreamEnded), ctx.Err())
 			return false
 		}
-		s.end(fmt.Errorf("media: the stream from %s ended: %w", s.deviceID, readErr))
+		s.end(endClassOf(readErr, MirrorEndDeviceStreamEnded), fmt.Errorf("media: the stream from %s ended: %w", s.deviceID, readErr))
 		return false
 	}
 }

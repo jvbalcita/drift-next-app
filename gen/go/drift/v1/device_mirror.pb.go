@@ -309,8 +309,18 @@ type MirrorStream struct {
 	RenderWidth  uint32            `protobuf:"varint,4,opt,name=render_width,json=renderWidth,proto3" json:"render_width,omitempty"`
 	RenderHeight uint32            `protobuf:"varint,5,opt,name=render_height,json=renderHeight,proto3" json:"render_height,omitempty"`
 	State        MirrorStreamState `protobuf:"varint,6,opt,name=state,proto3,enum=drift.v1.MirrorStreamState" json:"state,omitempty"`
-	// failure is why a stream ended or why it is not a working stream. It is empty
-	// while the stream is live, and a state of FAILED always carries one.
+	// failure is the plane's own sentence about why this stream is not live: the
+	// transport's error, the adapter's, or the plane's own classification of how
+	// the session ended. It is empty while the stream is live, and a state of
+	// FAILED always carries one - the boundary that states the state fills it in
+	// from the end class when no carrier had words of its own, because a frame
+	// that shows nothing is diagnosable only from what it was told.
+	//
+	// A state of ENDED carries none, and that is deliberate rather than an
+	// omission: ENDED means the stream stopped because its last viewer detached,
+	// which is a state and not a fault, and the sentence an operator needs there -
+	// that the picture they are looking at is the last one it carried rather than
+	// the device's screen now - is about the frame, which the plane does not own.
 	Failure string `protobuf:"bytes,7,opt,name=failure,proto3" json:"failure,omitempty"`
 	// frames and key_frames are the pictures this stream has carried to this
 	// browser. They are what "live" is asserted on: never the connection state.
