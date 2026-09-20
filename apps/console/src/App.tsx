@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react"
 import { Bell, Settings2 } from "lucide-react"
 import { AppSidebar } from "./components/app-sidebar"
+import { AppTitlebar } from "./components/app-titlebar"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -10,11 +11,9 @@ import {
   BreadcrumbSeparator,
 } from "./components/ui/breadcrumb"
 import { Button } from "./components/ui/button"
-import { Separator } from "./components/ui/separator"
 import {
   SidebarInset,
   SidebarProvider,
-  SidebarTrigger,
 } from "./components/ui/sidebar"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { Toaster } from "./components/ui/sonner"
@@ -54,13 +53,12 @@ function App() {
 
   return (
     <TooltipProvider>
-      <SidebarProvider defaultOpen data-visual-style="swiss-editorial" className="drift-theme min-h-svh bg-background text-foreground">
-        <AppSidebar activeSection={route.section} onSectionChange={(section, view) => navigate(section as Section, view)} />
+      <SidebarProvider defaultOpen data-visual-style="swiss-editorial" className="drift-theme min-h-svh bg-background pt-9 text-foreground">
+        <AppTitlebar />
+        <AppSidebar className="top-9 h-[calc(100svh-2.25rem)]" activeSection={route.section} onSectionChange={(section, view) => navigate(section as Section, view)} />
         <SidebarInset className="min-w-0">
           <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
             <div className="flex items-center gap-2 px-4">
-              <SidebarTrigger aria-label="Toggle sidebar" className="-ml-1" />
-              <Separator orientation="vertical" className="mr-2 h-4 shrink-0 self-center data-[orientation=vertical]:h-4 data-[orientation=vertical]:self-center" />
               <Breadcrumb>
                 <BreadcrumbList>
                   <BreadcrumbItem className="hidden md:block"><BreadcrumbLink href="#workspace">Workspace</BreadcrumbLink></BreadcrumbItem>
