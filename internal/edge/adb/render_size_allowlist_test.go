@@ -45,7 +45,6 @@ var renderSizeReadNearMisses = []struct {
 	args []string
 }{
 	{"wm size reset", []string{"shell", "wm", "size", "reset"}},
-	{"wm density", []string{"shell", "wm", "density"}},
 	{"wm without a subcommand", []string{"shell", "wm"}},
 	{"size without shell", []string{"wm", "size"}},
 	{"shell wm size with an extra token", []string{"shell", "wm", "size", "1"}},

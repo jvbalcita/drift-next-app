@@ -186,7 +186,8 @@ type Device struct {
 	// that transport was usable: a device attached over USB and not yet authorized
 	// is attached over USB, and a surface that answers "no transport" about a unit
 	// that is plugged in cannot show it at all (ARC-196).
-	Transport     DeviceTransport `protobuf:"varint,12,opt,name=transport,proto3,enum=drift.v1.DeviceTransport" json:"transport,omitempty"`
+	Transport     DeviceTransport    `protobuf:"varint,12,opt,name=transport,proto3,enum=drift.v1.DeviceTransport" json:"transport,omitempty"`
+	Diagnostics   *DeviceDiagnostics `protobuf:"bytes,13,opt,name=diagnostics,proto3" json:"diagnostics,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -305,6 +306,221 @@ func (x *Device) GetTransport() DeviceTransport {
 	return DeviceTransport_DEVICE_TRANSPORT_UNSPECIFIED
 }
 
+func (x *Device) GetDiagnostics() *DeviceDiagnostics {
+	if x != nil {
+		return x.Diagnostics
+	}
+	return nil
+}
+
+// DeviceDiagnostics is a bounded, last-known snapshot collected from one
+// online device. Optional scalars distinguish an observed zero from a fact the
+// device did not report. observed_at names the collection; inventory_observed_at
+// names the persisted inventory record backing this projection.
+type DeviceDiagnostics struct {
+	state                     protoimpl.MessageState `protogen:"open.v1"`
+	ObservedAt                string                 `protobuf:"bytes,1,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	InventoryObservedAt       string                 `protobuf:"bytes,2,opt,name=inventory_observed_at,json=inventoryObservedAt,proto3" json:"inventory_observed_at,omitempty"`
+	Brand                     *string                `protobuf:"bytes,3,opt,name=brand,proto3,oneof" json:"brand,omitempty"`
+	DeviceCodename            *string                `protobuf:"bytes,4,opt,name=device_codename,json=deviceCodename,proto3,oneof" json:"device_codename,omitempty"`
+	Hardware                  *string                `protobuf:"bytes,5,opt,name=hardware,proto3,oneof" json:"hardware,omitempty"`
+	AndroidVersion            *string                `protobuf:"bytes,6,opt,name=android_version,json=androidVersion,proto3,oneof" json:"android_version,omitempty"`
+	SdkLevel                  *uint32                `protobuf:"varint,7,opt,name=sdk_level,json=sdkLevel,proto3,oneof" json:"sdk_level,omitempty"`
+	ScreenWidthPx             *uint32                `protobuf:"varint,8,opt,name=screen_width_px,json=screenWidthPx,proto3,oneof" json:"screen_width_px,omitempty"`
+	ScreenHeightPx            *uint32                `protobuf:"varint,9,opt,name=screen_height_px,json=screenHeightPx,proto3,oneof" json:"screen_height_px,omitempty"`
+	DensityDpi                *uint32                `protobuf:"varint,10,opt,name=density_dpi,json=densityDpi,proto3,oneof" json:"density_dpi,omitempty"`
+	BatteryLevelPercent       *uint32                `protobuf:"varint,11,opt,name=battery_level_percent,json=batteryLevelPercent,proto3,oneof" json:"battery_level_percent,omitempty"`
+	BatteryTemperatureCelsius *float64               `protobuf:"fixed64,12,opt,name=battery_temperature_celsius,json=batteryTemperatureCelsius,proto3,oneof" json:"battery_temperature_celsius,omitempty"`
+	BatteryStatus             *string                `protobuf:"bytes,13,opt,name=battery_status,json=batteryStatus,proto3,oneof" json:"battery_status,omitempty"`
+	StorageTotalBytes         *uint64                `protobuf:"varint,14,opt,name=storage_total_bytes,json=storageTotalBytes,proto3,oneof" json:"storage_total_bytes,omitempty"`
+	StorageFreeBytes          *uint64                `protobuf:"varint,15,opt,name=storage_free_bytes,json=storageFreeBytes,proto3,oneof" json:"storage_free_bytes,omitempty"`
+	RamTotalBytes             *uint64                `protobuf:"varint,16,opt,name=ram_total_bytes,json=ramTotalBytes,proto3,oneof" json:"ram_total_bytes,omitempty"`
+	RamFreeBytes              *uint64                `protobuf:"varint,17,opt,name=ram_free_bytes,json=ramFreeBytes,proto3,oneof" json:"ram_free_bytes,omitempty"`
+	RamAvailableBytes         *uint64                `protobuf:"varint,18,opt,name=ram_available_bytes,json=ramAvailableBytes,proto3,oneof" json:"ram_available_bytes,omitempty"`
+	UptimeSeconds             *uint64                `protobuf:"varint,19,opt,name=uptime_seconds,json=uptimeSeconds,proto3,oneof" json:"uptime_seconds,omitempty"`
+	ForegroundPackage         *string                `protobuf:"bytes,20,opt,name=foreground_package,json=foregroundPackage,proto3,oneof" json:"foreground_package,omitempty"`
+	ForegroundActivity        *string                `protobuf:"bytes,21,opt,name=foreground_activity,json=foregroundActivity,proto3,oneof" json:"foreground_activity,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
+}
+
+func (x *DeviceDiagnostics) Reset() {
+	*x = DeviceDiagnostics{}
+	mi := &file_drift_v1_device_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeviceDiagnostics) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeviceDiagnostics) ProtoMessage() {}
+
+func (x *DeviceDiagnostics) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeviceDiagnostics.ProtoReflect.Descriptor instead.
+func (*DeviceDiagnostics) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *DeviceDiagnostics) GetObservedAt() string {
+	if x != nil {
+		return x.ObservedAt
+	}
+	return ""
+}
+
+func (x *DeviceDiagnostics) GetInventoryObservedAt() string {
+	if x != nil {
+		return x.InventoryObservedAt
+	}
+	return ""
+}
+
+func (x *DeviceDiagnostics) GetBrand() string {
+	if x != nil && x.Brand != nil {
+		return *x.Brand
+	}
+	return ""
+}
+
+func (x *DeviceDiagnostics) GetDeviceCodename() string {
+	if x != nil && x.DeviceCodename != nil {
+		return *x.DeviceCodename
+	}
+	return ""
+}
+
+func (x *DeviceDiagnostics) GetHardware() string {
+	if x != nil && x.Hardware != nil {
+		return *x.Hardware
+	}
+	return ""
+}
+
+func (x *DeviceDiagnostics) GetAndroidVersion() string {
+	if x != nil && x.AndroidVersion != nil {
+		return *x.AndroidVersion
+	}
+	return ""
+}
+
+func (x *DeviceDiagnostics) GetSdkLevel() uint32 {
+	if x != nil && x.SdkLevel != nil {
+		return *x.SdkLevel
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetScreenWidthPx() uint32 {
+	if x != nil && x.ScreenWidthPx != nil {
+		return *x.ScreenWidthPx
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetScreenHeightPx() uint32 {
+	if x != nil && x.ScreenHeightPx != nil {
+		return *x.ScreenHeightPx
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetDensityDpi() uint32 {
+	if x != nil && x.DensityDpi != nil {
+		return *x.DensityDpi
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetBatteryLevelPercent() uint32 {
+	if x != nil && x.BatteryLevelPercent != nil {
+		return *x.BatteryLevelPercent
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetBatteryTemperatureCelsius() float64 {
+	if x != nil && x.BatteryTemperatureCelsius != nil {
+		return *x.BatteryTemperatureCelsius
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetBatteryStatus() string {
+	if x != nil && x.BatteryStatus != nil {
+		return *x.BatteryStatus
+	}
+	return ""
+}
+
+func (x *DeviceDiagnostics) GetStorageTotalBytes() uint64 {
+	if x != nil && x.StorageTotalBytes != nil {
+		return *x.StorageTotalBytes
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetStorageFreeBytes() uint64 {
+	if x != nil && x.StorageFreeBytes != nil {
+		return *x.StorageFreeBytes
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetRamTotalBytes() uint64 {
+	if x != nil && x.RamTotalBytes != nil {
+		return *x.RamTotalBytes
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetRamFreeBytes() uint64 {
+	if x != nil && x.RamFreeBytes != nil {
+		return *x.RamFreeBytes
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetRamAvailableBytes() uint64 {
+	if x != nil && x.RamAvailableBytes != nil {
+		return *x.RamAvailableBytes
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetUptimeSeconds() uint64 {
+	if x != nil && x.UptimeSeconds != nil {
+		return *x.UptimeSeconds
+	}
+	return 0
+}
+
+func (x *DeviceDiagnostics) GetForegroundPackage() string {
+	if x != nil && x.ForegroundPackage != nil {
+		return *x.ForegroundPackage
+	}
+	return ""
+}
+
+func (x *DeviceDiagnostics) GetForegroundActivity() string {
+	if x != nil && x.ForegroundActivity != nil {
+		return *x.ForegroundActivity
+	}
+	return ""
+}
+
 type ListDevicesRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	OrganizationId string                 `protobuf:"bytes,1,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
@@ -316,7 +532,7 @@ type ListDevicesRequest struct {
 
 func (x *ListDevicesRequest) Reset() {
 	*x = ListDevicesRequest{}
-	mi := &file_drift_v1_device_proto_msgTypes[1]
+	mi := &file_drift_v1_device_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -328,7 +544,7 @@ func (x *ListDevicesRequest) String() string {
 func (*ListDevicesRequest) ProtoMessage() {}
 
 func (x *ListDevicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_proto_msgTypes[1]
+	mi := &file_drift_v1_device_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -341,7 +557,7 @@ func (x *ListDevicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDevicesRequest.ProtoReflect.Descriptor instead.
 func (*ListDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_proto_rawDescGZIP(), []int{1}
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListDevicesRequest) GetOrganizationId() string {
@@ -375,7 +591,7 @@ type ListDevicesResponse struct {
 
 func (x *ListDevicesResponse) Reset() {
 	*x = ListDevicesResponse{}
-	mi := &file_drift_v1_device_proto_msgTypes[2]
+	mi := &file_drift_v1_device_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -387,7 +603,7 @@ func (x *ListDevicesResponse) String() string {
 func (*ListDevicesResponse) ProtoMessage() {}
 
 func (x *ListDevicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_proto_msgTypes[2]
+	mi := &file_drift_v1_device_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -400,7 +616,7 @@ func (x *ListDevicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDevicesResponse.ProtoReflect.Descriptor instead.
 func (*ListDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_proto_rawDescGZIP(), []int{2}
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListDevicesResponse) GetDevices() []*Device {
@@ -428,7 +644,7 @@ type GetDeviceRequest struct {
 
 func (x *GetDeviceRequest) Reset() {
 	*x = GetDeviceRequest{}
-	mi := &file_drift_v1_device_proto_msgTypes[3]
+	mi := &file_drift_v1_device_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -440,7 +656,7 @@ func (x *GetDeviceRequest) String() string {
 func (*GetDeviceRequest) ProtoMessage() {}
 
 func (x *GetDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_proto_msgTypes[3]
+	mi := &file_drift_v1_device_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -453,7 +669,7 @@ func (x *GetDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDeviceRequest.ProtoReflect.Descriptor instead.
 func (*GetDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_proto_rawDescGZIP(), []int{3}
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetDeviceRequest) GetOrganizationId() string {
@@ -486,7 +702,7 @@ type GetDeviceResponse struct {
 
 func (x *GetDeviceResponse) Reset() {
 	*x = GetDeviceResponse{}
-	mi := &file_drift_v1_device_proto_msgTypes[4]
+	mi := &file_drift_v1_device_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -498,7 +714,7 @@ func (x *GetDeviceResponse) String() string {
 func (*GetDeviceResponse) ProtoMessage() {}
 
 func (x *GetDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_proto_msgTypes[4]
+	mi := &file_drift_v1_device_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -511,7 +727,7 @@ func (x *GetDeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDeviceResponse.ProtoReflect.Descriptor instead.
 func (*GetDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_proto_rawDescGZIP(), []int{4}
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetDeviceResponse) GetDevice() *Device {
@@ -521,11 +737,123 @@ func (x *GetDeviceResponse) GetDevice() *Device {
 	return nil
 }
 
+type RefreshDeviceDiagnosticsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshDeviceDiagnosticsRequest) Reset() {
+	*x = RefreshDeviceDiagnosticsRequest{}
+	mi := &file_drift_v1_device_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshDeviceDiagnosticsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshDeviceDiagnosticsRequest) ProtoMessage() {}
+
+func (x *RefreshDeviceDiagnosticsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshDeviceDiagnosticsRequest.ProtoReflect.Descriptor instead.
+func (*RefreshDeviceDiagnosticsRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RefreshDeviceDiagnosticsRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+type RefreshDeviceDiagnosticsResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Attempted       uint32                 `protobuf:"varint,1,opt,name=attempted,proto3" json:"attempted,omitempty"`
+	Succeeded       uint32                 `protobuf:"varint,2,opt,name=succeeded,proto3" json:"succeeded,omitempty"`
+	Failed          uint32                 `protobuf:"varint,3,opt,name=failed,proto3" json:"failed,omitempty"`
+	FailedDeviceIds []string               `protobuf:"bytes,4,rep,name=failed_device_ids,json=failedDeviceIds,proto3" json:"failed_device_ids,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RefreshDeviceDiagnosticsResponse) Reset() {
+	*x = RefreshDeviceDiagnosticsResponse{}
+	mi := &file_drift_v1_device_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshDeviceDiagnosticsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshDeviceDiagnosticsResponse) ProtoMessage() {}
+
+func (x *RefreshDeviceDiagnosticsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshDeviceDiagnosticsResponse.ProtoReflect.Descriptor instead.
+func (*RefreshDeviceDiagnosticsResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *RefreshDeviceDiagnosticsResponse) GetAttempted() uint32 {
+	if x != nil {
+		return x.Attempted
+	}
+	return 0
+}
+
+func (x *RefreshDeviceDiagnosticsResponse) GetSucceeded() uint32 {
+	if x != nil {
+		return x.Succeeded
+	}
+	return 0
+}
+
+func (x *RefreshDeviceDiagnosticsResponse) GetFailed() uint32 {
+	if x != nil {
+		return x.Failed
+	}
+	return 0
+}
+
+func (x *RefreshDeviceDiagnosticsResponse) GetFailedDeviceIds() []string {
+	if x != nil {
+		return x.FailedDeviceIds
+	}
+	return nil
+}
+
 var File_drift_v1_device_proto protoreflect.FileDescriptor
 
 const file_drift_v1_device_proto_rawDesc = "" +
 	"\n" +
-	"\x15drift/v1/device.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xcc\x03\n" +
+	"\x15drift/v1/device.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x8b\x04\n" +
 	"\x06Device\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x19\n" +
@@ -543,7 +871,55 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	"endpointId\x12\x1f\n" +
 	"\vrow_version\x18\v \x01(\x04R\n" +
 	"rowVersion\x127\n" +
-	"\ttransport\x18\f \x01(\x0e2\x19.drift.v1.DeviceTransportR\ttransport\"\x9e\x01\n" +
+	"\ttransport\x18\f \x01(\x0e2\x19.drift.v1.DeviceTransportR\ttransport\x12=\n" +
+	"\vdiagnostics\x18\r \x01(\v2\x1b.drift.v1.DeviceDiagnosticsR\vdiagnostics\"\xdc\n" +
+	"\n" +
+	"\x11DeviceDiagnostics\x12\x1f\n" +
+	"\vobserved_at\x18\x01 \x01(\tR\n" +
+	"observedAt\x122\n" +
+	"\x15inventory_observed_at\x18\x02 \x01(\tR\x13inventoryObservedAt\x12\x19\n" +
+	"\x05brand\x18\x03 \x01(\tH\x00R\x05brand\x88\x01\x01\x12,\n" +
+	"\x0fdevice_codename\x18\x04 \x01(\tH\x01R\x0edeviceCodename\x88\x01\x01\x12\x1f\n" +
+	"\bhardware\x18\x05 \x01(\tH\x02R\bhardware\x88\x01\x01\x12,\n" +
+	"\x0fandroid_version\x18\x06 \x01(\tH\x03R\x0eandroidVersion\x88\x01\x01\x12 \n" +
+	"\tsdk_level\x18\a \x01(\rH\x04R\bsdkLevel\x88\x01\x01\x12+\n" +
+	"\x0fscreen_width_px\x18\b \x01(\rH\x05R\rscreenWidthPx\x88\x01\x01\x12-\n" +
+	"\x10screen_height_px\x18\t \x01(\rH\x06R\x0escreenHeightPx\x88\x01\x01\x12$\n" +
+	"\vdensity_dpi\x18\n" +
+	" \x01(\rH\aR\n" +
+	"densityDpi\x88\x01\x01\x127\n" +
+	"\x15battery_level_percent\x18\v \x01(\rH\bR\x13batteryLevelPercent\x88\x01\x01\x12C\n" +
+	"\x1bbattery_temperature_celsius\x18\f \x01(\x01H\tR\x19batteryTemperatureCelsius\x88\x01\x01\x12*\n" +
+	"\x0ebattery_status\x18\r \x01(\tH\n" +
+	"R\rbatteryStatus\x88\x01\x01\x123\n" +
+	"\x13storage_total_bytes\x18\x0e \x01(\x04H\vR\x11storageTotalBytes\x88\x01\x01\x121\n" +
+	"\x12storage_free_bytes\x18\x0f \x01(\x04H\fR\x10storageFreeBytes\x88\x01\x01\x12+\n" +
+	"\x0fram_total_bytes\x18\x10 \x01(\x04H\rR\rramTotalBytes\x88\x01\x01\x12)\n" +
+	"\x0eram_free_bytes\x18\x11 \x01(\x04H\x0eR\framFreeBytes\x88\x01\x01\x123\n" +
+	"\x13ram_available_bytes\x18\x12 \x01(\x04H\x0fR\x11ramAvailableBytes\x88\x01\x01\x12*\n" +
+	"\x0euptime_seconds\x18\x13 \x01(\x04H\x10R\ruptimeSeconds\x88\x01\x01\x122\n" +
+	"\x12foreground_package\x18\x14 \x01(\tH\x11R\x11foregroundPackage\x88\x01\x01\x124\n" +
+	"\x13foreground_activity\x18\x15 \x01(\tH\x12R\x12foregroundActivity\x88\x01\x01B\b\n" +
+	"\x06_brandB\x12\n" +
+	"\x10_device_codenameB\v\n" +
+	"\t_hardwareB\x12\n" +
+	"\x10_android_versionB\f\n" +
+	"\n" +
+	"_sdk_levelB\x12\n" +
+	"\x10_screen_width_pxB\x13\n" +
+	"\x11_screen_height_pxB\x0e\n" +
+	"\f_density_dpiB\x18\n" +
+	"\x16_battery_level_percentB\x1e\n" +
+	"\x1c_battery_temperature_celsiusB\x11\n" +
+	"\x0f_battery_statusB\x16\n" +
+	"\x14_storage_total_bytesB\x15\n" +
+	"\x13_storage_free_bytesB\x12\n" +
+	"\x10_ram_total_bytesB\x11\n" +
+	"\x0f_ram_free_bytesB\x16\n" +
+	"\x14_ram_available_bytesB\x11\n" +
+	"\x0f_uptime_secondsB\x15\n" +
+	"\x13_foreground_packageB\x16\n" +
+	"\x14_foreground_activity\"\x9e\x01\n" +
 	"\x12ListDevicesRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
@@ -556,7 +932,14 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x124\n" +
 	"\tworkspace\x18\x03 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\"=\n" +
 	"\x11GetDeviceResponse\x12(\n" +
-	"\x06device\x18\x01 \x01(\v2\x10.drift.v1.DeviceR\x06device*\xc1\x01\n" +
+	"\x06device\x18\x01 \x01(\v2\x10.drift.v1.DeviceR\x06device\"W\n" +
+	"\x1fRefreshDeviceDiagnosticsRequest\x124\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\"\xa2\x01\n" +
+	" RefreshDeviceDiagnosticsResponse\x12\x1c\n" +
+	"\tattempted\x18\x01 \x01(\rR\tattempted\x12\x1c\n" +
+	"\tsucceeded\x18\x02 \x01(\rR\tsucceeded\x12\x16\n" +
+	"\x06failed\x18\x03 \x01(\rR\x06failed\x12*\n" +
+	"\x11failed_device_ids\x18\x04 \x03(\tR\x0ffailedDeviceIds*\xc1\x01\n" +
 	"\fDeviceStatus\x12\x1d\n" +
 	"\x19DEVICE_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14DEVICE_STATUS_ONLINE\x10\x01\x12\x1b\n" +
@@ -567,10 +950,11 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	"\x0fDeviceTransport\x12 \n" +
 	"\x1cDEVICE_TRANSPORT_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14DEVICE_TRANSPORT_USB\x10\x01\x12\x18\n" +
-	"\x14DEVICE_TRANSPORT_TCP\x10\x022\xa1\x01\n" +
+	"\x14DEVICE_TRANSPORT_TCP\x10\x022\x94\x02\n" +
 	"\rDeviceService\x12J\n" +
 	"\vListDevices\x12\x1c.drift.v1.ListDevicesRequest\x1a\x1d.drift.v1.ListDevicesResponse\x12D\n" +
-	"\tGetDevice\x12\x1a.drift.v1.GetDeviceRequest\x1a\x1b.drift.v1.GetDeviceResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\tGetDevice\x12\x1a.drift.v1.GetDeviceRequest\x1a\x1b.drift.v1.GetDeviceResponse\x12q\n" +
+	"\x18RefreshDeviceDiagnostics\x12).drift.v1.RefreshDeviceDiagnosticsRequest\x1a*.drift.v1.RefreshDeviceDiagnosticsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_device_proto_rawDescOnce sync.Once
@@ -585,38 +969,45 @@ func file_drift_v1_device_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_drift_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_drift_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_drift_v1_device_proto_goTypes = []any{
-	(DeviceStatus)(0),           // 0: drift.v1.DeviceStatus
-	(DeviceTransport)(0),        // 1: drift.v1.DeviceTransport
-	(*Device)(nil),              // 2: drift.v1.Device
-	(*ListDevicesRequest)(nil),  // 3: drift.v1.ListDevicesRequest
-	(*ListDevicesResponse)(nil), // 4: drift.v1.ListDevicesResponse
-	(*GetDeviceRequest)(nil),    // 5: drift.v1.GetDeviceRequest
-	(*GetDeviceResponse)(nil),   // 6: drift.v1.GetDeviceResponse
-	(*WorkspaceRef)(nil),        // 7: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),         // 8: drift.v1.PageRequest
-	(*PageResponse)(nil),        // 9: drift.v1.PageResponse
+	(DeviceStatus)(0),                        // 0: drift.v1.DeviceStatus
+	(DeviceTransport)(0),                     // 1: drift.v1.DeviceTransport
+	(*Device)(nil),                           // 2: drift.v1.Device
+	(*DeviceDiagnostics)(nil),                // 3: drift.v1.DeviceDiagnostics
+	(*ListDevicesRequest)(nil),               // 4: drift.v1.ListDevicesRequest
+	(*ListDevicesResponse)(nil),              // 5: drift.v1.ListDevicesResponse
+	(*GetDeviceRequest)(nil),                 // 6: drift.v1.GetDeviceRequest
+	(*GetDeviceResponse)(nil),                // 7: drift.v1.GetDeviceResponse
+	(*RefreshDeviceDiagnosticsRequest)(nil),  // 8: drift.v1.RefreshDeviceDiagnosticsRequest
+	(*RefreshDeviceDiagnosticsResponse)(nil), // 9: drift.v1.RefreshDeviceDiagnosticsResponse
+	(*WorkspaceRef)(nil),                     // 10: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),                      // 11: drift.v1.PageRequest
+	(*PageResponse)(nil),                     // 12: drift.v1.PageResponse
 }
 var file_drift_v1_device_proto_depIdxs = []int32{
 	0,  // 0: drift.v1.Device.status:type_name -> drift.v1.DeviceStatus
-	7,  // 1: drift.v1.Device.workspace:type_name -> drift.v1.WorkspaceRef
+	10, // 1: drift.v1.Device.workspace:type_name -> drift.v1.WorkspaceRef
 	1,  // 2: drift.v1.Device.transport:type_name -> drift.v1.DeviceTransport
-	7,  // 3: drift.v1.ListDevicesRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	8,  // 4: drift.v1.ListDevicesRequest.page:type_name -> drift.v1.PageRequest
-	2,  // 5: drift.v1.ListDevicesResponse.devices:type_name -> drift.v1.Device
-	9,  // 6: drift.v1.ListDevicesResponse.page:type_name -> drift.v1.PageResponse
-	7,  // 7: drift.v1.GetDeviceRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	2,  // 8: drift.v1.GetDeviceResponse.device:type_name -> drift.v1.Device
-	3,  // 9: drift.v1.DeviceService.ListDevices:input_type -> drift.v1.ListDevicesRequest
-	5,  // 10: drift.v1.DeviceService.GetDevice:input_type -> drift.v1.GetDeviceRequest
-	4,  // 11: drift.v1.DeviceService.ListDevices:output_type -> drift.v1.ListDevicesResponse
-	6,  // 12: drift.v1.DeviceService.GetDevice:output_type -> drift.v1.GetDeviceResponse
-	11, // [11:13] is the sub-list for method output_type
-	9,  // [9:11] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	3,  // 3: drift.v1.Device.diagnostics:type_name -> drift.v1.DeviceDiagnostics
+	10, // 4: drift.v1.ListDevicesRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	11, // 5: drift.v1.ListDevicesRequest.page:type_name -> drift.v1.PageRequest
+	2,  // 6: drift.v1.ListDevicesResponse.devices:type_name -> drift.v1.Device
+	12, // 7: drift.v1.ListDevicesResponse.page:type_name -> drift.v1.PageResponse
+	10, // 8: drift.v1.GetDeviceRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	2,  // 9: drift.v1.GetDeviceResponse.device:type_name -> drift.v1.Device
+	10, // 10: drift.v1.RefreshDeviceDiagnosticsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	4,  // 11: drift.v1.DeviceService.ListDevices:input_type -> drift.v1.ListDevicesRequest
+	6,  // 12: drift.v1.DeviceService.GetDevice:input_type -> drift.v1.GetDeviceRequest
+	8,  // 13: drift.v1.DeviceService.RefreshDeviceDiagnostics:input_type -> drift.v1.RefreshDeviceDiagnosticsRequest
+	5,  // 14: drift.v1.DeviceService.ListDevices:output_type -> drift.v1.ListDevicesResponse
+	7,  // 15: drift.v1.DeviceService.GetDevice:output_type -> drift.v1.GetDeviceResponse
+	9,  // 16: drift.v1.DeviceService.RefreshDeviceDiagnostics:output_type -> drift.v1.RefreshDeviceDiagnosticsResponse
+	14, // [14:17] is the sub-list for method output_type
+	11, // [11:14] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_device_proto_init() }
@@ -625,13 +1016,14 @@ func file_drift_v1_device_proto_init() {
 		return
 	}
 	file_drift_v1_common_proto_init()
+	file_drift_v1_device_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_device_proto_rawDesc), len(file_drift_v1_device_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   5,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -5,6 +5,7 @@ import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { XIcon } from "lucide-react"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
@@ -46,6 +47,11 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  const childItems = React.Children.toArray(children)
+  const hasExplicitBody = childItems.some((child) => React.isValidElement(child) && child.type === SheetBody)
+  const headers = childItems.filter((child) => React.isValidElement(child) && child.type === SheetHeader)
+  const footers = childItems.filter((child) => React.isValidElement(child) && child.type === SheetFooter)
+  const body = childItems.filter((child) => !React.isValidElement(child) || (child.type !== SheetHeader && child.type !== SheetFooter))
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -58,7 +64,7 @@ function SheetContent({
         )}
         {...props}
       >
-        {children}
+        {hasExplicitBody ? children : <>{headers}<SheetBody>{body}</SheetBody>{footers}</>}
         {showCloseButton && (
           <SheetPrimitive.Close
             data-slot="sheet-close"
@@ -100,6 +106,18 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+function SheetBody({ className, children, ...props }: React.ComponentProps<typeof ScrollArea>) {
+  return (
+    <ScrollArea
+      data-slot="sheet-body"
+      className={cn("min-h-0 flex-1", className)}
+      {...props}
+    >
+      {children}
+    </ScrollArea>
+  )
+}
+
 function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props) {
   return (
     <SheetPrimitive.Title
@@ -132,6 +150,7 @@ export {
   SheetClose,
   SheetContent,
   SheetHeader,
+  SheetBody,
   SheetFooter,
   SheetTitle,
   SheetDescription,

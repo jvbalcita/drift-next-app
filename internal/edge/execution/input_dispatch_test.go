@@ -1000,7 +1000,6 @@ func TestTheDispatchGatesComposeOnTheCoordinateFrame(t *testing.T) {
 		// with an argument of the caller's choosing.
 		for _, args := range [][]string{
 			{"shell", "wm", "size", "reset"},
-			{"shell", "wm", "density"},
 			{"shell", "wm"},
 			{"wm", "size"},
 		} {

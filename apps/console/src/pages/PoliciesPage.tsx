@@ -375,7 +375,7 @@ function PolicyJson({ title, policy }: { title: string; policy?: PolicyView }) {
         <p className="text-xs font-semibold">{title}</p>
         <p className="drift-data mt-1 text-[10px] text-muted-foreground">{policy ? `${policy.name} · v${policy.version}` : "No comparison record"}</p>
       </header>
-      <pre className="max-h-72 overflow-auto p-3 text-[10px] leading-5 text-muted-foreground">{policy?.ruleJson ?? "—"}</pre>
+      <pre className="whitespace-pre-wrap p-3 text-[10px] leading-5 text-muted-foreground">{policy?.ruleJson ?? "—"}</pre>
     </section>
   )
 }

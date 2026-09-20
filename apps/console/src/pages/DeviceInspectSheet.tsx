@@ -1,5 +1,6 @@
-import { useState } from "react"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { useRef, useState } from "react"
+import { ArrowLeft, ShieldCheck } from "lucide-react"
+import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { ControlPlaneSnapshot, DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
@@ -28,25 +29,47 @@ export function DeviceInspectSheet({
 }) {
   const endpoints = device ? endpointsFor(device.id, snapshot.endpoints) : []
   const name = device ? deviceName(device, endpoints) : undefined
+  const [accessOpen, setAccessOpen] = useState(false)
+  const accessTriggerRef = useRef<HTMLButtonElement>(null)
+  const mainTabs = tabs.filter((tab) => tab.id !== "access")
+  const accessTab = tabs.find((tab) => tab.id === "access")
+
+  function returnToDetails() {
+    setAccessOpen(false)
+    requestAnimationFrame(() => accessTriggerRef.current?.focus())
+  }
   return (
-    <Sheet open={Boolean(device)} onOpenChange={(open) => { if (!open) onClose() }}>
+    <>
+    <Sheet open={Boolean(device) && !accessOpen} onOpenChange={(open) => { if (!open && !accessOpen) onClose() }}>
       <SheetContent className="w-full rounded-none bg-popover p-0 sm:max-w-xl lg:max-w-2xl">
         <SheetHeader className="border-b border-border px-4 py-4 pr-12 sm:px-5">
           <SheetTitle className="break-words text-lg tracking-[-0.025em]">{name?.primary ?? "Device Inspection"}</SheetTitle>
           <SheetDescription className="sr-only">Inspect the observed details and history for this device.</SheetDescription>
         </SheetHeader>
         {device ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <SheetBody>
             <div>
-              {tabs.flatMap((tab) => tab.sections.map((section, index) => <InspectionSectionView key={`${tab.id}-${section.title ?? index}`} section={section} />))}
+              {mainTabs.flatMap((tab) => tab.sections.map((section, index) => <InspectionSectionView key={`${tab.id}-${section.title ?? index}`} section={section} />))}
+              {accessTab ? <div className="border-b border-border p-3"><Button ref={accessTriggerRef} type="button" variant="outline" className="w-full justify-between" onClick={() => setAccessOpen(true)}><span className="flex items-center gap-2"><ShieldCheck className="size-4" aria-hidden="true" />Access &amp; Control</span><span className="text-xs text-muted-foreground">Leases and assignments</span></Button></div> : null}
               <div className="px-4 pb-5 sm:px-5">
                 <DeviceInputControls device={device} snapshot={snapshot} dispatch={dispatch} />
               </div>
             </div>
-          </div>
+          </SheetBody>
         ) : null}
       </SheetContent>
     </Sheet>
+    <Sheet open={Boolean(device) && accessOpen} onOpenChange={(open) => { if (!open) returnToDetails() }}>
+      <SheetContent className="w-full rounded-none bg-popover p-0 sm:max-w-xl lg:max-w-2xl" showCloseButton={false}>
+        <SheetHeader className="border-b border-border px-3 py-3">
+          <Button type="button" size="sm" variant="ghost" className="mb-2 w-fit px-0" onClick={returnToDetails}><ArrowLeft className="size-4" aria-hidden="true" />Back to device details</Button>
+          <SheetTitle>Access &amp; Control</SheetTitle>
+          <SheetDescription>Control leases and account assignments for {name?.primary ?? "this device"}.</SheetDescription>
+        </SheetHeader>
+        <SheetBody>{accessTab?.sections.map((section, index) => <InspectionSectionView key={`${accessTab.id}-${section.title ?? index}`} section={section} />)}</SheetBody>
+      </SheetContent>
+    </Sheet>
+    </>
   )
 }
 
@@ -114,11 +137,11 @@ function DeviceInputControls({ device, snapshot, dispatch }: { device: DeviceVie
 function InspectionSectionView({ section }: { section: InspectionSection }) {
   return (
     <section className="border-b border-border last:border-b-0">
-      {section.title ? <h3 className="border-b border-border px-4 pt-4 pb-2 text-[10px] font-semibold uppercase tracking-[.1em] text-primary sm:px-5">{section.title}</h3> : null}
-      {section.description ? <p className="border-b border-border px-4 pb-3 text-[11px] leading-5 text-muted-foreground sm:px-5">{section.description}</p> : null}
+      {section.title ? <h3 className="border-b border-border px-3 pt-4 pb-2 text-[10px] font-semibold uppercase tracking-[.1em] text-primary">{section.title}</h3> : null}
+      {section.description ? <p className="border-b border-border px-3 pb-3 text-[11px] leading-5 text-muted-foreground">{section.description}</p> : null}
       {section.rows ? (
         <dl className="grid text-xs sm:grid-cols-2">
-          {section.rows.map((entry) => <InspectionField key={entry.label} label={entry.label} value={entry.value} mono={entry.mono} />)}
+          {section.rows.map((entry) => <InspectionField key={entry.label} label={entry.label} value={entry.value} mono={entry.mono} exact={entry.exact} />)}
         </dl>
       ) : null}
       {section.items ? (
@@ -126,7 +149,7 @@ function InspectionSectionView({ section }: { section: InspectionSection }) {
           {section.items.map((item) => (
             <article key={item.key} className="border-t border-border/70 first:border-t-0">
               <dl className="grid text-xs sm:grid-cols-2">
-                {item.rows.map((entry) => <InspectionField key={entry.label} label={entry.label} value={entry.value} mono={entry.mono} />)}
+                {item.rows.map((entry) => <InspectionField key={entry.label} label={entry.label} value={entry.value} mono={entry.mono} exact={entry.exact} />)}
               </dl>
             </article>
           ))}
@@ -136,11 +159,11 @@ function InspectionSectionView({ section }: { section: InspectionSection }) {
   )
 }
 
-function InspectionField({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+function InspectionField({ label, value, mono = false, exact }: { label: string; value: string; mono?: boolean; exact?: string }) {
   return (
     <div className="min-w-0 border-b border-border/70 p-3 last:border-b-0 sm:border-r sm:border-border/70 sm:[&:nth-child(even)]:border-r-0">
       <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">{label}</dt>
-      <dd className={`mt-1 break-words font-medium ${mono ? "drift-data text-[11px]" : "text-xs"}`}>{value}</dd>
+      <dd title={exact} className={`mt-1 break-words font-medium ${mono ? "drift-data text-[11px]" : "text-xs"}`}>{value}</dd>
     </div>
   )
 }

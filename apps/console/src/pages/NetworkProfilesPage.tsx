@@ -1,13 +1,14 @@
 import { useRef, useState, type FormEvent, type RefObject } from "react"
-import { AlertTriangle, Check, Plus, Radar, Save, Trash2 } from "lucide-react"
+import { AlertTriangle, Check, Pencil, Plus, Radar, Save, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { AlertDialog, AlertDialogContent, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ControlPlaneSnapshot, DispatchIntent, NetworkProfileView, ObservedDeviceView, ScanRunView } from "@/lib/domain/control-plane"
-import { reportDispatch } from "@/lib/api/report-dispatch"
 import { DataTablePagination, EmptyState, FieldLabel, FailureBadge, FormSelect, OperatorNotice, PageIntro, Panel, StatusBadge } from "./shared"
 
 const newProfileId = "new"
@@ -41,7 +42,6 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
     setForm(profileForm(creatingNew ? undefined : selectedProfile))
   }
 
-  const [feedback, setFeedback] = useState("")
   const [saveError, setSaveError] = useState("")
   const [profileErrors, setProfileErrors] = useState<{
     name?: string
@@ -66,7 +66,6 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
     setCreatingNew(false)
     setChosenProfileId(profile.id)
     setProfileErrors({})
-    setFeedback("")
     setSaveError("")
   }
   function chooseProfile(profileId: string) {
@@ -78,7 +77,6 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
   function beginNewProfile() {
     setCreatingNew(true)
     setProfileErrors({})
-    setFeedback("")
     setSaveError("")
     setProfileDialogOpen(true)
   }
@@ -121,23 +119,25 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
           isDefault: form.isDefault,
         })
     if (mutation.ok) {
-      setFeedback(mutation.message)
+      toast.success(updating ? "Network profile updated" : "Network profile created", { description: mutation.message })
       setProfileDialogOpen(false)
       setCreatingNew(false)
       setChosenProfileId(mutation.resourceId ?? selectedProfile?.id ?? null)
       return
     }
-    setFeedback("")
     setSaveError(mutation.message)
     requestAnimationFrame(() => saveErrorRef.current?.focus())
   }
-  function deleteProfile(profile: NetworkProfileView) {
-    void reportDispatch(dispatch, { type: "deleteNetworkProfile", profileId: profile.id, confirmed: true }, setFeedback)
+  async function deleteProfile(profile: NetworkProfileView) {
+    const result = await dispatch({ type: "deleteNetworkProfile", profileId: profile.id, confirmed: true })
+    if (result.ok) toast.success("Network profile deleted", { description: result.message })
+    else toast.error("Profile deletion failed", { description: result.message })
   }
   async function startScan() {
     if (!selectedProfile) return
-    const result = await reportDispatch(dispatch, { type: "startScan", profileId: selectedProfile.id }, setFeedback)
-    if (!result.ok) return
+    const result = await dispatch({ type: "startScan", profileId: selectedProfile.id })
+    if (!result.ok) { toast.error("Discovery scan failed", { description: result.message }); return }
+    toast.success("Discovery scan started", { description: result.message })
     setScanDialogOpen(false)
     // Focus the run this scan created; the catalog reorders as it completes.
     setFocusedRunId(result.resourceId ?? null)
@@ -151,10 +151,6 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
         description="Define bounded, non-authoritative discovery policy separately from scan execution."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2">
-              <FieldLabel htmlFor="discovery-profile">Discovery profile</FieldLabel>
-              <FormSelect id="discovery-profile" ariaLabel="Discovery profile" value={selectedProfile?.id ?? ""} disabled={profiles.length === 0} onValueChange={chooseProfile} size="sm" className="max-w-[16rem]" options={profiles.length === 0 ? [{ value: "", label: "No saved profile", disabled: true }] : profiles.map((profile) => ({ value: profile.id, label: profile.isDefault ? `${profile.name} (default)` : profile.name }))} />
-            </div>
             <Button variant="outline" size="sm" onClick={beginNewProfile}>
               <Plus className="size-3.5" aria-hidden="true" />
               New Profile
@@ -206,9 +202,6 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
           </Panel>
         </TabsContent>
       </Tabs>
-      <p role="status" aria-live="polite" className="mt-6 border-l-2 border-primary bg-secondary/60 p-3 text-xs text-muted-foreground">
-        {feedback || "Discovery status feedback appears here. No external discovery is active."}
-      </p>
       <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
         <DialogContent className="rounded-none sm:max-w-2xl">
           <DialogHeader>
@@ -324,6 +317,10 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
             <DialogTitle>Configure discovery scan</DialogTitle>
             <DialogDescription>Runs only against the selected bounded profile. No external discovery or endpoint registration occurs.</DialogDescription>
           </DialogHeader>
+          <div>
+            <FieldLabel htmlFor="scan-profile">Discovery profile</FieldLabel>
+            <FormSelect id="scan-profile" ariaLabel="Discovery profile" value={selectedProfile?.id ?? ""} disabled={profiles.length === 0} onValueChange={chooseProfile} className="mt-1 w-full" options={profiles.length === 0 ? [{ value: "", label: "No saved profile", disabled: true }] : profiles.map((profile) => ({ value: profile.id, label: profile.isDefault ? `${profile.name} (default)` : profile.name }))} />
+          </div>
           <dl className="border-y border-border py-3 text-xs">
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Profile</dt>
@@ -418,22 +415,19 @@ function ProfileTable({ profiles, onEdit, onDelete }: { profiles: ControlPlaneSn
                   <td className="p-3">{profile.ports.join(", ")}</td>
                   <td className="p-3">{profile.isDefault ? <Check className="size-4 text-primary" aria-label="Default profile" /> : "—"}</td>
                   <td className="p-3">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => onEdit(profile)}>
-                        Edit Profile
-                      </Button>
+                    <TooltipProvider><div className="flex justify-end gap-1">
+                      <Tooltip>
+                        <TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label={`Edit ${profile.name}`} onClick={() => onEdit(profile)} />}><Pencil className="size-3.5" aria-hidden="true" /></TooltipTrigger>
+                        <TooltipContent>Edit profile</TooltipContent>
+                      </Tooltip>
                       <AlertDialog>
-                        <AlertDialogTrigger
-                          render={
-                            <Button variant="outline" size="sm">
-                              <Trash2 className="size-3.5" aria-hidden="true" />
-                              Delete Profile
-                            </Button>
-                          }
-                        />
+                        <Tooltip>
+                          <AlertDialogTrigger render={<TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label={`Delete ${profile.name}`} />} />}><Trash2 className="size-3.5" aria-hidden="true" /></AlertDialogTrigger>
+                          <TooltipContent>Delete profile</TooltipContent>
+                        </Tooltip>
                         <AlertDialogContent title="Delete Network Profile?" description={`Deletes ${profile.name}. Scans that used it stay in history with no profile reference. Network profiles cannot be restored; a scan needs a saved profile.`} confirmLabel="Confirm Delete" onConfirm={() => onDelete(profile)} />
                       </AlertDialog>
-                    </div>
+                    </div></TooltipProvider>
                   </td>
                 </tr>
               ))}

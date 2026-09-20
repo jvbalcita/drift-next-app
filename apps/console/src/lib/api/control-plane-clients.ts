@@ -77,6 +77,8 @@ import {
   GetDeviceResponseSchema,
   ListDevicesRequestSchema,
   ListDevicesResponseSchema,
+  RefreshDeviceDiagnosticsRequestSchema,
+  RefreshDeviceDiagnosticsResponseSchema,
 } from "@/gen/drift/v1/device_pb"
 import {
   ListScanRunsRequestSchema,
@@ -289,6 +291,9 @@ export class DeviceClient {
   }
   getDevice(workspaceId: string, deviceId: string) {
     return this.rpc.call("GetDevice", GetDeviceRequestSchema, GetDeviceResponseSchema, { workspace: workspaceRef(workspaceId), deviceId })
+  }
+  refreshDeviceDiagnostics(workspaceId: string) {
+    return this.rpc.call("RefreshDeviceDiagnostics", RefreshDeviceDiagnosticsRequestSchema, RefreshDeviceDiagnosticsResponseSchema, { workspace: workspaceRef(workspaceId) })
   }
 }
 

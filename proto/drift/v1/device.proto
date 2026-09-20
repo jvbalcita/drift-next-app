@@ -40,6 +40,35 @@ message Device {
   // is attached over USB, and a surface that answers "no transport" about a unit
   // that is plugged in cannot show it at all (ARC-196).
   DeviceTransport transport = 12;
+  DeviceDiagnostics diagnostics = 13;
+}
+
+// DeviceDiagnostics is a bounded, last-known snapshot collected from one
+// online device. Optional scalars distinguish an observed zero from a fact the
+// device did not report. observed_at names the collection; inventory_observed_at
+// names the persisted inventory record backing this projection.
+message DeviceDiagnostics {
+  string observed_at = 1;
+  string inventory_observed_at = 2;
+  optional string brand = 3;
+  optional string device_codename = 4;
+  optional string hardware = 5;
+  optional string android_version = 6;
+  optional uint32 sdk_level = 7;
+  optional uint32 screen_width_px = 8;
+  optional uint32 screen_height_px = 9;
+  optional uint32 density_dpi = 10;
+  optional uint32 battery_level_percent = 11;
+  optional double battery_temperature_celsius = 12;
+  optional string battery_status = 13;
+  optional uint64 storage_total_bytes = 14;
+  optional uint64 storage_free_bytes = 15;
+  optional uint64 ram_total_bytes = 16;
+  optional uint64 ram_free_bytes = 17;
+  optional uint64 ram_available_bytes = 18;
+  optional uint64 uptime_seconds = 19;
+  optional string foreground_package = 20;
+  optional string foreground_activity = 21;
 }
 
 enum DeviceStatus {
@@ -102,7 +131,19 @@ message GetDeviceResponse {
   Device device = 1;
 }
 
+message RefreshDeviceDiagnosticsRequest {
+  WorkspaceRef workspace = 1;
+}
+
+message RefreshDeviceDiagnosticsResponse {
+  uint32 attempted = 1;
+  uint32 succeeded = 2;
+  uint32 failed = 3;
+  repeated string failed_device_ids = 4;
+}
+
 service DeviceService {
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
   rpc GetDevice(GetDeviceRequest) returns (GetDeviceResponse);
+  rpc RefreshDeviceDiagnostics(RefreshDeviceDiagnosticsRequest) returns (RefreshDeviceDiagnosticsResponse);
 }

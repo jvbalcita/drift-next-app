@@ -114,9 +114,9 @@ describe("GroupsPage", () => {
     const dialog = within(
       screen.getByRole("dialog", { name: "Assign unassigned devices" }),
     );
-    expect(
-      dialog.getByRole("combobox", { name: "Target group" }),
-    ).toHaveTextContent("Rack A");
+    const targetGroup = dialog.getByRole("combobox", { name: "Target group" });
+    expect(targetGroup).toHaveTextContent("Rack A");
+    expect(targetGroup).toHaveClass("w-full");
     await user.click(dialog.getByRole("checkbox", { name: /Orion 03/i }));
     await user.click(dialog.getByRole("button", { name: "Assign 1 device" }));
     rerender(view());

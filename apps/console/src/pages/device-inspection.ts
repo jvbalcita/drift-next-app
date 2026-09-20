@@ -16,15 +16,16 @@ import { deviceStatusLabels, deviceStatusMeanings } from "@/lib/device-status"
  *   1. A device name or adapter model names the device. A transport address
  *      (serial, host, or host:port) is a mutable endpoint attribute and is
  *      never the device name.
- *   2. A tab or section exists only when a read path backs it. This module
- *      returns no empty tab and no empty section, so the surface never renders a
- *      placeholder shell for data this registry does not expose.
+ *   2. A tab or section exists only when a read path backs it. Required
+ *      diagnostic sections stay visible and use "Not reported" for optional
+ *      facts the contract explicitly says are unavailable.
  */
 
 export interface InspectionRow {
   readonly label: string
   readonly value: string
   readonly mono?: boolean
+  readonly exact?: string
 }
 
 export interface InspectionItem {
@@ -182,6 +183,15 @@ function row(label: string, value: string | undefined, mono = false): Inspection
   return text.length > 0 ? { label, value: text, mono } : undefined
 }
 
+function reported(value: string | undefined): string {
+  return trimmed(value) || "Not reported"
+}
+
+function timestampRow(label: string, value: string | undefined): InspectionRow {
+  const formatted = value ? humanTimestamp(value) : { label: "" }
+  return { label, value: formatted.label || "Not reported", exact: formatted.exact }
+}
+
 function rows(entries: readonly (InspectionRow | undefined)[]): InspectionRow[] {
   return entries.filter((entry): entry is InspectionRow => entry !== undefined)
 }
@@ -210,7 +220,11 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
   const name = deviceName(device, endpoints)
   const phoneModel = meaningfulProjection(device.phoneModel)
   const platformVersion = meaningfulProjection(device.platformVersion)
-  const firstSeen = humanTimestamp(earliestTimestamp(endpoints.map((endpoint) => endpoint.observedAt)) ?? "").label
+  const firstSeenAt = earliestTimestamp(endpoints.map((endpoint) => endpoint.observedAt))
+  const currentEndpoint = endpoints.find((endpoint) => endpoint.id === device.endpointId && endpoint.state === "current")
+  const activeMembership = memberships.find((membership) => membership.state === "active")
+  const diagnostics = device.diagnostics
+  const foregroundApp = joinParts([diagnostics?.foregroundPackage || device.packageName, diagnostics?.foregroundActivity || device.activityName])
 
   const identity: InspectionTab = {
     id: "identity",
@@ -220,37 +234,47 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
         title: "Device Identity",
         rows: rows([
           row("Device Name", name.primary),
-          row("Captured Name", reportedDeviceName(device, endpoints)),
           row("Stable Identity", stableIdentityLabel(device), true),
           row("Device Record", device.id, true),
+          row("ADB Port", currentEndpoint ? reported(endpointPort(currentEndpoint)) : "Not reported", true),
+          row("Group", activeMembership ? snapshot.groups.find((group) => group.id === activeMembership.groupId)?.name ?? activeMembership.groupId : "Unassigned"),
           row("Status", statusReading(device.status)),
           row("Transport", transportLabels[device.transport]),
           row("Control Eligibility", device.controlEligibility),
           row("Location", device.location),
-          row("First Seen", firstSeen),
         ]),
       },
       {
         title: "Hardware & Platform",
         rows: rows([
-          row("Phone Model", phoneModel),
-          row("Platform Version", platformVersion !== phoneModel ? platformVersion : undefined),
+          row("Phone Model", reported(phoneModel)),
+          row("Brand", reported(diagnostics?.brand)),
+          row("Device", reported(diagnostics?.deviceCodename), true),
+          row("Hardware", reported(diagnostics?.hardware), true),
+          row("Android", reported(diagnostics?.androidVersion || (platformVersion !== phoneModel ? platformVersion : undefined))),
+          row("SDK", diagnostics?.sdkLevel !== undefined ? String(diagnostics.sdkLevel) : "Not reported"),
+          row("Screen", diagnostics?.screenWidthPx !== undefined && diagnostics.screenHeightPx !== undefined ? `${diagnostics.screenWidthPx} × ${diagnostics.screenHeightPx}` : "Not reported"),
+          row("Density", diagnostics?.densityDpi !== undefined ? `${diagnostics.densityDpi} dpi` : "Not reported"),
           row("Capabilities", device.capabilities.length > 0 ? device.capabilities.join(" · ") : undefined),
           row("Agent", agent?.displayName),
         ]),
       },
       {
-        title: "Group Membership",
-        items: memberships.map((membership) => ({
-          key: membership.id,
-          rows: rows([
-            row("Group", snapshot.groups.find((group) => group.id === membership.groupId)?.name ?? membership.groupId),
-            row("Position", String(membership.position)),
-            row("State", membership.state),
-            row("Started At", membership.startedAt),
-            row("Ended At", membership.endedAt),
-          ]),
-        })),
+        title: "Battery",
+        rows: rows([
+          row("Level", diagnostics?.batteryLevelPercent !== undefined ? `${diagnostics.batteryLevelPercent}%` : device.batteryPercent > 0 ? `${device.batteryPercent}%` : "Not reported"),
+          row("Temperature", diagnostics?.batteryTemperatureCelsius !== undefined ? `${diagnostics.batteryTemperatureCelsius.toFixed(1)} °C` : "Not reported"),
+          row("Status", reported(diagnostics?.batteryStatus)),
+        ]),
+      },
+      {
+        title: "Storage / Memory",
+        rows: rows([
+          row("Storage", bytePair(diagnostics?.storageFreeBytes, diagnostics?.storageTotalBytes) ?? "Not reported"),
+          row("RAM Total", formatBytes(diagnostics?.ramTotalBytes) ?? "Not reported"),
+          row("RAM Free", formatBytes(diagnostics?.ramFreeBytes) ?? "Not reported"),
+          row("RAM Available", formatBytes(diagnostics?.ramAvailableBytes) ?? "Not reported"),
+        ]),
       },
     ],
   }
@@ -286,11 +310,12 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
       {
         title: "Health & Runtime",
         rows: rows([
-          row("Battery", device.batteryPercent > 0 ? `${device.batteryPercent}%` : undefined),
           row("Latency", device.latencyMs > 0 ? `${device.latencyMs} ms` : undefined),
-          row("Last Seen", humanTimestamp(device.lastSeen).label),
-          row("Running Package", device.packageName, true),
-          row("Foreground Activity", device.activityName, true),
+          row("Uptime", device.status === "online" ? formatDuration(diagnostics?.uptimeSeconds) ?? "Not reported" : undefined),
+          timestampRow("First Seen", firstSeenAt),
+          timestampRow("Inventory", diagnostics?.inventoryObservedAt),
+          row("Last Seen", reported(humanTimestamp(device.lastSeen).label)),
+          row("FG App", reported(foregroundApp), true),
           row("Workflow", device.workflow),
           row("Workflow Status", device.workflowStatus),
           row("Task Progress", device.taskProgress > 0 ? `${device.taskProgress}%` : undefined),
@@ -413,6 +438,30 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
   return [identity, endpointTab, health, activity, access]
     .map((tab) => ({ ...tab, sections: tab.sections.filter(sectionHasContent) }))
     .filter(hasContent)
+}
+
+function formatBytes(value: number | undefined): string | undefined {
+  if (value === undefined || value < 0) return undefined
+  if (value < 1024) return `${value} B`
+  const units = ["KB", "MB", "GB", "TB"]
+  let amount = value / 1024
+  let unit = units[0]
+  for (let index = 1; index < units.length && amount >= 1024; index += 1) { amount /= 1024; unit = units[index] }
+  return `${amount.toFixed(amount >= 10 ? 1 : 2)} ${unit}`
+}
+
+function bytePair(free: number | undefined, total: number | undefined): string | undefined {
+  const freeLabel = formatBytes(free)
+  const totalLabel = formatBytes(total)
+  return freeLabel && totalLabel ? `${freeLabel} free of ${totalLabel}` : totalLabel
+}
+
+function formatDuration(seconds: number | undefined): string | undefined {
+  if (seconds === undefined || seconds < 0) return undefined
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  return [days ? `${days}d` : "", hours ? `${hours}h` : "", minutes || (!days && !hours) ? `${minutes}m` : ""].filter(Boolean).join(" ")
 }
 
 function sectionHasContent(section: InspectionSection): boolean {

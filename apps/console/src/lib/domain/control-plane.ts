@@ -109,6 +109,30 @@ export type MirrorTargetOutcome = "preview_admitted" | "simulated_success" | "of
  */
 export type DeviceTransportView = "usb" | "tcp" | "unspecified"
 
+export interface DeviceDiagnosticsView {
+  observedAt: string
+  inventoryObservedAt: string
+  brand?: string
+  deviceCodename?: string
+  hardware?: string
+  androidVersion?: string
+  sdkLevel?: number
+  screenWidthPx?: number
+  screenHeightPx?: number
+  densityDpi?: number
+  batteryLevelPercent?: number
+  batteryTemperatureCelsius?: number
+  batteryStatus?: string
+  storageTotalBytes?: number
+  storageFreeBytes?: number
+  ramTotalBytes?: number
+  ramFreeBytes?: number
+  ramAvailableBytes?: number
+  uptimeSeconds?: number
+  foregroundPackage?: string
+  foregroundActivity?: string
+}
+
 export interface DeviceView {
   id: string
   displayName: string
@@ -132,6 +156,7 @@ export interface DeviceView {
   taskProgress: number
   controlEligibility: ControlEligibility
   capabilities: readonly string[]
+  diagnostics?: DeviceDiagnosticsView
 }
 
 export interface EdgeAgentView {

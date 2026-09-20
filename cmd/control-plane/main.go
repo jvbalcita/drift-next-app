@@ -15,6 +15,7 @@ import (
 	"drift.local/drift-next/internal/artifacts/cas"
 	"drift.local/drift-next/internal/discovery"
 	"drift.local/drift-next/internal/edge/connection"
+	devicediagnostics "drift.local/drift-next/internal/edge/diagnostics"
 	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/edge/lab"
 	"drift.local/drift-next/internal/edge/mirror"
@@ -140,6 +141,9 @@ func main() {
 		Enumerator: enumerator,
 	})
 	productHandlers = transportconnect.NewProductHandlers(db, scanner)
+	if transport := labService.DeviceTransport(); transport != nil {
+		productHandlers.Device.SetDiagnosticsCollector(devicediagnostics.NewCollector(transport))
+	}
 	actionRuntime := execution.NewRegistry(labService, db)
 	productHandlers.Action.SetExecutor(actionRuntime)
 	defer func() { _ = actionRuntime.Close() }()

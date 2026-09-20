@@ -19,15 +19,15 @@ describe("Drift command center", () => {
     window.location.hash = "#overview/fleet"
   })
 
-  it("renders the fleet overview and selected device surfaces", () => {
+  it("renders the fleet overview with permanently visible activity and readiness", () => {
     render(<App />)
 
     expect(screen.getByRole("heading", { name: /fleet overview/i })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: /device fleet/i })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: /selected device/i })).toBeInTheDocument()
-    expect(screen.getByText("Connected")).toBeInTheDocument()
-    expect(screen.getByLabelText("Rows per page")).toBeInTheDocument()
-    expect(screen.getByText(/Showing 1–6 of 6 results/i)).toBeInTheDocument()
+    expect(screen.getByText("Recent activity")).toBeInTheDocument()
+    expect(screen.getByText("Runtime readiness")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: /device fleet/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: /selected device/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /show|hide/i })).not.toBeInTheDocument()
   })
 
   it("keeps navigation breadcrumbs in the shell header only", () => {
@@ -49,18 +49,20 @@ describe("Drift command center", () => {
     expect(screen.getAllByRole("banner")).toHaveLength(1)
   })
 
-  it("updates the inspector and fleet filter without enabling device actions", async () => {
+  it("opens device details from a registry row without enabling device actions", async () => {
     const user = setupUser()
     render(<App />)
 
-    await user.click(screen.getByRole("button", { name: /Nova 02/ }))
+    await user.click(screen.getByRole("link", { name: "Devices" }))
+    await user.click(await screen.findByRole("row", { name: /Open details for Nova 02/ }))
     expect(screen.getByText(/Android 13/)).toBeInTheDocument()
-    expect(screen.getAllByText("Reconnecting to agent")).toHaveLength(2)
+    expect(screen.getByText("Reconnecting to agent")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Run workflow/ })).not.toBeInTheDocument()
 
-    await user.type(screen.getByLabelText(/search devices/i), "Orion")
-    expect(screen.queryByRole("button", { name: /Atlas 04/ })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Orion 01/ })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Close" }))
+    await user.type(screen.getByLabelText("Search Device Registry"), "Orion")
+    expect(screen.queryByRole("row", { name: /Open details for Atlas 04/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("row", { name: /Open details for Orion 01/ })).toBeInTheDocument()
   })
 
   it("provides an accessible collapsible navigation shell", async () => {
@@ -120,9 +122,8 @@ describe("Drift command center", () => {
     expect(screen.getByText("Online", { selector: '[data-slot="breadcrumb-page"]' })).toBeInTheDocument()
 
     await user.click(screen.getByRole("tab", { name: "All" }))
-    expect(screen.getByText("Showing 1–5 of 6 results")).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "Next page" }))
-    expect(screen.getByText("Showing 6–6 of 6 results")).toBeInTheDocument()
+    expect(screen.getByText("Showing 1–6 of 6 results")).toBeInTheDocument()
+    expect(screen.getByLabelText("Rows per page")).toHaveTextContent("10")
   })
 
   it("selects non-device workspace views from a deep link", async () => {
@@ -500,7 +501,7 @@ describe("Drift command center", () => {
     expect(shell).toBeInTheDocument()
     expect(document.querySelector(".drift-editorial-grid")).toBeInTheDocument()
     expect(screen.getByText("OPERATIONS / FLEET CONTROL")).toBeInTheDocument()
-    expect(screen.getByText("Updated just now")).toHaveClass("font-mono")
+    expect(screen.getByText("connected")).toHaveClass("font-mono")
     expect(document.querySelector('[class*="shadow-[0_0_"]')).not.toBeInTheDocument()
     expect(document.querySelector('[class*="shadow-"]')).not.toBeInTheDocument()
     expect(document.querySelector('[class*="backdrop-blur"]')).not.toBeInTheDocument()

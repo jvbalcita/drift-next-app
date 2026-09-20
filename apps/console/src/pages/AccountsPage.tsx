@@ -352,7 +352,7 @@ export function AccountsPage({ snapshot, dispatch, view = "sources", onViewChang
             <SheetDescription>Bounded metadata and device assignment; the connector remains disabled.</SheetDescription>
           </SheetHeader>
           {selectedAccount ? (
-            <div className="space-y-5 overflow-y-auto px-4 pb-5">
+            <div className="space-y-5 px-4 pb-5">
               <dl className="grid gap-3 border-y border-border py-4 text-xs">
                 <div>
                   <dt className="text-muted-foreground">Reference</dt>
