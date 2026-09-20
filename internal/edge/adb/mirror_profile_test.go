@@ -241,9 +241,9 @@ func TestTheEncodeBoundIsRefusedWhereItIsSupplied(t *testing.T) {
 func TestTheAdmissionAdmitsOnlyTheBoundsTheTableStates(t *testing.T) {
 	launch := mirrorTestLaunch(t)
 	for index, token := range map[int]string{
-		16: "max_size=1024",
-		17: "max_fps=30",
-		18: "video_bit_rate=8000000",
+		13: "max_size=1024",
+		14: "max_fps=30",
+		15: "video_bit_rate=8000000",
 	} {
 		mutated := append([]string(nil), launch...)
 		mutated[index] = token

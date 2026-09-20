@@ -331,6 +331,12 @@ func probeMeasure(ctx context.Context, t *testing.T, config probeConfig, serials
 				Runner:     adapter,
 				Starter:    starter,
 				KeepAwake:  true,
+				// The encode bound is required, and this probe carried none: a
+				// session opened with no profile is an encoder nothing bounds,
+				// so the launch was refused and every point measured 0 streams
+				// opened. It measures the operator's own frame, which is the
+				// profile this product carries a single viewer at.
+				Encode: adb.MirrorOperatorEncodeProfile,
 			})
 			cancel()
 			if openErr == nil {

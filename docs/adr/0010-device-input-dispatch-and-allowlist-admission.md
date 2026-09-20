@@ -245,7 +245,7 @@ Until they were admitted, `RunAllowlisted` refused every one with `ErrArgvNotAll
 | `push <host path> /data/local/tmp/scrcpy-server.jar` | `MirrorServerPushArgv` | `mirror-push-server` |
 | `reverse localabstract:scrcpy_<8 hex> tcp:<port>` | `MirrorReverseArgv` | `mirror-reverse-add` |
 | `reverse --remove localabstract:scrcpy_<8 hex> tcp:<port>` | `MirrorReverseArgv` | `mirror-reverse-remove` |
-| `shell CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.1 scid=<8 hex> log_level=<level> audio=false control=true tunnel_forward=false send_device_meta=false send_stream_meta=true send_frame_meta=true cleanup=true stay_awake=<bool> video_codec_options=i-frame-interval:int=2` | `MirrorServerLaunchArgv` | `mirror-server-launch` |
+| `shell CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.1 scid=<8 hex> log_level=<level> audio=false control=true send_device_meta=false send_frame_meta=true stay_awake=<bool> max_size=<size> max_fps=<fps> video_bit_rate=<bits> video_codec_options=i-frame-interval:int=<cadence>` | `MirrorServerLaunchArgv` | `mirror-server-launch` |
 
 Four arrays for three commands, because the tunnel has an add form and a remove form.
 
@@ -257,13 +257,14 @@ Four arrays for three commands, because the tunnel has an add form and a remove 
 - the session id is eight lowercase hex digits, non-zero, bounded to 31 bits because the device parses `scid` as a signed 32-bit integer (`scid=00000000` names the device's default socket, so it is refused);
 - the log level is a value from the device server's own five-word vocabulary;
 - the screen-awake flag is the lowercase boolean the builder emits;
+- the launch's **own command line** is bounded as a whole, because the device bounds it and the bound is hard: ACodec copies the calling process's command line into a fixed 264-byte buffer while it names the app whose encoder it is configuring, and a server launched with a line at or past that buffer dies inside `ACodec::reconfigEncoder4OtherApps` (`stack corruption detected`) before its first frame — measured on the lab fleet at one token set a time: 263 bytes streams, 264 aborts. `MirrorLaunchCommandLineLimit` states the bound, `MirrorServerLaunchArgv` refuses a launch that would exceed it, and the admission re-applies it. The launch therefore carries only the options the admitted server does **not** default to (`tunnel_forward=false`, `send_stream_meta=true` and `cleanup=true` are all 4.1's own defaults and are left off), which is also why it reads as the set scrcpy's own client relies on;
 - the device path, the server version, the main class and the IDR option are **pinned literals**. A different server version is a different array and is refused: this product drives the version it measured, and bumping it is a reviewed change to this allow-list rather than a configuration edit.
 
 ### The one position that names a host file, and why it is bounded rather than free
 
 `push` has to name a host path — the server binary is wherever the operator's scrcpy installation keeps it — and this allow-list has no other position that accepts a path. It is admitted with a bound of its own (`isMirrorHostServerPath`): an absolute path, arg-safe, with no traversal, whose base name is the scrcpy server's own (`scrcpy-server`, or `scrcpy-server-v<digits>` as scrcpy names a versioned copy).
 
-The risk this bounds is narrow and specific. The device side of the push is **not** a variable position: it is the pinned `/data/local/tmp/scrcpy-server.jar`. So a caller cannot choose where a push writes, only which well-named file is pushed to one fixed path — and a path that is not named like the server is refused (`/tmp/payload` is refused; `/opt/homebrew/share/scrcpy/scrcpy-server` is admitted). Combined with the `cleanup=true` launch option — the device-side server removes itself when it exits — a device never keeps a capture server of an unknown revision.
+The risk this bounds is narrow and specific. The device side of the push is **not** a variable position: it is the pinned `/data/local/tmp/scrcpy-server.jar`. So a caller cannot choose where a push writes, only which well-named file is pushed to one fixed path — and a path that is not named like the server is refused (`/tmp/payload` is refused; `/opt/homebrew/share/scrcpy/scrcpy-server` is admitted). Combined with the device-side server's own `cleanup` behaviour — the admitted 4.1 build removes the pushed jar when it exits, which is its default and therefore an option the launch no longer states — a device never keeps a capture server of an unknown revision.
 
 ### Starting a long-lived process through the same admission
 

@@ -78,7 +78,34 @@ const (
 	// MirrorServerLaunchArity is the exact number of tokens in the launch. The
 	// admission is arity-fixed: an added, removed or reordered token is a
 	// different array and is refused.
-	MirrorServerLaunchArity = 20
+	//
+	// The launch carries only the options the admitted server does NOT default
+	// to. Every option that is the server's own default is left out on purpose,
+	// and that is what these 17 tokens are (see the budget below): the options
+	// that arrive at a device are the ones this product actually chose, and the
+	// launch is short enough for the device to read.
+	MirrorServerLaunchArity = 17
+
+	// MirrorLaunchCommandLineLimit is the longest command line this fleet's
+	// device-side server tolerates before the device's own codec stack aborts.
+	//
+	// It is a property of the DEVICE, not of scrcpy, and it is measured rather
+	// than assumed. On a lab SM-G9750 (Android 12, G9750ZHU8HXE1), the server
+	// process is started as `app_process / com.genymobile.scrcpy.Server <version>
+	// scid=<hex> <options...>`, and ACodec copies that calling process's command
+	// line into a fixed 264-byte buffer while it names the app it is configuring
+	// - the same string the device's own crash log prints as `Cmdline:`. A launch
+	// whose command line is 263 bytes long streams; 264 aborts inside
+	// `ACodec::reconfigEncoder4OtherApps` with `stack corruption detected
+	// (-fstack-protector)`, killing the server during encoder setup, which the
+	// host sees as a stream header that never arrives.
+	//
+	// The measurement (one lab device, one server build, one token set varied at
+	// a time): 98 hand-launched servers, of which every command line of 263 bytes
+	// or less streamed and every command line of 264 bytes or more aborted,
+	// independent of how many tokens the line was made of and of the length of
+	// the device-side environment.
+	MirrorLaunchCommandLineLimit = 263
 
 	// maxMirrorHostPathLength bounds the host path a push may name.
 	maxMirrorHostPathLength = 512
@@ -167,6 +194,25 @@ func MirrorReverseArgv(sessionID uint32, port int, remove bool) ([]string, error
 // The device-side server is what captures the screen and injects input. It is
 // launched once per session and exits with it.
 //
+// The launch carries only what the admitted server does not already do, because
+// the device's own command line budget is small and hard: ACodec copies the
+// calling process's command line into a fixed 264-byte buffer while naming the
+// app it configures, and a line past that aborts the server inside the codec
+// stack before the first frame (see MirrorLaunchCommandLineLimit). Sending back
+// an option the server already defaults to therefore buys nothing and costs
+// bytes on a line that has few. The options left out and the default each one
+// relies on, all measured on the admitted 4.1 build:
+//
+//   - `tunnel_forward=false` - the server connects out to the tunnel the host
+//     owns, which is what this client's `adb reverse` establishes.
+//   - `send_stream_meta=true` - the codec id and the session packet are sent.
+//   - `cleanup=true` - the server removes the pushed jar when it exits.
+//
+// `control=true` and `send_frame_meta=true` are NOT in that group and are sent
+// explicitly: this client opens the control socket and reads the 12-byte frame
+// header of every packet, so the framing it depends on is stated on the launch
+// rather than left to the server's default.
+//
 // The profile is the encode bound this stream is carried under, and every one of
 // its three numbers reaches the device as its own token: `max_size` bounds what
 // the encoder may produce, `max_fps` how often, and `video_bit_rate` how many
@@ -188,7 +234,7 @@ func MirrorServerLaunchArgv(sessionID uint32, logLevel string, keepAwake bool, p
 	if err != nil {
 		return nil, err
 	}
-	return []string{
+	launch := []string{
 		"shell",
 		"CLASSPATH=" + MirrorServerDevicePath,
 		"app_process", "/", MirrorServerMainClass, MirrorServerVersion,
@@ -196,13 +242,8 @@ func MirrorServerLaunchArgv(sessionID uint32, logLevel string, keepAwake bool, p
 		"log_level=" + logLevel,
 		"audio=false",
 		"control=true",
-		"tunnel_forward=false",
 		"send_device_meta=false",
-		"send_stream_meta=true",
 		"send_frame_meta=true",
-		// The server removes itself from the device when it exits, so a device
-		// never keeps a capture server of an unknown revision.
-		"cleanup=true",
 		"stay_awake=" + strconv.FormatBool(keepAwake),
 		// The encode bound. It is stated on EVERY launch, including a level
 		// whose size is the device's own: `max_size=0` is scrcpy's "no
@@ -214,7 +255,31 @@ func MirrorServerLaunchArgv(sessionID uint32, logLevel string, keepAwake bool, p
 		"max_fps=" + strconv.Itoa(profile.MaxFPS),
 		"video_bit_rate=" + strconv.Itoa(profile.BitRate),
 		"video_codec_options=" + idrOption,
-	}, nil
+	}
+	if line := mirrorLaunchCommandLine(launch); len(line) > MirrorLaunchCommandLineLimit {
+		// Fail closed here rather than on the device: an over-long line is not a
+		// stream that degrades, it is a device-side abort inside the codec stack
+		// that the host reads as a transport that never came up.
+		return nil, fmt.Errorf("%w: the launch's own command line is %d bytes (`%s`), over the %d bytes this fleet's device server tolerates",
+			ErrMirrorShapeInvalid, len(line), line, MirrorLaunchCommandLineLimit)
+	}
+	return launch, nil
+}
+
+// mirrorLaunchCommandLine reports the command line the device-side server
+// process is started with, as the device itself sees it: the fixed
+// `app_process <main class> <version> scid=<hex>` head and then the launch's
+// options, single-space separated.
+//
+// The two leading tokens of the adb array are not part of it. `shell` is an adb
+// subcommand, and `CLASSPATH=<device path>` is an environment assignment the
+// device's shell applies before exec'ing - neither is an argument of the server
+// process. The device's own crash log prints this string as `Cmdline:`.
+func mirrorLaunchCommandLine(launch []string) string {
+	if len(launch) < 3 {
+		return ""
+	}
+	return strings.Join(launch[2:], " ")
 }
 
 // MirrorAbstractSocketName reports the device-side abstract socket name for a
@@ -311,6 +376,12 @@ func matchesMirrorServerLaunch(args []string) bool {
 	if len(args) != MirrorServerLaunchArity {
 		return false
 	}
+	// The device's own command line budget is re-applied here as well: an array
+	// that fits the shape but not the line would abort the device's server
+	// inside its codec stack, so it is not a launch this product may dispatch.
+	if len(mirrorLaunchCommandLine(args)) > MirrorLaunchCommandLineLimit {
+		return false
+	}
 	for index, want := range map[int]string{
 		0:  "shell",
 		1:  "CLASSPATH=" + MirrorServerDevicePath,
@@ -320,11 +391,8 @@ func matchesMirrorServerLaunch(args []string) bool {
 		5:  MirrorServerVersion,
 		8:  "audio=false",
 		9:  "control=true",
-		10: "tunnel_forward=false",
-		11: "send_device_meta=false",
-		12: "send_stream_meta=true",
-		13: "send_frame_meta=true",
-		14: "cleanup=true",
+		10: "send_device_meta=false",
+		11: "send_frame_meta=true",
 	} {
 		if args[index] != want {
 			return false
@@ -332,11 +400,11 @@ func matchesMirrorServerLaunch(args []string) bool {
 	}
 	return isMirrorSessionIDToken(args[6]) &&
 		isMirrorLogLevelToken(args[7]) &&
-		isMirrorStayAwakeToken(args[15]) &&
-		isMirrorMaxSizeToken(args[16]) &&
-		isMirrorMaxFPSToken(args[17]) &&
-		isMirrorBitRateToken(args[18]) &&
-		isMirrorCodecOptionsToken(args[19])
+		isMirrorStayAwakeToken(args[12]) &&
+		isMirrorMaxSizeToken(args[13]) &&
+		isMirrorMaxFPSToken(args[14]) &&
+		isMirrorBitRateToken(args[15]) &&
+		isMirrorCodecOptionsToken(args[16])
 }
 
 // isMirrorMaxSizeToken reports the launch's `max_size` option: one of the sizes

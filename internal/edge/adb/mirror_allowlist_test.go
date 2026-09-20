@@ -142,6 +142,18 @@ func TestTheMirrorAdmissionRefusesEveryNearMiss(t *testing.T) {
 		mutated[index] = token
 		return mutated
 	}
+	// And with a token inserted where one is no longer stated: the options the
+	// launch leaves to the server's own defaults are refused when they are put
+	// back, because the device's command line budget is what they cost.
+	withInserted := func(index int, token string) []string {
+		t.Helper()
+		if index > len(launch) {
+			t.Fatalf("the launch array has no position %d", index)
+		}
+		mutated := append([]string(nil), launch[:index]...)
+		mutated = append(mutated, token)
+		return append(mutated, launch[index:]...)
+	}
 
 	refused := [][]string{
 		// The push: a host file that is not the server, a device path that is not
@@ -188,30 +200,37 @@ func TestTheMirrorAdmissionRefusesEveryNearMiss(t *testing.T) {
 		launchWith(5, "4.2"),
 		launchWith(4, "com.example.Other"),
 		launchWith(1, "CLASSPATH=/data/local/tmp/other.jar"),
-		launchWith(19, "video_codec_options=i-frame-interval:int=60"),
+		launchWith(16, "video_codec_options=i-frame-interval:int=60"),
 		launchWith(7, "log_level=trace"),
 		launchWith(6, "scid=00000000"),
 		launchWith(6, "scid=2abc123"),
 		launchWith(6, "scid=2ABC1234"),
-		launchWith(15, "stay_awake=1"),
-		launchWith(14, "cleanup=false"),
+		launchWith(12, "stay_awake=1"),
 		launchWith(9, "control=false"),
+		launchWith(11, "send_frame_meta=false"),
+		// The options the launch leaves to the admitted server's own defaults,
+		// put back where they used to sit: each one costs bytes on a line the
+		// device reads into a fixed buffer, so an array carrying one is not a
+		// launch this product dispatches.
+		withInserted(10, "tunnel_forward=false"),
+		withInserted(11, "send_stream_meta=true"),
+		withInserted(16, "cleanup=true"),
 		// The encode bound: a size and a bit rate no level states, a size that is
 		// not canonical, a capture rate outside the range this product asks for,
 		// and a bound dropped altogether. Each is one token from an admitted
 		// launch, and each must stay refused: a bound admitted by range rather
 		// than by level would be a stream bounded by a number nobody chose.
-		launchWith(16, "max_size=1024"),
-		launchWith(16, "max_size=0x1e0"),
-		launchWith(16, "max_size="),
-		launchWith(16, "max_size=4800"),
-		launchWith(17, "max_fps=0"),
-		launchWith(17, "max_fps=25"),
-		launchWith(17, "max_fps=015"),
-		launchWith(18, "video_bit_rate=0"),
-		launchWith(18, "video_bit_rate=999999999"),
-		launchWith(18, "bitrate=500000"),
-		launchWith(16, "video_bit_rate=500000"),
+		launchWith(13, "max_size=1024"),
+		launchWith(13, "max_size=0x1e0"),
+		launchWith(13, "max_size="),
+		launchWith(13, "max_size=4800"),
+		launchWith(14, "max_fps=0"),
+		launchWith(14, "max_fps=25"),
+		launchWith(14, "max_fps=015"),
+		launchWith(15, "video_bit_rate=0"),
+		launchWith(15, "video_bit_rate=999999999"),
+		launchWith(15, "bitrate=500000"),
+		launchWith(13, "video_bit_rate=500000"),
 		// A reordered pair of fixed options is a different array: the server
 		// parses options positionally, so order is part of the shape.
 		func() []string {
