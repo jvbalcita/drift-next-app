@@ -201,7 +201,7 @@ describe("DevicesPage refresh", () => {
 
   it("reports a failed refresh with Sonner instead of persistent table text", async () => {
     const user = userEvent.setup()
-    const dispatch = vi.fn(async (): Promise<MutationResult> => ({ ok: false, kind: "refresh", message: "Registry service is unavailable.", errorCode: "unavailable" }))
+    const dispatch = vi.fn(async (): Promise<MutationResult> => ({ ok: false, kind: "refresh", message: "Registry service is unavailable.", errorCode: "precondition_failed" }))
     const snapshot = new MockControlPlaneClient().getSnapshot()
     render(<><Toaster /><DevicesPage snapshot={snapshot} dispatch={dispatch} view="all" /></>)
 
