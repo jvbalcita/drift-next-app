@@ -24,8 +24,37 @@ export type LiveMirrorTransport = "webrtc" | "tcp" | "unspecified"
  * showing nothing is not a picture, and this fleet's encoder will happily produce
  * a connected-but-black stream with no error anywhere. `live` is reached only
  * when the control plane reports pictures carried, never from a peer connection.
+ *
+ * `unreadable` is the console's own state and NOT one the plane can report: it is
+ * a read that could not be completed, which is a fact about this console's reach
+ * and not about the stream. It exists because the two were conflated - a failed
+ * read was reported as the stream failing, which on this plane is destructive
+ * rather than merely wrong, since a session's last viewer detaching is what ENDS
+ * the session. A stream whose state is no longer known is not live, so this
+ * console stops claiming it is live; the stream itself is left open, its picture
+ * is left in place, and the read is retried on a bounded backoff.
  */
-export type LiveMirrorPhase = "idle" | "unavailable" | "opening" | "starting" | "live" | "ended" | "failed"
+export type LiveMirrorPhase = "idle" | "unavailable" | "opening" | "starting" | "live" | "unreadable" | "ended" | "failed"
+
+/**
+ * Whether this console is holding a stream open for what it renders.
+ *
+ * `starting`, `live` and `unreadable` are the three states in which a stream this
+ * console opened is still open: nothing has been stopped and no picture has been
+ * torn down. `unreadable` is in that set deliberately - a read this console could
+ * not complete is not a report that the stream ended, so the picture the stream
+ * is carrying stays where it is and the operator keeps working, while the state
+ * line says the console cannot vouch for it.
+ *
+ * Everything that is about the STREAM rather than about the console's report of
+ * it reads this one predicate: whether a picture is shown (the frame and its
+ * tiles), whether input may be measured in it, and whether there is a stream for
+ * the operator to stop. A set repeated three times is a set one of them gets
+ * wrong.
+ */
+export function livePictureHeld(phase: LiveMirrorPhase): boolean {
+  return phase === "starting" || phase === "live" || phase === "unreadable"
+}
 
 /** One device's live stream, in the console's own terms. */
 export interface LiveStreamView {
@@ -252,6 +281,18 @@ export const liveMirrorCopy = {
     opening: "Opening the live stream…",
     starting: "The stream is connected and has not carried a picture yet. A connected stream that shows nothing is not a working picture.",
     live: "Live.",
+    /**
+     * The console could not READ the plane, and it says exactly that.
+     *
+     * This sentence is not a failure of the stream and must never read as one: the
+     * plane has said nothing about the stream, the console has no fact about it,
+     * and the one thing it must not do is dress that up as either a working picture
+     * or a dead one. It names what it cannot do, what it has NOT done (stopped
+     * nothing, taken no picture down) and what it is doing instead, because an
+     * operator who reads "not live" needs to know whether their picture was
+     * destroyed by a two-second hiccup.
+     */
+    unreadable: "The control plane could not be read for this stream, so this console cannot say it is live. Nothing was stopped and no picture was taken down: the stream is left open and the read is retried on a bounded backoff until the control plane answers.",
     ended: "The stream ended. The frame you would see is the last one it carried, not the device's screen now.",
     failed: "The stream failed.",
   },
@@ -382,6 +423,18 @@ export const liveMirrorCopy = {
      * the frame's body stays the picture.
      */
     unread: "This frame has refused something. Open the details to read it.",
+    /**
+     * The mark's own sentence when what the frame is holding is a READ it could not
+     * complete.
+     *
+     * It is a second sentence rather than the refusal one because it is a second
+     * fact: nothing was refused and nothing failed - the console could not ask the
+     * plane - and a mark that said "this frame has refused something" over a stream
+     * that is still carrying pictures would name the wrong thing. This is the only
+     * place the unreadable state is visible without opening the details, because it
+     * takes neither the picture nor a control away with it.
+     */
+    unreadable: "This frame could not read the control plane, so it cannot say the stream is live. Open the details to read what it is showing.",
     waiting: "Nothing has been reported yet: this frame has no stream to state anything about.",
   },
   /** The sentences that stand in for a stream the console cannot show. */
@@ -389,7 +442,18 @@ export const liveMirrorCopy = {
     noStream: "The control plane answered without a stream, so there is nothing to show.",
     noCapacity: "The control plane answered without its live-stream capacity, so this console cannot tell how many pictures it may carry and is carrying none.",
     openFailed: "The live stream could not be opened.",
-    lost: "The control plane stopped answering for this stream, so the frame you would see is no longer known to be live.",
+    /**
+     * The identity this console held is not one the plane knows, and the plane
+     * opened no other for the device.
+     *
+     * It is the ONE report this path makes, and a plane that RESTARTED never
+     * reaches it: a re-open resolves to the session the plane already carries or
+     * starts one, which is what re-entry is for. It is reached only by a plane that
+     * hands out a stream identity and forgets it on every read, so it says what
+     * actually happened rather than borrowing the words of a failure the plane
+     * never reported.
+     */
+    unresumable: "The control plane no longer knows this stream and opened no other for the device, so this console is carrying no picture for it. The plane is the one that forgot the stream, and nothing here was stopped for a read this console could not complete.",
     noEndpoint: "The control plane opened a stream over the TCP transport and named no stream endpoint to fetch, so there is nothing to read.",
     refusedEndpoint: "The control plane refused the stream endpoint for this stream.",
     noInitSegment: "The stream carried a picture before the segment that describes its codec, so a decoder cannot be told what it is about to decode.",

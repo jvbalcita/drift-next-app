@@ -109,6 +109,19 @@ describe("what a tile says about its picture", () => {
     expect(noPlane).toEqual(liveTileCopy.noControlPlane)
   })
 
+  /**
+   * A read this console could not complete is its own sentence, NOT the failure
+   * branch: a tile that fell through to "Not live: <failure>" would report the plane
+   * as having failed a stream the plane said nothing about, and the reason it names
+   * is one the plane never gave.
+   */
+  it("names a read it could not complete as itself, never as a failure the plane reported", () => {
+    const noReport = tilePictureSentence("unreadable", "", named("online"), true, true, budget)
+    expect(noReport).toEqual(liveTileCopy.unreadable)
+    expect(noReport.long).not.toMatch(/failed/i)
+    expect(noReport.long).toContain("left open")
+  })
+
   it("reports a failed picture with the CONTROL PLANE's own reason, never a generic failure", () => {
     const planeReason = "the peer produced no picture within its bound"
     const failed = tilePictureSentence("failed", planeReason, named("online"), true, true, budget)

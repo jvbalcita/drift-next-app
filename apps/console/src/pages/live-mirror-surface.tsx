@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
 import type { DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
-import { drawnContentRect, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, transportSentence, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect } from "@/lib/live-mirror"
+import { drawnContentRect, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, livePictureHeld, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, transportSentence, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect } from "@/lib/live-mirror"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 
 /**
@@ -107,8 +107,8 @@ export interface LiveMirrorSessionView {
   leaseRefusal: string
   /** observationToken is the observation this frame's coordinates are measured from. */
   observationToken: string
-  /** Whether this frame has something in its details an operator has not read. */
-  detailsAttention: boolean
+  /** detailsAttention is what this frame's info control is holding, as the sentence it names itself with; empty when it holds nothing. */
+  detailsAttention: string
   reducedMotion: boolean
   attachVideo: (element: HTMLVideoElement | null) => void
   retry: () => void
@@ -181,7 +181,7 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     attachVideo(element)
   }, [attachVideo])
 
-  const sessionOpen = phase === "live" || phase === "starting"
+  const sessionOpen = livePictureHeld(phase)
   /**
    * The observation this frame's coordinates are measured from is the stream
    * itself, and the reason is that nothing else here has been measured.
@@ -439,10 +439,15 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     observationToken: coordinateObservation,
     // The info control marks itself when it is holding something: a refusal an
     // operator just caused, a stream that failed, the plane's own refusal to leave
-    // this console holding the device, or the reason a live frame's input will be
-    // refused. A refusal behind an unopened control with no mark on it would be
-    // the silent failure this product does not do.
-    detailsAttention: refusal !== "" || failure !== "" || leaseRefusal !== "" || coordinateRuleHolds,
+    // this console holding the device, the reason a live frame's input will be
+    // refused, or a READ this console could not complete. A refusal behind an
+    // unopened control with no mark on it would be the silent failure this product
+    // does not do - and the unreadable state is the one an operator can see nowhere
+    // else, because it takes neither the picture nor a control away with it.
+    detailsAttention: [
+      phase === "unreadable" ? liveMirrorCopy.details.unreadable : "",
+      refusal !== "" || failure !== "" || leaseRefusal !== "" || coordinateRuleHolds ? liveMirrorCopy.details.unread : "",
+    ].filter((sentence) => sentence !== "").join(" "),
     reducedMotion,
     attachVideo: attachMirrorVideo,
     retry,
@@ -484,9 +489,13 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
  * live picture, because a frame left holding a last frame would be read as the
  * device's screen now. Everything an operator used to read here is one control
  * away, in the panel's title bar. And nothing is drawn over the picture while it
- * IS live - not a state line, not a border, not the hairline this element used to
+ * IS held - not a state line, not a border, not the hairline this element used to
  * draw across its top while a pointer was down: the picture is the frame's
- * content, and a mark over it is a mark on the device's screen.
+ * content, and a mark over it is a mark on the device's screen. "Held" rather than
+ * "live" is the condition, and the difference is the whole point of `unreadable`:
+ * a read this console could not complete does not take the picture away, so a
+ * console that could not read the plane for two seconds must not paint over a
+ * working stream's picture the way it paints over a dead one.
  */
 export function LiveMirrorSurface({ session }: { session: LiveMirrorSessionView }) {
   const stage = useRef<HTMLDivElement | null>(null)
@@ -518,7 +527,7 @@ export function LiveMirrorSurface({ session }: { session: LiveMirrorSessionView 
       onPointerCancel={session.cancelPointer}
     >
       <video ref={session.attachVideo} data-testid="live-mirror-video" muted playsInline autoPlay aria-hidden="true" className="absolute inset-0 size-full max-w-full object-contain" />
-      {session.phase === "live" ? null : <StreamStateOverlay phase={session.phase} />}
+      {livePictureHeld(session.phase) ? null : <StreamStateOverlay phase={session.phase} />}
     </div>
   )
 }
@@ -559,11 +568,11 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
       <TooltipProvider delay={0}>
         <Tooltip>
           <TooltipTrigger
-            render={<Button size="icon-sm" variant="ghost" data-testid="live-mirror-info" onClick={() => setOpen(true)} aria-label={detailsAttention ? `${liveMirrorCopy.details.label}. ${liveMirrorCopy.details.unread}` : liveMirrorCopy.details.label} />}
+            render={<Button size="icon-sm" variant="ghost" data-testid="live-mirror-info" onClick={() => setOpen(true)} aria-label={detailsAttention === "" ? liveMirrorCopy.details.label : `${liveMirrorCopy.details.label}. ${detailsAttention}`} />}
           >
             <span className="relative inline-flex items-center justify-center">
               <Info className="size-3.5" aria-hidden="true" />
-              {detailsAttention ? <span data-testid="live-mirror-info-mark" aria-hidden="true" className="absolute -right-1 -top-1 size-1.5 rounded-full bg-amber-400" /> : null}
+              {detailsAttention === "" ? null : <span data-testid="live-mirror-info-mark" aria-hidden="true" className="absolute -right-1 -top-1 size-1.5 rounded-full bg-amber-400" />}
             </span>
           </TooltipTrigger>
           <TooltipContent positionerClassName={liveMirrorCopy.layers.frameTooltip}>{liveMirrorCopy.details.tooltip}</TooltipContent>
