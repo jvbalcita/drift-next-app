@@ -307,6 +307,11 @@ func newHarness(t *testing.T, head []byte, packets [][]byte, mutate func(*Option
 		Listen:     func() (net.Listener, error) { return listener, nil },
 		IDSource:   func() (uint32, error) { return 0x2abc1234, nil },
 		AcceptWait: 5 * time.Second,
+		// Every session in this file is carried at the operator's own profile,
+		// which is the bound the mirror's own big frame is opened with. A session
+		// with no bound at all is refused by validateOptions, and that refusal has
+		// its own test (TestStartRefusesASessionWithNoEncodeBound).
+		Encode: adb.MirrorOperatorEncodeProfile,
 	}
 	if mutate != nil {
 		mutate(&opts)
@@ -501,6 +506,7 @@ func TestStartRefusesADeviceThatAnswersWithAnotherStream(t *testing.T) {
 		Listen:     func() (net.Listener, error) { return listener, nil },
 		IDSource:   func() (uint32, error) { return 1, nil },
 		AcceptWait: 5 * time.Second,
+		Encode:     adb.MirrorOperatorEncodeProfile,
 	})
 	if err == nil {
 		_ = session.Close(context.Background())
@@ -518,7 +524,7 @@ func TestStartRefusesADeviceThatAnswersWithAnotherStream(t *testing.T) {
 }
 
 func TestStartRefusesOptionsThatWouldTouchADeviceUnbuilt(t *testing.T) {
-	good := Options{ADB: fakeADBPath(t), Serial: "192.168.1.104:5555", Runner: &fakeRunner{}, Starter: &fakeStarter{}}
+	good := Options{ADB: fakeADBPath(t), Serial: "192.168.1.104:5555", Runner: &fakeRunner{}, Starter: &fakeStarter{}, Encode: adb.MirrorOperatorEncodeProfile}
 	serverPath := filepath.Join(t.TempDir(), "scrcpy-server")
 	if err := os.WriteFile(serverPath, []byte("server"), 0o600); err != nil {
 		t.Fatalf("write server: %v", err)
@@ -530,6 +536,16 @@ func TestStartRefusesOptionsThatWouldTouchADeviceUnbuilt(t *testing.T) {
 		"no runner":             func(o *Options) { o.Runner = nil },
 		"no starter":            func(o *Options) { o.Starter = nil },
 		"an empty serial":       func(o *Options) { o.Serial = "" },
+		// A session with no encode bound at all is refused where it is supplied:
+		// the launch would otherwise carry no max_size, no max_fps and no
+		// video_bit_rate, which is the uncapped encoder this bound exists to close.
+		"no encode bound": func(o *Options) { o.Encode = adb.MirrorEncodeProfile{} },
+		// A bound the launch cannot render as admitted tokens is refused for the
+		// same reason, one step further in: the builder would have no token to
+		// write, and a token nobody admitted must never reach a device.
+		"a capture rate the device is not asked for": func(o *Options) { o.Encode.MaxFPS = 60 },
+		"a bit rate of zero":                         func(o *Options) { o.Encode.BitRate = 0 },
+		"a keyframe cadence nobody asks for":         func(o *Options) { o.Encode.IDRIntervalSeconds = 60 },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -572,6 +588,7 @@ func TestStartReportsWhyTheDeviceServerRefused(t *testing.T) {
 		Listen:     func() (net.Listener, error) { return listener, nil },
 		IDSource:   func() (uint32, error) { return 0x2abc1234, nil },
 		AcceptWait: 200 * time.Millisecond,
+		Encode:     adb.MirrorOperatorEncodeProfile,
 	})
 	if err == nil {
 		_ = session.Close(context.Background())
@@ -585,6 +602,63 @@ func TestStartReportsWhyTheDeviceServerRefused(t *testing.T) {
 	}
 	if len(runner.argvMatching("--remove")) == 0 {
 		t.Fatal("a failed handshake left the reverse tunnel registered")
+	}
+}
+
+// TestThePublishedFrameIsTheEncodeSizeAndInputIsMeasuredInIt is the acceptance
+// property that the encode bound did not quietly break input.
+//
+// The bound caps what the device's encoder PRODUCES, so the stream the client
+// receives is smaller than the device's own screen: a launch carrying
+// `max_size=720` on a 1080x1920 device carries a 720x1280 stream. Everything that
+// is measured against the stream must therefore be measured against the ENCODED
+// frame and not the device's:
+//
+//   - the size the plane publishes to a browser (RenderWidth/RenderHeight, which
+//     is this session's own meta) is the encoded size, so a coordinate the
+//     browser computes from the picture it is shown is in that frame; and
+//   - a touch is sent in that frame with that frame's size, which is what lets
+//     the device's own server scale it back up onto the screen. A coordinate that
+//     is inside the device's screen but outside the encoded frame is refused
+//     rather than sent, because sending it would land somewhere nobody pointed.
+func TestThePublishedFrameIsTheEncodeSizeAndInputIsMeasuredInIt(t *testing.T) {
+	// The head a device reports when its encoder is capped at 720: the encoded
+	// size, not the screen's 1080x1920.
+	encodedHead := []byte{
+		0x68, 0x32, 0x36, 0x34, // "h264"
+		0x80, 0x00, 0x00, 0x00, // session packet flags
+		0x00, 0x00, 0x02, 0xd0, // 720
+		0x00, 0x00, 0x05, 0x00, // 1280
+	}
+	h := newHarness(t, encodedHead, nil, nil)
+
+	width, height := h.session.Meta().Size()
+	if width != 720 || height != 1280 {
+		t.Fatalf("the session reports %dx%d, want the encoded 720x1280: this is the size the plane publishes as the coordinate frame an input must be measured in", width, height)
+	}
+	if width == 1080 {
+		t.Fatal("the published frame is the device's own screen rather than the frame the stream is encoded at")
+	}
+
+	// A tap at the middle of the ENCODED frame reaches the control socket carrying
+	// that frame and that point.
+	if err := h.session.Touch(ActionDown, 360, 640); err != nil {
+		t.Fatalf("Touch: %v", err)
+	}
+	want, _ := EncodeTouch(ActionDown, 360, 640, 720, 1280)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && !bytes.Equal(h.device.controlBytes(), want) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := h.device.controlBytes(); !bytes.Equal(got, want) {
+		t.Fatalf("control socket received % x\nwant               % x", got, want)
+	}
+
+	// A coordinate from the DEVICE's frame is not this frame: it is refused
+	// rather than scaled, because a scaled coordinate is a tap at a point nobody
+	// chose.
+	if err := h.session.Touch(ActionUp, 1000, 1500); err == nil {
+		t.Fatal("a coordinate measured in the device's own frame was sent in the stream's frame")
 	}
 }
 

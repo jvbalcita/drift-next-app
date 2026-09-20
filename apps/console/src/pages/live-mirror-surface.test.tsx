@@ -34,7 +34,7 @@ const streamToken = "stream-1"
 const workspaceId = "workspace-lab-local"
 
 const workspace = { largeHeight: 480, smallHeight: 192, quality: "High", frameRate: 15, orientation: "portrait" } as const
-const settings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, priority: "Quality", controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showIp: true, liveMirrorTransport: "webrtc" } as const
+const settings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showIp: true, liveMirrorTransport: "webrtc" } as const
 
 function stream(overrides: { state?: MirrorStreamState; failure?: string; frames?: bigint; width?: number; height?: number } = {}): LiveStreamView {
   return liveStreamView(create(MirrorStreamSchema, {

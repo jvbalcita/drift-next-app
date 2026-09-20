@@ -102,6 +102,103 @@ func TestEveryControlPlaneStartPathHandsTheMirrorItsScrcpyServer(t *testing.T) {
 	}
 }
 
+// TestEveryControlPlaneStartPathHandsTheMirrorThePreviewSetting is the ARC-168
+// rule for the workspace's preview setting (ARC-227): the bound the console's grid
+// is carried at is a deployment input like the server path, and it must arrive on
+// whichever of the control plane's two start paths an operator used. The same
+// omission this pins - a hand-maintained second list - is what let the server path
+// go missing on one path before.
+func TestEveryControlPlaneStartPathHandsTheMirrorThePreviewSetting(t *testing.T) {
+	for _, testCase := range []struct {
+		name  string
+		start func(*Supervisor) error
+	}{
+		{
+			name: "Start All",
+			start: func(supervisor *Supervisor) error {
+				return supervisor.StartAll(context.Background(), false)
+			},
+		},
+		{
+			name: "Start Component",
+			start: func(supervisor *Supervisor) error {
+				return supervisor.StartComponent(context.Background(), "Control Plane")
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			supervisor, children := newMirrorTestSupervisor(t, "/opt/homebrew/share/scrcpy/scrcpy-server")
+			supervisor.config.PreviewQuality = "high"
+			supervisor.config.PreviewFrameRate = "20"
+			if err := testCase.start(supervisor); err != nil {
+				t.Fatalf("%s failed: %v", testCase.name, err)
+			}
+			child := controlPlaneChild(t, *children)
+			for _, expected := range []struct{ key, value string }{
+				{mirrorPreviewQualityEnv, "high"},
+				{mirrorPreviewFrameRateEnv, "20"},
+			} {
+				value, ok := childEnvValue(child.env, expected.key)
+				if !ok {
+					t.Fatalf("%s did not hand the control plane %s: %v", testCase.name, expected.key, child.env)
+				}
+				if value != expected.value {
+					t.Fatalf("%s handed %s=%q, want the configured %q", testCase.name, expected.key, value, expected.value)
+				}
+			}
+		})
+	}
+}
+
+// TestAPreviewSettingTheDeploymentDidNotStateIsGivenNoValueAtAll: the plane
+// answers an unset input with its own documented default, which is itself a level
+// with a cap. An empty value handed over instead would be a setting nobody stated,
+// and a runtime that invented one would be deciding the grid's bound for the
+// operator.
+func TestAPreviewSettingTheDeploymentDidNotStateIsGivenNoValueAtAll(t *testing.T) {
+	supervisor, children := newMirrorTestSupervisor(t, "/opt/homebrew/share/scrcpy/scrcpy-server")
+	if err := supervisor.StartAll(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	child := controlPlaneChild(t, *children)
+	for _, key := range []string{mirrorPreviewQualityEnv, mirrorPreviewFrameRateEnv} {
+		if value, ok := childEnvValue(child.env, key); ok {
+			t.Fatalf("the control plane child was handed %s=%q; an unstated setting is passed as nothing so the plane's own default applies", key, value)
+		}
+	}
+	// And the line says so rather than reading as a bound this session chose.
+	line := ""
+	for _, logged := range supervisor.Logs() {
+		if strings.Contains(logged, "preview setting") {
+			line = logged
+		}
+	}
+	if line == "" {
+		t.Fatalf("no startup line reports the grid's preview setting: %v", supervisor.Logs())
+	}
+	if !strings.Contains(line, mirrorPreviewQualityEnv) || !strings.Contains(line, "default") {
+		t.Fatalf("the startup line %q does not say which input to set and that the plane's own default applies", line)
+	}
+}
+
+// TestSetupReportsThePreviewSettingInTheStartupLine: the bound the grid's pictures
+// are carried at is read off the plane's own line, not inferred from a console's
+// local state - which is exactly the state this setting replaced.
+func TestSetupReportsThePreviewSettingInTheStartupLine(t *testing.T) {
+	supervisor, _ := newMirrorTestSupervisor(t, "/opt/homebrew/share/scrcpy/scrcpy-server")
+	supervisor.config.PreviewQuality = "extra"
+	supervisor.config.PreviewFrameRate = "9"
+	if err := supervisor.Setup(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range supervisor.Logs() {
+		if strings.Contains(line, "preview setting") && strings.Contains(line, "extra") && strings.Contains(line, "9") {
+			return
+		}
+	}
+	t.Fatalf("no startup line states the preview setting this session hands the mirror: %v", supervisor.Logs())
+}
+
 // Every other deployment input still travels exactly as before: the mirror's
 // input was added to the list the control plane is built from, not swapped for
 // one of them.

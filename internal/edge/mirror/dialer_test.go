@@ -225,7 +225,7 @@ func TestTheServerLaunchIsBoundToTheOneSerialAndTheOneSessionID(t *testing.T) {
 		config.IDSource = func() (uint32, error) { return 0x2abc1234, nil }
 		config.AcceptWait = 5 * time.Second
 	})
-	if _, err := dialer.Dial(context.Background(), "device-1", "192.168.1.104:5555"); err != nil {
+	if _, err := dialer.Dial(context.Background(), "device-1", "192.168.1.104:5555", media.PurposeOperator, media.DefaultPreview()); err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
 	if recorded.calls != 1 {
@@ -242,15 +242,111 @@ func TestTheServerLaunchIsBoundToTheOneSerialAndTheOneSessionID(t *testing.T) {
 	}
 }
 
+// TestThePurposeDecidesTheBoundTheDeviceIsAskedFor is the ARC-227 split asserted
+// where the two facts meet: what a viewer IS decides the bound its stream is
+// encoded under.
+//
+// It is asserted on the launch the client would issue, not on the profile alone,
+// because the bound is only a bound if it is on the argv: the state this replaced
+// was an argv carrying no max_size, no max_fps and no video_bit_rate at all, at
+// every purpose.
+func TestThePurposeDecidesTheBoundTheDeviceIsAskedFor(t *testing.T) {
+	stated := media.MirrorPreview{Quality: media.PreviewHigh, FrameRate: 20}
+
+	// An ambient viewer - one of the console's grid tiles - is carried at the
+	// workspace's own preview setting.
+	ambient, recorded := newHarness(t, newFakeSession(), nil)
+	if _, err := ambient.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeAmbient, stated); err != nil {
+		t.Fatalf("Dial(ambient): %v", err)
+	}
+	launch := launchFor(t, recorded.options)
+	if !hasToken(launch, "max_size=1080") || !hasToken(launch, "max_fps=20") || !hasToken(launch, "video_bit_rate=2500000") {
+		t.Fatalf("an ambient stream's launch is %q, want the high level's 1080 at 20 fps and 2.5 Mbps", launch)
+	}
+
+	// The operator's own frame is carried at its own profile, at the same stated
+	// setting: a level an operator chose for a grid of thumbnails must never make
+	// the frame they work in blurry.
+	operator, recordedOperator := newHarness(t, newFakeSession(), nil)
+	if _, err := operator.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeOperator, stated); err != nil {
+		t.Fatalf("Dial(operator): %v", err)
+	}
+	launch = launchFor(t, recordedOperator.options)
+	if !hasToken(launch, "max_size=1080") || !hasToken(launch, "max_fps=24") || !hasToken(launch, "video_bit_rate=2500000") {
+		t.Fatalf("the operator's own launch is %q, want its own profile of 1080 at 24 fps and 2.5 Mbps", launch)
+	}
+	if hasToken(launch, "max_fps=20") {
+		t.Fatal("the operator's own frame was captured at the preview setting chosen for the grid")
+	}
+
+	// A purpose this adapter does not know is refused rather than mapped onto
+	// whichever bound happens to be nearest.
+	unknown, recordedUnknown := newHarness(t, newFakeSession(), nil)
+	if _, err := unknown.Dial(context.Background(), "device-1", "SERIAL-1", media.MirrorViewerPurpose("inspector"), stated); err == nil {
+		t.Fatal("a viewer purpose this dialer does not know was carried")
+	}
+	if recordedUnknown.calls != 0 {
+		t.Fatalf("a refused purpose still opened %d sessions", recordedUnknown.calls)
+	}
+}
+
+// TestAnUnstatedBoundIsRefusedAtThisSeam is the fail-closed half of the absence
+// rule, at the adapter's own edge.
+//
+// The adapter does NOT fill in a default: the setting is resolved once, by the
+// media engine, against the setting the plane is configured with (see
+// media.MirrorEngine.previewFor), so a preview that reaches this seam with no
+// capture rate is a preview nobody resolved - and a stream whose bound was never
+// stated is exactly the uncapped encoder this bound replaced. It is refused where
+// it is supplied rather than launched at the device's own default.
+func TestAnUnstatedBoundIsRefusedAtThisSeam(t *testing.T) {
+	dialer, recorded := newHarness(t, newFakeSession(), nil)
+	if _, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeAmbient, media.MirrorPreview{}); err == nil {
+		t.Fatal("an ambient stream was opened at a bound nobody stated")
+	}
+	if recorded.calls != 0 {
+		t.Fatalf("a refused bound still opened %d sessions", recorded.calls)
+	}
+	// A level with no frame rate is refused for the same reason.
+	if _, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeAmbient, media.MirrorPreview{Quality: media.PreviewHigh}); err == nil {
+		t.Fatal("an ambient stream was opened at a level with no capture rate")
+	}
+}
+
+// launchFor renders the device server launch from the options the client was
+// handed, which is what a real session would run. The session id is a fixed one:
+// what is asserted here is the encode bound, and the id is the adb package's own
+// business (its admission re-derives it).
+func launchFor(t *testing.T, options scrcpy.Options) []string {
+	t.Helper()
+	launch, err := adb.MirrorServerLaunchArgv(mirrorTestSessionID, "info", options.KeepAwake, options.Encode)
+	if err != nil {
+		t.Fatalf("MirrorServerLaunchArgv(%+v) = %v", options.Encode, err)
+	}
+	return launch
+}
+
+// mirrorTestSessionID is the session id the launch is rendered with here.
+const mirrorTestSessionID uint32 = 0x2abc1234
+
+func hasToken(launch []string, token string) bool {
+	for _, candidate := range launch {
+		if candidate == token {
+			return true
+		}
+	}
+	return false
+}
+
 // TestDialRefusesADeviceOrTransportItCannotName pins that a session is always
 // bound to both an identity and a transport.
 func TestDialRefusesADeviceOrTransportItCannotName(t *testing.T) {
 	session := newFakeSession()
 	dialer, recorded := newHarness(t, session, nil)
-	if _, err := dialer.Dial(context.Background(), "", "SERIAL-1"); err == nil {
+	if _, err := dialer.Dial(context.Background(), "", "SERIAL-1", media.PurposeOperator, media.DefaultPreview()); err == nil {
 		t.Fatal("a session was opened for a device with no identity")
 	}
-	if _, err := dialer.Dial(context.Background(), "device-1", ""); err == nil {
+	if _, err := dialer.Dial(context.Background(), "device-1", "", media.PurposeOperator, media.DefaultPreview()); err == nil {
 		t.Fatal("a session was opened with no transport serial")
 	}
 	if recorded.calls != 0 {
@@ -267,7 +363,7 @@ func TestDialReportsWhatTheClientRefused(t *testing.T) {
 			return nil, errors.New("the device refused the capture")
 		}
 	})
-	_, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1")
+	_, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeOperator, media.DefaultPreview())
 	if err == nil {
 		t.Fatal("a refused session produced a stream")
 	}
@@ -284,7 +380,7 @@ func TestDialReportsWhatTheClientRefused(t *testing.T) {
 func TestTheConfigurationPacketIsMarkedAsConfigurationAndNotAsAPicture(t *testing.T) {
 	session := newFakeSession()
 	dialer, _ := newHarness(t, session, nil)
-	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1")
+	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeOperator, media.DefaultPreview())
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -333,7 +429,7 @@ func TestTheConfigurationPacketIsMarkedAsConfigurationAndNotAsAPicture(t *testin
 func TestTheStreamReportsTheDevicesEncodedFrameSizeOrRefuses(t *testing.T) {
 	session := newFakeSession()
 	dialer, _ := newHarness(t, session, nil)
-	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1")
+	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeOperator, media.DefaultPreview())
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -358,7 +454,7 @@ func TestTheStreamReportsTheDevicesEncodedFrameSizeOrRefuses(t *testing.T) {
 func TestEveryTypedInputReachesTheControlSocketAsItsOwnMessage(t *testing.T) {
 	session := newFakeSession()
 	dialer, _ := newHarness(t, session, nil)
-	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1")
+	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeOperator, media.DefaultPreview())
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -416,7 +512,7 @@ func TestEveryTypedInputReachesTheControlSocketAsItsOwnMessage(t *testing.T) {
 func TestRequestKeyframeAsksTheDeviceAndNotTheEngine(t *testing.T) {
 	session := newFakeSession()
 	dialer, _ := newHarness(t, session, nil)
-	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1")
+	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeOperator, media.DefaultPreview())
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -438,7 +534,7 @@ func TestRequestKeyframeAsksTheDeviceAndNotTheEngine(t *testing.T) {
 func TestReadFrameStopsWhenTheCallerStops(t *testing.T) {
 	session := newFakeSession()
 	dialer, _ := newHarness(t, session, nil)
-	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1")
+	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeOperator, media.DefaultPreview())
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -470,7 +566,7 @@ func TestReadFrameStopsWhenTheCallerStops(t *testing.T) {
 func TestAStreamThatEndsIsReportedWithItsOwnReason(t *testing.T) {
 	session := newFakeSession()
 	dialer, _ := newHarness(t, session, nil)
-	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1")
+	stream, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeOperator, media.DefaultPreview())
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -500,7 +596,7 @@ func TestAStreamThatEndsIsReportedWithItsOwnReason(t *testing.T) {
 func TestTheDefaultListenerIsLoopbackOnly(t *testing.T) {
 	session := newFakeSession()
 	dialer, recorded := newHarness(t, session, nil)
-	if _, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1"); err != nil {
+	if _, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeOperator, media.DefaultPreview()); err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
 	// The adapter supplies no listener of its own, so the client's own default -

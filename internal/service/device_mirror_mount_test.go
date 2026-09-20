@@ -29,7 +29,7 @@ func (mountMirrorStream) Close() error { return nil }
 // mountMirrors is the stream transport the route needs.
 type mountMirrors struct{ stream mountMirrorStream }
 
-func (m mountMirrors) Open(context.Context, string, string, media.MirrorTransportKind, media.MirrorViewerPurpose) (transportconnect.DeviceMirrorStream, error) {
+func (m mountMirrors) Open(context.Context, string, string, media.MirrorTransportKind, media.MirrorViewerPurpose, media.MirrorPreview) (transportconnect.DeviceMirrorStream, error) {
 	return m.stream, nil
 }
 
@@ -130,7 +130,7 @@ func typedNilMirrors() transportconnect.DeviceMirrors {
 
 type mountMirrorPointer struct{ mountMirrors }
 
-func (m *mountMirrorPointer) Open(context.Context, string, string, media.MirrorTransportKind, media.MirrorViewerPurpose) (transportconnect.DeviceMirrorStream, error) {
+func (m *mountMirrorPointer) Open(context.Context, string, string, media.MirrorTransportKind, media.MirrorViewerPurpose, media.MirrorPreview) (transportconnect.DeviceMirrorStream, error) {
 	return m.mountMirrors.stream, nil
 }
 
