@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceSettingName, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
+import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceSettingName, DeviceSettingOutcomeView, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, livePictureHeld, type LiveMirrorPreview, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
 import { useMirrorCapacity } from "@/lib/api/use-mirror-capacity"
@@ -18,7 +18,7 @@ import { allocateTileViewers, tileBudgetSentence, tileViewerBudget, type TileVie
 import { LiveMirrorDeviceKeys, LiveMirrorInfo, LiveMirrorSurface, useLiveMirrorSession, type LiveMirrorSessionView } from "./live-mirror-surface"
 import { LiveTilePicture } from "./live-tile"
 import { deviceObservationSentence, deviceStatusLabels, notObserved } from "@/lib/device-status"
-import { deviceSettingLabels, deviceSettingNames } from "@/lib/device-settings"
+import { deviceSettingLabels, deviceSettingNames, deviceSettingOutcomeSentence } from "@/lib/device-settings"
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import { captureSerialForDevice } from "./page-utils"
@@ -722,7 +722,7 @@ export function FloatingDevice({ device, devices, followers, workspace, settings
     </div>
     <div aria-label={`${device.displayName} floating device controls`} className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-popover text-foreground" style={controlsFrameStyle}>
       <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><LiveMirrorInfo session={session} /><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">{livePictureHeld(session.phase) ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><PanelDevicePicker devices={devices} currentId={device.id} onSelect={onChangeDevice} /><PanelKeyCommands session={session} /><ControlButton icon={Image} label="Screenshot" onClick={onCapture} /></div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">{livePictureHeld(session.phase) ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><PanelDevicePicker devices={devices} currentId={device.id} onSelect={onChangeDevice} /><PanelKeyCommands session={session} /><ControlButton icon={Image} label="Screenshot" onClick={onCapture} /><PanelSettingCommands device={device} dispatch={dispatch} /></div>
       <div className="shrink-0 border-t border-border px-2 py-2">
         <p data-testid="live-mirror-followers" className="mb-1 text-center text-[10px] text-muted-foreground">{followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
         <LiveMirrorDeviceKeys session={session} />
@@ -756,6 +756,53 @@ const panelKeyIcons = { "volume-up": Volume2, "volume-down": Volume1, power: Pow
  */
 function PanelKeyCommands({ session }: { session: LiveMirrorSessionView }) {
   return <>{liveMirrorCopy.panelKeyCommands.map((command) => <ControlButton key={command.name} icon={panelKeyIcons[command.name]} label={command.label} disabled={!session.inputReady} onClick={() => session.sendKey(command.keyCode, command.label)} />)}</>
+}
+
+/**
+ * PanelSettingCommands draws the catalogued SETTINGS operation the action column
+ * offers, for the SELECTED device.
+ *
+ * Lock Rotate is the per-device form of the rotation lock that Console Settings
+ * applies fleet-wide, and the two are the same operation: the device's own
+ * `accelerometer_rotation` and `user_rotation` written to 0, dispatched as one
+ * catalogued action through the lease, fencing, policy and control-session
+ * kernel, and confirmed by reading the setting BACK off the device. The
+ * difference is the subject: this one names the device the frame has open, and
+ * Console Settings names the fleet.
+ *
+ * The control reports the plane's OWN row rather than a sentence of its own: an
+ * applied setting says the device's read-back showed it holding, and a setting
+ * that was refused says which refusal it was ("the device is attached but this
+ * host is not authorized to control it" and "the device answered and does not
+ * report the setting holding" are different facts and stay different here). The
+ * sentence is announced as well as drawn, because a refusal an operator cannot
+ * read is the same as no answer.
+ */
+function PanelSettingCommands({ device, dispatch }: { device: DeviceView; dispatch: DispatchIntent }) {
+  const [pending, setPending] = useState(false)
+  const [outcome, setOutcome] = useState<DeviceSettingOutcomeView | null>(null)
+  const [refusal, setRefusal] = useState("")
+  async function applyRotationLock() {
+    if (pending) return
+    setPending(true)
+    // The operator's own approval travels with the dispatch: a high-risk setting
+    // is refused by the policy evaluator without it, and the control is the
+    // operator's act rather than a default this console supplies.
+    const result = await dispatch({ type: "applyDeviceSetting", deviceId: device.id, setting: "rotation_lock", confirmed: true })
+    setPending(false)
+    if (!result.ok) {
+      setOutcome(null)
+      setRefusal(result.message)
+      return
+    }
+    setRefusal("")
+    setOutcome(result.deviceSetting ?? null)
+  }
+  const reported = refusal !== "" ? refusal : outcome ? deviceSettingOutcomeSentence(outcome) : ""
+  return <>
+    <ControlButton icon={RotateCw} label="Lock Rotate" disabled={pending} onClick={() => { void applyRotationLock() }} />
+    <p data-testid="panel-setting-outcome" role="status" aria-live="polite" className="px-2 pb-1 text-[10px] leading-4 text-muted-foreground">{reported}</p>
+  </>
 }
 
 /**

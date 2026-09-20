@@ -36,11 +36,17 @@ const (
 	// DeviceSettingsServiceApplyDeviceSettingsProcedure is the fully-qualified name of the
 	// DeviceSettingsService's ApplyDeviceSettings RPC.
 	DeviceSettingsServiceApplyDeviceSettingsProcedure = "/drift.v1.DeviceSettingsService/ApplyDeviceSettings"
+	// DeviceSettingsServiceApplyDeviceSettingProcedure is the fully-qualified name of the
+	// DeviceSettingsService's ApplyDeviceSetting RPC.
+	DeviceSettingsServiceApplyDeviceSettingProcedure = "/drift.v1.DeviceSettingsService/ApplyDeviceSetting"
 )
 
 // DeviceSettingsServiceClient is a client for the drift.v1.DeviceSettingsService service.
 type DeviceSettingsServiceClient interface {
 	ApplyDeviceSettings(context.Context, *connect.Request[v1.ApplyDeviceSettingsRequest]) (*connect.Response[v1.ApplyDeviceSettingsResponse], error)
+	// ApplyDeviceSetting is the per-device form: one setting, one device, one
+	// lease, one attempt, one read-back.
+	ApplyDeviceSetting(context.Context, *connect.Request[v1.ApplyDeviceSettingRequest]) (*connect.Response[v1.ApplyDeviceSettingResponse], error)
 }
 
 // NewDeviceSettingsServiceClient constructs a client for the drift.v1.DeviceSettingsService
@@ -60,12 +66,19 @@ func NewDeviceSettingsServiceClient(httpClient connect.HTTPClient, baseURL strin
 			connect.WithSchema(deviceSettingsServiceMethods.ByName("ApplyDeviceSettings")),
 			connect.WithClientOptions(opts...),
 		),
+		applyDeviceSetting: connect.NewClient[v1.ApplyDeviceSettingRequest, v1.ApplyDeviceSettingResponse](
+			httpClient,
+			baseURL+DeviceSettingsServiceApplyDeviceSettingProcedure,
+			connect.WithSchema(deviceSettingsServiceMethods.ByName("ApplyDeviceSetting")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // deviceSettingsServiceClient implements DeviceSettingsServiceClient.
 type deviceSettingsServiceClient struct {
 	applyDeviceSettings *connect.Client[v1.ApplyDeviceSettingsRequest, v1.ApplyDeviceSettingsResponse]
+	applyDeviceSetting  *connect.Client[v1.ApplyDeviceSettingRequest, v1.ApplyDeviceSettingResponse]
 }
 
 // ApplyDeviceSettings calls drift.v1.DeviceSettingsService.ApplyDeviceSettings.
@@ -73,9 +86,17 @@ func (c *deviceSettingsServiceClient) ApplyDeviceSettings(ctx context.Context, r
 	return c.applyDeviceSettings.CallUnary(ctx, req)
 }
 
+// ApplyDeviceSetting calls drift.v1.DeviceSettingsService.ApplyDeviceSetting.
+func (c *deviceSettingsServiceClient) ApplyDeviceSetting(ctx context.Context, req *connect.Request[v1.ApplyDeviceSettingRequest]) (*connect.Response[v1.ApplyDeviceSettingResponse], error) {
+	return c.applyDeviceSetting.CallUnary(ctx, req)
+}
+
 // DeviceSettingsServiceHandler is an implementation of the drift.v1.DeviceSettingsService service.
 type DeviceSettingsServiceHandler interface {
 	ApplyDeviceSettings(context.Context, *connect.Request[v1.ApplyDeviceSettingsRequest]) (*connect.Response[v1.ApplyDeviceSettingsResponse], error)
+	// ApplyDeviceSetting is the per-device form: one setting, one device, one
+	// lease, one attempt, one read-back.
+	ApplyDeviceSetting(context.Context, *connect.Request[v1.ApplyDeviceSettingRequest]) (*connect.Response[v1.ApplyDeviceSettingResponse], error)
 }
 
 // NewDeviceSettingsServiceHandler builds an HTTP handler from the service implementation. It
@@ -91,10 +112,18 @@ func NewDeviceSettingsServiceHandler(svc DeviceSettingsServiceHandler, opts ...c
 		connect.WithSchema(deviceSettingsServiceMethods.ByName("ApplyDeviceSettings")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceSettingsServiceApplyDeviceSettingHandler := connect.NewUnaryHandler(
+		DeviceSettingsServiceApplyDeviceSettingProcedure,
+		svc.ApplyDeviceSetting,
+		connect.WithSchema(deviceSettingsServiceMethods.ByName("ApplyDeviceSetting")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.DeviceSettingsService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceSettingsServiceApplyDeviceSettingsProcedure:
 			deviceSettingsServiceApplyDeviceSettingsHandler.ServeHTTP(w, r)
+		case DeviceSettingsServiceApplyDeviceSettingProcedure:
+			deviceSettingsServiceApplyDeviceSettingHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -106,4 +135,8 @@ type UnimplementedDeviceSettingsServiceHandler struct{}
 
 func (UnimplementedDeviceSettingsServiceHandler) ApplyDeviceSettings(context.Context, *connect.Request[v1.ApplyDeviceSettingsRequest]) (*connect.Response[v1.ApplyDeviceSettingsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceSettingsService.ApplyDeviceSettings is not implemented"))
+}
+
+func (UnimplementedDeviceSettingsServiceHandler) ApplyDeviceSetting(context.Context, *connect.Request[v1.ApplyDeviceSettingRequest]) (*connect.Response[v1.ApplyDeviceSettingResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceSettingsService.ApplyDeviceSetting is not implemented"))
 }

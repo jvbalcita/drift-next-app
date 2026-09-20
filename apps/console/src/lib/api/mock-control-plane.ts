@@ -1653,6 +1653,8 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.activateFleet(intent)
       case "applyFleetDeviceSettings":
         return this.applyFleetDeviceSettings(intent)
+      case "applyDeviceSetting":
+        return this.applyDeviceSetting(intent)
       case "restartTransportServer":
         return this.restartTransportServer(intent)
       case "addDiscoveryRange":
@@ -2661,6 +2663,54 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     }
     const sentence = view.totalDevices === 0 ? "Mock fleet settings apply found no device in this client's projection. No device was contacted." : `Mock fleet settings apply: ${view.appliedDevices} of ${view.totalDevices} device(s) would have applied every requested setting, ${view.failedDevices} would not. No device was contacted.`
     return { ...result(intent, sentence), deviceSettingsApply: view }
+  }
+
+  /**
+   * applyDeviceSetting is the mock's per-device form.
+   *
+   * It answers with ONE row for the ONE device the intent named, and it is a
+   * different answer from the fleet form's: a device this client's projection
+   * does not hold — the registry's own unknown-device case — is refused as
+   * `device_not_registered`, a device with no current endpoint as
+   * `no_transport_serial`, and a device under another operator's control as
+   * `lease_unavailable`. Nothing is contacted: this is the mock, and every
+   * sentence says so.
+   */
+  private applyDeviceSetting(intent: Extract<ControlPlaneIntent, { type: "applyDeviceSetting" }>): MutationResult {
+    if (!intent.confirmed) {
+      return rejection(intent, "Applying a setting to this device changes device state and needs explicit confirmation. Nothing was sent.", undefined, "precondition_failed")
+    }
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) {
+      return rejection(intent, "No device in this client's projection matches the selected device, so its setting was not applied and nothing was sent.", undefined, "invalid_input")
+    }
+    const endpoint = this.snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
+    const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === device.id && candidate.state === "active")
+    const refusal = !endpoint
+      ? { reason: "no_transport_serial", claim: "the device has no single current transport endpoint, so nothing was sent" }
+      : lease && lease.holder !== mockOperatorId
+        ? { reason: "lease_unavailable", claim: "another controller holds this device's lease, so nothing was sent" }
+        : null
+    const outcome: DeviceSettingOutcomeView = refusal
+      ? {
+          deviceId: device.id,
+          setting: intent.setting,
+          applied: false,
+          verified: false,
+          refusal: refusal.reason,
+          failureClass: "transport",
+          message: refusal.claim,
+        }
+      : {
+          deviceId: device.id,
+          setting: intent.setting,
+          applied: true,
+          verified: true,
+          refusal: "",
+          failureClass: "",
+          message: "the setting would have been written and read back (mock: no device was contacted)",
+        }
+    return { ...result(intent, `Mock per-device settings apply for ${device.displayName}: ${outcome.applied ? "would have applied" : "would not apply"} ${intent.setting}. No device was contacted.`), deviceSetting: outcome }
   }
 
   private restartTransportServer(intent: Extract<ControlPlaneIntent, { type: "restartTransportServer" }>): MutationResult {

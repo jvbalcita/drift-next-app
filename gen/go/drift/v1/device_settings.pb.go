@@ -131,6 +131,13 @@ const (
 	// The attempt reached the device and its outcome could not be observed, so it
 	// is reported as indeterminate rather than as either answer.
 	DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE DeviceSettingRefusalReason = 16
+	// The device this request named is not in the workspace's registry at all, so
+	// there is no device to resolve a transport for and nothing was sent. It is a
+	// reason of its own rather than NO_TRANSPORT_SERIAL: "a device I know about and
+	// cannot reach" and "a device this plane has never recorded" send an operator
+	// to two different places, and collapsing them would report a sighting that
+	// never happened.
+	DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED DeviceSettingRefusalReason = 17
 )
 
 // Enum value maps for DeviceSettingRefusalReason.
@@ -153,6 +160,7 @@ var (
 		14: "DEVICE_SETTING_REFUSAL_REASON_COMMAND_FAILED",
 		15: "DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED",
 		16: "DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE",
+		17: "DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED",
 	}
 	DeviceSettingRefusalReason_value = map[string]int32{
 		"DEVICE_SETTING_REFUSAL_REASON_UNSPECIFIED":               0,
@@ -172,6 +180,7 @@ var (
 		"DEVICE_SETTING_REFUSAL_REASON_COMMAND_FAILED":            14,
 		"DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED":      15,
 		"DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE":     16,
+		"DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED":     17,
 	}
 )
 
@@ -485,6 +494,151 @@ func (x *ApplyDeviceSettingsResponse) GetFailedDevices() uint32 {
 	return 0
 }
 
+// ApplyDeviceSettingRequest asks for ONE setting to be applied to ONE named
+// device.
+//
+// It is the per-device form of the apply above, and the difference between the
+// two is a safety property rather than a convenience: the fleet form names no
+// device because the fleet is the SUBJECT of the action, while this form names
+// one device the operator selected, exactly as every other per-device action on
+// this plane does (a key event, a tap, a typed-text entry). The device named
+// here is the REGISTRY identity, never a transport serial: the serial this
+// request acts over is resolved by the control plane from the registry's current
+// endpoint projection, so a caller still cannot assert where a device is, and
+// cannot send a setting at a device the plane has not observed.
+type ApplyDeviceSettingRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Context   *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	// device_id is the registry identity of the device to apply the setting to.
+	// It is resolved against the workspace's own registry, and a device that is
+	// not in it is refused rather than resolved to another device.
+	DeviceId string `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	// setting names the one setting to apply. UNSPECIFIED, or a value that is not
+	// a member of the closed enum, is refused before anything runs.
+	Setting DeviceSetting `protobuf:"varint,4,opt,name=setting,proto3,enum=drift.v1.DeviceSetting" json:"setting,omitempty"`
+	// approval_granted is the operator's explicit approval of the change, for the
+	// same reason the fleet form carries it: a high-risk setting is refused by the
+	// policy evaluator without it.
+	ApprovalGranted bool `protobuf:"varint,5,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ApplyDeviceSettingRequest) Reset() {
+	*x = ApplyDeviceSettingRequest{}
+	mi := &file_drift_v1_device_settings_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyDeviceSettingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyDeviceSettingRequest) ProtoMessage() {}
+
+func (x *ApplyDeviceSettingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_settings_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyDeviceSettingRequest.ProtoReflect.Descriptor instead.
+func (*ApplyDeviceSettingRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_settings_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ApplyDeviceSettingRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *ApplyDeviceSettingRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *ApplyDeviceSettingRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *ApplyDeviceSettingRequest) GetSetting() DeviceSetting {
+	if x != nil {
+		return x.Setting
+	}
+	return DeviceSetting_DEVICE_SETTING_UNSPECIFIED
+}
+
+func (x *ApplyDeviceSettingRequest) GetApprovalGranted() bool {
+	if x != nil {
+		return x.ApprovalGranted
+	}
+	return false
+}
+
+// ApplyDeviceSettingResponse reports the one setting's outcome for the one
+// device. It is the same DeviceSettingResult the fleet form reports per row, so
+// a client renders a per-device outcome exactly as it renders a fleet row, and
+// there is no second representation of "the device reported the setting
+// holding".
+type ApplyDeviceSettingResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        *DeviceSettingResult   `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApplyDeviceSettingResponse) Reset() {
+	*x = ApplyDeviceSettingResponse{}
+	mi := &file_drift_v1_device_settings_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyDeviceSettingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyDeviceSettingResponse) ProtoMessage() {}
+
+func (x *ApplyDeviceSettingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_settings_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyDeviceSettingResponse.ProtoReflect.Descriptor instead.
+func (*ApplyDeviceSettingResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_settings_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ApplyDeviceSettingResponse) GetResult() *DeviceSettingResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
 var File_drift_v1_device_settings_proto protoreflect.FileDescriptor
 
 const file_drift_v1_device_settings_proto_rawDesc = "" +
@@ -507,11 +661,19 @@ const file_drift_v1_device_settings_proto_rawDesc = "" +
 	"\aresults\x18\x01 \x03(\v2\x1d.drift.v1.DeviceSettingResultR\aresults\x12#\n" +
 	"\rtotal_devices\x18\x02 \x01(\rR\ftotalDevices\x12'\n" +
 	"\x0fapplied_devices\x18\x03 \x01(\rR\x0eappliedDevices\x12%\n" +
-	"\x0efailed_devices\x18\x04 \x01(\rR\rfailedDevices*r\n" +
+	"\x0efailed_devices\x18\x04 \x01(\rR\rfailedDevices\"\x80\x02\n" +
+	"\x19ApplyDeviceSettingRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x121\n" +
+	"\asetting\x18\x04 \x01(\x0e2\x17.drift.v1.DeviceSettingR\asetting\x12)\n" +
+	"\x10approval_granted\x18\x05 \x01(\bR\x0fapprovalGranted\"S\n" +
+	"\x1aApplyDeviceSettingResponse\x125\n" +
+	"\x06result\x18\x01 \x01(\v2\x1d.drift.v1.DeviceSettingResultR\x06result*r\n" +
 	"\rDeviceSetting\x12\x1e\n" +
 	"\x1aDEVICE_SETTING_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cDEVICE_SETTING_ROTATION_LOCK\x10\x01\x12\x1f\n" +
-	"\x1bDEVICE_SETTING_AUTOFILL_OFF\x10\x02*\x98\a\n" +
+	"\x1bDEVICE_SETTING_AUTOFILL_OFF\x10\x02*\xd1\a\n" +
 	"\x1aDeviceSettingRefusalReason\x12-\n" +
 	")DEVICE_SETTING_REFUSAL_REASON_UNSPECIFIED\x10\x00\x125\n" +
 	"1DEVICE_SETTING_REFUSAL_REASON_NO_TRANSPORT_SERIAL\x10\x01\x123\n" +
@@ -530,9 +692,11 @@ const file_drift_v1_device_settings_proto_rawDesc = "" +
 	"7DEVICE_SETTING_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY\x10\r\x120\n" +
 	",DEVICE_SETTING_REFUSAL_REASON_COMMAND_FAILED\x10\x0e\x126\n" +
 	"2DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED\x10\x0f\x127\n" +
-	"3DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE\x10\x102{\n" +
+	"3DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE\x10\x10\x127\n" +
+	"3DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED\x10\x112\xdc\x01\n" +
 	"\x15DeviceSettingsService\x12b\n" +
-	"\x13ApplyDeviceSettings\x12$.drift.v1.ApplyDeviceSettingsRequest\x1a%.drift.v1.ApplyDeviceSettingsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\x13ApplyDeviceSettings\x12$.drift.v1.ApplyDeviceSettingsRequest\x1a%.drift.v1.ApplyDeviceSettingsResponse\x12_\n" +
+	"\x12ApplyDeviceSetting\x12#.drift.v1.ApplyDeviceSettingRequest\x1a$.drift.v1.ApplyDeviceSettingResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_device_settings_proto_rawDescOnce sync.Once
@@ -547,30 +711,38 @@ func file_drift_v1_device_settings_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_device_settings_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_drift_v1_device_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_drift_v1_device_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_drift_v1_device_settings_proto_goTypes = []any{
 	(DeviceSetting)(0),                  // 0: drift.v1.DeviceSetting
 	(DeviceSettingRefusalReason)(0),     // 1: drift.v1.DeviceSettingRefusalReason
 	(*DeviceSettingResult)(nil),         // 2: drift.v1.DeviceSettingResult
 	(*ApplyDeviceSettingsRequest)(nil),  // 3: drift.v1.ApplyDeviceSettingsRequest
 	(*ApplyDeviceSettingsResponse)(nil), // 4: drift.v1.ApplyDeviceSettingsResponse
-	(*RequestContext)(nil),              // 5: drift.v1.RequestContext
-	(*WorkspaceRef)(nil),                // 6: drift.v1.WorkspaceRef
+	(*ApplyDeviceSettingRequest)(nil),   // 5: drift.v1.ApplyDeviceSettingRequest
+	(*ApplyDeviceSettingResponse)(nil),  // 6: drift.v1.ApplyDeviceSettingResponse
+	(*RequestContext)(nil),              // 7: drift.v1.RequestContext
+	(*WorkspaceRef)(nil),                // 8: drift.v1.WorkspaceRef
 }
 var file_drift_v1_device_settings_proto_depIdxs = []int32{
-	0, // 0: drift.v1.DeviceSettingResult.setting:type_name -> drift.v1.DeviceSetting
-	1, // 1: drift.v1.DeviceSettingResult.refusal:type_name -> drift.v1.DeviceSettingRefusalReason
-	5, // 2: drift.v1.ApplyDeviceSettingsRequest.context:type_name -> drift.v1.RequestContext
-	6, // 3: drift.v1.ApplyDeviceSettingsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	0, // 4: drift.v1.ApplyDeviceSettingsRequest.settings:type_name -> drift.v1.DeviceSetting
-	2, // 5: drift.v1.ApplyDeviceSettingsResponse.results:type_name -> drift.v1.DeviceSettingResult
-	3, // 6: drift.v1.DeviceSettingsService.ApplyDeviceSettings:input_type -> drift.v1.ApplyDeviceSettingsRequest
-	4, // 7: drift.v1.DeviceSettingsService.ApplyDeviceSettings:output_type -> drift.v1.ApplyDeviceSettingsResponse
-	7, // [7:8] is the sub-list for method output_type
-	6, // [6:7] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	0,  // 0: drift.v1.DeviceSettingResult.setting:type_name -> drift.v1.DeviceSetting
+	1,  // 1: drift.v1.DeviceSettingResult.refusal:type_name -> drift.v1.DeviceSettingRefusalReason
+	7,  // 2: drift.v1.ApplyDeviceSettingsRequest.context:type_name -> drift.v1.RequestContext
+	8,  // 3: drift.v1.ApplyDeviceSettingsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 4: drift.v1.ApplyDeviceSettingsRequest.settings:type_name -> drift.v1.DeviceSetting
+	2,  // 5: drift.v1.ApplyDeviceSettingsResponse.results:type_name -> drift.v1.DeviceSettingResult
+	7,  // 6: drift.v1.ApplyDeviceSettingRequest.context:type_name -> drift.v1.RequestContext
+	8,  // 7: drift.v1.ApplyDeviceSettingRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	0,  // 8: drift.v1.ApplyDeviceSettingRequest.setting:type_name -> drift.v1.DeviceSetting
+	2,  // 9: drift.v1.ApplyDeviceSettingResponse.result:type_name -> drift.v1.DeviceSettingResult
+	3,  // 10: drift.v1.DeviceSettingsService.ApplyDeviceSettings:input_type -> drift.v1.ApplyDeviceSettingsRequest
+	5,  // 11: drift.v1.DeviceSettingsService.ApplyDeviceSetting:input_type -> drift.v1.ApplyDeviceSettingRequest
+	4,  // 12: drift.v1.DeviceSettingsService.ApplyDeviceSettings:output_type -> drift.v1.ApplyDeviceSettingsResponse
+	6,  // 13: drift.v1.DeviceSettingsService.ApplyDeviceSetting:output_type -> drift.v1.ApplyDeviceSettingResponse
+	12, // [12:14] is the sub-list for method output_type
+	10, // [10:12] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_device_settings_proto_init() }
@@ -585,7 +757,7 @@ func file_drift_v1_device_settings_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_device_settings_proto_rawDesc), len(file_drift_v1_device_settings_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

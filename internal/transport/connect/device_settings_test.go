@@ -19,11 +19,45 @@ type fakeDeviceSettings struct {
 	report   execution.SettingsApplyReport
 	err      error
 	requests []execution.SettingsApplyRequest
+
+	// The per-device form's own recording, kept separate from the fleet form's:
+	// a case asserts which of the two the handler called, not only that it called
+	// one of them.
+	outcome        execution.DeviceSettingOutcome
+	deviceErr      error
+	deviceRequests []execution.DeviceSettingRequest
 }
 
 func (f *fakeDeviceSettings) ApplyDeviceSettings(_ context.Context, request execution.SettingsApplyRequest, _, _ string) (execution.SettingsApplyReport, error) {
 	f.requests = append(f.requests, request)
 	return f.report, f.err
+}
+
+func (f *fakeDeviceSettings) ApplyDeviceSetting(_ context.Context, request execution.DeviceSettingRequest, _, _ string) (execution.DeviceSettingOutcome, error) {
+	f.deviceRequests = append(f.deviceRequests, request)
+	return f.outcome, f.deviceErr
+}
+
+func applyDeviceSetting(t *testing.T, settings transportconnect.DeviceSettings, message *driftv1.ApplyDeviceSettingRequest) (*driftv1.ApplyDeviceSettingResponse, error) {
+	t.Helper()
+	handler := transportconnect.NewDeviceSettingsHandler(settings)
+	if handler == nil {
+		t.Fatal("a constructed applier did not mount the handler")
+	}
+	response, err := handler.ApplyDeviceSetting(context.Background(), connectrpc.NewRequest(message))
+	if err != nil {
+		return nil, err
+	}
+	return response.Msg, nil
+}
+
+func applyDeviceSettingRequest(requestID, deviceID string, setting driftv1.DeviceSetting) *driftv1.ApplyDeviceSettingRequest {
+	return &driftv1.ApplyDeviceSettingRequest{
+		Context:   requestContext(requestID),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"},
+		DeviceId:  deviceID,
+		Setting:   setting,
+	}
 }
 
 func applyDeviceSettings(t *testing.T, settings transportconnect.DeviceSettings, message *driftv1.ApplyDeviceSettingsRequest) (*driftv1.ApplyDeviceSettingsResponse, error) {
@@ -270,5 +304,141 @@ func TestDeviceSettingsHandlerIsAbsentWithoutAnApplier(t *testing.T) {
 	var absent *transportconnect.DeviceSettingsHandler
 	if _, err := absent.ApplyDeviceSettings(context.Background(), connectrpc.NewRequest(applySettingsRequest("absent-2"))); connectrpc.CodeOf(err) != connectrpc.CodeUnavailable {
 		t.Fatalf("an unconstructed handler answered %v, want unavailable", connectrpc.CodeOf(err))
+	}
+	if _, err := handler.ApplyDeviceSetting(context.Background(), connectrpc.NewRequest(applyDeviceSettingRequest("absent-3", "device-alpha", driftv1.DeviceSetting_DEVICE_SETTING_ROTATION_LOCK))); err != nil {
+		t.Fatalf("a constructed handler refused a valid per-device request: %v", err)
+	}
+	if _, err := absent.ApplyDeviceSetting(context.Background(), connectrpc.NewRequest(applyDeviceSettingRequest("absent-4", "device-alpha", driftv1.DeviceSetting_DEVICE_SETTING_ROTATION_LOCK))); connectrpc.CodeOf(err) != connectrpc.CodeUnavailable {
+		t.Fatalf("an unconstructed per-device handler answered %v, want unavailable", connectrpc.CodeOf(err))
+	}
+}
+
+// TestApplyDeviceSettingRefusesAShapeErrorBeforeTheBoundaryIsAsked: the
+// per-device form validates the request's SHAPE and nothing about authority, for
+// the same reason the fleet form does not. A control naming no device, or a
+// device naming no reviewed setting, is refused here and reaches no boundary.
+func TestApplyDeviceSettingRefusesAShapeErrorBeforeTheBoundaryIsAsked(t *testing.T) {
+	cases := map[string]*driftv1.ApplyDeviceSettingRequest{
+		"no workspace": {
+			Context:  requestContext("shape-per-device-1"),
+			DeviceId: "device-alpha",
+			Setting:  driftv1.DeviceSetting_DEVICE_SETTING_ROTATION_LOCK,
+		},
+		"no device":                  applyDeviceSettingRequest("shape-per-device-2", "", driftv1.DeviceSetting_DEVICE_SETTING_ROTATION_LOCK),
+		"a whitespace device":        applyDeviceSettingRequest("shape-per-device-3", "   ", driftv1.DeviceSetting_DEVICE_SETTING_ROTATION_LOCK),
+		"no setting":                 applyDeviceSettingRequest("shape-per-device-4", "device-alpha", driftv1.DeviceSetting_DEVICE_SETTING_UNSPECIFIED),
+		"a setting outside the enum": applyDeviceSettingRequest("shape-per-device-5", "device-alpha", driftv1.DeviceSetting(99)),
+	}
+	for name, message := range cases {
+		t.Run(name, func(t *testing.T) {
+			applier := &fakeDeviceSettings{}
+			_, err := applyDeviceSetting(t, applier, message)
+			if connectrpc.CodeOf(err) != connectrpc.CodeInvalidArgument {
+				t.Fatalf("code = %v err = %v, want invalid_argument", connectrpc.CodeOf(err), err)
+			}
+			if len(applier.deviceRequests) != 0 {
+				t.Fatal("a shape error reached the application boundary")
+			}
+		})
+	}
+}
+
+// TestApplyDeviceSettingCarriesTheDeviceSettingAndActorThroughUnchanged: the
+// boundary receives the workspace, the ONE device the caller named, the ONE
+// setting, the request id and the approval, and a holder taken from the
+// AUTHENTICATED actor rather than from the request. A holder the caller could
+// supply is a control session opened for someone else.
+func TestApplyDeviceSettingCarriesTheDeviceSettingAndActorThroughUnchanged(t *testing.T) {
+	applier := &fakeDeviceSettings{}
+	message := applyDeviceSettingRequest("carry-per-device-1", "device-alpha", driftv1.DeviceSetting_DEVICE_SETTING_ROTATION_LOCK)
+	message.ApprovalGranted = true
+	if _, err := applyDeviceSetting(t, applier, message); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if len(applier.deviceRequests) != 1 {
+		t.Fatalf("boundary calls = %d, want 1", len(applier.deviceRequests))
+	}
+	if len(applier.requests) != 0 {
+		t.Fatal("the per-device form reached the fleet boundary")
+	}
+	request := applier.deviceRequests[0]
+	if request.Workspace != "workspace-a" || request.RequestID != "carry-per-device-1" || request.DeviceID != "device-alpha" {
+		t.Fatalf("boundary request = %#v, want the caller's own workspace, request id and device", request)
+	}
+	if request.Setting != action.RotationLock {
+		t.Fatalf("boundary setting = %q, want rotation_lock", request.Setting)
+	}
+	if !request.ApprovalGranted {
+		t.Fatal("the operator's approval did not reach the boundary")
+	}
+	if request.HolderID != "op-1" {
+		t.Fatalf("boundary holder = %q, want the authenticated actor", request.HolderID)
+	}
+}
+
+// TestApplyDeviceSettingResponseReportsTheOneRow: a client renders the row, and
+// the row's own fields are what say whether the setting holds. An applied row
+// carries its read-back; a refused row carries its own reason and its own fixed
+// sentence.
+func TestApplyDeviceSettingResponseReportsTheOneRow(t *testing.T) {
+	applied := execution.DeviceSettingOutcome{DeviceID: "device-alpha", Setting: action.RotationLock, Applied: true, Verified: true, Message: "the device reported the setting holding after the change"}
+	message := applyDeviceSettingRequest("row-per-device-1", "device-alpha", driftv1.DeviceSetting_DEVICE_SETTING_ROTATION_LOCK)
+	response, err := applyDeviceSetting(t, &fakeDeviceSettings{outcome: applied}, message)
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if response.GetResult() == nil {
+		t.Fatal("an applied setting was reported with no row")
+	}
+	if !response.GetResult().GetApplied() || !response.GetResult().GetVerified() {
+		t.Fatalf("applied row = %#v, want applied and verified", response.GetResult())
+	}
+	if response.GetResult().GetDeviceId() != "device-alpha" {
+		t.Fatalf("row device = %q, want the device the request named", response.GetResult().GetDeviceId())
+	}
+	if response.GetResult().GetSetting() != driftv1.DeviceSetting_DEVICE_SETTING_ROTATION_LOCK {
+		t.Fatalf("row setting = %v, want rotation_lock", response.GetResult().GetSetting())
+	}
+
+	failed := execution.DeviceSettingOutcome{DeviceID: "device-beta", Setting: action.RotationLock, Verified: true, Refusal: execution.SettingsPostconditionFailed, FailureClass: domain.FailurePostcondition, Message: execution.SettingsPostconditionFailed.Message()}
+	response, err = applyDeviceSetting(t, &fakeDeviceSettings{outcome: failed}, applyDeviceSettingRequest("row-per-device-2", "device-beta", driftv1.DeviceSetting_DEVICE_SETTING_ROTATION_LOCK))
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	row := response.GetResult()
+	if row.GetApplied() {
+		t.Fatal("a setting the device did not report holding read as applied")
+	}
+	if !row.GetVerified() {
+		t.Fatal("a setting that WAS read back reported no read-back")
+	}
+	if row.GetRefusal() != driftv1.DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED {
+		t.Fatalf("refused row refusal = %v, want postcondition_failed", row.GetRefusal())
+	}
+	if row.GetMessage() != execution.SettingsPostconditionFailed.Message() {
+		t.Fatalf("refused row message = %q, want the boundary's fixed sentence", row.GetMessage())
+	}
+}
+
+// TestApplyDeviceSettingReportsADeviceTheRegistryNeverRecorded: the per-device
+// form names a device the registry may not hold at all, and that fact has to
+// reach the operator as ITSELF. It is asserted here because the mapping test
+// above proves the vocabulary is complete, and this proves the per-device path
+// is a producer of the refusal that only it can produce.
+func TestApplyDeviceSettingReportsADeviceTheRegistryNeverRecorded(t *testing.T) {
+	unregistered := execution.DeviceSettingOutcome{DeviceID: "device-ghost", Setting: action.RotationLock, Refusal: execution.SettingsDeviceNotRegistered, FailureClass: domain.FailureInvalidTransition, Message: execution.SettingsDeviceNotRegistered.Message()}
+	response, err := applyDeviceSetting(t, &fakeDeviceSettings{outcome: unregistered}, applyDeviceSettingRequest("ghost-1", "device-ghost", driftv1.DeviceSetting_DEVICE_SETTING_ROTATION_LOCK))
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	row := response.GetResult()
+	if row.GetRefusal() != driftv1.DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED {
+		t.Fatalf("refusal = %v, want device_not_registered", row.GetRefusal())
+	}
+	if row.GetApplied() || row.GetVerified() {
+		t.Fatalf("an unregistered device read as applied=%t verified=%t, want both false", row.GetApplied(), row.GetVerified())
+	}
+	if !strings.Contains(row.GetMessage(), "registry") {
+		t.Fatalf("message = %q, want the boundary's sentence naming the registry", row.GetMessage())
 	}
 }

@@ -67,6 +67,7 @@ var deviceSettingRefusals = map[execution.SettingsRefusal]driftv1.DeviceSettingR
 	execution.SettingsCommandFailed:           driftv1.DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_COMMAND_FAILED,
 	execution.SettingsPostconditionFailed:     driftv1.DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED,
 	execution.SettingsOutcomeIndeterminate:    driftv1.DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE,
+	execution.SettingsDeviceNotRegistered:     driftv1.DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED,
 }
 
 // deviceSettingRefusal resolves one boundary refusal to its typed discriminator.
@@ -95,6 +96,9 @@ func deviceSettingValue(kind action.Kind) driftv1.DeviceSetting {
 // that answers everything with a refusal.
 type DeviceSettings interface {
 	ApplyDeviceSettings(ctx context.Context, request execution.SettingsApplyRequest, actorType, actorID string) (execution.SettingsApplyReport, error)
+	// ApplyDeviceSetting is the per-device form: ONE setting for ONE device
+	// named by its registry identity.
+	ApplyDeviceSetting(ctx context.Context, request execution.DeviceSettingRequest, actorType, actorID string) (execution.DeviceSettingOutcome, error)
 }
 
 // DeviceSettingsHandler serves the fleet device-settings surface from one
@@ -180,6 +184,95 @@ func (h *DeviceSettingsHandler) ApplyDeviceSettings(ctx context.Context, request
 	return connectrpc.NewResponse(applyDeviceSettingsResponse(report)), nil
 }
 
+// ApplyDeviceSetting applies ONE setting to ONE named device.
+//
+// It validates the shape of the request — a workspace, a device identity, and a
+// setting that is a member of the closed enum naming a reviewed operation — and
+// nothing about authority, for the same reason the fleet form does not: whether
+// the operator may change this device's settings, whether the device is leased
+// and whether approval was granted are the kernel's and the policy evaluator's
+// decisions, and a handler that answered them here would replace their refusal
+// vocabulary with a shape error.
+//
+// The device is named by REGISTRY identity. The serial the setting is dispatched
+// over is resolved by the application boundary from the registry's own current
+// endpoint projection, so this handler cannot be made to act at a transport the
+// caller supplies.
+func (h *DeviceSettingsHandler) ApplyDeviceSetting(ctx context.Context, request *connectrpc.Request[driftv1.ApplyDeviceSettingRequest]) (*connectrpc.Response[driftv1.ApplyDeviceSettingResponse], error) {
+	if err := h.ready(); err != nil {
+		return nil, err
+	}
+	if request == nil || request.Msg == nil {
+		return nil, invalidArgument("a device setting request is required")
+	}
+	message := request.Msg
+	actorType, actorID, err := requireActor(message.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace := ""
+	if ref := message.GetWorkspace(); ref != nil {
+		workspace = strings.TrimSpace(ref.GetWorkspaceId())
+	}
+	if workspace == "" {
+		return nil, invalidArgument("a device setting requires a workspace")
+	}
+	if err := validateLabField(workspace, maxLabFieldBytes, "workspace ID"); err != nil {
+		return nil, err
+	}
+	deviceID := strings.TrimSpace(message.GetDeviceId())
+	if deviceID == "" {
+		return nil, invalidArgument("a device setting requires the device it applies to")
+	}
+	if err := validateLabField(deviceID, maxLabFieldBytes, "device ID"); err != nil {
+		return nil, err
+	}
+	setting, err := settingFromRequest(message.GetSetting())
+	if err != nil {
+		return nil, err
+	}
+	// The holder is taken from the authenticated actor and never from the
+	// request, so a caller cannot open a control session for someone else.
+	outcome, applyErr := h.settings.ApplyDeviceSetting(ctx, execution.DeviceSettingRequest{
+		Workspace:       workspace,
+		HolderID:        actorID,
+		RequestID:       strings.TrimSpace(message.GetContext().GetRequestId()),
+		DeviceID:        deviceID,
+		ApprovalGranted: message.GetApprovalGranted(),
+		Setting:         setting,
+	}, actorType, actorID)
+	if applyErr != nil {
+		return nil, MapError(applyErr)
+	}
+	return connectrpc.NewResponse(&driftv1.ApplyDeviceSettingResponse{Result: deviceSettingResultProto(outcome)}), nil
+}
+
+// settingFromRequest resolves the contract's setting enum to the one catalog
+// kind the per-device apply dispatches, refusing UNSPECIFIED and any value that
+// does not name a reviewed device setting.
+func settingFromRequest(value driftv1.DeviceSetting) (action.Kind, error) {
+	kind, ok := deviceSettingKinds[value]
+	if !ok || !execution.IsReviewedSetting(kind) {
+		return "", invalidArgument("the requested setting is not a reviewed device setting")
+	}
+	return kind, nil
+}
+
+// deviceSettingResultProto renders ONE outcome row in the contract's terms. The
+// fleet form and the per-device form share it, so a per-device row cannot drift
+// from the row the same setting produces in a fleet apply.
+func deviceSettingResultProto(row execution.DeviceSettingOutcome) *driftv1.DeviceSettingResult {
+	return &driftv1.DeviceSettingResult{
+		DeviceId:     row.DeviceID,
+		Setting:      deviceSettingValue(row.Setting),
+		Applied:      row.Applied,
+		Verified:     row.Verified,
+		Refusal:      deviceSettingRefusal(row.Refusal),
+		FailureClass: string(row.FailureClass),
+		Message:      row.Message,
+	}
+}
+
 // ready reports whether this handler was constructed with something to call. A
 // handler with no applier is never mounted, because a route that can only answer
 // with a refusal is a control an operator surface would render and find dead.
@@ -225,15 +318,7 @@ func applyDeviceSettingsResponse(report execution.SettingsApplyReport) *driftv1.
 		Results:        make([]*driftv1.DeviceSettingResult, 0, len(report.Results)),
 	}
 	for _, row := range report.Results {
-		response.Results = append(response.Results, &driftv1.DeviceSettingResult{
-			DeviceId:     row.DeviceID,
-			Setting:      deviceSettingValue(row.Setting),
-			Applied:      row.Applied,
-			Verified:     row.Verified,
-			Refusal:      deviceSettingRefusal(row.Refusal),
-			FailureClass: string(row.FailureClass),
-			Message:      row.Message,
-		})
+		response.Results = append(response.Results, deviceSettingResultProto(row))
 	}
 	return response
 }

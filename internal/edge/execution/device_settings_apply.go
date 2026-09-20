@@ -66,6 +66,13 @@ const (
 	SettingsCommandFailed           SettingsRefusal = "command_failed"
 	SettingsPostconditionFailed     SettingsRefusal = "postcondition_failed"
 	SettingsOutcomeIndeterminate    SettingsRefusal = "outcome_indeterminate"
+	// SettingsDeviceNotRegistered is the per-device apply's own reason for a
+	// device that is not in the workspace's registry at all. It is deliberately
+	// not folded into the missing-transport reason: "this device has no
+	// transport I can reach it at" is a fact about a device the plane HAS
+	// observed, while this one says the plane has never recorded the device the
+	// request named, and the two send an operator to different places.
+	SettingsDeviceNotRegistered SettingsRefusal = "device_not_registered"
 )
 
 // settingsRefusalMessages is the single reviewable place where a refusal is
@@ -89,6 +96,7 @@ var settingsRefusalMessages = map[SettingsRefusal]string{
 	SettingsCommandFailed:           "the device refused the setting command, so whether the setting changed is UNKNOWN",
 	SettingsPostconditionFailed:     "the device answered and does not report the setting holding the required value",
 	SettingsOutcomeIndeterminate:    "the setting was dispatched and its outcome could not be observed, so it is UNKNOWN",
+	SettingsDeviceNotRegistered:     "the device is not in this workspace's registry, so there is no transport to resolve and nothing was sent",
 }
 
 // Message is the fixed sentence an operator reads for a refusal.
@@ -186,6 +194,29 @@ type SettingsApplyRequest struct {
 	ApprovalGranted bool
 	// Settings names the settings to apply, one entry each.
 	Settings []action.Kind
+}
+
+// DeviceSettingRequest is ONE setting for ONE named device: the per-device form
+// of the apply above.
+//
+// The device is named by its REGISTRY identity and nothing else. The serial the
+// setting is dispatched over is resolved here, from the same registry projection
+// the fleet form reads, so a caller still cannot assert where a device is and
+// cannot send a setting at a transport the plane has not observed.
+type DeviceSettingRequest struct {
+	Workspace string
+	// HolderID is the actor the control session and the lease are opened for.
+	HolderID string
+	// RequestID is the correlation identity of the call, and the root of the
+	// attempt's idempotency key.
+	RequestID string
+	// DeviceID is the registry identity of the device to apply the setting to.
+	DeviceID string
+	// ApprovalGranted is the operator's explicit approval. A high-risk setting
+	// is refused by the policy evaluator without it.
+	ApprovalGranted bool
+	// Setting is the one setting to apply.
+	Setting action.Kind
 }
 
 // DeviceSettingsDispatcher runs ONE settings operation for ONE device through
@@ -387,6 +418,82 @@ func (a *DeviceSettingsApplier) ApplyDeviceSettings(ctx context.Context, request
 	return report, nil
 }
 
+// ApplyDeviceSetting runs ONE setting on ONE device and reports its outcome.
+//
+// It is the same run this file performs for one device in a fleet apply — one
+// control session opened on the caller's behalf, one lease on that device, one
+// attempt, verified by reading the setting back off the device — narrowed to the
+// device the operator selected, and it refuses a device the registry does not
+// hold. It is deliberately not implemented as a fleet apply of one device: the
+// fleet reader answers "every device, and the serial of each", so a device that
+// is not in it is indistinguishable there from a device that is, and "this
+// console named a device this plane has never recorded" would be reported as a
+// missing transport.
+//
+// An error is returned only when the run could not be attempted at all — an
+// unreadable fleet, a control session that could not be opened, a cancelled
+// context, or a request whose shape is invalid. A device the operation was
+// attempted for is ALWAYS in the returned row, whoever refused it.
+func (a *DeviceSettingsApplier) ApplyDeviceSetting(ctx context.Context, request DeviceSettingRequest, actorType, actorID string) (DeviceSettingOutcome, error) {
+	row := DeviceSettingOutcome{DeviceID: request.DeviceID, Setting: request.Setting}
+	if ctx == nil || a == nil || a.dispatch == nil {
+		return row, platformerrors.New(platformerrors.CodeInvalidInput, "context and device settings applier are required")
+	}
+	setting, err := reviewedSetting(request.Setting)
+	if err != nil {
+		return row, err
+	}
+	row.Setting = setting
+	workspace := organizations.WorkspaceID(request.Workspace)
+	if strings.TrimSpace(request.Workspace) == "" || strings.TrimSpace(request.HolderID) == "" || strings.TrimSpace(request.RequestID) == "" || strings.TrimSpace(request.DeviceID) == "" {
+		return row, platformerrors.New(platformerrors.CodeInvalidInput, "a per-device settings apply requires a workspace, a holder, a request id and a device")
+	}
+	if err := ctx.Err(); err != nil {
+		return row, err
+	}
+	fleet, err := a.fleet.Fleet(ctx, request.Workspace)
+	if err != nil {
+		return row, err
+	}
+	serial, registered := fleet[request.DeviceID]
+	if !registered {
+		// The registry has never recorded this device, so there is nothing to
+		// resolve a transport from and nothing was sent. Its own reason, and its
+		// own row, rather than an aggregate failure.
+		return refusedRow(row, SettingsDeviceNotRegistered, domain.FailureInvalidTransition), nil
+	}
+	if strings.TrimSpace(serial) == "" {
+		return refusedRow(row, SettingsNoTransportSerial, domain.FailureTransport), nil
+	}
+	// ONE control session for this attempt, opened on the caller's behalf, so
+	// the lease below is carried by a session that exists for exactly as long as
+	// the attempt does.
+	session, err := a.sessions.Open(ctx, workspace, request.HolderID, actorType, actorID)
+	if err != nil {
+		return row, err
+	}
+	defer func() {
+		// Closed on the way out whether or not the attempt finished, so a failed
+		// apply does not leave the operator holding control of a device it can no
+		// longer report on.
+		_, _ = a.sessions.Close(context.WithoutCancel(ctx), workspace, session.ID, actorType, actorID)
+	}()
+	settings := []action.Kind{setting}
+	rows := a.applyToDevice(ctx, workspace, SettingsApplyRequest{
+		Workspace:       request.Workspace,
+		HolderID:        request.HolderID,
+		RequestID:       request.RequestID,
+		ApprovalGranted: request.ApprovalGranted,
+		Settings:        settings,
+	}, request.DeviceID, serial, session.ID, settings, actorType, actorID)
+	if len(rows) == 0 {
+		// Unreachable with a one-entry set, and refused rather than resolved to
+		// a zero row: a dispatch whose outcome nothing reported is not a success.
+		return refusedRow(row, SettingsOutcomeIndeterminate, domain.FailureIndeterminate), nil
+	}
+	return rows[0], nil
+}
+
 // applyToDevice takes this device's own lease and runs every requested setting
 // under it. A lease that cannot be taken is reported against this device for
 // every requested setting and the run moves on: the device is not skipped
@@ -529,15 +636,18 @@ func settingsOutcomeFromError(row DeviceSettingOutcome, err error, result action
 func refusedRows(deviceID string, settings []action.Kind, refusal SettingsRefusal, failure domain.FailureClass) []DeviceSettingOutcome {
 	rows := make([]DeviceSettingOutcome, 0, len(settings))
 	for _, setting := range settings {
-		rows = append(rows, DeviceSettingOutcome{
-			DeviceID:     deviceID,
-			Setting:      setting,
-			Refusal:      refusal,
-			FailureClass: failure,
-			Message:      refusal.Message(),
-		})
+		rows = append(rows, refusedRow(DeviceSettingOutcome{DeviceID: deviceID, Setting: setting}, refusal, failure))
 	}
 	return rows
+}
+
+// refusedRow reports ONE setting as refused for ONE device, with this
+// boundary's fixed sentence for the reason.
+func refusedRow(row DeviceSettingOutcome, refusal SettingsRefusal, failure domain.FailureClass) DeviceSettingOutcome {
+	row.Refusal = refusal
+	row.FailureClass = failure
+	row.Message = refusal.Message()
+	return row
 }
 
 // settingsPayload builds the typed payload for one reviewed setting. A kind this
@@ -578,6 +688,17 @@ func reviewedSettings(settings []action.Kind) ([]action.Kind, error) {
 func settingsPayloadKind(setting action.Kind) (InputPayload, bool) {
 	payload, err := settingsPayload(setting)
 	return payload, err == nil
+}
+
+// reviewedSetting refuses a kind that is not one of the reviewed settings
+// operations, before anything is read or dispatched. It is the singular form of
+// reviewedSettings, and it reads the same table, so a kind the fleet apply can
+// run is exactly a kind the per-device form can run.
+func reviewedSetting(setting action.Kind) (action.Kind, error) {
+	if _, ok := settingsPayloadKind(setting); !ok {
+		return "", platformerrors.New(platformerrors.CodeInvalidInput, "the requested device setting is not a reviewed operation")
+	}
+	return setting, nil
 }
 
 // settingsIdempotencyKey is the key one setting on one device is dispatched
