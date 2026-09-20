@@ -30,12 +30,14 @@ const capacityDialerCount = 8
 // device, and returns the devices it spent.
 //
 // It is written as the console's own allocation is derived (see the capacity
-// surface): the grid holds at most `capacity - reserve` sessions, so a grid that
-// is drawing everything it is allowed to draw is exactly this set.
+// surface): the grid holds at most the plane's TileAllowance - the session share,
+// reduced by whatever the transport budget cannot carry at the profile's
+// per-stream cost - so a grid that is drawing everything it is allowed to draw is
+// exactly this set.
 func ambientGrid(t *testing.T, engine *MirrorEngine) []string {
 	t.Helper()
-	spent := make([]string, 0, engine.AmbientCapacity())
-	for i := 0; i < engine.AmbientCapacity(); i++ {
+	spent := make([]string, 0, engine.TileAllowance())
+	for i := 0; i < engine.TileAllowance(); i++ {
 		deviceID := fmt.Sprintf("tile-%02d", i)
 		if _, _, err := engine.StartViewer(context.Background(), deviceID, "SERIAL-"+deviceID, PurposeAmbient, MirrorPreview{}); err != nil {
 			t.Fatalf("the grid could not open tile %d of its own allocation: %v", i, err)
@@ -52,9 +54,13 @@ func ambientGrid(t *testing.T, engine *MirrorEngine) []string {
 // device none of those tiles is showing. The frame must get a stream: the operator
 // works devices, and a grid that has spent the plane's whole capacity has made the
 // control room unable to act on anything it draws.
+//
+// The deployment here states a transport budget its capacity actually fits
+// (six sessions at the high profile), so this case is about the RESERVE and
+// nothing else; the transport bound has its own cases below.
 func TestTheGridsFullAllocationStillLeavesTheOperatorsOwnFrameAStream(t *testing.T) {
 	dialer := newFakeDialer()
-	engine := newEngine(t, dialer, MirrorEngineConfig{MaxSessions: 6, OperatorReserve: 1})
+	engine := newEngine(t, dialer, MirrorEngineConfig{MaxSessions: 6, OperatorReserve: 1, TransportBudgetKbps: 6 * 8000})
 	spent := ambientGrid(t, engine)
 	if len(spent) != 5 {
 		t.Fatalf("the grid's own allocation is %d tile(s), want the capacity less the operator's place (5)", len(spent))
@@ -250,7 +256,10 @@ func TestAnOperatorsFrameReleasesThePlaceItHeldAgainstTheReserve(t *testing.T) {
 // caller read as the grid loses the operator a place; a caller read as the
 // operator's frame can only spend a place that was held for it.
 func TestAPurposeNobodyStatedIsTheOperatorsOwnFrame(t *testing.T) {
-	engine := newEngine(t, newFakeDialer(), MirrorEngineConfig{MaxSessions: 1, OperatorReserve: 1})
+	// Two sessions with one kept for the operator, because a reserve that is the
+	// whole capacity is refused outright - the purpose this case is about is
+	// independent of how tight the bound is.
+	engine := newEngine(t, newFakeDialer(), MirrorEngineConfig{MaxSessions: 2, OperatorReserve: 1})
 	if _, _, err := engine.StartViewer(context.Background(), "unstated", "SERIAL-unstated", "", MirrorPreview{}); err != nil {
 		t.Fatalf("a start that stated no purpose was refused a plane with a place free: %v", err)
 	}

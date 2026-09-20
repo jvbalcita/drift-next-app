@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"drift.local/drift-next/internal/media"
 )
 
 const configFileName = "runtime.json"
@@ -53,8 +55,39 @@ type Config struct {
 	// An empty value is not an error and is NOT handed over: it means "the plane's
 	// own documented default", which is itself a level with a cap. Passing an
 	// empty value instead would be handing the plane a setting nobody stated.
+	//
+	// PreviewQuality is also the PROFILE the plane's live-stream budget is spent
+	// at: a stream at that level is what the transport carries, so what one of
+	// them costs is read from the same level rather than stated a second time
+	// here. A deployment that chose High for its grid is a deployment whose grid
+	// carries fewer tiles, and that follows from this one input.
 	PreviewQuality   string `json:"preview_quality,omitempty"`
 	PreviewFrameRate string `json:"preview_frame_rate,omitempty"`
+
+	// MirrorSessionCapacity, MirrorOperatorReserve and MirrorTransportBudgetKbps
+	// are the live mirror's own deployment inputs, and they live here because this
+	// file is where a deployment states what this host is: how many devices it will
+	// mirror at once, how many of those places are kept for the operator's own
+	// frame, and how much of the transport its live streams may spend.
+	//
+	// They are carried into the control plane's environment on EVERY start path
+	// (see controlPlaneEnv), so a deployment can never pass the capacity on the
+	// path an operator happened to use and forget it on the other. Zero means
+	// "the plane's own documented default", which the plane states in its startup
+	// line; a value that IS stated is validated here as well as there, so a mistyped
+	// bound is refused where the operator configured it rather than at a viewer's
+	// request.
+	//
+	// A new deployment is written with the values measured on this fleet rather
+	// than with none, because a bound nobody wrote down is a bound nobody can read
+	// back: MirrorSessionCapacity 4 with MirrorOperatorReserve 1 is the measured
+	// concurrency and the grid it leaves, and MirrorTransportBudgetKbps is the
+	// largest aggregate that was measured carried (see
+	// docs/operations/live-stream-concurrency.md, and the startup line this
+	// deployment's own runtime reports for the values actually in force).
+	MirrorSessionCapacity     int `json:"mirror_session_capacity,omitempty"`
+	MirrorOperatorReserve     int `json:"mirror_operator_reserve,omitempty"`
+	MirrorTransportBudgetKbps int `json:"mirror_transport_budget_kbps,omitempty"`
 }
 
 // DataDir returns the application-owned local data directory.
@@ -102,6 +135,18 @@ func LoadOrCreate(dataDir string) (Config, error) {
 		ArtifactRoot:        filepath.Join(dataDir, "artifacts", "cas"),
 		OperatorID:          "operator-local",
 		ServiceToken:        token,
+		// The live mirror's bound is written down for a new deployment rather than
+		// left to the plane's defaults, because a bound nobody wrote down is a
+		// bound nobody can read back. These are the values measured on this fleet:
+		// four concurrent live sessions held 30 fps each while a fifth could not
+		// open at all, one place of the four kept for the operator's own frame, and
+		// the largest aggregate that was measured carried
+		// (docs/operations/live-stream-concurrency.md). What one of the grid's
+		// streams costs the transport is not stated here: it is read from the
+		// preview level above, which is the level those streams are carried at.
+		MirrorSessionCapacity:     media.DefaultMirrorSessionCapacity,
+		MirrorOperatorReserve:     media.DefaultOperatorReserve,
+		MirrorTransportBudgetKbps: media.DefaultTransportBudgetKbps,
 	}
 	if err := cfg.validate(); err != nil {
 		return Config{}, err
@@ -145,6 +190,50 @@ func (c Config) validate() error {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("%s is required", name)
 		}
+	}
+	return c.validateMirrorBound()
+}
+
+// validateMirrorBound refuses a live-mirror bound this deployment could not mean.
+//
+// It is checked here as well as in the control plane because this is where the
+// operator configured it: a bound that is negative, or a reserve that is the whole
+// capacity, is a startup line naming the input rather than a fleet of tiles that
+// behaves inexplicably.
+//
+// The pair is resolved against the same documented defaults the plane resolves an
+// unstated value to, so a deployment that states only ONE of the two is checked as
+// the pair the plane will actually carry: a capacity of one with no stated reserve
+// is the plane's default reserve of one, which is a reserve that is the whole
+// capacity, and it is refused here rather than a host that starts and then refuses
+// every tile.
+//
+// What a stream at the deployment's preview level COSTS is not checked here: the
+// level is handed to the plane as stated text and the plane is the one that prices
+// it (see the PreviewQuality field), so a budget below that cost is refused by the
+// plane with the two numbers in its sentence.
+func (c Config) validateMirrorBound() error {
+	for name, value := range map[string]int{
+		"mirror_session_capacity":      c.MirrorSessionCapacity,
+		"mirror_operator_reserve":      c.MirrorOperatorReserve,
+		"mirror_transport_budget_kbps": c.MirrorTransportBudgetKbps,
+	} {
+		if value < 0 {
+			return fmt.Errorf("%s must be a positive whole number, and this deployment configured %d", name, value)
+		}
+	}
+	capacity := c.MirrorSessionCapacity
+	if capacity <= 0 {
+		capacity = media.DefaultMirrorSessionCapacity
+	}
+	reserve := c.MirrorOperatorReserve
+	if reserve <= 0 {
+		reserve = media.DefaultOperatorReserve
+	}
+	if reserve >= capacity {
+		return fmt.Errorf(
+			"mirror_operator_reserve (%d) must be smaller than mirror_session_capacity (%d): a reserve that is the whole capacity leaves the console's grid no place at all",
+			reserve, capacity)
 	}
 	return nil
 }

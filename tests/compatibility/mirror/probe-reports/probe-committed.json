@@ -1,0 +1,202 @@
+{
+  "MeasuredAt": "2026-09-20T20:14:59Z",
+  "Host": "ArtisanClaws-MacBook-Pro.local",
+  "HostLoad": "{ 7.91 20.81 28.28 }",
+  "ADBVersion": "Android Debug Bridge version 1.0.41",
+  "ScrcpyServerPath": "/opt/homebrew/share/scrcpy/scrcpy-server",
+  "DeviceCount": 10,
+  "HoldSeconds": 30,
+  "Counts": [
+    4,
+    5
+  ],
+  "Runs": [
+    {
+      "Concurrency": 4,
+      "Requested": 4,
+      "Opened": 3,
+      "HoldSeconds": 30,
+      "AggregateMbps": 23.9625216,
+      "StalledStreams": 0,
+      "FirstStallAt": 0,
+      "Degraded": true,
+      "SerialMask": [
+        "device-sha256:0d658",
+        "device-sha256:1c546",
+        "device-sha256:bbcd4",
+        "device-sha256:a52cc"
+      ],
+      "OpenFailures": [
+        {
+          "Serial": "device-sha256:bbcd4",
+          "Attempts": 3,
+          "Reason": "scrcpy: pushing the server to <hub-address-masked>: adb mirror-push-server failed (timeout) serial=<hub-address-masked> cause=adb invocation canceled: context deadline exceeded"
+        }
+      ],
+      "Streams": [
+        {
+          "Serial": "device-sha256:0d658",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 1879,
+          "KeyFrames": 16,
+          "Configs": 0,
+          "Bytes": 62379007,
+          "SteadyFrames": 750,
+          "SteadyBytes": 24917264,
+          "FPS": 30,
+          "Mbps": 7.97352448,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 15256,
+          "PTSDeltaMedianUS": 33390,
+          "PTSDeltaMaxUS": 38645,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:1c546",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 1849,
+          "KeyFrames": 16,
+          "Configs": 0,
+          "Bytes": 61394367,
+          "SteadyFrames": 751,
+          "SteadyBytes": 24985776,
+          "FPS": 30.04,
+          "Mbps": 7.99544832,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 14987,
+          "PTSDeltaMedianUS": 33394,
+          "PTSDeltaMaxUS": 39794,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:a52cc",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 901,
+          "KeyFrames": 8,
+          "Configs": 0,
+          "Bytes": 29757951,
+          "SteadyFrames": 751,
+          "SteadyBytes": 24979840,
+          "FPS": 30.04,
+          "Mbps": 7.9935488,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 16045,
+          "PTSDeltaMedianUS": 33401,
+          "PTSDeltaMaxUS": 38118,
+          "Ended": ""
+        }
+      ],
+      "Note": ""
+    },
+    {
+      "Concurrency": 5,
+      "Requested": 5,
+      "Opened": 4,
+      "HoldSeconds": 30,
+      "AggregateMbps": 32.030581760000004,
+      "StalledStreams": 0,
+      "FirstStallAt": 0,
+      "Degraded": true,
+      "SerialMask": [
+        "device-sha256:0d658",
+        "device-sha256:1c546",
+        "device-sha256:bbcd4",
+        "device-sha256:a52cc",
+        "device-sha256:02434"
+      ],
+      "OpenFailures": [
+        {
+          "Serial": "device-sha256:02434",
+          "Attempts": 3,
+          "Reason": "scrcpy: pushing the server to <hub-address-masked>: adb mirror-push-server failed (timeout) serial=<hub-address-masked> cause=adb invocation canceled: context deadline exceeded"
+        }
+      ],
+      "Streams": [
+        {
+          "Serial": "device-sha256:0d658",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 2348,
+          "KeyFrames": 20,
+          "Configs": 0,
+          "Bytes": 78007167,
+          "SteadyFrames": 751,
+          "SteadyBytes": 25022544,
+          "FPS": 30.04,
+          "Mbps": 8.00721408,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 14835,
+          "PTSDeltaMedianUS": 33373,
+          "PTSDeltaMaxUS": 37708,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:1c546",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 2318,
+          "KeyFrames": 20,
+          "Configs": 0,
+          "Bytes": 77046527,
+          "SteadyFrames": 750,
+          "SteadyBytes": 24987184,
+          "FPS": 30,
+          "Mbps": 7.9958988799999995,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 14242,
+          "PTSDeltaMedianUS": 33381,
+          "PTSDeltaMaxUS": 50880,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:bbcd4",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 2287,
+          "KeyFrames": 20,
+          "Configs": 0,
+          "Bytes": 75962639,
+          "SteadyFrames": 752,
+          "SteadyBytes": 25058400,
+          "FPS": 30.08,
+          "Mbps": 8.018688,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 16093,
+          "PTSDeltaMedianUS": 33399,
+          "PTSDeltaMaxUS": 43235,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:a52cc",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 1800,
+          "KeyFrames": 15,
+          "Configs": 0,
+          "Bytes": 59780607,
+          "SteadyFrames": 750,
+          "SteadyBytes": 25027440,
+          "FPS": 30,
+          "Mbps": 8.0087808,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 14771,
+          "PTSDeltaMedianUS": 33421,
+          "PTSDeltaMaxUS": 42431,
+          "Ended": ""
+        }
+      ],
+      "Note": ""
+    }
+  ],
+  "Conclusion": "no stream stalled at any measured point; no measured point carried every session it asked for; the first point at which a device could not be OPENED at all is 4 concurrent live session(s), which bounds how many sessions a console can start at once rather than what a running session costs; largest measured point: 5"
+}

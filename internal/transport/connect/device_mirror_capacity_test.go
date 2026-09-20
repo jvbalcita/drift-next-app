@@ -19,14 +19,29 @@ import (
 // Every case runs against a fake transport, so a refusal is exercised without a
 // device, a peer connection or a socket.
 
-// planeCapacity is the engine's own bound, as a surface reads it.
+// planeCapacity is the engine's own bound, as a surface reads it: the session
+// bound, the preview level its ambient streams are carried at, and the transport
+// budget they are budgeted against. Every number is stated by the case rather than
+// defaulted, so a published value can be traced back to the case that set it.
 type planeCapacity struct {
-	capacity int
-	reserve  int
+	capacity       int
+	reserve        int
+	quality        media.MirrorPreviewQuality
+	bitrateKbps    int
+	budgetKbps     int
+	spendKbps      int
+	tilePlaces     int
+	tilePlaceBound media.TileAllowanceBound
 }
 
-func (p planeCapacity) Capacity() int        { return p.capacity }
-func (p planeCapacity) OperatorReserve() int { return p.reserve }
+func (p planeCapacity) Capacity() int                                { return p.capacity }
+func (p planeCapacity) OperatorReserve() int                         { return p.reserve }
+func (p planeCapacity) PreviewQuality() media.MirrorPreviewQuality   { return p.quality }
+func (p planeCapacity) ProfileBitrateKbps() int                      { return p.bitrateKbps }
+func (p planeCapacity) TransportBudgetKbps() int                     { return p.budgetKbps }
+func (p planeCapacity) TransportSpendKbps() int                      { return p.spendKbps }
+func (p planeCapacity) TileAllowance() int                           { return p.tilePlaces }
+func (p planeCapacity) TileAllowanceBound() media.TileAllowanceBound { return p.tilePlaceBound }
 
 // refusalRecorder is where a refused stream is written down, as the surface sees
 // it: one call per capacity refusal and nothing else.
@@ -257,9 +272,11 @@ func TestGetMirrorCapacityPublishesThePlanesOwnBound(t *testing.T) {
 	}
 }
 
-// TestAGridIsOfferedNoPlaceWhenTheReserveIsTheWholeCapacity: a deployment may keep
-// every session for the operator's own frames, and the surface publishes that as
-// the grid's share of none rather than as a capacity the grid may spend.
+// TestAGridIsOfferedNoPlaceWhenTheReserveIsTheWholeCapacity: composition refuses a
+// reserve that is the whole capacity, so no plane built by this code can carry one
+// - and the surface still clamps it rather than publishing it. The two rules are
+// not the same rule: composition refuses what a deployment stated, and this surface
+// refuses to tell a console that a capacity it may not spend is a capacity it may.
 func TestAGridIsOfferedNoPlaceWhenTheReserveIsTheWholeCapacity(t *testing.T) {
 	handler := mirrorHandlerWith(t, newFakeMirrors(), planeCapacity{capacity: 2, reserve: 3}, nil)
 	response, err := handler.GetMirrorCapacity(context.Background(), capacityRequest())
@@ -270,6 +287,97 @@ func TestAGridIsOfferedNoPlaceWhenTheReserveIsTheWholeCapacity(t *testing.T) {
 	if capacity.GetSessionCapacity() != 2 || capacity.GetOperatorReserve() != 2 {
 		t.Fatalf("a reserve larger than the capacity published %d of %d, want the whole capacity kept",
 			capacity.GetOperatorReserve(), capacity.GetSessionCapacity())
+	}
+}
+
+// TestTheSurfacePublishesThePreviewSettingAndTheTilesItAllows: the console's grid is
+// derived from the plane, and the preview level is what decides it - so the surface
+// has to publish that level, what a stream at it costs, the budget those streams are
+// budgeted against, which of the two bounds decided the count, and the tile count
+// itself. A console given the session bound alone would draw more tiles than the
+// plane will carry and read the plane's refusal as a failure.
+func TestTheSurfacePublishesThePreviewSettingAndTheTilesItAllows(t *testing.T) {
+	plane := planeCapacity{
+		capacity: 8, reserve: 1,
+		quality: media.PreviewExtra, bitrateKbps: 6000, budgetKbps: 32000, spendKbps: 48000,
+		tilePlaces: 4, tilePlaceBound: media.BoundTransportBudget,
+	}
+	handler := mirrorHandlerWith(t, newFakeMirrors(), plane, nil)
+	response, err := handler.GetMirrorCapacity(context.Background(), capacityRequest())
+	if err != nil {
+		t.Fatalf("GetMirrorCapacity: %v", err)
+	}
+	capacity := response.Msg.GetCapacity()
+	if got := capacity.GetPreviewQuality(); got != driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_EXTRA {
+		t.Fatalf("the surface published the preview level %v, want the engine's own extra", got)
+	}
+	if capacity.GetPreviewBitrateKbps() != 6000 {
+		t.Fatalf("the surface published a per-stream cost of %d kbps, want the engine's own 6000", capacity.GetPreviewBitrateKbps())
+	}
+	if capacity.GetTransportBudgetKbps() != 32000 || capacity.GetTransportSpendKbps() != 48000 {
+		t.Fatalf("the surface published budget %d kbps and spend %d kbps, want 32000 and 48000",
+			capacity.GetTransportBudgetKbps(), capacity.GetTransportSpendKbps())
+	}
+	// The tile count is the ENGINE's own answer, not one this surface recomputes:
+	// the two would drift the moment either bound moved.
+	if capacity.GetTilePlaces() != 4 {
+		t.Fatalf("the surface published %d tile place(s), want the engine's own 4", capacity.GetTilePlaces())
+	}
+	// And so is WHICH bound decided it: a console told the wrong bound sends an
+	// operator to change a setting that is not the one in the way.
+	if got := capacity.GetTileBound(); got != driftv1.MirrorTileBound_MIRROR_TILE_BOUND_TRANSPORT_BUDGET {
+		t.Fatalf("the surface published the tile bound %v, want the transport budget", got)
+	}
+}
+
+// TestAPreviewLevelThisPlaneCannotPriceIsPublishedAsUnstated: a reader must never be
+// told a stream costs what some other level costs, so an unpriced level is published
+// as UNSPECIFIED - the one answer that makes a console say it does not know rather
+// than derive a grid from a cost nobody stated.
+func TestAPreviewLevelThisPlaneCannotPriceIsPublishedAsUnstated(t *testing.T) {
+	handler := mirrorHandlerWith(t, newFakeMirrors(), planeCapacity{capacity: 4, reserve: 1, quality: media.MirrorPreviewQuality("4k")}, nil)
+	response, err := handler.GetMirrorCapacity(context.Background(), capacityRequest())
+	if err != nil {
+		t.Fatalf("GetMirrorCapacity: %v", err)
+	}
+	if got := response.Msg.GetCapacity().GetPreviewQuality(); got != driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_UNSPECIFIED {
+		t.Fatalf("a preview level this plane cannot price was published as %v, want unspecified", got)
+	}
+}
+
+// TestAnUnrecognisedTileBoundIsPublishedAsUnstated: the bound a plane carries is a
+// closed vocabulary, and a value this surface cannot place must not be published as
+// one of the two it knows - a console told "the session share" would send an operator
+// to change a setting that is not the one in the way.
+func TestAnUnrecognisedTileBoundIsPublishedAsUnstated(t *testing.T) {
+	handler := mirrorHandlerWith(t, newFakeMirrors(), planeCapacity{
+		capacity: 4, reserve: 1, quality: media.PreviewHigh, bitrateKbps: 2500, budgetKbps: 32000, tilePlaces: 2,
+	}, nil)
+	response, err := handler.GetMirrorCapacity(context.Background(), capacityRequest())
+	if err != nil {
+		t.Fatalf("GetMirrorCapacity: %v", err)
+	}
+	if got := response.Msg.GetCapacity().GetTileBound(); got != driftv1.MirrorTileBound_MIRROR_TILE_BOUND_UNSPECIFIED {
+		t.Fatalf("an unstated tile bound was published as %v, want unspecified", got)
+	}
+}
+
+// TestANegativeCountIsPublishedAsNone: every count on this message is unsigned, and
+// a plane that somehow carried a negative one must not have it wrap into a huge
+// allowance a console would then draw.
+func TestANegativeCountIsPublishedAsNone(t *testing.T) {
+	plane := planeCapacity{capacity: 4, reserve: 1, bitrateKbps: -1, budgetKbps: -1, spendKbps: -1, tilePlaces: -1}
+	handler := mirrorHandlerWith(t, newFakeMirrors(), plane, nil)
+	response, err := handler.GetMirrorCapacity(context.Background(), capacityRequest())
+	if err != nil {
+		t.Fatalf("GetMirrorCapacity: %v", err)
+	}
+	capacity := response.Msg.GetCapacity()
+	if capacity.GetPreviewBitrateKbps() != 0 || capacity.GetTransportBudgetKbps() != 0 ||
+		capacity.GetTransportSpendKbps() != 0 || capacity.GetTilePlaces() != 0 {
+		t.Fatalf("a negative count was published as bitrate %d budget %d spend %d tiles %d, want none of them",
+			capacity.GetPreviewBitrateKbps(), capacity.GetTransportBudgetKbps(),
+			capacity.GetTransportSpendKbps(), capacity.GetTilePlaces())
 	}
 }
 

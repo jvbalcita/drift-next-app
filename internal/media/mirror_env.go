@@ -91,10 +91,14 @@ func PreviewFromEnv(lookup EnvLookup) (MirrorPreview, error) {
 // root then states explicitly when it builds the engine, so the ONE place the
 // bound is decided is still the composition root.
 //
-// The reserve is checked against the capacity as well: a reserve larger than the
-// capacity is read as a capacity no tile may spend, which is a legitimate
-// deployment ("this host is for working devices, not for a wall of pictures") and
-// is therefore reported rather than refused.
+// The pair is also checked against itself, because a capacity and a reserve are
+// two numbers that only mean something together. A reserve that is the whole of
+// the capacity - or more than it - is REFUSED rather than read as a capacity no
+// tile may spend: the plane would carry a bound whose stated grid share is zero
+// and whose every ambient request is refused, which is a deployment that has
+// disabled its own fleet view, and a bound that says "no pictures" has to be
+// stated as such rather than arrived at by arithmetic. A deployment that means it
+// states the smaller capacity it actually has.
 func SessionCapacityFromEnv(lookup EnvLookup) (sessionCapacity int, operatorReserve int, err error) {
 	if lookup == nil {
 		lookup = func(string) (string, bool) { return "", false }
@@ -119,9 +123,14 @@ func SessionCapacityFromEnv(lookup EnvLookup) (sessionCapacity int, operatorRese
 		}
 		operatorReserve = reserve
 	}
-	// A reserve larger than the capacity is returned as it was configured: the
-	// engine reads it as a capacity no tile may spend (see AmbientCapacity), which
-	// is a legitimate deployment - a host for working devices rather than for a wall
-	// of pictures - and not a value to refuse or to silently correct.
+	// The pair has to leave the plane somewhere to be spent. A reserve that is the
+	// whole capacity is a plane whose own grid may hold nothing, and it is refused
+	// here with both numbers named so the operator can see which of the two is the
+	// mistake.
+	if operatorReserve >= sessionCapacity {
+		return 0, 0, fmt.Errorf(
+			"%s (%d) must be smaller than %s (%d): a reserve that is the whole capacity leaves the console's grid no place at all, so this deployment would carry a plane that can never show a tile picture",
+			EnvOperatorReserve, operatorReserve, EnvSessionCapacity, sessionCapacity)
+	}
 	return sessionCapacity, operatorReserve, nil
 }

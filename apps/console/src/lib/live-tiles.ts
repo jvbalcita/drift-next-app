@@ -1,5 +1,5 @@
 import { notObserved } from "@/lib/device-status"
-import { refusedStreamSentence, type LiveMirrorPhase, type MirrorDevice } from "@/lib/live-mirror"
+import { refusedStreamSentence, type LiveMirrorPhase, type MirrorCapacityView, type MirrorDevice } from "@/lib/live-mirror"
 import type { DeviceStatus } from "@/lib/domain/control-plane"
 
 /**
@@ -21,43 +21,60 @@ import type { DeviceStatus } from "@/lib/domain/control-plane"
  */
 
 /**
- * The most device screens this console carries into the grid, as the CONTROL
- * PLANE's own capacity states it.
+ * The budget the grid spends, as the CONTROL PLANE stated it.
  *
- * A tile is a viewer of one device's stream, and a stream is a session the plane
- * carries, so how many tiles may subscribe is not this console's decision to make:
- * the plane holds the bound (its DEVICE-SESSION capacity, stated by the deployment
- * and read through GetMirrorCapacity), keeps a place of it for the operator's own
- * frame, and the grid carries what is left. This module used to decide the number
- * itself, from a constant, and the two numbers had no relationship: a console
- * carrying four tiles against a plane that could carry one was refused by a plane
- * whose refusal nothing on screen explained.
+ * `limit` is the plane's own tile count rather than a subtraction performed here.
+ * The plane derives it from two bounds - its session share (`capacity - reserve`)
+ * and what the transport can carry at its preview level's per-stream cost - and
+ * publishes the smaller one. A console that derived its own count would ask for more
+ * pictures than the plane will carry the moment the two bounds disagreed, which is
+ * exactly what a more expensive preview setting does.
  *
- * The budget is therefore either MEASURED - the plane stated its capacity and this
- * is the share the grid may spend - or UNMEASURED, when the console could not read
- * the capacity at all. An unmeasured budget is not zero places to spend and it is
- * not the old constant either: it is a console that does not know how much room
- * there is, and it carries nothing rather than guessing.
+ * `bound` is WHICH bound decided it, so a grid carrying fewer tiles than it used to
+ * can say why in the plane's own numbers.
  */
-export type TileViewerBudget = { kind: "measured"; limit: number } | { kind: "unmeasured" }
+export type TileViewerBudget =
+  | {
+      kind: "measured"
+      limit: number
+      bound: "session_share" | "transport_budget"
+      capacity: number
+      reserve: number
+      previewQuality: string | null
+      previewBitrateKbps: number
+      transportBudgetKbps: number
+    }
+  | { kind: "unmeasured" }
 
 /**
  * tileViewerBudget reads this console's tile budget from the plane's capacity.
  *
- * The grid's share is the plane's capacity less the place the plane keeps for the
- * operator's own frame. The reserve is not guessed at here: it is the plane's own
- * number, published beside its capacity, so a deployment that keeps two places for
- * the operator lowers this grid's budget by two without any console change.
+ * The count is the plane's (`tilePlaces`), and so is the reason it is that count:
+ * the session share decided it, or the transport budget did. Both are read here
+ * rather than recomputed, because the plane is the only thing that knows what a
+ * stream at its preview level costs on the path it is on.
  */
-export function tileViewerBudget(capacity: { sessionCapacity: number; operatorReserve: number } | null): TileViewerBudget {
+export function tileViewerBudget(capacity: MirrorCapacityView | null): TileViewerBudget {
   if (!capacity) return { kind: "unmeasured" }
-  return { kind: "measured", limit: Math.max(0, capacity.sessionCapacity - capacity.operatorReserve) }
+  return {
+    kind: "measured",
+    limit: capacity.tilePlaces,
+    bound: capacity.bound,
+    capacity: capacity.sessionCapacity,
+    reserve: capacity.operatorReserve,
+    previewQuality: capacity.previewQuality,
+    previewBitrateKbps: capacity.previewBitrateKbps,
+    transportBudgetKbps: capacity.transportBudgetKbps,
+  }
 }
 
 /** tileViewerLimit is the budget as a number: how many tiles subscribe, and none at all when unmeasured. */
 export function tileViewerLimit(budget: TileViewerBudget): number {
   return budget.kind === "measured" ? budget.limit : 0
 }
+
+/** MeasuredTileBudget is what a plane that stated its bound gives the grid: a count and the reason it is that count. */
+export type MeasuredTileBudget = Extract<TileViewerBudget, { kind: "measured" }>
 
 export interface TileViewerCandidate {
   id: string
@@ -146,14 +163,24 @@ export const liveTileCopy = {
   /** The prefix a classified per-tile failure is read after. */
   failed: "Not live:",
   /**
-   * A tile the plane's own capacity does not reach.
+   * A tile the plane's own bound does not reach.
    *
-   * It names the plane's bound and the reason rather than reading as a device that
-   * has nothing to show, because the device may be perfectly observable: what is
-   * spent is the control plane's own capacity to carry streams, which is the same
-   * capacity the big frame spends.
+   * It names the plane's bound AND the numbers that produced it, because the two
+   * bounds are not interchangeable to the operator reading the frame: a grid that
+   * carries three tiles because the deployment keeps one session for the operator's
+   * own frame is a different situation from one that carries three because a stream
+   * at the plane's preview level costs 6000 kbps of a 32000 kbps transport budget. The
+   * second is answered by choosing a cheaper quality or stating a bigger budget, and
+   * the first is not - so a sentence that named only the count would send an
+   * operator looking in the wrong place.
    */
-  unshown: (limit: number) => `Not shown: the control plane carries at most ${limit} live tile picture(s) at once beside the operator's own frame, and every place is taken by a tile above this one.`,
+  unshown: (budget: MeasuredTileBudget) => {
+    const share = `${budget.capacity} device session(s) less ${budget.reserve} kept for the operator's own frame`
+    if (budget.bound === "transport_budget") {
+      return `Not shown: the control plane carries at most ${budget.limit} live tile picture(s) at once, because a stream at the ${budget.previewQuality ?? "unstated"} preview setting costs ${budget.previewBitrateKbps} kbps and this plane's transport budget is ${budget.transportBudgetKbps} kbps - ${share} - and every place is taken by a tile above this one.`
+    }
+    return `Not shown: the control plane carries at most ${budget.limit} live tile picture(s) at once - ${share} - and every place is taken by a tile above this one.`
+  },
   /**
    * A tile when the plane's capacity could not be read at all.
    *
@@ -184,7 +211,7 @@ export function tilePictureSentence(phase: LiveMirrorPhase, failure: string, dev
     // A tile the console is not carrying says why in the plane's own terms: the
     // bound it did not reach, or the fact that the bound could not be read at all.
     if (budget.kind === "unmeasured") return { short: liveTileCopy.unmeasured.short, long: liveTileCopy.unmeasured.long }
-    return { short: liveTileCopy.unshownShort, long: liveTileCopy.unshown(budget.limit) }
+    return { short: liveTileCopy.unshownShort, long: liveTileCopy.unshown(budget) }
   }
   if (!hasClient) return liveTileCopy.noControlPlane
   if (phase === "live") return liveTileCopy.live
@@ -197,4 +224,28 @@ export function tilePictureSentence(phase: LiveMirrorPhase, failure: string, dev
   if (phase === "unavailable") return liveTileCopy.noControlPlane
   if (phase === "ended") return liveTileCopy.ended
   return { short: "Not live", long: `${liveTileCopy.failed} ${refusedStreamSentence(device, failure)}` }
+}
+
+/**
+ * tileBudgetSentence states how many tiles this console carries and WHY that many.
+ *
+ * It is drawn once beside the grid rather than repeated in every tile, because the
+ * bound is one fact about the whole grid: an operator who sees tiles saying "Not
+ * shown" reads the number and the reason in one place, and the per-tile sentence
+ * repeats only the count for the tile it belongs to.
+ *
+ * The profile and the transport budget are named only when they are what decided the
+ * count. A sentence that always named them would be explaining a bound the plane did
+ * not reach, and a sentence that never did would leave "the grid carries fewer tiles
+ * than it used to" unanswerable from the frame.
+ */
+export function tileBudgetSentence(budget: TileViewerBudget): string {
+  if (budget.kind === "unmeasured") {
+    return "Live tiles: none carried - this console could not read how much room the control plane has for live streams."
+  }
+  const carried = `Live tiles: at most ${budget.limit} of this plane's ${budget.capacity} device session(s) carry a picture at once, with ${budget.reserve} kept for the operator's own frame.`
+  if (budget.bound !== "transport_budget") {
+    return carried
+  }
+  return `${carried} The bound is the transport, not the session share: a stream at the ${budget.previewQuality ?? "unstated"} preview setting costs ${budget.previewBitrateKbps} kbps and this plane's transport budget is ${budget.transportBudgetKbps} kbps, which carries ${budget.limit + budget.reserve} stream(s).`
 }

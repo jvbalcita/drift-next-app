@@ -1,0 +1,50 @@
+{
+  "MeasuredAt": "2026-09-20T18:45:17Z",
+  "Host": "ArtisanClaws-MacBook-Pro.local",
+  "ADBVersion": "Android Debug Bridge version 1.0.41",
+  "ScrcpyServerPath": "/opt/homebrew/share/scrcpy/scrcpy-server",
+  "DeviceCount": 10,
+  "HoldSeconds": 20,
+  "Counts": [
+    1
+  ],
+  "Runs": [
+    {
+      "Concurrency": 1,
+      "Requested": 1,
+      "Opened": 1,
+      "HoldSeconds": 20,
+      "AggregateMbps": 7.997986133333334,
+      "StalledStreams": 0,
+      "FirstStallAt": 0,
+      "Degraded": false,
+      "SerialMask": [
+        "device-sha256:0d658"
+      ],
+      "OpenFailures": null,
+      "Streams": [
+        {
+          "Serial": "device-sha256:0d658",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 601,
+          "KeyFrames": 6,
+          "Configs": 0,
+          "Bytes": 19821279,
+          "SteadyFrames": 451,
+          "SteadyBytes": 14996224,
+          "FPS": 30.066666666666666,
+          "Mbps": 7.997986133333334,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 16005,
+          "PTSDeltaMedianUS": 33394,
+          "PTSDeltaMaxUS": 38618,
+          "Ended": ""
+        }
+      ],
+      "Note": ""
+    }
+  ],
+  "Conclusion": "every measured point up to 1 concurrent live session(s) carried every stream for the whole window; the knee is above the largest point this fleet could measure"
+}

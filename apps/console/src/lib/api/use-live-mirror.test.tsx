@@ -11,6 +11,7 @@ import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { MirrorPlayback, MirrorPlaybackFactory, MirrorPlaybackRequest } from "@/lib/api/mirror-playback"
 import { mirrorRetryDelayMs, useLiveMirror, type MirrorSchedule } from "@/lib/api/use-live-mirror"
 import { liveMirrorCopy, livePictureHeld, liveStreamView, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
+import { planeCapacity } from "@/test/mirror-fixtures"
 
 interface StreamOverrides {
   state?: MirrorStreamState
@@ -91,7 +92,7 @@ function fakeClient(initial: LiveStreamView = stream()): FakeClient {
         purposes.push(request.purpose)
         return state
       },
-      async getCapacity() { return { sessionCapacity: 4, operatorReserve: 1, tilePlaces: 3 } },
+      async getCapacity() { return planeCapacity(4, 1) },
       async negotiate(streamId, offerSdp) {
         calls.push(`negotiate:${streamId}:${offerSdp}`)
         return { answerSdp: "answer-sdp", stream: state }

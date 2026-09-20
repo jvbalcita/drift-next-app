@@ -1,0 +1,111 @@
+{
+  "MeasuredAt": "2026-09-20T19:34:23Z",
+  "Host": "ArtisanClaws-MacBook-Pro.local",
+  "HostLoad": "{ 43.16 56.25 55.27 }",
+  "ADBVersion": "Android Debug Bridge version 1.0.41",
+  "ScrcpyServerPath": "/opt/homebrew/share/scrcpy/scrcpy-server",
+  "DeviceCount": 10,
+  "HoldSeconds": 30,
+  "Counts": [
+    4
+  ],
+  "Runs": [
+    {
+      "Concurrency": 4,
+      "Requested": 4,
+      "Opened": 4,
+      "HoldSeconds": 30,
+      "AggregateMbps": 32.00332288,
+      "StalledStreams": 0,
+      "FirstStallAt": 0,
+      "Degraded": false,
+      "SerialMask": [
+        "device-sha256:0d658",
+        "device-sha256:1c546",
+        "device-sha256:bbcd4",
+        "device-sha256:a52cc"
+      ],
+      "OpenFailures": null,
+      "Streams": [
+        {
+          "Serial": "device-sha256:0d658",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 992,
+          "KeyFrames": 9,
+          "Configs": 0,
+          "Bytes": 32824271,
+          "SteadyFrames": 751,
+          "SteadyBytes": 24990192,
+          "FPS": 30.04,
+          "Mbps": 7.99686144,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 14615,
+          "PTSDeltaMedianUS": 33386,
+          "PTSDeltaMaxUS": 50431,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:1c546",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 964,
+          "KeyFrames": 9,
+          "Configs": 0,
+          "Bytes": 31853471,
+          "SteadyFrames": 752,
+          "SteadyBytes": 24986848,
+          "FPS": 30.08,
+          "Mbps": 7.99579136,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 16570,
+          "PTSDeltaMedianUS": 33340,
+          "PTSDeltaMaxUS": 37989,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:bbcd4",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 931,
+          "KeyFrames": 8,
+          "Configs": 0,
+          "Bytes": 30802991,
+          "SteadyFrames": 751,
+          "SteadyBytes": 25028768,
+          "FPS": 30.04,
+          "Mbps": 8.00920576,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 15154,
+          "PTSDeltaMedianUS": 33376,
+          "PTSDeltaMaxUS": 38435,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:a52cc",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 901,
+          "KeyFrames": 8,
+          "Configs": 0,
+          "Bytes": 29835935,
+          "SteadyFrames": 751,
+          "SteadyBytes": 25004576,
+          "FPS": 30.04,
+          "Mbps": 8.00146432,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 15300,
+          "PTSDeltaMedianUS": 33390,
+          "PTSDeltaMaxUS": 38236,
+          "Ended": ""
+        }
+      ],
+      "Note": ""
+    }
+  ],
+  "Conclusion": "every measured point up to 4 concurrent live session(s) carried every stream for the whole window; the knee is above the largest point this fleet could measure"
+}

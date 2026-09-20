@@ -46,6 +46,28 @@ type mountCapacity struct{}
 
 func (mountCapacity) Capacity() int        { return media.DefaultMirrorSessionCapacity }
 func (mountCapacity) OperatorReserve() int { return media.DefaultOperatorReserve }
+func (mountCapacity) PreviewQuality() media.MirrorPreviewQuality {
+	return media.DefaultPreviewQuality
+}
+func (mountCapacity) ProfileBitrateKbps() int {
+	bitrate, _ := media.PreviewBitrateKbps(media.DefaultPreviewQuality)
+	return bitrate
+}
+func (mountCapacity) TransportBudgetKbps() int { return media.DefaultTransportBudgetKbps }
+func (mountCapacity) TransportSpendKbps() int {
+	bitrate, _ := media.PreviewBitrateKbps(media.DefaultPreviewQuality)
+	return media.DefaultMirrorSessionCapacity * bitrate
+}
+func (mountCapacity) TileAllowance() int {
+	bitrate, _ := media.PreviewBitrateKbps(media.DefaultPreviewQuality)
+	if bitrate <= 0 {
+		return 0
+	}
+	return media.DefaultTransportBudgetKbps/bitrate - media.DefaultOperatorReserve
+}
+func (mountCapacity) TileAllowanceBound() media.TileAllowanceBound {
+	return media.BoundSessionShare
+}
 
 // The compiler is what proves the transport satisfies the port the route serves:
 // if this stops compiling, the route has no production mount again.

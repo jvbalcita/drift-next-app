@@ -1,4 +1,4 @@
-import { MirrorPreviewQuality, MirrorStreamState, MirrorTransport, MirrorViewerPurpose } from "@/gen/drift/v1/device_mirror_pb"
+import { MirrorPreviewQuality, MirrorStreamState, MirrorTileBound, MirrorTransport, MirrorViewerPurpose } from "@/gen/drift/v1/device_mirror_pb"
 import type { MirrorCapacity, MirrorStream } from "@/gen/drift/v1/device_mirror_pb"
 import { deviceObservationSentence } from "@/lib/device-status"
 import type { DeviceStatus } from "@/lib/domain/control-plane"
@@ -132,9 +132,9 @@ export function purposeRequestFor(purpose: LiveMirrorViewerPurpose): MirrorViewe
  * Mbps) and `frameRate` is the 1-24 fps the control offers.
  *
  * It is deliberately NOT applied to the operator's own big frame: that frame is
- * where the work happens and the plane carries it at its own profile whatever
- * this says, so a level chosen for a grid of thumbnails can never make it
- * blurry.
+ * where the work happens and the plane carries it at its own preview level
+ * whatever this says, so a level chosen for a grid of thumbnails can never make
+ * it blurry.
  */
 export interface LiveMirrorPreview {
   quality: "Low" | "Medium" | "High" | "Extra"
@@ -145,9 +145,9 @@ export interface LiveMirrorPreview {
  * The two settings' wire form, as the request carries them.
  *
  * An operator's own frame states NOTHING rather than stating the workspace's
- * setting and relying on the plane to ignore it: the profile that frame is
- * carried at is the plane's own, and a request that stated a level the plane does
- * not apply would be this console claiming a bound it does not set.
+ * setting and relying on the plane to ignore it: the level that frame is carried
+ * at is the plane's own, and a request that stated a level the plane does not
+ * apply would be this console claiming a bound it does not set.
  */
 export function previewRequestFor(purpose: LiveMirrorViewerPurpose, preview?: LiveMirrorPreview): { previewQuality: MirrorPreviewQuality; frameRate: number } {
   if (purpose !== "ambient" || !preview) {
@@ -174,25 +174,94 @@ export function previewQualityRequestFor(quality: LiveMirrorPreview["quality"]):
 }
 
 /**
- * MirrorCapacityView is the plane's own device-session bound, as this console
- * reads it.
+ * MirrorCapacityView is the plane's own live-stream bound, as this console reads
+ * it: how many devices it mirrors at once, the place it keeps for the operator's
+ * own frame, and what that leaves the grid at the plane's preview level.
  *
- * `tilePlaces` is derived rather than read: it is the plane's capacity less the
- * place the plane keeps for the operator's own frame, which is the number of grid
- * tiles the plane can actually carry. A plane that stated a reserve larger than
- * its capacity offers the grid nothing, and this is where that reads as zero
- * places rather than as a negative number of tiles.
+ * Every number here is the PLANE's, including `tilePlaces`. This console used to
+ * derive the tile count itself, from the capacity alone, which was right only while
+ * a plane had one profile: the plane budgets `capacity x bitrate(level)` against
+ * the transport its streams share, so a more expensive quality buys FEWER tiles.
+ * The number of live tiles is therefore the plane's own answer, published on the
+ * contract, rather than a subtraction every surface performs for itself.
+ *
+ * `bound` is what makes "the grid carries fewer tiles than it used to" answerable
+ * from the frame: it is "transport_budget" when the deck's transport budget,
+ * rather than the plane's session share, is what decided the tile count.
  */
 export interface MirrorCapacityView {
   sessionCapacity: number
   operatorReserve: number
+  /** tilePlaces is how many live tile pictures the plane's own preview level and capacity allow. */
   tilePlaces: number
+  /** previewQuality is the level the plane's ambient streams are carried at, or null when it published none this console can price. */
+  previewQuality: string | null
+  /** previewBitrateKbps is what ONE live stream at that level costs the transport. */
+  previewBitrateKbps: number
+  /** transportBudgetKbps is the aggregate live-stream budget the deployment stated for the transport. */
+  transportBudgetKbps: number
+  /** transportSpendKbps is what the plane puts on that transport with every one of its sessions live. */
+  transportSpendKbps: number
+  /** bound is which of the plane's two bounds decided the tile count. */
+  bound: "session_share" | "transport_budget"
+  /** statedTilePlaces is false when the plane published no tile count, so the grid falls back to the session share. */
+  statedTilePlaces: boolean
 }
 
 export function mirrorCapacityView(capacity: MirrorCapacity): MirrorCapacityView {
   const sessionCapacity = Math.max(0, capacity.sessionCapacity)
   const operatorReserve = Math.max(0, capacity.operatorReserve)
-  return { sessionCapacity, operatorReserve, tilePlaces: Math.max(0, sessionCapacity - operatorReserve) }
+  const sessionShare = Math.max(0, sessionCapacity - operatorReserve)
+  const previewBitrateKbps = Math.max(0, capacity.previewBitrateKbps)
+  const transportBudgetKbps = Math.max(0, capacity.transportBudgetKbps)
+  const transportSpendKbps = Math.max(0, capacity.transportSpendKbps)
+  // A plane that publishes no per-stream cost is a plane from before the preview
+  // level was on the wire: it publishes no tile count either, so the session share
+  // is the whole of the bound it stated. Falling back to it is not the same as
+  // reading the zero the plane never meant - a plane that could carry no tile at
+  // all publishes a level it can price beside a tile count of zero.
+  const statedTilePlaces = previewBitrateKbps > 0
+  const tilePlaces = statedTilePlaces ? Math.max(0, capacity.tilePlaces) : sessionShare
+  return {
+    sessionCapacity,
+    operatorReserve,
+    tilePlaces,
+    previewQuality: previewQualityName(capacity.previewQuality),
+    previewBitrateKbps,
+    transportBudgetKbps,
+    transportSpendKbps,
+    bound: tileBoundOf(capacity.tileBound),
+    statedTilePlaces,
+  }
+}
+
+/**
+ * previewQualityName is the preview level's name, or null for one this console
+ * cannot name.
+ *
+ * An unnamed level is reported as unstated rather than as one of the levels: a
+ * console that showed "medium" for a level the plane could not price would be
+ * explaining a tile count with a cost nobody stated.
+ */
+export function previewQualityName(quality: MirrorPreviewQuality): string | null {
+  switch (quality) {
+    case MirrorPreviewQuality.LOW: return "low"
+    case MirrorPreviewQuality.MEDIUM: return "medium"
+    case MirrorPreviewQuality.HIGH: return "high"
+    case MirrorPreviewQuality.EXTRA: return "extra"
+    default: return null
+  }
+}
+
+/**
+ * tileBoundOf reads WHICH of the plane's two bounds decided the tile count.
+ *
+ * UNSPECIFIED reads as the session share, and that is the honest reading of a plane
+ * that published no bound: it is the same plane that published no per-stream cost,
+ * so the session share is the whole of the bound it stated (see mirrorCapacityView).
+ */
+export function tileBoundOf(bound: MirrorTileBound): MirrorCapacityView["bound"] {
+  return bound === MirrorTileBound.TRANSPORT_BUDGET ? "transport_budget" : "session_share"
 }
 
 export function liveTransportOf(transport: MirrorTransport): LiveMirrorTransport {

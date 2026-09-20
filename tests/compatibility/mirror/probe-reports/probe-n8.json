@@ -1,0 +1,136 @@
+{
+  "MeasuredAt": "2026-09-20T19:39:16Z",
+  "Host": "ArtisanClaws-MacBook-Pro.local",
+  "HostLoad": "{ 24.79 36.81 46.45 }",
+  "ADBVersion": "Android Debug Bridge version 1.0.41",
+  "ScrcpyServerPath": "/opt/homebrew/share/scrcpy/scrcpy-server",
+  "DeviceCount": 10,
+  "HoldSeconds": 30,
+  "Counts": [
+    8
+  ],
+  "Runs": [
+    {
+      "Concurrency": 8,
+      "Requested": 8,
+      "Opened": 4,
+      "HoldSeconds": 30,
+      "AggregateMbps": 32.015319039999994,
+      "StalledStreams": 0,
+      "FirstStallAt": 0,
+      "Degraded": true,
+      "SerialMask": [
+        "device-sha256:0d658",
+        "device-sha256:1c546",
+        "device-sha256:bbcd4",
+        "device-sha256:a52cc",
+        "device-sha256:02434",
+        "device-sha256:54974",
+        "device-sha256:f4382",
+        "device-sha256:9632b"
+      ],
+      "OpenFailures": [
+        {
+          "Serial": "device-sha256:02434",
+          "Attempts": 3,
+          "Reason": "scrcpy: pushing the server to <hub-address-masked>: adb mirror-push-server failed (timeout) serial=<hub-address-masked> cause=adb invocation canceled: context deadline exceeded"
+        },
+        {
+          "Serial": "device-sha256:54974",
+          "Attempts": 3,
+          "Reason": "scrcpy: pushing the server to <hub-address-masked>: adb mirror-push-server failed (timeout) serial=<hub-address-masked> cause=adb invocation canceled: context deadline exceeded"
+        },
+        {
+          "Serial": "device-sha256:f4382",
+          "Attempts": 3,
+          "Reason": "scrcpy: pushing the server to <hub-address-masked>: adb mirror-push-server failed (timeout) serial=<hub-address-masked> cause=adb invocation canceled: context deadline exceeded"
+        },
+        {
+          "Serial": "device-sha256:9632b",
+          "Attempts": 3,
+          "Reason": "scrcpy: pushing the server to <hub-address-masked>: adb mirror-push-server failed (timeout) serial=<hub-address-masked> cause=adb invocation canceled: context deadline exceeded"
+        }
+      ],
+      "Streams": [
+        {
+          "Serial": "device-sha256:0d658",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 4590,
+          "KeyFrames": 39,
+          "Configs": 0,
+          "Bytes": 152834799,
+          "SteadyFrames": 751,
+          "SteadyBytes": 25062208,
+          "FPS": 30.04,
+          "Mbps": 8.019906559999999,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 14590,
+          "PTSDeltaMedianUS": 33408,
+          "PTSDeltaMaxUS": 50947,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:1c546",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 4561,
+          "KeyFrames": 39,
+          "Configs": 0,
+          "Bytes": 151777487,
+          "SteadyFrames": 750,
+          "SteadyBytes": 24947328,
+          "FPS": 30,
+          "Mbps": 7.98314496,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 14719,
+          "PTSDeltaMedianUS": 33388,
+          "PTSDeltaMaxUS": 52106,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:bbcd4",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 4532,
+          "KeyFrames": 38,
+          "Configs": 0,
+          "Bytes": 150813663,
+          "SteadyFrames": 751,
+          "SteadyBytes": 25039456,
+          "FPS": 30.04,
+          "Mbps": 8.01262592,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 14946,
+          "PTSDeltaMedianUS": 33443,
+          "PTSDeltaMaxUS": 51311,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:a52cc",
+          "Width": 1080,
+          "Height": 2280,
+          "Frames": 4502,
+          "KeyFrames": 38,
+          "Configs": 0,
+          "Bytes": 149808063,
+          "SteadyFrames": 751,
+          "SteadyBytes": 24998880,
+          "FPS": 30.04,
+          "Mbps": 7.9996415999999995,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 14253,
+          "PTSDeltaMedianUS": 33389,
+          "PTSDeltaMaxUS": 39492,
+          "Ended": ""
+        }
+      ],
+      "Note": ""
+    }
+  ],
+  "Conclusion": "the smallest measured point (8 concurrent live session(s)) already degraded: this fleet carries no clean point at the measured sizes"
+}

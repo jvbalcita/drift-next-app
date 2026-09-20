@@ -9,9 +9,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"drift.local/drift-next/internal/media"
 )
 
 type componentState string
@@ -349,6 +352,7 @@ func (s *Supervisor) Setup(ctx context.Context) error {
 	s.appendLog("ADB discovered and validated")
 	s.appendLog(mirrorServerLine(s.config.ScrcpyServerPath))
 	s.appendLog(mirrorPreviewLine(s.config.PreviewQuality, s.config.PreviewFrameRate))
+	s.appendLog(mirrorBoundLine(s.config))
 	return nil
 }
 
@@ -426,7 +430,9 @@ func (s *Supervisor) controlPlaneEnv() []string {
 	// empty one: the plane answers an unset input with its own documented default,
 	// which is itself a level with a cap, where an empty value it accepted would be
 	// a setting nobody stated. What each value MEANS is the plane's own business,
-	// and it refuses a level or a rate it cannot bound by naming the input.
+	// and it refuses a level or a rate it cannot bound by naming the input. The
+	// level is also what the plane prices a live stream at, so this one input
+	// decides both the grid's picture quality and what the transport carries.
 	for _, input := range []struct{ name, value string }{
 		{mirrorPreviewQualityEnv, s.config.PreviewQuality},
 		{mirrorPreviewFrameRateEnv, s.config.PreviewFrameRate},
@@ -435,7 +441,68 @@ func (s *Supervisor) controlPlaneEnv() []string {
 			env = append(env, input.name+"="+value)
 		}
 	}
+	// The mirror's own bound travels the same way, and on the same list: a
+	// deployment's capacity, reserve and transport budget reach the plane on EVERY
+	// start path rather than on the one an operator happened to use. An input this
+	// deployment did not state is passed as NOTHING, so the plane's own documented
+	// default applies and its startup line states that default - the bound in force
+	// is always readable from a frame.
+	env = append(env, mirrorBoundEnv(s.config)...)
 	return env
+}
+
+// mirrorBoundEnv renders the live mirror's deployment inputs as the child's
+// environment, and states nothing for an input this deployment left unset.
+func mirrorBoundEnv(config Config) []string {
+	env := make([]string, 0, 4)
+	if config.MirrorSessionCapacity > 0 {
+		env = append(env, media.EnvSessionCapacity+"="+strconv.Itoa(config.MirrorSessionCapacity))
+	}
+	if config.MirrorOperatorReserve > 0 {
+		env = append(env, media.EnvOperatorReserve+"="+strconv.Itoa(config.MirrorOperatorReserve))
+	}
+	if config.MirrorTransportBudgetKbps > 0 {
+		env = append(env, media.EnvTransportBudgetKbps+"="+strconv.Itoa(config.MirrorTransportBudgetKbps))
+	}
+	return env
+}
+
+// mirrorBoundLine is the startup line that reports the live mirror's bound as
+// THIS deployment states it, or names the inputs it leaves to the plane.
+//
+// It exists beside the plane's own armed line because the two answer different
+// questions: the plane reports the bound it resolved, and this reports what the
+// deployment handed it. A deployment whose runtime.json carries no capacity is a
+// deployment running on the plane's measured default, and an operator reading a
+// frame that shows fewer tiles than they expected needs to know which of those two
+// they are looking at.
+func mirrorBoundLine(config Config) string {
+	stated := make([]string, 0, 4)
+	unstated := make([]string, 0, 4)
+	if config.MirrorSessionCapacity > 0 {
+		stated = append(stated, fmt.Sprintf("%s=%d", media.EnvSessionCapacity, config.MirrorSessionCapacity))
+	} else {
+		unstated = append(unstated, media.EnvSessionCapacity)
+	}
+	if config.MirrorOperatorReserve > 0 {
+		stated = append(stated, fmt.Sprintf("%s=%d", media.EnvOperatorReserve, config.MirrorOperatorReserve))
+	} else {
+		unstated = append(unstated, media.EnvOperatorReserve)
+	}
+	if config.MirrorTransportBudgetKbps > 0 {
+		stated = append(stated, fmt.Sprintf("%s=%d", media.EnvTransportBudgetKbps, config.MirrorTransportBudgetKbps))
+	} else {
+		unstated = append(unstated, media.EnvTransportBudgetKbps)
+	}
+	line := "Live mirror bound: this deployment states none of it"
+	if len(stated) > 0 {
+		line = "Live mirror bound: this deployment states " + strings.Join(stated, " ")
+	}
+	if len(unstated) > 0 {
+		line += "; left to the control plane's own measured default: " + strings.Join(unstated, " ") +
+			" (set them in runtime.json to pin this deployment's bound)"
+	}
+	return line
 }
 
 // StartAll starts the services in dependency order and waits for readiness.

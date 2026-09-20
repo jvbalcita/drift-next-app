@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useMirrorCapacity } from "@/lib/api/use-mirror-capacity"
 import type { MirrorCapacityView } from "@/lib/live-mirror"
+import { planeCapacity } from "@/test/mirror-fixtures"
 
 /**
  * The console reads how much room the control plane has, and these cases are about
@@ -32,7 +33,7 @@ function capacityClient(answer: MirrorCapacityView | Error): { client: LiveMirro
 
 describe("the control plane's live-stream capacity, as this console reads it", () => {
   it("reads the plane's own bound for the workspace it is reading for, once", async () => {
-    const plane: MirrorCapacityView = { sessionCapacity: 6, operatorReserve: 2, tilePlaces: 4 }
+    const plane: MirrorCapacityView = planeCapacity(6, 2)
     const { client, reads } = capacityClient(plane)
     const { result } = renderHook(() => useMirrorCapacity(client, "workspace-lab-local"))
 

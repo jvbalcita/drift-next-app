@@ -161,6 +161,24 @@ func MirrorAmbientEncodeProfile(quality string, frameRate int) (MirrorEncodeProf
 	}, nil
 }
 
+// MirrorPreviewBitRate reports the video bit rate cap a preview level is carried
+// at, in bits per second, and false for a level this product does not have.
+//
+// It is exported because the cap is not only an encoder setting: it is what ONE
+// live stream at that level costs the transport, so the control plane's own
+// live-stream budget is derived from it (see internal/media's live-stream budget).
+// The table stays HERE, where the launch builder and the allow-list read it, and
+// the budget reads it from here rather than keeping a second copy of the same
+// numbers - a cap that moved here without the budget moving with it would be a
+// plane budgeting against a stream nobody is producing.
+func MirrorPreviewBitRate(quality string) (bitsPerSecond int, known bool) {
+	level, known := mirrorPreviewLevels[strings.ToLower(strings.TrimSpace(quality))]
+	if !known {
+		return 0, false
+	}
+	return level.bitRate, true
+}
+
 // Validate refuses a profile the launch could not carry, so an unbuildable bound
 // is refused where it is supplied rather than after a device has been touched.
 //

@@ -896,9 +896,15 @@ func TestMirrorDropsFramesForAViewerThatFallsBehind(t *testing.T) {
 // TestMirrorMirrorsOneDevicePerSessionAndBoundsHowMany pins the two limits on the
 // engine's work: one capture per device, and a bound on how many devices are
 // captured at once.
+//
+// The bound here is two sessions with one kept for the operator's own frame, which
+// is the tightest bound this plane can carry: a reserve of none is refused (the grid
+// would be allowed to spend the place the operator's own frame needs) and a reserve
+// that IS the whole capacity is refused (the grid would have no place at all), so a
+// plane bounds at least two device sessions.
 func TestMirrorMirrorsOneDevicePerSessionAndBoundsHowMany(t *testing.T) {
 	dialer := newFakeDialer()
-	engine := newEngine(t, dialer, MirrorEngineConfig{MaxSessions: 1})
+	engine := newEngine(t, dialer, MirrorEngineConfig{MaxSessions: 2, OperatorReserve: 1})
 	first, _, err := engine.Start(context.Background(), "device-1", "SERIAL-1")
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -912,12 +918,18 @@ func TestMirrorMirrorsOneDevicePerSessionAndBoundsHowMany(t *testing.T) {
 		t.Fatalf("one device was dialed %d times, want one capture shared by its viewers", len(dials))
 	}
 
-	if _, _, err := engine.Start(context.Background(), "device-2", "SERIAL-2"); err == nil {
+	second, _, err := engine.Start(context.Background(), "device-2", "SERIAL-2")
+	if err != nil {
+		t.Fatalf("the engine refused a second device while its bound allows two: %v", err)
+	}
+	sessionReady(t, second)
+
+	if _, _, err := engine.Start(context.Background(), "device-3", "SERIAL-3"); err == nil {
 		t.Fatal("the engine mirrored more devices than its bound allows")
 	}
 	sessions := engine.Sessions()
-	if len(sessions) != 1 || sessions[0].DeviceID() != "device-1" {
-		t.Fatalf("the engine reports %d sessions, want just device-1", len(sessions))
+	if len(sessions) != 2 || sessions[0].DeviceID() != "device-1" || sessions[1].DeviceID() != "device-2" {
+		t.Fatalf("the engine reports %d sessions, want device-1 and device-2", len(sessions))
 	}
 
 	// An unnamed device or a missing serial is a refusal: a session is keyed on a

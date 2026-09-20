@@ -53,6 +53,17 @@ const (
 	// MirrorEngineConfig.MaxSessions); this is only what a caller that states
 	// none gets, and it is the one number the console reads back over the wire
 	// rather than keeping a copy of (see MirrorEngine.Capacity).
+	//
+	// The number is MEASURED rather than chosen: on this fleet, four concurrent
+	// live sessions each held 30 fps at 8.0 Mbps of encoded access units, and a
+	// FIFTH session could not be opened at all - the push of the device-side server
+	// through the host's adb server timed out on every attempt for every device past
+	// the fourth, while the four that were up carried every frame of the whole
+	// window. It reproduced at two sizes: eight requested opened four, and five
+	// requested opened four (see docs/operations/live-stream-concurrency.md for the
+	// method, the conditions and the per-stream counts). The ceiling this fleet hits
+	// first is CONCURRENCY, not aggregate bandwidth: the four sessions together put
+	// 32 Mbps on a path that carries 78 Mbps of bulk transfer.
 	DefaultMirrorSessionCapacity = 4
 
 	// DefaultOperatorReserve is how many of the capacity are kept for the
@@ -478,7 +489,15 @@ type MirrorEngine struct {
 	reserve int
 	queue   int
 	preview MirrorPreview
-	keyrefs map[string]time.Time
+	// budgetKbps is the aggregate live-stream budget this deployment states for
+	// the transport its streams share, and it is what the grid's tile allowance is
+	// derived from together with the preview setting above: the ambient streams are
+	// what the budget is spent at, so a grid may hold at most `capacity - reserve`
+	// sessions AND at most `budgetKbps / bitrate(preview level)` streams, whichever
+	// is smaller. A more expensive quality therefore buys fewer tiles rather than a
+	// transport nobody sized.
+	budgetKbps int
+	keyrefs    map[string]time.Time
 
 	mu       sync.Mutex
 	sessions map[string]*mirrorSession
@@ -555,17 +574,37 @@ type SessionCapacityError struct {
 	// says whether the grid spent the operator's place or the plane is simply
 	// full.
 	AmbientShare int
+	// Bound is which of the two bounds decided the ambient share: the grid's share
+	// of the sessions, or the transport budget at the profile's per-stream cost.
+	// It is carried because the two refusals ask the operator to do different
+	// things - wait for a tile to give up its place, or lower the quality - and a
+	// sentence that named neither would be actionable for neither.
+	Bound TileAllowanceBound
+	// Quality, QualityBitrateKbps and TransportBudgetKbps are the numbers the
+	// transport bound was decided from, carried on the refusal so a reader can see
+	// the arithmetic rather than being told only its result. OperatorReserve is the
+	// place the grid could not spend, which is the other half of the derivation:
+	// the path carries AmbientShare+OperatorReserve streams at this cost.
+	Quality             MirrorPreviewQuality
+	QualityBitrateKbps  int
+	TransportBudgetKbps int
+	OperatorReserve     int
 }
 
 func (e *SessionCapacityError) Error() string {
 	if e == nil {
 		return "media: the mirror engine refused a session"
 	}
-	if e.Purpose == PurposeAmbient {
-		return fmt.Sprintf("media: the console's grid is already carrying its %d device session(s) of the plane's %d, and the rest is kept for the operator's own frame",
-			e.AmbientShare, e.Capacity)
+	if e.Purpose != PurposeAmbient {
+		return fmt.Sprintf("media: %d devices are already being mirrored, which is the configured device session capacity", e.Capacity)
 	}
-	return fmt.Sprintf("media: %d devices are already being mirrored, which is the configured device session capacity", e.Capacity)
+	if e.Bound == BoundTransportBudget {
+		return fmt.Sprintf("media: the console's grid may carry %d live tile picture(s) on this plane: a stream at the %s preview setting costs %d kbps and the transport budget is %d kbps, which carries %d of the plane's %d device session(s) once the operator's own frame is kept its %d - and the place kept for the operator's own frame is not the grid's to spend",
+			e.AmbientShare, e.Quality, e.QualityBitrateKbps, e.TransportBudgetKbps,
+			e.AmbientShare+e.OperatorReserve, e.Capacity, e.OperatorReserve)
+	}
+	return fmt.Sprintf("media: the console's grid is already carrying its %d device session(s) of the plane's %d, and the rest is kept for the operator's own frame",
+		e.AmbientShare, e.Capacity)
 }
 
 // MirrorEngineConfig configures the engine.
@@ -587,8 +626,10 @@ type MirrorEngineConfig struct {
 	// OperatorReserve is how many of MaxSessions are kept for the operator's
 	// own frame: the console's ambient viewers may hold at most
 	// `MaxSessions - OperatorReserve` sessions between them. Zero uses
-	// DefaultOperatorReserve, and a reserve at or above the capacity is read as
-	// a capacity no tile may spend.
+	// DefaultOperatorReserve, and a reserve at or above the capacity is REFUSED at
+	// composition rather than clamped: a reserve that is the whole capacity leaves
+	// the grid no place at all, and the plane that carried it would refuse every
+	// tile with the grid's share blamed for a setting the deployment chose.
 	OperatorReserve int
 	// Preview is the workspace's preview setting: what an ambient viewer - one
 	// of the console's grid tiles - is carried at.
@@ -598,7 +639,20 @@ type MirrorEngineConfig struct {
 	// own frame, which is carried at its own profile. A zero value uses
 	// DefaultPreview, so the setting the engine carries is always a setting -
 	// never "no bound".
+	//
+	// Its level is also the PROFILE this plane's live-stream budget is spent at
+	// (see ProfileBitrateKbps), so the two do not need a second input that could
+	// disagree with it: the streams the budget prices are exactly the streams this
+	// setting bounds.
 	Preview MirrorPreview
+	// TransportBudgetKbps is the aggregate live-stream budget this deployment
+	// states for the transport its streams share, in kilobits per second. Zero
+	// uses DefaultTransportBudgetKbps. It is a deployment input because it is a
+	// fact about the path - measured, not assumed - and it is checked rather than
+	// trusted: the plane states `MaxSessions x bitrate(Preview.Quality)` as its own
+	// spend, refuses a budget that cannot carry even one stream at that cost, and
+	// reduces the grid's allowance when its spend does not fit.
+	TransportBudgetKbps int
 	// QueueDepth bounds one viewer's un-sent stream.
 	QueueDepth int
 }
@@ -617,6 +671,9 @@ func NewMirrorEngine(config MirrorEngineConfig) (*MirrorEngine, error) {
 	if config.OperatorReserve <= 0 {
 		config.OperatorReserve = DefaultOperatorReserve
 	}
+	if config.TransportBudgetKbps <= 0 {
+		config.TransportBudgetKbps = DefaultTransportBudgetKbps
+	}
 	if config.QueueDepth <= 0 {
 		config.QueueDepth = DefaultMirrorQueue
 	}
@@ -633,15 +690,46 @@ func NewMirrorEngine(config MirrorEngineConfig) (*MirrorEngine, error) {
 		return nil, fmt.Errorf("media: the workspace's preview frame rate must be in %d..%d, got %d",
 			MinPreviewFrameRate, MaxPreviewFrameRate, config.Preview.FrameRate)
 	}
+	// The three inputs that must be consistent with ONE ANOTHER, and they are
+	// refused here rather than at a viewer's request because this is composition:
+	// a plane whose bounds contradict each other is a plane configured wrongly, and
+	// every refusal it would otherwise hand an operator at stream time would name a
+	// symptom rather than the setting that produced it.
+	//
+	// A reserve that is the whole capacity leaves the console's grid no place at
+	// all. A reserve above it is the same configuration with the sign lost, and it
+	// is refused rather than clamped: silently correcting it would carry a bound
+	// nobody stated.
+	if config.OperatorReserve >= config.MaxSessions {
+		return nil, fmt.Errorf("media: the operator's reserve (%d) must be smaller than the device session capacity (%d): a reserve that is the whole capacity leaves the console's grid no place to carry a picture in",
+			config.OperatorReserve, config.MaxSessions)
+	}
+	// The preview level is what an ambient stream costs, so a level this plane
+	// cannot price is a grid sized against a stream nobody is producing.
+	qualityBitrateKbps, priced := PreviewBitrateKbps(config.Preview.Quality)
+	if !priced {
+		return nil, fmt.Errorf("media: %q is not a preview level this plane can price, so a grid cannot be sized against it: the level must be one of %s",
+			config.Preview.Quality, PreviewBitrateList())
+	}
+	// A budget that cannot carry ONE stream at the plane's own preview level is a
+	// plane configured to carry pictures it has already stated it cannot pay for:
+	// the transport bound would reduce the grid's allowance to zero and every tile
+	// would be refused with the grid's share blamed. Refused at composition
+	// instead, with the two numbers in the sentence.
+	if config.TransportBudgetKbps < qualityBitrateKbps {
+		return nil, fmt.Errorf("media: the transport budget (%d kbps) cannot carry even one live stream at the %s preview setting, which costs %d kbps - a plane whose budget is below its own per-stream cost has no live tile to carry",
+			config.TransportBudgetKbps, config.Preview.Quality, qualityBitrateKbps)
+	}
 	return &MirrorEngine{
-		dialer:   config.Dialer,
-		idle:     config.Idle,
-		max:      config.MaxSessions,
-		reserve:  config.OperatorReserve,
-		queue:    config.QueueDepth,
-		preview:  config.Preview,
-		keyrefs:  make(map[string]time.Time),
-		sessions: make(map[string]*mirrorSession),
+		dialer:     config.Dialer,
+		idle:       config.Idle,
+		max:        config.MaxSessions,
+		reserve:    config.OperatorReserve,
+		queue:      config.QueueDepth,
+		preview:    config.Preview,
+		budgetKbps: config.TransportBudgetKbps,
+		keyrefs:    make(map[string]time.Time),
+		sessions:   make(map[string]*mirrorSession),
 	}, nil
 }
 
@@ -703,6 +791,10 @@ func (e *MirrorEngine) OperatorReserve() int {
 // AmbientCapacity reports how many sessions the console's ambient viewers - its
 // grid tiles - may hold between them: the capacity less the place kept for the
 // operator's own frame, and never a negative count.
+//
+// It is the grid's share of the SESSIONS. It is not the whole answer to "how many
+// tiles may be live": a plane whose streams cost more than its transport budget
+// carries fewer, which is TileAllowance.
 func (e *MirrorEngine) AmbientCapacity() int {
 	if e == nil {
 		return 0
@@ -712,6 +804,111 @@ func (e *MirrorEngine) AmbientCapacity() int {
 		return 0
 	}
 	return share
+}
+
+// PreviewQuality reports the level this plane's ambient streams are carried at,
+// which is also the profile its live-stream budget is spent at: `bitrate(level)`
+// is what one of them costs the transport.
+func (e *MirrorEngine) PreviewQuality() MirrorPreviewQuality {
+	if e == nil {
+		return ""
+	}
+	if e.preview.Quality == "" {
+		return DefaultPreviewQuality
+	}
+	return e.preview.Quality
+}
+
+// ProfileBitrateKbps reports what ONE live stream at this plane's preview level
+// costs the transport, and zero for a level this plane cannot price.
+func (e *MirrorEngine) ProfileBitrateKbps() int {
+	if e == nil {
+		return 0
+	}
+	bitrate, _ := PreviewBitrateKbps(e.PreviewQuality())
+	return bitrate
+}
+
+// TransportBudgetKbps reports the aggregate live-stream budget this deployment
+// states for the transport its streams share.
+func (e *MirrorEngine) TransportBudgetKbps() int {
+	if e == nil {
+		return 0
+	}
+	return e.budgetKbps
+}
+
+// TransportSpendKbps reports what this plane would put on the transport with every
+// one of its sessions live at its profile: `capacity x bitrate(profile)`.
+//
+// It is stated rather than derived by each reader, because it is the number a
+// deployment reads back to answer whether its capacity fits the path it is on: a
+// spend above the budget is a plane whose grid has to carry fewer pictures, and
+// both numbers are in the same frame.
+func (e *MirrorEngine) TransportSpendKbps() int {
+	if e == nil {
+		return 0
+	}
+	return e.max * e.ProfileBitrateKbps()
+}
+
+// TileAllowance reports how many live tile pictures this profile and this capacity
+// allow, and it is derived from BOTH bounds the plane carries:
+//
+//   - the grid's share of the sessions, `capacity - reserve`, so the grid can
+//     never spend the place the operator's own frame needs; and
+//   - what the transport can carry at the profile's per-stream cost,
+//     `budget / bitrate(profile)`, less the reserve - because the operator's own
+//     frame is a stream on that same transport, and a plane that kept a place for
+//     it while budgeting as if it were not there would be a plane whose stated
+//     spend does not fit the path it stated.
+//
+// It is the number a surface answers "how many live tiles does this profile and
+// this capacity allow" with, and it is the bound the engine refuses an ambient
+// viewer against - so a plane that chose a more expensive quality refuses the tile
+// rather than accepting it and oversubscribing the transport.
+func (e *MirrorEngine) TileAllowance() int {
+	if e == nil {
+		return 0
+	}
+	allowance := e.AmbientCapacity()
+	carriable := tileAllowanceKbps(e.budgetKbps, e.ProfileBitrateKbps()) - e.reserve
+	if carriable < 0 {
+		carriable = 0
+	}
+	if carriable < allowance {
+		return carriable
+	}
+	return allowance
+}
+
+// TileAllowanceBound reports WHICH of the two bounds decided the tile allowance,
+// so a refusal can name the reason the operator can act on.
+type TileAllowanceBound string
+
+const (
+	// BoundSessionShare means the grid holds all the plane has left after the
+	// operator's reserve: the plane is simply full.
+	BoundSessionShare TileAllowanceBound = "session_share"
+	// BoundTransportBudget means the profile's per-stream cost does not fit the
+	// stated transport budget for as many tiles as the session share would allow:
+	// the deployment chose a quality the path cannot carry that many of.
+	BoundTransportBudget TileAllowanceBound = "transport_budget"
+)
+
+// TileAllowanceBound reports which bound decided TileAllowance.
+func (e *MirrorEngine) TileAllowanceBound() TileAllowanceBound {
+	if e == nil {
+		return BoundSessionShare
+	}
+	carriable := tileAllowanceKbps(e.budgetKbps, e.ProfileBitrateKbps()) - e.reserve
+	if carriable < 0 {
+		carriable = 0
+	}
+	if carriable < e.AmbientCapacity() {
+		return BoundTransportBudget
+	}
+	return BoundSessionShare
 }
 
 // Start begins (or joins) the live mirror for one device as the operator's own
@@ -816,7 +1013,12 @@ func (e *MirrorEngine) capacityRefusal(purpose MirrorViewerPurpose) error {
 	if purpose != PurposeAmbient {
 		return nil
 	}
-	share := e.AmbientCapacity()
+	// The grid's allowance is derived from the profile and the transport budget,
+	// not from the session share alone: an ambient viewer is refused once the
+	// share is spent OR once the budget cannot carry another stream at the
+	// profile's cost, so choosing a more expensive quality reduces how many tiles
+	// are live instead of oversubscribing the path.
+	share := e.TileAllowance()
 	held := 0
 	for _, session := range e.sessions {
 		if session.operatorViewers.Load() == 0 {
@@ -824,7 +1026,16 @@ func (e *MirrorEngine) capacityRefusal(purpose MirrorViewerPurpose) error {
 		}
 	}
 	if held >= share {
-		return &SessionCapacityError{Capacity: e.max, Purpose: PurposeAmbient, AmbientShare: share}
+		return &SessionCapacityError{
+			Capacity:            e.max,
+			Purpose:             PurposeAmbient,
+			AmbientShare:        share,
+			Bound:               e.TileAllowanceBound(),
+			Quality:             e.PreviewQuality(),
+			QualityBitrateKbps:  e.ProfileBitrateKbps(),
+			TransportBudgetKbps: e.budgetKbps,
+			OperatorReserve:     e.reserve,
+		}
 	}
 	return nil
 }
