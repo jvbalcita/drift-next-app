@@ -188,6 +188,36 @@ type OperationReadback struct {
 	AdvancedExitCode int
 }
 
+// ErrNoEnabledKeyboard reports a device that listed no enabled input method.
+//
+// It is a sentinel of its own rather than a coded failure like any other,
+// because the applier that owns the row has to tell "there was nothing to
+// switch to" apart from "the device refused the switch": the first is a fact
+// about the device an operator resolves on the device, the second is a command
+// that did not land. Collapsing them would send an operator to the transport
+// for a keyboard the device does not have.
+var ErrNoEnabledKeyboard = errors.New("the device reported no enabled keyboard")
+
+// Read reports whether this reading holds a device answer at all. Every
+// predicate above already answers a question about a reading it assumes; this
+// is the question underneath them, and it exists so a row can tell "the device
+// answered and does not hold the postcondition" apart from "the device was
+// never reached" without inventing a value for either.
+func (r OperationReadback) Read() bool {
+	switch r.Kind {
+	case action.Reboot:
+		return r.RebootSettleMillis > 0
+	case action.KeyboardSwitch:
+		return r.EnabledImeCount > 0
+	case action.ImportFile, action.ExportFile, action.InstallApk:
+		return r.DevicePath != ""
+	case action.AdvancedCommand:
+		return len(r.Argv) > 0
+	default:
+		return false
+	}
+}
+
 // RebootObserved reports whether the departure a reboot's postcondition names
 // was actually observed.
 func (r OperationReadback) RebootObserved() bool { return r.RebootDeparted }
@@ -413,7 +443,7 @@ func (i *Inputs) SwitchKeyboard(ctx context.Context) (OperationReadback, error) 
 	}
 	readback.EnabledImeCount = len(enabled)
 	if len(enabled) == 0 {
-		return readback, platformerrors.New(platformerrors.CodePreconditionFailed, "the device reported no enabled keyboard, so there is nothing to switch to")
+		return readback, platformerrors.Wrap(platformerrors.CodePreconditionFailed, "the device reported no enabled keyboard, so there is nothing to switch to", ErrNoEnabledKeyboard)
 	}
 	current := ""
 	if raw, readErr := i.readCommand(ctx, "keyboard-default-read", defaultInputMethodArgv()); readErr == nil && raw.ExitCode == 0 {

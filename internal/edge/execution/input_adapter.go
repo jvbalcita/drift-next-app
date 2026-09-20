@@ -445,6 +445,21 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 		readback, readBack, runErr = runInput(ctx, inputs, payload, kind, intent.Workspace)
 	}
 	if runErr != nil {
+		if operationRead {
+			// The operation took a reading before it failed, and that reading
+			// is what the failure is ABOUT: a device that listed no keyboard
+			// to switch to, a size the device reported that does not match
+			// what was sent, a file it answered with fewer bytes than it said
+			// it held. Publishing it lets the row an operator reads state what
+			// the DEVICE answered rather than only that the call did not
+			// complete - and a reading that holds nothing is not published as
+			// an observation, so "the device answered and it does not hold" and
+			// "nothing was read" stay distinguishable.
+			if operation.Read() {
+				report.observation = PostconditionObservation{OperationReadback: &operation, Token: operation.Token()}
+				report.observed = true
+			}
+		}
 		// The typed payload and the transport's own diagnostics are never
 		// echoed: a failing device command can quote what it was given.
 		return adapter.Execution{}, &adapter.ExecutionError{
