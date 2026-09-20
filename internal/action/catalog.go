@@ -39,6 +39,33 @@ const (
 	// so nothing an operator types can reach the device through either kind.
 	RotationLock Kind = "rotation_lock"
 	AutofillOff  Kind = "autofill_off"
+	// The big-frame control panel's remaining commands, each a CATALOGUED
+	// general command of AGENTS.md section 3 (a named operation with a bounded
+	// typed parameter set) rather than a raw command string:
+	//
+	//   - Reboot is a lifecycle operation whose argument array carries no
+	//     caller value at all;
+	//   - KeyboardSwitch reads the device's own enabled-IME list, sets the
+	//     component the PLANE selected from that list, and reads the device's
+	//     secure default back;
+	//   - InstallApk, ImportFile and ExportFile move bytes between the
+	//     workspace's content-addressed artifact store and one device
+	//     directory this product owns, and every device path is composed by
+	//     the plane from a bounded file NAME rather than supplied as a path;
+	//   - AdvancedCommand is the ADVANCED form of AGENTS.md section 3: an
+	//     operator-entered argument array, dispatched only after the operator
+	//     confirms the exact argv, with its own append-only audit record.
+	//
+	// AdvancedCommand is deliberately a kind of its own. It shares the kernel
+	// with every catalogued kind and nothing else: it is reached by its own
+	// request, its own recogniser and its own confirmation, so a request that
+	// means a catalogued operation can never arrive at it.
+	Reboot          Kind = "reboot"
+	KeyboardSwitch  Kind = "keyboard_switch"
+	InstallApk      Kind = "install_apk"
+	ImportFile      Kind = "import_file"
+	ExportFile      Kind = "export_file"
+	AdvancedCommand Kind = "advanced_command"
 )
 
 type RiskClass string
@@ -103,11 +130,30 @@ const (
 	// authority is not thereby granting authority to rewrite the device's
 	// settings.
 	CapabilityDeviceSettings Capability = "device.settings"
+	// CapabilityDeviceLifecycle is what a device must be able to do for a
+	// catalogued LIFECYCLE operation to run on it: restart itself. It is its
+	// own capability rather than a reuse of device.input.system, because an
+	// operator granting input authority is not thereby granting authority to
+	// take a device out of service and bring it back.
+	CapabilityDeviceLifecycle Capability = "device.lifecycle"
+	// CapabilityDeviceFiles is what a device must be able to do for a
+	// catalogued FILE operation to run on it: receive named bytes into, and
+	// give named bytes back from, the one device directory this product owns.
+	// It is its own capability because moving bytes onto a device is neither
+	// input into it nor a change to its settings.
+	CapabilityDeviceFiles Capability = "device.files"
+	// CapabilityDeviceCommand is what a device must be able to do for the
+	// ADVANCED form to run on it: accept one operator-confirmed argument
+	// array. It is deliberately separate from every other capability, so a
+	// policy that admits typed input, settings and lifecycle operations does
+	// not thereby admit an operator-entered argv.
+	CapabilityDeviceCommand Capability = "device.command"
 )
 
 func (c Capability) Valid() bool {
 	switch c {
-	case CapabilityObserve, CapabilityHealth, CapabilityCapture, CapabilityTap, CapabilityGesture, CapabilityTextInput, CapabilitySystemInput, CapabilityDeviceSettings:
+	case CapabilityObserve, CapabilityHealth, CapabilityCapture, CapabilityTap, CapabilityGesture, CapabilityTextInput, CapabilitySystemInput, CapabilityDeviceSettings,
+		CapabilityDeviceLifecycle, CapabilityDeviceFiles, CapabilityDeviceCommand:
 		return true
 	default:
 		return false
@@ -623,6 +669,102 @@ var catalog = map[Kind]Specification{
 			Record:       retiredCommandBanRecord,
 			Precondition: liftedCommandPrecondition,
 			Reason:       "the retired ban on a general device command is what previously refused this kind; it is dispatchable now as a CATALOGUED operation whose three device commands are fixed admissions with no caller-supplied token, and whose own read-back is what reports it applied",
+		},
+	},
+	Reboot: {
+		Kind:                 Reboot,
+		RequiredCapabilities: []Capability{CapabilityDeviceLifecycle},
+		Risk:                 RiskHigh,
+		Retry:                RetryNeverBlind,
+		Mutating:             true,
+		MutationReason:       "dispatch restarts the device, so everything the device was running - including the transport the action was resolved against - is gone after it",
+		Postcondition:        "the device's transport stops answering within the operation's own settle window, so the departure the reboot caused was OBSERVED rather than assumed; a device that never departs inside that window does not satisfy this postcondition, and a device that returns resolves to the same identity",
+		EvidenceRequired:     true,
+		AllowedSurfaces:      []InvocationSurface{SurfaceManual},
+		Lifted: &DeferralLift{
+			Record:       retiredCommandBanRecord,
+			Precondition: liftedCommandPrecondition,
+			Reason:       "the retired ban on a general device command is what previously refused this kind; it is dispatchable now as a CATALOGUED operation whose one admitted argument array carries no caller-supplied token at all, and whose postcondition is the departure a transport observer reads rather than the exit status of the command",
+		},
+	},
+	KeyboardSwitch: {
+		Kind:                 KeyboardSwitch,
+		RequiredCapabilities: []Capability{CapabilityDeviceSettings},
+		Risk:                 RiskMedium,
+		Retry:                RetrySafe,
+		Mutating:             true,
+		MutationReason:       "dispatch writes the device's secure default input method, so the keyboard the device presents after the action may differ from the one it presented before",
+		Postcondition:        "the device's own read-back of `secure default_input_method` names the component this operation set, and that component came from the device's OWN enabled-IME list rather than from anything an operator typed",
+		EvidenceRequired:     true,
+		AllowedSurfaces:      []InvocationSurface{SurfaceManual},
+		Lifted: &DeferralLift{
+			Record:       retiredCommandBanRecord,
+			Precondition: liftedCommandPrecondition,
+			Reason:       "the retired ban on a general device command is what previously refused this kind; it is dispatchable now as a CATALOGUED operation whose write is a single bounded component NAME the plane selected from the device's own enabled-IME list, which is pattern-checked and cannot express a path, a flag or a second command",
+		},
+	},
+	ImportFile: {
+		Kind:                 ImportFile,
+		RequiredCapabilities: []Capability{CapabilityDeviceFiles},
+		Risk:                 RiskMedium,
+		Retry:                RetryAfterObservation,
+		Mutating:             true,
+		MutationReason:       "dispatch writes the artifact's bytes onto the device, so the directory the file lands in differs from the observation the action was resolved against",
+		Postcondition:        "the device's own read-back of the destination file's size equals the artifact's byte length, so the file is on the device as a fact the device reported rather than as a push that exited zero",
+		EvidenceRequired:     true,
+		AllowedSurfaces:      []InvocationSurface{SurfaceManual},
+		Lifted: &DeferralLift{
+			Record:       retiredCommandBanRecord,
+			Precondition: liftedCommandPrecondition,
+			Reason:       "the retired ban on a general device command is what previously refused this kind; it is dispatchable now as a CATALOGUED operation whose SOURCE is an artifact the workspace already holds and whose device path the plane composes from one bounded file NAME inside the one directory this product owns, so no caller supplies a path on either side",
+		},
+	},
+	InstallApk: {
+		Kind:                 InstallApk,
+		RequiredCapabilities: []Capability{CapabilityDeviceFiles},
+		Risk:                 RiskHigh,
+		Retry:                RetryNeverBlind,
+		Mutating:             true,
+		MutationReason:       "dispatch installs a package on the device, so what the device can run differs from the observation the action was resolved against",
+		Postcondition:        "the device's own `pm path` read-back names a code path for the package, so the package is present on the device after the install rather than merely pushed to it",
+		EvidenceRequired:     true,
+		AllowedSurfaces:      []InvocationSurface{SurfaceManual},
+		Lifted: &DeferralLift{
+			Record:       retiredCommandBanRecord,
+			Precondition: liftedCommandPrecondition,
+			Reason:       "the retired ban on a general device command is what previously refused this kind; it is dispatchable now as a CATALOGUED operation whose installer argument is the package NAME the operator chose (the same bounded name an app launch already admits) and whose device path is composed by the plane inside the one directory this product owns",
+		},
+	},
+	ExportFile: {
+		Kind:                 ExportFile,
+		RequiredCapabilities: []Capability{CapabilityDeviceFiles},
+		Risk:                 RiskMedium,
+		Retry:                RetrySafe,
+		Mutating:             false,
+		MutationReason:       readOnlyMutationReason,
+		Postcondition:        "an artifact is written from the bytes the device answered with, and the artifact's recorded byte length is the size the device itself reported for that path before the read",
+		EvidenceRequired:     true,
+		AllowedSurfaces:      []InvocationSurface{SurfaceManual},
+		Lifted: &DeferralLift{
+			Record:       retiredCommandBanRecord,
+			Precondition: liftedCommandPrecondition,
+			Reason:       "the retired ban on a general device command is what previously refused this kind; it is dispatchable now as a CATALOGUED operation that reads ONE file by a bounded NAME the plane composes into the path this product owns, and it injects no input into the device",
+		},
+	},
+	AdvancedCommand: {
+		Kind:                 AdvancedCommand,
+		RequiredCapabilities: []Capability{CapabilityDeviceCommand},
+		Risk:                 RiskIrreversible,
+		Retry:                RetryNeverBlind,
+		Mutating:             true,
+		MutationReason:       "dispatch runs an argument array this product did not compose, so the device's state after the action is whatever that array did",
+		Postcondition:        "an append-only audit record names the EXACT argument array that was dispatched, the actor, the device and the outcome, and the device answered it",
+		EvidenceRequired:     true,
+		AllowedSurfaces:      []InvocationSurface{SurfaceManual},
+		Lifted: &DeferralLift{
+			Record:       retiredCommandBanRecord,
+			Precondition: liftedCommandPrecondition,
+			Reason:       "this is the ADVANCED form the retirement admitted: an operator-entered argument array, dispatched only after the operator confirms the exact argv, carried as discrete arguments rather than one joined command string, spawned without a shell, with its own append-only audit record and its own refusal of a host-side executable path",
 		},
 	},
 }

@@ -52,7 +52,8 @@ import {
   type MirrorStream,
 } from "@/gen/drift/v1/device_mirror_pb"
 import { liveMirrorCopy, liveStreamView, mirrorCapacityView, previewRequestFor, purposeRequestFor, transportRequestFor, type LiveMirrorPreview, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView, type MirrorCapacityView } from "@/lib/live-mirror"
-import { ApplyDeviceSettingsRequestSchema, ApplyDeviceSettingsResponseSchema, DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
+import { ApplyDeviceSettingRequestSchema, ApplyDeviceSettingResponseSchema, ApplyDeviceSettingsRequestSchema, ApplyDeviceSettingsResponseSchema, DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
+import { DeviceOperation, RunAdvancedCommandRequestSchema, RunAdvancedCommandResponseSchema, RunDeviceOperationRequestSchema, RunDeviceOperationResponseSchema } from "@/gen/drift/v1/device_operations_pb"
 import {
   DeleteArtifactRequestSchema,
   DeleteArtifactResponseSchema,
@@ -630,6 +631,71 @@ export class DeviceSettingsClient {
       context: requestContext({ requestId }),
       workspace: workspaceRef(workspaceId),
       settings: [...settings],
+      approvalGranted,
+    })
+  }
+
+  /**
+   * applyDeviceSetting applies ONE setting to ONE device: the per-device form.
+   *
+   * The device travels as its registry identity and never as a transport serial,
+   * so this call cannot assert where a device is — the control plane resolves the
+   * serial from the registry it observed. A device the registry does not hold is
+   * refused with its own reason rather than resolved to another device.
+   */
+  applyDeviceSetting(requestId: string, workspaceId: string, deviceId: string, setting: DeviceSetting, approvalGranted: boolean) {
+    return this.rpc.call("ApplyDeviceSetting", ApplyDeviceSettingRequestSchema, ApplyDeviceSettingResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      deviceId,
+      setting,
+      approvalGranted,
+    })
+  }
+}
+
+export class DeviceOperationsClient {
+  private readonly rpc: TypedConnectClient
+  constructor(json: ConnectJsonClient) { this.rpc = new TypedConnectClient(json, "drift.v1.DeviceOperationsService") }
+  /**
+   * runDeviceOperation runs ONE catalogued operation on ONE device.
+   *
+   * The device travels as its registry identity and never as a transport serial,
+   * so this call cannot assert where a device is — the control plane resolves the
+   * serial from the registry it observed. `fileName` is a bounded file NAME
+   * inside the one device directory this product owns and is never a path, and
+   * `artifactId` names bytes this workspace already holds, so no host path
+   * reaches the control plane from here either.
+   */
+  runDeviceOperation(requestId: string, workspaceId: string, deviceId: string, operation: DeviceOperation, parameters: { fileName: string; artifactId: string; mediaType: string; packageName: string }, approvalGranted: boolean) {
+    return this.rpc.call("RunDeviceOperation", RunDeviceOperationRequestSchema, RunDeviceOperationResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      deviceId,
+      operation,
+      fileName: parameters.fileName,
+      artifactId: parameters.artifactId,
+      mediaType: parameters.mediaType,
+      packageName: parameters.packageName,
+      approvalGranted,
+    })
+  }
+
+  /**
+   * runAdvancedCommand runs the operator's own argument array on ONE device,
+   * after the operator confirmed the EXACT array carried here.
+   *
+   * The array travels as discrete entries, never as one joined command string, so
+   * each argument is visibly separate in the audit record and the control plane
+   * can spawn it without a shell.
+   */
+  runAdvancedCommand(requestId: string, workspaceId: string, deviceId: string, argv: readonly string[], confirmed: boolean, approvalGranted: boolean) {
+    return this.rpc.call("RunAdvancedCommand", RunAdvancedCommandRequestSchema, RunAdvancedCommandResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      deviceId,
+      argv: [...argv],
+      confirmed,
       approvalGranted,
     })
   }
@@ -1237,6 +1303,7 @@ export interface ControlPlaneServices {
   deviceInput: DeviceInputClient
   textReference: TextReferenceClient
   deviceSettings: DeviceSettingsClient
+  deviceOperations: DeviceOperationsClient
   account: AccountClient
   settings: SettingsClient
   policy: PolicyClient
@@ -1267,6 +1334,7 @@ export function createControlPlaneServices(json: ConnectJsonClient): ControlPlan
     deviceInput: new DeviceInputClient(json),
     textReference: new TextReferenceClient(json),
     deviceSettings: new DeviceSettingsClient(json),
+    deviceOperations: new DeviceOperationsClient(json),
     account: new AccountClient(json),
     settings: new SettingsClient(json),
     policy: new PolicyClient(json),

@@ -29,6 +29,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -222,6 +223,17 @@ type Inputs struct {
 	serial      string
 	timeout     time.Duration
 	renderSizes RenderSizeSource
+
+	// departures is the port a reboot's departure is observed through. It is
+	// nil when no deployment observer was bound, and a reboot refuses rather
+	// than dispatching when it is: a reboot whose departure can never be read
+	// has no postcondition this boundary could satisfy.
+	departures DepartureObserver
+
+	// transferRoot is the host directory a push materializes its payload
+	// under. It is an absolute deployment input; a boundary with none refuses
+	// a file operation rather than writing into a directory nobody chose.
+	transferRoot string
 }
 
 // InputOption configures the device input boundary at construction time.
@@ -234,6 +246,32 @@ func WithInputTimeout(timeout time.Duration) InputOption {
 			return errors.New("device input timeout must be positive")
 		}
 		inputs.timeout = timeout
+		return nil
+	}
+}
+
+// WithDepartureObserver binds the port a reboot's departure is observed
+// through. It exists so a deployment supplies the transport observer it has,
+// and so a test can state the departure it wants observed.
+func WithDepartureObserver(observer DepartureObserver) InputOption {
+	return func(inputs *Inputs) error {
+		if observer == nil {
+			return errors.New("a departure observer is required")
+		}
+		inputs.departures = observer
+		return nil
+	}
+}
+
+// WithTransferRoot binds the absolute host directory a device file operation
+// materializes its payload under. The directory is this product's own: the
+// file inside it is named here, not by a caller.
+func WithTransferRoot(root string) InputOption {
+	return func(inputs *Inputs) error {
+		if strings.TrimSpace(root) == "" || !filepath.IsAbs(root) {
+			return errors.New("a device file transfer root must be an absolute path")
+		}
+		inputs.transferRoot = root
 		return nil
 	}
 }

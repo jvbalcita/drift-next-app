@@ -768,6 +768,52 @@ export interface DeviceSettingsApplyView {
   outcomes: readonly DeviceSettingOutcomeView[]
 }
 
+/**
+ * The catalogued device operations the big-frame control panel dispatches, by
+ * the console's own name for each. They are a closed set: each is a reviewed
+ * operation with one fixed argument array on the device side, not a command an
+ * operator composes.
+ */
+export type DeviceOperationName = "reboot" | "keyboard_switch" | "install_apk" | "import_file" | "export_file"
+
+/**
+ * What a control plane row can report an operation as. `advanced_command` is the
+ * ADVANCED form — the operator's own argument array — which is not a catalogued
+ * operation and has no member of its own in the contract's operation enum, and
+ * `unrecognised` is how a row this build cannot identify is kept and shown
+ * rather than dropped.
+ */
+export type DeviceOperationReportedName = DeviceOperationName | "advanced_command" | "unrecognised"
+
+/**
+ * ONE operation's outcome for ONE device, as the control plane reported it.
+ *
+ * `applied` is true only when the operation dispatched, the device answered, AND
+ * the device's own read-back shows the operation's postcondition holding — a
+ * command that exited zero is not this. `verified` reports that a read-back was
+ * taken at all, so a row with `verified: false` is one where nothing was read off
+ * the device. `detail` is what the DEVICE answered, in the control plane's own
+ * words: the keyboard component a switch chose, the size it reported for a file,
+ * the code path a package resolved to, the artifact an export wrote.
+ */
+export interface DeviceOperationOutcomeView {
+  deviceId: string
+  operation: DeviceOperationReportedName
+  applied: boolean
+  verified: boolean
+  /** Empty when the operation completed. */
+  refusal: string
+  failureClass: string
+  /** The control plane's fixed operator-facing sentence for this row. */
+  message: string
+  /** What the device answered, in the control plane's own words. */
+  detail: string
+  /** The artifact an export stored, and empty otherwise. */
+  artifactId: string
+  /** The exact argument array an advanced command dispatched. */
+  argv: readonly string[]
+}
+
 export type ControlPlaneIntent =
   | { type: "refresh"; deviceId?: string }
   | { type: "startMirrorPreview"; sourceDeviceId: string; followerDeviceIds: readonly string[] }
@@ -907,6 +953,48 @@ export type ControlPlaneIntent =
    * secure setting.
    */
   | { type: "applyFleetDeviceSettings"; settings: readonly DeviceSettingName[]; confirmed: boolean }
+  /**
+   * applyDeviceSetting applies ONE catalogued setting to ONE device — the
+   * per-device form of the fleet apply above, and the device the panel's own
+   * large frame has open.
+   *
+   * It names the device because this action's SUBJECT is that device, exactly as
+   * a key event or a typed-text entry names one; the fleet form names none
+   * because the fleet is its subject. It names the device by its registry
+   * identity and never by a transport serial, so this console still cannot
+   * assert where a device is: the control plane resolves the serial from its own
+   * registry, and the setting is verified by reading it back off the device.
+   *
+   * `confirmed` is the operator's explicit approval, which the policy evaluator
+   * requires for a setting that rewrites a device's secure settings.
+   */
+  | { type: "applyDeviceSetting"; deviceId: string; setting: DeviceSettingName; confirmed: boolean }
+  /**
+   * runDeviceOperation runs ONE catalogued device operation on the SELECTED
+   * device: reboot, keyboard switch, a package install, or a file import or
+   * export. The device travels as its registry identity, never a serial, and the
+   * operation as a name from the console's own closed set — never a command.
+   *
+   * `fileName` is a bounded file NAME inside the one device directory this
+   * product owns, and it is a name rather than a path: a name carrying a
+   * separator, a parent or a shell character is refused by the control plane
+   * before anything reaches a device. `artifactId` names bytes this workspace
+   * already holds for an import or an install, so no host path is ever supplied.
+   * `confirmed` is the operator's explicit approval, which the policy evaluator
+   * requires for a high-risk operation.
+   */
+  | { type: "runDeviceOperation"; deviceId: string; operation: DeviceOperationName; fileName: string; artifactId: string; packageName: string; confirmed: boolean }
+  /**
+   * runAdvancedCommand is the ADVANCED form: the operator's own argument array,
+   * on the SELECTED device, dispatched only after the operator confirmed the
+   * EXACT array carried here.
+   *
+   * It is a separate intent rather than an operation name, so there is no intent
+   * in which a catalogued operation and an operator's array could both be named.
+   * The array travels as discrete entries — never as one joined command string —
+   * and the control plane spawns it without a shell.
+   */
+  | { type: "runAdvancedCommand"; deviceId: string; argv: readonly string[]; confirmed: boolean }
   | { type: "beginRecording"; deviceId: string }
   | { type: "stopRecording"; sessionId: string }
   | { type: "discardRecording"; sessionId: string }
@@ -929,6 +1017,22 @@ export interface MutationResult {
    * by row: the summary sentence is derived from it, never a substitute for it.
    */
   deviceSettingsApply?: DeviceSettingsApplyView
+  /**
+   * deviceSetting carries a PER-DEVICE setting apply's one answer: the row for
+   * the device and setting the operator selected.
+   *
+   * It is the same row shape a fleet apply reports per device, so a surface
+   * renders a per-device outcome exactly as it renders a fleet row, and the
+   * summary sentence is derived from the row rather than from the refusal token.
+   */
+  deviceSetting?: DeviceSettingOutcomeView
+  /**
+   * deviceOperation carries a per-device device command's one answer: the row
+   * for the operation and device the operator selected, including what the
+   * DEVICE answered. It is present for the catalogued operations and for the
+   * advanced form, which report the same row shape.
+   */
+  deviceOperation?: DeviceOperationOutcomeView
 }
 
 export interface ControlPlaneClient {

@@ -1,5 +1,5 @@
 import { DeviceSetting, DeviceSettingRefusalReason } from "@/gen/drift/v1/device_settings_pb"
-import type { ApplyDeviceSettingsResponse } from "@/gen/drift/v1/device_settings_pb"
+import type { ApplyDeviceSettingsResponse, DeviceSettingResult } from "@/gen/drift/v1/device_settings_pb"
 import type { DeviceSettingName, DeviceSettingOutcomeView, DeviceSettingReportedName, DeviceSettingsApplyView } from "@/lib/domain/control-plane"
 
 /**
@@ -74,6 +74,7 @@ const refusalTokens: Record<number, string> = {
   [DeviceSettingRefusalReason.COMMAND_FAILED]: "command_failed",
   [DeviceSettingRefusalReason.POSTCONDITION_FAILED]: "postcondition_failed",
   [DeviceSettingRefusalReason.OUTCOME_INDETERMINATE]: "outcome_indeterminate",
+  [DeviceSettingRefusalReason.DEVICE_NOT_REGISTERED]: "device_not_registered",
 }
 
 /** The token a contract refusal renders as. UNSPECIFIED is the empty string, because nothing was refused. */
@@ -94,19 +95,11 @@ export function deviceSettingRefusalToken(refusal: DeviceSettingRefusalReason): 
 export function deviceSettingsApplyView(response: ApplyDeviceSettingsResponse): DeviceSettingsApplyView | null {
   const outcomes: DeviceSettingOutcomeView[] = []
   for (const row of response.results) {
-    const name = deviceSettingNameFromProto(row.setting)
-    if (name === null && row.setting !== DeviceSetting.UNSPECIFIED) {
+    const outcome = deviceSettingOutcomeView(row)
+    if (outcome === null) {
       return null
     }
-    outcomes.push({
-      deviceId: row.deviceId,
-      setting: name ?? "unrecognised",
-      applied: row.applied,
-      verified: row.verified,
-      refusal: deviceSettingRefusalToken(row.refusal),
-      failureClass: row.failureClass,
-      message: row.message,
-    })
+    outcomes.push(outcome)
   }
   return {
     totalDevices: response.totalDevices,
@@ -114,6 +107,52 @@ export function deviceSettingsApplyView(response: ApplyDeviceSettingsResponse): 
     failedDevices: response.failedDevices,
     outcomes,
   }
+}
+
+/**
+ * deviceSettingOutcomeView renders ONE contract row as the console's own view of
+ * it, and is the single place a row is read.
+ *
+ * The per-device form reports exactly one row and the fleet form reports many,
+ * so both go through here: a per-device outcome cannot drift from the row the
+ * same setting produces in a fleet apply, and the refusal vocabulary has one
+ * reader rather than two.
+ *
+ * It returns null only for a row naming a setting this build cannot identify.
+ * The caller reports that it could not render the answer rather than dropping
+ * the row: a row that disappears is a device whose outcome nobody can read.
+ */
+export function deviceSettingOutcomeView(row: DeviceSettingResult): DeviceSettingOutcomeView | null {
+  const name = deviceSettingNameFromProto(row.setting)
+  if (name === null && row.setting !== DeviceSetting.UNSPECIFIED) {
+    return null
+  }
+  return {
+    deviceId: row.deviceId,
+    setting: name ?? "unrecognised",
+    applied: row.applied,
+    verified: row.verified,
+    refusal: deviceSettingRefusalToken(row.refusal),
+    failureClass: row.failureClass,
+    message: row.message,
+  }
+}
+
+/**
+ * deviceSettingOutcomeSentence states what ONE setting on ONE device did, as the
+ * sentence a per-device control reports.
+ *
+ * It reads the row's own fields rather than the refusal token, so "applied"
+ * always means the device's read-back showed the setting holding, and a row that
+ * was not read back says so instead of reading like a confirmed change.
+ */
+export function deviceSettingOutcomeSentence(outcome: DeviceSettingOutcomeView): string {
+  const label = deviceSettingLabels[outcome.setting]
+  if (outcome.applied) {
+    return `${label} applied to ${outcome.deviceId} and read back off the device.`
+  }
+  const readBack = outcome.verified ? "the device was read back and does not report it holding" : "nothing was read back"
+  return `${label} was not applied to ${outcome.deviceId}: ${outcome.message} (${readBack}).`
 }
 
 /**

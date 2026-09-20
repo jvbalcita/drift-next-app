@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device_settings.proto.
  */
 export const file_drift_v1_device_settings: GenFile = /*@__PURE__*/
-  fileDesc("Ch5kcmlmdC92MS9kZXZpY2Vfc2V0dGluZ3MucHJvdG8SCGRyaWZ0LnYxItQBChNEZXZpY2VTZXR0aW5nUmVzdWx0EhEKCWRldmljZV9pZBgBIAEoCRIoCgdzZXR0aW5nGAIgASgOMhcuZHJpZnQudjEuRGV2aWNlU2V0dGluZxIPCgdhcHBsaWVkGAMgASgIEhAKCHZlcmlmaWVkGAQgASgIEjUKB3JlZnVzYWwYBSABKA4yJC5kcmlmdC52MS5EZXZpY2VTZXR0aW5nUmVmdXNhbFJlYXNvbhIVCg1mYWlsdXJlX2NsYXNzGAYgASgJEg8KB21lc3NhZ2UYByABKAkitwEKGkFwcGx5RGV2aWNlU2V0dGluZ3NSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSKQoIc2V0dGluZ3MYAyADKA4yFy5kcmlmdC52MS5EZXZpY2VTZXR0aW5nEhgKEGFwcHJvdmFsX2dyYW50ZWQYBCABKAgilQEKG0FwcGx5RGV2aWNlU2V0dGluZ3NSZXNwb25zZRIuCgdyZXN1bHRzGAEgAygLMh0uZHJpZnQudjEuRGV2aWNlU2V0dGluZ1Jlc3VsdBIVCg10b3RhbF9kZXZpY2VzGAIgASgNEhcKD2FwcGxpZWRfZGV2aWNlcxgDIAEoDRIWCg5mYWlsZWRfZGV2aWNlcxgEIAEoDSpyCg1EZXZpY2VTZXR0aW5nEh4KGkRFVklDRV9TRVRUSU5HX1VOU1BFQ0lGSUVEEAASIAocREVWSUNFX1NFVFRJTkdfUk9UQVRJT05fTE9DSxABEh8KG0RFVklDRV9TRVRUSU5HX0FVVE9GSUxMX09GRhACKpgHChpEZXZpY2VTZXR0aW5nUmVmdXNhbFJlYXNvbhItCilERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9VTlNQRUNJRklFRBAAEjUKMURFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX05PX1RSQU5TUE9SVF9TRVJJQUwQARIzCi9ERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9MRUFTRV9VTkFWQUlMQUJMRRACEi8KK0RFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX0xFQVNFX0VYUElSRUQQAxItCilERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9GRU5DRV9TVEFMRRAEEjQKMERFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX05PX0NPTlRST0xfU0VTU0lPThAFEjAKLERFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX0xFQVNFX0NPTkZMSUNUEAYSMAosREVWSUNFX1NFVFRJTkdfUkVGVVNBTF9SRUFTT05fREVWSUNFX09GRkxJTkUQBxI1CjFERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9ERVZJQ0VfVU5BVVRIT1JJWkVEEAgSNAowREVWSUNFX1NFVFRJTkdfUkVGVVNBTF9SRUFTT05fREVWSUNFX1VOQVZBSUxBQkxFEAkSLworREVWSUNFX1NFVFRJTkdfUkVGVVNBTF9SRUFTT05fUE9MSUNZX0RFTklFRBAKEjUKMURFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX0NBUEFCSUxJVFlfTUlTTUFUQ0gQCxIwCixERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9FTUVSR0VOQ1lfU1RPUBAMEjsKN0RFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX0RVUExJQ0FURV9JREVNUE9URU5DWV9LRVkQDRIwCixERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9DT01NQU5EX0ZBSUxFRBAOEjYKMkRFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX1BPU1RDT05ESVRJT05fRkFJTEVEEA8SNwozREVWSUNFX1NFVFRJTkdfUkVGVVNBTF9SRUFTT05fT1VUQ09NRV9JTkRFVEVSTUlOQVRFEBAyewoVRGV2aWNlU2V0dGluZ3NTZXJ2aWNlEmIKE0FwcGx5RGV2aWNlU2V0dGluZ3MSJC5kcmlmdC52MS5BcHBseURldmljZVNldHRpbmdzUmVxdWVzdBolLmRyaWZ0LnYxLkFwcGx5RGV2aWNlU2V0dGluZ3NSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
+  fileDesc("Ch5kcmlmdC92MS9kZXZpY2Vfc2V0dGluZ3MucHJvdG8SCGRyaWZ0LnYxItQBChNEZXZpY2VTZXR0aW5nUmVzdWx0EhEKCWRldmljZV9pZBgBIAEoCRIoCgdzZXR0aW5nGAIgASgOMhcuZHJpZnQudjEuRGV2aWNlU2V0dGluZxIPCgdhcHBsaWVkGAMgASgIEhAKCHZlcmlmaWVkGAQgASgIEjUKB3JlZnVzYWwYBSABKA4yJC5kcmlmdC52MS5EZXZpY2VTZXR0aW5nUmVmdXNhbFJlYXNvbhIVCg1mYWlsdXJlX2NsYXNzGAYgASgJEg8KB21lc3NhZ2UYByABKAkitwEKGkFwcGx5RGV2aWNlU2V0dGluZ3NSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSKQoIc2V0dGluZ3MYAyADKA4yFy5kcmlmdC52MS5EZXZpY2VTZXR0aW5nEhgKEGFwcHJvdmFsX2dyYW50ZWQYBCABKAgilQEKG0FwcGx5RGV2aWNlU2V0dGluZ3NSZXNwb25zZRIuCgdyZXN1bHRzGAEgAygLMh0uZHJpZnQudjEuRGV2aWNlU2V0dGluZ1Jlc3VsdBIVCg10b3RhbF9kZXZpY2VzGAIgASgNEhcKD2FwcGxpZWRfZGV2aWNlcxgDIAEoDRIWCg5mYWlsZWRfZGV2aWNlcxgEIAEoDSLIAQoZQXBwbHlEZXZpY2VTZXR0aW5nUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIoCgdzZXR0aW5nGAQgASgOMhcuZHJpZnQudjEuRGV2aWNlU2V0dGluZxIYChBhcHByb3ZhbF9ncmFudGVkGAUgASgIIksKGkFwcGx5RGV2aWNlU2V0dGluZ1Jlc3BvbnNlEi0KBnJlc3VsdBgBIAEoCzIdLmRyaWZ0LnYxLkRldmljZVNldHRpbmdSZXN1bHQqcgoNRGV2aWNlU2V0dGluZxIeChpERVZJQ0VfU0VUVElOR19VTlNQRUNJRklFRBAAEiAKHERFVklDRV9TRVRUSU5HX1JPVEFUSU9OX0xPQ0sQARIfChtERVZJQ0VfU0VUVElOR19BVVRPRklMTF9PRkYQAirRBwoaRGV2aWNlU2V0dGluZ1JlZnVzYWxSZWFzb24SLQopREVWSUNFX1NFVFRJTkdfUkVGVVNBTF9SRUFTT05fVU5TUEVDSUZJRUQQABI1CjFERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9OT19UUkFOU1BPUlRfU0VSSUFMEAESMwovREVWSUNFX1NFVFRJTkdfUkVGVVNBTF9SRUFTT05fTEVBU0VfVU5BVkFJTEFCTEUQAhIvCitERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9MRUFTRV9FWFBJUkVEEAMSLQopREVWSUNFX1NFVFRJTkdfUkVGVVNBTF9SRUFTT05fRkVOQ0VfU1RBTEUQBBI0CjBERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9OT19DT05UUk9MX1NFU1NJT04QBRIwCixERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9MRUFTRV9DT05GTElDVBAGEjAKLERFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX0RFVklDRV9PRkZMSU5FEAcSNQoxREVWSUNFX1NFVFRJTkdfUkVGVVNBTF9SRUFTT05fREVWSUNFX1VOQVVUSE9SSVpFRBAIEjQKMERFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX0RFVklDRV9VTkFWQUlMQUJMRRAJEi8KK0RFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX1BPTElDWV9ERU5JRUQQChI1CjFERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9DQVBBQklMSVRZX01JU01BVENIEAsSMAosREVWSUNFX1NFVFRJTkdfUkVGVVNBTF9SRUFTT05fRU1FUkdFTkNZX1NUT1AQDBI7CjdERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9EVVBMSUNBVEVfSURFTVBPVEVOQ1lfS0VZEA0SMAosREVWSUNFX1NFVFRJTkdfUkVGVVNBTF9SRUFTT05fQ09NTUFORF9GQUlMRUQQDhI2CjJERVZJQ0VfU0VUVElOR19SRUZVU0FMX1JFQVNPTl9QT1NUQ09ORElUSU9OX0ZBSUxFRBAPEjcKM0RFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX09VVENPTUVfSU5ERVRFUk1JTkFURRAQEjcKM0RFVklDRV9TRVRUSU5HX1JFRlVTQUxfUkVBU09OX0RFVklDRV9OT1RfUkVHSVNURVJFRBARMtwBChVEZXZpY2VTZXR0aW5nc1NlcnZpY2USYgoTQXBwbHlEZXZpY2VTZXR0aW5ncxIkLmRyaWZ0LnYxLkFwcGx5RGV2aWNlU2V0dGluZ3NSZXF1ZXN0GiUuZHJpZnQudjEuQXBwbHlEZXZpY2VTZXR0aW5nc1Jlc3BvbnNlEl8KEkFwcGx5RGV2aWNlU2V0dGluZxIjLmRyaWZ0LnYxLkFwcGx5RGV2aWNlU2V0dGluZ1JlcXVlc3QaJC5kcmlmdC52MS5BcHBseURldmljZVNldHRpbmdSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
 
 /**
  * DeviceSettingResult is ONE setting's outcome for ONE device.
@@ -195,6 +195,90 @@ export const ApplyDeviceSettingsResponseSchema: GenMessage<ApplyDeviceSettingsRe
   messageDesc(file_drift_v1_device_settings, 2);
 
 /**
+ * ApplyDeviceSettingRequest asks for ONE setting to be applied to ONE named
+ * device.
+ *
+ * It is the per-device form of the apply above, and the difference between the
+ * two is a safety property rather than a convenience: the fleet form names no
+ * device because the fleet is the SUBJECT of the action, while this form names
+ * one device the operator selected, exactly as every other per-device action on
+ * this plane does (a key event, a tap, a typed-text entry). The device named
+ * here is the REGISTRY identity, never a transport serial: the serial this
+ * request acts over is resolved by the control plane from the registry's current
+ * endpoint projection, so a caller still cannot assert where a device is, and
+ * cannot send a setting at a device the plane has not observed.
+ *
+ * @generated from message drift.v1.ApplyDeviceSettingRequest
+ */
+export type ApplyDeviceSettingRequest = Message<"drift.v1.ApplyDeviceSettingRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * device_id is the registry identity of the device to apply the setting to.
+   * It is resolved against the workspace's own registry, and a device that is
+   * not in it is refused rather than resolved to another device.
+   *
+   * @generated from field: string device_id = 3;
+   */
+  deviceId: string;
+
+  /**
+   * setting names the one setting to apply. UNSPECIFIED, or a value that is not
+   * a member of the closed enum, is refused before anything runs.
+   *
+   * @generated from field: drift.v1.DeviceSetting setting = 4;
+   */
+  setting: DeviceSetting;
+
+  /**
+   * approval_granted is the operator's explicit approval of the change, for the
+   * same reason the fleet form carries it: a high-risk setting is refused by the
+   * policy evaluator without it.
+   *
+   * @generated from field: bool approval_granted = 5;
+   */
+  approvalGranted: boolean;
+};
+
+/**
+ * Describes the message drift.v1.ApplyDeviceSettingRequest.
+ * Use `create(ApplyDeviceSettingRequestSchema)` to create a new message.
+ */
+export const ApplyDeviceSettingRequestSchema: GenMessage<ApplyDeviceSettingRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_settings, 3);
+
+/**
+ * ApplyDeviceSettingResponse reports the one setting's outcome for the one
+ * device. It is the same DeviceSettingResult the fleet form reports per row, so
+ * a client renders a per-device outcome exactly as it renders a fleet row, and
+ * there is no second representation of "the device reported the setting
+ * holding".
+ *
+ * @generated from message drift.v1.ApplyDeviceSettingResponse
+ */
+export type ApplyDeviceSettingResponse = Message<"drift.v1.ApplyDeviceSettingResponse"> & {
+  /**
+   * @generated from field: drift.v1.DeviceSettingResult result = 1;
+   */
+  result?: DeviceSettingResult;
+};
+
+/**
+ * Describes the message drift.v1.ApplyDeviceSettingResponse.
+ * Use `create(ApplyDeviceSettingResponseSchema)` to create a new message.
+ */
+export const ApplyDeviceSettingResponseSchema: GenMessage<ApplyDeviceSettingResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_settings, 4);
+
+/**
  * DeviceSetting names one device setting this surface can apply. It is a
  * reviewed operation, not a settings key: each member has one fixed argument
  * array on the device side, and the set is closed because a caller that could
@@ -369,6 +453,18 @@ export enum DeviceSettingRefusalReason {
    * @generated from enum value: DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE = 16;
    */
   OUTCOME_INDETERMINATE = 16,
+
+  /**
+   * The device this request named is not in the workspace's registry at all, so
+   * there is no device to resolve a transport for and nothing was sent. It is a
+   * reason of its own rather than NO_TRANSPORT_SERIAL: "a device I know about and
+   * cannot reach" and "a device this plane has never recorded" send an operator
+   * to two different places, and collapsing them would report a sighting that
+   * never happened.
+   *
+   * @generated from enum value: DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED = 17;
+   */
+  DEVICE_NOT_REGISTERED = 17,
 }
 
 /**
@@ -388,6 +484,17 @@ export const DeviceSettingsService: GenService<{
     methodKind: "unary";
     input: typeof ApplyDeviceSettingsRequestSchema;
     output: typeof ApplyDeviceSettingsResponseSchema;
+  },
+  /**
+   * ApplyDeviceSetting is the per-device form: one setting, one device, one
+   * lease, one attempt, one read-back.
+   *
+   * @generated from rpc drift.v1.DeviceSettingsService.ApplyDeviceSetting
+   */
+  applyDeviceSetting: {
+    methodKind: "unary";
+    input: typeof ApplyDeviceSettingRequestSchema;
+    output: typeof ApplyDeviceSettingResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_device_settings, 0);

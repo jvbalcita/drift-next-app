@@ -87,7 +87,7 @@ function device(): DeviceView {
  * it. `picture` is the stream's shape unless a test says otherwise, which is the
  * case with no letterbox.
  */
-function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; leaseRefusal?: string; rect?: DOMRect; picture?: { width: number; height: number }; device?: DeviceView; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
+function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; leaseRefusal?: string; rect?: DOMRect; picture?: { width: number; height: number }; device?: DeviceView; devices?: readonly DeviceView[]; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
   const intents: ControlPlaneIntent[] = []
   const dispatch: DispatchIntent = async (intent) => {
     intents.push(intent)
@@ -97,6 +97,7 @@ function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; l
   render(
     <FloatingDevice
       device={options.device ?? device()}
+      artifacts={[]} devices={options.devices ?? []}
       followers={[]}
       workspace={{ ...workspace }}
       settings={{ ...settings }}
@@ -107,7 +108,8 @@ function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; l
       onPointerMove={() => undefined}
       onPointerUp={() => undefined}
       onClose={() => undefined}
-      onAction={() => undefined}
+      onCapture={() => undefined}
+      onChangeDevice={() => undefined}
       mirror={mirror}
       mirrorTransport="webrtc"
       workspaceId={workspaceId}

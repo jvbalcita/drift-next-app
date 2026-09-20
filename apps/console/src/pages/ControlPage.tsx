@@ -1,24 +1,26 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react"
 import { createPortal } from "react-dom"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardCopy, Crosshair, Download, Grid3X3, Image, Info, Keyboard, LoaderCircle, Network, Pin, Power, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Unplug, Upload, Volume1, Volume2, X } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Crosshair, Download, Image, Info, Keyboard, LoaderCircle, MessageSquareText, Network, Package, Pin, Power, RotateCcw, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Terminal, Unplug, Upload, Volume1, Volume2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceSettingName, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
+import type { ArtifactView, ControlPlaneIntent, ControlPlaneSnapshot, DeviceOperationName, DeviceOperationOutcomeView, DeviceSettingName, DeviceSettingOutcomeView, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, livePictureHeld, type LiveMirrorPreview, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
 import { useMirrorCapacity } from "@/lib/api/use-mirror-capacity"
 import { allocateTileViewers, tileBudgetSentence, tileViewerBudget, type TileViewerBudget } from "@/lib/live-tiles"
-import { LiveMirrorDeviceKeys, LiveMirrorInfo, LiveMirrorSurface, useLiveMirrorSession } from "./live-mirror-surface"
+import { LiveMirrorDeviceKeys, LiveMirrorInfo, LiveMirrorSurface, useLiveMirrorSession, type LiveMirrorSessionView } from "./live-mirror-surface"
 import { LiveTilePicture } from "./live-tile"
 import { deviceObservationSentence, deviceStatusLabels, notObserved } from "@/lib/device-status"
-import { deviceSettingLabels, deviceSettingNames } from "@/lib/device-settings"
+import { deviceSettingLabels, deviceSettingNames, deviceSettingOutcomeSentence } from "@/lib/device-settings"
+import { deviceOperationLabels, deviceOperationOutcomeSentence } from "@/lib/device-operations"
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import { captureSerialForDevice } from "./page-utils"
@@ -203,26 +205,54 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
     setFollowerIds((ids) => ids.includes(device.id) ? ids.filter((id) => id !== device.id) : [...ids, device.id])
     showToastMessage(`${device.displayName} ${followerIds.includes(device.id) ? "removed from" : "added to"} the follower selection. No command was sent to followers.`)
   }
-  function handleDeviceAction(action: string) {
-    const blocked = new Set(["Install APK", "Import File", "Export File", "ADB Command", "Quick Phrase"])
-    if (blocked.has(action)) {
-      showToastMessage(`${action} is unavailable. Packages cannot use shell, unrestricted files, or credentials.`)
-      return
-    }
-    if (action === "Screenshot" && source) {
-      void (async () => {
-        const serial = captureSerialForDevice(snapshot.endpoints, source.id)
-        if (!serial) {
-          showToastMessage("This device has no single current transport endpoint to observe.")
-          return
-        }
-        const authorized = await reportDispatch(dispatch, { type: "submitDeviceAction", deviceId: source.id, kind: "capture", confirmed: true }, showToastMessage)
-        if (!authorized.ok) return
-        await reportDispatch(dispatch, { type: "captureLabObservation", serial }, showToastMessage)
-      })()
-      return
-    }
-    showToastMessage(`${action} requires confirmation. No unauthorized command was sent.`)
+  /**
+   * Screenshot is the action column's one command that is not a device key event.
+   *
+   * The column used to carry twelve controls that ended in a message; this is the
+   * one that never did. It authorizes a capture through the kernel and then asks
+   * the lab boundary to observe the serial the device is currently reached at,
+   * and it refuses in its own words - naming the fact that is missing - when the
+   * device has no single current transport endpoint to observe. Nothing is
+   * authorized before that check, and no capture is observed if the kernel
+   * refused the action.
+   */
+  function captureDeviceScreen() {
+    if (!source) return
+    void (async () => {
+      const serial = captureSerialForDevice(snapshot.endpoints, source.id)
+      if (!serial) {
+        showToastMessage("This device has no single current transport endpoint to observe.")
+        return
+      }
+      const authorized = await reportDispatch(dispatch, { type: "submitDeviceAction", deviceId: source.id, kind: "capture", confirmed: true }, showToastMessage)
+      if (!authorized.ok) return
+      await reportDispatch(dispatch, { type: "captureLabObservation", serial }, showToastMessage)
+    })()
+  }
+  /**
+   * Change Device moves the frame to another device of this workspace.
+   *
+   * It is panel navigation and not a device command - it selects which device the
+   * panel controls - and it is TWO dispatched intents rather than a local
+   * selection: the device the frame held is released through the kernel before the
+   * chosen device's control session is asked for, because one device has at most
+   * one active lease and a frame that kept the first while opening the second
+   * would be holding authority it never released. The plane's own answer to the
+   * second dispatch is kept where this frame already reads a refusal, so a move
+   * the plane refused names itself at the frame instead of silently leaving the
+   * operator on a device they did not choose.
+   */
+  function changeSource(deviceId: string) {
+    if (!source || deviceId === source.id) return
+    const previous = source.id
+    setSourceId(deviceId)
+    setFollowerIds([])
+    setControlRefusal("")
+    void (async () => {
+      await reportDispatch(dispatch, { type: "endDeviceControl", deviceId: previous }, showToastMessage)
+      const begun = await reportDispatch(dispatch, { type: "beginDeviceControl", deviceId }, showToastMessage)
+      setControlRefusal(begun.ok ? "" : begun.message)
+    })()
   }
   function beginDrag(event: PointerEvent<HTMLDivElement>) {
     if (modalPinned || (event.target as HTMLElement).closest("button")) return
@@ -327,12 +357,12 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
    * here.
    */
   const sourceLease = source ? snapshot.leases.some((candidate) => candidate.deviceId === source.id && candidate.state === "active") : false
-  const deviceModal = source ? <FloatingDevice device={source} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onAction={handleDeviceAction} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease} dispatch={dispatch} /> : null
+  const deviceModal = source ? <FloatingDevice device={source} devices={snapshot.devices} artifacts={snapshot.artifacts} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onCapture={captureDeviceScreen} onChangeDevice={changeSource} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease} dispatch={dispatch} /> : null
   const selectedCount = (source ? 1 : 0) + followers.length
 
   return <div className="relative min-h-full">
     <div className="mb-5 flex items-center justify-between gap-3"><div className="drift-kicker flex items-center gap-3"><span className="h-px w-8 bg-primary" aria-hidden="true" /><span>Control / Device Workspace</span></div><div className="flex flex-wrap items-center justify-end gap-2"><StatusBadge label={snapshot.runtimeConnection.state} tone={snapshot.runtimeConnection.state === "connected" ? "healthy" : snapshot.runtimeConnection.state === "reconnecting" ? "attention" : "danger"} /><LabModeBadges adapter={snapshot.labAdapter} /></div></div>
-    <OperatorNotice>Selecting a phone opens a control session and acquires a per-device lease. Preview admits followers independently and does not copy commands. High-risk shell, APK, and file actions stay blocked. Workspace display settings only change this local view.</OperatorNotice>
+    <OperatorNotice>Selecting a phone opens a control session and acquires a per-device lease. Preview admits followers independently and does not copy commands. Every control in the frame&apos;s action column dispatches to the selected device through the control plane, and a command this build cannot dispatch to the selected device is not shown. Workspace display settings only change this local view.</OperatorNotice>
     <LabStatusStrip
       adapter={snapshot.labAdapter}
       runtimeConnection={snapshot.runtimeConnection}
@@ -644,8 +674,13 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
  *    pin, close, the info control that holds the stream's state, transport,
  *    encoded frame, the observation its coordinates are measured from, and every
  *    refusal;
- *  - the action column keeps every device command it had and the one control that
- *    stops the stream. The blocks that were added here are gone: the row of key
+ *  - the action column carries the device commands this build can actually
+ *    dispatch to the SELECTED device, and the one control that stops the stream.
+ *    A command it cannot dispatch is not shown (AGENTS.md section 7), which is
+ *    what the twelve controls that ended in a message did not do; the per-command
+ *    decision and what each withdrawn control needs are recorded in
+ *    `docs/domain/big-frame-control-panel-commands.md`. The blocks that were added
+ *    here are gone: the row of key
  *    buttons and the field to type into the device (the keys were the device's
  *    own, so they are its navigation bar in the footer, and typing into a device
  *    is the operator's own keyboard), and the keyboard-capture block with its
@@ -667,7 +702,7 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
  * with no aspect to take - and the picture's drawn box stays honest either way,
  * so a pointer is still measured through the box the picture is actually in.
  */
-export function FloatingDevice({ device, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onAction, mirror, mirrorTransport, workspaceId, leaseRefusal, hasLease, dispatch }: { device: DeviceView; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onAction: (value: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; leaseRefusal?: string; hasLease: boolean; dispatch: DispatchIntent }) {
+export function FloatingDevice({ device, devices, artifacts, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onCapture, onChangeDevice, mirror, mirrorTransport, workspaceId, leaseRefusal, hasLease, dispatch }: { device: DeviceView; devices: readonly DeviceView[]; artifacts: readonly ArtifactView[]; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onCapture: () => void; onChangeDevice: (deviceId: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; leaseRefusal?: string; hasLease: boolean; dispatch: DispatchIntent }) {
   const session = useLiveMirrorSession({ device, mirror, transport: mirrorTransport, workspaceId, hasLease, leaseRefusal, dispatch })
   const controlsWidth = 220
   const frameGap = 12
@@ -689,7 +724,7 @@ export function FloatingDevice({ device, followers, workspace, settings, positio
     </div>
     <div aria-label={`${device.displayName} floating device controls`} className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-popover text-foreground" style={controlsFrameStyle}>
       <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><LiveMirrorInfo session={session} /><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">{livePictureHeld(session.phase) ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><ControlButton icon={Smartphone} label="Change Device" onClick={() => onAction("Change Device")} /><ControlButton icon={Volume2} label="Volume Up" onClick={() => onAction("Volume Up")} /><ControlButton icon={Volume1} label="Volume Down" onClick={() => onAction("Volume Down")} /><ControlButton icon={Image} label="Screenshot" onClick={() => onAction("Screenshot")} /><ControlButton icon={Power} label="Power Button" onClick={() => onAction("Power Button")} /><ControlButton icon={RotateCw} label="Lock Rotate" onClick={() => onAction("Lock Rotate")} /><ControlButton icon={Grid3X3} label="Install APK" onClick={() => onAction("Install APK")} /><ControlButton icon={Upload} label="Import File" onClick={() => onAction("Import File")} /><ControlButton icon={Download} label="Export File" onClick={() => onAction("Export File")} /><ControlButton icon={ClipboardCopy} label="ADB Command" onClick={() => onAction("ADB Command")} /><ControlButton icon={Keyboard} label="Quick Phrase" onClick={() => onAction("Quick Phrase")} /><ControlButton icon={RotateCw} label="Reboot" onClick={() => onAction("Reboot")} /><ControlButton icon={Keyboard} label="Switch Keyboard" onClick={() => onAction("Switch Keyboard")} /></div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">{livePictureHeld(session.phase) ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><PanelDevicePicker devices={devices} currentId={device.id} onSelect={onChangeDevice} /><PanelKeyCommands session={session} /><ControlButton icon={Image} label="Screenshot" onClick={onCapture} /><PanelSettingCommands device={device} dispatch={dispatch} /><PanelOperationCommands device={device} artifacts={artifacts} dispatch={dispatch} /></div>
       <div className="shrink-0 border-t border-border px-2 py-2">
         <p data-testid="live-mirror-followers" className="mb-1 text-center text-[10px] text-muted-foreground">{followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
         <LiveMirrorDeviceKeys session={session} />
@@ -697,7 +732,305 @@ export function FloatingDevice({ device, followers, workspace, settings, positio
     </div>
   </div>
 }
-function ControlButton({ icon: Icon, label, onClick }: { icon: typeof Smartphone; label: string; onClick: () => void }) { return <Button variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={onClick}><Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />{label}</Button> }
+/**
+ * The glyph each panel key command is drawn with, keyed by the command's own
+ * name.
+ *
+ * The copy table in `live-mirror` is the single statement of what the panel's
+ * key commands are and which code each dispatches; this table adds only the
+ * picture beside them. The compiler checks the two against each other: a command
+ * named in one table and missing from the other is an index that cannot be
+ * formed, so the surface cannot draw a key it has no copy for.
+ */
+const panelKeyIcons = { "volume-up": Volume2, "volume-down": Volume1, power: Power } as const
+
+/**
+ * PanelKeyCommands draws the device key events the action column offers.
+ *
+ * Each one IS the device's own key event, dispatched by the frame's own session
+ * - the same intent, lease, policy and control session the navigation row in the
+ * footer and the operator's own keyboard travel, so there is one key-event path
+ * and not two. A key event's catalog entry requires the observation it was
+ * resolved against, so a frame that cannot name one refuses in the console's own
+ * words instead of asking the kernel to refuse an intent it built; the control is
+ * disabled AND the fact it is missing is named where this frame states its state,
+ * because a control that cannot act has to say why.
+ */
+function PanelKeyCommands({ session }: { session: LiveMirrorSessionView }) {
+  return <>{liveMirrorCopy.panelKeyCommands.map((command) => <ControlButton key={command.name} icon={panelKeyIcons[command.name]} label={command.label} disabled={!session.inputReady} onClick={() => session.sendKey(command.keyCode, command.label)} />)}</>
+}
+
+/**
+ * PanelSettingCommands draws the catalogued SETTINGS operation the action column
+ * offers, for the SELECTED device.
+ *
+ * Lock Rotate is the per-device form of the rotation lock that Console Settings
+ * applies fleet-wide, and the two are the same operation: the device's own
+ * `accelerometer_rotation` and `user_rotation` written to 0, dispatched as one
+ * catalogued action through the lease, fencing, policy and control-session
+ * kernel, and confirmed by reading the setting BACK off the device. The
+ * difference is the subject: this one names the device the frame has open, and
+ * Console Settings names the fleet.
+ *
+ * The control reports the plane's OWN row rather than a sentence of its own: an
+ * applied setting says the device's read-back showed it holding, and a setting
+ * that was refused says which refusal it was ("the device is attached but this
+ * host is not authorized to control it" and "the device answered and does not
+ * report the setting holding" are different facts and stay different here). The
+ * sentence is announced as well as drawn, because a refusal an operator cannot
+ * read is the same as no answer.
+ */
+function PanelSettingCommands({ device, dispatch }: { device: DeviceView; dispatch: DispatchIntent }) {
+  const [pending, setPending] = useState(false)
+  const [outcome, setOutcome] = useState<DeviceSettingOutcomeView | null>(null)
+  const [refusal, setRefusal] = useState("")
+  async function applyRotationLock() {
+    if (pending) return
+    setPending(true)
+    // The operator's own approval travels with the dispatch: a high-risk setting
+    // is refused by the policy evaluator without it, and the control is the
+    // operator's act rather than a default this console supplies.
+    const result = await dispatch({ type: "applyDeviceSetting", deviceId: device.id, setting: "rotation_lock", confirmed: true })
+    setPending(false)
+    if (!result.ok) {
+      setOutcome(null)
+      setRefusal(result.message)
+      return
+    }
+    setRefusal("")
+    setOutcome(result.deviceSetting ?? null)
+  }
+  const reported = refusal !== "" ? refusal : outcome ? deviceSettingOutcomeSentence(outcome) : ""
+  return <>
+    <ControlButton icon={RotateCw} label="Lock Rotate" disabled={pending} onClick={() => { void applyRotationLock() }} />
+    <p data-testid="panel-setting-outcome" role="status" aria-live="polite" className="px-2 pb-1 text-[10px] leading-4 text-muted-foreground">{reported}</p>
+  </>
+}
+
+/**
+ * PanelOperationCommands draws the panel's per-device device OPERATIONS, for the
+ * SELECTED device.
+ *
+ * Every one of them dispatches a typed action on the device the frame has open,
+ * through the lease / fencing / policy / control-session kernel, and reports the
+ * control plane's OWN row: an operation that completed says what the DEVICE
+ * answered (the keyboard the plane chose, the size the device reported, the code
+ * path it named, the artifact that was written), and an operation that did not
+ * says which refusal it was and whether anything was read back. The sentence is
+ * announced as well as drawn, because a refusal an operator cannot read is the
+ * same as no answer.
+ *
+ * Which of these need an operator's input is a fact about the operation and not a
+ * preference: Reboot and Switch Keyboard take no parameter at all — the reboot's
+ * argument array is the operation's own, and the keyboard is chosen by the plane
+ * from the DEVICE's own enabled list — so they are one button each. Install,
+ * Import, Export and the advanced form name something the operator has to choose,
+ * so each opens a dialog that states exactly what will be sent before it is sent.
+ *
+ * Nothing here composes a command. The four catalogued operations that need a
+ * parameter take a bounded file NAME (never a path) and an artifact this
+ * workspace already holds; the advanced form takes the operator's own argument
+ * array, one entry per line, and is the only control that carries command text —
+ * which is why it is the only one that shows the exact argv back before dispatch.
+ */
+function PanelOperationCommands({ device, artifacts, dispatch }: { device: DeviceView; artifacts: readonly ArtifactView[]; dispatch: DispatchIntent }) {
+  const [pending, setPending] = useState("")
+  const [outcome, setOutcome] = useState<DeviceOperationOutcomeView | null>(null)
+  const [refusal, setRefusal] = useState("")
+  const [message, setMessage] = useState("")
+  async function run(intent: ControlPlaneIntent, name: string) {
+    setPending(name)
+    const result = await dispatch(intent)
+    setPending("")
+    if (!result.ok) {
+      setOutcome(null)
+      setRefusal(result.message)
+      return
+    }
+    setRefusal("")
+    setOutcome(result.deviceOperation ?? null)
+    // A device command answers with a row and the row is what is rendered. A
+    // control that is not a device command — Quick Phrase dispatches typed text
+    // — has no row, so the plane's own sentence is what the operator reads
+    // rather than an empty line that reads as "nothing happened".
+    setMessage(result.deviceOperation ? "" : result.message)
+  }
+  const reported = refusal !== "" ? refusal : outcome ? deviceOperationOutcomeSentence(outcome) : message
+  const busy = pending !== ""
+  return <>
+    <ControlButton icon={RotateCcw} label={deviceOperationLabels.reboot} disabled={busy} onClick={() => { void run({ type: "runDeviceOperation", deviceId: device.id, operation: "reboot", fileName: "", artifactId: "", packageName: "", confirmed: true }, "reboot") }} />
+    <ControlButton icon={Keyboard} label={deviceOperationLabels.keyboard_switch} disabled={busy} onClick={() => { void run({ type: "runDeviceOperation", deviceId: device.id, operation: "keyboard_switch", fileName: "", artifactId: "", packageName: "", confirmed: true }, "keyboard_switch") }} />
+    <PanelFileCommand device={device} artifacts={artifacts} operation="install_apk" icon={Package} needsArtifact needsPackageName busy={busy} run={run} />
+    <PanelFileCommand device={device} artifacts={artifacts} operation="import_file" icon={Upload} needsArtifact busy={busy} run={run} />
+    <PanelFileCommand device={device} artifacts={artifacts} operation="export_file" icon={Download} busy={busy} run={run} />
+    <PanelAdvancedCommand device={device} busy={busy} run={run} />
+    <PanelQuickPhrase device={device} busy={busy} run={run} />
+    <p data-testid="panel-operation-outcome" role="status" aria-live="polite" className="px-2 pb-1 text-[10px] leading-4 text-muted-foreground">{reported}</p>
+  </>
+}
+
+/**
+ * The bounded file-NAME rule, mirrored from the control plane's own.
+ *
+ * It is a name and never a path: no separator, no parent, no root and no
+ * character that carries meaning to a shell. This is the console's own
+ * pre-check rather than the boundary that decides — the control plane refuses a
+ * name it does not address, with its own reason, and it reaches no device to say
+ * so — and it exists so the dialog can say what is wrong while the operator is
+ * still looking at the field.
+ */
+const deviceFileNamePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+
+/**
+ * The label Quick Phrase is rendered under. It is deliberately NOT a member of
+ * `deviceOperationLabels`: that table names device OPERATIONS, and Quick Phrase
+ * is typed text rather than a device command. Writing it here keeps the two
+ * kinds of control from being read as one.
+ */
+const quickPhraseLabel = "Quick Phrase"
+
+/**
+ * PanelFileCommand draws ONE file or package operation as a dialog.
+ *
+ * The dialog states what will be sent before anything is: the bounded file name
+ * the operation addresses on the device, the artifact this workspace holds, and
+ * — for an install — the package the device will be asked about afterwards. The
+ * Confirm control is disabled until the operation has what it needs, because a
+ * control that cannot act must not act; the refusals an operator reads come from
+ * the control plane, not from this dialog.
+ */
+function PanelFileCommand({ device, artifacts, operation, icon: Icon, needsArtifact = false, needsPackageName = false, busy, run }: { device: DeviceView; artifacts: readonly ArtifactView[]; operation: DeviceOperationName; icon: typeof Smartphone; needsArtifact?: boolean; needsPackageName?: boolean; busy: boolean; run: (intent: ControlPlaneIntent, name: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [fileName, setFileName] = useState("")
+  const [artifactId, setArtifactId] = useState("")
+  const [packageName, setPackageName] = useState("")
+  const label = deviceOperationLabels[operation]
+  const nameValid = deviceFileNamePattern.test(fileName)
+  const ready = nameValid && (!needsArtifact || artifactId !== "") && (!needsPackageName || packageName.trim() !== "")
+  async function confirm() {
+    setOpen(false)
+    await run({ type: "runDeviceOperation", deviceId: device.id, operation, fileName, artifactId, packageName, confirmed: true }, operation)
+  }
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <DialogTrigger render={<Button variant="ghost" disabled={busy} className="h-9 w-full justify-start rounded-none px-2 text-xs" />}><Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />{label}</DialogTrigger>
+    <DialogContent>
+      <DialogHeader><DialogTitle>{`${label} on ${device.displayName}`}</DialogTitle><DialogDescription>{operation === "export_file" ? "Reads one file out of the device directory this product owns into this workspace's artifacts. The device is read back for the size it reports." : operation === "install_apk" ? "Pushes an artifact of this workspace onto the device, installs it, and asks the device where the package's code now is." : "Writes an artifact of this workspace onto the device and reads the destination's size back off it."}</DialogDescription></DialogHeader>
+      <label className="mt-2 block text-xs font-medium" htmlFor={`file-name-${operation}`}>File name on the device
+        <Input id={`file-name-${operation}`} value={fileName} onChange={(event) => setFileName(event.target.value)} placeholder="notes.txt" className="mt-2" />
+      </label>
+      <p className="text-[10px] leading-4 text-muted-foreground">{nameValid || fileName === "" ? "The file lives in the one device directory this product owns. It is a name, never a path." : "A file name is bounded and carries no separator, no parent and no shell character."}</p>
+      {needsArtifact ? <label className="block text-xs font-medium" htmlFor={`artifact-${operation}`}>Artifact this workspace holds
+        <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" aria-label="Artifact this workspace holds" className="mt-2 h-9 w-full justify-between rounded-none px-2 text-xs font-normal" />}><span className="truncate">{artifactId === "" ? "Choose an artifact" : artifactId}</span><ChevronDown className="size-3.5" aria-hidden="true" /></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[var(--anchor-width)]">{artifacts.length === 0 ? <DropdownMenuItem disabled>No artifact is stored in this workspace</DropdownMenuItem> : artifacts.map((artifact) => <DropdownMenuItem key={artifact.id} onClick={() => setArtifactId(artifact.id)}>{`${artifact.id} · ${artifact.category}`}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
+      </label> : null}
+      {needsPackageName ? <label className="block text-xs font-medium" htmlFor={`package-${operation}`}>Package the device is asked about
+        <Input id={`package-${operation}`} value={packageName} onChange={(event) => setPackageName(event.target.value)} placeholder="com.example.app" className="mt-2" />
+      </label> : null}
+      <div className="mt-2 flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button><Button size="sm" disabled={!ready} onClick={() => { void confirm() }}>Confirm and send</Button></div>
+    </DialogContent>
+  </Dialog>
+}
+
+/**
+ * PanelAdvancedCommand draws the ADVANCED form: the operator's own argument
+ * array, for the SELECTED device.
+ *
+ * It is the one control in this column that carries command text, and it is
+ * deliberately the one that shows the exact array back before it is dispatched.
+ * The array is entered one discrete argument per LINE and travels as discrete
+ * entries — never as one joined command string — so each argument stays visibly
+ * separate in the audit record, and the control plane spawns it without a shell.
+ * The dialog lists the array entry by entry, so what the operator confirms is
+ * what the record will name.
+ *
+ * The control plane refuses an array it will not dispatch — an over-long one, a
+ * token that is not a safe argv token, a command name that is a path or a flag,
+ * or a host path outside the admitted set — with its own reason, before anything
+ * reaches a device.
+ */
+function PanelAdvancedCommand({ device, busy, run }: { device: DeviceView; busy: boolean; run: (intent: ControlPlaneIntent, name: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState("")
+  const argv = value.split("\n").map((line) => line.trim()).filter((line) => line !== "")
+  async function confirm() {
+    setOpen(false)
+    await run({ type: "runAdvancedCommand", deviceId: device.id, argv, confirmed: true }, "advanced_command")
+  }
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <DialogTrigger render={<Button variant="ghost" disabled={busy} className="h-9 w-full justify-start rounded-none px-2 text-xs" />}><Terminal className="size-3.5 text-muted-foreground" aria-hidden="true" />{deviceOperationLabels.advanced_command}</DialogTrigger>
+    <DialogContent>
+      <DialogHeader><DialogTitle>{`${deviceOperationLabels.advanced_command} on ${device.displayName}`}</DialogTitle><DialogDescription>One argument per line. The array is dispatched exactly as written, without a shell, only after you confirm it here, and it is recorded as the discrete arguments below.</DialogDescription></DialogHeader>
+      <label className="mt-2 block text-xs font-medium" htmlFor="advanced-argv">Argument array
+        <Textarea id="advanced-argv" value={value} onChange={(event) => setValue(event.target.value)} rows={4} placeholder={"get-state\n"} className="mt-2 font-mono text-xs" />
+      </label>
+      <div className="text-[10px] leading-4 text-muted-foreground">
+        <p>{argv.length === 0 ? "No argument has been entered, so nothing can be confirmed." : `${argv.length} argument(s) will be sent, in this order:`}</p>
+        <ol data-testid="advanced-argv-preview" className="mt-1 list-decimal pl-4 font-mono">{argv.map((argument, index) => <li key={`${index}-${argument}`}>{argument}</li>)}</ol>
+      </div>
+      <div className="mt-2 flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button><Button size="sm" disabled={argv.length === 0} onClick={() => { void confirm() }}>Confirm and dispatch</Button></div>
+    </DialogContent>
+  </Dialog>
+}
+
+/**
+ * PanelQuickPhrase draws Quick Phrase: typed text, for the SELECTED device.
+ *
+ * It is not a device command at all — it types text into the device through the
+ * live session, which is the same typed-text action the kernel already admits —
+ * so it is the one control here whose outcome is the plane's own sentence rather
+ * than a device-operation row.
+ *
+ * The phrase leaves this process through the content surface and nowhere else:
+ * the console registers the value once, the dispatch names it by an opaque
+ * handle, and the length that travels is the number of BYTES the control plane
+ * will hold. Nothing about the phrase is rendered back, and the plane's own
+ * kernel is what types it, so the console never becomes a second path to a
+ * device's input.
+ *
+ * What this control deliberately does NOT add is a DURABLE phrase catalogue. The
+ * reference registry is in-memory, bounded and releases a value at most once —
+ * it is explicitly not a store — so a phrase an operator wants to keep is a
+ * content-at-rest decision about their own text rather than an implementation
+ * choice, and it stays parked on that ruling. The control dispatches; it stores
+ * nothing.
+ */
+function PanelQuickPhrase({ device, busy, run }: { device: DeviceView; busy: boolean; run: (intent: ControlPlaneIntent, name: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState("")
+  async function confirm() {
+    setOpen(false)
+    await run({ type: "submitDeviceText", deviceId: device.id, text: value, confirmed: true }, "quick_phrase")
+  }
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <DialogTrigger render={<Button variant="ghost" disabled={busy} className="h-9 w-full justify-start rounded-none px-2 text-xs" />}><MessageSquareText className="size-3.5 text-muted-foreground" aria-hidden="true" />{quickPhraseLabel}</DialogTrigger>
+    <DialogContent>
+      <DialogHeader><DialogTitle>{`${quickPhraseLabel} on ${device.displayName}`}</DialogTitle><DialogDescription>{`The phrase is typed into ${device.displayName} through the control plane's own typed-text action, over the live session the device holds. It is registered once on this console's content surface and named afterwards by an opaque handle, so it is never echoed back into this page.`}</DialogDescription></DialogHeader>
+      <label className="mt-2 block text-xs font-medium" htmlFor="quick-phrase">Phrase to type
+        <Textarea id="quick-phrase" value={value} onChange={(event) => setValue(event.target.value)} rows={3} className="mt-2 text-xs" />
+      </label>
+      <div className="mt-2 flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button><Button size="sm" disabled={value.trim() === ""} onClick={() => { void confirm() }}>Confirm and type</Button></div>
+    </DialogContent>
+  </Dialog>
+}
+
+/**
+ * PanelDevicePicker is Change Device: the control that moves the frame to another
+ * device of the workspace.
+ *
+ * It is panel navigation rather than a device command, and it is drawn here
+ * because this is where the operator is looking. Its list is the workspace's own
+ * projection, so this console offers the devices it has rather than asserting
+ * which of them are reachable, and every entry carries the device's own status
+ * label so an operator is not choosing blind. It is rendered only when there is
+ * another device to move to: a picker with nothing in it is a control that cannot
+ * act, which is the thing this column no longer carries.
+ */
+function PanelDevicePicker({ devices, currentId, onSelect }: { devices: readonly DeviceView[]; currentId: string; onSelect: (deviceId: string) => void }) {
+  const selectable = devices.filter((device) => device.id !== currentId)
+  if (selectable.length === 0) return null
+  return <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" aria-label="Change Device" className="h-9 w-full justify-start rounded-none px-2 text-xs" />}><Smartphone className="size-3.5 text-muted-foreground" aria-hidden="true" />Change Device</DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[var(--anchor-width)]">{selectable.map((device) => <DropdownMenuItem key={device.id} onClick={() => onSelect(device.id)}>{`${device.displayName} · ${deviceStatusLabels[device.status]}`}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
+}
+
+function ControlButton({ icon: Icon, label, disabled = false, onClick }: { icon: typeof Smartphone; label: string; disabled?: boolean; onClick: () => void }) { return <Button variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" disabled={disabled} onClick={onClick}><Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />{label}</Button> }
 function SettingToggle({ label, description, checked, onChange, onLabel = "On", offLabel = "Off" }: { label: string; description: string; checked: boolean; onChange: (value: boolean) => void; onLabel?: string; offLabel?: string }) { const id = label.toLowerCase().replaceAll(" ", "-"); return <div className="flex items-start gap-3 border-t border-border pt-4"><Switch id={id} checked={checked} onCheckedChange={onChange} className="mt-0.5 shrink-0" /><label htmlFor={id} className="min-w-0 flex-1 cursor-pointer"><span className="flex justify-between gap-2 text-xs font-medium"><span>{label}</span><span className="text-muted-foreground">{checked ? onLabel : offLabel}</span></span><span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{description}</span></label></div> }
 /**
  * rangeEndIp is the second range: its first three octets are the first range's,

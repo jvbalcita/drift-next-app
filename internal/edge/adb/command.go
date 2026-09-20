@@ -21,6 +21,25 @@ const (
 	// to, and every file it creates there is removed after the operation.
 	devicePathPrefix = "/sdcard/drift-"
 	devicePathSuffix = ".xml"
+
+	// deviceInboxDir is the ONE device-side directory the catalogued file
+	// operations this product offers can address. It is this product's own
+	// directory rather than a shared one (Downloads, DCIM, the device's own
+	// storage root), so a file operation can never write over something the
+	// operator did not put there, and a read can never reach a file this
+	// product did not place.
+	deviceInboxDir = "/sdcard/drift-inbox"
+	// maxDeviceFileNameLength bounds one file name inside that directory.
+	maxDeviceFileNameLength = 64
+	// maxTransferHostPathLength bounds one host-side transfer path.
+	maxTransferHostPathLength = 512
+	// transferHostDirName and transferHostFilePrefix name the ONE host-side
+	// directory and file shape a catalogued push may read from. The plane
+	// creates the file itself; the allow-list is the second gate that keeps
+	// any other host path out of an admitted array.
+	transferHostDirName      = "drift-transfer"
+	transferHostFilePrefix   = "drift-transfer-"
+	maxTransferHostFileToken = 64
 )
 
 // Bounds and fixed tokens for the typed device input admission. Every bound is
@@ -43,6 +62,8 @@ const (
 	launcherCountToken = "1"
 	// maxComponentLength bounds a package or component name.
 	maxComponentLength = 255
+	// maxImeComponentLength bounds one input-method component name.
+	maxImeComponentLength = 255
 )
 
 var (
@@ -51,6 +72,27 @@ var (
 	// by dots or underscores.
 	packageNamePattern   = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$`)
 	componentNamePattern = regexp.MustCompile(`^[A-Za-z0-9_.]+$`)
+
+	// deviceFileNamePattern is a file NAME, never a path: it carries no
+	// separator of any kind, so a name that matched it cannot address a
+	// directory, a parent, a device-absolute path or a second file.
+	deviceFileNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+	// deviceInboxPathPattern is the ONE device-side path shape a catalogued
+	// file operation composes from such a name. It lives in this adapter
+	// rather than in the caller, so "which device paths are addressable" is a
+	// question this gate answers for itself.
+	deviceInboxPathPattern = regexp.MustCompile(`^/sdcard/drift-inbox/[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+	// transferHostPathPattern is the ONE host-side path shape a catalogued
+	// push may carry: a file whose own name this product generated, inside a
+	// directory of its own name. Anything else - a deployment path, a system
+	// path, a home directory, another user's spool - is a different array and
+	// stays refused.
+	transferHostPathPattern = regexp.MustCompile(`^/(?:[A-Za-z0-9._-]+/)*drift-transfer/drift-transfer-[A-Za-z0-9-]{1,64}\.[A-Za-z0-9]{1,8}$`)
+	// imeComponentPattern is an input-method component NAME: a dotted package,
+	// a separator, and the service half of the component. The device's own
+	// `ime list -s` answers in exactly this shape, and the plane only ever
+	// writes a component it read from that list.
+	imeComponentPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+/[A-Za-z0-9_.$]+$`)
 )
 
 var (
@@ -80,6 +122,19 @@ var (
 	// ErrDevicePathInvalid reports a device-side path outside the adapter's
 	// private temporary namespace.
 	ErrDevicePathInvalid = errors.New("adb device path is not an adapter-owned temporary file")
+
+	// ErrDeviceFileNameInvalid reports a file name that is not a bounded name:
+	// it is empty, padded, over-long, or carries a separator, a parent or a
+	// shell character.
+	ErrDeviceFileNameInvalid = errors.New("adb device file name is not a bounded name inside this product's device directory")
+
+	// ErrTransferHostPathInvalid reports a host-side path that is not a
+	// transfer file this product created.
+	ErrTransferHostPathInvalid = errors.New("host path is not a transfer file this product owns")
+
+	// ErrImeComponentInvalid reports an input-method component that is not a
+	// bounded component name.
+	ErrImeComponentInvalid = errors.New("ime component is not a bounded component name")
 )
 
 // forbiddenArgRunes never appear in an allowlisted argv token. They are
@@ -216,6 +271,78 @@ func DevicePath(correlationID string) (string, error) {
 	return path, nil
 }
 
+// ValidateDeviceFileName reports whether name is a bounded file NAME rather
+// than a path. It is the replacement for "let the caller tell us where to
+// write": the name carries no separator, no parent, no root and no second
+// component, so a name that passes this may only ever address one file inside
+// the one directory this product composes the path from.
+func ValidateDeviceFileName(name string) error {
+	if name == "" || len(name) > maxDeviceFileNameLength || !deviceFileNamePattern.MatchString(name) {
+		return ErrDeviceFileNameInvalid
+	}
+	if strings.Contains(name, "..") {
+		return ErrDeviceFileNameInvalid
+	}
+	return validateArgToken(name)
+}
+
+// ValidateDeviceInboxPath reports whether path is a file inside the ONE device
+// directory this product owns, named by a bounded file name. Nothing else -
+// not Downloads, not a shared directory, not the device root, not the
+// adapter's own dump namespace - is addressable by a catalogued file
+// operation.
+func ValidateDeviceInboxPath(path string) error {
+	if len(path) > len(deviceInboxDir)+1+maxDeviceFileNameLength || !deviceInboxPathPattern.MatchString(path) {
+		return ErrDevicePathInvalid
+	}
+	if strings.Contains(path, "..") {
+		return ErrDevicePathInvalid
+	}
+	return validateArgToken(path)
+}
+
+// ValidateTransferHostPath reports whether path is a host-side transfer file
+// this product created: a file this product named, inside a directory of its
+// own name. It is the second gate over the push direction, and it is asked
+// before any host path can reach an argv token.
+func ValidateTransferHostPath(path string) error {
+	if path == "" || len(path) > maxTransferHostPathLength || !transferHostPathPattern.MatchString(path) {
+		return ErrTransferHostPathInvalid
+	}
+	if strings.Contains(path, "..") {
+		return ErrTransferHostPathInvalid
+	}
+	return validateArgToken(path)
+}
+
+// ValidateTransferRoot reports whether root is a host directory a catalogued
+// push may materialize its payload under.
+//
+// It asks the SAME rule the push itself is admitted by, over a path composed
+// exactly as the boundary composes one, so a deployment that points its
+// transfer root somewhere the adapter would refuse - a directory whose own name
+// carries a space, a relative path, a path that is not absolute - finds out
+// when it is configured rather than at the first file operation. It is a check
+// over a SYNTHETIC name: no file is created, read or removed by it.
+func ValidateTransferRoot(root string) error {
+	if strings.TrimSpace(root) == "" || !filepath.IsAbs(root) {
+		return ErrTransferHostPathInvalid
+	}
+	sample := filepath.Join(root, transferHostDirName, transferHostFilePrefix+"0123456789abcdef01234567.file")
+	return ValidateTransferHostPath(sample)
+}
+
+// ValidateImeComponent reports whether component is an input-method component
+// name: a dotted package, a separator, and the service half. It is a NAME, not
+// command text, which is what lets the write be admitted as a single bounded
+// argument rather than as free text.
+func ValidateImeComponent(component string) error {
+	if component == "" || len(component) > maxImeComponentLength || !imeComponentPattern.MatchString(component) {
+		return ErrImeComponentInvalid
+	}
+	return validateArgToken(component)
+}
+
 // --- argv builders -------------------------------------------------------
 //
 // Every builder returns a fresh slice of fixed tokens. No builder accepts free
@@ -332,6 +459,9 @@ func matchesAllowlist(args []string) (string, bool) {
 	if name, ok := matchesDeviceSettingsAllowlist(args); ok {
 		return name, true
 	}
+	if name, ok := matchesDeviceOperationAllowlist(args); ok {
+		return name, true
+	}
 	if name, ok := matchesReadOnlyAllowlist(args); ok {
 		return name, true
 	}
@@ -345,6 +475,54 @@ func matchesAllowlist(args []string) (string, bool) {
 		return name, true
 	}
 	return matchesHostAllowlist(args)
+}
+
+// matchesDeviceOperationAllowlist recognises exactly the argument arrays the
+// catalogued device operations of the big-frame control panel use: the reboot,
+// the three halves of a keyboard switch, and the five shapes a file or package
+// operation composes.
+//
+// It is a recogniser of its own for the same reason as every other one: the
+// separation between "a fixed builder shape this product admits" and
+// "everything else" is a safety property, and a property can only be asserted
+// if it can be asked directly. Every case below spells its tokens out
+// literally rather than importing the builder that emits them, so this gate is
+// an independent second reading of the same shapes.
+//
+// The variable positions are bounded and NAMED, never free text:
+//
+//   - a file NAME with no separator of any kind, which this adapter itself
+//     composes into the one device directory this product owns;
+//   - a host transfer path whose own file name this product generated;
+//   - a package name and an input-method component, both dotted identifiers
+//     with no whitespace, no flag, no path and no second command.
+//
+// No position accepts whitespace, a quote, a shell metacharacter, a redirection,
+// a substitution or a second command, so no admitted array here can express
+// command text.
+func matchesDeviceOperationAllowlist(args []string) (string, bool) {
+	switch {
+	case equalArgv(args, []string{"reboot"}):
+		return "device-reboot", true
+	case equalArgv(args, []string{"shell", "ime", "list", "-s"}):
+		return "keyboard-enabled-list", true
+	case len(args) == 4 && args[0] == "shell" && args[1] == "ime" && args[2] == "set" && ValidateImeComponent(args[3]) == nil:
+		return "keyboard-set", true
+	case equalArgv(args, []string{"shell", "settings", "get", "secure", "default_input_method"}):
+		return "keyboard-default-read", true
+	case len(args) == 5 && args[0] == "shell" && args[1] == "stat" && args[2] == "-c" && args[3] == "%s" && ValidateDeviceInboxPath(args[4]) == nil:
+		return "device-file-size", true
+	case len(args) == 3 && args[0] == "push" && ValidateTransferHostPath(args[1]) == nil && ValidateDeviceInboxPath(args[2]) == nil:
+		return "device-file-push", true
+	case len(args) == 3 && args[0] == "exec-out" && args[1] == "cat" && ValidateDeviceInboxPath(args[2]) == nil:
+		return "device-file-read", true
+	case len(args) == 6 && args[0] == "shell" && args[1] == "pm" && args[2] == "install" && args[3] == "-r" && args[4] == "-t" && ValidateDeviceInboxPath(args[5]) == nil:
+		return "package-install", true
+	case len(args) == 4 && args[0] == "shell" && args[1] == "pm" && args[2] == "path" && validatePackageName(args[3]) == nil:
+		return "package-path-read", true
+	default:
+		return "", false
+	}
 }
 
 // matchesDeviceSettingsAllowlist recognises exactly the ten argument arrays the

@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -62,6 +63,23 @@ type InputPayload struct {
 	Launch   *LaunchAppRequest
 	Rotation *RotationLockRequest
 	Autofill *AutofillOffRequest
+
+	// The catalogued device OPERATIONS the big-frame panel's remaining
+	// commands are. Each is a named operation with a fixed argument array and
+	// no caller-supplied command text, exactly like the two settings above.
+	Reboot   *RebootRequest
+	Keyboard *KeyboardSwitchRequest
+	Import   *FileImportRequest
+	Export   *FileExportRequest
+	Install  *PackageInstallRequest
+
+	// Advanced is the ADVANCED form's payload, and it is the ONE member that
+	// carries an operator-entered argument array. It is reached by a
+	// recogniser of its own (the request that builds it is a different
+	// contract, dispatched by a different entry point), never by selecting a
+	// catalogued kind, and every other member of this struct is refused if it
+	// is set beside it.
+	Advanced *AdvancedCommandRequest
 }
 
 // Kind reports the single kind this payload addresses, after refusing an
@@ -89,6 +107,24 @@ func (p InputPayload) Kind() (action.Kind, error) {
 	}
 	if p.Autofill != nil {
 		kind, members = action.AutofillOff, members+1
+	}
+	if p.Reboot != nil {
+		kind, members = action.Reboot, members+1
+	}
+	if p.Keyboard != nil {
+		kind, members = action.KeyboardSwitch, members+1
+	}
+	if p.Import != nil {
+		kind, members = action.ImportFile, members+1
+	}
+	if p.Export != nil {
+		kind, members = action.ExportFile, members+1
+	}
+	if p.Install != nil {
+		kind, members = action.InstallApk, members+1
+	}
+	if p.Advanced != nil {
+		kind, members = action.AdvancedCommand, members+1
 	}
 	switch {
 	case members == 0:
@@ -163,6 +199,40 @@ func (p InputPayload) validate() error {
 		// A catalogued settings operation has no typed parameter to validate:
 		// the operation names its own fixed argument array, and there is nothing
 		// in the payload a caller could have supplied.
+		return nil
+	case p.Reboot != nil, p.Keyboard != nil:
+		// A lifecycle operation and a keyboard switch have no typed parameter
+		// either: which keyboard to switch to is read off the DEVICE, and the
+		// reboot's argument array is the operation's own.
+		return nil
+	case p.Import != nil:
+		if err := validateOperationFileName(p.Import.FileName); err != nil {
+			return err
+		}
+		if len(p.Import.Payload) == 0 {
+			return platformerrors.New(platformerrors.CodeInvalidInput, "a file import requires the artifact's bytes")
+		}
+		return nil
+	case p.Export != nil:
+		return validateOperationFileName(p.Export.FileName)
+	case p.Install != nil:
+		if err := validateOperationFileName(p.Install.FileName); err != nil {
+			return err
+		}
+		if err := validatePackageName(p.Install.PackageName); err != nil {
+			return err
+		}
+		if len(p.Install.Payload) == 0 {
+			return platformerrors.New(platformerrors.CodeInvalidInput, "a package install requires the artifact's bytes")
+		}
+		return nil
+	case p.Advanced != nil:
+		// The advanced form's array is validated by the recogniser that
+		// exists for it, so that one rule has one home; this is the cheap
+		// shape check in front of it.
+		if len(p.Advanced.Argv) == 0 {
+			return platformerrors.New(platformerrors.CodeInvalidInput, "an advanced command requires at least one argument")
+		}
 		return nil
 	default:
 		return platformerrors.New(platformerrors.CodeInvalidInput, "a device input requires exactly one typed payload")
@@ -372,6 +442,15 @@ type PostconditionObservation struct {
 	// with no read-back has not satisfied anything: its postcondition fails
 	// rather than passing on a command that merely exited zero.
 	SettingReadback *SettingReadback
+	// OperationReadback is the read-back a catalogued device OPERATION took
+	// off the device after it ran, for the kinds whose postcondition names a
+	// device fact rather than a device observation: a reboot's departure, the
+	// keyboard the device reports holding, a file the device reports at a
+	// size, a package whose code path the device names. It is nil for every
+	// kind that observes through the observation port, and an operation kind
+	// with no read-back has satisfied nothing: its postcondition fails rather
+	// than passing on a command that merely exited zero.
+	OperationReadback *OperationReadback
 	// FailureClass is the classification of a failed observation.
 	FailureClass domain.FailureClass
 	// Partial reports an observation that could not be completed.
@@ -494,6 +573,50 @@ func WithMirrorDelivery(delivery MirrorDelivery) DispatcherOption {
 	}
 }
 
+// WithOperationDepartureObserver binds the port a reboot's departure is observed
+// through.
+//
+// It is a deployment input rather than an optional extra: a dispatcher built
+// without one still runs every operation whose postcondition it can read, and
+// REFUSES a reboot before restarting the device, because a reboot whose
+// departure can never be observed has no postcondition this boundary could
+// satisfy.
+func WithOperationDepartureObserver(observer DepartureObserver) DispatcherOption {
+	return func(dispatcher *InputDispatcher) error {
+		if observer == nil {
+			return errors.New("a departure observer is required")
+		}
+		dispatcher.departures = observer
+		return nil
+	}
+}
+
+// WithOperationTransferRoot binds the absolute host directory a device file
+// operation materializes its payload under.
+func WithOperationTransferRoot(root string) DispatcherOption {
+	return func(dispatcher *InputDispatcher) error {
+		if strings.TrimSpace(root) == "" || !filepath.IsAbs(root) {
+			return errors.New("a device file transfer root must be an absolute path")
+		}
+		dispatcher.transferRoot = root
+		return nil
+	}
+}
+
+// WithOperationFileArchive binds the store an export writes the bytes it pulled
+// into. A dispatcher built without one refuses an export before reaching the
+// device, because pulling bytes there is nowhere to keep is an operation that
+// cannot be completed.
+func WithOperationFileArchive(archive DeviceFileArchive) DispatcherOption {
+	return func(dispatcher *InputDispatcher) error {
+		if archive == nil {
+			return errors.New("a device file archive is required")
+		}
+		dispatcher.archive = archive
+		return nil
+	}
+}
+
 // InputDispatcher runs one typed device input through the whole P7 contract. It
 // owns one serialized actor per device, so two inputs for the same device never
 // run concurrently, and it holds a typed payload only for the duration of the
@@ -519,8 +642,94 @@ type InputDispatcher struct {
 	// narrow transport; a coordinate is refused when no source can be built.
 	renderSizes RenderSizeSourceFactory
 
+	// departures is the port a reboot's departure is observed through, and
+	// archive is the store the bytes an export pulled are written to. A
+	// deployment that binds neither still dispatches every other kind, and
+	// refuses the operation whose postcondition it could not read.
+	departures   DepartureObserver
+	transferRoot string
+	archive      DeviceFileArchive
+
+	// readbacks holds the reading each catalogued device OPERATION took, by
+	// attempt identity, until the boundary that owns the attempt takes it. A
+	// reading is a device answer (a departure, a size, a code path) rather
+	// than device output, and it is consumed exactly once.
+	readbacks *operationReadbacks
+
 	mu      sync.Mutex
 	devices map[string]*deviceInput
+}
+
+// operationReadbackCapacity bounds the readings a dispatcher holds at once. The
+// applier that owns an attempt takes its reading immediately after the dispatch
+// returns, so the bound only has to cover dispatches in flight; it exists so a
+// dispatcher nobody asks never grows without limit.
+const operationReadbackCapacity = 64
+
+// operationReadbacks is the bounded, single-consumer mailbox between the
+// executing adapter and the applier that reports what a catalogued operation
+// found. It holds a reading, never command text and never device output.
+type operationReadbacks struct {
+	mu      sync.Mutex
+	order   []string
+	entries map[string]OperationReadback
+}
+
+func newOperationReadbacks() *operationReadbacks {
+	return &operationReadbacks{entries: make(map[string]OperationReadback)}
+}
+
+func (s *operationReadbacks) publish(attemptID string, readback OperationReadback) {
+	if s == nil || attemptID == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.entries[attemptID]; !exists {
+		s.order = append(s.order, attemptID)
+	}
+	s.entries[attemptID] = readback
+	for len(s.order) > operationReadbackCapacity {
+		oldest := s.order[0]
+		s.order = s.order[1:]
+		delete(s.entries, oldest)
+	}
+}
+
+func (s *operationReadbacks) take(attemptID string) (OperationReadback, bool) {
+	if s == nil || attemptID == "" {
+		return OperationReadback{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	readback, ok := s.entries[attemptID]
+	if !ok {
+		return OperationReadback{}, false
+	}
+	delete(s.entries, attemptID)
+	for index, id := range s.order {
+		if id == attemptID {
+			s.order = append(s.order[:index], s.order[index+1:]...)
+			break
+		}
+	}
+	return readback, true
+}
+
+// TakeReadback answers the reading one catalogued device operation took, by
+// attempt identity, and removes it.
+//
+// It exists so the applier that owns an attempt can state what the DEVICE
+// answered - the component a keyboard switch chose, the size a file reader
+// saw, the code path an install resolved to, the artifact an export wrote -
+// without a second device call and without inventing a value. A dispatcher that
+// never took that reading answers false, and the row it belongs to then reports
+// no detail rather than an assumed one.
+func (d *InputDispatcher) TakeReadback(attemptID string) (OperationReadback, bool) {
+	if d == nil {
+		return OperationReadback{}, false
+	}
+	return d.readbacks.take(attemptID)
 }
 
 type deviceInput struct {
@@ -540,7 +749,7 @@ func NewInputDispatcher(control ControlPlane, probe ControlProbe, observer Postc
 	if control == nil || probe == nil || observer == nil || transport == nil {
 		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "device input dispatch requires a control kernel, a readiness probe, a postcondition observer and a transport")
 	}
-	dispatcher := &InputDispatcher{control: control, probe: probe, observer: observer, transport: transport, resolver: resolver, renderSizes: DefaultRenderSizeSource, devices: make(map[string]*deviceInput)}
+	dispatcher := &InputDispatcher{control: control, probe: probe, observer: observer, transport: transport, resolver: resolver, renderSizes: DefaultRenderSizeSource, readbacks: newOperationReadbacks(), devices: make(map[string]*deviceInput)}
 	for _, option := range options {
 		if option == nil {
 			return nil, platformerrors.New(platformerrors.CodeInvalidInput, "a device input dispatcher option is required")
@@ -675,11 +884,18 @@ func (d *InputDispatcher) dispatch(ctx context.Context, request InputRequest, ac
 		return outcome
 	}
 	report := &attemptReportSink{}
-	device.adapter.bind(intent.ID, request.Payload, report)
+	device.adapter.bind(intent.ID, request.Payload, report, actorType, actorID)
 	defer device.adapter.release(intent.ID)
 	result, runErr := runner.New(d.control, device.actor).Run(ctx, intent, actorType, actorID)
 	outcome.result = result
 	outcome.report = report.value()
+	if operation := outcome.report.observation.OperationReadback; operation != nil {
+		// The reading a catalogued operation took is published here, still
+		// under the attempt's own identity, so the applier that owns the
+		// attempt can state what the device answered instead of a second
+		// device call or an assumed value.
+		d.readbacks.publish(intent.ID, *operation)
+	}
 	if runErr != nil {
 		outcome.err = classifyDispatchRefusal(runErr)
 	}
@@ -713,7 +929,7 @@ func (d *InputDispatcher) deviceFor(deviceID, serial string) (*deviceInput, erro
 		_ = bound.actor.Close()
 		delete(d.devices, deviceID)
 	}
-	boundAdapter := newInputAdapter(d.transport, d.resolver, d.observer, deviceID, serial, d.renderSizes, d.mirror)
+	boundAdapter := newInputAdapter(d.transport, d.resolver, d.observer, deviceID, serial, d.renderSizes, d.mirror, d.departures, d.transferRoot, d.archive)
 	actor, err := actors.New(deviceID, boundAdapter, 8)
 	if err != nil {
 		return nil, platformerrors.Wrap(platformerrors.CodeInternal, "create device input actor", err)
@@ -967,6 +1183,74 @@ func evaluatePostcondition(spec action.Specification, intent action.Intent, payl
 			return action.PostconditionUnknown, domain.FailureIndeterminate, action.OutcomeIndeterminate
 		}
 		if !observation.SettingReadback.AutofillDisabled() {
+			return action.PostconditionFailed, domain.FailurePostcondition, action.OutcomeFailed
+		}
+		return action.PostconditionPassed, "", action.OutcomeVerified
+	case action.Reboot:
+		if payload.Reboot == nil {
+			return action.PostconditionFailed, domain.FailureInvalidTransition, action.OutcomeFailed
+		}
+		if observation.OperationReadback == nil {
+			// The departure was never read, so whether the device restarted
+			// is unknown. A reboot is never reported as done on the command's
+			// exit status: the departure IS the postcondition.
+			return action.PostconditionUnknown, domain.FailureIndeterminate, action.OutcomeIndeterminate
+		}
+		if !observation.OperationReadback.RebootObserved() {
+			return action.PostconditionFailed, domain.FailurePostcondition, action.OutcomeFailed
+		}
+		return action.PostconditionPassed, "", action.OutcomeVerified
+	case action.KeyboardSwitch:
+		if payload.Keyboard == nil {
+			return action.PostconditionFailed, domain.FailureInvalidTransition, action.OutcomeFailed
+		}
+		if observation.OperationReadback == nil {
+			return action.PostconditionUnknown, domain.FailureIndeterminate, action.OutcomeIndeterminate
+		}
+		if !observation.OperationReadback.KeyboardSwitched() {
+			// The device answered and its own secure default does not name the
+			// component that was set, so the keyboard an operator would get is
+			// not the one this operation reported choosing.
+			return action.PostconditionFailed, domain.FailurePostcondition, action.OutcomeFailed
+		}
+		return action.PostconditionPassed, "", action.OutcomeVerified
+	case action.ImportFile, action.InstallApk:
+		if payload.Import == nil && payload.Install == nil {
+			return action.PostconditionFailed, domain.FailureInvalidTransition, action.OutcomeFailed
+		}
+		if observation.OperationReadback == nil {
+			return action.PostconditionUnknown, domain.FailureIndeterminate, action.OutcomeIndeterminate
+		}
+		present := observation.OperationReadback.FilePresent()
+		if intent.Kind == action.InstallApk {
+			// An install's postcondition is the DEVICE naming where the
+			// package's code now is. A pushed file that did not install is not
+			// a package the device can run.
+			present = observation.OperationReadback.PackagePresent()
+		}
+		if !present {
+			return action.PostconditionFailed, domain.FailurePostcondition, action.OutcomeFailed
+		}
+		return action.PostconditionPassed, "", action.OutcomeVerified
+	case action.ExportFile:
+		if payload.Export == nil {
+			return action.PostconditionFailed, domain.FailureInvalidTransition, action.OutcomeFailed
+		}
+		if observation.OperationReadback == nil {
+			return action.PostconditionUnknown, domain.FailureIndeterminate, action.OutcomeIndeterminate
+		}
+		if !observation.OperationReadback.ExportStored() {
+			return action.PostconditionFailed, domain.FailurePostcondition, action.OutcomeFailed
+		}
+		return action.PostconditionPassed, "", action.OutcomeVerified
+	case action.AdvancedCommand:
+		if payload.Advanced == nil {
+			return action.PostconditionFailed, domain.FailureInvalidTransition, action.OutcomeFailed
+		}
+		if observation.OperationReadback == nil {
+			return action.PostconditionUnknown, domain.FailureIndeterminate, action.OutcomeIndeterminate
+		}
+		if !observation.OperationReadback.AdvancedAnswered() {
 			return action.PostconditionFailed, domain.FailurePostcondition, action.OutcomeFailed
 		}
 		return action.PostconditionPassed, "", action.OutcomeVerified

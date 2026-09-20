@@ -14,6 +14,7 @@ import (
 	"drift.local/drift-next/internal/artifacts"
 	"drift.local/drift-next/internal/artifacts/cas"
 	"drift.local/drift-next/internal/discovery"
+	"drift.local/drift-next/internal/edge/adb"
 	"drift.local/drift-next/internal/edge/connection"
 	devicediagnostics "drift.local/drift-next/internal/edge/diagnostics"
 	"drift.local/drift-next/internal/edge/execution"
@@ -34,6 +35,11 @@ import (
 const (
 	envControlPlaneDB  = "DRIFT_CONTROL_PLANE_DB"
 	envArtifactCASRoot = "DRIFT_ARTIFACT_CAS_ROOT"
+	// envTransferRoot points at the host directory a catalogued device file
+	// operation materializes a push under. It is a deployment input rather than
+	// a constant because the path has to be one the device adapter's own
+	// allow-list admits, and only the deployment knows where its data lives.
+	envTransferRoot = "DRIFT_DEVICE_TRANSFER_ROOT"
 )
 
 func main() {
@@ -291,7 +297,23 @@ func main() {
 	// constructed: an empty Route mounts nothing, so a missing dependency degrades
 	// to "no surface" rather than to a route that cannot dispatch anything
 	// (AGENTS.md section 6).
-	dispatcher, dispatcherErr := deviceInputDispatcher(labService, actionRuntime, textReferences, db)
+	// The two artifact ports a catalogued file operation needs, over the
+	// workspace's own artifact service: an import and an install read stored
+	// bytes, and an export writes the bytes it pulled. It is bound only when a
+	// service was constructed, and a file operation refuses rather than acting
+	// without its source or its destination.
+	fileArtifacts := transportconnect.NewDeviceArtifactSource(artifactService)
+	// The host directory a push materializes its payload under. It is resolved
+	// once, here, and its absence is stated rather than discovered by the first
+	// file operation: a deployment with no admissible transfer directory has
+	// file operations it cannot complete, and that is a startup fact.
+	transferRoot, transferErr := deviceTransferRoot()
+	if transferErr != nil {
+		log.Printf("device file operations will refuse: %v", transferErr)
+	} else {
+		log.Printf("device file transfer directory resolved at %s", transferRoot)
+	}
+	dispatcher, dispatcherErr := deviceInputDispatcher(labService, actionRuntime, textReferences, db, fileArtifacts, transferRoot)
 	if dispatcherErr != nil {
 		log.Printf("device dispatch path not constructed: %v", dispatcherErr)
 	}
@@ -307,6 +329,17 @@ func main() {
 	if settingsRoute := deviceSettingsRoute(dispatcher, db, labToken); settingsRoute.Path != "" {
 		routes = append(routes, settingsRoute)
 		settingsMounted = true
+	}
+	// The big-frame control panel's per-device commands: reboot, switch
+	// keyboard, a package install, a file import and a file export, each on the
+	// SELECTED device, plus the advanced form's operator-confirmed argument
+	// array. It is mounted only when the whole path was constructed, so a
+	// deployment that cannot run these operations mounts no surface rather than
+	// one that answers every command with a refusal.
+	operationsMounted := false
+	if operationsRoute := deviceOperationsRoute(dispatcher, db, fileArtifacts, labToken); operationsRoute.Path != "" {
+		routes = append(routes, operationsRoute)
+		operationsMounted = true
 	}
 	// The one boundary that admits operator-supplied content into this process,
 	// mounted only when a registry was constructed to hold what it admits.
@@ -357,7 +390,7 @@ func main() {
 	}
 	log.Printf("live mirror stream endpoint %s at %s (a browser is given a per-device path on this service's own guarded surface; the loopback bind and the token check above are what stand in front of it)", mountState(streamEndpointMounted), transportconnect.MirrorStreamPath)
 	server := service.NewHTTPServer("control-plane", address, routes...)
-	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, device settings surface %s, text reference surface %s, transport surface %s, live mirror surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), mountState(settingsMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted), mirrorMountState(mirrorMounted))
+	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, device settings surface %s, device operations surface %s, text reference surface %s, transport surface %s, live mirror surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), mountState(settingsMounted), operationsMountState(operationsMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted), mirrorMountState(mirrorMounted))
 	serveErr := service.Serve(ctx, server)
 	// The startup scan, the post-launch watcher, the mirror-session sweep, the
 	// frame engine and the live mirror are owned work, not detached workers: wait
@@ -576,7 +609,7 @@ func observationSource(labService *lab.Service) execution.ObservationSourceFacto
 // because the dispatcher owns one serialized actor per device: two dispatchers
 // would be two actors for one device, and the per-device serialization the actor
 // exists to provide would be defeated by having two of them.
-func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry, textReferences *execution.TextReferenceRegistry, db *store.DB) (*execution.InputDispatcher, error) {
+func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry, textReferences *execution.TextReferenceRegistry, db *store.DB, artifactSource *transportconnect.DeviceArtifactSource, transferRoot string) (*execution.InputDispatcher, error) {
 	transport, err := execution.NewInputTransportFromAllowlisted(labService.DeviceTransport())
 	if err != nil {
 		return nil, err
@@ -589,6 +622,28 @@ func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry
 	if err != nil {
 		return nil, err
 	}
+	// The departure port a reboot's postcondition is read through, over the same
+	// narrow transport every other device call travels. It is constructed here
+	// rather than defaulted inside the dispatcher, because a dispatcher built
+	// without one must REFUSE a reboot rather than restart a device whose return
+	// it could never observe.
+	departures, err := execution.NewTransportDepartureObserver(transport, 0)
+	if err != nil {
+		return nil, err
+	}
+	options := []execution.DispatcherOption{
+		execution.WithEvidenceRecorder(store.NewActionEvidenceService(db)),
+		execution.WithOperationDepartureObserver(departures),
+	}
+	if strings.TrimSpace(transferRoot) != "" {
+		options = append(options, execution.WithOperationTransferRoot(transferRoot))
+	}
+	if artifactSource != nil {
+		// The store an export writes the bytes it pulled into, and the source an
+		// import and an install read theirs from. Bound as one object, because
+		// the two directions are the same storage seen from two sides.
+		options = append(options, execution.WithOperationFileArchive(artifactSource))
+	}
 	return execution.NewInputDispatcher(
 		store.NewActionService(db),
 		execution.NewStoreControlProbe(db, deviceState),
@@ -599,8 +654,45 @@ func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry
 		// registered for its workspace. With no registry (no surface was
 		// constructed) the primitive still fails closed on its own.
 		textReferences,
-		execution.WithEvidenceRecorder(store.NewActionEvidenceService(db)),
+		options...,
 	)
+}
+
+// deviceTransferRoot resolves the host directory a catalogued device file
+// operation materializes a push under, or reports why no admissible one exists.
+//
+// The directory is a DEPLOYMENT input, because the composed transfer path has to
+// satisfy the device adapter's own allow-list - a path with no whitespace and no
+// character that carries meaning to a shell - and only the deployment knows where
+// its data lives. The configured value is checked against that same rule at
+// startup with `adb.ValidateTransferRoot`, so a root the adapter would refuse is
+// reported here rather than at the first file operation.
+//
+// A deployment that names none gets the platform's own temporary directory: a
+// transfer file exists only between the push and the device's acknowledgement, so
+// a transient location is what it is for. Where even that is inadmissible the
+// caller binds no root at all, and a file operation then refuses with its own
+// reason rather than writing into a directory nobody chose.
+func deviceTransferRoot() (string, error) {
+	configured := strings.TrimSpace(os.Getenv(envTransferRoot))
+	if configured != "" {
+		if !filepath.IsAbs(configured) {
+			return "", platformerrors.New(platformerrors.CodeInvalidInput, envTransferRoot+" must be an absolute path")
+		}
+		if err := adb.ValidateTransferRoot(configured); err != nil {
+			return "", platformerrors.Wrap(platformerrors.CodeInvalidInput, envTransferRoot+" is not a directory this product's device adapter admits", err)
+		}
+		return configured, nil
+	}
+	for _, candidate := range []string{
+		filepath.Join(os.TempDir(), "drift-next-transfer"),
+		filepath.Join(filepath.Dir(product.DefaultControlPlaneDBPath()), "drift-next-transfer"),
+	} {
+		if adb.ValidateTransferRoot(candidate) == nil {
+			return candidate, nil
+		}
+	}
+	return "", platformerrors.New(platformerrors.CodeUnavailable, "no admissible transfer directory could be resolved, so device file operations cannot materialize a payload")
 }
 
 // deviceInputRoute builds the typed device input route, or an empty Route when the
@@ -646,6 +738,46 @@ func deviceSettingsRoute(dispatcher *execution.InputDispatcher, db *store.DB, to
 		return service.Route{}
 	}
 	return service.DeviceSettingsRoute(applier, token)
+}
+
+// deviceOperationsRoute builds the big-frame control panel's per-device command
+// route, or an empty Route when the path cannot be constructed.
+//
+// It shares the ONE dispatcher every other device surface dispatches through, so
+// a reboot and a tap for the same device reach that device through the same
+// serialized actor and cannot interleave. The applier is given the same artifact
+// ports the dispatcher holds, because they are the same storage seen from the two
+// sides of a file operation.
+//
+// Every absence returns an empty Route, which mounts nothing at all: a route
+// whose applier cannot run an operation is worse than no route, because it
+// advertises a surface that cannot work (AGENTS.md section 7).
+func deviceOperationsRoute(dispatcher *execution.InputDispatcher, db *store.DB, artifacts *transportconnect.DeviceArtifactSource, token string) service.Route {
+	if dispatcher == nil {
+		log.Print("device operations surface not mounted: the dispatcher was not constructed")
+		return service.Route{}
+	}
+	var reader execution.DeviceArtifactReader
+	if artifacts != nil {
+		reader = artifacts
+	}
+	applier, err := execution.NewDeviceOperationsApplier(execution.NewStoreFleetReader(db), db, dispatcher, ids.NewRandom(), reader)
+	if err != nil {
+		log.Printf("device operations surface not mounted: %v", err)
+		return service.Route{}
+	}
+	return service.DeviceOperationsRoute(applier, token)
+}
+
+// operationsMountState reports whether the panel's device-operation surface was
+// mounted. Like the other state reporters it says nothing about whether a mounted
+// surface will accept an operation: the kernel and the policy evaluator decide
+// every dispatch.
+func operationsMountState(mounted bool) string {
+	if mounted {
+		return "mounted"
+	}
+	return "not mounted; the device operations path was not constructed"
 }
 
 // acceptedProfilePorts reads the workspace's DEFAULT network profile's declared
