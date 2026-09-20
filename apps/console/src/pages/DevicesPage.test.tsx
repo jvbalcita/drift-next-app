@@ -3,7 +3,8 @@
 import "@testing-library/jest-dom/vitest"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+import { Toaster } from "@/components/ui/sonner"
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, EndpointView, MutationResult } from "@/lib/domain/control-plane"
 import { DevicesPage } from "./DevicesPage"
@@ -16,7 +17,7 @@ function renderDevicesPage(snapshot?: ControlPlaneSnapshot) {
     return await client.dispatch(intent)
   }
   const active = snapshot ?? client.getSnapshot()
-  const view = () => <DevicesPage snapshot={active} dispatch={dispatch} view="all" onViewChange={() => undefined} />
+  const view = () => <><Toaster /><DevicesPage snapshot={active} dispatch={dispatch} view="all" onViewChange={() => undefined} /></>
   return { client, intents, ...render(view()) }
 }
 
@@ -149,16 +150,66 @@ describe("DevicesPage registry table", () => {
 describe("DevicesPage adapter surface", () => {
   it("keeps adapter detail behind on-demand disclosure instead of a permanent header panel", async () => {
     const user = userEvent.setup()
-    renderDevicesPage()
+    const base = new MockControlPlaneClient().getSnapshot()
+    renderDevicesPage({
+      ...base,
+      labAdapter: { ...base.labAdapter, failureClass: "timeout" },
+    })
 
     expect(screen.queryByRole("heading", { name: "Device Adapter Status" })).not.toBeInTheDocument()
     expect(screen.queryByText(/Read-only observation boundary/i)).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: /Adapter Diagnostics/ }))
+    expect(screen.getByText("Adapter Unavailable")).toBeInTheDocument()
+    expect(screen.queryByText(/observed · 0 registered/i)).not.toBeInTheDocument()
+    expect(screen.queryByText("Timeout")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Adapter details" }))
 
     const sheet = await screen.findByRole("dialog")
     expect(within(sheet).getByRole("heading", { name: "Device Adapter Diagnostics" })).toBeInTheDocument()
     expect(within(sheet).getByText(/Observation is not registration/i)).toBeInTheDocument()
+    expect(within(sheet).getByText(/Observed transports are devices the adapter saw/i)).toBeInTheDocument()
+    expect(within(sheet).getByText("Last Adapter Result")).toBeInTheDocument()
+    expect(within(sheet).getByText("Timeout")).toBeInTheDocument()
+    expect(within(sheet).getByText("Registry Changes")).toBeInTheDocument()
+    expect(within(sheet).getByText("None — diagnostics do not register devices")).toBeInTheDocument()
+  })
+})
+
+describe("DevicesPage refresh", () => {
+  it("dispatches one refresh, shows a pending state, and reports success with Sonner", async () => {
+    const user = userEvent.setup()
+    let settle: ((result: MutationResult) => void) | undefined
+    const dispatch = vi.fn(() => new Promise<MutationResult>((resolve) => { settle = resolve }))
+    const snapshot = new MockControlPlaneClient().getSnapshot()
+    render(<><Toaster /><DevicesPage snapshot={snapshot} dispatch={dispatch} view="all" /></>)
+
+    await user.click(screen.getByRole("button", { name: "Refresh" }))
+
+    expect(dispatch).toHaveBeenCalledTimes(1)
+    expect(dispatch).toHaveBeenCalledWith({ type: "refresh" })
+    const pending = screen.getByRole("button", { name: "Refreshing…" })
+    expect(pending).toBeDisabled()
+    expect(pending.querySelector(".animate-spin")).toBeInTheDocument()
+
+    settle?.({ ok: true, kind: "refresh", message: "Registry projection refreshed." })
+    expect(await screen.findByText("Device registry refreshed")).toBeInTheDocument()
+    expect(await screen.findByText("Registry projection refreshed.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled()
+    expect(screen.getAllByText("Registry projection refreshed.")).toHaveLength(1)
+  })
+
+  it("reports a failed refresh with Sonner instead of persistent table text", async () => {
+    const user = userEvent.setup()
+    const dispatch = vi.fn(async (): Promise<MutationResult> => ({ ok: false, kind: "refresh", message: "Registry service is unavailable.", errorCode: "precondition_failed" }))
+    const snapshot = new MockControlPlaneClient().getSnapshot()
+    render(<><Toaster /><DevicesPage snapshot={snapshot} dispatch={dispatch} view="all" /></>)
+
+    await user.click(screen.getByRole("button", { name: "Refresh" }))
+
+    expect(await screen.findByText("Device registry refresh failed")).toBeInTheDocument()
+    expect(await screen.findByText("Registry service is unavailable.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled()
   })
 })
 

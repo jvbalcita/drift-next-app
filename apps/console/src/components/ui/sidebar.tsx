@@ -536,7 +536,7 @@ function SidebarMenuButton({
   }
 
   return (
-    <Tooltip>
+    <Tooltip disableHoverablePopup>
       {comp}
       <TooltipContent
         side="right"
