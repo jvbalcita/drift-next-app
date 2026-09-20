@@ -49,7 +49,7 @@ export function AppTitlebar({
         data-tauri-drag-region
         className={cn(
           "absolute inset-y-0 left-0 border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ease-linear",
-          sidebarOpen ? "w-(--sidebar-width)" : "w-0 border-r-0",
+          sidebarOpen ? "w-(--sidebar-width)" : "w-(--sidebar-width-icon)",
         )}
       />
 

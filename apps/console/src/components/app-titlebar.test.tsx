@@ -38,7 +38,7 @@ describe("AppTitlebar", () => {
     expect(screen.getByRole("button", { name: "Close window" })).toBeInTheDocument()
   })
 
-  it("extends the sidebar surface through the titlebar only while navigation is open", async () => {
+  it("keeps the titlebar aligned with the full sidebar and collapsed icon rail", async () => {
     const user = userEvent.setup({ delay: null })
     renderTitlebar("macos")
 
@@ -50,7 +50,7 @@ describe("AppTitlebar", () => {
     await user.click(screen.getByRole("button", { name: "Toggle sidebar" }))
 
     expect(titlebar).toHaveAttribute("data-sidebar-state", "collapsed")
-    expect(sidebarSurface).toHaveClass("w-0", "border-r-0")
+    expect(sidebarSurface).toHaveClass("w-(--sidebar-width-icon)")
     expect(document.querySelector('[data-slot="titlebar-content"]')).toHaveClass("ml-32")
   })
 })

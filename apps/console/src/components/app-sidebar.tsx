@@ -64,7 +64,7 @@ export function AppSidebar({
   }))
 
   return (
-    <Sidebar collapsible="offcanvas" className="border-sidebar-border/70" {...props}>
+    <Sidebar collapsible="icon" className="border-sidebar-border/70" {...props}>
       <SidebarHeader>
         <div className="flex h-12 items-center gap-3 border-b border-sidebar-border px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
           <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden" aria-hidden="true">
