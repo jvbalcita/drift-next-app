@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react"
 import { createPortal } from "react-dom"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardCopy, Crosshair, Download, Grid3X3, Image, Info, Keyboard, LoaderCircle, Network, Pin, Power, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Unplug, Upload, Volume1, Volume2, X } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Crosshair, Image, Info, Keyboard, LoaderCircle, Network, Pin, Power, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Unplug, Volume1, Volume2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -15,7 +15,7 @@ import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, livePictureHeld, type LiveMirrorPreview, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
 import { useMirrorCapacity } from "@/lib/api/use-mirror-capacity"
 import { allocateTileViewers, tileViewerBudget, type TileViewerBudget } from "@/lib/live-tiles"
-import { LiveMirrorDeviceKeys, LiveMirrorInfo, LiveMirrorSurface, useLiveMirrorSession } from "./live-mirror-surface"
+import { LiveMirrorDeviceKeys, LiveMirrorInfo, LiveMirrorSurface, useLiveMirrorSession, type LiveMirrorSessionView } from "./live-mirror-surface"
 import { LiveTilePicture } from "./live-tile"
 import { deviceObservationSentence, deviceStatusLabels, notObserved } from "@/lib/device-status"
 import { deviceSettingLabels, deviceSettingNames } from "@/lib/device-settings"
@@ -191,26 +191,54 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
     setFollowerIds((ids) => ids.includes(device.id) ? ids.filter((id) => id !== device.id) : [...ids, device.id])
     showToastMessage(`${device.displayName} ${followerIds.includes(device.id) ? "removed from" : "added to"} the follower selection. No command was sent to followers.`)
   }
-  function handleDeviceAction(action: string) {
-    const blocked = new Set(["Install APK", "Import File", "Export File", "ADB Command", "Quick Phrase"])
-    if (blocked.has(action)) {
-      showToastMessage(`${action} is unavailable. Packages cannot use shell, unrestricted files, or credentials.`)
-      return
-    }
-    if (action === "Screenshot" && source) {
-      void (async () => {
-        const serial = captureSerialForDevice(snapshot.endpoints, source.id)
-        if (!serial) {
-          showToastMessage("This device has no single current transport endpoint to observe.")
-          return
-        }
-        const authorized = await reportDispatch(dispatch, { type: "submitDeviceAction", deviceId: source.id, kind: "capture", confirmed: true }, showToastMessage)
-        if (!authorized.ok) return
-        await reportDispatch(dispatch, { type: "captureLabObservation", serial }, showToastMessage)
-      })()
-      return
-    }
-    showToastMessage(`${action} requires confirmation. No unauthorized command was sent.`)
+  /**
+   * Screenshot is the action column's one command that is not a device key event.
+   *
+   * The column used to carry twelve controls that ended in a message; this is the
+   * one that never did. It authorizes a capture through the kernel and then asks
+   * the lab boundary to observe the serial the device is currently reached at,
+   * and it refuses in its own words - naming the fact that is missing - when the
+   * device has no single current transport endpoint to observe. Nothing is
+   * authorized before that check, and no capture is observed if the kernel
+   * refused the action.
+   */
+  function captureDeviceScreen() {
+    if (!source) return
+    void (async () => {
+      const serial = captureSerialForDevice(snapshot.endpoints, source.id)
+      if (!serial) {
+        showToastMessage("This device has no single current transport endpoint to observe.")
+        return
+      }
+      const authorized = await reportDispatch(dispatch, { type: "submitDeviceAction", deviceId: source.id, kind: "capture", confirmed: true }, showToastMessage)
+      if (!authorized.ok) return
+      await reportDispatch(dispatch, { type: "captureLabObservation", serial }, showToastMessage)
+    })()
+  }
+  /**
+   * Change Device moves the frame to another device of this workspace.
+   *
+   * It is panel navigation and not a device command - it selects which device the
+   * panel controls - and it is TWO dispatched intents rather than a local
+   * selection: the device the frame held is released through the kernel before the
+   * chosen device's control session is asked for, because one device has at most
+   * one active lease and a frame that kept the first while opening the second
+   * would be holding authority it never released. The plane's own answer to the
+   * second dispatch is kept where this frame already reads a refusal, so a move
+   * the plane refused names itself at the frame instead of silently leaving the
+   * operator on a device they did not choose.
+   */
+  function changeSource(deviceId: string) {
+    if (!source || deviceId === source.id) return
+    const previous = source.id
+    setSourceId(deviceId)
+    setFollowerIds([])
+    setControlRefusal("")
+    void (async () => {
+      await reportDispatch(dispatch, { type: "endDeviceControl", deviceId: previous }, showToastMessage)
+      const begun = await reportDispatch(dispatch, { type: "beginDeviceControl", deviceId }, showToastMessage)
+      setControlRefusal(begun.ok ? "" : begun.message)
+    })()
   }
   function beginDrag(event: PointerEvent<HTMLDivElement>) {
     if (modalPinned || (event.target as HTMLElement).closest("button")) return
@@ -315,12 +343,12 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
    * here.
    */
   const sourceLease = source ? snapshot.leases.some((candidate) => candidate.deviceId === source.id && candidate.state === "active") : false
-  const deviceModal = source ? <FloatingDevice device={source} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onAction={handleDeviceAction} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease} dispatch={dispatch} /> : null
+  const deviceModal = source ? <FloatingDevice device={source} devices={snapshot.devices} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onCapture={captureDeviceScreen} onChangeDevice={changeSource} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease} dispatch={dispatch} /> : null
   const selectedCount = (source ? 1 : 0) + followers.length
 
   return <div className="relative min-h-full">
     <div className="mb-5 flex items-center justify-between gap-3"><div className="drift-kicker flex items-center gap-3"><span className="h-px w-8 bg-primary" aria-hidden="true" /><span>Control / Device Workspace</span></div><div className="flex flex-wrap items-center justify-end gap-2"><StatusBadge label={snapshot.runtimeConnection.state} tone={snapshot.runtimeConnection.state === "connected" ? "healthy" : snapshot.runtimeConnection.state === "reconnecting" ? "attention" : "danger"} /><LabModeBadges adapter={snapshot.labAdapter} /></div></div>
-    <OperatorNotice>Selecting a phone opens a control session and acquires a per-device lease. Preview admits followers independently and does not copy commands. High-risk shell, APK, and file actions stay blocked. Workspace display settings only change this local view.</OperatorNotice>
+    <OperatorNotice>Selecting a phone opens a control session and acquires a per-device lease. Preview admits followers independently and does not copy commands. Every control in the frame&apos;s action column dispatches to the selected device through the control plane, and a command this build cannot dispatch to the selected device is not shown. Workspace display settings only change this local view.</OperatorNotice>
     <LabStatusStrip
       adapter={snapshot.labAdapter}
       runtimeConnection={snapshot.runtimeConnection}
@@ -623,8 +651,13 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
  *    pin, close, the info control that holds the stream's state, transport,
  *    encoded frame, the observation its coordinates are measured from, and every
  *    refusal;
- *  - the action column keeps every device command it had and the one control that
- *    stops the stream. The blocks that were added here are gone: the row of key
+ *  - the action column carries the device commands this build can actually
+ *    dispatch to the SELECTED device, and the one control that stops the stream.
+ *    A command it cannot dispatch is not shown (AGENTS.md section 7), which is
+ *    what the twelve controls that ended in a message did not do; the per-command
+ *    decision and what each withdrawn control needs are recorded in
+ *    `docs/domain/big-frame-control-panel-commands.md`. The blocks that were added
+ *    here are gone: the row of key
  *    buttons and the field to type into the device (the keys were the device's
  *    own, so they are its navigation bar in the footer, and typing into a device
  *    is the operator's own keyboard), and the keyboard-capture block with its
@@ -646,7 +679,7 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
  * with no aspect to take - and the picture's drawn box stays honest either way,
  * so a pointer is still measured through the box the picture is actually in.
  */
-export function FloatingDevice({ device, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onAction, mirror, mirrorTransport, workspaceId, leaseRefusal, hasLease, dispatch }: { device: DeviceView; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onAction: (value: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; leaseRefusal?: string; hasLease: boolean; dispatch: DispatchIntent }) {
+export function FloatingDevice({ device, devices, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onCapture, onChangeDevice, mirror, mirrorTransport, workspaceId, leaseRefusal, hasLease, dispatch }: { device: DeviceView; devices: readonly DeviceView[]; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onCapture: () => void; onChangeDevice: (deviceId: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; leaseRefusal?: string; hasLease: boolean; dispatch: DispatchIntent }) {
   const session = useLiveMirrorSession({ device, mirror, transport: mirrorTransport, workspaceId, hasLease, leaseRefusal, dispatch })
   const controlsWidth = 220
   const frameGap = 12
@@ -668,7 +701,7 @@ export function FloatingDevice({ device, followers, workspace, settings, positio
     </div>
     <div aria-label={`${device.displayName} floating device controls`} className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-popover text-foreground" style={controlsFrameStyle}>
       <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><LiveMirrorInfo session={session} /><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">{livePictureHeld(session.phase) ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><ControlButton icon={Smartphone} label="Change Device" onClick={() => onAction("Change Device")} /><ControlButton icon={Volume2} label="Volume Up" onClick={() => onAction("Volume Up")} /><ControlButton icon={Volume1} label="Volume Down" onClick={() => onAction("Volume Down")} /><ControlButton icon={Image} label="Screenshot" onClick={() => onAction("Screenshot")} /><ControlButton icon={Power} label="Power Button" onClick={() => onAction("Power Button")} /><ControlButton icon={RotateCw} label="Lock Rotate" onClick={() => onAction("Lock Rotate")} /><ControlButton icon={Grid3X3} label="Install APK" onClick={() => onAction("Install APK")} /><ControlButton icon={Upload} label="Import File" onClick={() => onAction("Import File")} /><ControlButton icon={Download} label="Export File" onClick={() => onAction("Export File")} /><ControlButton icon={ClipboardCopy} label="ADB Command" onClick={() => onAction("ADB Command")} /><ControlButton icon={Keyboard} label="Quick Phrase" onClick={() => onAction("Quick Phrase")} /><ControlButton icon={RotateCw} label="Reboot" onClick={() => onAction("Reboot")} /><ControlButton icon={Keyboard} label="Switch Keyboard" onClick={() => onAction("Switch Keyboard")} /></div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">{livePictureHeld(session.phase) ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><PanelDevicePicker devices={devices} currentId={device.id} onSelect={onChangeDevice} /><PanelKeyCommands session={session} /><ControlButton icon={Image} label="Screenshot" onClick={onCapture} /></div>
       <div className="shrink-0 border-t border-border px-2 py-2">
         <p data-testid="live-mirror-followers" className="mb-1 text-center text-[10px] text-muted-foreground">{followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
         <LiveMirrorDeviceKeys session={session} />
@@ -676,7 +709,53 @@ export function FloatingDevice({ device, followers, workspace, settings, positio
     </div>
   </div>
 }
-function ControlButton({ icon: Icon, label, onClick }: { icon: typeof Smartphone; label: string; onClick: () => void }) { return <Button variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={onClick}><Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />{label}</Button> }
+/**
+ * The glyph each panel key command is drawn with, keyed by the command's own
+ * name.
+ *
+ * The copy table in `live-mirror` is the single statement of what the panel's
+ * key commands are and which code each dispatches; this table adds only the
+ * picture beside them. The compiler checks the two against each other: a command
+ * named in one table and missing from the other is an index that cannot be
+ * formed, so the surface cannot draw a key it has no copy for.
+ */
+const panelKeyIcons = { "volume-up": Volume2, "volume-down": Volume1, power: Power } as const
+
+/**
+ * PanelKeyCommands draws the device key events the action column offers.
+ *
+ * Each one IS the device's own key event, dispatched by the frame's own session
+ * - the same intent, lease, policy and control session the navigation row in the
+ * footer and the operator's own keyboard travel, so there is one key-event path
+ * and not two. A key event's catalog entry requires the observation it was
+ * resolved against, so a frame that cannot name one refuses in the console's own
+ * words instead of asking the kernel to refuse an intent it built; the control is
+ * disabled AND the fact it is missing is named where this frame states its state,
+ * because a control that cannot act has to say why.
+ */
+function PanelKeyCommands({ session }: { session: LiveMirrorSessionView }) {
+  return <>{liveMirrorCopy.panelKeyCommands.map((command) => <ControlButton key={command.name} icon={panelKeyIcons[command.name]} label={command.label} disabled={!session.inputReady} onClick={() => session.sendKey(command.keyCode, command.label)} />)}</>
+}
+
+/**
+ * PanelDevicePicker is Change Device: the control that moves the frame to another
+ * device of the workspace.
+ *
+ * It is panel navigation rather than a device command, and it is drawn here
+ * because this is where the operator is looking. Its list is the workspace's own
+ * projection, so this console offers the devices it has rather than asserting
+ * which of them are reachable, and every entry carries the device's own status
+ * label so an operator is not choosing blind. It is rendered only when there is
+ * another device to move to: a picker with nothing in it is a control that cannot
+ * act, which is the thing this column no longer carries.
+ */
+function PanelDevicePicker({ devices, currentId, onSelect }: { devices: readonly DeviceView[]; currentId: string; onSelect: (deviceId: string) => void }) {
+  const selectable = devices.filter((device) => device.id !== currentId)
+  if (selectable.length === 0) return null
+  return <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" aria-label="Change Device" className="h-9 w-full justify-start rounded-none px-2 text-xs" />}><Smartphone className="size-3.5 text-muted-foreground" aria-hidden="true" />Change Device</DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[var(--anchor-width)]">{selectable.map((device) => <DropdownMenuItem key={device.id} onClick={() => onSelect(device.id)}>{`${device.displayName} · ${deviceStatusLabels[device.status]}`}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
+}
+
+function ControlButton({ icon: Icon, label, disabled = false, onClick }: { icon: typeof Smartphone; label: string; disabled?: boolean; onClick: () => void }) { return <Button variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" disabled={disabled} onClick={onClick}><Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />{label}</Button> }
 function SettingToggle({ label, description, checked, onChange, onLabel = "On", offLabel = "Off" }: { label: string; description: string; checked: boolean; onChange: (value: boolean) => void; onLabel?: string; offLabel?: string }) { const id = label.toLowerCase().replaceAll(" ", "-"); return <div className="flex items-start gap-3 border-t border-border pt-4"><Switch id={id} checked={checked} onCheckedChange={onChange} className="mt-0.5 shrink-0" /><label htmlFor={id} className="min-w-0 flex-1 cursor-pointer"><span className="flex justify-between gap-2 text-xs font-medium"><span>{label}</span><span className="text-muted-foreground">{checked ? onLabel : offLabel}</span></span><span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{description}</span></label></div> }
 /**
  * rangeEndIp is the second range: its first three octets are the first range's,

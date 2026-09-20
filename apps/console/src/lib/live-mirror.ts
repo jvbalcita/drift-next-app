@@ -374,6 +374,28 @@ export const liveMirrorCopy = {
     ],
   },
   /**
+   * The panel's own key commands: the device's key events the big frame's action
+   * column offers.
+   *
+   * They are the device's own keys, dispatched as the device's own key events
+   * through the kernel - the same intent, lease, policy and control session the
+   * navigation row above and the operator's own keyboard travel - and the label
+   * an operator reads and the code that is dispatched are stated once, here,
+   * rather than in the surface that draws them.
+   *
+   * There is no command text in any of them and none can carry any: a key code is
+   * a bounded number, and the adapter's own admission bounds it again (`shell
+   * input keyevent <n>` for a canonical decimal in [1, 10000]). Anything else an
+   * operator might send travels the operator's own keyboard (see `capture`): a
+   * row of thirty key buttons is not a control surface, it is a keyboard drawn
+   * badly.
+   */
+  panelKeyCommands: [
+    { name: "volume-up", label: "Volume Up", keyCode: 24 },
+    { name: "volume-down", label: "Volume Down", keyCode: 25 },
+    { name: "power", label: "Power Button", keyCode: 26 },
+  ] as const,
+  /**
    * The operator's own keyboard, as the info control states it.
    *
    * It is stated ONCE, in the details, and never in the panel: the panel's
