@@ -89,10 +89,14 @@ type DeviceMirrorEndpointStream interface {
 type DeviceMirrors interface {
 	// Open starts (or joins) a device's live stream over the requested transport
 	// and returns the stream the browser will be carried, spending the plane's
-	// device-session capacity against the purpose the viewer is. Opening is what
-	// subscribes a viewer, and the subscription is what starts the device's
-	// capture.
-	Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose) (DeviceMirrorStream, error)
+	// device-session capacity against the purpose the viewer is and carrying the
+	// stream at the bound that purpose requires.
+	//
+	// Opening is what subscribes a viewer, and the subscription is what starts
+	// the device's capture. The preview setting bounds an ambient viewer's
+	// stream and never the operator's own frame; a caller that states none gets
+	// the setting the plane is configured with.
+	Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose, preview media.MirrorPreview) (DeviceMirrorStream, error)
 	// Stream reports the live stream with this identity, or false when there is
 	// none. It is how a negotiation, a poll and a stop find the stream a caller
 	// named, and it confers nothing: the stream it returns is already this
@@ -188,6 +192,40 @@ func wantedPurpose(requested driftv1.MirrorViewerPurpose) media.MirrorViewerPurp
 	default:
 		return media.PurposeOperator
 	}
+}
+
+// wantedPreview maps the workspace's preview setting as a caller stated it onto
+// the setting this plane will apply.
+//
+// A caller states nothing by leaving the level UNSPECIFIED, or by stating a level
+// this plane does not know, or by stating no frame rate - and each of those is
+// answered by the plane's own setting rather than by "no bound": a stream carried
+// at a bound nobody chose is the defect this contract removes, so the field's
+// absence is never read as an uncapped encoder. A frame rate outside the range
+// this product asks for is treated the same way, because a rate no control offers
+// is not a rate an operator chose.
+func wantedPreview(quality driftv1.MirrorPreviewQuality, frameRate uint32) media.MirrorPreview {
+	preview := media.MirrorPreview{}
+	switch quality {
+	case driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_LOW:
+		preview.Quality = media.PreviewLow
+	case driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_MEDIUM:
+		preview.Quality = media.PreviewMedium
+	case driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_HIGH:
+		preview.Quality = media.PreviewHigh
+	case driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_EXTRA:
+		preview.Quality = media.PreviewExtra
+	case driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_UNSPECIFIED:
+		// Nothing stated: the plane's own setting applies.
+	default:
+		// A level this plane does not know. It is not applied and it is not an
+		// error: the plane's own setting is a bound, which is what the caller
+		// would have got had it stated nothing at all.
+	}
+	if frameRate > 0 && frameRate <= uint32(media.MaxPreviewFrameRate) {
+		preview.FrameRate = int(frameRate)
+	}
+	return preview
 }
 
 // isCapacityRefusal reports the plane's own capacity bound as the cause of a

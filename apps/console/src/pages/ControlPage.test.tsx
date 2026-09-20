@@ -10,7 +10,7 @@ import type { ControlPlaneIntent, DeviceView, MutationResult } from "@/lib/domai
 import { create } from "@bufbuild/protobuf"
 import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import { liveMirrorCopy, liveStreamView, type MirrorCapacityView } from "@/lib/live-mirror"
+import { liveMirrorCopy, liveStreamView, type LiveMirrorPreview, type MirrorCapacityView } from "@/lib/live-mirror"
 import { ControlPage } from "./ControlPage"
 import { liveTileCopy, tileViewerBudget, tileViewerLimit, type TileViewerBudget } from "@/lib/live-tiles"
 
@@ -46,17 +46,19 @@ function fakeMirror(state: "starting" | "live" | "ended" = "live", transport: Mi
   const calls: string[] = []
   /** purposes are what each stream was opened AS: the frame, or one of the grid's tiles. */
   const purposes: string[] = []
+  /** previews are the workspace's encode setting each stream STATED, if any. */
+  const previews: (LiveMirrorPreview | undefined)[] = []
   const client: LiveMirrorClient = {
     // The transport the operator chose travels with the request, so a case can
     // assert the choice reached the control plane rather than a default.
-    async startStream(request) { calls.push(`start:${request.deviceId}:${request.transport ?? "unspecified"}`); purposes.push(request.purpose); return view },
+    async startStream(request) { calls.push(`start:${request.deviceId}:${request.transport ?? "unspecified"}`); purposes.push(request.purpose); previews.push(request.preview); return view },
     async getCapacity() { return gridPlane },
     async negotiate(_streamId, offerSdp) { calls.push(`negotiate:${offerSdp}`); return { answerSdp: "answer-sdp", stream: view } },
     async stopStream(streamId) { calls.push(`stop:${streamId}`); return { ...view, state: "ended" } },
     async getStream() { return view },
     streamEndpoint(path) { calls.push(`endpoint:${path}`); return { url: `http://control-plane.test${path}`, headers: {} } },
   }
-  return { client, calls, purposes }
+  return { client, calls, purposes, previews }
 }
 
 /** The plane the page's fixtures run against: five sessions, one kept for the frame. */
@@ -805,6 +807,11 @@ describe("ControlPage live mirror frame", () => {
     // one of the grid's tiles could be refused for the grid's spending while the
     // operator is looking at it.
     expect(mirror.purposes).toContain("operator")
+    // And the frame states NO preview setting: it is carried at the plane's own
+    // profile, so a request that stated one would be this console claiming a bound
+    // it does not set - and a level chosen for a grid of thumbnails must never
+    // bound the frame the work happens in.
+    expect(mirror.previews[mirror.purposes.indexOf("operator")]).toBeUndefined()
     expect(screen.queryByText("Interactive phone surface")).not.toBeInTheDocument()
 
     // The stream's own frame is stated, because every coordinate is measured in
@@ -883,14 +890,19 @@ describe("ControlPage fleet tiles", () => {
     vi.unstubAllGlobals()
   })
 
-  /** mirrorFor answers each device's own stream, its purpose, and the plane's capacity. */
-  function mirrorFor(): { client: LiveMirrorClient; started: string[]; purposes: string[] } {
+  /**
+   * mirrorFor answers each device's own stream, its purpose, the workspace's
+   * preview setting it stated, and the plane's capacity.
+   */
+  function mirrorFor(): { client: LiveMirrorClient; started: string[]; purposes: string[]; previews: (LiveMirrorPreview | undefined)[] } {
     const started: string[] = []
     const purposes: string[] = []
+    const previews: (LiveMirrorPreview | undefined)[] = []
     const client: LiveMirrorClient = {
       async startStream(request) {
         started.push(request.deviceId)
         purposes.push(request.purpose)
+        previews.push(request.preview)
         return liveStreamView(create(MirrorStreamSchema, { streamId: `stream-${request.deviceId}`, deviceId: request.deviceId, transport: MirrorTransport.WEBRTC, renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n }))
       },
       async getCapacity() { return gridPlane },
@@ -899,7 +911,7 @@ describe("ControlPage fleet tiles", () => {
       async getStream(streamId) { return liveStreamView(create(MirrorStreamSchema, { streamId, deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n })) },
       streamEndpoint(path) { return { url: `http://control-plane.test${path}`, headers: {} } },
     }
-    return { client, started, purposes }
+    return { client, started, purposes, previews }
   }
 
   function grid() {
@@ -968,6 +980,59 @@ describe("ControlPage fleet tiles", () => {
     expect(unshown).toHaveAttribute("aria-label", liveTileCopy.unshown(tileViewerLimit(gridBudget)))
     expect(unshown).toHaveTextContent(liveTileCopy.unshownShort)
     expect(screen.queryByTestId("live-tile-video-orion-03")).not.toBeInTheDocument()
+  })
+
+  it("carries the workspace's Preview Quality on every tile it opens", async () => {
+    const { snapshot, dispatch } = grid()
+    const mirror = mirrorFor()
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={mirror.client} />)
+    await screen.findByTestId("live-tile-video-atlas-04")
+
+    // Every tile states the workspace's setting, because a tile is what the plane
+    // bounds an ambient stream with - and it states the setting the operator's own
+    // panel shows rather than a value this console invents.
+    expect(mirror.previews).toHaveLength(tileViewerLimit(gridBudget))
+    for (const stated of mirror.previews) {
+      expect(stated).toEqual({ quality: "Medium", frameRate: 15 })
+    }
+  })
+
+  it("opens Preview Quality at Medium, with High still selectable, and carries a change to the plane", async () => {
+    const user = userEvent.setup()
+    const { snapshot, dispatch } = grid()
+    const mirror = mirrorFor()
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={mirror.client} />)
+    await screen.findByTestId("live-tile-video-atlas-04")
+
+    // The default is Medium and not High: the plane's own default capacity lets the
+    // grid carry several tiles at once, and each level above Medium is a per-stream
+    // cost a grid multiplies (High 2.5 Mbps, Extra 6 Mbps against Medium's 1.2).
+    await user.click(screen.getByRole("button", { name: "Open Workspace Settings" }))
+    const quality = screen.getByRole("button", { name: "Preview Quality" })
+    expect(quality).toHaveTextContent("Medium")
+
+    // High is still selectable, and choosing it reaches the plane: the control is
+    // not local state that bounds nothing, which is the defect this replaces.
+    await user.click(quality)
+    await user.click(await screen.findByRole("menuitem", { name: "High" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Preview Quality" })).toHaveTextContent("High"))
+    await waitFor(() => expect(mirror.previews).toContainEqual({ quality: "High", frameRate: 15 }))
+
+    // And Extra, the level whose size is the device's own, is offered too.
+    await user.click(screen.getByRole("button", { name: "Preview Quality" }))
+    expect(await screen.findByRole("menuitem", { name: "Extra" })).toBeInTheDocument()
+    expect(await screen.findByRole("menuitem", { name: "Low" })).toBeInTheDocument()
+  })
+
+  it("offers no Priority control: the setting it meant is the workspace's own preview setting", async () => {
+    const user = userEvent.setup()
+    const { snapshot, dispatch } = grid()
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
+    await user.click(screen.getByRole("button", { name: "Settings" }))
+    // A control that changes nothing must not be shown. Priority (Speed/Quality)
+    // was read by nothing in the mirror path, and the bound it meant is the
+    // workspace's Preview Quality - one control for one fact.
+    expect(screen.queryByRole("button", { name: "Priority" })).not.toBeInTheDocument()
   })
 
   it("carries only as many tiles as the PLANE's own capacity leaves, not a number of its own", async () => {

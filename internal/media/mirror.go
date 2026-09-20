@@ -184,8 +184,13 @@ type StreamFrame struct {
 // MirrorDialer starts one device's live session. It is the seam the engine is
 // built over, so the engine's lifecycle, fan-out and failure behaviour are
 // exercised without a device.
+//
+// The purpose travels with the dial because it is what the session is ENCODED
+// for: the workspace's preview setting is a hard cap on an ambient tile's stream
+// and must never bound the frame an operator works in, so the adapter that builds
+// the device's encode bound is told which of the two it is opening.
 type MirrorDialer interface {
-	Dial(ctx context.Context, deviceID, serial string) (MirrorStream, error)
+	Dial(ctx context.Context, deviceID, serial string, purpose MirrorViewerPurpose, preview MirrorPreview) (MirrorStream, error)
 }
 
 // MirrorStream is one live session's stream and input path, as the dialer
@@ -276,6 +281,7 @@ type MirrorEngine struct {
 	max     int
 	reserve int
 	queue   int
+	preview MirrorPreview
 	keyrefs map[string]time.Time
 
 	mu       sync.Mutex
@@ -388,6 +394,15 @@ type MirrorEngineConfig struct {
 	// DefaultOperatorReserve, and a reserve at or above the capacity is read as
 	// a capacity no tile may spend.
 	OperatorReserve int
+	// Preview is the workspace's preview setting: what an ambient viewer - one
+	// of the console's grid tiles - is carried at.
+	//
+	// It is a bound and not a preference: the level it names caps the size and
+	// the bit rate of every ambient stream, and it never bounds the operator's
+	// own frame, which is carried at its own profile. A zero value uses
+	// DefaultPreview, so the setting the engine carries is always a setting -
+	// never "no bound".
+	Preview MirrorPreview
 	// QueueDepth bounds one viewer's un-sent stream.
 	QueueDepth int
 }
@@ -409,15 +424,63 @@ func NewMirrorEngine(config MirrorEngineConfig) (*MirrorEngine, error) {
 	if config.QueueDepth <= 0 {
 		config.QueueDepth = DefaultMirrorQueue
 	}
+	// A zero preview is the documented default rather than "no bound": an engine
+	// built without a stated setting still caps every ambient stream, because the
+	// state this setting removes is the uncapped one.
+	if config.Preview.Quality == "" {
+		config.Preview.Quality = DefaultPreviewQuality
+	}
+	if config.Preview.FrameRate <= 0 {
+		config.Preview.FrameRate = DefaultPreviewFrameRate
+	}
+	if !previewFrameRateInRange(config.Preview.FrameRate) {
+		return nil, fmt.Errorf("media: the workspace's preview frame rate must be in %d..%d, got %d",
+			MinPreviewFrameRate, MaxPreviewFrameRate, config.Preview.FrameRate)
+	}
 	return &MirrorEngine{
 		dialer:   config.Dialer,
 		idle:     config.Idle,
 		max:      config.MaxSessions,
 		reserve:  config.OperatorReserve,
 		queue:    config.QueueDepth,
+		preview:  config.Preview,
 		keyrefs:  make(map[string]time.Time),
 		sessions: make(map[string]*mirrorSession),
 	}, nil
+}
+
+// Preview reports the workspace's preview setting this engine carries: the level
+// and the capture rate every ambient viewer is carried at.
+//
+// It is read by the startup line that states the setting the plane is actually
+// applying, so an operator reads the bound their grid runs under rather than
+// inferring it from a console's local state.
+func (e *MirrorEngine) Preview() MirrorPreview {
+	if e == nil {
+		return DefaultPreview()
+	}
+	return e.preview
+}
+
+// previewFor resolves the workspace's preview setting a viewer stated against the
+// setting this plane is configured with.
+//
+// A viewer states nothing by leaving both fields zero, which is what a console
+// that has never been told the workspace's setting sends; anything it does state
+// is read, and anything it does not is filled from the plane's own setting. An
+// unrecognised level and a frame rate outside the range this product asks for
+// both resolve to the plane's own setting rather than being applied or refused:
+// neither is a licence to carry a stream at a bound nobody chose, and neither is
+// a reason to refuse a viewer the plane could carry.
+func (e *MirrorEngine) previewFor(requested MirrorPreview) MirrorPreview {
+	resolved := e.Preview()
+	if requested.Quality != "" {
+		resolved.Quality = PreviewQualityFromString(string(requested.Quality))
+	}
+	if previewFrameRateInRange(requested.FrameRate) {
+		resolved.FrameRate = requested.FrameRate
+	}
+	return resolved
 }
 
 // Capacity reports the device-session capacity this engine was built with.
@@ -458,15 +521,24 @@ func (e *MirrorEngine) AmbientCapacity() int {
 // Start begins (or joins) the live mirror for one device as the operator's own
 // frame, and returns a viewer on it.
 //
-// It is StartViewer with PurposeOperator, which is the purpose the operator's
-// big frame opens with: the frame is what the reserve below the plane's capacity
-// is kept for, and it is the caller that may spend it.
+// It is StartViewer with PurposeOperator and no stated preview setting, which is
+// the purpose the operator's big frame opens with: the frame is what the reserve
+// below the plane's capacity is kept for, it is the caller that may spend it, and
+// the workspace's preview setting does not bound it.
 func (e *MirrorEngine) Start(ctx context.Context, deviceID, serial string) (MirrorSession, MirrorViewer, error) {
-	return e.StartViewer(ctx, deviceID, serial, PurposeOperator)
+	return e.StartViewer(ctx, deviceID, serial, PurposeOperator, MirrorPreview{})
 }
 
 // StartViewer begins (or joins) the live mirror for one device and returns a
-// viewer on it, spending the plane's capacity against the purpose it is given.
+// viewer on it, spending the plane's capacity against the purpose it is given and
+// carrying the stream at the bound that purpose requires.
+//
+// The requested preview is the workspace's setting as the viewer stated it, and
+// it bounds an AMBIENT stream only: the operator's own frame is carried at its
+// own profile whatever is stated here, because a level an operator chose for a
+// grid of thumbnails must not make the frame they work in blurry. A viewer that
+// states nothing gets the setting this plane is configured with (see
+// previewFor), so a stream is never carried at a bound nobody chose.
 //
 // Joining is deliberate: one device has one session, and the second viewer of the
 // same device attaches to the session already running instead of starting a
@@ -479,6 +551,11 @@ func (e *MirrorEngine) Start(ctx context.Context, deviceID, serial string) (Mirr
 // its values reach the session; its cancellation does not end a capture the engine
 // is carrying for a browser that is still attached to it.
 //
+// A viewer that joins a stream carried at a WEAKER bound than it needs makes the
+// session re-encode, which is how a device the console's grid is drawing as a tile
+// is still handed to the operator's own frame at the operator's profile rather
+// than at the grid's setting (see requestProfile).
+//
 // Two refusals are drawn against the capacity, and they are told apart because
 // they are two different facts. A plane whose sessions are all held refuses
 // everything with the capacity itself named. An ambient viewer - a grid tile -
@@ -487,11 +564,12 @@ func (e *MirrorEngine) Start(ctx context.Context, deviceID, serial string) (Mirr
 // says which of the two happened. A session an operator frame is watching is
 // never counted as the grid's: what is spent on a tile is a place no operator
 // is using.
-func (e *MirrorEngine) StartViewer(ctx context.Context, deviceID, serial string, purpose MirrorViewerPurpose) (MirrorSession, MirrorViewer, error) {
+func (e *MirrorEngine) StartViewer(ctx context.Context, deviceID, serial string, purpose MirrorViewerPurpose, requested MirrorPreview) (MirrorSession, MirrorViewer, error) {
 	if deviceID == "" || serial == "" {
 		return nil, nil, errors.New("media: starting a mirror requires a device and its transport serial")
 	}
 	purpose = purposeOrDefault(purpose)
+	preview := e.previewFor(requested)
 	e.mu.Lock()
 	if e.stopped {
 		e.mu.Unlock()
@@ -504,7 +582,7 @@ func (e *MirrorEngine) StartViewer(ctx context.Context, deviceID, serial string,
 			e.mu.Unlock()
 			return nil, nil, refusal
 		}
-		session = newMirrorSession(deviceID, serial, e)
+		session = newMirrorSession(deviceID, serial, purpose, preview, e)
 		// The session takes its lifetime from this call's context, and ends
 		// earlier than that when it ends for a reason of its own. Binding it
 		// here, before the worker starts, is what keeps a session ended by its
@@ -697,6 +775,33 @@ type mirrorSession struct {
 	// the decision must not nest one session's lock inside the engine's.
 	operatorViewers atomic.Int32
 
+	// opening is the purpose of the viewer that started this session, and
+	// dialed is the purpose the stream it is carrying right now was encoded for.
+	//
+	// Two fields rather than one because the worker starts before the first
+	// subscriber has finished attaching: a session that read "who is watching"
+	// to decide its first dial would race the viewer that opened it, and a
+	// device opened by the operator's own frame would be encoded at the grid's
+	// setting. The first dial is made for `opening`, and every later one for the
+	// strongest purpose attached at the time.
+	opening MirrorViewerPurpose
+	dialed  MirrorViewerPurpose
+
+	// preview is the workspace's preview setting this session's AMBIENT stream is
+	// carried at, resolved when the session was opened. It is not read for the
+	// operator's own frame, which has its own profile.
+	preview MirrorPreview
+
+	// upgrade is signalled when a viewer attaches that needs a stronger encode
+	// profile than the stream currently being carried. It carries no value: the
+	// worker re-reads which profile is required, so a session that gained two
+	// operator viewers in one instant re-encodes once.
+	upgrade chan struct{}
+	// dialCancel ends the current dial's read, which is how a stream that must
+	// be re-encoded is left: the reader is unblocked and the worker opens the
+	// device again at the profile the attached viewers require.
+	dialCancel context.CancelFunc
+
 	// ctx is the session's own lifetime: it ends when the starter's context
 	// does, or when the session itself ends. cancel is what makes an ended
 	// session's reader stop, so the stream it owns is always closed.
@@ -704,7 +809,7 @@ type mirrorSession struct {
 	cancel context.CancelFunc
 }
 
-func newMirrorSession(deviceID, serial string, engine *MirrorEngine) *mirrorSession {
+func newMirrorSession(deviceID, serial string, purpose MirrorViewerPurpose, preview MirrorPreview, engine *MirrorEngine) *mirrorSession {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &mirrorSession{
 		deviceID:  deviceID,
@@ -718,6 +823,9 @@ func newMirrorSession(deviceID, serial string, engine *MirrorEngine) *mirrorSess
 		finished:  make(chan struct{}),
 		startedAt: time.Now(),
 		scid:      uint32(time.Now().UnixNano()) & 0x7fffffff,
+		opening:   purposeOrDefault(purpose),
+		preview:   preview,
+		upgrade:   make(chan struct{}, 1),
 	}
 }
 
@@ -831,6 +939,13 @@ func (s *mirrorSession) Subscribe(purpose MirrorViewerPurpose) (MirrorViewer, er
 	// writes to the session's control socket.
 	stream, primed := s.stream, len(s.lastIDR) > 0
 	s.mu.Unlock()
+
+	// A viewer that needs a stronger encode profile than the stream being carried
+	// re-encodes this session's stream. It is the whole reason the purpose
+	// travels with the dial: a device the console's grid is already drawing as a
+	// tile must not be handed to the operator's own frame at the grid's preview
+	// setting, because that is the frame the operator works in.
+	s.requestProfile(purpose)
 
 	if stream != nil && !primed {
 		s.askForKeyFrame(stream)
@@ -977,57 +1092,204 @@ func insideFrame(x, y, width, height int) bool {
 // It reads the session's own context rather than a caller's, so a session that
 // ends for a reason of its own - its last viewer leaving, its stream failing -
 // unblocks this worker and closes the device's stream immediately.
+//
+// A session may open its device more than once, and that is the one case the loop
+// below exists for: a viewer that needs a stronger encode profile than the stream
+// being carried - the operator's own frame attaching to a device the console's
+// grid is already drawing - makes the session re-encode. The stream it replaces
+// is released before the next one is opened, so one device is still captured once
+// at a time, and a viewer that attaches during the change is carried by the new
+// stream rather than shown a picture at a bound nobody asked for.
 func (s *mirrorSession) run() {
 	// finished is registered first so it is closed LAST, after every defer
 	// below it - the stream's own release included. A caller waiting on it has
 	// therefore waited for the device's stream to be released rather than
 	// merely for this session to have decided to end.
 	defer close(s.finished)
-	ctx := s.context()
-	stream, err := s.engine.dialer.Dial(ctx, s.deviceID, s.serial)
-	if err != nil {
-		s.end(fmt.Errorf("media: opening the mirror for %s: %w", s.deviceID, err))
-		return
-	}
-	s.engine.accounting.streamDialed()
-	defer func() {
-		// The release is bounded: it kills the device-side server and removes
-		// the reverse tunnel, and a device that stopped answering must not be
-		// able to hold this worker - and therefore the process's shutdown - open
-		// without end. A release that did not complete is counted as one that
-		// did not, so the audit reports it instead of the engine assuming it.
-		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), DefaultMirrorCloseTimeout)
-		defer cancel()
-		if closeErr := stream.Close(closeCtx); closeErr != nil {
-			log.Printf("live mirror cleanup for %s: %v", s.deviceID, closeErr)
+	redial := false
+	for {
+		if !s.carryStream(redial) {
 			return
 		}
-		s.engine.accounting.streamClosed()
-	}()
+		log.Printf("live mirror for %s is re-encoding: a viewer that needs a stronger profile attached", s.deviceID)
+		redial = true
+	}
+}
 
-	width, height, err := stream.FrameSize(ctx)
+// carryStream owns one device stream's whole lifetime: it opens the stream,
+// publishes what the device carries, and releases it before returning. It reports
+// whether the session should open another one, which it should exactly when a
+// viewer needing a stronger profile attached while this stream was being carried.
+func (s *mirrorSession) carryStream(redial bool) bool {
+	ctx := s.context()
+	dialCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	purpose := s.requiredPurpose()
+	s.beginDial(purpose, cancel)
+
+	stream, err := s.engine.dialer.Dial(dialCtx, s.deviceID, s.serial, purpose, s.preview)
+	if err != nil {
+		s.end(fmt.Errorf("media: opening the mirror for %s: %w", s.deviceID, err))
+		return false
+	}
+	s.engine.accounting.streamDialed()
+	defer s.releaseStream(ctx, stream)
+
+	width, height, err := stream.FrameSize(dialCtx)
 	if err != nil {
 		s.end(fmt.Errorf("media: %s reported no streamable screen: %w", s.deviceID, err))
+		return false
+	}
+	s.publishStream(stream, width, height, purpose)
+	if redial {
+		// The viewers of a stream that was replaced are already attached, so
+		// nothing asks this one for a first picture. A re-encoded stream is a
+		// new encoder and its cached frames are gone, so the device is asked for
+		// a key frame rather than the frame left to its own cadence: the viewer
+		// is watching a frame that has just changed shape.
+		s.askForKeyFrame(stream)
+	}
+
+	for {
+		frame, readErr := stream.ReadFrame(dialCtx)
+		if readErr == nil {
+			s.publish(frame)
+			continue
+		}
+		if s.upgradeRequested() && ctx.Err() == nil {
+			return true
+		}
+		if ctx.Err() != nil {
+			s.end(ctx.Err())
+			return false
+		}
+		s.end(fmt.Errorf("media: the stream from %s ended: %w", s.deviceID, readErr))
+		return false
+	}
+}
+
+// requiredPurpose is the purpose this session's stream must be encoded for: the
+// strongest purpose watching it, or - before anything has finished attaching -
+// the purpose of the viewer that opened it.
+//
+// The opening purpose is what covers the start of a session: the worker begins
+// before the first subscriber has attached, so a session that read only "who is
+// watching" would race the viewer that opened it and could encode the operator's
+// own frame at the grid's setting.
+func (s *mirrorSession) requiredPurpose() MirrorViewerPurpose {
+	if s.operatorViewers.Load() > 0 {
+		return PurposeOperator
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.opening == PurposeOperator {
+		return PurposeOperator
+	}
+	return PurposeAmbient
+}
+
+// beginDial records the purpose this dial is being made for and the cancel that
+// ends its read, before the device is opened: a viewer that attaches while a dial
+// is in flight has to be able to say that the stream being opened is not encoded
+// for it and have that acted on.
+func (s *mirrorSession) beginDial(purpose MirrorViewerPurpose, cancel context.CancelFunc) {
+	s.mu.Lock()
+	s.dialed = purpose
+	s.dialCancel = cancel
+	s.mu.Unlock()
+}
+
+// requestProfile asks this session's worker to re-encode its stream when a viewer
+// attaches that needs a stronger profile than the stream is being carried at.
+//
+// It is deliberately one-way. A stream is never re-encoded DOWNWARDS: the cost of
+// the stronger profile is already being paid, and a viewer watching a picture
+// must not have it replaced under them to make a saving. A session is therefore
+// carried at the strongest bound its viewers have needed.
+//
+// It is also why the purpose travels with the dial at all: without this, a device
+// the console's grid is drawing as a tile would be handed to the operator's own
+// frame at the grid's preview setting - a frame an operator works in, made blurry
+// by a setting they chose for a thumbnail.
+func (s *mirrorSession) requestProfile(purpose MirrorViewerPurpose) {
+	s.mu.Lock()
+	needs := profileRank(purpose) > profileRank(s.dialed)
+	cancel := s.dialCancel
+	s.mu.Unlock()
+	if !needs || cancel == nil {
 		return
 	}
+	// The signal is left for the worker to drain rather than consumed here, so
+	// two viewers attaching in one instant re-encode the device once.
+	select {
+	case s.upgrade <- struct{}{}:
+	default:
+	}
+	cancel()
+}
+
+// upgradeRequested reports and consumes a pending re-encode.
+func (s *mirrorSession) upgradeRequested() bool {
+	select {
+	case <-s.upgrade:
+		return true
+	default:
+		return false
+	}
+}
+
+// profileRank orders the two purposes by the encode bound they need. The
+// operator's own frame is the stronger of the two, because the workspace's
+// preview setting caps an ambient stream and must never cap the frame an operator
+// works in.
+func profileRank(purpose MirrorViewerPurpose) int {
+	if purposeOrDefault(purpose) == PurposeOperator {
+		return 1
+	}
+	return 0
+}
+
+// publishStream makes one stream this session's current stream: it records the
+// frame the stream is encoded at - the coordinate frame every input must be
+// measured in - and drops anything cached from a stream it replaces.
+//
+// The cache is dropped because a re-encoded stream is a different encoder: the
+// parameter sets and the key frame cached from the stream before it describe a
+// picture that is no longer being carried, and a viewer primed from them would be
+// shown a frame from an encoder this session is not using.
+func (s *mirrorSession) publishStream(stream MirrorStream, width, height int, purpose MirrorViewerPurpose) {
 	s.mu.Lock()
 	s.width, s.height = width, height
 	s.stream = stream
+	s.dialed = purpose
+	s.spsPPS = nil
+	s.lastIDR = nil
+	s.lastIDRPTS = 0
 	s.mu.Unlock()
-	log.Printf("live mirror open for %s at %dx%d", s.deviceID, width, height)
+	log.Printf("live mirror open for %s at %dx%d, encoded for the %s viewer", s.deviceID, width, height, purpose)
+}
 
-	for {
-		frame, readErr := stream.ReadFrame(ctx)
-		if readErr != nil {
-			if ctx.Err() != nil {
-				s.end(ctx.Err())
-				return
-			}
-			s.end(fmt.Errorf("media: the stream from %s ended: %w", s.deviceID, readErr))
-			return
-		}
-		s.publish(frame)
+// releaseStream releases one device stream under a bound: it kills the
+// device-side server and removes the reverse tunnel, and a device that stopped
+// answering must not be able to hold this worker - and therefore the process's
+// shutdown - open without end. A release that did not complete is counted as one
+// that did not, so the audit reports it instead of the engine assuming it.
+func (s *mirrorSession) releaseStream(ctx context.Context, stream MirrorStream) {
+	s.mu.Lock()
+	if s.stream == stream {
+		// The stream is no longer this session's. An input arriving while the
+		// device's server is being replaced has nothing to travel in, and is
+		// refused rather than written to a socket that is closing.
+		s.stream = nil
 	}
+	s.mu.Unlock()
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), DefaultMirrorCloseTimeout)
+	defer cancel()
+	if closeErr := stream.Close(closeCtx); closeErr != nil {
+		log.Printf("live mirror cleanup for %s: %v", s.deviceID, closeErr)
+		return
+	}
+	s.engine.accounting.streamClosed()
 }
 
 // publish records the frame, keeps the parameter sets and the last key frame, and

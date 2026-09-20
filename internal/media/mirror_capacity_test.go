@@ -37,7 +37,7 @@ func ambientGrid(t *testing.T, engine *MirrorEngine) []string {
 	spent := make([]string, 0, engine.AmbientCapacity())
 	for i := 0; i < engine.AmbientCapacity(); i++ {
 		deviceID := fmt.Sprintf("tile-%02d", i)
-		if _, _, err := engine.StartViewer(context.Background(), deviceID, "SERIAL-"+deviceID, PurposeAmbient); err != nil {
+		if _, _, err := engine.StartViewer(context.Background(), deviceID, "SERIAL-"+deviceID, PurposeAmbient, MirrorPreview{}); err != nil {
 			t.Fatalf("the grid could not open tile %d of its own allocation: %v", i, err)
 		}
 		spent = append(spent, deviceID)
@@ -60,7 +60,7 @@ func TestTheGridsFullAllocationStillLeavesTheOperatorsOwnFrameAStream(t *testing
 		t.Fatalf("the grid's own allocation is %d tile(s), want the capacity less the operator's place (5)", len(spent))
 	}
 
-	session, viewer, err := engine.StartViewer(context.Background(), "operator-device", "SERIAL-operator", PurposeOperator)
+	session, viewer, err := engine.StartViewer(context.Background(), "operator-device", "SERIAL-operator", PurposeOperator, MirrorPreview{})
 	if err != nil {
 		t.Fatalf("the operator's own frame was refused while the grid drew its full allocation: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestTheDefaultDeploymentLeavesRoomForTheOperatorsFrame(t *testing.T) {
 	if len(spent) != DefaultMirrorSessionCapacity-DefaultOperatorReserve {
 		t.Fatalf("the grid holds %d tile(s), want %d", len(spent), DefaultMirrorSessionCapacity-DefaultOperatorReserve)
 	}
-	if _, _, err := engine.StartViewer(context.Background(), "operator-device", "SERIAL-operator", PurposeOperator); err != nil {
+	if _, _, err := engine.StartViewer(context.Background(), "operator-device", "SERIAL-operator", PurposeOperator, MirrorPreview{}); err != nil {
 		t.Fatalf("the operator's own frame was refused on a plane carrying its default capacity: %v", err)
 	}
 }
@@ -112,7 +112,7 @@ func TestAGridTileIsRefusedOnceTheGridsShareIsSpent(t *testing.T) {
 	engine := newEngine(t, newFakeDialer(), MirrorEngineConfig{MaxSessions: 3, OperatorReserve: 1})
 	ambientGrid(t, engine)
 
-	_, _, err := engine.StartViewer(context.Background(), "tile-overflow", "SERIAL-tile-overflow", PurposeAmbient)
+	_, _, err := engine.StartViewer(context.Background(), "tile-overflow", "SERIAL-tile-overflow", PurposeAmbient, MirrorPreview{})
 	var capacity *SessionCapacityError
 	if !errors.As(err, &capacity) {
 		t.Fatalf("a grid tile beyond the grid's share was refused with %v, want a capacity refusal", err)
@@ -135,12 +135,12 @@ func TestTheOperatorsFrameIsToldThePlanesOwnSentenceWhenThePlaneIsFull(t *testin
 	engine := newEngine(t, newFakeDialer(), MirrorEngineConfig{MaxSessions: 2, OperatorReserve: 1})
 	for i := 0; i < engine.Capacity(); i++ {
 		deviceID := fmt.Sprintf("worked-%d", i)
-		if _, _, err := engine.StartViewer(context.Background(), deviceID, "SERIAL-"+deviceID, PurposeOperator); err != nil {
+		if _, _, err := engine.StartViewer(context.Background(), deviceID, "SERIAL-"+deviceID, PurposeOperator, MirrorPreview{}); err != nil {
 			t.Fatalf("the operator's frame %d could not open inside the capacity: %v", i, err)
 		}
 	}
 
-	_, _, err := engine.StartViewer(context.Background(), "one-too-many", "SERIAL-one-too-many", PurposeOperator)
+	_, _, err := engine.StartViewer(context.Background(), "one-too-many", "SERIAL-one-too-many", PurposeOperator, MirrorPreview{})
 	var capacity *SessionCapacityError
 	if !errors.As(err, &capacity) {
 		t.Fatalf("a plane holding its whole capacity refused with %v, want a capacity refusal", err)
@@ -175,7 +175,7 @@ func TestAFrameJoinsTheSessionATileAlreadyHolds(t *testing.T) {
 		t.Fatalf("the grid holds %d tile(s), want 1 for this capacity", len(spent))
 	}
 
-	session, _, err := engine.StartViewer(context.Background(), spent[0], "SERIAL-"+spent[0], PurposeOperator)
+	session, _, err := engine.StartViewer(context.Background(), spent[0], "SERIAL-"+spent[0], PurposeOperator, MirrorPreview{})
 	if err != nil {
 		t.Fatalf("a frame opened for a device the grid is showing was refused: %v", err)
 	}
@@ -200,15 +200,15 @@ func TestAFrameThatJoinsATileFreesTheGridsShare(t *testing.T) {
 	spent := ambientGrid(t, engine)
 
 	// The grid's share is spent, so a second tile is refused...
-	if _, _, err := engine.StartViewer(context.Background(), "tile-extra", "SERIAL-tile-extra", PurposeAmbient); err == nil {
+	if _, _, err := engine.StartViewer(context.Background(), "tile-extra", "SERIAL-tile-extra", PurposeAmbient, MirrorPreview{}); err == nil {
 		t.Fatal("the grid opened a tile past its share of the plane")
 	}
 	// ...until the operator opens the device that tile is showing, which makes the
 	// session the operator's own and gives the grid its place back.
-	if _, _, err := engine.StartViewer(context.Background(), spent[0], "SERIAL-"+spent[0], PurposeOperator); err != nil {
+	if _, _, err := engine.StartViewer(context.Background(), spent[0], "SERIAL-"+spent[0], PurposeOperator, MirrorPreview{}); err != nil {
 		t.Fatalf("the operator's frame was refused: %v", err)
 	}
-	if _, _, err := engine.StartViewer(context.Background(), "tile-extra", "SERIAL-tile-extra", PurposeAmbient); err != nil {
+	if _, _, err := engine.StartViewer(context.Background(), "tile-extra", "SERIAL-tile-extra", PurposeAmbient, MirrorPreview{}); err != nil {
 		t.Fatalf("the grid was still refused after the operator took a session over: %v", err)
 	}
 }
@@ -220,7 +220,7 @@ func TestAFrameThatJoinsATileFreesTheGridsShare(t *testing.T) {
 func TestAnOperatorsFrameReleasesThePlaceItHeldAgainstTheReserve(t *testing.T) {
 	dialer := newFakeDialer()
 	engine := newEngine(t, dialer, MirrorEngineConfig{MaxSessions: 2, OperatorReserve: 1, Idle: 20 * time.Millisecond})
-	session, viewer, err := engine.StartViewer(context.Background(), "worked", "SERIAL-worked", PurposeOperator)
+	session, viewer, err := engine.StartViewer(context.Background(), "worked", "SERIAL-worked", PurposeOperator, MirrorPreview{})
 	if err != nil {
 		t.Fatalf("the operator's frame could not open: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestAnOperatorsFrameReleasesThePlaceItHeldAgainstTheReserve(t *testing.T) {
 // operator's frame can only spend a place that was held for it.
 func TestAPurposeNobodyStatedIsTheOperatorsOwnFrame(t *testing.T) {
 	engine := newEngine(t, newFakeDialer(), MirrorEngineConfig{MaxSessions: 1, OperatorReserve: 1})
-	if _, _, err := engine.StartViewer(context.Background(), "unstated", "SERIAL-unstated", ""); err != nil {
+	if _, _, err := engine.StartViewer(context.Background(), "unstated", "SERIAL-unstated", "", MirrorPreview{}); err != nil {
 		t.Fatalf("a start that stated no purpose was refused a plane with a place free: %v", err)
 	}
 	sessions := engine.Sessions()
@@ -278,10 +278,10 @@ func TestStartIsTheOperatorsOwnFrame(t *testing.T) {
 	if engine.AmbientCapacity() != 1 {
 		t.Fatalf("the grid may hold %d session(s), want 1", engine.AmbientCapacity())
 	}
-	if _, _, err := engine.StartViewer(context.Background(), "tile-1", "SERIAL-tile-1", PurposeAmbient); err != nil {
+	if _, _, err := engine.StartViewer(context.Background(), "tile-1", "SERIAL-tile-1", PurposeAmbient, MirrorPreview{}); err != nil {
 		t.Fatalf("the grid's one place could not be spent: %v", err)
 	}
-	if _, _, err := engine.StartViewer(context.Background(), "tile-2", "SERIAL-tile-2", PurposeAmbient); err == nil {
+	if _, _, err := engine.StartViewer(context.Background(), "tile-2", "SERIAL-tile-2", PurposeAmbient, MirrorPreview{}); err == nil {
 		t.Fatal("the grid spent a second place on a share of one")
 	}
 }

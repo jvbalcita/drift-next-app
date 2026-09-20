@@ -1,4 +1,4 @@
-import { MirrorStreamState, MirrorTransport, MirrorViewerPurpose } from "@/gen/drift/v1/device_mirror_pb"
+import { MirrorPreviewQuality, MirrorStreamState, MirrorTransport, MirrorViewerPurpose } from "@/gen/drift/v1/device_mirror_pb"
 import type { MirrorCapacity, MirrorStream } from "@/gen/drift/v1/device_mirror_pb"
 import { deviceObservationSentence } from "@/lib/device-status"
 import type { DeviceStatus } from "@/lib/domain/control-plane"
@@ -120,6 +120,57 @@ export type LiveMirrorViewerPurpose = "ambient" | "operator"
 
 export function purposeRequestFor(purpose: LiveMirrorViewerPurpose): MirrorViewerPurpose {
   return purpose === "ambient" ? MirrorViewerPurpose.AMBIENT : MirrorViewerPurpose.OPERATOR
+}
+
+/**
+ * The workspace's preview setting, as the console's own controls state it.
+ *
+ * It is the bound the plane applies to the grid's tiles, and it is stated on
+ * every ambient stream rather than read from the plane, because the operator is
+ * the one who chose it. `quality` is one of the levels the plane's table caps
+ * (Low 480/0.5 Mbps, Medium 720/1.2 Mbps, High 1080/2.5 Mbps, Extra native/6
+ * Mbps) and `frameRate` is the 1-24 fps the control offers.
+ *
+ * It is deliberately NOT applied to the operator's own big frame: that frame is
+ * where the work happens and the plane carries it at its own profile whatever
+ * this says, so a level chosen for a grid of thumbnails can never make it
+ * blurry.
+ */
+export interface LiveMirrorPreview {
+  quality: "Low" | "Medium" | "High" | "Extra"
+  frameRate: number
+}
+
+/**
+ * The two settings' wire form, as the request carries them.
+ *
+ * An operator's own frame states NOTHING rather than stating the workspace's
+ * setting and relying on the plane to ignore it: the profile that frame is
+ * carried at is the plane's own, and a request that stated a level the plane does
+ * not apply would be this console claiming a bound it does not set.
+ */
+export function previewRequestFor(purpose: LiveMirrorViewerPurpose, preview?: LiveMirrorPreview): { previewQuality: MirrorPreviewQuality; frameRate: number } {
+  if (purpose !== "ambient" || !preview) {
+    return { previewQuality: MirrorPreviewQuality.UNSPECIFIED, frameRate: 0 }
+  }
+  return { previewQuality: previewQualityRequestFor(preview.quality), frameRate: preview.frameRate }
+}
+
+/**
+ * previewQualityRequestFor maps a control's level onto the plane's vocabulary.
+ *
+ * An unrecognised level is UNSPECIFIED rather than an error: the plane answers an
+ * unstated level with its own setting, which is itself a cap, so a level this
+ * console cannot name is bounded rather than unbounded.
+ */
+export function previewQualityRequestFor(quality: LiveMirrorPreview["quality"]): MirrorPreviewQuality {
+  switch (quality) {
+    case "Low": return MirrorPreviewQuality.LOW
+    case "Medium": return MirrorPreviewQuality.MEDIUM
+    case "High": return MirrorPreviewQuality.HIGH
+    case "Extra": return MirrorPreviewQuality.EXTRA
+    default: return MirrorPreviewQuality.UNSPECIFIED
+  }
 }
 
 /**

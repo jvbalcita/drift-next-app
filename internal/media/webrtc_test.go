@@ -287,7 +287,7 @@ func (f streamFixture) mustSession(t *testing.T, deviceID string) MirrorSession 
 // peer transport has to say which transport it asked for.
 func openPeer(t *testing.T, transport *StreamTransport, deviceID, serial string) *StreamPeer {
 	t.Helper()
-	carrier, err := transport.Open(context.Background(), deviceID, serial, TransportWebRTC, PurposeOperator)
+	carrier, err := transport.Open(context.Background(), deviceID, serial, TransportWebRTC, PurposeOperator, MirrorPreview{})
 	if err != nil {
 		t.Fatalf("open the stream for %s: %v", deviceID, err)
 	}
@@ -573,10 +573,10 @@ func TestOpeningAStreamRequiresADeviceAndAnArmedTransport(t *testing.T) {
 		t.Fatal("a stream transport without the mirror engine was constructed")
 	}
 	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
-	if _, err := fixture.transport.Open(context.Background(), "", "SERIAL-1", TransportWebRTC, PurposeOperator); err == nil {
+	if _, err := fixture.transport.Open(context.Background(), "", "SERIAL-1", TransportWebRTC, PurposeOperator, MirrorPreview{}); err == nil {
 		t.Fatal("a stream was opened for no device")
 	}
-	if _, err := fixture.transport.Open(context.Background(), "device-1", "", TransportWebRTC, PurposeOperator); err == nil {
+	if _, err := fixture.transport.Open(context.Background(), "device-1", "", TransportWebRTC, PurposeOperator, MirrorPreview{}); err == nil {
 		t.Fatal("a stream was opened for no serial")
 	}
 	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -584,7 +584,7 @@ func TestOpeningAStreamRequiresADeviceAndAnArmedTransport(t *testing.T) {
 	if err := fixture.transport.Close(stopCtx); err != nil {
 		t.Fatalf("closing the transport: %v", err)
 	}
-	if _, err := fixture.transport.Open(context.Background(), "device-1", "SERIAL-1", TransportWebRTC, PurposeOperator); err == nil {
+	if _, err := fixture.transport.Open(context.Background(), "device-1", "SERIAL-1", TransportWebRTC, PurposeOperator, MirrorPreview{}); err == nil {
 		t.Fatal("a closed transport opened a stream")
 	}
 }

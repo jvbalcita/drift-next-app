@@ -124,7 +124,7 @@ type MirrorCarrier interface {
 // are two different demands on the same bound, and a transport that dropped the
 // distinction would spend the operator's reserved place on a thumbnail.
 type LiveMirror interface {
-	StartViewer(ctx context.Context, deviceID, serial string, purpose MirrorViewerPurpose) (MirrorSession, MirrorViewer, error)
+	StartViewer(ctx context.Context, deviceID, serial string, purpose MirrorViewerPurpose, requested MirrorPreview) (MirrorSession, MirrorViewer, error)
 }
 
 // StreamTransportConfig configures the transport.
@@ -221,12 +221,17 @@ func (t *StreamTransport) ICEServers() []webrtc.ICEServer {
 //
 // A transport this service does not carry is refused rather than quietly
 // replaced: a caller that asked for one thing must never be handed another.
-func (t *StreamTransport) Open(ctx context.Context, deviceID, serial string, transport MirrorTransportKind, purpose MirrorViewerPurpose) (MirrorCarrier, error) {
+//
+// The requested preview is the workspace's setting as the caller stated it, and
+// it reaches the engine with the purpose: it bounds an ambient viewer's stream
+// and never the operator's own frame, and a caller that states none gets the
+// setting this plane is configured with.
+func (t *StreamTransport) Open(ctx context.Context, deviceID, serial string, transport MirrorTransportKind, purpose MirrorViewerPurpose, preview MirrorPreview) (MirrorCarrier, error) {
 	switch transport {
 	case TransportTCP:
-		return t.openEndpoint(ctx, deviceID, serial, purpose)
+		return t.openEndpoint(ctx, deviceID, serial, purpose, preview)
 	case "", TransportWebRTC:
-		return t.openPeer(ctx, deviceID, serial, purpose)
+		return t.openPeer(ctx, deviceID, serial, purpose, preview)
 	default:
 		return nil, fmt.Errorf("media: %q is not a transport this service carries", transport)
 	}
@@ -234,11 +239,11 @@ func (t *StreamTransport) Open(ctx context.Context, deviceID, serial string, tra
 
 // openPeer subscribes one viewer and returns the peer connection that will
 // carry it.
-func (t *StreamTransport) openPeer(ctx context.Context, deviceID, serial string, purpose MirrorViewerPurpose) (*StreamPeer, error) {
+func (t *StreamTransport) openPeer(ctx context.Context, deviceID, serial string, purpose MirrorViewerPurpose, preview MirrorPreview) (*StreamPeer, error) {
 	if err := t.available(deviceID, serial); err != nil {
 		return nil, err
 	}
-	session, viewer, err := t.mirror.StartViewer(ctx, deviceID, serial, purpose)
+	session, viewer, err := t.mirror.StartViewer(ctx, deviceID, serial, purpose, preview)
 	if err != nil {
 		return nil, err
 	}
@@ -268,11 +273,11 @@ func (t *StreamTransport) openPeer(ctx context.Context, deviceID, serial string,
 // openEndpoint subscribes one viewer and returns the stream endpoint a browser
 // fetches. The subscription exists from here, so a stream nobody fetches is
 // released by the endpoint's own watchdog rather than holding a capture open.
-func (t *StreamTransport) openEndpoint(ctx context.Context, deviceID, serial string, purpose MirrorViewerPurpose) (*MirrorEndpoint, error) {
+func (t *StreamTransport) openEndpoint(ctx context.Context, deviceID, serial string, purpose MirrorViewerPurpose, preview MirrorPreview) (*MirrorEndpoint, error) {
 	if err := t.available(deviceID, serial); err != nil {
 		return nil, err
 	}
-	session, viewer, err := t.mirror.StartViewer(ctx, deviceID, serial, purpose)
+	session, viewer, err := t.mirror.StartViewer(ctx, deviceID, serial, purpose, preview)
 	if err != nil {
 		return nil, err
 	}

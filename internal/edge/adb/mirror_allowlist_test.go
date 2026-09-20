@@ -43,7 +43,7 @@ func mirrorTestReverse(t *testing.T, remove bool) []string {
 
 func mirrorTestLaunch(t *testing.T) []string {
 	t.Helper()
-	args, err := MirrorServerLaunchArgv(mirrorTestSessionID, "info", true)
+	args, err := MirrorServerLaunchArgv(mirrorTestSessionID, "info", true, MirrorOperatorEncodeProfile)
 	if err != nil {
 		t.Fatalf("MirrorServerLaunchArgv() = %v", err)
 	}
@@ -188,7 +188,7 @@ func TestTheMirrorAdmissionRefusesEveryNearMiss(t *testing.T) {
 		launchWith(5, "4.2"),
 		launchWith(4, "com.example.Other"),
 		launchWith(1, "CLASSPATH=/data/local/tmp/other.jar"),
-		launchWith(16, "video_codec_options=i-frame-interval:int=60"),
+		launchWith(19, "video_codec_options=i-frame-interval:int=60"),
 		launchWith(7, "log_level=trace"),
 		launchWith(6, "scid=00000000"),
 		launchWith(6, "scid=2abc123"),
@@ -196,6 +196,22 @@ func TestTheMirrorAdmissionRefusesEveryNearMiss(t *testing.T) {
 		launchWith(15, "stay_awake=1"),
 		launchWith(14, "cleanup=false"),
 		launchWith(9, "control=false"),
+		// The encode bound: a size and a bit rate no level states, a size that is
+		// not canonical, a capture rate outside the range this product asks for,
+		// and a bound dropped altogether. Each is one token from an admitted
+		// launch, and each must stay refused: a bound admitted by range rather
+		// than by level would be a stream bounded by a number nobody chose.
+		launchWith(16, "max_size=1024"),
+		launchWith(16, "max_size=0x1e0"),
+		launchWith(16, "max_size="),
+		launchWith(16, "max_size=4800"),
+		launchWith(17, "max_fps=0"),
+		launchWith(17, "max_fps=25"),
+		launchWith(17, "max_fps=015"),
+		launchWith(18, "video_bit_rate=0"),
+		launchWith(18, "video_bit_rate=999999999"),
+		launchWith(18, "bitrate=500000"),
+		launchWith(16, "video_bit_rate=500000"),
 		// A reordered pair of fixed options is a different array: the server
 		// parses options positionally, so order is part of the shape.
 		func() []string {
@@ -260,11 +276,11 @@ func TestTheMirrorBuildersRefuseWhatTheyCannotBound(t *testing.T) {
 			return err
 		},
 		"a log level outside the device's vocabulary": func() error {
-			_, err := MirrorServerLaunchArgv(mirrorTestSessionID, "trace", true)
+			_, err := MirrorServerLaunchArgv(mirrorTestSessionID, "trace", true, MirrorOperatorEncodeProfile)
 			return err
 		},
 		"an empty log level": func() error {
-			_, err := MirrorServerLaunchArgv(mirrorTestSessionID, "", true)
+			_, err := MirrorServerLaunchArgv(mirrorTestSessionID, "", true, MirrorOperatorEncodeProfile)
 			return err
 		},
 	}
@@ -541,7 +557,7 @@ func TestStartAllowlistedHonoursACancelledContext(t *testing.T) {
 // console accepts.
 func TestMirrorLogLevelsAreTheClientsVocabulary(t *testing.T) {
 	for _, level := range []string{"verbose", "debug", "info", "warn", "error"} {
-		args, err := MirrorServerLaunchArgv(mirrorTestSessionID, level, false)
+		args, err := MirrorServerLaunchArgv(mirrorTestSessionID, level, false, MirrorOperatorEncodeProfile)
 		if err != nil {
 			t.Fatalf("MirrorServerLaunchArgv(%q) = %v", level, err)
 		}
