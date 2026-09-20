@@ -282,7 +282,7 @@ func TestSessionIDSourcesAreBoundedAndNamedAlike(t *testing.T) {
 	if tunnel != "localabstract:scrcpy_01234567" {
 		t.Fatalf("tunnel target = %q, want the session's own socket", tunnel)
 	}
-	launch, err := adb.MirrorServerLaunchArgv(id, "info", false)
+	launch, err := adb.MirrorServerLaunchArgv(id, "info", false, adb.MirrorOperatorEncodeProfile)
 	if err != nil {
 		t.Fatalf("MirrorServerLaunchArgv: %v", err)
 	}

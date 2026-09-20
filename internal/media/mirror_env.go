@@ -30,7 +30,55 @@ const (
 	// deployment is not allowed to configure that by accident or on purpose
 	// without saying it somewhere else.
 	EnvOperatorReserve = "DRIFT_MIRROR_OPERATOR_RESERVE"
+
+	// EnvPreviewQuality is the workspace's preview level: what an ambient viewer
+	// - one of the console's grid tiles - is carried at. It is a deployment
+	// input rather than a discovered fact, and it is a BOUND rather than a
+	// preference: the level it names is a hard cap on the size and the bit rate
+	// every ambient stream may use.
+	EnvPreviewQuality = "DRIFT_MIRROR_PREVIEW_QUALITY"
+
+	// EnvPreviewFrameRate is the capture rate ambient viewers are carried at. It
+	// is the workspace's own frame rate setting, and it is bounded to the range
+	// the console's control offers.
+	EnvPreviewFrameRate = "DRIFT_MIRROR_PREVIEW_FRAME_RATE"
 )
+
+// PreviewFromEnv reads the workspace's preview setting from the deployment's own
+// configuration.
+//
+// An unset input is not an error: it answers with the documented default, which
+// the composition root then states explicitly when it builds the engine, so the
+// ONE place the setting is decided is still the composition root.
+//
+// The two inputs are read differently, and the difference is real rather than an
+// oversight. A QUALITY is a name, and a name this plane does not know resolves to
+// the documented default: the default is itself a level with a cap, so an
+// unrecognised name is bounded, where refusing it would leave the plane with no
+// setting at all - which is the unbounded state this input exists to remove. A
+// FRAME RATE is a number, and a number that is not one, or is outside the range
+// this product asks for, is refused where the deployment is configured: a rate of
+// 300 is not a rate with a default, it is a rate nobody meant, and carrying on
+// would put a bound on the wire that no operator chose.
+func PreviewFromEnv(lookup EnvLookup) (MirrorPreview, error) {
+	if lookup == nil {
+		lookup = func(string) (string, bool) { return "", false }
+	}
+	preview := DefaultPreview()
+	if raw, ok := lookup(EnvPreviewQuality); ok && strings.TrimSpace(raw) != "" {
+		preview.Quality = PreviewQualityFromString(raw)
+	}
+	if raw, ok := lookup(EnvPreviewFrameRate); ok && strings.TrimSpace(raw) != "" {
+		rate, parseErr := strconv.Atoi(strings.TrimSpace(raw))
+		if parseErr != nil || !previewFrameRateInRange(rate) {
+			return MirrorPreview{}, fmt.Errorf(
+				"%s must be a whole number of frames per second in %d..%d, and this deployment configured %q",
+				EnvPreviewFrameRate, MinPreviewFrameRate, MaxPreviewFrameRate, strings.TrimSpace(raw))
+		}
+		preview.FrameRate = rate
+	}
+	return preview, nil
+}
 
 // SessionCapacityFromEnv reads the plane's device-session bound from the
 // deployment's own configuration.

@@ -33,8 +33,8 @@ import (
 // what the composition root does (cmd/control-plane/main.go's mirrorStreamPort).
 type mirrorPort struct{ transport *media.StreamTransport }
 
-func (p mirrorPort) Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose) (transportconnect.DeviceMirrorStream, error) {
-	carrier, err := p.transport.Open(ctx, deviceID, serial, transport, purpose)
+func (p mirrorPort) Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose, preview media.MirrorPreview) (transportconnect.DeviceMirrorStream, error) {
+	carrier, err := p.transport.Open(ctx, deviceID, serial, transport, purpose, preview)
 	if err != nil {
 		return nil, err
 	}
@@ -99,16 +99,22 @@ func (s *scriptedStream) Close(context.Context) error {
 	return nil
 }
 
-// scriptedDialer starts one scripted stream per device.
+// scriptedDialer starts one scripted stream per device. It records the profile
+// each dial asked for, which is the bound the surface's request reached the device
+// with.
 type scriptedDialer struct {
-	streams []*scriptedStream
-	ctxs    []context.Context
+	streams  []*scriptedStream
+	ctxs     []context.Context
+	purposes []media.MirrorViewerPurpose
+	previews []media.MirrorPreview
 }
 
-func (d *scriptedDialer) Dial(ctx context.Context, _, _ string) (media.MirrorStream, error) {
+func (d *scriptedDialer) Dial(ctx context.Context, _, _ string, purpose media.MirrorViewerPurpose, preview media.MirrorPreview) (media.MirrorStream, error) {
 	stream := newScriptedStream()
 	d.streams = append(d.streams, stream)
 	d.ctxs = append(d.ctxs, ctx)
+	d.purposes = append(d.purposes, purpose)
+	d.previews = append(d.previews, preview)
 	return stream, nil
 }
 

@@ -12,6 +12,16 @@ import (
 // receives its configuration as text.
 const mirrorServerPathEnv = "DRIFT_MIRROR_SCRCPY_SERVER"
 
+// The two inputs the live mirror reads the workspace's preview setting from
+// (internal/media.EnvPreviewQuality and EnvPreviewFrameRate). They are spelled
+// here for the same reason every other variable this runtime hands a child is: a
+// child receives its configuration as text, and the runtime must not depend on the
+// plane's own package to name it.
+const (
+	mirrorPreviewQualityEnv   = "DRIFT_MIRROR_PREVIEW_QUALITY"
+	mirrorPreviewFrameRateEnv = "DRIFT_MIRROR_PREVIEW_FRAME_RATE"
+)
+
 // scrcpyServerLocations returns the host paths a platform's own scrcpy
 // installation keeps its device-side server at, in the order they are tried.
 //

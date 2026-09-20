@@ -119,6 +119,10 @@ type fakeMirrors struct {
 	// plane's capacity is spent against, so a surface that dropped it would be
 	// recorded here as a grid that may spend the operator's place.
 	purposes []string
+	// previews is the workspace's preview setting each open stated, which is what
+	// the device's encoder is bounded by. It is recorded for the same reason: a
+	// surface that dropped it would be a stream bounded by a number nobody chose.
+	previews []media.MirrorPreview
 	openFunc func(deviceID, serial string) *fakeMirrorStream
 }
 
@@ -130,10 +134,11 @@ func newFakeMirrors(streams ...transportconnect.DeviceMirrorStream) *fakeMirrors
 	return &fakeMirrors{streams: byKey}
 }
 
-func (m *fakeMirrors) Open(_ context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose) (transportconnect.DeviceMirrorStream, error) {
+func (m *fakeMirrors) Open(_ context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose, preview media.MirrorPreview) (transportconnect.DeviceMirrorStream, error) {
 	m.opened = append(m.opened, deviceID+"/"+serial)
 	m.transports = append(m.transports, string(transport))
 	m.purposes = append(m.purposes, string(purpose))
+	m.previews = append(m.previews, preview)
 	if m.openErr != nil {
 		return nil, m.openErr
 	}
@@ -295,6 +300,90 @@ func TestStartMirrorStreamOpensTheDevicesCurrentTransportAndNamesNothingElse(t *
 	// reach the device around this service.
 	if rendered := fmt.Sprintf("%v", stream); strings.Contains(rendered, mirrorSerial) {
 		t.Fatalf("the stream descriptor carries the device's transport serial: %s", rendered)
+	}
+}
+
+// TestStartMirrorStreamCarriesTheWorkspacePreviewSetting is the wire half of
+// ARC-227: the two settings cross the contract ADDITIVELY, on the request the
+// console already makes, and an unstated or unrecognised one is read as "the plane's
+// own setting" rather than as an encoder nobody bounded.
+//
+// The fields are stated for an ambient viewer and for the operator's own frame
+// alike: what they BOUND is the plane's decision (an ambient stream only), and the
+// boundary's job is to carry what the caller said rather than to decide it. A level
+// this plane does not know and a rate no control offers are not applied - the plane
+// answers them with its own setting, which is itself a cap.
+func TestStartMirrorStreamCarriesTheWorkspacePreviewSetting(t *testing.T) {
+	cases := []struct {
+		name        string
+		purpose     driftv1.MirrorViewerPurpose
+		quality     driftv1.MirrorPreviewQuality
+		frameRate   uint32
+		wantPurpose media.MirrorViewerPurpose
+		wantPreview media.MirrorPreview
+	}{
+		{
+			name:        "an ambient tile states both settings",
+			purpose:     driftv1.MirrorViewerPurpose_MIRROR_VIEWER_PURPOSE_AMBIENT,
+			quality:     driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_LOW,
+			frameRate:   8,
+			wantPurpose: media.PurposeAmbient,
+			wantPreview: media.MirrorPreview{Quality: media.PreviewLow, FrameRate: 8},
+		},
+		{
+			name:        "an ambient tile that states nothing",
+			purpose:     driftv1.MirrorViewerPurpose_MIRROR_VIEWER_PURPOSE_AMBIENT,
+			quality:     driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_UNSPECIFIED,
+			frameRate:   0,
+			wantPurpose: media.PurposeAmbient,
+			wantPreview: media.MirrorPreview{},
+		},
+		{
+			name:        "an ambient tile stating a level this plane does not know",
+			purpose:     driftv1.MirrorViewerPurpose_MIRROR_VIEWER_PURPOSE_AMBIENT,
+			quality:     driftv1.MirrorPreviewQuality(99),
+			frameRate:   12,
+			wantPurpose: media.PurposeAmbient,
+			wantPreview: media.MirrorPreview{FrameRate: 12},
+		},
+		{
+			name:        "an ambient tile stating a rate no control offers",
+			purpose:     driftv1.MirrorViewerPurpose_MIRROR_VIEWER_PURPOSE_AMBIENT,
+			quality:     driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_HIGH,
+			frameRate:   300,
+			wantPurpose: media.PurposeAmbient,
+			wantPreview: media.MirrorPreview{Quality: media.PreviewHigh},
+		},
+		{
+			name:        "the operator's own frame",
+			purpose:     driftv1.MirrorViewerPurpose_MIRROR_VIEWER_PURPOSE_OPERATOR,
+			quality:     driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_LOW,
+			frameRate:   4,
+			wantPurpose: media.PurposeOperator,
+			wantPreview: media.MirrorPreview{Quality: media.PreviewLow, FrameRate: 4},
+		},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			mirrors := newFakeMirrors()
+			handler := mirrorHandler(t, mirrors)
+			request := startRequest(mirrorWorkspace, mirrorDevice, driftv1.MirrorTransport_MIRROR_TRANSPORT_WEBRTC)
+			request.Msg.Purpose = test.purpose
+			request.Msg.PreviewQuality = test.quality
+			request.Msg.FrameRate = test.frameRate
+			if _, err := handler.StartMirrorStream(context.Background(), request); err != nil {
+				t.Fatalf("start the stream: %v", err)
+			}
+			if len(mirrors.previews) != 1 {
+				t.Fatalf("the request opened %d streams, want 1", len(mirrors.previews))
+			}
+			if mirrors.purposes[0] != string(test.wantPurpose) {
+				t.Fatalf("purpose = %q, want %q", mirrors.purposes[0], test.wantPurpose)
+			}
+			if mirrors.previews[0] != test.wantPreview {
+				t.Fatalf("preview = %+v, want %+v: an unstated or unrecognised setting must reach the plane as unstated, so the plane's own bound applies rather than none", mirrors.previews[0], test.wantPreview)
+			}
+		})
 	}
 }
 

@@ -101,6 +101,12 @@ message MirrorStream {
 // capacity for the operator's own frame and refuses an AMBIENT viewer once the
 // grid's share of the capacity is spent.
 //
+// The same fact decides the ENCODE BOUND, and the two are deliberately one field
+// rather than two: what a viewer is decides both how much of the plane's capacity
+// it may spend and how the stream it is shown is encoded (see
+// MirrorPreviewQuality). A second field would be a second statement of the same
+// thing, and the two could disagree.
+//
 // A request that states neither is read as the operator's own frame, because the
 // two mistakes are not equal: an undeclared viewer read as the grid loses the
 // operator a place, while one read as the operator's frame can only spend a place
@@ -111,6 +117,40 @@ enum MirrorViewerPurpose {
   MIRROR_VIEWER_PURPOSE_AMBIENT = 1;
   // OPERATOR is the operator's own big frame: where a device is worked from.
   MIRROR_VIEWER_PURPOSE_OPERATOR = 2;
+}
+
+// MirrorPreviewQuality is the workspace's preview level: the bound the console's
+// grid is carried at.
+//
+// It is a HARD CAP per level and not a hint - each level states the largest size
+// the device's encoder may produce and the video bit rate it may spend - because
+// the state this contract removes is an encoder nothing bounded. Measured on the
+// owner's host before this contract existed: the live launch carried no
+// max_size, no max_fps and no video_bit_rate at all, the device encoded at its
+// native 1080x1920 at 60 fps with scrcpy's own default bit rate, and two live
+// native-resolution streams put 0.9 Mbps on the wire while their screens sat idle
+// - so the cost is in MOTION, and an uncapped worst case is unbounded rather than
+// merely large.
+//
+// It bounds AMBIENT viewers only. The operator's own frame is carried at its own
+// profile whatever is stated here, because a level an operator chose for a grid of
+// thumbnails must never make the frame they work in blurry.
+enum MirrorPreviewQuality {
+  // UNSPECIFIED states no setting, and the plane applies the setting it is
+  // configured with - which is itself a level with a cap, never "no bound".
+  MIRROR_PREVIEW_QUALITY_UNSPECIFIED = 0;
+  // LOW is 480p at 0.5 Mbps.
+  MIRROR_PREVIEW_QUALITY_LOW = 1;
+  // MEDIUM is 720p at 1.2 Mbps. It is the level an unstated or unrecognised
+  // setting resolves to: the plane's default capacity lets the grid carry
+  // several tiles at once, and the levels above this one are per-stream costs a
+  // grid multiplies.
+  MIRROR_PREVIEW_QUALITY_MEDIUM = 2;
+  // HIGH is 1080p at 2.5 Mbps.
+  MIRROR_PREVIEW_QUALITY_HIGH = 3;
+  // EXTRA is the device's own size at 6 Mbps: native, and still bounded by the
+  // bit rate.
+  MIRROR_PREVIEW_QUALITY_EXTRA = 4;
 }
 
 // MirrorCapacity is the plane's own device-session bound, as the deployment
@@ -145,6 +185,23 @@ message StartMirrorStreamRequest {
   // distinction is treated as the surface that must not be refused on the
   // grid's account.
   MirrorViewerPurpose purpose = 5;
+  // preview_quality is the workspace's preview level as the caller states it: a
+  // hard cap on the size and the bit rate of the stream this viewer is shown.
+  //
+  // It is stated rather than read from the plane so that the operator's own
+  // setting reaches the encoder that applies it, and it bounds an AMBIENT viewer
+  // only - the operator's own frame is carried at its own profile whatever is
+  // stated here. UNSPECIFIED, and any level this plane does not know, resolve to
+  // the setting the plane is configured with rather than to no bound at all.
+  MirrorPreviewQuality preview_quality = 6;
+  // frame_rate is the workspace's preview frame rate, in frames per second. It
+  // is the range the console's own control offers (1-24), and it bounds an
+  // AMBIENT viewer's stream exactly as preview_quality does.
+  //
+  // Zero states no rate, and a rate outside the range is not applied: both
+  // resolve to the rate the plane is configured with, because a stream bounded by
+  // a number nobody chose is the defect this field removes.
+  uint32 frame_rate = 7;
 }
 
 message StartMirrorStreamResponse {

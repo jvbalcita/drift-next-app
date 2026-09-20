@@ -87,11 +87,16 @@ func (h *DeviceMirrorHandler) StartMirrorStream(ctx context.Context, request *co
 		return nil, err
 	}
 	purpose := wantedPurpose(message.GetPurpose())
+	// The workspace's preview setting travels with the viewer that stated it and
+	// bounds an AMBIENT stream only. It is read here, at the boundary, and never
+	// re-derived below: the engine applies it to the grid's tiles and the
+	// operator's own frame keeps its own profile whatever this says.
+	preview := wantedPreview(message.GetPreviewQuality(), message.GetFrameRate())
 	serial, err := h.serials.CurrentSerial(ctx, workspaceID, deviceID)
 	if err != nil {
 		return nil, MapError(err)
 	}
-	stream, openErr := h.streams.Open(ctx, deviceID, serial, transport, purpose)
+	stream, openErr := h.streams.Open(ctx, deviceID, serial, transport, purpose, preview)
 	if openErr != nil {
 		// A refusal the plane's own capacity caused is recorded before it is
 		// answered, and it is answered in the plane's OWN sentence rather than

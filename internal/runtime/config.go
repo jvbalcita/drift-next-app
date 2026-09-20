@@ -37,6 +37,24 @@ type Config struct {
 	// is never frozen into this file: an operator who upgrades scrcpy gets the
 	// new server without editing their configuration.
 	ScrcpyServerPath string `json:"scrcpy_server_path,omitempty"`
+	// PreviewQuality and PreviewFrameRate are the workspace's preview setting as
+	// this deployment states it (the mirror's EnvPreviewQuality and
+	// EnvPreviewFrameRate, DRIFT_MIRROR_PREVIEW_QUALITY and
+	// DRIFT_MIRROR_PREVIEW_FRAME_RATE): the bound the console's grid is carried
+	// at, as a level and a capture rate.
+	//
+	// They are carried as TEXT and not as a level and a number, because the plane
+	// is the one that decides what they mean: a value configured here is handed
+	// over exactly as it was stated, and the plane's own reader is what refuses a
+	// level or a rate it cannot bound - naming the input and the value, which is
+	// the diagnosis an operator needs. A runtime that validated them itself would
+	// be a second opinion about the same bound, and the two could disagree.
+	//
+	// An empty value is not an error and is NOT handed over: it means "the plane's
+	// own documented default", which is itself a level with a cap. Passing an
+	// empty value instead would be handing the plane a setting nobody stated.
+	PreviewQuality   string `json:"preview_quality,omitempty"`
+	PreviewFrameRate string `json:"preview_frame_rate,omitempty"`
 }
 
 // DataDir returns the application-owned local data directory.

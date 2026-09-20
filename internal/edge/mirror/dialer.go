@@ -27,6 +27,7 @@ import (
 	"net"
 	"time"
 
+	"drift.local/drift-next/internal/edge/adb"
 	"drift.local/drift-next/internal/edge/scrcpy"
 	"drift.local/drift-next/internal/media"
 )
@@ -133,9 +134,20 @@ func NewDialer(config DialerConfig) (*Dialer, error) {
 // The device id is the engine's own identity for the device and never reaches the
 // device: the transport is named by the serial, which every command in the
 // session is bound to.
-func (d *Dialer) Dial(ctx context.Context, deviceID, serial string) (media.MirrorStream, error) {
+//
+// The purpose is what decides the device's encode bound, and it is the whole
+// reason this adapter is told it: an ambient viewer is carried at the workspace's
+// preview setting, which is a hard cap on the size and the bit rate of that
+// stream, while the operator's own big frame is carried at its own profile and
+// never at that setting - a level chosen for a grid of thumbnails must not make
+// the frame an operator works in blurry.
+func (d *Dialer) Dial(ctx context.Context, deviceID, serial string, purpose media.MirrorViewerPurpose, preview media.MirrorPreview) (media.MirrorStream, error) {
 	if deviceID == "" || serial == "" {
 		return nil, errors.New("mirror: opening a session requires a device and its transport serial")
+	}
+	encode, err := encodeProfileFor(purpose, preview)
+	if err != nil {
+		return nil, err
 	}
 	session, err := d.config.Start(ctx, scrcpy.Options{
 		ADB:        d.config.ADB,
@@ -147,12 +159,37 @@ func (d *Dialer) Dial(ctx context.Context, deviceID, serial string) (media.Mirro
 		IDSource:   d.config.IDSource,
 		AcceptWait: d.config.AcceptWait,
 		LogLevel:   d.config.LogLevel,
+		Encode:     encode,
 		KeepAwake:  d.config.KeepAwake,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("mirror: opening %s: %w", deviceID, err)
 	}
 	return &stream{deviceID: deviceID, session: session}, nil
+}
+
+// encodeProfileFor is the whole of the purpose split, in one place: what a viewer
+// IS decides the bound its stream is encoded under.
+//
+// It is a switch rather than a lookup because the two purposes are not two values
+// of one setting - the operator's own frame does not take the workspace's preview
+// setting at all, at any level - so a purpose this adapter does not know is
+// refused rather than mapped onto whichever bound happens to be nearest. The
+// device-side vocabulary the two branches produce is the device adapter's own
+// (internal/edge/adb), which is also where the launch's allow-list re-derives it.
+func encodeProfileFor(purpose media.MirrorViewerPurpose, preview media.MirrorPreview) (adb.MirrorEncodeProfile, error) {
+	switch purpose {
+	case media.PurposeAmbient:
+		// The workspace's preview setting, which is a cap: an unrecognised level
+		// resolves to the documented default inside the table rather than to no
+		// bound at all, and a frame rate the table cannot express is refused
+		// there rather than clamped here.
+		return adb.MirrorAmbientEncodeProfile(string(preview.Quality), preview.FrameRate)
+	case media.PurposeOperator:
+		return adb.MirrorOperatorEncodeProfile, nil
+	default:
+		return adb.MirrorEncodeProfile{}, fmt.Errorf("mirror: %q is not a viewer purpose this dialer knows", purpose)
+	}
 }
 
 // stream is one device's live session as the media engine reads it.

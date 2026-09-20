@@ -175,28 +175,67 @@ func (s *fakeStream) sentInputs() []MirrorInput {
 
 // fakeDialer is the seam under the engine. It records which devices were dialed,
 // so a test can prove that joining a device's session did not open a second
-// capture of it.
+// capture of it, and it records the profile each dial was made under, so a test
+// can prove which bound the device was actually asked for.
 type fakeDialer struct {
 	mu      sync.Mutex
 	streams map[string]*fakeStream
 	dials   []string
+	asks    []dialAsk
 	err     error
+}
+
+// dialAsk is one dial as the engine made it: the device, the purpose the session
+// needed it carried for, and the workspace's preview setting it carried.
+type dialAsk struct {
+	deviceID string
+	purpose  MirrorViewerPurpose
+	preview  MirrorPreview
 }
 
 func newFakeDialer() *fakeDialer {
 	return &fakeDialer{streams: make(map[string]*fakeStream)}
 }
 
-func (d *fakeDialer) Dial(_ context.Context, deviceID, _ string) (MirrorStream, error) {
+func (d *fakeDialer) Dial(_ context.Context, deviceID, _ string, purpose MirrorViewerPurpose, preview MirrorPreview) (MirrorStream, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.err != nil {
 		return nil, d.err
 	}
 	d.dials = append(d.dials, deviceID)
+	d.asks = append(d.asks, dialAsk{deviceID: deviceID, purpose: purpose, preview: preview})
 	stream := newFakeStream(deviceID)
 	d.streams[deviceID] = stream
 	return stream, nil
+}
+
+// askFor reports the last dial of one device, which is the profile its stream is
+// being carried under now.
+func (d *fakeDialer) askFor(t *testing.T, deviceID string) dialAsk {
+	t.Helper()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for index := len(d.asks) - 1; index >= 0; index-- {
+		if d.asks[index].deviceID == deviceID {
+			return d.asks[index]
+		}
+	}
+	t.Fatalf("no dial was made for %s", deviceID)
+	return dialAsk{}
+}
+
+// askCount reports how many times one device has been dialed.
+func (d *fakeDialer) askCount(deviceID string) int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	count := 0
+	for _, ask := range d.asks {
+		if ask.deviceID == deviceID {
+			count++
+		}
+	}
+	return count
 }
 
 func (d *fakeDialer) dialed() []string {

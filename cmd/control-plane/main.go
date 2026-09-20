@@ -400,8 +400,8 @@ func deviceMirrorRoute(streams *media.StreamTransport, engine *media.MirrorEngin
 // handler needs. Nothing is derived here and nothing is wrapped twice.
 type mirrorStreamPort struct{ transport *media.StreamTransport }
 
-func (p mirrorStreamPort) Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose) (transportconnect.DeviceMirrorStream, error) {
-	carrier, err := p.transport.Open(ctx, deviceID, serial, transport, purpose)
+func (p mirrorStreamPort) Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose, preview media.MirrorPreview) (transportconnect.DeviceMirrorStream, error) {
+	carrier, err := p.transport.Open(ctx, deviceID, serial, transport, purpose, preview)
 	if err != nil {
 		return nil, err
 	}
@@ -471,10 +471,21 @@ func mirrorEngineFrom(labService *lab.Service) (*media.MirrorEngine, error) {
 	if capacityErr != nil {
 		return nil, capacityErr
 	}
+	// The workspace's preview setting is decided here too, and for the same
+	// reason: it is a BOUND the plane applies to every ambient stream, so a
+	// deployment that mistyped it must be a startup diagnosis rather than a grid
+	// of tiles behaving inexplicably. It is passed explicitly even when the
+	// deployment configured nothing, so the setting the engine carries is always
+	// a setting and never "no bound".
+	preview, previewErr := media.PreviewFromEnv(os.LookupEnv)
+	if previewErr != nil {
+		return nil, previewErr
+	}
 	return media.NewMirrorEngine(media.MirrorEngineConfig{
 		Dialer:          dialer,
 		MaxSessions:     capacity,
 		OperatorReserve: reserve,
+		Preview:         preview,
 	})
 }
 

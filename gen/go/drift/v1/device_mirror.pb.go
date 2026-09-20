@@ -150,6 +150,12 @@ func (MirrorStreamState) EnumDescriptor() ([]byte, []int) {
 // capacity for the operator's own frame and refuses an AMBIENT viewer once the
 // grid's share of the capacity is spent.
 //
+// The same fact decides the ENCODE BOUND, and the two are deliberately one field
+// rather than two: what a viewer is decides both how much of the plane's capacity
+// it may spend and how the stream it is shown is encoded (see
+// MirrorPreviewQuality). A second field would be a second statement of the same
+// thing, and the two could disagree.
+//
 // A request that states neither is read as the operator's own frame, because the
 // two mistakes are not equal: an undeclared viewer read as the grid loses the
 // operator a place, while one read as the operator's frame can only spend a place
@@ -203,6 +209,87 @@ func (x MirrorViewerPurpose) Number() protoreflect.EnumNumber {
 // Deprecated: Use MirrorViewerPurpose.Descriptor instead.
 func (MirrorViewerPurpose) EnumDescriptor() ([]byte, []int) {
 	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{2}
+}
+
+// MirrorPreviewQuality is the workspace's preview level: the bound the console's
+// grid is carried at.
+//
+// It is a HARD CAP per level and not a hint - each level states the largest size
+// the device's encoder may produce and the video bit rate it may spend - because
+// the state this contract removes is an encoder nothing bounded. Measured on the
+// owner's host before this contract existed: the live launch carried no
+// max_size, no max_fps and no video_bit_rate at all, the device encoded at its
+// native 1080x1920 at 60 fps with scrcpy's own default bit rate, and two live
+// native-resolution streams put 0.9 Mbps on the wire while their screens sat idle
+// - so the cost is in MOTION, and an uncapped worst case is unbounded rather than
+// merely large.
+//
+// It bounds AMBIENT viewers only. The operator's own frame is carried at its own
+// profile whatever is stated here, because a level an operator chose for a grid of
+// thumbnails must never make the frame they work in blurry.
+type MirrorPreviewQuality int32
+
+const (
+	// UNSPECIFIED states no setting, and the plane applies the setting it is
+	// configured with - which is itself a level with a cap, never "no bound".
+	MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_UNSPECIFIED MirrorPreviewQuality = 0
+	// LOW is 480p at 0.5 Mbps.
+	MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_LOW MirrorPreviewQuality = 1
+	// MEDIUM is 720p at 1.2 Mbps. It is the level an unstated or unrecognised
+	// setting resolves to: the plane's default capacity lets the grid carry
+	// several tiles at once, and the levels above this one are per-stream costs a
+	// grid multiplies.
+	MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_MEDIUM MirrorPreviewQuality = 2
+	// HIGH is 1080p at 2.5 Mbps.
+	MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_HIGH MirrorPreviewQuality = 3
+	// EXTRA is the device's own size at 6 Mbps: native, and still bounded by the
+	// bit rate.
+	MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_EXTRA MirrorPreviewQuality = 4
+)
+
+// Enum value maps for MirrorPreviewQuality.
+var (
+	MirrorPreviewQuality_name = map[int32]string{
+		0: "MIRROR_PREVIEW_QUALITY_UNSPECIFIED",
+		1: "MIRROR_PREVIEW_QUALITY_LOW",
+		2: "MIRROR_PREVIEW_QUALITY_MEDIUM",
+		3: "MIRROR_PREVIEW_QUALITY_HIGH",
+		4: "MIRROR_PREVIEW_QUALITY_EXTRA",
+	}
+	MirrorPreviewQuality_value = map[string]int32{
+		"MIRROR_PREVIEW_QUALITY_UNSPECIFIED": 0,
+		"MIRROR_PREVIEW_QUALITY_LOW":         1,
+		"MIRROR_PREVIEW_QUALITY_MEDIUM":      2,
+		"MIRROR_PREVIEW_QUALITY_HIGH":        3,
+		"MIRROR_PREVIEW_QUALITY_EXTRA":       4,
+	}
+)
+
+func (x MirrorPreviewQuality) Enum() *MirrorPreviewQuality {
+	p := new(MirrorPreviewQuality)
+	*p = x
+	return p
+}
+
+func (x MirrorPreviewQuality) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MirrorPreviewQuality) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_device_mirror_proto_enumTypes[3].Descriptor()
+}
+
+func (MirrorPreviewQuality) Type() protoreflect.EnumType {
+	return &file_drift_v1_device_mirror_proto_enumTypes[3]
+}
+
+func (x MirrorPreviewQuality) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MirrorPreviewQuality.Descriptor instead.
+func (MirrorPreviewQuality) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{3}
 }
 
 // MirrorStream is one device's live stream as the console sees it.
@@ -419,7 +506,24 @@ type StartMirrorStreamRequest struct {
 	// frame (see MirrorViewerPurpose), so a caller that has not been taught the
 	// distinction is treated as the surface that must not be refused on the
 	// grid's account.
-	Purpose       MirrorViewerPurpose `protobuf:"varint,5,opt,name=purpose,proto3,enum=drift.v1.MirrorViewerPurpose" json:"purpose,omitempty"`
+	Purpose MirrorViewerPurpose `protobuf:"varint,5,opt,name=purpose,proto3,enum=drift.v1.MirrorViewerPurpose" json:"purpose,omitempty"`
+	// preview_quality is the workspace's preview level as the caller states it: a
+	// hard cap on the size and the bit rate of the stream this viewer is shown.
+	//
+	// It is stated rather than read from the plane so that the operator's own
+	// setting reaches the encoder that applies it, and it bounds an AMBIENT viewer
+	// only - the operator's own frame is carried at its own profile whatever is
+	// stated here. UNSPECIFIED, and any level this plane does not know, resolve to
+	// the setting the plane is configured with rather than to no bound at all.
+	PreviewQuality MirrorPreviewQuality `protobuf:"varint,6,opt,name=preview_quality,json=previewQuality,proto3,enum=drift.v1.MirrorPreviewQuality" json:"preview_quality,omitempty"`
+	// frame_rate is the workspace's preview frame rate, in frames per second. It
+	// is the range the console's own control offers (1-24), and it bounds an
+	// AMBIENT viewer's stream exactly as preview_quality does.
+	//
+	// Zero states no rate, and a rate outside the range is not applied: both
+	// resolve to the rate the plane is configured with, because a stream bounded by
+	// a number nobody chose is the defect this field removes.
+	FrameRate     uint32 `protobuf:"varint,7,opt,name=frame_rate,json=frameRate,proto3" json:"frame_rate,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -487,6 +591,20 @@ func (x *StartMirrorStreamRequest) GetPurpose() MirrorViewerPurpose {
 		return x.Purpose
 	}
 	return MirrorViewerPurpose_MIRROR_VIEWER_PURPOSE_UNSPECIFIED
+}
+
+func (x *StartMirrorStreamRequest) GetPreviewQuality() MirrorPreviewQuality {
+	if x != nil {
+		return x.PreviewQuality
+	}
+	return MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_UNSPECIFIED
+}
+
+func (x *StartMirrorStreamRequest) GetFrameRate() uint32 {
+	if x != nil {
+		return x.FrameRate
+	}
+	return 0
 }
 
 type StartMirrorStreamResponse struct {
@@ -941,13 +1059,16 @@ const file_drift_v1_device_mirror_proto_rawDesc = "" +
 	" \x01(\tR\tstreamUrl\"f\n" +
 	"\x0eMirrorCapacity\x12)\n" +
 	"\x10session_capacity\x18\x01 \x01(\rR\x0fsessionCapacity\x12)\n" +
-	"\x10operator_reserve\x18\x02 \x01(\rR\x0foperatorReserve\"\x93\x02\n" +
+	"\x10operator_reserve\x18\x02 \x01(\rR\x0foperatorReserve\"\xfb\x02\n" +
 	"\x18StartMirrorStreamRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
 	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x127\n" +
 	"\ttransport\x18\x04 \x01(\x0e2\x19.drift.v1.MirrorTransportR\ttransport\x127\n" +
-	"\apurpose\x18\x05 \x01(\x0e2\x1d.drift.v1.MirrorViewerPurposeR\apurpose\"K\n" +
+	"\apurpose\x18\x05 \x01(\x0e2\x1d.drift.v1.MirrorViewerPurposeR\apurpose\x12G\n" +
+	"\x0fpreview_quality\x18\x06 \x01(\x0e2\x1e.drift.v1.MirrorPreviewQualityR\x0epreviewQuality\x12\x1d\n" +
+	"\n" +
+	"frame_rate\x18\a \x01(\rR\tframeRate\"K\n" +
 	"\x19StartMirrorStreamResponse\x12.\n" +
 	"\x06stream\x18\x01 \x01(\v2\x16.drift.v1.MirrorStreamR\x06stream\"\x8c\x01\n" +
 	"\x1cNegotiateMirrorStreamRequest\x122\n" +
@@ -984,7 +1105,13 @@ const file_drift_v1_device_mirror_proto_rawDesc = "" +
 	"\x13MirrorViewerPurpose\x12%\n" +
 	"!MIRROR_VIEWER_PURPOSE_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dMIRROR_VIEWER_PURPOSE_AMBIENT\x10\x01\x12\"\n" +
-	"\x1eMIRROR_VIEWER_PURPOSE_OPERATOR\x10\x022\xee\x03\n" +
+	"\x1eMIRROR_VIEWER_PURPOSE_OPERATOR\x10\x02*\xc4\x01\n" +
+	"\x14MirrorPreviewQuality\x12&\n" +
+	"\"MIRROR_PREVIEW_QUALITY_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aMIRROR_PREVIEW_QUALITY_LOW\x10\x01\x12!\n" +
+	"\x1dMIRROR_PREVIEW_QUALITY_MEDIUM\x10\x02\x12\x1f\n" +
+	"\x1bMIRROR_PREVIEW_QUALITY_HIGH\x10\x03\x12 \n" +
+	"\x1cMIRROR_PREVIEW_QUALITY_EXTRA\x10\x042\xee\x03\n" +
 	"\x13DeviceMirrorService\x12\\\n" +
 	"\x11StartMirrorStream\x12\".drift.v1.StartMirrorStreamRequest\x1a#.drift.v1.StartMirrorStreamResponse\x12h\n" +
 	"\x15NegotiateMirrorStream\x12&.drift.v1.NegotiateMirrorStreamRequest\x1a'.drift.v1.NegotiateMirrorStreamResponse\x12Y\n" +
@@ -1004,57 +1131,59 @@ func file_drift_v1_device_mirror_proto_rawDescGZIP() []byte {
 	return file_drift_v1_device_mirror_proto_rawDescData
 }
 
-var file_drift_v1_device_mirror_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_drift_v1_device_mirror_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
 var file_drift_v1_device_mirror_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_drift_v1_device_mirror_proto_goTypes = []any{
 	(MirrorTransport)(0),                  // 0: drift.v1.MirrorTransport
 	(MirrorStreamState)(0),                // 1: drift.v1.MirrorStreamState
 	(MirrorViewerPurpose)(0),              // 2: drift.v1.MirrorViewerPurpose
-	(*MirrorStream)(nil),                  // 3: drift.v1.MirrorStream
-	(*MirrorCapacity)(nil),                // 4: drift.v1.MirrorCapacity
-	(*StartMirrorStreamRequest)(nil),      // 5: drift.v1.StartMirrorStreamRequest
-	(*StartMirrorStreamResponse)(nil),     // 6: drift.v1.StartMirrorStreamResponse
-	(*NegotiateMirrorStreamRequest)(nil),  // 7: drift.v1.NegotiateMirrorStreamRequest
-	(*NegotiateMirrorStreamResponse)(nil), // 8: drift.v1.NegotiateMirrorStreamResponse
-	(*StopMirrorStreamRequest)(nil),       // 9: drift.v1.StopMirrorStreamRequest
-	(*StopMirrorStreamResponse)(nil),      // 10: drift.v1.StopMirrorStreamResponse
-	(*GetMirrorStreamRequest)(nil),        // 11: drift.v1.GetMirrorStreamRequest
-	(*GetMirrorStreamResponse)(nil),       // 12: drift.v1.GetMirrorStreamResponse
-	(*GetMirrorCapacityRequest)(nil),      // 13: drift.v1.GetMirrorCapacityRequest
-	(*GetMirrorCapacityResponse)(nil),     // 14: drift.v1.GetMirrorCapacityResponse
-	(*RequestContext)(nil),                // 15: drift.v1.RequestContext
-	(*WorkspaceRef)(nil),                  // 16: drift.v1.WorkspaceRef
+	(MirrorPreviewQuality)(0),             // 3: drift.v1.MirrorPreviewQuality
+	(*MirrorStream)(nil),                  // 4: drift.v1.MirrorStream
+	(*MirrorCapacity)(nil),                // 5: drift.v1.MirrorCapacity
+	(*StartMirrorStreamRequest)(nil),      // 6: drift.v1.StartMirrorStreamRequest
+	(*StartMirrorStreamResponse)(nil),     // 7: drift.v1.StartMirrorStreamResponse
+	(*NegotiateMirrorStreamRequest)(nil),  // 8: drift.v1.NegotiateMirrorStreamRequest
+	(*NegotiateMirrorStreamResponse)(nil), // 9: drift.v1.NegotiateMirrorStreamResponse
+	(*StopMirrorStreamRequest)(nil),       // 10: drift.v1.StopMirrorStreamRequest
+	(*StopMirrorStreamResponse)(nil),      // 11: drift.v1.StopMirrorStreamResponse
+	(*GetMirrorStreamRequest)(nil),        // 12: drift.v1.GetMirrorStreamRequest
+	(*GetMirrorStreamResponse)(nil),       // 13: drift.v1.GetMirrorStreamResponse
+	(*GetMirrorCapacityRequest)(nil),      // 14: drift.v1.GetMirrorCapacityRequest
+	(*GetMirrorCapacityResponse)(nil),     // 15: drift.v1.GetMirrorCapacityResponse
+	(*RequestContext)(nil),                // 16: drift.v1.RequestContext
+	(*WorkspaceRef)(nil),                  // 17: drift.v1.WorkspaceRef
 }
 var file_drift_v1_device_mirror_proto_depIdxs = []int32{
 	0,  // 0: drift.v1.MirrorStream.transport:type_name -> drift.v1.MirrorTransport
 	1,  // 1: drift.v1.MirrorStream.state:type_name -> drift.v1.MirrorStreamState
-	15, // 2: drift.v1.StartMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
-	16, // 3: drift.v1.StartMirrorStreamRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	16, // 2: drift.v1.StartMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
+	17, // 3: drift.v1.StartMirrorStreamRequest.workspace:type_name -> drift.v1.WorkspaceRef
 	0,  // 4: drift.v1.StartMirrorStreamRequest.transport:type_name -> drift.v1.MirrorTransport
 	2,  // 5: drift.v1.StartMirrorStreamRequest.purpose:type_name -> drift.v1.MirrorViewerPurpose
-	3,  // 6: drift.v1.StartMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
-	15, // 7: drift.v1.NegotiateMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
-	3,  // 8: drift.v1.NegotiateMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
-	15, // 9: drift.v1.StopMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
-	3,  // 10: drift.v1.StopMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
-	3,  // 11: drift.v1.GetMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
-	16, // 12: drift.v1.GetMirrorCapacityRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	4,  // 13: drift.v1.GetMirrorCapacityResponse.capacity:type_name -> drift.v1.MirrorCapacity
-	5,  // 14: drift.v1.DeviceMirrorService.StartMirrorStream:input_type -> drift.v1.StartMirrorStreamRequest
-	7,  // 15: drift.v1.DeviceMirrorService.NegotiateMirrorStream:input_type -> drift.v1.NegotiateMirrorStreamRequest
-	9,  // 16: drift.v1.DeviceMirrorService.StopMirrorStream:input_type -> drift.v1.StopMirrorStreamRequest
-	11, // 17: drift.v1.DeviceMirrorService.GetMirrorStream:input_type -> drift.v1.GetMirrorStreamRequest
-	13, // 18: drift.v1.DeviceMirrorService.GetMirrorCapacity:input_type -> drift.v1.GetMirrorCapacityRequest
-	6,  // 19: drift.v1.DeviceMirrorService.StartMirrorStream:output_type -> drift.v1.StartMirrorStreamResponse
-	8,  // 20: drift.v1.DeviceMirrorService.NegotiateMirrorStream:output_type -> drift.v1.NegotiateMirrorStreamResponse
-	10, // 21: drift.v1.DeviceMirrorService.StopMirrorStream:output_type -> drift.v1.StopMirrorStreamResponse
-	12, // 22: drift.v1.DeviceMirrorService.GetMirrorStream:output_type -> drift.v1.GetMirrorStreamResponse
-	14, // 23: drift.v1.DeviceMirrorService.GetMirrorCapacity:output_type -> drift.v1.GetMirrorCapacityResponse
-	19, // [19:24] is the sub-list for method output_type
-	14, // [14:19] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	3,  // 6: drift.v1.StartMirrorStreamRequest.preview_quality:type_name -> drift.v1.MirrorPreviewQuality
+	4,  // 7: drift.v1.StartMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
+	16, // 8: drift.v1.NegotiateMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
+	4,  // 9: drift.v1.NegotiateMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
+	16, // 10: drift.v1.StopMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
+	4,  // 11: drift.v1.StopMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
+	4,  // 12: drift.v1.GetMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
+	17, // 13: drift.v1.GetMirrorCapacityRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	5,  // 14: drift.v1.GetMirrorCapacityResponse.capacity:type_name -> drift.v1.MirrorCapacity
+	6,  // 15: drift.v1.DeviceMirrorService.StartMirrorStream:input_type -> drift.v1.StartMirrorStreamRequest
+	8,  // 16: drift.v1.DeviceMirrorService.NegotiateMirrorStream:input_type -> drift.v1.NegotiateMirrorStreamRequest
+	10, // 17: drift.v1.DeviceMirrorService.StopMirrorStream:input_type -> drift.v1.StopMirrorStreamRequest
+	12, // 18: drift.v1.DeviceMirrorService.GetMirrorStream:input_type -> drift.v1.GetMirrorStreamRequest
+	14, // 19: drift.v1.DeviceMirrorService.GetMirrorCapacity:input_type -> drift.v1.GetMirrorCapacityRequest
+	7,  // 20: drift.v1.DeviceMirrorService.StartMirrorStream:output_type -> drift.v1.StartMirrorStreamResponse
+	9,  // 21: drift.v1.DeviceMirrorService.NegotiateMirrorStream:output_type -> drift.v1.NegotiateMirrorStreamResponse
+	11, // 22: drift.v1.DeviceMirrorService.StopMirrorStream:output_type -> drift.v1.StopMirrorStreamResponse
+	13, // 23: drift.v1.DeviceMirrorService.GetMirrorStream:output_type -> drift.v1.GetMirrorStreamResponse
+	15, // 24: drift.v1.DeviceMirrorService.GetMirrorCapacity:output_type -> drift.v1.GetMirrorCapacityResponse
+	20, // [20:25] is the sub-list for method output_type
+	15, // [15:20] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_device_mirror_proto_init() }
@@ -1068,7 +1197,7 @@ func file_drift_v1_device_mirror_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_device_mirror_proto_rawDesc), len(file_drift_v1_device_mirror_proto_rawDesc)),
-			NumEnums:      3,
+			NumEnums:      4,
 			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,

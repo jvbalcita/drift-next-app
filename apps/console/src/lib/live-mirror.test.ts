@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
+import { MirrorPreviewQuality, MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import { create } from "@bufbuild/protobuf"
 import { MirrorStreamSchema } from "@/gen/drift/v1/device_mirror_pb"
 import { deviceStatusMeanings } from "@/lib/device-status"
@@ -22,6 +22,8 @@ import {
   planGesture,
   planKeystroke,
   planWheelScrolls,
+  previewQualityRequestFor,
+  previewRequestFor,
   refusedStreamSentence,
   repeatDue,
   scrollStepUnits,
@@ -464,5 +466,37 @@ describe("the operator's own keyboard, as the device's key events", () => {
     // closed rather than passing a burst through.
     expect(repeatDue(Number.NaN, 1_000)).toBe(false)
     expect(repeatDue(1_000, Number.NaN)).toBe(false)
+  })
+})
+
+describe("the workspace's preview setting on the wire (ARC-227)", () => {
+  it("states the level and the rate an ambient tile is carried at", () => {
+    // The two controls' own vocabulary, mapped onto the plane's. The rate is the
+    // number the control states, not a value this console derives: a console that
+    // clamped it would be delivering a bound nobody chose.
+    expect(previewRequestFor("ambient", { quality: "Low", frameRate: 1 })).toEqual({ previewQuality: MirrorPreviewQuality.LOW, frameRate: 1 })
+    expect(previewRequestFor("ambient", { quality: "Medium", frameRate: 15 })).toEqual({ previewQuality: MirrorPreviewQuality.MEDIUM, frameRate: 15 })
+    expect(previewRequestFor("ambient", { quality: "High", frameRate: 24 })).toEqual({ previewQuality: MirrorPreviewQuality.HIGH, frameRate: 24 })
+    expect(previewRequestFor("ambient", { quality: "Extra", frameRate: 20 })).toEqual({ previewQuality: MirrorPreviewQuality.EXTRA, frameRate: 20 })
+  })
+
+  it("states nothing for the operator's own frame", () => {
+    // The frame an operator works a device from is carried at the plane's own
+    // profile, so this console states no setting for it. A request that stated one
+    // would be a console claiming a bound it does not set.
+    expect(previewRequestFor("operator", { quality: "Low", frameRate: 1 })).toEqual({ previewQuality: MirrorPreviewQuality.UNSPECIFIED, frameRate: 0 })
+  })
+
+  it("states nothing when it has no setting to state, rather than stating a bound", () => {
+    // A console that has not been told the workspace's setting states nothing: the
+    // plane answers that with its own setting, which is a cap. The alternative -
+    // sending a level of this console's own invention - would be a bound nobody
+    // chose.
+    expect(previewRequestFor("ambient", undefined)).toEqual({ previewQuality: MirrorPreviewQuality.UNSPECIFIED, frameRate: 0 })
+  })
+
+  it("maps an unknown level to unstated rather than to a bound of its own", () => {
+    expect(previewQualityRequestFor("nonsense" as never)).toBe(MirrorPreviewQuality.UNSPECIFIED)
+    expect(previewQualityRequestFor(undefined as never)).toBe(MirrorPreviewQuality.UNSPECIFIED)
   })
 })

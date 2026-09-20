@@ -1,7 +1,7 @@
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
 import type { DeviceView } from "@/lib/domain/control-plane"
-import type { LiveMirrorTransportChoice } from "@/lib/live-mirror"
+import type { LiveMirrorPreview, LiveMirrorTransportChoice } from "@/lib/live-mirror"
 import { livePictureHeld } from "@/lib/live-mirror"
 import { tilePictureSentence, type TileViewerBudget } from "@/lib/live-tiles"
 
@@ -53,9 +53,16 @@ export interface LiveTilePictureProps {
    * place says which bound it did not reach.
    */
   budget: TileViewerBudget
+  /**
+   * preview is the workspace's encode setting: the level and the capture rate the
+   * operator chose for the grid. A tile STATES it because it is the bound the plane
+   * applies to the picture this tile is shown, and the plane cannot read it from
+   * anywhere else.
+   */
+  preview?: LiveMirrorPreview
 }
 
-export function LiveTilePicture({ device, mirror, transport, workspaceId, viewing, budget }: LiveTilePictureProps) {
+export function LiveTilePicture({ device, mirror, transport, workspaceId, viewing, budget, preview }: LiveTilePictureProps) {
   // The session is opened for this device only while this tile holds a place:
   // an empty device id keeps the hook idle, so a tile that is not viewing opens
   // nothing and captures nothing. The element below follows the same condition,
@@ -66,7 +73,18 @@ export function LiveTilePicture({ device, mirror, transport, workspaceId, viewin
   // its reserve is the place the operator's own frame needs: this is a picture and
   // nothing else, so it is an ambient viewer, and it is the kind the plane may
   // refuse when the grid's share is spent.
-  const { phase, failure, attachVideo } = useLiveMirror(subscribes ? device.id : "", { client: mirror, workspaceId, transport, purpose: "ambient" })
+  //
+  // It states the workspace's PREVIEW for the same reason: it is an ambient viewer,
+  // which is the kind that setting bounds, so the level the operator chose reaches
+  // the device's encoder through this request and nowhere else.
+  const { phase, failure, attachVideo } = useLiveMirror(subscribes ? device.id : "", {
+    client: mirror,
+    workspaceId,
+    transport,
+    purpose: "ambient",
+    previewQuality: preview?.quality,
+    previewFrameRate: preview?.frameRate,
+  })
   const showing = livePictureHeld(phase)
   const sentence = tilePictureSentence(phase, failure, device, viewing, Boolean(mirror), budget)
   return <>
