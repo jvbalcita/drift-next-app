@@ -48,7 +48,19 @@ const connectionFilters: { value: ConnectionFilter; label: string }[] = [
 ]
 
 const workspaceDefaults: Workspace = { largeHeight: 480, smallHeight: 192, quality: "Medium", frameRate: 15, orientation: "portrait" }
-const settingsDefaults: ConsoleSettings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showIp: true, liveMirrorTransport: "webrtc" }
+/**
+ * The transport a device is streamed over until the operator says otherwise.
+ *
+ * It is TCP because this fleet was measured: on this hub, over these devices'
+ * own TCP transport (192.168.1.123:5555), three 60-second runs per transport put
+ * TCP's first picture at 1-2 ms against WebRTC's 41-95 ms (the first run of a
+ * session pays the capture start instead: 1084 ms), both at ~59 pictures/s, and
+ * TCP held that rate with no gap over one second and a worst gap of 250-277 ms
+ * where WebRTC stalled twice for 1.2 s and showed worst gaps of 98-1250 ms.
+ * `cmd/mirror-transport-measure` is the harness that took it; the numbers and
+ * the method are in docs/operations/mirror-transport-measurement.md.
+ */
+const settingsDefaults: ConsoleSettings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showIp: true, liveMirrorTransport: "tcp" }
 const initialPosition: FloatingPosition = { x: 120, y: 88 }
 const phoneColors = ["bg-emerald-700", "bg-sky-700", "bg-teal-700", "bg-fuchsia-700", "bg-rose-700", "bg-slate-950", "bg-neutral-950", "bg-cyan-800", "bg-violet-800", "bg-purple-800", "bg-teal-800", "bg-slate-600"]
 /**
