@@ -1,15 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react"
-import { Bell, Settings2 } from "lucide-react"
 import { AppSidebar } from "./components/app-sidebar"
 import { AppTitlebar } from "./components/app-titlebar"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "./components/ui/breadcrumb"
 import { Button } from "./components/ui/button"
 import {
   SidebarInset,
@@ -21,7 +12,7 @@ import { Skeleton } from "./components/ui/skeleton"
 import { useControlPlane } from "./lib/api/use-control-plane"
 import { useLiveMirrorClient } from "./lib/api/live-mirror-client"
 import type { LiveMirrorClient } from "./lib/api/control-plane-clients"
-import { hashForRoute, routeFromHash, viewLabel, type Route, type Section } from "./lib/navigation"
+import { hashForRoute, routeFromHash, type Route, type Section } from "./lib/navigation"
 import { AgentsPage } from "./pages/AgentsPage"
 import { ControlPage } from "./pages/ControlPage"
 import { OverviewPage } from "./pages/OverviewPage"
@@ -53,26 +44,10 @@ function App() {
 
   return (
     <TooltipProvider>
-      <SidebarProvider defaultOpen data-visual-style="swiss-editorial" className="drift-theme min-h-svh bg-background pt-9 text-foreground">
-        <AppTitlebar />
-        <AppSidebar className="top-9 h-[calc(100svh-2.25rem)]" activeSection={route.section} onSectionChange={(section, view) => navigate(section as Section, view)} />
+      <SidebarProvider defaultOpen data-visual-style="swiss-editorial" className="drift-theme min-h-svh bg-background pt-10 text-foreground">
+        <AppTitlebar route={route} onOpenSettings={() => navigate("Settings")} />
+        <AppSidebar className="top-10 h-[calc(100svh-2.5rem)]" activeSection={route.section} onSectionChange={(section, view) => navigate(section as Section, view)} />
         <SidebarInset className="min-w-0">
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-            <div className="flex items-center gap-2 px-4">
-              <Breadcrumb>
-                <BreadcrumbList>
-                  <BreadcrumbItem className="hidden md:block"><BreadcrumbLink href="#workspace">Workspace</BreadcrumbLink></BreadcrumbItem>
-                  <BreadcrumbSeparator className="hidden md:block" />
-                  <BreadcrumbItem><BreadcrumbPage>{route.section === "Control" ? "Control Center" : route.section}</BreadcrumbPage></BreadcrumbItem>
-                  {route.section !== "Control" ? <><BreadcrumbSeparator className="hidden sm:block" /><BreadcrumbItem className="hidden sm:block"><BreadcrumbPage>{viewLabel(route)}</BreadcrumbPage></BreadcrumbItem></> : null}
-                </BreadcrumbList>
-              </Breadcrumb>
-            </div>
-            <div className="ml-auto flex items-center gap-1 px-4">
-              <Button variant="ghost" size="icon-sm" aria-label="Notifications"><Bell className="size-4" aria-hidden="true" /></Button>
-              <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => navigate("Settings")}><Settings2 className="size-4" aria-hidden="true" /></Button>
-            </div>
-          </header>
           <main className="drift-editorial-grid mx-auto w-full max-w-[1800px] flex-1 p-4 sm:p-6 lg:p-8">
             {loading ? <p role="status" className="mb-4 border border-border bg-muted/30 p-3 text-xs text-muted-foreground">Loading Control Plane…</p> : null}
             {connectionError ? (

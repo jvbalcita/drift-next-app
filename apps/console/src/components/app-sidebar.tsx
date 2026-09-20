@@ -40,6 +40,7 @@ import {
   ChevronsUpDownIcon,
 } from "lucide-react"
 import { navigation, navigationGroups, type Section } from "@/lib/navigation"
+import driftIcon from "../../src-tauri/icons/64x64.png"
 
 export function AppSidebar({
   activeSection = "Overview",
@@ -63,11 +64,11 @@ export function AppSidebar({
   }))
 
   return (
-    <Sidebar collapsible="icon" className="border-sidebar-border/70" {...props}>
+    <Sidebar collapsible="offcanvas" className="border-sidebar-border/70" {...props}>
       <SidebarHeader>
         <div className="flex h-12 items-center gap-3 border-b border-sidebar-border px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          <span className="flex size-8 shrink-0 items-center justify-center border border-sidebar-border bg-sidebar-primary text-sidebar-primary-foreground">
-            <CommandIcon className="size-4" aria-hidden="true" />
+          <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden" aria-hidden="true">
+            <img src={driftIcon} alt="" className="size-8 object-contain" />
           </span>
           <span className="min-w-0 group-data-[collapsible=icon]:hidden">
             <span className="block truncate text-xs font-bold tracking-[0.18em]">DRIFT</span>

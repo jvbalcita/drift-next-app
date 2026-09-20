@@ -37,16 +37,16 @@ describe("Drift command center", () => {
     expect(screen.getByRole("banner").querySelector('[data-slot="breadcrumb"]')).toBeInTheDocument()
   })
 
-  it("places the only sidebar toggle in the window toolbar", () => {
+  it("places the only sidebar toggle and breadcrumbs in the window toolbar", () => {
     render(<App />)
 
     const titlebar = document.querySelector('[data-slot="app-titlebar"]')
-    const contentHeader = screen.getByRole("banner")
 
     expect(titlebar).toHaveAttribute("data-tauri-drag-region")
     expect(titlebar?.querySelector('[data-slot="sidebar-trigger"]')).toBeInTheDocument()
-    expect(contentHeader.querySelector('[data-slot="sidebar-trigger"]')).not.toBeInTheDocument()
+    expect(titlebar?.querySelector('[data-slot="breadcrumb"]')).toBeInTheDocument()
     expect(document.querySelectorAll('[data-slot="sidebar-trigger"]')).toHaveLength(1)
+    expect(screen.getAllByRole("banner")).toHaveLength(1)
   })
 
   it("updates the inspector and fleet filter without enabling device actions", async () => {
@@ -461,17 +461,16 @@ describe("Drift command center", () => {
     })
   }
 
-  it("keeps the breadcrumb header compact beneath the window toolbar", () => {
+  it("uses one compact application shell for window and page controls", () => {
     render(<App />)
 
     const header = screen.getByRole("banner")
 
-    expect(header).toHaveClass("shrink-0", "transition-[width,height]")
-    expect(header).toHaveClass("flex", "h-16", "shrink-0")
-    expect(header).not.toHaveClass("sticky")
-    expect(header.querySelector('[data-slot="sidebar-trigger"]')).not.toBeInTheDocument()
-    expect(header).toHaveClass("group-has-data-[collapsible=icon]/sidebar-wrapper:h-12")
+    expect(header).toHaveClass("fixed", "h-10", "bg-background")
+    expect(header).not.toHaveClass("bg-[#1f1f1f]")
+    expect(header.querySelector('[data-slot="sidebar-trigger"]')).toBeInTheDocument()
     expect(header.querySelector('[data-slot="breadcrumb"]')).toBeInTheDocument()
+    expect(header.querySelector('[data-slot="titlebar-sidebar-surface"]')).toHaveClass("bg-sidebar")
     expect(screen.getByRole("button", { name: /Notifications/ })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Settings/ })).toBeInTheDocument()
     expect(header).not.toHaveTextContent("Local session")
