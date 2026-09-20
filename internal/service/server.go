@@ -132,11 +132,18 @@ func ConnectionRoute(operations transportconnect.Connections, token string) Rout
 // render as a control and then find dead. The gate is on the handler the
 // constructor actually returned, not on the caller's argument.
 //
+// capacity is the engine whose bound this surface publishes, and refusals is where
+// a refused stream is written down. Neither gates the mount: a route that exists at
+// all was built over an engine, so it has a bound to state, and a deployment whose
+// store is open has somewhere to record a refusal. A surface mounted without them
+// would still carry streams — it just could not say what its own capacity is, and
+// would leave a refusal recorded nowhere.
+//
 // The route carries the same constant-time token check as the other local
 // surfaces. It reaches devices and carries their screens, so loopback
 // reachability alone is not authority for a hostile local caller.
-func DeviceMirrorRoute(streams transportconnect.DeviceMirrors, serials transportconnect.DeviceSerialResolver, token string) Route {
-	handler := transportconnect.NewDeviceMirrorHandler(streams, serials)
+func DeviceMirrorRoute(streams transportconnect.DeviceMirrors, serials transportconnect.DeviceSerialResolver, capacity transportconnect.MirrorCapacitySource, refusals transportconnect.MirrorRefusalRecorder, token string) Route {
+	handler := transportconnect.NewDeviceMirrorHandler(streams, serials, capacity, refusals)
 	if handler == nil {
 		return Route{}
 	}

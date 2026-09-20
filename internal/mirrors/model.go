@@ -99,3 +99,39 @@ func TransitionTarget(from, to TargetState) error {
 	}
 	return nil
 }
+
+// StreamRefusal is one live stream this plane refused to open, in the terms an
+// event row needs.
+//
+// It exists because a refusal has to be explainable from the plane's own record
+// and not only from whatever the console that asked kept: a frame that shows
+// nothing is the failure this whole surface exists to avoid, and a later reader of
+// the database - the next operator, an incident review, the person reading this
+// repo - has only the rows. What it carries is therefore the whole of the
+// refusal: which device, what asked for it, what the plane's own sentence was, and
+// the bound that was spent.
+//
+// It carries no claim about authority and no content: a live mirror is a viewer,
+// viewing confers no authority to act on a device, and nothing here names a
+// control session, a lease or a credential.
+type StreamRefusal struct {
+	WorkspaceID string
+	DeviceID    string
+	// ActorType and ActorID are who asked for the stream.
+	ActorType string
+	ActorID   string
+	// ViewerPurpose is what the refused viewer was, in the plane's own
+	// vocabulary: "operator" for the operator's own big frame, "ambient" for one
+	// of the console's grid tiles. It is what the bound was spent against, so a
+	// refusal read later says whether the grid spent the operator's place or the
+	// plane was simply full.
+	ViewerPurpose string
+	// Reason is the plane's own refusal sentence, verbatim.
+	Reason string
+	// Capacity is the device-session capacity the plane is carrying.
+	Capacity int
+	// OperatorReserve is how many of Capacity are kept for the operator's own
+	// frame. It is zero for an operator request, which is refused only when there
+	// is genuinely no place at all.
+	OperatorReserve int
+}

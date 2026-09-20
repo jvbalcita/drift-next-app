@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device_mirror.proto.
  */
 export const file_drift_v1_device_mirror: GenFile = /*@__PURE__*/
-  fileDesc("ChxkcmlmdC92MS9kZXZpY2VfbWlycm9yLnByb3RvEghkcmlmdC52MSKEAgoMTWlycm9yU3RyZWFtEhEKCXN0cmVhbV9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSLAoJdHJhbnNwb3J0GAMgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0EhQKDHJlbmRlcl93aWR0aBgEIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAUgASgNEioKBXN0YXRlGAYgASgOMhsuZHJpZnQudjEuTWlycm9yU3RyZWFtU3RhdGUSDwoHZmFpbHVyZRgHIAEoCRIOCgZmcmFtZXMYCCABKAQSEgoKa2V5X2ZyYW1lcxgJIAEoBBISCgpzdHJlYW1fdXJsGAogASgJIrEBChhTdGFydE1pcnJvclN0cmVhbVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSLAoJdHJhbnNwb3J0GAQgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0IkMKGVN0YXJ0TWlycm9yU3RyZWFtUmVzcG9uc2USJgoGc3RyZWFtGAEgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIm8KHE5lZ290aWF0ZU1pcnJvclN0cmVhbVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EhEKCXN0cmVhbV9pZBgCIAEoCRIRCglvZmZlcl9zZHAYAyABKAkiWwodTmVnb3RpYXRlTWlycm9yU3RyZWFtUmVzcG9uc2USEgoKYW5zd2VyX3NkcBgBIAEoCRImCgZzdHJlYW0YAiABKAsyFi5kcmlmdC52MS5NaXJyb3JTdHJlYW0iVwoXU3RvcE1pcnJvclN0cmVhbVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EhEKCXN0cmVhbV9pZBgCIAEoCSJCChhTdG9wTWlycm9yU3RyZWFtUmVzcG9uc2USJgoGc3RyZWFtGAEgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIisKFkdldE1pcnJvclN0cmVhbVJlcXVlc3QSEQoJc3RyZWFtX2lkGAEgASgJIkEKF0dldE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSpqCg9NaXJyb3JUcmFuc3BvcnQSIAocTUlSUk9SX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEhsKF01JUlJPUl9UUkFOU1BPUlRfV0VCUlRDEAESGAoUTUlSUk9SX1RSQU5TUE9SVF9UQ1AQAiq3AQoRTWlycm9yU3RyZWFtU3RhdGUSIwofTUlSUk9SX1NUUkVBTV9TVEFURV9VTlNQRUNJRklFRBAAEiAKHE1JUlJPUl9TVFJFQU1fU1RBVEVfU1RBUlRJTkcQARIcChhNSVJST1JfU1RSRUFNX1NUQVRFX0xJVkUQAhIdChlNSVJST1JfU1RSRUFNX1NUQVRFX0VOREVEEAMSHgoaTUlSUk9SX1NUUkVBTV9TVEFURV9GQUlMRUQQBDKQAwoTRGV2aWNlTWlycm9yU2VydmljZRJcChFTdGFydE1pcnJvclN0cmVhbRIiLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVxdWVzdBojLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVzcG9uc2USaAoVTmVnb3RpYXRlTWlycm9yU3RyZWFtEiYuZHJpZnQudjEuTmVnb3RpYXRlTWlycm9yU3RyZWFtUmVxdWVzdBonLmRyaWZ0LnYxLk5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlElkKEFN0b3BNaXJyb3JTdHJlYW0SIS5kcmlmdC52MS5TdG9wTWlycm9yU3RyZWFtUmVxdWVzdBoiLmRyaWZ0LnYxLlN0b3BNaXJyb3JTdHJlYW1SZXNwb25zZRJWCg9HZXRNaXJyb3JTdHJlYW0SIC5kcmlmdC52MS5HZXRNaXJyb3JTdHJlYW1SZXF1ZXN0GiEuZHJpZnQudjEuR2V0TWlycm9yU3RyZWFtUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChxkcmlmdC92MS9kZXZpY2VfbWlycm9yLnByb3RvEghkcmlmdC52MSKEAgoMTWlycm9yU3RyZWFtEhEKCXN0cmVhbV9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSLAoJdHJhbnNwb3J0GAMgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0EhQKDHJlbmRlcl93aWR0aBgEIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAUgASgNEioKBXN0YXRlGAYgASgOMhsuZHJpZnQudjEuTWlycm9yU3RyZWFtU3RhdGUSDwoHZmFpbHVyZRgHIAEoCRIOCgZmcmFtZXMYCCABKAQSEgoKa2V5X2ZyYW1lcxgJIAEoBBISCgpzdHJlYW1fdXJsGAogASgJIkQKDk1pcnJvckNhcGFjaXR5EhgKEHNlc3Npb25fY2FwYWNpdHkYASABKA0SGAoQb3BlcmF0b3JfcmVzZXJ2ZRgCIAEoDSLhAQoYU3RhcnRNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEiwKCXRyYW5zcG9ydBgEIAEoDjIZLmRyaWZ0LnYxLk1pcnJvclRyYW5zcG9ydBIuCgdwdXJwb3NlGAUgASgOMh0uZHJpZnQudjEuTWlycm9yVmlld2VyUHVycG9zZSJDChlTdGFydE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSJvChxOZWdvdGlhdGVNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIRCglzdHJlYW1faWQYAiABKAkSEQoJb2ZmZXJfc2RwGAMgASgJIlsKHU5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlEhIKCmFuc3dlcl9zZHAYASABKAkSJgoGc3RyZWFtGAIgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIlcKF1N0b3BNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIRCglzdHJlYW1faWQYAiABKAkiQgoYU3RvcE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSIrChZHZXRNaXJyb3JTdHJlYW1SZXF1ZXN0EhEKCXN0cmVhbV9pZBgBIAEoCSJBChdHZXRNaXJyb3JTdHJlYW1SZXNwb25zZRImCgZzdHJlYW0YASABKAsyFi5kcmlmdC52MS5NaXJyb3JTdHJlYW0iRQoYR2V0TWlycm9yQ2FwYWNpdHlSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZiJHChlHZXRNaXJyb3JDYXBhY2l0eVJlc3BvbnNlEioKCGNhcGFjaXR5GAEgASgLMhguZHJpZnQudjEuTWlycm9yQ2FwYWNpdHkqagoPTWlycm9yVHJhbnNwb3J0EiAKHE1JUlJPUl9UUkFOU1BPUlRfVU5TUEVDSUZJRUQQABIbChdNSVJST1JfVFJBTlNQT1JUX1dFQlJUQxABEhgKFE1JUlJPUl9UUkFOU1BPUlRfVENQEAIqtwEKEU1pcnJvclN0cmVhbVN0YXRlEiMKH01JUlJPUl9TVFJFQU1fU1RBVEVfVU5TUEVDSUZJRUQQABIgChxNSVJST1JfU1RSRUFNX1NUQVRFX1NUQVJUSU5HEAESHAoYTUlSUk9SX1NUUkVBTV9TVEFURV9MSVZFEAISHQoZTUlSUk9SX1NUUkVBTV9TVEFURV9FTkRFRBADEh4KGk1JUlJPUl9TVFJFQU1fU1RBVEVfRkFJTEVEEAQqgwEKE01pcnJvclZpZXdlclB1cnBvc2USJQohTUlSUk9SX1ZJRVdFUl9QVVJQT1NFX1VOU1BFQ0lGSUVEEAASIQodTUlSUk9SX1ZJRVdFUl9QVVJQT1NFX0FNQklFTlQQARIiCh5NSVJST1JfVklFV0VSX1BVUlBPU0VfT1BFUkFUT1IQAjLuAwoTRGV2aWNlTWlycm9yU2VydmljZRJcChFTdGFydE1pcnJvclN0cmVhbRIiLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVxdWVzdBojLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVzcG9uc2USaAoVTmVnb3RpYXRlTWlycm9yU3RyZWFtEiYuZHJpZnQudjEuTmVnb3RpYXRlTWlycm9yU3RyZWFtUmVxdWVzdBonLmRyaWZ0LnYxLk5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlElkKEFN0b3BNaXJyb3JTdHJlYW0SIS5kcmlmdC52MS5TdG9wTWlycm9yU3RyZWFtUmVxdWVzdBoiLmRyaWZ0LnYxLlN0b3BNaXJyb3JTdHJlYW1SZXNwb25zZRJWCg9HZXRNaXJyb3JTdHJlYW0SIC5kcmlmdC52MS5HZXRNaXJyb3JTdHJlYW1SZXF1ZXN0GiEuZHJpZnQudjEuR2V0TWlycm9yU3RyZWFtUmVzcG9uc2USXAoRR2V0TWlycm9yQ2FwYWNpdHkSIi5kcmlmdC52MS5HZXRNaXJyb3JDYXBhY2l0eVJlcXVlc3QaIy5kcmlmdC52MS5HZXRNaXJyb3JDYXBhY2l0eVJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
 
 /**
  * MirrorStream is one device's live stream as the console sees it.
@@ -101,6 +101,45 @@ export const MirrorStreamSchema: GenMessage<MirrorStream> = /*@__PURE__*/
   messageDesc(file_drift_v1_device_mirror, 0);
 
 /**
+ * MirrorCapacity is the plane's own device-session bound, as the deployment
+ * stated it, together with the place its ambient viewers may not spend.
+ *
+ * It is published rather than agreed, and that is the whole point: the console's
+ * tile allocation used to be a constant of its own that happened to hold the same
+ * number as the plane's bound, so the two could agree by luck and disagree by
+ * edit. The console now derives how many tiles subscribe from THIS, which is the
+ * bound the plane is actually carrying.
+ *
+ * @generated from message drift.v1.MirrorCapacity
+ */
+export type MirrorCapacity = Message<"drift.v1.MirrorCapacity"> & {
+  /**
+   * session_capacity is how many devices this plane mirrors at once.
+   *
+   * @generated from field: uint32 session_capacity = 1;
+   */
+  sessionCapacity: number;
+
+  /**
+   * operator_reserve is how many of session_capacity are kept for the
+   * operator's own frame: the grid may hold at most
+   * session_capacity - operator_reserve tiles between them.
+   *
+   * @generated from field: uint32 operator_reserve = 2;
+   */
+  operatorReserve: number;
+};
+
+/**
+ * Describes the message drift.v1.MirrorCapacity.
+ * Use `create(MirrorCapacitySchema)` to create a new message.
+ */
+export const MirrorCapacitySchema: GenMessage<MirrorCapacity> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_mirror, 1);
+
+/**
+ * StartMirrorStreamRequest opens one device's live stream for one viewer.
+ *
  * @generated from message drift.v1.StartMirrorStreamRequest
  */
 export type StartMirrorStreamRequest = Message<"drift.v1.StartMirrorStreamRequest"> & {
@@ -128,6 +167,16 @@ export type StartMirrorStreamRequest = Message<"drift.v1.StartMirrorStreamReques
    * @generated from field: drift.v1.MirrorTransport transport = 4;
    */
   transport: MirrorTransport;
+
+  /**
+   * purpose is what this viewer is. UNSPECIFIED is read as the operator's own
+   * frame (see MirrorViewerPurpose), so a caller that has not been taught the
+   * distinction is treated as the surface that must not be refused on the
+   * grid's account.
+   *
+   * @generated from field: drift.v1.MirrorViewerPurpose purpose = 5;
+   */
+  purpose: MirrorViewerPurpose;
 };
 
 /**
@@ -135,7 +184,7 @@ export type StartMirrorStreamRequest = Message<"drift.v1.StartMirrorStreamReques
  * Use `create(StartMirrorStreamRequestSchema)` to create a new message.
  */
 export const StartMirrorStreamRequestSchema: GenMessage<StartMirrorStreamRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 1);
+  messageDesc(file_drift_v1_device_mirror, 2);
 
 /**
  * @generated from message drift.v1.StartMirrorStreamResponse
@@ -152,7 +201,7 @@ export type StartMirrorStreamResponse = Message<"drift.v1.StartMirrorStreamRespo
  * Use `create(StartMirrorStreamResponseSchema)` to create a new message.
  */
 export const StartMirrorStreamResponseSchema: GenMessage<StartMirrorStreamResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 2);
+  messageDesc(file_drift_v1_device_mirror, 3);
 
 /**
  * NegotiateMirrorStreamRequest carries a browser's SDP offer for one stream.
@@ -181,7 +230,7 @@ export type NegotiateMirrorStreamRequest = Message<"drift.v1.NegotiateMirrorStre
  * Use `create(NegotiateMirrorStreamRequestSchema)` to create a new message.
  */
 export const NegotiateMirrorStreamRequestSchema: GenMessage<NegotiateMirrorStreamRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 3);
+  messageDesc(file_drift_v1_device_mirror, 4);
 
 /**
  * @generated from message drift.v1.NegotiateMirrorStreamResponse
@@ -203,7 +252,7 @@ export type NegotiateMirrorStreamResponse = Message<"drift.v1.NegotiateMirrorStr
  * Use `create(NegotiateMirrorStreamResponseSchema)` to create a new message.
  */
 export const NegotiateMirrorStreamResponseSchema: GenMessage<NegotiateMirrorStreamResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 4);
+  messageDesc(file_drift_v1_device_mirror, 5);
 
 /**
  * @generated from message drift.v1.StopMirrorStreamRequest
@@ -225,7 +274,7 @@ export type StopMirrorStreamRequest = Message<"drift.v1.StopMirrorStreamRequest"
  * Use `create(StopMirrorStreamRequestSchema)` to create a new message.
  */
 export const StopMirrorStreamRequestSchema: GenMessage<StopMirrorStreamRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 5);
+  messageDesc(file_drift_v1_device_mirror, 6);
 
 /**
  * @generated from message drift.v1.StopMirrorStreamResponse
@@ -242,7 +291,7 @@ export type StopMirrorStreamResponse = Message<"drift.v1.StopMirrorStreamRespons
  * Use `create(StopMirrorStreamResponseSchema)` to create a new message.
  */
 export const StopMirrorStreamResponseSchema: GenMessage<StopMirrorStreamResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 6);
+  messageDesc(file_drift_v1_device_mirror, 7);
 
 /**
  * GetMirrorStreamRequest polls one stream's state while the console shows it.
@@ -261,7 +310,7 @@ export type GetMirrorStreamRequest = Message<"drift.v1.GetMirrorStreamRequest"> 
  * Use `create(GetMirrorStreamRequestSchema)` to create a new message.
  */
 export const GetMirrorStreamRequestSchema: GenMessage<GetMirrorStreamRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 7);
+  messageDesc(file_drift_v1_device_mirror, 8);
 
 /**
  * @generated from message drift.v1.GetMirrorStreamResponse
@@ -278,7 +327,43 @@ export type GetMirrorStreamResponse = Message<"drift.v1.GetMirrorStreamResponse"
  * Use `create(GetMirrorStreamResponseSchema)` to create a new message.
  */
 export const GetMirrorStreamResponseSchema: GenMessage<GetMirrorStreamResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 8);
+  messageDesc(file_drift_v1_device_mirror, 9);
+
+/**
+ * GetMirrorCapacityRequest asks how much room this plane has for streams.
+ *
+ * @generated from message drift.v1.GetMirrorCapacityRequest
+ */
+export type GetMirrorCapacityRequest = Message<"drift.v1.GetMirrorCapacityRequest"> & {
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 1;
+   */
+  workspace?: WorkspaceRef;
+};
+
+/**
+ * Describes the message drift.v1.GetMirrorCapacityRequest.
+ * Use `create(GetMirrorCapacityRequestSchema)` to create a new message.
+ */
+export const GetMirrorCapacityRequestSchema: GenMessage<GetMirrorCapacityRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_mirror, 10);
+
+/**
+ * @generated from message drift.v1.GetMirrorCapacityResponse
+ */
+export type GetMirrorCapacityResponse = Message<"drift.v1.GetMirrorCapacityResponse"> & {
+  /**
+   * @generated from field: drift.v1.MirrorCapacity capacity = 1;
+   */
+  capacity?: MirrorCapacity;
+};
+
+/**
+ * Describes the message drift.v1.GetMirrorCapacityResponse.
+ * Use `create(GetMirrorCapacityResponseSchema)` to create a new message.
+ */
+export const GetMirrorCapacityResponseSchema: GenMessage<GetMirrorCapacityResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_mirror, 11);
 
 /**
  * MirrorTransport names how a device's live stream reaches a browser.
@@ -360,6 +445,53 @@ export const MirrorStreamStateSchema: GenEnum<MirrorStreamState> = /*@__PURE__*/
   enumDesc(file_drift_v1_device_mirror, 1);
 
 /**
+ * MirrorViewerPurpose is what a viewer of a device's live stream IS, and it is
+ * the fact the plane's device-session capacity is spent against.
+ *
+ * One service carries two very different demands. The console's grid draws
+ * ambient tiles: a fleet VIEW, one stream per tile, bounded so that a fleet view
+ * stays a view rather than a wall of simultaneous captures. The operator's big
+ * frame is the surface a device is worked from, and a frame that cannot open
+ * because the grid is already holding every session is a control room whose
+ * pictures cannot be touched. The plane therefore keeps a place below its
+ * capacity for the operator's own frame and refuses an AMBIENT viewer once the
+ * grid's share of the capacity is spent.
+ *
+ * A request that states neither is read as the operator's own frame, because the
+ * two mistakes are not equal: an undeclared viewer read as the grid loses the
+ * operator a place, while one read as the operator's frame can only spend a place
+ * that was held for exactly it.
+ *
+ * @generated from enum drift.v1.MirrorViewerPurpose
+ */
+export enum MirrorViewerPurpose {
+  /**
+   * @generated from enum value: MIRROR_VIEWER_PURPOSE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * AMBIENT is one of the console's grid tiles: a picture and nothing else.
+   *
+   * @generated from enum value: MIRROR_VIEWER_PURPOSE_AMBIENT = 1;
+   */
+  AMBIENT = 1,
+
+  /**
+   * OPERATOR is the operator's own big frame: where a device is worked from.
+   *
+   * @generated from enum value: MIRROR_VIEWER_PURPOSE_OPERATOR = 2;
+   */
+  OPERATOR = 2,
+}
+
+/**
+ * Describes the enum drift.v1.MirrorViewerPurpose.
+ */
+export const MirrorViewerPurposeSchema: GenEnum<MirrorViewerPurpose> = /*@__PURE__*/
+  enumDesc(file_drift_v1_device_mirror, 2);
+
+/**
  * @generated from service drift.v1.DeviceMirrorService
  */
 export const DeviceMirrorService: GenService<{
@@ -394,6 +526,17 @@ export const DeviceMirrorService: GenService<{
     methodKind: "unary";
     input: typeof GetMirrorStreamRequestSchema;
     output: typeof GetMirrorStreamResponseSchema;
+  },
+  /**
+   * GetMirrorCapacity reads the plane's device-session bound. It reads; it never
+   * opens, negotiates or ends anything.
+   *
+   * @generated from rpc drift.v1.DeviceMirrorService.GetMirrorCapacity
+   */
+  getMirrorCapacity: {
+    methodKind: "unary";
+    input: typeof GetMirrorCapacityRequestSchema;
+    output: typeof GetMirrorCapacityResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_device_mirror, 0);

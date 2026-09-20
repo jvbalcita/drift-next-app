@@ -2,6 +2,7 @@ package transportconnect
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
 	"drift.local/drift-next/internal/media"
+	"drift.local/drift-next/internal/mirrors"
 )
 
 // MirrorStreamPath is the per-device stream endpoint a browser fetches when the
@@ -86,10 +88,11 @@ type DeviceMirrorEndpointStream interface {
 // operator renders and then finds dead.
 type DeviceMirrors interface {
 	// Open starts (or joins) a device's live stream over the requested transport
-	// and returns the stream the browser will be carried. Opening is what
+	// and returns the stream the browser will be carried, spending the plane's
+	// device-session capacity against the purpose the viewer is. Opening is what
 	// subscribes a viewer, and the subscription is what starts the device's
 	// capture.
-	Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind) (DeviceMirrorStream, error)
+	Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose) (DeviceMirrorStream, error)
 	// Stream reports the live stream with this identity, or false when there is
 	// none. It is how a negotiation, a poll and a stop find the stream a caller
 	// named, and it confers nothing: the stream it returns is already this
@@ -104,6 +107,97 @@ type DeviceMirrors interface {
 	// What it returns is a stream identity and nothing else: no device address, no
 	// adb serial and no media-server URL is reachable through it.
 	Carrying() []string
+}
+
+// MirrorCapacitySource is the plane's own device-session bound, as this surface
+// reads it to answer a caller. *media.MirrorEngine satisfies it.
+//
+// It is a port of its own rather than a method on DeviceMirrors because it is not
+// a fact about the transport: the bound belongs to the engine that spends it, and
+// a deployment whose transport was built over an engine it cannot read the bound
+// of has nothing truthful to publish - which is why the handler it is absent from
+// answers unavailable rather than zero.
+type MirrorCapacitySource interface {
+	// Capacity is how many devices the plane mirrors at once.
+	Capacity() int
+	// OperatorReserve is how many of Capacity are kept for the operator's own
+	// frame: the grid may hold at most Capacity - OperatorReserve sessions.
+	OperatorReserve() int
+}
+
+// MirrorRefusalRecorder is told about a live stream this plane refused to open,
+// so a frame that shows nothing can be explained from the plane's own record
+// rather than only from what the operator's console happened to keep.
+//
+// It is called with the refusal already classified and the sentence already
+// formed, because the record that matters is the one an operator reads: the
+// event names the device, the capacity that was spent and the plane's own
+// sentence, and a recorder that had to re-derive any of those could write a
+// record that disagrees with the refusal it records. A recorder that fails
+// records nothing; it never refuses the stream, because the operator's request is
+// answered from the engine and not from the log.
+type MirrorRefusalRecorder interface {
+	RecordStreamRefusal(ctx context.Context, refusal StreamRefusal) error
+}
+
+// StreamRefusal is one live stream this plane refused to open, in the terms the
+// record needs. It is the domain's own record of a refusal: what is written down
+// is the plane's fact, so the surface that writes it and the surface that reads
+// it cannot hold two shapes of the same refusal.
+type StreamRefusal = mirrors.StreamRefusal
+
+// MirrorRefusalRecorderFunc adapts a function to the recorder, for a deployment
+// that wires one inline.
+type MirrorRefusalRecorderFunc func(ctx context.Context, refusal StreamRefusal) error
+
+func (f MirrorRefusalRecorderFunc) RecordStreamRefusal(ctx context.Context, refusal StreamRefusal) error {
+	return f(ctx, refusal)
+}
+
+// mirrorCapacityProto maps the plane's bound onto the wire contract.
+func mirrorCapacityProto(source MirrorCapacitySource) *driftv1.MirrorCapacity {
+	if source == nil {
+		return &driftv1.MirrorCapacity{}
+	}
+	capacity := source.Capacity()
+	if capacity < 0 {
+		capacity = 0
+	}
+	reserve := source.OperatorReserve()
+	if reserve < 0 || reserve > capacity {
+		reserve = capacity
+	}
+	return &driftv1.MirrorCapacity{
+		SessionCapacity: uint32(capacity),
+		OperatorReserve: uint32(reserve),
+	}
+}
+
+// wantedPurpose maps the purpose a caller stated onto the one the engine spends
+// its capacity against. UNSPECIFIED is the operator's own frame, not the grid:
+// the operator's frame is the surface that must never be refused because a grid
+// is drawing, so a caller that has not been taught the distinction is read as the
+// demand that place is kept for.
+func wantedPurpose(requested driftv1.MirrorViewerPurpose) media.MirrorViewerPurpose {
+	switch requested {
+	case driftv1.MirrorViewerPurpose_MIRROR_VIEWER_PURPOSE_AMBIENT:
+		return media.PurposeAmbient
+	case driftv1.MirrorViewerPurpose_MIRROR_VIEWER_PURPOSE_UNSPECIFIED,
+		driftv1.MirrorViewerPurpose_MIRROR_VIEWER_PURPOSE_OPERATOR:
+		return media.PurposeOperator
+	default:
+		return media.PurposeOperator
+	}
+}
+
+// isCapacityRefusal reports the plane's own capacity bound as the cause of a
+// refusal, so the surface can record it rather than only report it.
+func isCapacityRefusal(err error) (*media.SessionCapacityError, bool) {
+	var capacity *media.SessionCapacityError
+	if errors.As(err, &capacity) {
+		return capacity, true
+	}
+	return nil, false
 }
 
 // noSuchStreamError is the refusal a caller reads when the stream identity it

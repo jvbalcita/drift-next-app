@@ -55,7 +55,8 @@ function fakeMirror(initial: LiveStreamView = stream()): { client: LiveMirrorCli
     calls,
     setState(next) { state = next },
     client: {
-      async startStream(request) { calls.push(`start:${request.deviceId}`); return state },
+      async startStream(request) { calls.push(`start:${request.deviceId}:${request.purpose}`); return state },
+      async getCapacity() { return { sessionCapacity: 4, operatorReserve: 1, tilePlaces: 3 } },
       async negotiate(_streamId, offerSdp) { calls.push(`negotiate:${offerSdp}`); return { answerSdp: "answer-sdp", stream: state } },
       async stopStream(streamId) { calls.push(`stop:${streamId}`); return { ...state, state: "ended" } },
       async getStream() { return state },

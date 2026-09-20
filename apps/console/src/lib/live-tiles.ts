@@ -21,14 +21,43 @@ import type { DeviceStatus } from "@/lib/domain/control-plane"
  */
 
 /**
- * The most device screens this console carries into the grid at once.
+ * The most device screens this console carries into the grid, as the CONTROL
+ * PLANE's own capacity states it.
  *
- * It is deliberately small and deliberately a constant: the cost of a live tile
- * is a stream on the control plane and a decoder in this browser, so the bound
- * exists to keep a fleet view a fleet VIEW rather than a wall of simultaneous
- * captures. A tile the bound does not reach says so in the tile.
+ * A tile is a viewer of one device's stream, and a stream is a session the plane
+ * carries, so how many tiles may subscribe is not this console's decision to make:
+ * the plane holds the bound (its DEVICE-SESSION capacity, stated by the deployment
+ * and read through GetMirrorCapacity), keeps a place of it for the operator's own
+ * frame, and the grid carries what is left. This module used to decide the number
+ * itself, from a constant, and the two numbers had no relationship: a console
+ * carrying four tiles against a plane that could carry one was refused by a plane
+ * whose refusal nothing on screen explained.
+ *
+ * The budget is therefore either MEASURED - the plane stated its capacity and this
+ * is the share the grid may spend - or UNMEASURED, when the console could not read
+ * the capacity at all. An unmeasured budget is not zero places to spend and it is
+ * not the old constant either: it is a console that does not know how much room
+ * there is, and it carries nothing rather than guessing.
  */
-export const liveTileViewerLimit = 4
+export type TileViewerBudget = { kind: "measured"; limit: number } | { kind: "unmeasured" }
+
+/**
+ * tileViewerBudget reads this console's tile budget from the plane's capacity.
+ *
+ * The grid's share is the plane's capacity less the place the plane keeps for the
+ * operator's own frame. The reserve is not guessed at here: it is the plane's own
+ * number, published beside its capacity, so a deployment that keeps two places for
+ * the operator lowers this grid's budget by two without any console change.
+ */
+export function tileViewerBudget(capacity: { sessionCapacity: number; operatorReserve: number } | null): TileViewerBudget {
+  if (!capacity) return { kind: "unmeasured" }
+  return { kind: "measured", limit: Math.max(0, capacity.sessionCapacity - capacity.operatorReserve) }
+}
+
+/** tileViewerLimit is the budget as a number: how many tiles subscribe, and none at all when unmeasured. */
+export function tileViewerLimit(budget: TileViewerBudget): number {
+  return budget.kind === "measured" ? budget.limit : 0
+}
 
 export interface TileViewerCandidate {
   id: string
@@ -48,7 +77,8 @@ export interface TileViewerCandidate {
  * the bound: there is nothing to carry for them, and spending the bound on them
  * would leave observed devices unshown.
  */
-export function allocateTileViewers(devices: readonly TileViewerCandidate[], limit: number = liveTileViewerLimit): readonly string[] {
+export function allocateTileViewers(devices: readonly TileViewerCandidate[], budget: TileViewerBudget): readonly string[] {
+  const limit = tileViewerLimit(budget)
   const chosen: string[] = []
   for (const device of devices) {
     if (chosen.length >= limit) break
@@ -103,13 +133,26 @@ export const liveTileCopy = {
   /** The prefix a classified per-tile failure is read after. */
   failed: "Not live:",
   /**
-   * A tile the console's own bound does not reach.
+   * A tile the plane's own capacity does not reach.
    *
-   * It names the bound and the reason rather than reading as a device that has
-   * nothing to show, because the device may be perfectly observable: what is
-   * spent is the console's own capacity to carry pictures.
+   * It names the plane's bound and the reason rather than reading as a device that
+   * has nothing to show, because the device may be perfectly observable: what is
+   * spent is the control plane's own capacity to carry streams, which is the same
+   * capacity the big frame spends.
    */
-  unshown: (limit: number) => `Not shown: this console carries at most ${limit} live tile pictures at once, and every place is taken by a tile above this one.`,
+  unshown: (limit: number) => `Not shown: the control plane carries at most ${limit} live tile picture(s) at once beside the operator's own frame, and every place is taken by a tile above this one.`,
+  /**
+   * A tile when the plane's capacity could not be read at all.
+   *
+   * The one thing this console must not do here is keep carrying pictures at the
+   * size it used to: the number it carried them at was its own invention, and a
+   * plane that refused the streams would leave the operator with a grid of
+   * unexplained empty frames. It carries none and says which fact is missing.
+   */
+  unmeasured: {
+    short: "Not shown",
+    long: "Not shown: this console could not read how much room the control plane has for live streams, so it is carrying no tile pictures rather than carrying more than the plane can hold.",
+  },
   /** What a tile the bound does not reach draws, since the whole sentence is longer than the tile. */
   unshownShort: "Not shown",
 } as const
@@ -120,11 +163,16 @@ export const liveTileCopy = {
  * It is a function rather than a JSX branch so the classification is testable on
  * its own: `refusedStreamSentence` reads the CONTROL PLANE's own refusal, so a
  * tile whose stream failed shows the classified reason the plane gave - the same
- * sentence the big frame shows - rather than a generic failure, and a device with
- * no current observation keeps the sentence naming the observation it lacks.
+ * sentence the big frame shows - rather than a generic failure, and a tile holding
+ * no place shows the plane's own bound rather than a bound this console invented.
  */
-export function tilePictureSentence(phase: LiveMirrorPhase, failure: string, device: MirrorDevice, viewing: boolean, hasClient: boolean): TileSentence {
-  if (!viewing) return { short: liveTileCopy.unshownShort, long: liveTileCopy.unshown(liveTileViewerLimit) }
+export function tilePictureSentence(phase: LiveMirrorPhase, failure: string, device: MirrorDevice, viewing: boolean, hasClient: boolean, budget: TileViewerBudget): TileSentence {
+  if (!viewing) {
+    // A tile the console is not carrying says why in the plane's own terms: the
+    // bound it did not reach, or the fact that the bound could not be read at all.
+    if (budget.kind === "unmeasured") return { short: liveTileCopy.unmeasured.short, long: liveTileCopy.unmeasured.long }
+    return { short: liveTileCopy.unshownShort, long: liveTileCopy.unshown(budget.limit) }
+  }
   if (!hasClient) return liveTileCopy.noControlPlane
   if (phase === "live") return liveTileCopy.live
   if (phase === "starting" || phase === "opening") return liveTileCopy.connecting

@@ -39,6 +39,8 @@ import {
 import { GetHaltRequestSchema, GetHaltResponseSchema, HaltState, SetHaltRequestSchema, SetHaltResponseSchema, SubmitActionRequestSchema, SubmitActionResponseSchema } from "@/gen/drift/v1/action_pb"
 import { KeyEventRequestSchema, KeyEventResponseSchema, SwipeRequestSchema, SwipeResponseSchema, TapRequestSchema, TapResponseSchema, TypeTextRequestSchema, TypeTextResponseSchema } from "@/gen/drift/v1/device_input_pb"
 import {
+  GetMirrorCapacityRequestSchema,
+  GetMirrorCapacityResponseSchema,
   GetMirrorStreamRequestSchema,
   GetMirrorStreamResponseSchema,
   NegotiateMirrorStreamRequestSchema,
@@ -49,7 +51,7 @@ import {
   StopMirrorStreamResponseSchema,
   type MirrorStream,
 } from "@/gen/drift/v1/device_mirror_pb"
-import { liveMirrorCopy, liveStreamView, transportRequestFor, type LiveMirrorTransportChoice, type LiveStreamView } from "@/lib/live-mirror"
+import { liveMirrorCopy, liveStreamView, mirrorCapacityView, purposeRequestFor, transportRequestFor, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView, type MirrorCapacityView } from "@/lib/live-mirror"
 import { ApplyDeviceSettingsRequestSchema, ApplyDeviceSettingsResponseSchema, DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
 import {
   DeleteArtifactRequestSchema,
@@ -981,8 +983,22 @@ export interface LiveMirrorClient {
    * chose. The transport is asked for by name rather than left to the control
    * plane's default, because this console renders both and the operator picked
    * one; the control plane carries what was asked for or refuses it.
+   *
+   * The PURPOSE is asked for the same way, and for a sharper reason: the plane
+   * spends its device-session capacity per purpose and keeps a place of it for the
+   * operator's own frame, so a grid tile that opened without saying it was one
+   * would spend the place the big frame needs. This console knows what it is
+   * opening - a tile or the frame the operator works from - and says so.
    */
-  startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice }): Promise<LiveStreamView>
+  startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice; purpose: LiveMirrorViewerPurpose }): Promise<LiveStreamView>
+  /**
+   * getCapacity reads the bound the control plane is actually carrying, which is
+   * what decides how many tiles this console may subscribe. It is a read and
+   * nothing else: the plane's capacity belongs to the deployment, and a console
+   * that could set it would be a console that could starve the operator's own
+   * frame.
+   */
+  getCapacity(workspaceId: string): Promise<MirrorCapacityView>
   negotiate(streamId: string, offerSdp: string): Promise<LiveStreamAnswer>
   stopStream(streamId: string): Promise<LiveStreamView>
   getStream(streamId: string): Promise<LiveStreamView>
@@ -1002,15 +1018,26 @@ export class DeviceMirrorClient implements LiveMirrorClient {
     this.json = json
     this.operatorId = operatorId
   }
-  async startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice }): Promise<LiveStreamView> {
+  async startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice; purpose: LiveMirrorViewerPurpose }): Promise<LiveStreamView> {
     const requestId = newRequestId()
     const response = await this.rpc.call("StartMirrorStream", StartMirrorStreamRequestSchema, StartMirrorStreamResponseSchema, {
       context: requestContext({ requestId, actorId: this.operatorId }),
       workspace: workspaceRef(request.workspaceId),
       deviceId: request.deviceId,
       transport: transportRequestFor(request.transport ?? "webrtc"),
+      purpose: purposeRequestFor(request.purpose),
     })
     return requireStream(response.stream)
+  }
+  async getCapacity(workspaceId: string): Promise<MirrorCapacityView> {
+    const response = await this.rpc.call("GetMirrorCapacity", GetMirrorCapacityRequestSchema, GetMirrorCapacityResponseSchema, {
+      workspace: workspaceRef(workspaceId),
+    })
+    // An absent capacity is a control plane that did not answer the question, and
+    // it must not read as a plane whose bound is zero: the console would then carry
+    // no tiles at all and blame its own allocation for a plane it could not read.
+    if (!response.capacity) throw new ConnectJsonError("internal", liveMirrorCopy.failure.noCapacity)
+    return mirrorCapacityView(response.capacity)
   }
   streamEndpoint(path: string): { url: string; headers: Record<string, string> } {
     return this.json.endpoint(path)

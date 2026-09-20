@@ -122,8 +122,8 @@ func (h *MirrorHost) State() string {
 		return "live mirror not started: " + h.reasonLine()
 	}
 	return fmt.Sprintf(
-		"live mirror armed (a device is captured only while a viewer is subscribed; %d device(s) mirrored right now)",
-		len(h.engine.Sessions()))
+		"live mirror armed (capacity %d device session(s) with %d kept for the operator's own frame - the console's grid may hold %d; a device is captured only while a viewer is subscribed; %d device(s) mirrored right now)",
+		h.engine.Capacity(), h.engine.OperatorReserve(), h.engine.AmbientCapacity(), len(h.engine.Sessions()))
 }
 
 // reasonLine never returns an empty explanation: a mirror that is not armed with

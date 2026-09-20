@@ -317,7 +317,7 @@ func main() {
 		log.Printf("live mirror transport not started: %v", streamsErr)
 	}
 	mirrorMounted := false
-	if mirrorRoute := deviceMirrorRoute(mirrorStreams, actionRuntime, labToken); mirrorRoute.Path != "" {
+	if mirrorRoute := deviceMirrorRoute(mirrorStreams, mirrorEngine, actionRuntime, store.NewMirrorEventService(db), labToken); mirrorRoute.Path != "" {
 		routes = append(routes, mirrorRoute)
 		mirrorMounted = true
 	}
@@ -383,12 +383,12 @@ func mirrorStreamTransport(engine *media.MirrorEngine, engineErr error) (*media.
 // The resolver is the same registry the input surface resolves devices through:
 // one vocabulary decides which transport a device is currently reachable at, and
 // the browser never names or receives one.
-func deviceMirrorRoute(streams *media.StreamTransport, resolver transportconnect.DeviceSerialResolver, token string) service.Route {
+func deviceMirrorRoute(streams *media.StreamTransport, engine *media.MirrorEngine, resolver transportconnect.DeviceSerialResolver, refusals transportconnect.MirrorRefusalRecorder, token string) service.Route {
 	if streams == nil {
 		log.Print("live mirror surface not mounted: no stream transport was constructed")
 		return service.Route{}
 	}
-	return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, token)
+	return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
 }
 
 // mirrorStreamPort adapts the media transport to the surface's own port: the
@@ -396,8 +396,8 @@ func deviceMirrorRoute(streams *media.StreamTransport, resolver transportconnect
 // handler needs. Nothing is derived here and nothing is wrapped twice.
 type mirrorStreamPort struct{ transport *media.StreamTransport }
 
-func (p mirrorStreamPort) Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind) (transportconnect.DeviceMirrorStream, error) {
-	carrier, err := p.transport.Open(ctx, deviceID, serial, transport)
+func (p mirrorStreamPort) Open(ctx context.Context, deviceID, serial string, transport media.MirrorTransportKind, purpose media.MirrorViewerPurpose) (transportconnect.DeviceMirrorStream, error) {
+	carrier, err := p.transport.Open(ctx, deviceID, serial, transport, purpose)
 	if err != nil {
 		return nil, err
 	}
@@ -456,7 +456,22 @@ func mirrorEngineFrom(labService *lab.Service) (*media.MirrorEngine, error) {
 	if err != nil {
 		return nil, err
 	}
-	return media.NewMirrorEngine(media.MirrorEngineConfig{Dialer: dialer})
+	// The bound is decided HERE and nowhere else. It is the plane's own
+	// device-session capacity, stated at composition from the deployment's
+	// configuration: the console's grid no longer keeps a copy of the number, it
+	// is told this one (see the capacity surface), so the two surfaces cannot
+	// disagree. `MaxSessions` and `OperatorReserve` are passed explicitly even when
+	// the deployment configured neither, so the number the engine carries is always
+	// a number this line stated.
+	capacity, reserve, capacityErr := media.SessionCapacityFromEnv(os.LookupEnv)
+	if capacityErr != nil {
+		return nil, capacityErr
+	}
+	return media.NewMirrorEngine(media.MirrorEngineConfig{
+		Dialer:          dialer,
+		MaxSessions:     capacity,
+		OperatorReserve: reserve,
+	})
 }
 
 // tokenState reports whether the lab route is guarded without ever rendering

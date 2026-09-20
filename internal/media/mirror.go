@@ -36,15 +36,36 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 const (
-	// DefaultMirrorInterval bounds one live mirror's lifetime when nothing else
-	// does. A mirror is not a background service: it exists for as long as an
-	// operator is watching, so it is started and stopped with the operator's
-	// session.
-	DefaultMirrorSubscribers = 4
+	// DefaultMirrorSessionCapacity is how many devices this plane mirrors at
+	// once when a deployment states no capacity of its own.
+	//
+	// It is the plane's DEVICE-SESSION capacity and is named for what it bounds,
+	// because the number it holds was read as a property of something else: it
+	// carried the name of a subscriber count, and a console that then allocated
+	// exactly that many tile viewers spent the whole of the plane's capacity on
+	// its own grid and left the operator's big frame - the fifth device - with
+	// nothing to open on. A deployment states its capacity at composition (see
+	// MirrorEngineConfig.MaxSessions); this is only what a caller that states
+	// none gets, and it is the one number the console reads back over the wire
+	// rather than keeping a copy of (see MirrorEngine.Capacity).
+	DefaultMirrorSessionCapacity = 4
+
+	// DefaultOperatorReserve is how many of the capacity are kept for the
+	// operator's own frame when a deployment states no reserve of its own.
+	//
+	// It is one place, because the operator works one device at a time: the big
+	// frame is the surface an operator acts from, and a frame that cannot open
+	// because a grid of tiles is already holding every session is a control room
+	// whose pictures cannot be touched. Ambient viewers - the console's tiles -
+	// may hold at most `capacity - reserve` sessions, and a device already being
+	// mirrored is JOINED rather than counted, so the reserve is never spent on a
+	// second capture of a screen something is already watching.
+	DefaultOperatorReserve = 1
 
 	// DefaultMirrorIdle bounds how long a mirror with no viewer is kept alive
 	// after its last one detaches. It is short on purpose: an unsubscribed device
@@ -102,8 +123,11 @@ type MirrorSession interface {
 	Fails() error
 	// Done is closed when the stream has ended, for any reason.
 	Done() <-chan struct{}
-	// Subscribe attaches one viewer and reports the subscription it may release.
-	Subscribe() (MirrorViewer, error)
+	// Subscribe attaches one viewer as the purpose it is given and reports the
+	// subscription it may release. Attaching is what tells the session whether
+	// the plane's ambient share is spent on it: a session an operator's own
+	// frame is watching is not a place the grid is holding.
+	Subscribe(purpose MirrorViewerPurpose) (MirrorViewer, error)
 	// LastFrameAt reports when the device last delivered a frame. It is what an
 	// idle check reads: a session whose device stopped encoding is stalled, and an
 	// operator must be told rather than shown a frozen picture.
@@ -250,6 +274,7 @@ type MirrorEngine struct {
 	dialer  MirrorDialer
 	idle    time.Duration
 	max     int
+	reserve int
 	queue   int
 	keyrefs map[string]time.Time
 
@@ -267,6 +292,80 @@ type MirrorEngine struct {
 	wg sync.WaitGroup
 }
 
+// MirrorViewerPurpose is what a viewer is, and it is the fact the plane's
+// capacity is spent against.
+//
+// The two purposes exist because the console draws two different things with the
+// same engine: a grid of ambient tiles, which is a fleet VIEW and may never
+// spend the whole of the plane's capacity, and the operator's own big frame,
+// which is where the work is done and which must open while that grid is drawing
+// its full allocation. A single "viewer" would make those one demand, and the one
+// demand that loses is the operator's: measured on this host, four tiles equalled
+// a bound of four, so the fifth device - the frame the operator opened - was
+// refused with "media: 4 devices are already being mirrored, which is the
+// configured bound" and every control intent after it had no session to travel
+// in.
+type MirrorViewerPurpose string
+
+const (
+	// PurposeOperator is the operator's own big frame: the surface a device is
+	// worked from. It may open any device while the plane has a session left,
+	// and it is what the reserve below the capacity is kept for.
+	PurposeOperator MirrorViewerPurpose = "operator"
+	// PurposeAmbient is one of the console's grid tiles: a fleet view that
+	// carries a picture and nothing else. It may hold at most
+	// `capacity - reserve` sessions, so the grid can never spend the place the
+	// operator's own frame needs.
+	PurposeAmbient MirrorViewerPurpose = "ambient"
+)
+
+// purposeOrDefault reads the purpose a caller stated, answering with the
+// operator's own frame when none was stated.
+//
+// The default is operator and not ambient, because the two mistakes are not
+// equal: a caller that declines to say what it is and is read as the grid loses
+// the operator a place, while one read as the operator's frame can only spend a
+// place the plane was holding for exactly that. `Start` is the operator's
+// default entry point, so the undeclared case matches it.
+func purposeOrDefault(purpose MirrorViewerPurpose) MirrorViewerPurpose {
+	if purpose == PurposeAmbient {
+		return PurposeAmbient
+	}
+	return PurposeOperator
+}
+
+// SessionCapacityError reports a device's session the engine refused to start
+// because the plane's own capacity had no place for it.
+//
+// It is a typed error rather than a sentence because two different records
+// depend on telling it apart from every other refusal: the plane has to write an
+// event naming this refusal (see the mirror refusal recorder), and the console
+// has to show the plane's own sentence rather than a generic "the stream failed".
+// A caller that read only the message could classify nothing.
+type SessionCapacityError struct {
+	// Capacity is the device-session capacity the plane is carrying.
+	Capacity int
+	// Purpose is what the refused viewer is.
+	Purpose MirrorViewerPurpose
+	// AmbientShare is how many of the capacity the ambient viewers may hold. It
+	// is the whole of the capacity for an operator request, which is refused
+	// only when there is genuinely no place at all - so a sentence that names it
+	// says whether the grid spent the operator's place or the plane is simply
+	// full.
+	AmbientShare int
+}
+
+func (e *SessionCapacityError) Error() string {
+	if e == nil {
+		return "media: the mirror engine refused a session"
+	}
+	if e.Purpose == PurposeAmbient {
+		return fmt.Sprintf("media: the console's grid is already carrying its %d device session(s) of the plane's %d, and the rest is kept for the operator's own frame",
+			e.AmbientShare, e.Capacity)
+	}
+	return fmt.Sprintf("media: %d devices are already being mirrored, which is the configured device session capacity", e.Capacity)
+}
+
 // MirrorEngineConfig configures the engine.
 type MirrorEngineConfig struct {
 	// Dialer starts one live session. It is required.
@@ -274,10 +373,21 @@ type MirrorEngineConfig struct {
 	// Idle bounds how long a session with no viewer is held open. Zero uses the
 	// default.
 	Idle time.Duration
-	// MaxSessions bounds how many devices may be mirrored at once. Zero uses the
-	// default. The bound exists so the engine's work is finite: a session beyond
-	// it is refused rather than queued.
+	// MaxSessions is the plane's DEVICE-SESSION CAPACITY: how many devices may
+	// be mirrored at once. Zero uses DefaultMirrorSessionCapacity.
+	//
+	// It is a deployment input and is stated at composition, because it is a
+	// fact about the host the plane runs on - how many captures and encoders it
+	// can carry - rather than a fact about whatever surface happens to be
+	// subscribed. The bound exists so the engine's work is finite: a session
+	// beyond it is refused rather than queued.
 	MaxSessions int
+	// OperatorReserve is how many of MaxSessions are kept for the operator's
+	// own frame: the console's ambient viewers may hold at most
+	// `MaxSessions - OperatorReserve` sessions between them. Zero uses
+	// DefaultOperatorReserve, and a reserve at or above the capacity is read as
+	// a capacity no tile may spend.
+	OperatorReserve int
 	// QueueDepth bounds one viewer's un-sent stream.
 	QueueDepth int
 }
@@ -291,7 +401,10 @@ func NewMirrorEngine(config MirrorEngineConfig) (*MirrorEngine, error) {
 		config.Idle = DefaultMirrorIdle
 	}
 	if config.MaxSessions <= 0 {
-		config.MaxSessions = DefaultMirrorSubscribers
+		config.MaxSessions = DefaultMirrorSessionCapacity
+	}
+	if config.OperatorReserve <= 0 {
+		config.OperatorReserve = DefaultOperatorReserve
 	}
 	if config.QueueDepth <= 0 {
 		config.QueueDepth = DefaultMirrorQueue
@@ -300,27 +413,85 @@ func NewMirrorEngine(config MirrorEngineConfig) (*MirrorEngine, error) {
 		dialer:   config.Dialer,
 		idle:     config.Idle,
 		max:      config.MaxSessions,
+		reserve:  config.OperatorReserve,
 		queue:    config.QueueDepth,
 		keyrefs:  make(map[string]time.Time),
 		sessions: make(map[string]*mirrorSession),
 	}, nil
 }
 
-// Start begins (or joins) the live mirror for one device and returns a viewer on
-// it.
+// Capacity reports the device-session capacity this engine was built with.
+//
+// It is read by the surface that states the plane's capacity to the console, so
+// the console's own tile allocation is derived from the bound the plane is
+// actually carrying rather than from a second copy of the number.
+func (e *MirrorEngine) Capacity() int {
+	if e == nil {
+		return 0
+	}
+	return e.max
+}
+
+// OperatorReserve reports how many of the capacity are kept for the operator's
+// own frame.
+func (e *MirrorEngine) OperatorReserve() int {
+	if e == nil {
+		return 0
+	}
+	return e.reserve
+}
+
+// AmbientCapacity reports how many sessions the console's ambient viewers - its
+// grid tiles - may hold between them: the capacity less the place kept for the
+// operator's own frame, and never a negative count.
+func (e *MirrorEngine) AmbientCapacity() int {
+	if e == nil {
+		return 0
+	}
+	share := e.max - e.reserve
+	if share < 0 {
+		return 0
+	}
+	return share
+}
+
+// Start begins (or joins) the live mirror for one device as the operator's own
+// frame, and returns a viewer on it.
+//
+// It is StartViewer with PurposeOperator, which is the purpose the operator's
+// big frame opens with: the frame is what the reserve below the plane's capacity
+// is kept for, and it is the caller that may spend it.
+func (e *MirrorEngine) Start(ctx context.Context, deviceID, serial string) (MirrorSession, MirrorViewer, error) {
+	return e.StartViewer(ctx, deviceID, serial, PurposeOperator)
+}
+
+// StartViewer begins (or joins) the live mirror for one device and returns a
+// viewer on it, spending the plane's capacity against the purpose it is given.
 //
 // Joining is deliberate: one device has one session, and the second viewer of the
 // same device attaches to the session already running instead of starting a
-// second capture of the same screen. For the same reason the session outlives the
-// call that started it: it belongs to the engine, which the process owns and
-// stops, and to the viewers subscribed to it - never to whichever request
-// happened to open it (see bind). The context here bounds the START, and its
-// values reach the session; its cancellation does not end a capture the engine is
-// carrying for a browser that is still attached to it.
-func (e *MirrorEngine) Start(ctx context.Context, deviceID, serial string) (MirrorSession, MirrorViewer, error) {
+// second capture of the same screen - so a frame opened for a device a tile is
+// already watching is JOINED and never refused, whatever the purpose, and the
+// place the session holds is the one it already held. For the same reason the
+// session outlives the call that started it: it belongs to the engine, which the
+// process owns and stops, and to the viewers subscribed to it - never to whichever
+// request happened to open it (see bind). The context here bounds the START, and
+// its values reach the session; its cancellation does not end a capture the engine
+// is carrying for a browser that is still attached to it.
+//
+// Two refusals are drawn against the capacity, and they are told apart because
+// they are two different facts. A plane whose sessions are all held refuses
+// everything with the capacity itself named. An ambient viewer - a grid tile -
+// is additionally refused once the tile share of the capacity is spent, so the
+// grid cannot spend the place the operator's own frame needs, and the sentence
+// says which of the two happened. A session an operator frame is watching is
+// never counted as the grid's: what is spent on a tile is a place no operator
+// is using.
+func (e *MirrorEngine) StartViewer(ctx context.Context, deviceID, serial string, purpose MirrorViewerPurpose) (MirrorSession, MirrorViewer, error) {
 	if deviceID == "" || serial == "" {
 		return nil, nil, errors.New("media: starting a mirror requires a device and its transport serial")
 	}
+	purpose = purposeOrDefault(purpose)
 	e.mu.Lock()
 	if e.stopped {
 		e.mu.Unlock()
@@ -328,9 +499,10 @@ func (e *MirrorEngine) Start(ctx context.Context, deviceID, serial string) (Mirr
 	}
 	session, exists := e.sessions[deviceID]
 	if !exists {
-		if len(e.sessions) >= e.max {
+		refusal := e.capacityRefusal(purpose)
+		if refusal != nil {
 			e.mu.Unlock()
-			return nil, nil, fmt.Errorf("media: %d devices are already being mirrored, which is the configured bound", e.max)
+			return nil, nil, refusal
 		}
 		session = newMirrorSession(deviceID, serial, e)
 		// The session takes its lifetime from this call's context, and ends
@@ -349,11 +521,38 @@ func (e *MirrorEngine) Start(ctx context.Context, deviceID, serial string) (Mirr
 	}
 	e.mu.Unlock()
 
-	viewer, err := session.Subscribe()
+	viewer, err := session.Subscribe(purpose)
 	if err != nil {
 		return nil, nil, err
 	}
 	return session, viewer, nil
+}
+
+// capacityRefusal decides whether a NEW session may be started for a viewer of
+// this purpose, and answers with the refusal that names it when it may not.
+//
+// It is called with the engine's mutex held, and it reads each live session's
+// own count of operator viewers - an atomic on the session rather than a lock
+// held across the engine's - so the decision never nests one session's mutex
+// inside the engine's.
+func (e *MirrorEngine) capacityRefusal(purpose MirrorViewerPurpose) error {
+	if len(e.sessions) >= e.max {
+		return &SessionCapacityError{Capacity: e.max, Purpose: purpose, AmbientShare: e.max}
+	}
+	if purpose != PurposeAmbient {
+		return nil
+	}
+	share := e.AmbientCapacity()
+	held := 0
+	for _, session := range e.sessions {
+		if session.operatorViewers.Load() == 0 {
+			held++
+		}
+	}
+	if held >= share {
+		return &SessionCapacityError{Capacity: e.max, Purpose: PurposeAmbient, AmbientShare: share}
+	}
+	return nil
 }
 
 // Sessions reports the devices being mirrored right now, in a stable order.
@@ -489,6 +688,15 @@ type mirrorSession struct {
 	closed     bool
 	stream     MirrorStream
 
+	// operatorViewers counts the viewers attached to this session that ARE the
+	// operator's own frame. It decides whether this session counts against the
+	// grid's share of the plane's capacity: a session an operator is watching is
+	// one the operator's frame needs, so the grid is not holding that place. It
+	// is read while the ENGINE's mutex is held (see capacityRefusal), which is
+	// why it is an atomic rather than a field behind this session's own mutex -
+	// the decision must not nest one session's lock inside the engine's.
+	operatorViewers atomic.Int32
+
 	// ctx is the session's own lifetime: it ends when the starter's context
 	// does, or when the session itself ends. cancel is what makes an ended
 	// session's reader stop, so the stream it owns is always closed.
@@ -580,10 +788,16 @@ func (s *mirrorSession) Fails() error {
 	return s.failed
 }
 
-// Subscribe attaches one viewer. A session that has ended refuses: the console
-// renders a session that failed, and it must never be handed a live-looking
-// viewer on a dead stream.
-func (s *mirrorSession) Subscribe() (MirrorViewer, error) {
+// Subscribe attaches one viewer as the purpose it is given. A session that has
+// ended refuses: the console renders a session that failed, and it must never be
+// handed a live-looking viewer on a dead stream.
+//
+// The purpose is recorded on the session as well as on the viewer, and it is what
+// makes the ambient share of the plane's capacity honest: a session an operator's
+// own frame is watching is not a place the grid is holding, so the grid is not
+// refused a brand-new session on account of a device the operator has open.
+func (s *mirrorSession) Subscribe(purpose MirrorViewerPurpose) (MirrorViewer, error) {
+	purpose = purposeOrDefault(purpose)
 	s.mu.Lock()
 	if s.closed {
 		failed := s.failed
@@ -601,10 +815,14 @@ func (s *mirrorSession) Subscribe() (MirrorViewer, error) {
 	viewer := &mirrorViewer{
 		id:      fmt.Sprintf("%s-v%d", s.deviceID, s.nextID),
 		session: s,
+		purpose: purpose,
 		queue:   make(chan StreamFrame, s.engine.queue),
 		done:    make(chan struct{}),
 	}
 	s.viewers[viewer.id] = viewer
+	if purpose == PurposeOperator {
+		s.operatorViewers.Add(1)
+	}
 	// A viewer can only decode from a key frame. A viewer attaching mid-stream
 	// is primed from the cached one; this is the case that cache cannot cover -
 	// a viewer attaching to a live stream that has produced no key frame yet -
@@ -882,6 +1100,10 @@ func (s *mirrorSession) trackParameterSets(data []byte) {
 type mirrorViewer struct {
 	id      string
 	session *mirrorSession
+	// purpose is what this viewer is: the operator's own frame, or one of the
+	// console's ambient tiles. It is read when the viewer detaches, so a
+	// session's count of operator viewers falls with the frame that opened it.
+	purpose MirrorViewerPurpose
 	queue   chan StreamFrame
 	done    chan struct{}
 	once    sync.Once
@@ -968,6 +1190,13 @@ func (v *mirrorViewer) Close() {
 		close(v.queue)
 		v.mu.Unlock()
 		close(v.done)
+		if v.purpose == PurposeOperator {
+			// This frame is no longer watching, so the place it held against the
+			// operator's reserve is given back: what the grid may hold is read
+			// from the sessions an operator is watching NOW, never from the ones
+			// they once opened.
+			v.session.operatorViewers.Add(-1)
+		}
 		v.session.detach(v.id)
 	})
 }

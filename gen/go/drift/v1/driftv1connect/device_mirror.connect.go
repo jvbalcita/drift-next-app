@@ -45,6 +45,9 @@ const (
 	// DeviceMirrorServiceGetMirrorStreamProcedure is the fully-qualified name of the
 	// DeviceMirrorService's GetMirrorStream RPC.
 	DeviceMirrorServiceGetMirrorStreamProcedure = "/drift.v1.DeviceMirrorService/GetMirrorStream"
+	// DeviceMirrorServiceGetMirrorCapacityProcedure is the fully-qualified name of the
+	// DeviceMirrorService's GetMirrorCapacity RPC.
+	DeviceMirrorServiceGetMirrorCapacityProcedure = "/drift.v1.DeviceMirrorService/GetMirrorCapacity"
 )
 
 // DeviceMirrorServiceClient is a client for the drift.v1.DeviceMirrorService service.
@@ -53,6 +56,9 @@ type DeviceMirrorServiceClient interface {
 	NegotiateMirrorStream(context.Context, *connect.Request[v1.NegotiateMirrorStreamRequest]) (*connect.Response[v1.NegotiateMirrorStreamResponse], error)
 	StopMirrorStream(context.Context, *connect.Request[v1.StopMirrorStreamRequest]) (*connect.Response[v1.StopMirrorStreamResponse], error)
 	GetMirrorStream(context.Context, *connect.Request[v1.GetMirrorStreamRequest]) (*connect.Response[v1.GetMirrorStreamResponse], error)
+	// GetMirrorCapacity reads the plane's device-session bound. It reads; it never
+	// opens, negotiates or ends anything.
+	GetMirrorCapacity(context.Context, *connect.Request[v1.GetMirrorCapacityRequest]) (*connect.Response[v1.GetMirrorCapacityResponse], error)
 }
 
 // NewDeviceMirrorServiceClient constructs a client for the drift.v1.DeviceMirrorService service. By
@@ -90,6 +96,12 @@ func NewDeviceMirrorServiceClient(httpClient connect.HTTPClient, baseURL string,
 			connect.WithSchema(deviceMirrorServiceMethods.ByName("GetMirrorStream")),
 			connect.WithClientOptions(opts...),
 		),
+		getMirrorCapacity: connect.NewClient[v1.GetMirrorCapacityRequest, v1.GetMirrorCapacityResponse](
+			httpClient,
+			baseURL+DeviceMirrorServiceGetMirrorCapacityProcedure,
+			connect.WithSchema(deviceMirrorServiceMethods.ByName("GetMirrorCapacity")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -99,6 +111,7 @@ type deviceMirrorServiceClient struct {
 	negotiateMirrorStream *connect.Client[v1.NegotiateMirrorStreamRequest, v1.NegotiateMirrorStreamResponse]
 	stopMirrorStream      *connect.Client[v1.StopMirrorStreamRequest, v1.StopMirrorStreamResponse]
 	getMirrorStream       *connect.Client[v1.GetMirrorStreamRequest, v1.GetMirrorStreamResponse]
+	getMirrorCapacity     *connect.Client[v1.GetMirrorCapacityRequest, v1.GetMirrorCapacityResponse]
 }
 
 // StartMirrorStream calls drift.v1.DeviceMirrorService.StartMirrorStream.
@@ -121,12 +134,20 @@ func (c *deviceMirrorServiceClient) GetMirrorStream(ctx context.Context, req *co
 	return c.getMirrorStream.CallUnary(ctx, req)
 }
 
+// GetMirrorCapacity calls drift.v1.DeviceMirrorService.GetMirrorCapacity.
+func (c *deviceMirrorServiceClient) GetMirrorCapacity(ctx context.Context, req *connect.Request[v1.GetMirrorCapacityRequest]) (*connect.Response[v1.GetMirrorCapacityResponse], error) {
+	return c.getMirrorCapacity.CallUnary(ctx, req)
+}
+
 // DeviceMirrorServiceHandler is an implementation of the drift.v1.DeviceMirrorService service.
 type DeviceMirrorServiceHandler interface {
 	StartMirrorStream(context.Context, *connect.Request[v1.StartMirrorStreamRequest]) (*connect.Response[v1.StartMirrorStreamResponse], error)
 	NegotiateMirrorStream(context.Context, *connect.Request[v1.NegotiateMirrorStreamRequest]) (*connect.Response[v1.NegotiateMirrorStreamResponse], error)
 	StopMirrorStream(context.Context, *connect.Request[v1.StopMirrorStreamRequest]) (*connect.Response[v1.StopMirrorStreamResponse], error)
 	GetMirrorStream(context.Context, *connect.Request[v1.GetMirrorStreamRequest]) (*connect.Response[v1.GetMirrorStreamResponse], error)
+	// GetMirrorCapacity reads the plane's device-session bound. It reads; it never
+	// opens, negotiates or ends anything.
+	GetMirrorCapacity(context.Context, *connect.Request[v1.GetMirrorCapacityRequest]) (*connect.Response[v1.GetMirrorCapacityResponse], error)
 }
 
 // NewDeviceMirrorServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -160,6 +181,12 @@ func NewDeviceMirrorServiceHandler(svc DeviceMirrorServiceHandler, opts ...conne
 		connect.WithSchema(deviceMirrorServiceMethods.ByName("GetMirrorStream")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceMirrorServiceGetMirrorCapacityHandler := connect.NewUnaryHandler(
+		DeviceMirrorServiceGetMirrorCapacityProcedure,
+		svc.GetMirrorCapacity,
+		connect.WithSchema(deviceMirrorServiceMethods.ByName("GetMirrorCapacity")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.DeviceMirrorService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceMirrorServiceStartMirrorStreamProcedure:
@@ -170,6 +197,8 @@ func NewDeviceMirrorServiceHandler(svc DeviceMirrorServiceHandler, opts ...conne
 			deviceMirrorServiceStopMirrorStreamHandler.ServeHTTP(w, r)
 		case DeviceMirrorServiceGetMirrorStreamProcedure:
 			deviceMirrorServiceGetMirrorStreamHandler.ServeHTTP(w, r)
+		case DeviceMirrorServiceGetMirrorCapacityProcedure:
+			deviceMirrorServiceGetMirrorCapacityHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -193,4 +222,8 @@ func (UnimplementedDeviceMirrorServiceHandler) StopMirrorStream(context.Context,
 
 func (UnimplementedDeviceMirrorServiceHandler) GetMirrorStream(context.Context, *connect.Request[v1.GetMirrorStreamRequest]) (*connect.Response[v1.GetMirrorStreamResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceMirrorService.GetMirrorStream is not implemented"))
+}
+
+func (UnimplementedDeviceMirrorServiceHandler) GetMirrorCapacity(context.Context, *connect.Request[v1.GetMirrorCapacityRequest]) (*connect.Response[v1.GetMirrorCapacityResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceMirrorService.GetMirrorCapacity is not implemented"))
 }

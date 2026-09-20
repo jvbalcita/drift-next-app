@@ -282,6 +282,43 @@ func TestDiscoverySimplificationAppliesWithLegacyLifecycleRows(t *testing.T) {
 	}
 }
 
+// TestSQLiteMigrationSeriesIsEmbeddedWhole is the guard on the embed directive in
+// sqlite_files.go, which names every migration by version pattern rather than
+// globbing the directory. A migration added to the directory but not to that list is
+// never applied to any database, and the tests that run migrations all read the
+// embedded files - so the series would silently stay at its previous version and a
+// new migration's absence would look like a schema that was never asked to change.
+//
+// The historical PostgreSQL 0001 bootstrap is the file that list deliberately leaves
+// out (see the comment on SQLiteFiles), so it is the one file excused here.
+func TestSQLiteMigrationSeriesIsEmbeddedWhole(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("ReadDir(.) error = %v", err)
+	}
+	var onDisk int
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".sql") || strings.HasPrefix(name, "0001_") {
+			continue
+		}
+		onDisk++
+		if _, err := fs.Stat(migrations.SQLiteFiles, name); err != nil {
+			t.Errorf("%s is in db/migrations but not in the embedded SQLiteFiles series: it would never be applied", name)
+		}
+	}
+	embedded, err := fs.ReadDir(migrations.SQLiteFiles, ".")
+	if err != nil {
+		t.Fatalf("ReadDir(SQLiteFiles) error = %v", err)
+	}
+	if embedded == nil || onDisk == 0 {
+		t.Fatal("no SQLite migrations were found to compare")
+	}
+	if onDisk != 26 {
+		t.Errorf("db/migrations holds %d SQLite migrations, and this test is the record of how many the series has", onDisk)
+	}
+}
+
 func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	db := migratedDB(t)
 
@@ -289,8 +326,8 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM drift_schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("ledger count error = %v", err)
 	}
-	if count != 25 {
-		t.Fatalf("ledger count = %d, want 25 SQLite migrations", count)
+	if count != 26 {
+		t.Fatalf("ledger count = %d, want 26 SQLite migrations", count)
 	}
 
 	var foreignKeys string
