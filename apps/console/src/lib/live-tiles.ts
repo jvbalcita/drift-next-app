@@ -120,6 +120,19 @@ export const liveTileCopy = {
   live: { short: "Live", long: "Live: this tile is carrying the device's screen as the stream encodes it." },
   /** A stream that is connected and has carried nothing yet is not a picture. */
   connecting: { short: "Opening", long: "The stream is connected and has not carried a picture yet, so this tile is not showing the device's screen." },
+  /**
+   * The console could not READ the plane for this tile's stream.
+   *
+   * It is not the plane reporting a failure and it must not read as one: the
+   * stream is left open and its picture is left in the tile, while the tile says
+   * the one true thing - the console cannot vouch for what it is showing. A tile
+   * that dropped its picture here would turn a two-second hiccup in the control
+   * plane into a grid-wide outage of the operator's own reading.
+   */
+  unreadable: {
+    short: "No report",
+    long: "No report: the control plane could not be read for this tile's stream, so this console is not claiming it is live. Nothing was stopped and the stream is left open, with its read retried on a bounded backoff.",
+  },
   idle: { short: "No picture", long: "No live picture is carried for this device in this tile." },
   noControlPlane: {
     short: "Not shown",
@@ -176,6 +189,10 @@ export function tilePictureSentence(phase: LiveMirrorPhase, failure: string, dev
   if (!hasClient) return liveTileCopy.noControlPlane
   if (phase === "live") return liveTileCopy.live
   if (phase === "starting" || phase === "opening") return liveTileCopy.connecting
+  // A read the console could not complete is named as itself, before the generic
+  // classification below: a tile that fell through to "Not live: <failure>" here
+  // would borrow the words of a failure the plane never reported.
+  if (phase === "unreadable") return liveTileCopy.unreadable
   if (phase === "idle") return liveTileCopy.idle
   if (phase === "unavailable") return liveTileCopy.noControlPlane
   if (phase === "ended") return liveTileCopy.ended

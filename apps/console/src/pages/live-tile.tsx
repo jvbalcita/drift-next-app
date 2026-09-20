@@ -2,6 +2,7 @@ import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
 import type { DeviceView } from "@/lib/domain/control-plane"
 import type { LiveMirrorTransportChoice } from "@/lib/live-mirror"
+import { livePictureHeld } from "@/lib/live-mirror"
 import { tilePictureSentence, type TileViewerBudget } from "@/lib/live-tiles"
 
 /**
@@ -66,7 +67,7 @@ export function LiveTilePicture({ device, mirror, transport, workspaceId, viewin
   // nothing else, so it is an ambient viewer, and it is the kind the plane may
   // refuse when the grid's share is spent.
   const { phase, failure, attachVideo } = useLiveMirror(subscribes ? device.id : "", { client: mirror, workspaceId, transport, purpose: "ambient" })
-  const showing = phase === "live" || phase === "starting"
+  const showing = livePictureHeld(phase)
   const sentence = tilePictureSentence(phase, failure, device, viewing, Boolean(mirror), budget)
   return <>
     {subscribes ? <video ref={attachVideo} data-testid={`live-tile-video-${device.id}`} muted playsInline autoPlay aria-hidden="true" className={`absolute inset-0 size-full object-contain ${showing ? "" : "invisible"}`} /> : null}
