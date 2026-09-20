@@ -1,0 +1,111 @@
+{
+  "MeasuredAt": "2026-09-20T23:47:53Z",
+  "Host": "ArtisanClaws-MacBook-Pro.local",
+  "HostLoad": "{ 1.70 2.15 2.40 }",
+  "ADBVersion": "Android Debug Bridge version 1.0.41",
+  "ScrcpyServerPath": "/opt/homebrew/share/scrcpy/scrcpy-server",
+  "DeviceCount": 4,
+  "HoldSeconds": 20,
+  "Counts": [
+    4
+  ],
+  "Runs": [
+    {
+      "Concurrency": 4,
+      "Requested": 4,
+      "Opened": 4,
+      "HoldSeconds": 20,
+      "AggregateMbps": 8.875622400000001,
+      "StalledStreams": 0,
+      "FirstStallAt": 0,
+      "Degraded": false,
+      "SerialMask": [
+        "device-sha256:0d658",
+        "device-sha256:1c546",
+        "device-sha256:bbcd4",
+        "device-sha256:a52cc"
+      ],
+      "OpenFailures": null,
+      "Streams": [
+        {
+          "Serial": "device-sha256:0d658",
+          "Width": 510,
+          "Height": 1080,
+          "Frames": 188,
+          "KeyFrames": 2,
+          "Configs": 0,
+          "Bytes": 5680558,
+          "SteadyFrames": 124,
+          "SteadyBytes": 4314672,
+          "FPS": 8.266666666666667,
+          "Mbps": 2.3011584,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 10115,
+          "PTSDeltaMedianUS": 100000,
+          "PTSDeltaMaxUS": 1041738,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:1c546",
+          "Width": 510,
+          "Height": 1080,
+          "Frames": 181,
+          "KeyFrames": 2,
+          "Configs": 0,
+          "Bytes": 5207518,
+          "SteadyFrames": 121,
+          "SteadyBytes": 3983584,
+          "FPS": 8.066666666666666,
+          "Mbps": 2.1245781333333333,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 16283,
+          "PTSDeltaMedianUS": 100000,
+          "PTSDeltaMaxUS": 1011544,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:bbcd4",
+          "Width": 510,
+          "Height": 1080,
+          "Frames": 175,
+          "KeyFrames": 2,
+          "Configs": 0,
+          "Bytes": 5425790,
+          "SteadyFrames": 121,
+          "SteadyBytes": 4311552,
+          "FPS": 8.066666666666666,
+          "Mbps": 2.2994944,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 15481,
+          "PTSDeltaMedianUS": 100000,
+          "PTSDeltaMaxUS": 1043040,
+          "Ended": ""
+        },
+        {
+          "Serial": "device-sha256:a52cc",
+          "Width": 510,
+          "Height": 1080,
+          "Frames": 132,
+          "KeyFrames": 2,
+          "Configs": 0,
+          "Bytes": 4666222,
+          "SteadyFrames": 89,
+          "SteadyBytes": 4031984,
+          "FPS": 5.933333333333334,
+          "Mbps": 2.1503914666666666,
+          "StalledSeconds": 0,
+          "FirstStallSecond": 0,
+          "PTSDeltaMinUS": 8477,
+          "PTSDeltaMedianUS": 100000,
+          "PTSDeltaMaxUS": 1194552,
+          "Ended": ""
+        }
+      ],
+      "Note": ""
+    }
+  ],
+  "Conclusion": "no stream stalled at any measured point; 4 concurrent live session(s) were carried cleanly, with every device opening and every stream carrying its whole window; largest measured point: 4"
+}

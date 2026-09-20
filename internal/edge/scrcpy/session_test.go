@@ -399,18 +399,26 @@ func TestStartDerivesTheTunnelAndTheLaunchFromOneSessionID(t *testing.T) {
 		"com.genymobile.scrcpy.Server 4.1",
 		"scid=2abc1234",
 		"control=true",
-		"tunnel_forward=false",
 		"send_frame_meta=true",
-		"send_stream_meta=true",
 		"send_device_meta=false",
 		"audio=false",
-		"cleanup=true",
 		"video_codec_options=i-frame-interval:int=2",
 		"CLASSPATH=" + adb.MirrorServerDevicePath,
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("launch %q does not carry %q", joined, want)
 		}
+	}
+	// And the launch this client starts is one the DEVICE can read. ACodec
+	// copies the server process's own command line into a fixed 264-byte buffer
+	// while it names the app whose encoder it configures, and a server launched
+	// past that dies inside the codec stack before its first frame - measured on
+	// the lab fleet at 263 bytes streaming and 264 aborting - so the client's
+	// half of the bound is asserted here, from the array it actually starts.
+	commandLine := strings.Join(launch[2:], " ")
+	if len(commandLine) > adb.MirrorLaunchCommandLineLimit {
+		t.Fatalf("the launch's command line is %d bytes, over the %d this fleet's device tolerates: %q",
+			len(commandLine), adb.MirrorLaunchCommandLineLimit, commandLine)
 	}
 	// Every token is a token this client built: a printable run that no shell can
 	// read as more than one word. The launch travels through `adb shell`, so a
