@@ -121,9 +121,11 @@ func (h *MirrorHost) State() string {
 	if h == nil || h.engine == nil {
 		return "live mirror not started: " + h.reasonLine()
 	}
+	preview := h.engine.Preview()
 	return fmt.Sprintf(
-		"live mirror armed (capacity %d device session(s) with %d kept for the operator's own frame - the console's grid may hold %d; a device is captured only while a viewer is subscribed; %d device(s) mirrored right now)",
-		h.engine.Capacity(), h.engine.OperatorReserve(), h.engine.AmbientCapacity(), len(h.engine.Sessions()))
+		"live mirror armed (capacity %d device session(s) with %d kept for the operator's own frame - the console's grid may hold %d; the grid's preview setting is %s at %d fps, and the operator's own frame is carried at its own profile and never at that setting; a device is captured only while a viewer is subscribed; %d device(s) mirrored right now)",
+		h.engine.Capacity(), h.engine.OperatorReserve(), h.engine.AmbientCapacity(),
+		preview.Quality, preview.FrameRate, len(h.engine.Sessions()))
 }
 
 // reasonLine never returns an empty explanation: a mirror that is not armed with

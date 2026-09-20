@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { browserMirrorPlaybackFactory, type MirrorPlayback, type MirrorPlaybackFactory } from "@/lib/api/mirror-playback"
-import { liveMirrorCopy, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
+import { liveMirrorCopy, type LiveMirrorPhase, type LiveMirrorPreview, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
 
 /**
  * The browser's half of one live stream.
@@ -128,6 +128,20 @@ export interface UseLiveMirrorOptions {
    * is the demand the reserve exists for.
    */
   purpose?: LiveMirrorViewerPurpose
+  /**
+   * previewQuality and previewFrameRate are the workspace's encode setting for
+   * the grid's tiles: the level and the capture rate the operator chose in the
+   * workspace panel. They are stated on an ambient stream and are a bound the
+   * plane applies to the picture; they are not sent for the operator's own frame,
+   * which the plane carries at its own profile.
+   *
+   * They are two values rather than one setting object because this hook opens a
+   * stream from an effect: an object rebuilt on every render would be a new
+   * dependency each time, and the effect would reopen the device's stream on every
+   * render the operator's console made.
+   */
+  previewQuality?: LiveMirrorPreview["quality"]
+  previewFrameRate?: number
   /** peerFactory is the seam a test supplies in place of the browser's WebRTC stack. */
   peerFactory?: MirrorPeerFactory
   /** playbackFactory is the seam a test supplies in place of the browser's media stack. */
@@ -234,7 +248,7 @@ export function mirrorRetryDelayMs(consecutiveFailures: number, baseMs: number, 
 }
 
 export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = {}): LiveMirrorSession {
-  const { client, workspaceId = "", transport = "webrtc", purpose = "operator", peerFactory, playbackFactory, pollIntervalMs = defaultMirrorPollIntervalMs, pollFailureLimit = defaultMirrorPollFailureLimit, pollRetryCeilingMs = defaultMirrorPollRetryCeilingMs, reopenLimit = defaultMirrorReopenLimit, schedule = browserMirrorSchedule } = options
+  const { client, workspaceId = "", transport = "webrtc", purpose = "operator", previewQuality, previewFrameRate, peerFactory, playbackFactory, pollIntervalMs = defaultMirrorPollIntervalMs, pollFailureLimit = defaultMirrorPollFailureLimit, pollRetryCeilingMs = defaultMirrorPollRetryCeilingMs, reopenLimit = defaultMirrorReopenLimit, schedule = browserMirrorSchedule } = options
   const [phase, setPhase] = useState<LiveMirrorPhase>("idle")
   const [stream, setStream] = useState<LiveStreamView | null>(null)
   const [failure, setFailure] = useState("")
@@ -273,6 +287,13 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
     let cancelScheduled: (() => void) | null = null
     let readFailures = 0
     let reopens = 0
+
+    // The workspace's encode setting, as this effect's own value: it is built once
+    // per run of the effect from the two values it depends on, so the request
+    // carries the setting the operator had chosen when this stream was opened
+    // rather than whatever the panel says at the moment the request is made.
+    const workspacePreview: LiveMirrorPreview | undefined =
+      previewQuality === undefined || previewFrameRate === undefined ? undefined : { quality: previewQuality, frameRate: previewFrameRate }
 
     const closePicture = () => {
       peer?.close()
@@ -433,7 +454,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
      */
     async function open() {
       try {
-        const opened = await client!.startStream({ workspaceId, deviceId, transport, purpose })
+        const opened = await client!.startStream({ workspaceId, deviceId, transport, purpose, preview: workspacePreview })
         if (disposed || settled) {
           // A stream that arrived after this session ended is given straight back:
           // this is the third deliberate stop above.
@@ -524,7 +545,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       release()
       teardownRef.current = null
     }
-  }, [attempt, client, deviceId, peerFactory, playbackFactory, pollFailureLimit, pollRetryCeilingMs, pollIntervalMs, purpose, reopenLimit, schedule, transport, workspaceId])
+  }, [attempt, client, deviceId, peerFactory, playbackFactory, pollFailureLimit, pollRetryCeilingMs, pollIntervalMs, previewFrameRate, previewQuality, purpose, reopenLimit, schedule, transport, workspaceId])
 
   return { phase, stream, failure, attachVideo, retry, stop }
 }

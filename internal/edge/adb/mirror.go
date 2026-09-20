@@ -54,7 +54,8 @@ const (
 	MirrorAbstractSocketPrefix = "scrcpy_"
 
 	// MirrorIDRIntervalOption asks the device's encoder for an IDR every two
-	// seconds, in the form scrcpy passes a MediaCodec key through.
+	// seconds, in the form scrcpy passes a MediaCodec key through. It is the
+	// cadence the OPERATOR's own frame is carried at.
 	//
 	// Its value is pinned because of what this fleet measured: the screen
 	// encoder emits ONE IDR per session unasked, so a receiver that missed frame
@@ -64,10 +65,20 @@ const (
 	// it.
 	MirrorIDRIntervalOption = "i-frame-interval:int=2"
 
+	// MirrorAmbientIDRIntervalOption is the same option at the cadence an
+	// AMBIENT tile's stream is carried at: one second rather than two.
+	//
+	// A tile that attaches waits for the next IDR before it has a first
+	// picture, and that wait is exactly what the tile's "Opening" state is. A
+	// grid attaching at once therefore pays one interval each, so the shorter
+	// cadence is the grid's own cost and the reason the two kinds of viewer have
+	// two intervals.
+	MirrorAmbientIDRIntervalOption = "i-frame-interval:int=1"
+
 	// MirrorServerLaunchArity is the exact number of tokens in the launch. The
 	// admission is arity-fixed: an added, removed or reordered token is a
 	// different array and is refused.
-	MirrorServerLaunchArity = 17
+	MirrorServerLaunchArity = 20
 
 	// maxMirrorHostPathLength bounds the host path a push may name.
 	maxMirrorHostPathLength = 512
@@ -155,9 +166,23 @@ func MirrorReverseArgv(sessionID uint32, port int, remove bool) ([]string, error
 //
 // The device-side server is what captures the screen and injects input. It is
 // launched once per session and exits with it.
-func MirrorServerLaunchArgv(sessionID uint32, logLevel string, keepAwake bool) ([]string, error) {
+//
+// The profile is the encode bound this stream is carried under, and every one of
+// its three numbers reaches the device as its own token: `max_size` bounds what
+// the encoder may produce, `max_fps` how often, and `video_bit_rate` how many
+// bits it may spend. A profile whose numbers this builder cannot render as
+// admitted tokens is refused here rather than launched at the device's own
+// uncapped default.
+func MirrorServerLaunchArgv(sessionID uint32, logLevel string, keepAwake bool, profile MirrorEncodeProfile) ([]string, error) {
 	if _, ok := mirrorLogLevels[logLevel]; !ok {
 		return nil, fmt.Errorf("%w: %q is not a device server log level", ErrMirrorShapeInvalid, logLevel)
+	}
+	if err := profile.Validate(); err != nil {
+		return nil, err
+	}
+	idrOption, err := mirrorIDRIntervalOption(profile.IDRIntervalSeconds)
+	if err != nil {
+		return nil, err
 	}
 	sessionHex, err := mirrorSessionIDHex(sessionID)
 	if err != nil {
@@ -179,7 +204,16 @@ func MirrorServerLaunchArgv(sessionID uint32, logLevel string, keepAwake bool) (
 		// never keeps a capture server of an unknown revision.
 		"cleanup=true",
 		"stay_awake=" + strconv.FormatBool(keepAwake),
-		"video_codec_options=" + MirrorIDRIntervalOption,
+		// The encode bound. It is stated on EVERY launch, including a level
+		// whose size is the device's own: `max_size=0` is scrcpy's "no
+		// downscale", so a level with a native size still carries a stated size
+		// and is still bounded by the bit rate beside it. An omitted token would
+		// be a stream whose bound is the device's own default, which is the
+		// unbounded encoder this bound exists to close.
+		"max_size=" + strconv.Itoa(profile.MaxSize),
+		"max_fps=" + strconv.Itoa(profile.MaxFPS),
+		"video_bit_rate=" + strconv.Itoa(profile.BitRate),
+		"video_codec_options=" + idrOption,
 	}, nil
 }
 
@@ -259,9 +293,20 @@ const (
 )
 
 // matchesMirrorServerLaunch recognises the device-side server launch. It is an
-// arity-fixed array with three bounded positions; every other position is a
+// arity-fixed array with six bounded positions; every other position is a
 // literal spelled here, so an added, removed, reordered or substituted option is
 // a different array and stays refused.
+//
+// The three encode-bound positions are bounded to the SET the profile table
+// states - the sizes and the bit rates a level may be carried at, and the two
+// keyframe cadences - rather than to a numeric range. A range would admit a
+// bound no level produces, which is a stream bounded by a number nobody chose;
+// the set admits exactly the bounds this product builds.
+//
+// The options are order-fixed here by construction rather than because the
+// device requires it: scrcpy's server dispatches on each option's own key, so a
+// reordered array is a different shape this product never builds, and refusing
+// it keeps the admission a description of the shapes the builders produce.
 func matchesMirrorServerLaunch(args []string) bool {
 	if len(args) != MirrorServerLaunchArity {
 		return false
@@ -280,13 +325,61 @@ func matchesMirrorServerLaunch(args []string) bool {
 		12: "send_stream_meta=true",
 		13: "send_frame_meta=true",
 		14: "cleanup=true",
-		16: "video_codec_options=" + MirrorIDRIntervalOption,
 	} {
 		if args[index] != want {
 			return false
 		}
 	}
-	return isMirrorSessionIDToken(args[6]) && isMirrorLogLevelToken(args[7]) && isMirrorStayAwakeToken(args[15])
+	return isMirrorSessionIDToken(args[6]) &&
+		isMirrorLogLevelToken(args[7]) &&
+		isMirrorStayAwakeToken(args[15]) &&
+		isMirrorMaxSizeToken(args[16]) &&
+		isMirrorMaxFPSToken(args[17]) &&
+		isMirrorBitRateToken(args[18]) &&
+		isMirrorCodecOptionsToken(args[19])
+}
+
+// isMirrorMaxSizeToken reports the launch's `max_size` option: one of the sizes
+// the profile table states, in canonical decimal form.
+func isMirrorMaxSizeToken(token string) bool {
+	value, ok := strings.CutPrefix(token, "max_size=")
+	if !ok {
+		return false
+	}
+	_, admitted := admittedPreviewSizes()[value]
+	return admitted
+}
+
+// isMirrorMaxFPSToken reports the launch's `max_fps` option: a canonical decimal
+// capture rate inside the range this product asks for.
+func isMirrorMaxFPSToken(token string) bool {
+	value, ok := strings.CutPrefix(token, "max_fps=")
+	if !ok {
+		return false
+	}
+	return isBoundedDecimalBetween(value, MirrorMinFrameRate, MirrorMaxFrameRate)
+}
+
+// isMirrorBitRateToken reports the launch's `video_bit_rate` option: one of the
+// bit rates the profile table states, in bits per second.
+func isMirrorBitRateToken(token string) bool {
+	value, ok := strings.CutPrefix(token, "video_bit_rate=")
+	if !ok {
+		return false
+	}
+	_, admitted := admittedPreviewBitRates()[value]
+	return admitted
+}
+
+// isMirrorCodecOptionsToken reports the launch's `video_codec_options` option:
+// one of the keyframe cadences this product asks for, and nothing else.
+func isMirrorCodecOptionsToken(token string) bool {
+	value, ok := strings.CutPrefix(token, "video_codec_options=")
+	if !ok {
+		return false
+	}
+	_, admitted := admittedIDRIntervalOptions[value]
+	return admitted
 }
 
 // IsMirrorHostServerPath reports a host path a server push could have named: an

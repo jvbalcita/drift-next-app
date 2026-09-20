@@ -51,7 +51,7 @@ import {
   StopMirrorStreamResponseSchema,
   type MirrorStream,
 } from "@/gen/drift/v1/device_mirror_pb"
-import { liveMirrorCopy, liveStreamView, mirrorCapacityView, purposeRequestFor, transportRequestFor, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView, type MirrorCapacityView } from "@/lib/live-mirror"
+import { liveMirrorCopy, liveStreamView, mirrorCapacityView, previewRequestFor, purposeRequestFor, transportRequestFor, type LiveMirrorPreview, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView, type MirrorCapacityView } from "@/lib/live-mirror"
 import { ApplyDeviceSettingsRequestSchema, ApplyDeviceSettingsResponseSchema, DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
 import {
   DeleteArtifactRequestSchema,
@@ -994,8 +994,14 @@ export interface LiveMirrorClient {
    * operator's own frame, so a grid tile that opened without saying it was one
    * would spend the place the big frame needs. This console knows what it is
    * opening - a tile or the frame the operator works from - and says so.
+   *
+   * The PREVIEW is the workspace's own encode setting, and it is stated for an
+   * ambient tile because the operator chose it and it is a bound the plane applies
+   * to the picture they are shown. An operator's own frame states none: the plane
+   * carries that frame at its own profile, so a level chosen for the grid can
+   * never make the frame the work happens in blurry.
    */
-  startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice; purpose: LiveMirrorViewerPurpose }): Promise<LiveStreamView>
+  startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice; purpose: LiveMirrorViewerPurpose; preview?: LiveMirrorPreview }): Promise<LiveStreamView>
   /**
    * getCapacity reads the bound the control plane is actually carrying, which is
    * what decides how many tiles this console may subscribe. It is a read and
@@ -1023,14 +1029,20 @@ export class DeviceMirrorClient implements LiveMirrorClient {
     this.json = json
     this.operatorId = operatorId
   }
-  async startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice; purpose: LiveMirrorViewerPurpose }): Promise<LiveStreamView> {
+  async startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice; purpose: LiveMirrorViewerPurpose; preview?: LiveMirrorPreview }): Promise<LiveStreamView> {
     const requestId = newRequestId()
+    // The workspace's preview setting travels with the viewer that stated it and
+    // bounds the grid's tiles only. An operator's own frame states nothing, which
+    // is the plane's own profile for it (see previewRequestFor).
+    const preview = previewRequestFor(request.purpose, request.preview)
     const response = await this.rpc.call("StartMirrorStream", StartMirrorStreamRequestSchema, StartMirrorStreamResponseSchema, {
       context: requestContext({ requestId, actorId: this.operatorId }),
       workspace: workspaceRef(request.workspaceId),
       deviceId: request.deviceId,
       transport: transportRequestFor(request.transport ?? "webrtc"),
       purpose: purposeRequestFor(request.purpose),
+      previewQuality: preview.previewQuality,
+      frameRate: preview.frameRate,
     })
     return requireStream(response.stream)
   }

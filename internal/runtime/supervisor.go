@@ -348,6 +348,7 @@ func (s *Supervisor) Setup(ctx context.Context) error {
 	}
 	s.appendLog("ADB discovered and validated")
 	s.appendLog(mirrorServerLine(s.config.ScrcpyServerPath))
+	s.appendLog(mirrorPreviewLine(s.config.PreviewQuality, s.config.PreviewFrameRate))
 	return nil
 }
 
@@ -360,6 +361,33 @@ func mirrorServerLine(serverPath string) string {
 		return fmt.Sprintf("Live mirror: no scrcpy server resolved; set %s or scrcpy_server_path in runtime.json", mirrorServerPathEnv)
 	}
 	return "Live mirror: scrcpy server " + serverPath
+}
+
+// mirrorPreviewLine is the startup line for the workspace's preview setting: the
+// bound every ambient stream the console's grid carries is encoded under.
+//
+// It is a line of its own, and it is reported even when this deployment states
+// nothing, because "nothing stated" is itself a fact an operator has to be able to
+// read: it means the plane's own documented default applies, which is a cap rather
+// than no bound at all. A frame that reports the grid's pictures and not the bound
+// they are carried at leaves an operator to infer the one number that decides what
+// their fleet view costs.
+func mirrorPreviewLine(quality, frameRate string) string {
+	stated := strings.TrimSpace(quality)
+	rate := strings.TrimSpace(frameRate)
+	if stated == "" && rate == "" {
+		return fmt.Sprintf("Live mirror: the grid's preview setting is not configured here; the plane's own default applies (set %s and %s, or preview_quality and preview_frame_rate in runtime.json)", mirrorPreviewQualityEnv, mirrorPreviewFrameRateEnv)
+	}
+	return fmt.Sprintf("Live mirror: the grid's preview setting is %s at %s fps", previewLineValue(stated, "level"), previewLineValue(rate, "rate"))
+}
+
+// previewLineValue names a value this deployment did not state, rather than
+// leaving the line reading as though it stated one.
+func previewLineValue(value, what string) string {
+	if value == "" {
+		return "the plane's own " + what
+	}
+	return value
 }
 
 // controlPlaneEnv is the configuration this runtime hands the control plane
@@ -389,6 +417,23 @@ func (s *Supervisor) controlPlaneEnv() []string {
 	// runtime makes for them.
 	if path := strings.TrimSpace(s.config.ScrcpyServerPath); path != "" {
 		env = append(env, mirrorServerPathEnv+"="+path)
+	}
+	// The workspace's preview setting travels the same way and on the same list,
+	// for the same reason: it is a BOUND the plane applies to every ambient
+	// stream, so it must arrive on whichever start path an operator used.
+	//
+	// A value the deployment did not state is passed as NOTHING rather than as an
+	// empty one: the plane answers an unset input with its own documented default,
+	// which is itself a level with a cap, where an empty value it accepted would be
+	// a setting nobody stated. What each value MEANS is the plane's own business,
+	// and it refuses a level or a rate it cannot bound by naming the input.
+	for _, input := range []struct{ name, value string }{
+		{mirrorPreviewQualityEnv, s.config.PreviewQuality},
+		{mirrorPreviewFrameRateEnv, s.config.PreviewFrameRate},
+	} {
+		if value := strings.TrimSpace(input.value); value != "" {
+			env = append(env, input.name+"="+value)
+		}
 	}
 	return env
 }

@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device_mirror.proto.
  */
 export const file_drift_v1_device_mirror: GenFile = /*@__PURE__*/
-  fileDesc("ChxkcmlmdC92MS9kZXZpY2VfbWlycm9yLnByb3RvEghkcmlmdC52MSKEAgoMTWlycm9yU3RyZWFtEhEKCXN0cmVhbV9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSLAoJdHJhbnNwb3J0GAMgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0EhQKDHJlbmRlcl93aWR0aBgEIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAUgASgNEioKBXN0YXRlGAYgASgOMhsuZHJpZnQudjEuTWlycm9yU3RyZWFtU3RhdGUSDwoHZmFpbHVyZRgHIAEoCRIOCgZmcmFtZXMYCCABKAQSEgoKa2V5X2ZyYW1lcxgJIAEoBBISCgpzdHJlYW1fdXJsGAogASgJIkQKDk1pcnJvckNhcGFjaXR5EhgKEHNlc3Npb25fY2FwYWNpdHkYASABKA0SGAoQb3BlcmF0b3JfcmVzZXJ2ZRgCIAEoDSLhAQoYU3RhcnRNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEiwKCXRyYW5zcG9ydBgEIAEoDjIZLmRyaWZ0LnYxLk1pcnJvclRyYW5zcG9ydBIuCgdwdXJwb3NlGAUgASgOMh0uZHJpZnQudjEuTWlycm9yVmlld2VyUHVycG9zZSJDChlTdGFydE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSJvChxOZWdvdGlhdGVNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIRCglzdHJlYW1faWQYAiABKAkSEQoJb2ZmZXJfc2RwGAMgASgJIlsKHU5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlEhIKCmFuc3dlcl9zZHAYASABKAkSJgoGc3RyZWFtGAIgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIlcKF1N0b3BNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIRCglzdHJlYW1faWQYAiABKAkiQgoYU3RvcE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSIrChZHZXRNaXJyb3JTdHJlYW1SZXF1ZXN0EhEKCXN0cmVhbV9pZBgBIAEoCSJBChdHZXRNaXJyb3JTdHJlYW1SZXNwb25zZRImCgZzdHJlYW0YASABKAsyFi5kcmlmdC52MS5NaXJyb3JTdHJlYW0iRQoYR2V0TWlycm9yQ2FwYWNpdHlSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZiJHChlHZXRNaXJyb3JDYXBhY2l0eVJlc3BvbnNlEioKCGNhcGFjaXR5GAEgASgLMhguZHJpZnQudjEuTWlycm9yQ2FwYWNpdHkqagoPTWlycm9yVHJhbnNwb3J0EiAKHE1JUlJPUl9UUkFOU1BPUlRfVU5TUEVDSUZJRUQQABIbChdNSVJST1JfVFJBTlNQT1JUX1dFQlJUQxABEhgKFE1JUlJPUl9UUkFOU1BPUlRfVENQEAIqtwEKEU1pcnJvclN0cmVhbVN0YXRlEiMKH01JUlJPUl9TVFJFQU1fU1RBVEVfVU5TUEVDSUZJRUQQABIgChxNSVJST1JfU1RSRUFNX1NUQVRFX1NUQVJUSU5HEAESHAoYTUlSUk9SX1NUUkVBTV9TVEFURV9MSVZFEAISHQoZTUlSUk9SX1NUUkVBTV9TVEFURV9FTkRFRBADEh4KGk1JUlJPUl9TVFJFQU1fU1RBVEVfRkFJTEVEEAQqgwEKE01pcnJvclZpZXdlclB1cnBvc2USJQohTUlSUk9SX1ZJRVdFUl9QVVJQT1NFX1VOU1BFQ0lGSUVEEAASIQodTUlSUk9SX1ZJRVdFUl9QVVJQT1NFX0FNQklFTlQQARIiCh5NSVJST1JfVklFV0VSX1BVUlBPU0VfT1BFUkFUT1IQAjLuAwoTRGV2aWNlTWlycm9yU2VydmljZRJcChFTdGFydE1pcnJvclN0cmVhbRIiLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVxdWVzdBojLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVzcG9uc2USaAoVTmVnb3RpYXRlTWlycm9yU3RyZWFtEiYuZHJpZnQudjEuTmVnb3RpYXRlTWlycm9yU3RyZWFtUmVxdWVzdBonLmRyaWZ0LnYxLk5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlElkKEFN0b3BNaXJyb3JTdHJlYW0SIS5kcmlmdC52MS5TdG9wTWlycm9yU3RyZWFtUmVxdWVzdBoiLmRyaWZ0LnYxLlN0b3BNaXJyb3JTdHJlYW1SZXNwb25zZRJWCg9HZXRNaXJyb3JTdHJlYW0SIC5kcmlmdC52MS5HZXRNaXJyb3JTdHJlYW1SZXF1ZXN0GiEuZHJpZnQudjEuR2V0TWlycm9yU3RyZWFtUmVzcG9uc2USXAoRR2V0TWlycm9yQ2FwYWNpdHkSIi5kcmlmdC52MS5HZXRNaXJyb3JDYXBhY2l0eVJlcXVlc3QaIy5kcmlmdC52MS5HZXRNaXJyb3JDYXBhY2l0eVJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChxkcmlmdC92MS9kZXZpY2VfbWlycm9yLnByb3RvEghkcmlmdC52MSKEAgoMTWlycm9yU3RyZWFtEhEKCXN0cmVhbV9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSLAoJdHJhbnNwb3J0GAMgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0EhQKDHJlbmRlcl93aWR0aBgEIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAUgASgNEioKBXN0YXRlGAYgASgOMhsuZHJpZnQudjEuTWlycm9yU3RyZWFtU3RhdGUSDwoHZmFpbHVyZRgHIAEoCRIOCgZmcmFtZXMYCCABKAQSEgoKa2V5X2ZyYW1lcxgJIAEoBBISCgpzdHJlYW1fdXJsGAogASgJIkQKDk1pcnJvckNhcGFjaXR5EhgKEHNlc3Npb25fY2FwYWNpdHkYASABKA0SGAoQb3BlcmF0b3JfcmVzZXJ2ZRgCIAEoDSKuAgoYU3RhcnRNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEiwKCXRyYW5zcG9ydBgEIAEoDjIZLmRyaWZ0LnYxLk1pcnJvclRyYW5zcG9ydBIuCgdwdXJwb3NlGAUgASgOMh0uZHJpZnQudjEuTWlycm9yVmlld2VyUHVycG9zZRI3Cg9wcmV2aWV3X3F1YWxpdHkYBiABKA4yHi5kcmlmdC52MS5NaXJyb3JQcmV2aWV3UXVhbGl0eRISCgpmcmFtZV9yYXRlGAcgASgNIkMKGVN0YXJ0TWlycm9yU3RyZWFtUmVzcG9uc2USJgoGc3RyZWFtGAEgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIm8KHE5lZ290aWF0ZU1pcnJvclN0cmVhbVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EhEKCXN0cmVhbV9pZBgCIAEoCRIRCglvZmZlcl9zZHAYAyABKAkiWwodTmVnb3RpYXRlTWlycm9yU3RyZWFtUmVzcG9uc2USEgoKYW5zd2VyX3NkcBgBIAEoCRImCgZzdHJlYW0YAiABKAsyFi5kcmlmdC52MS5NaXJyb3JTdHJlYW0iVwoXU3RvcE1pcnJvclN0cmVhbVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EhEKCXN0cmVhbV9pZBgCIAEoCSJCChhTdG9wTWlycm9yU3RyZWFtUmVzcG9uc2USJgoGc3RyZWFtGAEgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIisKFkdldE1pcnJvclN0cmVhbVJlcXVlc3QSEQoJc3RyZWFtX2lkGAEgASgJIkEKF0dldE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSJFChhHZXRNaXJyb3JDYXBhY2l0eVJlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmIkcKGUdldE1pcnJvckNhcGFjaXR5UmVzcG9uc2USKgoIY2FwYWNpdHkYASABKAsyGC5kcmlmdC52MS5NaXJyb3JDYXBhY2l0eSpqCg9NaXJyb3JUcmFuc3BvcnQSIAocTUlSUk9SX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEhsKF01JUlJPUl9UUkFOU1BPUlRfV0VCUlRDEAESGAoUTUlSUk9SX1RSQU5TUE9SVF9UQ1AQAiq3AQoRTWlycm9yU3RyZWFtU3RhdGUSIwofTUlSUk9SX1NUUkVBTV9TVEFURV9VTlNQRUNJRklFRBAAEiAKHE1JUlJPUl9TVFJFQU1fU1RBVEVfU1RBUlRJTkcQARIcChhNSVJST1JfU1RSRUFNX1NUQVRFX0xJVkUQAhIdChlNSVJST1JfU1RSRUFNX1NUQVRFX0VOREVEEAMSHgoaTUlSUk9SX1NUUkVBTV9TVEFURV9GQUlMRUQQBCqDAQoTTWlycm9yVmlld2VyUHVycG9zZRIlCiFNSVJST1JfVklFV0VSX1BVUlBPU0VfVU5TUEVDSUZJRUQQABIhCh1NSVJST1JfVklFV0VSX1BVUlBPU0VfQU1CSUVOVBABEiIKHk1JUlJPUl9WSUVXRVJfUFVSUE9TRV9PUEVSQVRPUhACKsQBChRNaXJyb3JQcmV2aWV3UXVhbGl0eRImCiJNSVJST1JfUFJFVklFV19RVUFMSVRZX1VOU1BFQ0lGSUVEEAASHgoaTUlSUk9SX1BSRVZJRVdfUVVBTElUWV9MT1cQARIhCh1NSVJST1JfUFJFVklFV19RVUFMSVRZX01FRElVTRACEh8KG01JUlJPUl9QUkVWSUVXX1FVQUxJVFlfSElHSBADEiAKHE1JUlJPUl9QUkVWSUVXX1FVQUxJVFlfRVhUUkEQBDLuAwoTRGV2aWNlTWlycm9yU2VydmljZRJcChFTdGFydE1pcnJvclN0cmVhbRIiLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVxdWVzdBojLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVzcG9uc2USaAoVTmVnb3RpYXRlTWlycm9yU3RyZWFtEiYuZHJpZnQudjEuTmVnb3RpYXRlTWlycm9yU3RyZWFtUmVxdWVzdBonLmRyaWZ0LnYxLk5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlElkKEFN0b3BNaXJyb3JTdHJlYW0SIS5kcmlmdC52MS5TdG9wTWlycm9yU3RyZWFtUmVxdWVzdBoiLmRyaWZ0LnYxLlN0b3BNaXJyb3JTdHJlYW1SZXNwb25zZRJWCg9HZXRNaXJyb3JTdHJlYW0SIC5kcmlmdC52MS5HZXRNaXJyb3JTdHJlYW1SZXF1ZXN0GiEuZHJpZnQudjEuR2V0TWlycm9yU3RyZWFtUmVzcG9uc2USXAoRR2V0TWlycm9yQ2FwYWNpdHkSIi5kcmlmdC52MS5HZXRNaXJyb3JDYXBhY2l0eVJlcXVlc3QaIy5kcmlmdC52MS5HZXRNaXJyb3JDYXBhY2l0eVJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
 
 /**
  * MirrorStream is one device's live stream as the console sees it.
@@ -177,6 +177,33 @@ export type StartMirrorStreamRequest = Message<"drift.v1.StartMirrorStreamReques
    * @generated from field: drift.v1.MirrorViewerPurpose purpose = 5;
    */
   purpose: MirrorViewerPurpose;
+
+  /**
+   * preview_quality is the workspace's preview level as the caller states it: a
+   * hard cap on the size and the bit rate of the stream this viewer is shown.
+   *
+   * It is stated rather than read from the plane so that the operator's own
+   * setting reaches the encoder that applies it, and it bounds an AMBIENT viewer
+   * only - the operator's own frame is carried at its own profile whatever is
+   * stated here. UNSPECIFIED, and any level this plane does not know, resolve to
+   * the setting the plane is configured with rather than to no bound at all.
+   *
+   * @generated from field: drift.v1.MirrorPreviewQuality preview_quality = 6;
+   */
+  previewQuality: MirrorPreviewQuality;
+
+  /**
+   * frame_rate is the workspace's preview frame rate, in frames per second. It
+   * is the range the console's own control offers (1-24), and it bounds an
+   * AMBIENT viewer's stream exactly as preview_quality does.
+   *
+   * Zero states no rate, and a rate outside the range is not applied: both
+   * resolve to the rate the plane is configured with, because a stream bounded by
+   * a number nobody chose is the defect this field removes.
+   *
+   * @generated from field: uint32 frame_rate = 7;
+   */
+  frameRate: number;
 };
 
 /**
@@ -457,6 +484,12 @@ export const MirrorStreamStateSchema: GenEnum<MirrorStreamState> = /*@__PURE__*/
  * capacity for the operator's own frame and refuses an AMBIENT viewer once the
  * grid's share of the capacity is spent.
  *
+ * The same fact decides the ENCODE BOUND, and the two are deliberately one field
+ * rather than two: what a viewer is decides both how much of the plane's capacity
+ * it may spend and how the stream it is shown is encoded (see
+ * MirrorPreviewQuality). A second field would be a second statement of the same
+ * thing, and the two could disagree.
+ *
  * A request that states neither is read as the operator's own frame, because the
  * two mistakes are not equal: an undeclared viewer read as the grid loses the
  * operator a place, while one read as the operator's frame can only spend a place
@@ -490,6 +523,74 @@ export enum MirrorViewerPurpose {
  */
 export const MirrorViewerPurposeSchema: GenEnum<MirrorViewerPurpose> = /*@__PURE__*/
   enumDesc(file_drift_v1_device_mirror, 2);
+
+/**
+ * MirrorPreviewQuality is the workspace's preview level: the bound the console's
+ * grid is carried at.
+ *
+ * It is a HARD CAP per level and not a hint - each level states the largest size
+ * the device's encoder may produce and the video bit rate it may spend - because
+ * the state this contract removes is an encoder nothing bounded. Measured on the
+ * owner's host before this contract existed: the live launch carried no
+ * max_size, no max_fps and no video_bit_rate at all, the device encoded at its
+ * native 1080x1920 at 60 fps with scrcpy's own default bit rate, and two live
+ * native-resolution streams put 0.9 Mbps on the wire while their screens sat idle
+ * - so the cost is in MOTION, and an uncapped worst case is unbounded rather than
+ * merely large.
+ *
+ * It bounds AMBIENT viewers only. The operator's own frame is carried at its own
+ * profile whatever is stated here, because a level an operator chose for a grid of
+ * thumbnails must never make the frame they work in blurry.
+ *
+ * @generated from enum drift.v1.MirrorPreviewQuality
+ */
+export enum MirrorPreviewQuality {
+  /**
+   * UNSPECIFIED states no setting, and the plane applies the setting it is
+   * configured with - which is itself a level with a cap, never "no bound".
+   *
+   * @generated from enum value: MIRROR_PREVIEW_QUALITY_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * LOW is 480p at 0.5 Mbps.
+   *
+   * @generated from enum value: MIRROR_PREVIEW_QUALITY_LOW = 1;
+   */
+  LOW = 1,
+
+  /**
+   * MEDIUM is 720p at 1.2 Mbps. It is the level an unstated or unrecognised
+   * setting resolves to: the plane's default capacity lets the grid carry
+   * several tiles at once, and the levels above this one are per-stream costs a
+   * grid multiplies.
+   *
+   * @generated from enum value: MIRROR_PREVIEW_QUALITY_MEDIUM = 2;
+   */
+  MEDIUM = 2,
+
+  /**
+   * HIGH is 1080p at 2.5 Mbps.
+   *
+   * @generated from enum value: MIRROR_PREVIEW_QUALITY_HIGH = 3;
+   */
+  HIGH = 3,
+
+  /**
+   * EXTRA is the device's own size at 6 Mbps: native, and still bounded by the
+   * bit rate.
+   *
+   * @generated from enum value: MIRROR_PREVIEW_QUALITY_EXTRA = 4;
+   */
+  EXTRA = 4,
+}
+
+/**
+ * Describes the enum drift.v1.MirrorPreviewQuality.
+ */
+export const MirrorPreviewQualitySchema: GenEnum<MirrorPreviewQuality> = /*@__PURE__*/
+  enumDesc(file_drift_v1_device_mirror, 3);
 
 /**
  * @generated from service drift.v1.DeviceMirrorService

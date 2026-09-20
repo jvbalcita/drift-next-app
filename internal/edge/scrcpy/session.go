@@ -81,6 +81,14 @@ type Options struct {
 	AcceptWait time.Duration
 	// LogLevel is the device-side server's own log level.
 	LogLevel string
+	// Encode is the bound this stream is carried under: the largest size the
+	// encoder may produce, the capture rate, the video bit rate, and the
+	// keyframe cadence.
+	//
+	// It is required, and it is required to be a bound rather than a name: a
+	// session opened with no profile is a session whose encoder nothing bounds,
+	// which is the defect this field exists to close (see adb.MirrorEncodeProfile).
+	Encode adb.MirrorEncodeProfile
 	// KeepAwake holds the device's screen on for the life of the session.
 	//
 	// It is on by default and it is a deliberate decision rather than a
@@ -163,6 +171,16 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 
 	session := &Session{opts: opts, scid: scid, closed: make(chan struct{})}
 
+	// The device-side server's launch is built BEFORE the device is touched, so
+	// a profile this client cannot render as an admitted array is refused while
+	// the device still has nothing of this session on it: the push and the
+	// tunnel below are the first two things that reach a device, and neither
+	// should happen for a launch that will not be built.
+	argv, err := adb.MirrorServerLaunchArgv(session.scid, opts.LogLevel, opts.KeepAwake, opts.Encode)
+	if err != nil {
+		return nil, fmt.Errorf("scrcpy: building the device server launch: %w", err)
+	}
+
 	// The server is pushed on every session rather than reused from a previous
 	// one. The device-side server removes the pushed file when it exits, and a
 	// stale copy is exactly the hazard the push exists to remove: a file from an
@@ -203,10 +221,6 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 		}
 	}()
 
-	argv, err := adb.MirrorServerLaunchArgv(session.scid, opts.LogLevel, opts.KeepAwake)
-	if err != nil {
-		return nil, fmt.Errorf("scrcpy: building the device server launch: %w", err)
-	}
 	proc, err := opts.Starter.StartAllowlisted(ctx, opts.Serial, argv)
 	if err != nil {
 		return nil, fmt.Errorf("scrcpy: starting the device server: %w", err)
@@ -673,6 +687,14 @@ func validateOptions(opts Options) error {
 	}
 	if opts.Starter == nil {
 		return errors.New("scrcpy: a session requires a process starter")
+	}
+	// The encode bound is validated here as well as at the launch builder, and
+	// it is validated BEFORE anything reaches the device: a session opened with
+	// no bound would launch an encoder nothing caps, which is the silent,
+	// unbounded case this product must not have. A caller that states no profile
+	// is told what it is missing rather than given the device's own default.
+	if err := opts.Encode.Validate(); err != nil {
+		return fmt.Errorf("scrcpy: the encode bound is not one this client can ask for: %w", err)
 	}
 	if opts.Listen == nil {
 		opts.Listen = func() (net.Listener, error) { return net.Listen("tcp", "127.0.0.1:0") }
