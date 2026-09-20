@@ -701,7 +701,7 @@ export function GroupsPage({
                     value: group.id,
                     label: group.name,
                   }))}
-                  className="mt-1"
+                  className="mt-1 w-full"
                 />
               </div>
             ) : null}

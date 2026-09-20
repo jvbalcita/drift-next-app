@@ -32,7 +32,9 @@ function renderNetworkProfilesPage(control: { failIntent?: ControlPlaneIntent["t
 async function runScanForProfile(user: ReturnType<typeof userEvent.setup>, profileId: string) {
   await user.click(screen.getAllByRole("button", { name: "Configure Scan" })[0])
   const dialog = screen.getByRole("dialog")
-  await user.click(within(dialog).getByLabelText("Discovery profile"))
+  const profileSelect = within(dialog).getByLabelText("Discovery profile")
+  expect(profileSelect).toHaveClass("w-full")
+  await user.click(profileSelect)
   await user.click(await screen.findByRole("option", { name: profileId === "profile-lab-b" ? "Lab B review" : "Lab A staging (default)" }))
   await user.click(within(dialog).getByRole("button", { name: "Start scan" }))
 }

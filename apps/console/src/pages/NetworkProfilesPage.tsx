@@ -319,7 +319,7 @@ export function NetworkProfilesPage({ snapshot, dispatch, view = "profiles", onV
           </DialogHeader>
           <div>
             <FieldLabel htmlFor="scan-profile">Discovery profile</FieldLabel>
-            <FormSelect id="scan-profile" ariaLabel="Discovery profile" value={selectedProfile?.id ?? ""} disabled={profiles.length === 0} onValueChange={chooseProfile} className="mt-1" options={profiles.length === 0 ? [{ value: "", label: "No saved profile", disabled: true }] : profiles.map((profile) => ({ value: profile.id, label: profile.isDefault ? `${profile.name} (default)` : profile.name }))} />
+            <FormSelect id="scan-profile" ariaLabel="Discovery profile" value={selectedProfile?.id ?? ""} disabled={profiles.length === 0} onValueChange={chooseProfile} className="mt-1 w-full" options={profiles.length === 0 ? [{ value: "", label: "No saved profile", disabled: true }] : profiles.map((profile) => ({ value: profile.id, label: profile.isDefault ? `${profile.name} (default)` : profile.name }))} />
           </div>
           <dl className="border-y border-border py-3 text-xs">
             <div className="flex justify-between gap-4">

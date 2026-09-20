@@ -65,6 +65,8 @@ const bareDevice: DeviceView = {
   capabilities: [],
   agentId: "",
   endpointId: "",
+  packageName: "",
+  activityName: "",
 }
 
 const bareSnapshot: ControlPlaneSnapshot = {
@@ -162,6 +164,34 @@ describe("device inspection tabs", () => {
 
   it("renders no tab without a backing read path", () => {
     expect(buildInspection(bareDevice, bareSnapshot).map((tab) => tab.id)).toEqual(["identity", "health"])
+  })
+
+  it("keeps the requested diagnostic sections visible when facts are absent", () => {
+    const tabs = buildInspection(bareDevice, bareSnapshot)
+    const identity = inspectionTab(tabs, "Identity")
+    const identitySections = identity.sections.map((section) => section.title)
+    expect(identitySections).toEqual(expect.arrayContaining(["Device Identity", "Hardware & Platform", "Battery", "Storage / Memory"]))
+
+    const identityRows = identity.sections[0]?.rows ?? []
+    expect(identityRows.find((row) => row.label === "ADB Port")?.value).toBe("Not reported")
+    const hardwareRows = identity.sections.find((section) => section.title === "Hardware & Platform")?.rows ?? []
+    for (const label of ["Brand", "Device", "Hardware", "Android", "SDK", "Screen", "Density"]) {
+      expect(hardwareRows.find((row) => row.label === label)?.value).toBe("Not reported")
+    }
+    const batteryRows = identity.sections.find((section) => section.title === "Battery")?.rows ?? []
+    for (const label of ["Level", "Temperature", "Status"]) {
+      expect(batteryRows.find((row) => row.label === label)?.value).toBe("Not reported")
+    }
+    const storageRows = identity.sections.find((section) => section.title === "Storage / Memory")?.rows ?? []
+    for (const label of ["Storage", "RAM Total", "RAM Free", "RAM Available"]) {
+      expect(storageRows.find((row) => row.label === label)?.value).toBe("Not reported")
+    }
+
+    const healthRows = inspectionTab(tabs, "Health").sections.flatMap((section) => section.rows ?? [])
+    expect(healthRows.find((row) => row.label === "Uptime")).toBeUndefined()
+    expect(healthRows.find((row) => row.label === "First Seen")?.value).toBe("Not reported")
+    expect(healthRows.find((row) => row.label === "Inventory")?.value).toBe("Not reported")
+    expect(healthRows.find((row) => row.label === "FG App")?.value).toBe("Not reported")
   })
 
   it("does not render a lifecycle tab: this registry exposes no lifecycle history", () => {

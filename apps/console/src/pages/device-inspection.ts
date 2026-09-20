@@ -16,9 +16,9 @@ import { deviceStatusLabels, deviceStatusMeanings } from "@/lib/device-status"
  *   1. A device name or adapter model names the device. A transport address
  *      (serial, host, or host:port) is a mutable endpoint attribute and is
  *      never the device name.
- *   2. A tab or section exists only when a read path backs it. This module
- *      returns no empty tab and no empty section, so the surface never renders a
- *      placeholder shell for data this registry does not expose.
+ *   2. A tab or section exists only when a read path backs it. Required
+ *      diagnostic sections stay visible and use "Not reported" for optional
+ *      facts the contract explicitly says are unavailable.
  */
 
 export interface InspectionRow {
@@ -183,10 +183,13 @@ function row(label: string, value: string | undefined, mono = false): Inspection
   return text.length > 0 ? { label, value: text, mono } : undefined
 }
 
-function timestampRow(label: string, value: string | undefined): InspectionRow | undefined {
-  if (!value) return undefined
-  const formatted = humanTimestamp(value)
-  return formatted.label ? { label, value: formatted.label, exact: formatted.exact } : undefined
+function reported(value: string | undefined): string {
+  return trimmed(value) || "Not reported"
+}
+
+function timestampRow(label: string, value: string | undefined): InspectionRow {
+  const formatted = value ? humanTimestamp(value) : { label: "" }
+  return { label, value: formatted.label || "Not reported", exact: formatted.exact }
 }
 
 function rows(entries: readonly (InspectionRow | undefined)[]): InspectionRow[] {
@@ -233,7 +236,7 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
           row("Device Name", name.primary),
           row("Stable Identity", stableIdentityLabel(device), true),
           row("Device Record", device.id, true),
-          row("ADB Port", currentEndpoint ? endpointPort(currentEndpoint) : undefined, true),
+          row("ADB Port", currentEndpoint ? reported(endpointPort(currentEndpoint)) : "Not reported", true),
           row("Group", activeMembership ? snapshot.groups.find((group) => group.id === activeMembership.groupId)?.name ?? activeMembership.groupId : "Unassigned"),
           row("Status", statusReading(device.status)),
           row("Transport", transportLabels[device.transport]),
@@ -244,14 +247,14 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
       {
         title: "Hardware & Platform",
         rows: rows([
-          row("Phone Model", phoneModel),
-          row("Brand", diagnostics?.brand),
-          row("Device", diagnostics?.deviceCodename, true),
-          row("Hardware", diagnostics?.hardware, true),
-          row("Android", diagnostics?.androidVersion || (platformVersion !== phoneModel ? platformVersion : undefined)),
-          row("SDK", diagnostics?.sdkLevel ? String(diagnostics.sdkLevel) : undefined),
-          row("Screen", diagnostics?.screenWidthPx && diagnostics.screenHeightPx ? `${diagnostics.screenWidthPx} × ${diagnostics.screenHeightPx}` : undefined),
-          row("Density", diagnostics?.densityDpi ? `${diagnostics.densityDpi} dpi` : undefined),
+          row("Phone Model", reported(phoneModel)),
+          row("Brand", reported(diagnostics?.brand)),
+          row("Device", reported(diagnostics?.deviceCodename), true),
+          row("Hardware", reported(diagnostics?.hardware), true),
+          row("Android", reported(diagnostics?.androidVersion || (platformVersion !== phoneModel ? platformVersion : undefined))),
+          row("SDK", diagnostics?.sdkLevel !== undefined ? String(diagnostics.sdkLevel) : "Not reported"),
+          row("Screen", diagnostics?.screenWidthPx !== undefined && diagnostics.screenHeightPx !== undefined ? `${diagnostics.screenWidthPx} × ${diagnostics.screenHeightPx}` : "Not reported"),
+          row("Density", diagnostics?.densityDpi !== undefined ? `${diagnostics.densityDpi} dpi` : "Not reported"),
           row("Capabilities", device.capabilities.length > 0 ? device.capabilities.join(" · ") : undefined),
           row("Agent", agent?.displayName),
         ]),
@@ -259,18 +262,18 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
       {
         title: "Battery",
         rows: rows([
-          row("Level", diagnostics?.batteryLevelPercent !== undefined ? `${diagnostics.batteryLevelPercent}%` : device.batteryPercent > 0 ? `${device.batteryPercent}%` : undefined),
-          row("Temperature", diagnostics?.batteryTemperatureCelsius !== undefined ? `${diagnostics.batteryTemperatureCelsius.toFixed(1)} °C` : undefined),
-          row("Status", diagnostics?.batteryStatus),
+          row("Level", diagnostics?.batteryLevelPercent !== undefined ? `${diagnostics.batteryLevelPercent}%` : device.batteryPercent > 0 ? `${device.batteryPercent}%` : "Not reported"),
+          row("Temperature", diagnostics?.batteryTemperatureCelsius !== undefined ? `${diagnostics.batteryTemperatureCelsius.toFixed(1)} °C` : "Not reported"),
+          row("Status", reported(diagnostics?.batteryStatus)),
         ]),
       },
       {
         title: "Storage / Memory",
         rows: rows([
-          row("Storage", bytePair(diagnostics?.storageFreeBytes, diagnostics?.storageTotalBytes)),
-          row("RAM Total", formatBytes(diagnostics?.ramTotalBytes)),
-          row("RAM Free", formatBytes(diagnostics?.ramFreeBytes)),
-          row("RAM Available", formatBytes(diagnostics?.ramAvailableBytes)),
+          row("Storage", bytePair(diagnostics?.storageFreeBytes, diagnostics?.storageTotalBytes) ?? "Not reported"),
+          row("RAM Total", formatBytes(diagnostics?.ramTotalBytes) ?? "Not reported"),
+          row("RAM Free", formatBytes(diagnostics?.ramFreeBytes) ?? "Not reported"),
+          row("RAM Available", formatBytes(diagnostics?.ramAvailableBytes) ?? "Not reported"),
         ]),
       },
     ],
@@ -308,11 +311,11 @@ export function buildInspection(device: DeviceView, snapshot: ControlPlaneSnapsh
         title: "Health & Runtime",
         rows: rows([
           row("Latency", device.latencyMs > 0 ? `${device.latencyMs} ms` : undefined),
-          row("Uptime", device.status === "online" ? formatDuration(diagnostics?.uptimeSeconds) : undefined),
+          row("Uptime", device.status === "online" ? formatDuration(diagnostics?.uptimeSeconds) ?? "Not reported" : undefined),
           timestampRow("First Seen", firstSeenAt),
           timestampRow("Inventory", diagnostics?.inventoryObservedAt),
-          row("Last Seen", humanTimestamp(device.lastSeen).label),
-          row("FG App", foregroundApp, true),
+          row("Last Seen", reported(humanTimestamp(device.lastSeen).label)),
+          row("FG App", reported(foregroundApp), true),
           row("Workflow", device.workflow),
           row("Workflow Status", device.workflowStatus),
           row("Task Progress", device.taskProgress > 0 ? `${device.taskProgress}%` : undefined),
