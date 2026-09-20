@@ -127,6 +127,24 @@ type MirrorCapacitySource interface {
 	// OperatorReserve is how many of Capacity are kept for the operator's own
 	// frame: the grid may hold at most Capacity - OperatorReserve sessions.
 	OperatorReserve() int
+	// PreviewQuality is the level this plane's ambient streams are carried at, and
+	// ProfileBitrateKbps is what one of them costs the transport. They are read
+	// together with the transport budget below because the grid's allowance is
+	// derived from them: a surface that published the session bound alone would
+	// leave a console deriving a tile count the plane will refuse.
+	PreviewQuality() media.MirrorPreviewQuality
+	ProfileBitrateKbps() int
+	// TransportBudgetKbps is the aggregate live-stream budget this deployment
+	// states for the transport its streams share, and TransportSpendKbps is what
+	// this plane would put on it with every session live at its preview level.
+	TransportBudgetKbps() int
+	TransportSpendKbps() int
+	// TileAllowance is how many live tile pictures this preview level and this
+	// capacity allow, and TileAllowanceBound is WHICH of the two bounds decided
+	// it: the plane's own answers, derived once there rather than recomputed by
+	// every surface that draws a grid.
+	TileAllowance() int
+	TileAllowanceBound() media.TileAllowanceBound
 }
 
 // MirrorRefusalRecorder is told about a live stream this plane refused to open,
@@ -159,6 +177,13 @@ func (f MirrorRefusalRecorderFunc) RecordStreamRefusal(ctx context.Context, refu
 }
 
 // mirrorCapacityProto maps the plane's bound onto the wire contract.
+//
+// Every number it publishes is clamped rather than trusted: a negative count and
+// a reserve above the capacity are both possible only in a plane that has already
+// been built wrongly, and a console that read either as its own allocation would
+// derive a grid from a bound nobody could mean. The grid's own allowance is read
+// from the engine rather than recomputed here, so the number the console draws and
+// the number the plane refuses against cannot disagree.
 func mirrorCapacityProto(source MirrorCapacitySource) *driftv1.MirrorCapacity {
 	if source == nil {
 		return &driftv1.MirrorCapacity{}
@@ -172,9 +197,61 @@ func mirrorCapacityProto(source MirrorCapacitySource) *driftv1.MirrorCapacity {
 		reserve = capacity
 	}
 	return &driftv1.MirrorCapacity{
-		SessionCapacity: uint32(capacity),
-		OperatorReserve: uint32(reserve),
+		SessionCapacity:     uint32(capacity),
+		OperatorReserve:     uint32(reserve),
+		PreviewQuality:      mirrorPreviewQualityProto(source.PreviewQuality()),
+		PreviewBitrateKbps:  uint32(nonNegative(source.ProfileBitrateKbps())),
+		TransportBudgetKbps: uint32(nonNegative(source.TransportBudgetKbps())),
+		TransportSpendKbps:  uint32(nonNegative(source.TransportSpendKbps())),
+		TilePlaces:          uint32(nonNegative(source.TileAllowance())),
+		TileBound:           mirrorTileBoundProto(source.TileAllowanceBound()),
 	}
+}
+
+// mirrorPreviewQualityProto maps the plane's preview level onto the wire
+// vocabulary.
+//
+// A level this plane cannot price is published as UNSPECIFIED rather than as one
+// of the levels: a reader must never be told a stream costs what some other level
+// costs, and "unstated" is the one answer that makes a console say so rather than
+// budget against a number nobody stated.
+func mirrorPreviewQualityProto(quality media.MirrorPreviewQuality) driftv1.MirrorPreviewQuality {
+	switch quality {
+	case media.PreviewLow:
+		return driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_LOW
+	case media.PreviewMedium:
+		return driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_MEDIUM
+	case media.PreviewHigh:
+		return driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_HIGH
+	case media.PreviewExtra:
+		return driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_EXTRA
+	default:
+		return driftv1.MirrorPreviewQuality_MIRROR_PREVIEW_QUALITY_UNSPECIFIED
+	}
+}
+
+// mirrorTileBoundProto maps which bound decided the tile count onto the wire.
+//
+// An unrecognised bound is published as UNSPECIFIED and not as either of the two:
+// a console told "the session share" when the plane meant something else would
+// send an operator to change a setting that is not the one in the way.
+func mirrorTileBoundProto(bound media.TileAllowanceBound) driftv1.MirrorTileBound {
+	switch bound {
+	case media.BoundSessionShare:
+		return driftv1.MirrorTileBound_MIRROR_TILE_BOUND_SESSION_SHARE
+	case media.BoundTransportBudget:
+		return driftv1.MirrorTileBound_MIRROR_TILE_BOUND_TRANSPORT_BUDGET
+	default:
+		return driftv1.MirrorTileBound_MIRROR_TILE_BOUND_UNSPECIFIED
+	}
+}
+
+// nonNegative clamps a count the wire carries as unsigned.
+func nonNegative(value int) int {
+	if value < 0 {
+		return 0
+	}
+	return value
 }
 
 // wantedPurpose maps the purpose a caller stated onto the one the engine spends

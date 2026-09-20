@@ -163,6 +163,31 @@ enum MirrorPreviewQuality {
   MIRROR_PREVIEW_QUALITY_EXTRA = 4;
 }
 
+// MirrorTileBound names WHICH of a plane's two tile bounds decided how many live
+// tile pictures it carries, and it is on the wire because the two are not
+// interchangeable to an operator reading a frame.
+//
+// A grid that carries three tiles because the deployment keeps one of its four
+// sessions for the operator's own frame is a different situation from one that
+// carries three because a stream at the plane's preview quality costs a quarter
+// of the transport budget it stated. The second is answered by choosing a cheaper
+// quality or stating a bigger budget and the first is not, so a surface that was
+// told only the count would send an operator looking in the wrong place.
+//
+// UNSPECIFIED states no bound, and it is the honest answer for a plane that
+// published no per-stream cost: a reader must not be told the transport decided a
+// count that was derived from the session share.
+enum MirrorTileBound {
+  MIRROR_TILE_BOUND_UNSPECIFIED = 0;
+  // SESSION_SHARE: the grid holds everything the plane has left after the
+  // operator's reserve. The plane is simply full.
+  MIRROR_TILE_BOUND_SESSION_SHARE = 1;
+  // TRANSPORT_BUDGET: the preview quality's per-stream cost does not fit the
+  // deployment's stated transport budget for as many tiles as the session share
+  // would allow, so the grid carries fewer.
+  MIRROR_TILE_BOUND_TRANSPORT_BUDGET = 2;
+}
+
 // MirrorCapacity is the plane's own device-session bound, as the deployment
 // stated it, together with the place its ambient viewers may not spend.
 //
@@ -178,6 +203,53 @@ message MirrorCapacity {
   // operator's own frame: the grid may hold at most
   // session_capacity - operator_reserve tiles between them.
   uint32 operator_reserve = 2;
+  // preview_quality is the level this plane's AMBIENT streams are carried at -
+  // the console's grid tiles - and it is the profile the plane's transport budget
+  // is spent at. It is published because it is not a cosmetic choice: the plane
+  // budgets `session_capacity x bitrate(level)` against the transport its streams
+  // share, so a more expensive level buys FEWER tile pictures rather than
+  // oversubscribing the path. A console that drew its grid without knowing this
+  // would ask for more pictures than the plane will carry and report the plane's
+  // refusal as a failure.
+  //
+  // It is the plane's own setting rather than the level a viewer requests, which
+  // is a field of its own on StartMirrorStreamRequest: a reader asking what this
+  // plane's grid costs reads the plane's answer here.
+  //
+  // UNSPECIFIED is deliberately not a level: a plane that publishes it has not
+  // stated what its streams cost, and a reader must not treat "unstated" as a
+  // cheap profile. The operator's own frame is carried at its own profile
+  // whatever is stated here and is not priced by this field.
+  MirrorPreviewQuality preview_quality = 3;
+  // preview_bitrate_kbps is what ONE live stream at preview_quality costs the
+  // transport, in kilobits per second. It is stated rather than left for a reader
+  // to look up, because the table it comes from is the device encoder's, and a
+  // console that kept a second copy of it could budget against a cost no stream
+  // is being produced at.
+  uint32 preview_bitrate_kbps = 4;
+  // transport_budget_kbps is the aggregate live-stream budget this deployment
+  // states for the transport its streams share. It is a deployment input rather
+  // than a property of the plane: it is what this host's path has been measured
+  // to carry.
+  uint32 transport_budget_kbps = 5;
+  // transport_spend_kbps is what this plane would put on that transport with
+  // every one of its session places live at preview_quality: session_capacity x
+  // preview_bitrate_kbps. It is stated beside the budget so a deployment can be
+  // read back - a spend above the budget is a plane whose grid has to carry fewer
+  // pictures, and both numbers are in the same message.
+  uint32 transport_spend_kbps = 6;
+  // tile_places is how many live tile pictures this preview quality and this
+  // capacity allow: session_capacity less operator_reserve, and less whatever the
+  // transport budget cannot carry at the quality's per-stream cost, whichever is
+  // smaller. It is the plane's own answer to "how many live tiles does this
+  // profile and this capacity allow", derived once here rather than recomputed by
+  // every surface that draws a grid - and it is what a tile the grid's bound does
+  // not reach is explained by.
+  uint32 tile_places = 7;
+  // tile_bound is WHICH of the two bounds decided tile_places, so a grid carrying
+  // fewer tiles than its session share can say why in the plane's own numbers (see
+  // MirrorTileBound).
+  MirrorTileBound tile_bound = 8;
 }
 
 // StartMirrorStreamRequest opens one device's live stream for one viewer.

@@ -97,28 +97,53 @@ func TestSessionCapacityRefusesAValueItCannotRead(t *testing.T) {
 	}
 }
 
-// TestSessionCapacityReadsAReserveThatIsTheWholeCapacity: a deployment may keep
-// every session for the operator's own frames - a host for working devices rather
-// than for a wall of pictures - and that is a configuration rather than a mistake,
-// so it is read as configured and the engine offers the grid nothing.
-func TestSessionCapacityReadsAReserveThatIsTheWholeCapacity(t *testing.T) {
+// TestSessionCapacityRefusesAReserveThatIsTheWholeCapacity is the inconsistent-pair
+// rule: a capacity and a reserve only mean something together, and a reserve that
+// is the whole of the capacity - or more than it - is a deployment that has
+// disabled its own fleet view. It is refused here, with BOTH numbers named, rather
+// than read as a capacity no tile may spend: a bound that says "no pictures" has to
+// be stated as such, not arrived at by arithmetic.
+func TestSessionCapacityRefusesAReserveThatIsTheWholeCapacity(t *testing.T) {
+	cases := []struct {
+		name     string
+		capacity string
+		reserve  string
+	}{
+		{name: "a reserve equal to the capacity", capacity: "2", reserve: "2"},
+		{name: "a reserve above the capacity", capacity: "2", reserve: "3"},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			_, _, err := SessionCapacityFromEnv(envLookup(map[string]string{
+				EnvSessionCapacity: test.capacity,
+				EnvOperatorReserve: test.reserve,
+			}))
+			if err == nil {
+				t.Fatalf("capacity %s with reserve %s was accepted: this plane can never show a tile picture",
+					test.capacity, test.reserve)
+			}
+			for _, want := range []string{EnvOperatorReserve, test.reserve, EnvSessionCapacity, test.capacity} {
+				if !strings.Contains(err.Error(), want) {
+					t.Fatalf("the refusal does not name %q, so an operator cannot see which number is the mistake: %v", want, err)
+				}
+			}
+		})
+	}
+}
+
+// TestSessionCapacityReadsAPairThatLeavesTheGridAPlace: the pair is refused only
+// when it leaves the grid NOTHING. One place of two is a deployment that shows one
+// tile and keeps one for the operator, and it is read as configured.
+func TestSessionCapacityReadsAPairThatLeavesTheGridAPlace(t *testing.T) {
 	capacity, reserve, err := SessionCapacityFromEnv(envLookup(map[string]string{
 		EnvSessionCapacity: "2",
-		EnvOperatorReserve: "3",
+		EnvOperatorReserve: "1",
 	}))
 	if err != nil {
-		t.Fatalf("a deployment keeping every session for the operator was refused: %v", err)
+		t.Fatalf("a deployment leaving the grid one place was refused: %v", err)
 	}
-	if capacity != 2 || reserve != 3 {
-		t.Fatalf("the deployment reads capacity %d reserve %d, want what it configured (2 and 3)", capacity, reserve)
-	}
-	engine, buildErr := NewMirrorEngine(MirrorEngineConfig{Dialer: newFakeDialer(), MaxSessions: capacity, OperatorReserve: reserve})
-	if buildErr != nil {
-		t.Fatalf("NewMirrorEngine: %v", buildErr)
-	}
-	defer func() { _ = engine.Stop(nil) }()
-	if engine.AmbientCapacity() != 0 {
-		t.Fatalf("a plane keeping every session for the operator offers the grid %d", engine.AmbientCapacity())
+	if capacity != 2 || reserve != 1 {
+		t.Fatalf("the deployment reads capacity %d reserve %d, want what it configured (2 and 1)", capacity, reserve)
 	}
 }
 

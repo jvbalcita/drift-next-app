@@ -477,15 +477,27 @@ func mirrorEngineFrom(labService *lab.Service) (*media.MirrorEngine, error) {
 	// of tiles behaving inexplicably. It is passed explicitly even when the
 	// deployment configured nothing, so the setting the engine carries is always
 	// a setting and never "no bound".
+	//
+	// It is also the PROFILE the plane's live-stream budget is spent at: a stream
+	// at this level is what the transport carries, so what one of them costs is
+	// read from this one input rather than stated a second time beside it.
 	preview, previewErr := media.PreviewFromEnv(os.LookupEnv)
 	if previewErr != nil {
 		return nil, previewErr
 	}
+	// How much of the transport this deployment has measured is the other half of
+	// that bound, and it is an input for the same reason: a plane that invented a
+	// budget would size a grid against a path nobody measured.
+	budgetKbps, budgetErr := media.TransportBudgetFromEnv(os.LookupEnv)
+	if budgetErr != nil {
+		return nil, budgetErr
+	}
 	return media.NewMirrorEngine(media.MirrorEngineConfig{
-		Dialer:          dialer,
-		MaxSessions:     capacity,
-		OperatorReserve: reserve,
-		Preview:         preview,
+		Dialer:              dialer,
+		MaxSessions:         capacity,
+		OperatorReserve:     reserve,
+		Preview:             preview,
+		TransportBudgetKbps: budgetKbps,
 	})
 }
 

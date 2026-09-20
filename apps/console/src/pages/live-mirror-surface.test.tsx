@@ -14,6 +14,7 @@ import { deviceStatusMeanings } from "@/lib/device-status"
 import { keyRepeatIntervalMs, liveMirrorCopy, liveStreamView, scrollStepUnits, type LiveStreamView } from "@/lib/live-mirror"
 import { FloatingDevice } from "./ControlPage"
 import { LiveMirrorInfo, LiveMirrorSurface, type LiveMirrorSessionView } from "./live-mirror-surface"
+import { planeCapacity } from "@/test/mirror-fixtures"
 
 /**
  * The big frame, as `FloatingDevice` composes it.
@@ -57,7 +58,7 @@ function fakeMirror(initial: LiveStreamView = stream()): { client: LiveMirrorCli
     setState(next) { state = next },
     client: {
       async startStream(request) { calls.push(`start:${request.deviceId}:${request.purpose}`); return state },
-      async getCapacity() { return { sessionCapacity: 4, operatorReserve: 1, tilePlaces: 3 } },
+      async getCapacity() { return planeCapacity(4, 1) },
       async negotiate(_streamId, offerSdp) { calls.push(`negotiate:${offerSdp}`); return { answerSdp: "answer-sdp", stream: state } },
       async stopStream(streamId) { calls.push(`stop:${streamId}`); return { ...state, state: "ended" } },
       async getStream() { return state },

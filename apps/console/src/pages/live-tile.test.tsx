@@ -8,8 +8,9 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { DeviceView } from "@/lib/domain/control-plane"
 import { liveStreamView, type LiveStreamView, type MirrorCapacityView } from "@/lib/live-mirror"
-import { liveTileCopy, type TileViewerBudget } from "@/lib/live-tiles"
+import { liveTileCopy, type MeasuredTileBudget, type TileViewerBudget } from "@/lib/live-tiles"
 import { LiveTilePicture } from "./live-tile"
+import { planeBudget, planeCapacity } from "@/test/mirror-fixtures"
 
 /**
  * One fleet tile's live picture, on its own.
@@ -81,16 +82,16 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 }
 
 /** The plane's own bound, as this tile's console reads it: four sessions, one kept for the frame. */
-const planeCapacity: MirrorCapacityView = { sessionCapacity: 5, operatorReserve: 1, tilePlaces: 4 }
+const planeBound: MirrorCapacityView = planeCapacity(5, 1)
 
 /** The budget a measured plane leaves the grid, and the one a console with no reading has. */
-const measuredBudget: TileViewerBudget = { kind: "measured", limit: 4 }
+const measuredBudget: MeasuredTileBudget = planeBudget(5, 1)
 const unmeasuredBudget: TileViewerBudget = { kind: "unmeasured" }
 
 function tileMirror(negotiation: Promise<{ answerSdp: string; stream: LiveStreamView }>): LiveMirrorClient {
   return {
     async startStream() { return stream() },
-    async getCapacity() { return planeCapacity },
+    async getCapacity() { return planeBound },
     async negotiate() { return negotiation },
     async stopStream() { return stream({ state: MirrorStreamState.ENDED }) },
     async getStream() { return stream() },

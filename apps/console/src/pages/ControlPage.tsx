@@ -14,7 +14,7 @@ import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceSettingName, Devic
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, livePictureHeld, type LiveMirrorPreview, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
 import { useMirrorCapacity } from "@/lib/api/use-mirror-capacity"
-import { allocateTileViewers, tileViewerBudget, type TileViewerBudget } from "@/lib/live-tiles"
+import { allocateTileViewers, tileBudgetSentence, tileViewerBudget, type TileViewerBudget } from "@/lib/live-tiles"
 import { LiveMirrorDeviceKeys, LiveMirrorInfo, LiveMirrorSurface, useLiveMirrorSession } from "./live-mirror-surface"
 import { LiveTilePicture } from "./live-tile"
 import { deviceObservationSentence, deviceStatusLabels, notObserved } from "@/lib/device-status"
@@ -344,6 +344,15 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
       <section className={`min-w-0 ${workspaceOpen && settings.workspaceSide === "left" ? "xl:order-2" : ""}`} aria-label="Phone control workspace">
         <LabObservationFrame adapter={snapshot.labAdapter} height={workspace.largeHeight} />
         <ConnectionFilterBar filter={connectionFilter} onChange={setConnectionFilter} shown={visibleDevices.length} total={snapshot.devices.length} />
+        {/*
+          How many tiles this console carries, and which bound decided it. It is stated
+          once here rather than repeated in every tile because the bound is one fact
+          about the whole grid: a tile that says "Not shown" carries the count for
+          itself, and an operator asking why the grid carries fewer pictures than it
+          used to reads the reason - the session share, or the profile's cost against
+          the transport budget - in this line.
+        */}
+        <p className="mt-2 text-[11px] leading-4 text-muted-foreground">{tileBudgetSentence(tileBudget)}</p>
         <div className={`grid items-start gap-4 ${modalPinned && source ? "xl:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
           {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail="No device in the current view has an observed transport matching this filter." /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${workspace.orientation === "portrait" ? Math.round(workspace.smallHeight * 9 / 16) : workspace.smallHeight}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} mirror={mirror} transport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} viewing={tileViewers.includes(device.id)} budget={tileBudget} preview={workspacePreview} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
           {modalPinned ? deviceModal : null}

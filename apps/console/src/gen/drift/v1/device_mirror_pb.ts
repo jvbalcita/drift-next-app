@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device_mirror.proto.
  */
 export const file_drift_v1_device_mirror: GenFile = /*@__PURE__*/
-  fileDesc("ChxkcmlmdC92MS9kZXZpY2VfbWlycm9yLnByb3RvEghkcmlmdC52MSKEAgoMTWlycm9yU3RyZWFtEhEKCXN0cmVhbV9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSLAoJdHJhbnNwb3J0GAMgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0EhQKDHJlbmRlcl93aWR0aBgEIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAUgASgNEioKBXN0YXRlGAYgASgOMhsuZHJpZnQudjEuTWlycm9yU3RyZWFtU3RhdGUSDwoHZmFpbHVyZRgHIAEoCRIOCgZmcmFtZXMYCCABKAQSEgoKa2V5X2ZyYW1lcxgJIAEoBBISCgpzdHJlYW1fdXJsGAogASgJIkQKDk1pcnJvckNhcGFjaXR5EhgKEHNlc3Npb25fY2FwYWNpdHkYASABKA0SGAoQb3BlcmF0b3JfcmVzZXJ2ZRgCIAEoDSKuAgoYU3RhcnRNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEiwKCXRyYW5zcG9ydBgEIAEoDjIZLmRyaWZ0LnYxLk1pcnJvclRyYW5zcG9ydBIuCgdwdXJwb3NlGAUgASgOMh0uZHJpZnQudjEuTWlycm9yVmlld2VyUHVycG9zZRI3Cg9wcmV2aWV3X3F1YWxpdHkYBiABKA4yHi5kcmlmdC52MS5NaXJyb3JQcmV2aWV3UXVhbGl0eRISCgpmcmFtZV9yYXRlGAcgASgNIkMKGVN0YXJ0TWlycm9yU3RyZWFtUmVzcG9uc2USJgoGc3RyZWFtGAEgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIm8KHE5lZ290aWF0ZU1pcnJvclN0cmVhbVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EhEKCXN0cmVhbV9pZBgCIAEoCRIRCglvZmZlcl9zZHAYAyABKAkiWwodTmVnb3RpYXRlTWlycm9yU3RyZWFtUmVzcG9uc2USEgoKYW5zd2VyX3NkcBgBIAEoCRImCgZzdHJlYW0YAiABKAsyFi5kcmlmdC52MS5NaXJyb3JTdHJlYW0iVwoXU3RvcE1pcnJvclN0cmVhbVJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EhEKCXN0cmVhbV9pZBgCIAEoCSJCChhTdG9wTWlycm9yU3RyZWFtUmVzcG9uc2USJgoGc3RyZWFtGAEgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIisKFkdldE1pcnJvclN0cmVhbVJlcXVlc3QSEQoJc3RyZWFtX2lkGAEgASgJIkEKF0dldE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSJFChhHZXRNaXJyb3JDYXBhY2l0eVJlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmIkcKGUdldE1pcnJvckNhcGFjaXR5UmVzcG9uc2USKgoIY2FwYWNpdHkYASABKAsyGC5kcmlmdC52MS5NaXJyb3JDYXBhY2l0eSpqCg9NaXJyb3JUcmFuc3BvcnQSIAocTUlSUk9SX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEhsKF01JUlJPUl9UUkFOU1BPUlRfV0VCUlRDEAESGAoUTUlSUk9SX1RSQU5TUE9SVF9UQ1AQAiq3AQoRTWlycm9yU3RyZWFtU3RhdGUSIwofTUlSUk9SX1NUUkVBTV9TVEFURV9VTlNQRUNJRklFRBAAEiAKHE1JUlJPUl9TVFJFQU1fU1RBVEVfU1RBUlRJTkcQARIcChhNSVJST1JfU1RSRUFNX1NUQVRFX0xJVkUQAhIdChlNSVJST1JfU1RSRUFNX1NUQVRFX0VOREVEEAMSHgoaTUlSUk9SX1NUUkVBTV9TVEFURV9GQUlMRUQQBCqDAQoTTWlycm9yVmlld2VyUHVycG9zZRIlCiFNSVJST1JfVklFV0VSX1BVUlBPU0VfVU5TUEVDSUZJRUQQABIhCh1NSVJST1JfVklFV0VSX1BVUlBPU0VfQU1CSUVOVBABEiIKHk1JUlJPUl9WSUVXRVJfUFVSUE9TRV9PUEVSQVRPUhACKsQBChRNaXJyb3JQcmV2aWV3UXVhbGl0eRImCiJNSVJST1JfUFJFVklFV19RVUFMSVRZX1VOU1BFQ0lGSUVEEAASHgoaTUlSUk9SX1BSRVZJRVdfUVVBTElUWV9MT1cQARIhCh1NSVJST1JfUFJFVklFV19RVUFMSVRZX01FRElVTRACEh8KG01JUlJPUl9QUkVWSUVXX1FVQUxJVFlfSElHSBADEiAKHE1JUlJPUl9QUkVWSUVXX1FVQUxJVFlfRVhUUkEQBDLuAwoTRGV2aWNlTWlycm9yU2VydmljZRJcChFTdGFydE1pcnJvclN0cmVhbRIiLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVxdWVzdBojLmRyaWZ0LnYxLlN0YXJ0TWlycm9yU3RyZWFtUmVzcG9uc2USaAoVTmVnb3RpYXRlTWlycm9yU3RyZWFtEiYuZHJpZnQudjEuTmVnb3RpYXRlTWlycm9yU3RyZWFtUmVxdWVzdBonLmRyaWZ0LnYxLk5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlElkKEFN0b3BNaXJyb3JTdHJlYW0SIS5kcmlmdC52MS5TdG9wTWlycm9yU3RyZWFtUmVxdWVzdBoiLmRyaWZ0LnYxLlN0b3BNaXJyb3JTdHJlYW1SZXNwb25zZRJWCg9HZXRNaXJyb3JTdHJlYW0SIC5kcmlmdC52MS5HZXRNaXJyb3JTdHJlYW1SZXF1ZXN0GiEuZHJpZnQudjEuR2V0TWlycm9yU3RyZWFtUmVzcG9uc2USXAoRR2V0TWlycm9yQ2FwYWNpdHkSIi5kcmlmdC52MS5HZXRNaXJyb3JDYXBhY2l0eVJlcXVlc3QaIy5kcmlmdC52MS5HZXRNaXJyb3JDYXBhY2l0eVJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
+  fileDesc("ChxkcmlmdC92MS9kZXZpY2VfbWlycm9yLnByb3RvEghkcmlmdC52MSKEAgoMTWlycm9yU3RyZWFtEhEKCXN0cmVhbV9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSLAoJdHJhbnNwb3J0GAMgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0EhQKDHJlbmRlcl93aWR0aBgEIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAUgASgNEioKBXN0YXRlGAYgASgOMhsuZHJpZnQudjEuTWlycm9yU3RyZWFtU3RhdGUSDwoHZmFpbHVyZRgHIAEoCRIOCgZmcmFtZXMYCCABKAQSEgoKa2V5X2ZyYW1lcxgJIAEoBBISCgpzdHJlYW1fdXJsGAogASgJIpwCCg5NaXJyb3JDYXBhY2l0eRIYChBzZXNzaW9uX2NhcGFjaXR5GAEgASgNEhgKEG9wZXJhdG9yX3Jlc2VydmUYAiABKA0SNwoPcHJldmlld19xdWFsaXR5GAMgASgOMh4uZHJpZnQudjEuTWlycm9yUHJldmlld1F1YWxpdHkSHAoUcHJldmlld19iaXRyYXRlX2ticHMYBCABKA0SHQoVdHJhbnNwb3J0X2J1ZGdldF9rYnBzGAUgASgNEhwKFHRyYW5zcG9ydF9zcGVuZF9rYnBzGAYgASgNEhMKC3RpbGVfcGxhY2VzGAcgASgNEi0KCnRpbGVfYm91bmQYCCABKA4yGS5kcmlmdC52MS5NaXJyb3JUaWxlQm91bmQirgIKGFN0YXJ0TWlycm9yU3RyZWFtUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIsCgl0cmFuc3BvcnQYBCABKA4yGS5kcmlmdC52MS5NaXJyb3JUcmFuc3BvcnQSLgoHcHVycG9zZRgFIAEoDjIdLmRyaWZ0LnYxLk1pcnJvclZpZXdlclB1cnBvc2USNwoPcHJldmlld19xdWFsaXR5GAYgASgOMh4uZHJpZnQudjEuTWlycm9yUHJldmlld1F1YWxpdHkSEgoKZnJhbWVfcmF0ZRgHIAEoDSJDChlTdGFydE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSJvChxOZWdvdGlhdGVNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIRCglzdHJlYW1faWQYAiABKAkSEQoJb2ZmZXJfc2RwGAMgASgJIlsKHU5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlEhIKCmFuc3dlcl9zZHAYASABKAkSJgoGc3RyZWFtGAIgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIlcKF1N0b3BNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIRCglzdHJlYW1faWQYAiABKAkiQgoYU3RvcE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSIrChZHZXRNaXJyb3JTdHJlYW1SZXF1ZXN0EhEKCXN0cmVhbV9pZBgBIAEoCSJBChdHZXRNaXJyb3JTdHJlYW1SZXNwb25zZRImCgZzdHJlYW0YASABKAsyFi5kcmlmdC52MS5NaXJyb3JTdHJlYW0iRQoYR2V0TWlycm9yQ2FwYWNpdHlSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZiJHChlHZXRNaXJyb3JDYXBhY2l0eVJlc3BvbnNlEioKCGNhcGFjaXR5GAEgASgLMhguZHJpZnQudjEuTWlycm9yQ2FwYWNpdHkqagoPTWlycm9yVHJhbnNwb3J0EiAKHE1JUlJPUl9UUkFOU1BPUlRfVU5TUEVDSUZJRUQQABIbChdNSVJST1JfVFJBTlNQT1JUX1dFQlJUQxABEhgKFE1JUlJPUl9UUkFOU1BPUlRfVENQEAIqtwEKEU1pcnJvclN0cmVhbVN0YXRlEiMKH01JUlJPUl9TVFJFQU1fU1RBVEVfVU5TUEVDSUZJRUQQABIgChxNSVJST1JfU1RSRUFNX1NUQVRFX1NUQVJUSU5HEAESHAoYTUlSUk9SX1NUUkVBTV9TVEFURV9MSVZFEAISHQoZTUlSUk9SX1NUUkVBTV9TVEFURV9FTkRFRBADEh4KGk1JUlJPUl9TVFJFQU1fU1RBVEVfRkFJTEVEEAQqgwEKE01pcnJvclZpZXdlclB1cnBvc2USJQohTUlSUk9SX1ZJRVdFUl9QVVJQT1NFX1VOU1BFQ0lGSUVEEAASIQodTUlSUk9SX1ZJRVdFUl9QVVJQT1NFX0FNQklFTlQQARIiCh5NSVJST1JfVklFV0VSX1BVUlBPU0VfT1BFUkFUT1IQAirEAQoUTWlycm9yUHJldmlld1F1YWxpdHkSJgoiTUlSUk9SX1BSRVZJRVdfUVVBTElUWV9VTlNQRUNJRklFRBAAEh4KGk1JUlJPUl9QUkVWSUVXX1FVQUxJVFlfTE9XEAESIQodTUlSUk9SX1BSRVZJRVdfUVVBTElUWV9NRURJVU0QAhIfChtNSVJST1JfUFJFVklFV19RVUFMSVRZX0hJR0gQAxIgChxNSVJST1JfUFJFVklFV19RVUFMSVRZX0VYVFJBEAQqgQEKD01pcnJvclRpbGVCb3VuZBIhCh1NSVJST1JfVElMRV9CT1VORF9VTlNQRUNJRklFRBAAEiMKH01JUlJPUl9USUxFX0JPVU5EX1NFU1NJT05fU0hBUkUQARImCiJNSVJST1JfVElMRV9CT1VORF9UUkFOU1BPUlRfQlVER0VUEAIy7gMKE0RldmljZU1pcnJvclNlcnZpY2USXAoRU3RhcnRNaXJyb3JTdHJlYW0SIi5kcmlmdC52MS5TdGFydE1pcnJvclN0cmVhbVJlcXVlc3QaIy5kcmlmdC52MS5TdGFydE1pcnJvclN0cmVhbVJlc3BvbnNlEmgKFU5lZ290aWF0ZU1pcnJvclN0cmVhbRImLmRyaWZ0LnYxLk5lZ290aWF0ZU1pcnJvclN0cmVhbVJlcXVlc3QaJy5kcmlmdC52MS5OZWdvdGlhdGVNaXJyb3JTdHJlYW1SZXNwb25zZRJZChBTdG9wTWlycm9yU3RyZWFtEiEuZHJpZnQudjEuU3RvcE1pcnJvclN0cmVhbVJlcXVlc3QaIi5kcmlmdC52MS5TdG9wTWlycm9yU3RyZWFtUmVzcG9uc2USVgoPR2V0TWlycm9yU3RyZWFtEiAuZHJpZnQudjEuR2V0TWlycm9yU3RyZWFtUmVxdWVzdBohLmRyaWZ0LnYxLkdldE1pcnJvclN0cmVhbVJlc3BvbnNlElwKEUdldE1pcnJvckNhcGFjaXR5EiIuZHJpZnQudjEuR2V0TWlycm9yQ2FwYWNpdHlSZXF1ZXN0GiMuZHJpZnQudjEuR2V0TWlycm9yQ2FwYWNpdHlSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
 
 /**
  * MirrorStream is one device's live stream as the console sees it.
@@ -138,6 +138,83 @@ export type MirrorCapacity = Message<"drift.v1.MirrorCapacity"> & {
    * @generated from field: uint32 operator_reserve = 2;
    */
   operatorReserve: number;
+
+  /**
+   * preview_quality is the level this plane's AMBIENT streams are carried at -
+   * the console's grid tiles - and it is the profile the plane's transport budget
+   * is spent at. It is published because it is not a cosmetic choice: the plane
+   * budgets `session_capacity x bitrate(level)` against the transport its streams
+   * share, so a more expensive level buys FEWER tile pictures rather than
+   * oversubscribing the path. A console that drew its grid without knowing this
+   * would ask for more pictures than the plane will carry and report the plane's
+   * refusal as a failure.
+   *
+   * It is the plane's own setting rather than the level a viewer requests, which
+   * is a field of its own on StartMirrorStreamRequest: a reader asking what this
+   * plane's grid costs reads the plane's answer here.
+   *
+   * UNSPECIFIED is deliberately not a level: a plane that publishes it has not
+   * stated what its streams cost, and a reader must not treat "unstated" as a
+   * cheap profile. The operator's own frame is carried at its own profile
+   * whatever is stated here and is not priced by this field.
+   *
+   * @generated from field: drift.v1.MirrorPreviewQuality preview_quality = 3;
+   */
+  previewQuality: MirrorPreviewQuality;
+
+  /**
+   * preview_bitrate_kbps is what ONE live stream at preview_quality costs the
+   * transport, in kilobits per second. It is stated rather than left for a reader
+   * to look up, because the table it comes from is the device encoder's, and a
+   * console that kept a second copy of it could budget against a cost no stream
+   * is being produced at.
+   *
+   * @generated from field: uint32 preview_bitrate_kbps = 4;
+   */
+  previewBitrateKbps: number;
+
+  /**
+   * transport_budget_kbps is the aggregate live-stream budget this deployment
+   * states for the transport its streams share. It is a deployment input rather
+   * than a property of the plane: it is what this host's path has been measured
+   * to carry.
+   *
+   * @generated from field: uint32 transport_budget_kbps = 5;
+   */
+  transportBudgetKbps: number;
+
+  /**
+   * transport_spend_kbps is what this plane would put on that transport with
+   * every one of its session places live at preview_quality: session_capacity x
+   * preview_bitrate_kbps. It is stated beside the budget so a deployment can be
+   * read back - a spend above the budget is a plane whose grid has to carry fewer
+   * pictures, and both numbers are in the same message.
+   *
+   * @generated from field: uint32 transport_spend_kbps = 6;
+   */
+  transportSpendKbps: number;
+
+  /**
+   * tile_places is how many live tile pictures this preview quality and this
+   * capacity allow: session_capacity less operator_reserve, and less whatever the
+   * transport budget cannot carry at the quality's per-stream cost, whichever is
+   * smaller. It is the plane's own answer to "how many live tiles does this
+   * profile and this capacity allow", derived once here rather than recomputed by
+   * every surface that draws a grid - and it is what a tile the grid's bound does
+   * not reach is explained by.
+   *
+   * @generated from field: uint32 tile_places = 7;
+   */
+  tilePlaces: number;
+
+  /**
+   * tile_bound is WHICH of the two bounds decided tile_places, so a grid carrying
+   * fewer tiles than its session share can say why in the plane's own numbers (see
+   * MirrorTileBound).
+   *
+   * @generated from field: drift.v1.MirrorTileBound tile_bound = 8;
+   */
+  tileBound: MirrorTileBound;
 };
 
 /**
@@ -601,6 +678,54 @@ export enum MirrorPreviewQuality {
  */
 export const MirrorPreviewQualitySchema: GenEnum<MirrorPreviewQuality> = /*@__PURE__*/
   enumDesc(file_drift_v1_device_mirror, 3);
+
+/**
+ * MirrorTileBound names WHICH of a plane's two tile bounds decided how many live
+ * tile pictures it carries, and it is on the wire because the two are not
+ * interchangeable to an operator reading a frame.
+ *
+ * A grid that carries three tiles because the deployment keeps one of its four
+ * sessions for the operator's own frame is a different situation from one that
+ * carries three because a stream at the plane's preview quality costs a quarter
+ * of the transport budget it stated. The second is answered by choosing a cheaper
+ * quality or stating a bigger budget and the first is not, so a surface that was
+ * told only the count would send an operator looking in the wrong place.
+ *
+ * UNSPECIFIED states no bound, and it is the honest answer for a plane that
+ * published no per-stream cost: a reader must not be told the transport decided a
+ * count that was derived from the session share.
+ *
+ * @generated from enum drift.v1.MirrorTileBound
+ */
+export enum MirrorTileBound {
+  /**
+   * @generated from enum value: MIRROR_TILE_BOUND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * SESSION_SHARE: the grid holds everything the plane has left after the
+   * operator's reserve. The plane is simply full.
+   *
+   * @generated from enum value: MIRROR_TILE_BOUND_SESSION_SHARE = 1;
+   */
+  SESSION_SHARE = 1,
+
+  /**
+   * TRANSPORT_BUDGET: the preview quality's per-stream cost does not fit the
+   * deployment's stated transport budget for as many tiles as the session share
+   * would allow, so the grid carries fewer.
+   *
+   * @generated from enum value: MIRROR_TILE_BOUND_TRANSPORT_BUDGET = 2;
+   */
+  TRANSPORT_BUDGET = 2,
+}
+
+/**
+ * Describes the enum drift.v1.MirrorTileBound.
+ */
+export const MirrorTileBoundSchema: GenEnum<MirrorTileBound> = /*@__PURE__*/
+  enumDesc(file_drift_v1_device_mirror, 4);
 
 /**
  * @generated from service drift.v1.DeviceMirrorService

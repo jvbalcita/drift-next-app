@@ -116,16 +116,25 @@ func NewMirrorHost(config MirrorHostConfig) *MirrorHost {
 //
 // An armed line states the thing the engine's own design requires an operator to
 // know: a device is captured only while a viewer is subscribed, so a running
-// process with no viewer is not capturing anything.
+// process with no viewer is not capturing anything. It also states the whole of
+// the bound a deployment has to be able to read back - the capacity, the place
+// kept for the operator's own frame, the profile its streams are encoded at and
+// what that costs, the transport budget, the aggregate spend those two imply, and
+// the number of tile pictures that follows from them - because every one of those
+// is a deployment input or is derived from one, and a frame that shows fewer tiles
+// than the operator expects has to be explicable from the frame itself.
 func (h *MirrorHost) State() string {
 	if h == nil || h.engine == nil {
 		return "live mirror not started: " + h.reasonLine()
 	}
 	preview := h.engine.Preview()
 	return fmt.Sprintf(
-		"live mirror armed (capacity %d device session(s) with %d kept for the operator's own frame - the console's grid may hold %d; the grid's preview setting is %s at %d fps, and the operator's own frame is carried at its own profile and never at that setting; a device is captured only while a viewer is subscribed; %d device(s) mirrored right now)",
-		h.engine.Capacity(), h.engine.OperatorReserve(), h.engine.AmbientCapacity(),
-		preview.Quality, preview.FrameRate, len(h.engine.Sessions()))
+		"live mirror armed (capacity %d device session(s) with %d kept for the operator's own frame; the grid's preview setting is %s at %d fps, and the operator's own frame is carried at its own profile and never at that setting, so the operator's own frame is not priced here; a stream at %s costs %d kbps - every level this plane can price is %s; transport budget %d kbps, this plane's spend %d kbps; the console's grid may carry %d live tile picture(s), bound by %s; a device is captured only while a viewer is subscribed; %d device(s) mirrored right now)",
+		h.engine.Capacity(), h.engine.OperatorReserve(),
+		preview.Quality, preview.FrameRate,
+		h.engine.PreviewQuality(), h.engine.ProfileBitrateKbps(), PreviewBitrateList(),
+		h.engine.TransportBudgetKbps(), h.engine.TransportSpendKbps(),
+		h.engine.TileAllowance(), h.engine.TileAllowanceBound(), len(h.engine.Sessions()))
 }
 
 // reasonLine never returns an empty explanation: a mirror that is not armed with

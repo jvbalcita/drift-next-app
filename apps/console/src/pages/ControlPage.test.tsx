@@ -12,7 +12,8 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, liveStreamView, type LiveMirrorPreview, type MirrorCapacityView } from "@/lib/live-mirror"
 import { ControlPage } from "./ControlPage"
-import { liveTileCopy, tileViewerBudget, tileViewerLimit, type TileViewerBudget } from "@/lib/live-tiles"
+import { liveTileCopy, tileViewerLimit, type MeasuredTileBudget } from "@/lib/live-tiles"
+import { planeBudget, planeCapacity } from "@/test/mirror-fixtures"
 
 /**
  * The browser's WebRTC stack is stubbed rather than exercised: what these tests
@@ -62,9 +63,9 @@ function fakeMirror(state: "starting" | "live" | "ended" = "live", transport: Mi
 }
 
 /** The plane the page's fixtures run against: five sessions, one kept for the frame. */
-const gridPlane: MirrorCapacityView = { sessionCapacity: 5, operatorReserve: 1, tilePlaces: 4 }
+const gridPlane: MirrorCapacityView = planeCapacity(5, 1)
 /** The grid's own budget, derived from that plane rather than stated. */
-const gridBudget: TileViewerBudget = tileViewerBudget(gridPlane)
+const gridBudget: MeasuredTileBudget = planeBudget(5, 1)
 
 /** openLiveMirrorDetails opens the info control beside the pin and returns what it holds. */
 async function openLiveMirrorDetails(user: ReturnType<typeof userEvent.setup>) {
@@ -977,7 +978,7 @@ describe("ControlPage fleet tiles", () => {
     // The tile the bound does not reach says so in the tile, and does not imply
     // it is live: no picture element, and the whole sentence behind the mark.
     const unshown = screen.getByTestId("live-tile-state-orion-03")
-    expect(unshown).toHaveAttribute("aria-label", liveTileCopy.unshown(tileViewerLimit(gridBudget)))
+    expect(unshown).toHaveAttribute("aria-label", liveTileCopy.unshown(gridBudget))
     expect(unshown).toHaveTextContent(liveTileCopy.unshownShort)
     expect(screen.queryByTestId("live-tile-video-orion-03")).not.toBeInTheDocument()
   })
@@ -1042,7 +1043,7 @@ describe("ControlPage fleet tiles", () => {
     // three tiles that showed nothing with nothing on screen to explain them.
     const { snapshot, dispatch } = grid()
     const mirror = mirrorFor()
-    const singlePlace = { ...mirror, client: { ...mirror.client, async getCapacity() { return { sessionCapacity: 2, operatorReserve: 1, tilePlaces: 1 } } } }
+    const singlePlace = { ...mirror, client: { ...mirror.client, async getCapacity() { return planeCapacity(2, 1) } } }
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={singlePlace.client} />)
 
     expect(await screen.findByTestId("live-tile-video-atlas-04")).toBeInTheDocument()
@@ -1051,7 +1052,7 @@ describe("ControlPage fleet tiles", () => {
     // which bound kept them out rather than reading as devices with nothing to show.
     expect(screen.getAllByTestId(/^live-tile-video-/)).toHaveLength(1)
     const unshown = screen.getByTestId("live-tile-state-atlas-07")
-    expect(unshown).toHaveAttribute("aria-label", liveTileCopy.unshown(1))
+    expect(unshown).toHaveAttribute("aria-label", liveTileCopy.unshown(planeBudget(2, 1)))
     expect(unshown).toHaveTextContent(liveTileCopy.unshownShort)
   })
 
