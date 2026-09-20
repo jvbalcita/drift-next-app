@@ -2,6 +2,7 @@ import { BellIcon, MinusIcon, Settings2Icon, SquareIcon, XIcon } from "lucide-re
 
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { viewLabel, type Route } from "@/lib/navigation"
 import { cn } from "@/lib/utils"
@@ -56,8 +57,18 @@ export function AppTitlebar({
       <SidebarTrigger
         data-platform={platform}
         aria-label="Toggle sidebar"
-        className="absolute top-1/2 left-2 size-7 -translate-y-1/2 rounded-md text-muted-foreground hover:bg-foreground/7 hover:text-foreground focus-visible:ring-ring data-[platform=macos]:left-[88px] data-[platform=windows]:left-auto data-[platform=windows]:right-[146px]"
+        className="absolute top-1/2 left-2 size-7 -translate-y-1/2 rounded-md text-muted-foreground hover:bg-foreground/7 hover:text-foreground focus-visible:ring-ring data-[platform=macos]:top-[calc(50%-1px)] data-[platform=macos]:left-[88px] data-[platform=windows]:left-auto data-[platform=windows]:right-[146px]"
       />
+
+      {!sidebarOpen && platform === "macos" ? (
+        <Separator
+          data-slot="titlebar-toolbar-separator"
+          data-tauri-drag-region
+          orientation="vertical"
+          aria-hidden="true"
+          className="absolute top-[calc(50%-1px)] left-32 h-4 -translate-y-1/2"
+        />
+      ) : null}
 
       <div
         data-slot="titlebar-content"
@@ -65,6 +76,7 @@ export function AppTitlebar({
         className={cn(
           "flex min-w-0 flex-1 items-center transition-[margin] duration-200 ease-linear",
           sidebarOpen ? "ml-(--sidebar-width)" : platform === "macos" ? "ml-32" : "ml-12",
+          platform === "macos" && "-translate-y-px",
           platform === "windows" && "mr-36",
         )}
       >
