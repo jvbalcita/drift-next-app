@@ -123,6 +123,12 @@ type TransportWatchOutcome struct {
 	// LastError is the most recent failed poll, kept so the count can be
 	// explained rather than only totalled.
 	LastError error
+	// Condition is the classified reading of the adapter's OWN transport, as of
+	// the last poll: the condition that repeats, how often, and the one thing
+	// that fixes it. It is carried on the outcome so a watcher that could not
+	// read the fleet for hours is explicable from its own record as a READING
+	// rather than as a count of identical lines (ARC-231).
+	Condition TransportReading
 	// LastRecordError is the most recent refused arrival batch.
 	LastRecordError error
 	// DeparturesRecorded is how many transports this watch recorded leaving. A
@@ -187,6 +193,12 @@ func (o TransportWatchOutcome) Report() string {
 	}
 	if o.Polls > 0 {
 		report += fmt.Sprintf("; %d transport(s) attached at the last poll", o.Attached)
+	}
+	if o.Condition.Failed() {
+		// The closing record carries the READING, not only the count: a watcher
+		// that failed for hours must say what the condition was and what fixes
+		// it, and a total of identical lines cannot (ARC-231).
+		report += "; " + o.Condition.String()
 	}
 	if o.LastError != nil {
 		report += fmt.Sprintf("; last poll error: %v", o.LastError)
@@ -258,6 +270,11 @@ type TransportWatcher struct {
 	pollTimeout   time.Duration
 	logf          func(string, ...any)
 	now           func() time.Time
+
+	// condition is the bounded, classified reporter for the adapter's own
+	// transport. It is written only from the watch goroutine, like the rest of
+	// the watcher's own state.
+	condition transportConditionLog
 
 	// unrecorded holds the arrivals the sink has not accepted yet, keyed the same
 	// way change detection is. It is written only from the watch goroutine, and
@@ -350,9 +367,22 @@ func (w *TransportWatcher) poll(ctx context.Context, previous attachmentSnapshot
 	if err != nil {
 		outcome.PollErrors++
 		outcome.LastError = err
-		w.logf("discovery watcher poll failed: %v", err)
+		// One line per occurrence is not a record, it is a volume: a condition
+		// that repeats on every poll appends without bound and tells an operator
+		// nothing they can act on. The reading is classified, it names the one
+		// thing that fixes it, and it is written when it starts, when it changes,
+		// and at a bounded cadence while it persists (ARC-231).
+		reading, write := w.condition.observe(w.now(), err)
+		outcome.Condition = reading
+		if write {
+			w.logf("discovery watcher poll failed: %s", reading.String())
+		}
 		return nil
 	}
+	if recovered, write := w.condition.clear(); write {
+		w.logf("discovery watcher poll recovered: the adapter's transport answered again after %s", recovered.String())
+	}
+	outcome.Condition = TransportReading{}
 	outcome.Polls++
 	current := make(attachmentSnapshot, len(devices))
 	for _, device := range devices {
