@@ -198,6 +198,16 @@ type OperationReadback struct {
 // for a keyboard the device does not have.
 var ErrNoEnabledKeyboard = errors.New("the device reported no enabled keyboard")
 
+// ErrContentRefused reports bytes a device answered with that this product's
+// content admission refused to store.
+//
+// It is a sentinel of its own rather than a device failure, because nothing
+// about the device is wrong: the export read the file it was asked for, and the
+// artifact store declined to keep bytes whose safety it cannot establish. An
+// operator's next step is a policy decision, not a look at the device, so the
+// two must not be reported as one another.
+var ErrContentRefused = errors.New("the bytes the device answered with were not admissible to the artifact store")
+
 // Read reports whether this reading holds a device answer at all. Every
 // predicate above already answers a question about a reading it assumes; this
 // is the question underneath them, and it exists so a row can tell "the device

@@ -849,20 +849,32 @@ func TestTransportFailureIsClassifiedAndCarriesNoCommandText(t *testing.T) {
 
 // --- no path to arbitrary command text --------------------------------------
 
-// The only exported entry points on the primitives are the typed device inputs
-// and the two catalogued settings operations. No exported method accepts a
-// string, a string slice, or an untyped value, so no caller can hand this
-// boundary command text.
+// The only exported entry points on the primitives are the typed device inputs,
+// the two catalogued settings operations, and the panel's catalogued device
+// operations. No exported method accepts a string, a string slice, or an untyped
+// value, so no caller can hand this boundary command text positionally.
 //
-// The settings primitives are the strongest form of the rule rather than an
-// exception to it: they take no argument at all beyond the context, so there is
-// no position in which a caller could put anything.
+// Three of those are the strongest form of the rule rather than exceptions to
+// it: the settings operations and the reboot and keyboard switch take no
+// argument at all beyond the context, so there is no further position in which a
+// caller could put anything at all.
+//
+// `AdvancedAnswer` is the ADVANCED form AGENTS.md section 3 admits, and it is
+// the one entry point that carries an operator's own argument array. It is
+// asserted here rather than waived: the array arrives inside a typed request
+// struct, never as a bare slice, and the boundary refuses an array it will not
+// dispatch before any device call. The separation that makes it safe is that no
+// catalogued kind reaches it - asserted in `TestOnlyTheAdvancedEntryPointCarriesAnArgumentArray`
+// below, and at the applier by `RunAdvancedCommand` having no catalogued caller.
 func TestInputPrimitivesExposeNoCommandTextParameter(t *testing.T) {
 	inputsType := reflect.TypeOf(&execution.Inputs{})
 	readback := reflect.TypeOf(execution.SettingReadback{})
+	operationReadback := reflect.TypeOf(execution.OperationReadback{})
 	want := map[string]bool{
 		"Tap": true, "Swipe": true, "TypeText": true, "KeyEvent": true, "LaunchApp": true,
 		"ApplyRotationLock": true, "ApplyAutofillOff": true,
+		"Reboot": true, "SwitchKeyboard": true, "ImportFile": true, "InstallPackage": true,
+		"ExportFile": true, "AdvancedAnswer": true,
 	}
 
 	seen := make(map[string]bool)
@@ -874,9 +886,9 @@ func TestInputPrimitivesExposeNoCommandTextParameter(t *testing.T) {
 		}
 		function := method.Func.Type()
 		// The typed inputs take a context and one typed request; the two
-		// catalogued settings operations take a context and nothing else, which
-		// is the strongest form of this rule: there is no further position at
-		// all.
+		// catalogued settings operations and two of the panel's operations take
+		// a context and nothing else, which is the strongest form of this rule:
+		// there is no further position at all.
 		if function.NumIn() < 2 || function.NumIn() > 3 {
 			t.Fatalf("%s takes %d arguments, want a context and at most one typed request", method.Name, function.NumIn()-1)
 		}
@@ -891,16 +903,77 @@ func TestInputPrimitivesExposeNoCommandTextParameter(t *testing.T) {
 		}
 		// Every primitive reports an error last, and a primitive that reads its
 		// own postcondition back reports that reading before it.
-		if function.NumOut() < 1 || function.NumOut() > 2 || function.Out(function.NumOut()-1) != reflect.TypeOf((*error)(nil)).Elem() {
+		if function.NumOut() < 1 || function.NumOut() > 3 || function.Out(function.NumOut()-1) != reflect.TypeOf((*error)(nil)).Elem() {
 			t.Fatalf("%s does not return an error last", method.Name)
 		}
-		if function.NumOut() == 2 && function.Out(0) != readback {
-			t.Fatalf("%s returns %s before its error, which is not a settings read-back", method.Name, function.Out(0))
+		// A one-reading primitive is a settings operation; ExportFile answers
+		// the bytes it pulled beside the reading that describes them.
+		if function.NumOut() > 2 && function.Out(0) != operationReadback {
+			t.Fatalf("%s returns %s before its other answers, which is not an operation read-back", method.Name, function.Out(0))
+		}
+		if function.NumOut() > 2 && function.Out(1).Kind() != reflect.Slice {
+			t.Fatalf("%s returns %s for the bytes it pulled, which is not bytes", method.Name, function.Out(1))
+		}
+		if function.NumOut() == 2 && function.Out(0) != readback && function.Out(0) != operationReadback {
+			t.Fatalf("%s returns %s before its error, which is not a read-back", method.Name, function.Out(0))
 		}
 	}
 	for name := range want {
 		if !seen[name] {
 			t.Fatalf("the reviewed primitive %q is missing", name)
+		}
+	}
+}
+
+// TestOnlyTheAdvancedEntryPointCarriesAnArgumentArray is the separation the
+// amended command rule requires, asserted directly rather than intended.
+//
+// An argument array reaches this boundary through exactly ONE type, and exactly
+// one exported primitive accepts that type. Every catalogued operation's request
+// carries bounded typed fields only - a file NAME, an artifact identity, a media
+// type, a package name - so there is no catalogued request in which command text
+// could be named, and no catalogued caller that could reach the array's
+// recogniser.
+func TestOnlyTheAdvancedEntryPointCarriesAnArgumentArray(t *testing.T) {
+	advanced := reflect.TypeOf(execution.AdvancedCommandRequest{})
+	arrayBearer := func(typ reflect.Type) bool {
+		for index := 0; index < typ.NumField(); index++ {
+			if typ.Field(index).Type == reflect.TypeOf([]string{}) {
+				return true
+			}
+		}
+		return false
+	}
+	catalogue := []reflect.Type{
+		reflect.TypeOf(execution.RebootRequest{}),
+		reflect.TypeOf(execution.KeyboardSwitchRequest{}),
+		reflect.TypeOf(execution.FileImportRequest{}),
+		reflect.TypeOf(execution.FileExportRequest{}),
+		reflect.TypeOf(execution.PackageInstallRequest{}),
+	}
+	for _, request := range catalogue {
+		if arrayBearer(request) {
+			t.Fatalf("catalogued request %s carries an argument array", request.Name())
+		}
+	}
+	if !arrayBearer(advanced) {
+		t.Fatalf("the advanced form's request carries no argument array, so it is not the form the rule admits")
+	}
+	inputsType := reflect.TypeOf(&execution.Inputs{})
+	accepting := []reflect.Type{advanced}
+	for index := 0; index < inputsType.NumMethod(); index++ {
+		method := inputsType.Method(index)
+		function := method.Func.Type()
+		for argument := 2; argument < function.NumIn(); argument++ {
+			matched := false
+			for _, candidate := range accepting {
+				if function.In(argument) == candidate {
+					matched = true
+				}
+			}
+			if matched && method.Name != "AdvancedAnswer" {
+				t.Fatalf("%s accepts the advanced form's request; only the advanced entry point may", method.Name)
+			}
 		}
 	}
 }

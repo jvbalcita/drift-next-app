@@ -315,6 +315,23 @@ func ValidateTransferHostPath(path string) error {
 	return validateArgToken(path)
 }
 
+// ValidateTransferRoot reports whether root is a host directory a catalogued
+// push may materialize its payload under.
+//
+// It asks the SAME rule the push itself is admitted by, over a path composed
+// exactly as the boundary composes one, so a deployment that points its
+// transfer root somewhere the adapter would refuse - a directory whose own name
+// carries a space, a relative path, a path that is not absolute - finds out
+// when it is configured rather than at the first file operation. It is a check
+// over a SYNTHETIC name: no file is created, read or removed by it.
+func ValidateTransferRoot(root string) error {
+	if strings.TrimSpace(root) == "" || !filepath.IsAbs(root) {
+		return ErrTransferHostPathInvalid
+	}
+	sample := filepath.Join(root, transferHostDirName, transferHostFilePrefix+"0123456789abcdef01234567.file")
+	return ValidateTransferHostPath(sample)
+}
+
 // ValidateImeComponent reports whether component is an input-method component
 // name: a dotted package, a separator, and the service half. It is a NAME, not
 // command text, which is what lets the write be admitted as a single bounded

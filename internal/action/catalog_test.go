@@ -6,9 +6,13 @@ import (
 )
 
 func TestCatalogDeclaresEveryFoundationActionWithSafetyMetadata(t *testing.T) {
-	// 19 foundation kinds plus the two catalogued device settings (ARC-137).
-	if len(Catalog()) != 21 {
-		t.Fatalf("catalog size = %d, want 21 typed actions", len(Catalog()))
+	// 19 foundation kinds, the two catalogued device settings (ARC-137) and the
+	// six catalogued device operations the big-frame control panel dispatches
+	// (ARC-138: reboot, keyboard switch, package install, file import, file
+	// export, and the ADVANCED general command the retirement of the blanket
+	// ban admitted).
+	if len(Catalog()) != 27 {
+		t.Fatalf("catalog size = %d, want 27 typed actions", len(Catalog()))
 	}
 	for _, spec := range Catalog() {
 		if spec.Kind == "" || spec.Risk == "" || spec.Retry == "" || len(spec.AllowedSurfaces) == 0 {

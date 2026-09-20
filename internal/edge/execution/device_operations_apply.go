@@ -84,6 +84,12 @@ const (
 	// that reports no enabled input method: there is nothing to switch to, and
 	// the operation is refused rather than written without a choice.
 	OperationNoEnabledKeyboard OperationRefusal = "no_enabled_keyboard"
+	// OperationContentRefused is an export's own reason for bytes the artifact
+	// store declined to keep: the file WAS read off the device, and content
+	// whose safety cannot be established is not stored. It is a reason of its
+	// own rather than a device failure, because nothing about the device is
+	// wrong and an operator's next step is a policy decision.
+	OperationContentRefused OperationRefusal = "content_refused"
 	// OperationNotConfirmed is the ADVANCED form's own reason for an array the
 	// operator did not confirm. Nothing reaches a device.
 	OperationNotConfirmed OperationRefusal = "not_confirmed"
@@ -121,6 +127,7 @@ var operationRefusalMessages = map[OperationRefusal]string{
 	OperationArtifactUnavailable:     "this workspace holds no bytes for that artifact, so there was nothing to send",
 	OperationFileNameInvalid:         "the file name is not a bounded name this product addresses, so nothing was sent",
 	OperationNoEnabledKeyboard:       "the device reported no enabled keyboard, so there is nothing to switch to",
+	OperationContentRefused:          "the file was read off the device and its bytes were not admissible to this workspace's artifact store, so nothing was kept",
 	OperationNotConfirmed:            "the argument array was not confirmed by the operator, so nothing was dispatched",
 	OperationHostPathRefused:         "the argument array names a host path outside the set this product admits, so nothing was dispatched",
 	OperationRequestInvalid:          "the request is not one this product dispatches, so nothing was sent",
@@ -168,7 +175,7 @@ var operationRefusalForKernelRefusal = map[RefusalReason]OperationRefusal{
 
 // DeviceOperationOutcome is ONE operation's outcome for ONE device.
 type DeviceOperationOutcome struct {
-	DeviceID string
+	DeviceID  string
 	Operation action.Kind
 	// Applied is true only when the operation dispatched, the device answered,
 	// AND the device's own read-back shows the operation's postcondition
@@ -614,6 +621,14 @@ func operationOutcomeFromError(row DeviceOperationOutcome, err error) DeviceOper
 	if errors.Is(err, ErrNoEnabledKeyboard) {
 		row.Refusal = OperationNoEnabledKeyboard
 		row.FailureClass = domain.FailurePostcondition
+		row.Message = row.Refusal.Message()
+		return row
+	}
+	// Bytes the artifact store declined to keep are the store's decision, not
+	// the device's: the file WAS read, and the row says which half happened.
+	if errors.Is(err, ErrContentRefused) {
+		row.Refusal = OperationContentRefused
+		row.FailureClass = domain.FailureInvalidTransition
 		row.Message = row.Refusal.Message()
 		return row
 	}

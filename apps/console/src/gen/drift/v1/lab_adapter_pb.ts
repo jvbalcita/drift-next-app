@@ -689,4 +689,3 @@ export const LabAdapterService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_lab_adapter, 0);
-
