@@ -104,6 +104,19 @@ type inputAdapter struct {
 	observer  PostconditionObserver
 	serial    string
 
+	// departures is the port a reboot's departure is observed through, and
+	// transferRoot is the host directory a push materializes its payload
+	// under. Both are deployment inputs; a boundary with neither still
+	// dispatches every kind whose operation does not need them, and refuses
+	// the ones that do rather than acting without its postcondition.
+	departures   DepartureObserver
+	transferRoot string
+
+	// archive stores the bytes one export pulled off a device. It is nil when
+	// the deployment has no artifact store, and an export then refuses rather
+	// than pulling bytes it cannot keep.
+	archive DeviceFileArchive
+
 	// deviceID names the device this adapter is bound to. It is what the live
 	// session delivering an input is looked up by: a session is one device's,
 	// and a serial may be a transport that moved.
@@ -126,14 +139,19 @@ type inputAdapter struct {
 }
 
 // boundAttempt is one attempt's typed payload together with its report sink. The
-// sink is per-attempt and never shared between attempts.
+// sink is per-attempt and never shared between attempts, and the actor is the
+// one the attempt is dispatched on behalf of - an export writes the bytes it
+// pulled into the artifact store ON THAT ACTOR'S BEHALF, so the store's audit
+// trail names the operator or agent that ran the action rather than the plane.
 type boundAttempt struct {
-	payload InputPayload
-	sink    *attemptReportSink
+	payload   InputPayload
+	sink      *attemptReportSink
+	actorType string
+	actorID   string
 }
 
-func newInputAdapter(transport InputTransport, resolver TextResolver, observer PostconditionObserver, deviceID, serial string, renderSizes RenderSizeSourceFactory, delivery MirrorDelivery) *inputAdapter {
-	return &inputAdapter{transport: transport, resolver: resolver, observer: observer, deviceID: deviceID, serial: serial, renderSizes: renderSizes, mirror: delivery, pending: make(map[string]boundAttempt)}
+func newInputAdapter(transport InputTransport, resolver TextResolver, observer PostconditionObserver, deviceID, serial string, renderSizes RenderSizeSourceFactory, delivery MirrorDelivery, departures DepartureObserver, transferRoot string, archive DeviceFileArchive) *inputAdapter {
+	return &inputAdapter{transport: transport, resolver: resolver, observer: observer, deviceID: deviceID, serial: serial, renderSizes: renderSizes, mirror: delivery, departures: departures, transferRoot: transferRoot, archive: archive, pending: make(map[string]boundAttempt)}
 }
 
 // carriesRenderCoordinate reports whether a kind dispatches a point that is only
@@ -269,6 +287,14 @@ func (a *inputAdapter) inputTimeout(intent action.Intent) time.Duration {
 // being dispatched with no way to check its frame.
 func (a *inputAdapter) inputOptions(intent action.Intent, kind action.Kind) ([]InputOption, error) {
 	options := []InputOption{WithInputTimeout(intent.Timeout)}
+	if a.departures != nil {
+		// A reboot's departure is observed through the port, and a deployment
+		// that bound one has it available to every dispatch that needs it.
+		options = append(options, WithDepartureObserver(a.departures))
+	}
+	if strings.TrimSpace(a.transferRoot) != "" {
+		options = append(options, WithTransferRoot(a.transferRoot))
+	}
 	if !carriesRenderCoordinate(kind) {
 		return options, nil
 	}
@@ -300,14 +326,15 @@ func (a *inputAdapter) Cleanup(context.Context, action.Intent) error { return ni
 
 // bind attaches one typed payload to one attempt for the duration of a
 // dispatch, together with the sink the executing adapter reports what it did
-// into. A payload is single-use: Execute consumes it.
-func (a *inputAdapter) bind(attemptID string, payload InputPayload, sink *attemptReportSink) {
+// into, and the actor the attempt runs on behalf of. A payload is single-use:
+// Execute consumes it.
+func (a *inputAdapter) bind(attemptID string, payload InputPayload, sink *attemptReportSink, actorType, actorID string) {
 	if a == nil || attemptID == "" {
 		return
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.pending[attemptID] = boundAttempt{payload: payload, sink: sink}
+	a.pending[attemptID] = boundAttempt{payload: payload, sink: sink, actorType: actorType, actorID: actorID}
 }
 
 func (a *inputAdapter) release(attemptID string) {
@@ -395,6 +422,8 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 		}
 	}
 	readback, readBack, runErr := SettingReadback{}, false, error(nil)
+	operation := OperationReadback{}
+	operationRead := false
 	if a.carriesThroughMirror(kind) {
 		// The device has a live session, so this is the delivery. It is chosen
 		// after the render-space cross-check above and after the kernel
@@ -404,6 +433,14 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 		// than a tap that visibly did not land.
 		runErr = a.deliverToMirror(ctx, intent, payload, kind)
 		reached = runErr == nil
+	} else if carriesOperationReadback(kind) {
+		// A catalogued device OPERATION runs its own argument array and reads
+		// its own postcondition back off the device: a departure for a reboot,
+		// the device's own secure default for a keyboard switch, a size for a
+		// file, a code path for a package. There is nothing for the observation
+		// port to add to any of them.
+		operation, runErr = a.runOperation(ctx, inputs, bound, payload, kind, intent.Workspace)
+		operationRead = true
 	} else {
 		readback, readBack, runErr = runInput(ctx, inputs, payload, kind, intent.Workspace)
 	}
@@ -415,6 +452,31 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 			Dispatched:   counted.attempted(),
 			FailureClass: failureClassFor(runErr),
 		}
+	}
+	if operationRead {
+		// A catalogued device operation read its own postcondition back off the
+		// device, exactly as a settings operation does. The reading names
+		// itself, because the kernel requires a completion to identify the
+		// observation it was evaluated against and for an operation the
+		// read-back IS that observation.
+		//
+		// A reboot that the transport never saw depart, a keyboard switch the
+		// device's own default does not show, a file the device does not report
+		// at the size that was sent and a package with no code path all fail
+		// HERE, on the device's own answer, rather than on a command that
+		// exited zero.
+		token := operation.Token()
+		observation := PostconditionObservation{OperationReadback: &operation, Token: token}
+		report.observation = observation
+		report.observed = true
+		postcondition, failure, outcome := evaluatePostcondition(spec, intent, payload, observation)
+		return adapter.Execution{
+			Outcome:          outcome,
+			Postcondition:    postcondition,
+			FailureClass:     failure,
+			Dispatched:       true,
+			ObservationToken: token,
+		}, nil
 	}
 	if readBack {
 		// A catalogued settings operation read its own postcondition back off
@@ -493,6 +555,89 @@ func runInput(ctx context.Context, inputs *Inputs, payload InputPayload, kind ac
 		return readback, true, err
 	default:
 		return SettingReadback{}, false, platformerrors.New(platformerrors.CodeInvalidInput, "device input kind is not dispatchable")
+	}
+}
+
+// carriesOperationReadback reports whether a kind is a catalogued device
+// OPERATION that reads its own postcondition back off the device rather than
+// being observed through the observation port.
+//
+// The list is closed on purpose. An operation's postcondition is a device fact
+// this boundary reads (a departure, the secure default input method, a file's
+// size, a package's code path), so a kind that needs one and is missing from
+// this list would fall through to the observation port and be evaluated against
+// an observation that says nothing about it.
+func carriesOperationReadback(kind action.Kind) bool {
+	switch kind {
+	case action.Reboot, action.KeyboardSwitch, action.ImportFile, action.ExportFile, action.InstallApk, action.AdvancedCommand:
+		return true
+	default:
+		return false
+	}
+}
+
+// DeviceFileArchive stores the bytes one export pulled off a device as an
+// artifact this workspace holds.
+//
+// It is the write side of the two artifact ports an operation needs, and it is
+// deliberately narrow: it takes bytes this boundary read off a device plus a
+// bounded file name, and it answers the artifact's identity. It cannot read an
+// artifact, so an export cannot be turned into an import, and it cannot be
+// asked for anything by path.
+type DeviceFileArchive interface {
+	StorePulledFile(ctx context.Context, workspace, mediaType, fileName string, payload []byte, actorType, actorID string) (string, error)
+}
+
+// runOperation runs one catalogued device operation and answers the read-back it
+// took. Every branch dispatches a fixed argument array built by the operation's
+// own builder; none of them is reachable with caller-authored command text.
+func (a *inputAdapter) runOperation(ctx context.Context, inputs *Inputs, bound boundAttempt, payload InputPayload, kind action.Kind, workspace string) (OperationReadback, error) {
+	switch kind {
+	case action.Reboot:
+		return inputs.Reboot(ctx, 0)
+	case action.KeyboardSwitch:
+		return inputs.SwitchKeyboard(ctx)
+	case action.ImportFile:
+		if payload.Import == nil {
+			return OperationReadback{}, platformerrors.New(platformerrors.CodeInvalidInput, "a file import requires its payload")
+		}
+		return inputs.ImportFile(ctx, *payload.Import)
+	case action.InstallApk:
+		if payload.Install == nil {
+			return OperationReadback{}, platformerrors.New(platformerrors.CodeInvalidInput, "a package install requires its payload")
+		}
+		return inputs.InstallPackage(ctx, *payload.Install)
+	case action.ExportFile:
+		if payload.Export == nil {
+			return OperationReadback{}, platformerrors.New(platformerrors.CodeInvalidInput, "a file export requires its payload")
+		}
+		readback, pulled, err := inputs.ExportFile(ctx, *payload.Export)
+		if err != nil {
+			return readback, err
+		}
+		if a.archive == nil {
+			// The bytes are in hand and there is nowhere to keep them: the
+			// export is refused rather than reported as an artifact this
+			// workspace does not hold.
+			return readback, platformerrors.New(platformerrors.CodeUnavailable, "this deployment has no artifact store, so a pulled file cannot be kept")
+		}
+		mediaType := payload.Export.MediaType
+		if strings.TrimSpace(mediaType) == "" {
+			mediaType = "application/octet-stream"
+		}
+		artifactID, err := a.archive.StorePulledFile(ctx, workspace, mediaType, payload.Export.FileName, pulled, bound.actorType, bound.actorID)
+		if err != nil {
+			return readback, err
+		}
+		readback.ArtifactID = artifactID
+		return readback, nil
+	case action.AdvancedCommand:
+		if payload.Advanced == nil {
+			return OperationReadback{}, platformerrors.New(platformerrors.CodeInvalidInput, "an advanced command requires its payload")
+		}
+		return inputs.AdvancedAnswer(ctx, *payload.Advanced)
+	default:
+		return OperationReadback{}, platformerrors.New(platformerrors.CodeInvalidInput, "device operation kind is not dispatchable")
 	}
 }
 

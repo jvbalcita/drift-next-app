@@ -708,3 +708,4 @@ export const SkillService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_skill, 0);
+
