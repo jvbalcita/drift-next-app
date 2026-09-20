@@ -25,8 +25,20 @@ type failingEnumerator struct {
 }
 
 func (e *failingEnumerator) Enumerate(context.Context) ([]discovery.RuntimeDevice, error) {
-	if e.calls.Add(1) >= e.limit {
+	calls := e.calls.Add(1)
+	if calls >= e.limit {
 		e.stop()
+	}
+	// The poll that trips the limit still fails - that failure is the occurrence
+	// being counted. Any poll that starts BEFORE the cancellation is observed must
+	// NOT fail again: with a one-millisecond interval the watcher can begin one
+	// more poll in the window between the cancel and its own select, and a failure
+	// returned there is a second count for a condition that occurred once, which is
+	// what made the exact-count assertion below flaky rather than wrong. An empty
+	// answer is an unreadable observation and records no departure, so returning
+	// nothing after the limit is the honest reading as well as the deterministic one.
+	if calls > e.limit {
+		return nil, nil
 	}
 	return nil, e.err
 }
