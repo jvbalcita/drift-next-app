@@ -13,6 +13,7 @@ import type { ControlPlaneIntent, DispatchIntent, DeviceView } from "@/lib/domai
 import { deviceStatusMeanings } from "@/lib/device-status"
 import { keyRepeatIntervalMs, liveMirrorCopy, liveStreamView, scrollStepUnits, type LiveStreamView } from "@/lib/live-mirror"
 import { FloatingDevice } from "./ControlPage"
+import { LiveMirrorInfo, LiveMirrorSurface, type LiveMirrorSessionView } from "./live-mirror-surface"
 
 /**
  * The big frame, as `FloatingDevice` composes it.
@@ -985,5 +986,80 @@ describe("the operator's own keyboard types into the device", () => {
     keystroke(stage, { key: "a", repeat: true, atMs: 1_000 + keyRepeatIntervalMs })
     await waitFor(() => expect(keyEvents(intents)).toHaveLength(2))
     expect(keyEvents(intents)[1]).toMatchObject({ keyCode: 29 })
+  })
+})
+
+/**
+ * sessionView is a session view with nothing behind it: the frame and its info
+ * control are given what the session above produces, without a control plane.
+ *
+ * It exists because the phase below is not one a control plane can report - it is
+ * produced by the console failing to READ one, which the hook's own tests drive
+ * through a failing read. What is pinned here is the surface's decision, made on
+ * that phase.
+ */
+function sessionView(overrides: Partial<LiveMirrorSessionView>): LiveMirrorSessionView {
+  return {
+    device: device(),
+    phase: "live",
+    stream: stream(),
+    frame: { width: 1080, height: 1920 },
+    failure: "",
+    notice: "",
+    refusal: "",
+    inputBlockedReason: "",
+    inputReady: true,
+    leaseRefusal: "",
+    observationToken: streamToken,
+    detailsAttention: "",
+    reducedMotion: false,
+    attachVideo: () => undefined,
+    retry: () => undefined,
+    stop: () => undefined,
+    readDrawn: () => null,
+    beginPointer: () => undefined,
+    movePointer: () => undefined,
+    endPointer: () => undefined,
+    cancelPointer: () => undefined,
+    wheelScroll: () => undefined,
+    sendKey: () => undefined,
+    attachStage: () => undefined,
+    beginCapture: () => undefined,
+    releaseCapture: () => undefined,
+    pressKey: () => undefined,
+    ...overrides,
+  }
+}
+
+describe("a read the console could not complete", () => {
+  /**
+   * The measured failure this exists for: a couple of seconds of a busy control
+   * plane destroyed a working stream, and the operator read it as the picture
+   * crashing. The frame's own rule is that a picture which is NOT there is covered
+   * by the overlay - so the test that makes this one bite is the second half: the
+   * same frame, given a stream that really is over, does paint the overlay.
+   */
+  it("paints nothing over the picture it is still holding, and still covers a picture that is gone", () => {
+    const held = render(<LiveMirrorSurface session={sessionView({ phase: "unreadable" })} />)
+    expect(screen.getByTestId("live-mirror-video")).toBeInTheDocument()
+    expect(screen.queryByText(liveMirrorCopy.phase.unreadable)).not.toBeInTheDocument()
+    held.unmount()
+
+    render(<LiveMirrorSurface session={sessionView({ phase: "ended" })} />)
+    expect(screen.getByText(liveMirrorCopy.phase.ended)).toBeInTheDocument()
+  })
+
+  it("is not silent about it: the info control marks itself and the details hold the sentence", async () => {
+    const user = userEvent.setup()
+    render(<LiveMirrorInfo session={sessionView({ phase: "unreadable", detailsAttention: liveMirrorCopy.details.unreadable })} />)
+
+    const info = screen.getByTestId("live-mirror-info")
+    expect(screen.getByTestId("live-mirror-info-mark")).toBeInTheDocument()
+    expect(info).toHaveAccessibleName(`${liveMirrorCopy.details.label}. ${liveMirrorCopy.details.unreadable}`)
+
+    const details = await openDetails(user)
+    expect(within(details).getByTestId("live-mirror-phase")).toHaveTextContent(liveMirrorCopy.phase.unreadable)
+    // The mark names the read, not a refusal: this frame has refused nothing.
+    expect(info).not.toHaveAccessibleName(new RegExp(liveMirrorCopy.details.unread))
   })
 })
