@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ func (r *DeviceRepository) Get(ctx context.Context, workspace organizations.Work
 	var d devices.Device
 	var state string
 	var last sql.NullString
+	var retiredAt sql.NullString
 	var version int64
 	if ctx == nil {
 		return d, platformerrors.New(platformerrors.CodeInvalidInput, "context is required")
@@ -32,7 +34,7 @@ func (r *DeviceRepository) Get(ctx context.Context, workspace organizations.Work
 	if err := validateWorkspace(string(workspace)); err != nil {
 		return d, err
 	}
-	err := r.store.db.QueryRowContext(ctx, `SELECT id, workspace_id, display_name, platform_version, state, last_seen_at, row_version FROM devices WHERE workspace_id = ? AND id = ?`, string(workspace), string(id)).Scan(&d.ID, &d.Workspace, &d.DisplayName, &d.PlatformVersion, &state, &last, &version)
+	err := r.store.db.QueryRowContext(ctx, deviceProjectionQuery+` WHERE d.workspace_id = ? AND d.id = ?`, string(workspace), string(id)).Scan(&d.ID, &d.Workspace, &d.DisplayName, &d.PlatformVersion, &state, &last, &version, &d.Retired, &retiredAt, &d.ObservedAgain)
 	if err == sql.ErrNoRows {
 		return d, platformerrors.New(platformerrors.CodeNotFound, "device not found")
 	}
@@ -45,9 +47,17 @@ func (r *DeviceRepository) Get(ctx context.Context, workspace organizations.Work
 			d.LastSeenAt = &t
 		}
 	}
+	if retiredAt.Valid {
+		if t, e := time.Parse(time.RFC3339Nano, retiredAt.String); e == nil {
+			d.RetiredAt = &t
+		}
+	}
 	return d, nil
 }
 func (r *DeviceRepository) List(ctx context.Context, workspace organizations.WorkspaceID) ([]devices.Device, error) {
+	return r.ListIncludingRetired(ctx, workspace, false)
+}
+func (r *DeviceRepository) ListIncludingRetired(ctx context.Context, workspace organizations.WorkspaceID, includeRetired bool) ([]devices.Device, error) {
 	if ctx == nil {
 		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "context is required")
 	}
@@ -57,7 +67,7 @@ func (r *DeviceRepository) List(ctx context.Context, workspace organizations.Wor
 	if err := validateWorkspace(string(workspace)); err != nil {
 		return nil, err
 	}
-	rows, err := r.store.db.QueryContext(ctx, `SELECT id, workspace_id, display_name, platform_version, state, last_seen_at, row_version FROM devices WHERE workspace_id = ? ORDER BY id`, string(workspace))
+	rows, err := r.store.db.QueryContext(ctx, deviceProjectionQuery+` WHERE d.workspace_id = ? AND (? OR retirement.action IS NULL OR retirement.action = 'restored' OR EXISTS (SELECT 1 FROM device_endpoints ep WHERE ep.workspace_id=d.workspace_id AND ep.device_id=d.id AND ep.state='current' AND ep.observed_at > retirement.decided_at)) ORDER BY d.id`, string(workspace), includeRetired)
 	if err != nil {
 		return nil, classifyContext(err)
 	}
@@ -67,14 +77,20 @@ func (r *DeviceRepository) List(ctx context.Context, workspace organizations.Wor
 		var d devices.Device
 		var state string
 		var last sql.NullString
+		var retiredAt sql.NullString
 		var version int64
-		if err := rows.Scan(&d.ID, &d.Workspace, &d.DisplayName, &d.PlatformVersion, &state, &last, &version); err != nil {
+		if err := rows.Scan(&d.ID, &d.Workspace, &d.DisplayName, &d.PlatformVersion, &state, &last, &version, &d.Retired, &retiredAt, &d.ObservedAgain); err != nil {
 			return nil, err
 		}
 		d.State, d.RowVersion = devices.State(state), uint64(version)
 		if last.Valid {
 			if t, e := time.Parse(time.RFC3339Nano, last.String); e == nil {
 				d.LastSeenAt = &t
+			}
+		}
+		if retiredAt.Valid {
+			if t, e := time.Parse(time.RFC3339Nano, retiredAt.String); e == nil {
+				d.RetiredAt = &t
 			}
 		}
 		result = append(result, d)
@@ -84,6 +100,13 @@ func (r *DeviceRepository) List(ctx context.Context, workspace organizations.Wor
 	}
 	return result, nil
 }
+
+const deviceProjectionQuery = `SELECT d.id, d.workspace_id, d.display_name, d.platform_version, d.state, d.last_seen_at, d.row_version,
+CASE WHEN retirement.action='retired' THEN 1 ELSE 0 END,
+CASE WHEN retirement.action='retired' THEN retirement.decided_at ELSE NULL END,
+CASE WHEN retirement.action='retired' AND EXISTS (SELECT 1 FROM device_endpoints ep WHERE ep.workspace_id=d.workspace_id AND ep.device_id=d.id AND ep.state='current' AND ep.observed_at > retirement.decided_at) THEN 1 ELSE 0 END
+FROM devices d JOIN device_registry_entries registry ON registry.workspace_id=d.workspace_id AND registry.device_id=d.id
+LEFT JOIN device_retirement_decisions retirement ON retirement.id=(SELECT rd.id FROM device_retirement_decisions rd WHERE rd.workspace_id=d.workspace_id AND rd.device_id=d.id ORDER BY rd.rowid DESC LIMIT 1)`
 
 type DeviceService struct{ store *DB }
 
@@ -101,9 +124,117 @@ func (s *DeviceService) Create(ctx context.Context, d devices.Device, actorType,
 		if err != nil {
 			return err
 		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO device_registry_entries (workspace_id, device_id, created_at) VALUES (?, ?, ?)`, d.Workspace, d.ID, now); err != nil {
+			return err
+		}
 		return s.record(ctx, tx, string(d.Workspace), string(d.ID), "device.created", actorType, actorID)
 	})
 }
+
+func (s *DeviceService) Retire(ctx context.Context, workspace organizations.WorkspaceID, id devices.DeviceID, reason, actorType, actorID string) (devices.RetirementDecision, error) {
+	return s.retirementDecision(ctx, workspace, id, "retired", reason, actorType, actorID)
+}
+
+func (s *DeviceService) Restore(ctx context.Context, workspace organizations.WorkspaceID, id devices.DeviceID, reason, actorType, actorID string) (devices.RetirementDecision, error) {
+	return s.retirementDecision(ctx, workspace, id, "restored", reason, actorType, actorID)
+}
+
+func (s *DeviceService) retirementDecision(ctx context.Context, workspace organizations.WorkspaceID, deviceID devices.DeviceID, action, reason, actorType, actorID string) (devices.RetirementDecision, error) {
+	var out devices.RetirementDecision
+	if ctx == nil || s == nil || s.store == nil || strings.TrimSpace(reason) == "" || strings.TrimSpace(actorID) == "" {
+		return out, platformerrors.New(platformerrors.CodeInvalidInput, "device decision fields are required")
+	}
+	id, err := s.store.ids.NewID()
+	if err != nil {
+		return out, err
+	}
+	now := s.store.clock.Now().UTC()
+	out = devices.RetirementDecision{ID: id, Workspace: workspace, DeviceID: deviceID, ActorType: actorType, ActorID: actorID, Reason: strings.TrimSpace(reason), Retired: action == "retired", DecidedAt: now}
+	err = WithTx(ctx, s.store.db, func(tx *sql.Tx) error {
+		var found int
+		if err := tx.QueryRowContext(ctx, `SELECT 1 FROM device_registry_entries WHERE workspace_id=? AND device_id=?`, workspace, deviceID).Scan(&found); err == sql.ErrNoRows {
+			return platformerrors.New(platformerrors.CodeNotFound, "device not found")
+		} else if err != nil {
+			return err
+		}
+		var current sql.NullString
+		_ = tx.QueryRowContext(ctx, `SELECT action FROM device_retirement_decisions WHERE workspace_id=? AND device_id=? ORDER BY rowid DESC LIMIT 1`, workspace, deviceID).Scan(&current)
+		if (action == "retired" && current.String == "retired") || (action == "restored" && current.String != "retired") {
+			return platformerrors.New(platformerrors.CodeConflict, "device expectation is already in the requested state")
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO device_retirement_decisions (id,workspace_id,device_id,action,reason,actor_type,actor_id,decided_at) VALUES (?,?,?,?,?,?,?,?)`, id, workspace, deviceID, action, out.Reason, actorType, actorID, now.Format(time.RFC3339Nano)); err != nil {
+			return err
+		}
+		return s.record(ctx, tx, string(workspace), string(deviceID), "device."+action, actorType, actorID)
+	})
+	return out, err
+}
+
+func (s *DeviceService) Delete(ctx context.Context, workspace organizations.WorkspaceID, deviceID devices.DeviceID, confirmation, reason, actorType, actorID string) (devices.Deletion, *devices.DeleteRefusal, error) {
+	var out devices.Deletion
+	if confirmation != string(deviceID) {
+		return out, &devices.DeleteRefusal{Reason: devices.DeleteRefusalConfirmationMismatch}, nil
+	}
+	if strings.TrimSpace(reason) == "" || strings.TrimSpace(actorID) == "" {
+		return out, nil, platformerrors.New(platformerrors.CodeInvalidInput, "deletion reason and actor are required")
+	}
+	id, err := s.store.ids.NewID()
+	if err != nil {
+		return out, nil, err
+	}
+	now := s.store.clock.Now().UTC()
+	err = WithTx(ctx, s.store.db, func(tx *sql.Tx) error {
+		var serial sql.NullString
+		if err := tx.QueryRowContext(ctx, `SELECT d.display_name,d.hardware_serial FROM devices d JOIN device_registry_entries r ON r.workspace_id=d.workspace_id AND r.device_id=d.id WHERE d.workspace_id=? AND d.id=?`, workspace, deviceID).Scan(&out.DisplayName, &serial); err == sql.ErrNoRows {
+			return platformerrors.New(platformerrors.CodeNotFound, "device not found")
+		} else if err != nil {
+			return err
+		}
+		checks := []struct {
+			q      string
+			reason devices.DeleteRefusalReason
+		}{
+			{`SELECT EXISTS(SELECT 1 FROM device_endpoints WHERE workspace_id=? AND device_id=? AND state='current')`, devices.DeleteRefusalDeviceAttached},
+			{`SELECT EXISTS(SELECT 1 FROM device_leases WHERE workspace_id=? AND device_id=? AND state IN ('requested','active'))`, devices.DeleteRefusalActiveLease},
+			{`SELECT EXISTS(SELECT 1 FROM mirror_sessions WHERE workspace_id=? AND source_device_id=? AND state IN ('requested','active','paused','stopping') UNION SELECT 1 FROM mirror_targets WHERE workspace_id=? AND follower_device_id=? AND state IN ('pending','leased','queued','running'))`, devices.DeleteRefusalActiveMirror},
+			{`SELECT EXISTS(SELECT 1 FROM run_targets WHERE workspace_id=? AND device_id=? AND state IN ('pending','leased','queued','running','verifying'))`, devices.DeleteRefusalActiveRun},
+			{`SELECT EXISTS(SELECT 1 FROM device_group_memberships WHERE workspace_id=? AND device_id=? AND state='active' UNION SELECT 1 FROM automation_agent_device_assignments WHERE workspace_id=? AND device_id=? AND state='active' UNION SELECT 1 FROM device_bindings WHERE workspace_id=? AND device_id=? AND state='active')`, devices.DeleteRefusalActiveAssignment},
+		}
+		for _, check := range checks {
+			var blocked bool
+			args := make([]any, 0, strings.Count(check.q, "?"))
+			for i := 0; i < strings.Count(check.q, "?")/2; i++ {
+				args = append(args, workspace, deviceID)
+			}
+			if err := tx.QueryRowContext(ctx, check.q, args...).Scan(&blocked); err != nil {
+				return err
+			}
+			if blocked {
+				return &deleteRefusalError{reason: check.reason}
+			}
+		}
+		out = devices.Deletion{ID: id, Workspace: workspace, DeviceID: deviceID, DisplayName: out.DisplayName, HardwareSerial: serial.String, ActorType: actorType, ActorID: actorID, Reason: strings.TrimSpace(reason), DeletedAt: now}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO device_deletions (id,workspace_id,device_id,display_name,hardware_serial,actor_type,actor_id,reason,confirmation_device_id,deleted_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, id, workspace, deviceID, out.DisplayName, nullableString(out.HardwareSerial), actorType, actorID, out.Reason, confirmation, now.Format(time.RFC3339Nano)); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM device_registry_entries WHERE workspace_id=? AND device_id=?`, workspace, deviceID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE devices SET hardware_serial=NULL, updated_at=?, row_version=row_version+1 WHERE workspace_id=? AND id=?`, now.Format(time.RFC3339Nano), workspace, deviceID); err != nil {
+			return err
+		}
+		return s.record(ctx, tx, string(workspace), string(deviceID), "device.deleted", actorType, actorID)
+	})
+	var refusal *deleteRefusalError
+	if errors.As(err, &refusal) {
+		return devices.Deletion{}, &devices.DeleteRefusal{Reason: refusal.reason}, nil
+	}
+	return out, nil, err
+}
+
+type deleteRefusalError struct{ reason devices.DeleteRefusalReason }
+
+func (e *deleteRefusalError) Error() string { return string(e.reason) }
 
 // Transition moves a device through the lifecycle machine, and NOTHING CALLS IT.
 //

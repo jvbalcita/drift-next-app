@@ -42,7 +42,7 @@ func (h *DeviceHandler) ListDevices(ctx context.Context, request *connectrpc.Req
 	if err != nil {
 		return nil, err
 	}
-	listed, listErr := store.NewDeviceRepository(h.db).List(ctx, workspace)
+	listed, listErr := store.NewDeviceRepository(h.db).ListIncludingRetired(ctx, workspace, request.Msg.GetIncludeRetired())
 	if listErr != nil {
 		return nil, MapError(listErr)
 	}
@@ -67,6 +67,106 @@ func (h *DeviceHandler) ListDevices(ctx context.Context, request *connectrpc.Req
 		out = append(out, deviceProto(device, &endpoint, diagnostics))
 	}
 	return connectrpc.NewResponse(&driftv1.ListDevicesResponse{Devices: out, Page: pageResponse(next)}), nil
+}
+
+func (h *DeviceHandler) RetireDevice(ctx context.Context, request *connectrpc.Request[driftv1.RetireDeviceRequest]) (*connectrpc.Response[driftv1.RetireDeviceResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("retire device request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	id := devices.DeviceID(request.Msg.GetDeviceId())
+	if id == "" || request.Msg.GetReason() == "" {
+		return nil, invalidArgument("device ID and reason are required")
+	}
+	if _, err = store.NewDeviceService(h.db).Retire(ctx, workspace, id, request.Msg.GetReason(), actorType, actorID); err != nil {
+		return nil, MapError(err)
+	}
+	device, err := store.NewDeviceRepository(h.db).Get(ctx, workspace, id)
+	if err != nil {
+		return nil, MapError(err)
+	}
+	endpoint, _ := currentEndpoint(ctx, h.db, workspace, id)
+	return connectrpc.NewResponse(&driftv1.RetireDeviceResponse{Device: deviceProto(device, endpoint, currentDiagnostics(ctx, h.db, workspace, id))}), nil
+}
+
+func (h *DeviceHandler) RestoreDevice(ctx context.Context, request *connectrpc.Request[driftv1.RestoreDeviceRequest]) (*connectrpc.Response[driftv1.RestoreDeviceResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("restore device request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	id := devices.DeviceID(request.Msg.GetDeviceId())
+	if id == "" || request.Msg.GetReason() == "" {
+		return nil, invalidArgument("device ID and reason are required")
+	}
+	if _, err = store.NewDeviceService(h.db).Restore(ctx, workspace, id, request.Msg.GetReason(), actorType, actorID); err != nil {
+		return nil, MapError(err)
+	}
+	device, err := store.NewDeviceRepository(h.db).Get(ctx, workspace, id)
+	if err != nil {
+		return nil, MapError(err)
+	}
+	endpoint, _ := currentEndpoint(ctx, h.db, workspace, id)
+	return connectrpc.NewResponse(&driftv1.RestoreDeviceResponse{Device: deviceProto(device, endpoint, currentDiagnostics(ctx, h.db, workspace, id))}), nil
+}
+
+func (h *DeviceHandler) DeleteDevice(ctx context.Context, request *connectrpc.Request[driftv1.DeleteDeviceRequest]) (*connectrpc.Response[driftv1.DeleteDeviceResponse], error) {
+	if request == nil {
+		return nil, invalidArgument("delete device request is required")
+	}
+	actorType, actorID, err := requireActor(request.Msg.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := lookupWorkspace(ctx, h.db, request.Msg.GetWorkspace())
+	if err != nil {
+		return nil, err
+	}
+	id := devices.DeviceID(request.Msg.GetDeviceId())
+	if id == "" || request.Msg.GetReason() == "" {
+		return nil, invalidArgument("device ID and reason are required")
+	}
+	deleted, refusal, err := store.NewDeviceService(h.db).Delete(ctx, workspace, id, request.Msg.GetConfirmationDeviceId(), request.Msg.GetReason(), actorType, actorID)
+	if err != nil {
+		return nil, MapError(err)
+	}
+	response := &driftv1.DeleteDeviceResponse{DeletionId: deleted.ID}
+	if refusal != nil {
+		response.RefusalReason = deleteRefusalProto(refusal.Reason)
+	}
+	return connectrpc.NewResponse(response), nil
+}
+
+func deleteRefusalProto(reason devices.DeleteRefusalReason) driftv1.DeleteDeviceRefusalReason {
+	switch reason {
+	case devices.DeleteRefusalConfirmationMismatch:
+		return driftv1.DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_CONFIRMATION_MISMATCH
+	case devices.DeleteRefusalDeviceAttached:
+		return driftv1.DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_DEVICE_ATTACHED
+	case devices.DeleteRefusalActiveLease:
+		return driftv1.DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_ACTIVE_LEASE
+	case devices.DeleteRefusalActiveMirror:
+		return driftv1.DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_ACTIVE_MIRROR
+	case devices.DeleteRefusalActiveRun:
+		return driftv1.DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_ACTIVE_RUN
+	case devices.DeleteRefusalActiveAssignment:
+		return driftv1.DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_ACTIVE_ASSIGNMENT
+	default:
+		return driftv1.DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_UNSPECIFIED
+	}
 }
 
 func (h *DeviceHandler) GetDevice(ctx context.Context, request *connectrpc.Request[driftv1.GetDeviceRequest]) (*connectrpc.Response[driftv1.GetDeviceResponse], error) {
@@ -204,14 +304,20 @@ func currentEndpoint(ctx context.Context, db *store.DB, workspace organizations.
 // the control plane never observed.
 func deviceProto(device devices.Device, endpoint *endpoints.Endpoint, diagnostics *driftv1.DeviceDiagnostics) *driftv1.Device {
 	projected := &driftv1.Device{
-		Id:              string(device.ID),
-		DisplayName:     device.DisplayName,
-		Status:          deviceStatusProto(device, endpoint),
-		PlatformVersion: device.PlatformVersion,
-		LastSeenAt:      formatTimePtr(device.LastSeenAt),
-		Workspace:       workspaceRef(device.Workspace),
-		RowVersion:      device.RowVersion,
-		Diagnostics:     diagnostics,
+		Id:                           string(device.ID),
+		DisplayName:                  device.DisplayName,
+		Status:                       deviceStatusProto(device, endpoint),
+		PlatformVersion:              device.PlatformVersion,
+		LastSeenAt:                   formatTimePtr(device.LastSeenAt),
+		Workspace:                    workspaceRef(device.Workspace),
+		RowVersion:                   device.RowVersion,
+		Diagnostics:                  diagnostics,
+		ExpectationDecidedAt:         formatTimePtr(device.RetiredAt),
+		ObservedAgainAfterRetirement: device.ObservedAgain,
+		Expectation:                  driftv1.DeviceExpectation_DEVICE_EXPECTATION_EXPECTED,
+	}
+	if device.Retired {
+		projected.Expectation = driftv1.DeviceExpectation_DEVICE_EXPECTATION_RETIRED
 	}
 	if endpoint == nil {
 		return projected

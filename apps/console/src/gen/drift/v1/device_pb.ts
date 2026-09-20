@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import type { PageRequest, PageResponse, WorkspaceRef } from "./common_pb";
+import type { PageRequest, PageResponse, RequestContext, WorkspaceRef } from "./common_pb";
 import { file_drift_v1_common } from "./common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device.proto.
  */
 export const file_drift_v1_device: GenFile = /*@__PURE__*/
-  fileDesc("ChVkcmlmdC92MS9kZXZpY2UucHJvdG8SCGRyaWZ0LnYxIvYCCgZEZXZpY2USCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCGFnZW50X2lkGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLmRyaWZ0LnYxLkRldmljZVN0YXR1cxIYChBwbGF0Zm9ybV92ZXJzaW9uGAUgASgJEhcKD2JhdHRlcnlfcGVyY2VudBgGIAEoDRISCgpsYXRlbmN5X21zGAcgASgNEhQKDGxhc3Rfc2Vlbl9hdBgIIAEoCRIpCgl3b3Jrc3BhY2UYCSABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEwoLZW5kcG9pbnRfaWQYCiABKAkSEwoLcm93X3ZlcnNpb24YCyABKAQSLAoJdHJhbnNwb3J0GAwgASgOMhkuZHJpZnQudjEuRGV2aWNlVHJhbnNwb3J0EjAKC2RpYWdub3N0aWNzGA0gASgLMhsuZHJpZnQudjEuRGV2aWNlRGlhZ25vc3RpY3MiiwgKEURldmljZURpYWdub3N0aWNzEhMKC29ic2VydmVkX2F0GAEgASgJEh0KFWludmVudG9yeV9vYnNlcnZlZF9hdBgCIAEoCRISCgVicmFuZBgDIAEoCUgAiAEBEhwKD2RldmljZV9jb2RlbmFtZRgEIAEoCUgBiAEBEhUKCGhhcmR3YXJlGAUgASgJSAKIAQESHAoPYW5kcm9pZF92ZXJzaW9uGAYgASgJSAOIAQESFgoJc2RrX2xldmVsGAcgASgNSASIAQESHAoPc2NyZWVuX3dpZHRoX3B4GAggASgNSAWIAQESHQoQc2NyZWVuX2hlaWdodF9weBgJIAEoDUgGiAEBEhgKC2RlbnNpdHlfZHBpGAogASgNSAeIAQESIgoVYmF0dGVyeV9sZXZlbF9wZXJjZW50GAsgASgNSAiIAQESKAobYmF0dGVyeV90ZW1wZXJhdHVyZV9jZWxzaXVzGAwgASgBSAmIAQESGwoOYmF0dGVyeV9zdGF0dXMYDSABKAlICogBARIgChNzdG9yYWdlX3RvdGFsX2J5dGVzGA4gASgESAuIAQESHwoSc3RvcmFnZV9mcmVlX2J5dGVzGA8gASgESAyIAQESHAoPcmFtX3RvdGFsX2J5dGVzGBAgASgESA2IAQESGwoOcmFtX2ZyZWVfYnl0ZXMYESABKARIDogBARIgChNyYW1fYXZhaWxhYmxlX2J5dGVzGBIgASgESA+IAQESGwoOdXB0aW1lX3NlY29uZHMYEyABKARIEIgBARIfChJmb3JlZ3JvdW5kX3BhY2thZ2UYFCABKAlIEYgBARIgChNmb3JlZ3JvdW5kX2FjdGl2aXR5GBUgASgJSBKIAQFCCAoGX2JyYW5kQhIKEF9kZXZpY2VfY29kZW5hbWVCCwoJX2hhcmR3YXJlQhIKEF9hbmRyb2lkX3ZlcnNpb25CDAoKX3Nka19sZXZlbEISChBfc2NyZWVuX3dpZHRoX3B4QhMKEV9zY3JlZW5faGVpZ2h0X3B4Qg4KDF9kZW5zaXR5X2RwaUIYChZfYmF0dGVyeV9sZXZlbF9wZXJjZW50Qh4KHF9iYXR0ZXJ5X3RlbXBlcmF0dXJlX2NlbHNpdXNCEQoPX2JhdHRlcnlfc3RhdHVzQhYKFF9zdG9yYWdlX3RvdGFsX2J5dGVzQhUKE19zdG9yYWdlX2ZyZWVfYnl0ZXNCEgoQX3JhbV90b3RhbF9ieXRlc0IRCg9fcmFtX2ZyZWVfYnl0ZXNCFgoUX3JhbV9hdmFpbGFibGVfYnl0ZXNCEQoPX3VwdGltZV9zZWNvbmRzQhUKE19mb3JlZ3JvdW5kX3BhY2thZ2VCFgoUX2ZvcmVncm91bmRfYWN0aXZpdHkifQoSTGlzdERldmljZXNSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSIwoEcGFnZRgDIAEoCzIVLmRyaWZ0LnYxLlBhZ2VSZXF1ZXN0Il4KE0xpc3REZXZpY2VzUmVzcG9uc2USIQoHZGV2aWNlcxgBIAMoCzIQLmRyaWZ0LnYxLkRldmljZRIkCgRwYWdlGAIgASgLMhYuZHJpZnQudjEuUGFnZVJlc3BvbnNlImkKEEdldERldmljZVJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhEKCWRldmljZV9pZBgCIAEoCRIpCgl3b3Jrc3BhY2UYAyABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYiNQoRR2V0RGV2aWNlUmVzcG9uc2USIAoGZGV2aWNlGAEgASgLMhAuZHJpZnQudjEuRGV2aWNlIl8KH1JlZnJlc2hEZXZpY2VEaWFnbm9zdGljc1JlcXVlc3QSKQoJd29ya3NwYWNlGAEgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgCIAEoCSJzCiBSZWZyZXNoRGV2aWNlRGlhZ25vc3RpY3NSZXNwb25zZRIRCglhdHRlbXB0ZWQYASABKA0SEQoJc3VjY2VlZGVkGAIgASgNEg4KBmZhaWxlZBgDIAEoDRIZChFmYWlsZWRfZGV2aWNlX2lkcxgEIAMoCSrBAQoMRGV2aWNlU3RhdHVzEh0KGURFVklDRV9TVEFUVVNfVU5TUEVDSUZJRUQQABIYChRERVZJQ0VfU1RBVFVTX09OTElORRABEhsKF0RFVklDRV9TVEFUVVNfQVRURU5USU9OEAISGQoVREVWSUNFX1NUQVRVU19PRkZMSU5FEAMSHgoaREVWSUNFX1NUQVRVU19VTkFVVEhPUklaRUQQBBIgChxERVZJQ0VfU1RBVFVTX05PX1BFUk1JU1NJT05TEAUqZwoPRGV2aWNlVHJhbnNwb3J0EiAKHERFVklDRV9UUkFOU1BPUlRfVU5TUEVDSUZJRUQQABIYChRERVZJQ0VfVFJBTlNQT1JUX1VTQhABEhgKFERFVklDRV9UUkFOU1BPUlRfVENQEAIylAIKDURldmljZVNlcnZpY2USSgoLTGlzdERldmljZXMSHC5kcmlmdC52MS5MaXN0RGV2aWNlc1JlcXVlc3QaHS5kcmlmdC52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlEkQKCUdldERldmljZRIaLmRyaWZ0LnYxLkdldERldmljZVJlcXVlc3QaGy5kcmlmdC52MS5HZXREZXZpY2VSZXNwb25zZRJxChhSZWZyZXNoRGV2aWNlRGlhZ25vc3RpY3MSKS5kcmlmdC52MS5SZWZyZXNoRGV2aWNlRGlhZ25vc3RpY3NSZXF1ZXN0GiouZHJpZnQudjEuUmVmcmVzaERldmljZURpYWdub3N0aWNzUmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_common]);
+  fileDesc("ChVkcmlmdC92MS9kZXZpY2UucHJvdG8SCGRyaWZ0LnYxIvEDCgZEZXZpY2USCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCGFnZW50X2lkGAMgASgJEiYKBnN0YXR1cxgEIAEoDjIWLmRyaWZ0LnYxLkRldmljZVN0YXR1cxIYChBwbGF0Zm9ybV92ZXJzaW9uGAUgASgJEhcKD2JhdHRlcnlfcGVyY2VudBgGIAEoDRISCgpsYXRlbmN5X21zGAcgASgNEhQKDGxhc3Rfc2Vlbl9hdBgIIAEoCRIpCgl3b3Jrc3BhY2UYCSABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEwoLZW5kcG9pbnRfaWQYCiABKAkSEwoLcm93X3ZlcnNpb24YCyABKAQSLAoJdHJhbnNwb3J0GAwgASgOMhkuZHJpZnQudjEuRGV2aWNlVHJhbnNwb3J0EjAKC2RpYWdub3N0aWNzGA0gASgLMhsuZHJpZnQudjEuRGV2aWNlRGlhZ25vc3RpY3MSMAoLZXhwZWN0YXRpb24YDiABKA4yGy5kcmlmdC52MS5EZXZpY2VFeHBlY3RhdGlvbhIeChZleHBlY3RhdGlvbl9kZWNpZGVkX2F0GA8gASgJEicKH29ic2VydmVkX2FnYWluX2FmdGVyX3JldGlyZW1lbnQYECABKAgiiwgKEURldmljZURpYWdub3N0aWNzEhMKC29ic2VydmVkX2F0GAEgASgJEh0KFWludmVudG9yeV9vYnNlcnZlZF9hdBgCIAEoCRISCgVicmFuZBgDIAEoCUgAiAEBEhwKD2RldmljZV9jb2RlbmFtZRgEIAEoCUgBiAEBEhUKCGhhcmR3YXJlGAUgASgJSAKIAQESHAoPYW5kcm9pZF92ZXJzaW9uGAYgASgJSAOIAQESFgoJc2RrX2xldmVsGAcgASgNSASIAQESHAoPc2NyZWVuX3dpZHRoX3B4GAggASgNSAWIAQESHQoQc2NyZWVuX2hlaWdodF9weBgJIAEoDUgGiAEBEhgKC2RlbnNpdHlfZHBpGAogASgNSAeIAQESIgoVYmF0dGVyeV9sZXZlbF9wZXJjZW50GAsgASgNSAiIAQESKAobYmF0dGVyeV90ZW1wZXJhdHVyZV9jZWxzaXVzGAwgASgBSAmIAQESGwoOYmF0dGVyeV9zdGF0dXMYDSABKAlICogBARIgChNzdG9yYWdlX3RvdGFsX2J5dGVzGA4gASgESAuIAQESHwoSc3RvcmFnZV9mcmVlX2J5dGVzGA8gASgESAyIAQESHAoPcmFtX3RvdGFsX2J5dGVzGBAgASgESA2IAQESGwoOcmFtX2ZyZWVfYnl0ZXMYESABKARIDogBARIgChNyYW1fYXZhaWxhYmxlX2J5dGVzGBIgASgESA+IAQESGwoOdXB0aW1lX3NlY29uZHMYEyABKARIEIgBARIfChJmb3JlZ3JvdW5kX3BhY2thZ2UYFCABKAlIEYgBARIgChNmb3JlZ3JvdW5kX2FjdGl2aXR5GBUgASgJSBKIAQFCCAoGX2JyYW5kQhIKEF9kZXZpY2VfY29kZW5hbWVCCwoJX2hhcmR3YXJlQhIKEF9hbmRyb2lkX3ZlcnNpb25CDAoKX3Nka19sZXZlbEISChBfc2NyZWVuX3dpZHRoX3B4QhMKEV9zY3JlZW5faGVpZ2h0X3B4Qg4KDF9kZW5zaXR5X2RwaUIYChZfYmF0dGVyeV9sZXZlbF9wZXJjZW50Qh4KHF9iYXR0ZXJ5X3RlbXBlcmF0dXJlX2NlbHNpdXNCEQoPX2JhdHRlcnlfc3RhdHVzQhYKFF9zdG9yYWdlX3RvdGFsX2J5dGVzQhUKE19zdG9yYWdlX2ZyZWVfYnl0ZXNCEgoQX3JhbV90b3RhbF9ieXRlc0IRCg9fcmFtX2ZyZWVfYnl0ZXNCFgoUX3JhbV9hdmFpbGFibGVfYnl0ZXNCEQoPX3VwdGltZV9zZWNvbmRzQhUKE19mb3JlZ3JvdW5kX3BhY2thZ2VCFgoUX2ZvcmVncm91bmRfYWN0aXZpdHkilgEKEkxpc3REZXZpY2VzUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEiMKBHBhZ2UYAyABKAsyFS5kcmlmdC52MS5QYWdlUmVxdWVzdBIXCg9pbmNsdWRlX3JldGlyZWQYBCABKAgiXgoTTGlzdERldmljZXNSZXNwb25zZRIhCgdkZXZpY2VzGAEgAygLMhAuZHJpZnQudjEuRGV2aWNlEiQKBHBhZ2UYAiABKAsyFi5kcmlmdC52MS5QYWdlUmVzcG9uc2UiaQoQR2V0RGV2aWNlUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSEQoJZGV2aWNlX2lkGAIgASgJEikKCXdvcmtzcGFjZRgDIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZiI1ChFHZXREZXZpY2VSZXNwb25zZRIgCgZkZXZpY2UYASABKAsyEC5kcmlmdC52MS5EZXZpY2UiXwofUmVmcmVzaERldmljZURpYWdub3N0aWNzUmVxdWVzdBIpCgl3b3Jrc3BhY2UYASABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAIgASgJInMKIFJlZnJlc2hEZXZpY2VEaWFnbm9zdGljc1Jlc3BvbnNlEhEKCWF0dGVtcHRlZBgBIAEoDRIRCglzdWNjZWVkZWQYAiABKA0SDgoGZmFpbGVkGAMgASgNEhkKEWZhaWxlZF9kZXZpY2VfaWRzGAQgAygJIo4BChNSZXRpcmVEZXZpY2VSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEg4KBnJlYXNvbhgEIAEoCSI4ChRSZXRpcmVEZXZpY2VSZXNwb25zZRIgCgZkZXZpY2UYASABKAsyEC5kcmlmdC52MS5EZXZpY2UijwEKFFJlc3RvcmVEZXZpY2VSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEg4KBnJlYXNvbhgEIAEoCSI5ChVSZXN0b3JlRGV2aWNlUmVzcG9uc2USIAoGZGV2aWNlGAEgASgLMhAuZHJpZnQudjEuRGV2aWNlIq4BChNEZWxldGVEZXZpY2VSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEh4KFmNvbmZpcm1hdGlvbl9kZXZpY2VfaWQYBCABKAkSDgoGcmVhc29uGAUgASgJImgKFERlbGV0ZURldmljZVJlc3BvbnNlEhMKC2RlbGV0aW9uX2lkGAEgASgJEjsKDnJlZnVzYWxfcmVhc29uGAIgASgOMiMuZHJpZnQudjEuRGVsZXRlRGV2aWNlUmVmdXNhbFJlYXNvbip4ChFEZXZpY2VFeHBlY3RhdGlvbhIiCh5ERVZJQ0VfRVhQRUNUQVRJT05fVU5TUEVDSUZJRUQQABIfChtERVZJQ0VfRVhQRUNUQVRJT05fRVhQRUNURUQQARIeChpERVZJQ0VfRVhQRUNUQVRJT05fUkVUSVJFRBACKsEBCgxEZXZpY2VTdGF0dXMSHQoZREVWSUNFX1NUQVRVU19VTlNQRUNJRklFRBAAEhgKFERFVklDRV9TVEFUVVNfT05MSU5FEAESGwoXREVWSUNFX1NUQVRVU19BVFRFTlRJT04QAhIZChVERVZJQ0VfU1RBVFVTX09GRkxJTkUQAxIeChpERVZJQ0VfU1RBVFVTX1VOQVVUSE9SSVpFRBAEEiAKHERFVklDRV9TVEFUVVNfTk9fUEVSTUlTU0lPTlMQBSpnCg9EZXZpY2VUcmFuc3BvcnQSIAocREVWSUNFX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEhgKFERFVklDRV9UUkFOU1BPUlRfVVNCEAESGAoUREVWSUNFX1RSQU5TUE9SVF9UQ1AQAirzAgoZRGVsZXRlRGV2aWNlUmVmdXNhbFJlYXNvbhIsCihERUxFVEVfREVWSUNFX1JFRlVTQUxfUkVBU09OX1VOU1BFQ0lGSUVEEAASNgoyREVMRVRFX0RFVklDRV9SRUZVU0FMX1JFQVNPTl9DT05GSVJNQVRJT05fTUlTTUFUQ0gQARIwCixERUxFVEVfREVWSUNFX1JFRlVTQUxfUkVBU09OX0RFVklDRV9BVFRBQ0hFRBACEi0KKURFTEVURV9ERVZJQ0VfUkVGVVNBTF9SRUFTT05fQUNUSVZFX0xFQVNFEAMSLgoqREVMRVRFX0RFVklDRV9SRUZVU0FMX1JFQVNPTl9BQ1RJVkVfTUlSUk9SEAQSKwonREVMRVRFX0RFVklDRV9SRUZVU0FMX1JFQVNPTl9BQ1RJVkVfUlVOEAUSMgouREVMRVRFX0RFVklDRV9SRUZVU0FMX1JFQVNPTl9BQ1RJVkVfQVNTSUdOTUVOVBAGMoQECg1EZXZpY2VTZXJ2aWNlEkoKC0xpc3REZXZpY2VzEhwuZHJpZnQudjEuTGlzdERldmljZXNSZXF1ZXN0Gh0uZHJpZnQudjEuTGlzdERldmljZXNSZXNwb25zZRJECglHZXREZXZpY2USGi5kcmlmdC52MS5HZXREZXZpY2VSZXF1ZXN0GhsuZHJpZnQudjEuR2V0RGV2aWNlUmVzcG9uc2UScQoYUmVmcmVzaERldmljZURpYWdub3N0aWNzEikuZHJpZnQudjEuUmVmcmVzaERldmljZURpYWdub3N0aWNzUmVxdWVzdBoqLmRyaWZ0LnYxLlJlZnJlc2hEZXZpY2VEaWFnbm9zdGljc1Jlc3BvbnNlEk0KDFJldGlyZURldmljZRIdLmRyaWZ0LnYxLlJldGlyZURldmljZVJlcXVlc3QaHi5kcmlmdC52MS5SZXRpcmVEZXZpY2VSZXNwb25zZRJQCg1SZXN0b3JlRGV2aWNlEh4uZHJpZnQudjEuUmVzdG9yZURldmljZVJlcXVlc3QaHy5kcmlmdC52MS5SZXN0b3JlRGV2aWNlUmVzcG9uc2USTQoMRGVsZXRlRGV2aWNlEh0uZHJpZnQudjEuRGVsZXRlRGV2aWNlUmVxdWVzdBoeLmRyaWZ0LnYxLkRlbGV0ZURldmljZVJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_common]);
 
 /**
  * Device is the operator-facing projection of an edge-managed Android device.
@@ -105,6 +105,21 @@ export type Device = Message<"drift.v1.Device"> & {
    * @generated from field: drift.v1.DeviceDiagnostics diagnostics = 13;
    */
   diagnostics?: DeviceDiagnostics;
+
+  /**
+   * @generated from field: drift.v1.DeviceExpectation expectation = 14;
+   */
+  expectation: DeviceExpectation;
+
+  /**
+   * @generated from field: string expectation_decided_at = 15;
+   */
+  expectationDecidedAt: string;
+
+  /**
+   * @generated from field: bool observed_again_after_retirement = 16;
+   */
+  observedAgainAfterRetirement: boolean;
 };
 
 /**
@@ -254,6 +269,11 @@ export type ListDevicesRequest = Message<"drift.v1.ListDevicesRequest"> & {
    * @generated from field: drift.v1.PageRequest page = 3;
    */
   page?: PageRequest;
+
+  /**
+   * @generated from field: bool include_retired = 4;
+   */
+  includeRetired: boolean;
 };
 
 /**
@@ -387,6 +407,189 @@ export const RefreshDeviceDiagnosticsResponseSchema: GenMessage<RefreshDeviceDia
   messageDesc(file_drift_v1_device, 7);
 
 /**
+ * @generated from message drift.v1.RetireDeviceRequest
+ */
+export type RetireDeviceRequest = Message<"drift.v1.RetireDeviceRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string device_id = 3;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: string reason = 4;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message drift.v1.RetireDeviceRequest.
+ * Use `create(RetireDeviceRequestSchema)` to create a new message.
+ */
+export const RetireDeviceRequestSchema: GenMessage<RetireDeviceRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device, 8);
+
+/**
+ * @generated from message drift.v1.RetireDeviceResponse
+ */
+export type RetireDeviceResponse = Message<"drift.v1.RetireDeviceResponse"> & {
+  /**
+   * @generated from field: drift.v1.Device device = 1;
+   */
+  device?: Device;
+};
+
+/**
+ * Describes the message drift.v1.RetireDeviceResponse.
+ * Use `create(RetireDeviceResponseSchema)` to create a new message.
+ */
+export const RetireDeviceResponseSchema: GenMessage<RetireDeviceResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device, 9);
+
+/**
+ * @generated from message drift.v1.RestoreDeviceRequest
+ */
+export type RestoreDeviceRequest = Message<"drift.v1.RestoreDeviceRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string device_id = 3;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: string reason = 4;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message drift.v1.RestoreDeviceRequest.
+ * Use `create(RestoreDeviceRequestSchema)` to create a new message.
+ */
+export const RestoreDeviceRequestSchema: GenMessage<RestoreDeviceRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device, 10);
+
+/**
+ * @generated from message drift.v1.RestoreDeviceResponse
+ */
+export type RestoreDeviceResponse = Message<"drift.v1.RestoreDeviceResponse"> & {
+  /**
+   * @generated from field: drift.v1.Device device = 1;
+   */
+  device?: Device;
+};
+
+/**
+ * Describes the message drift.v1.RestoreDeviceResponse.
+ * Use `create(RestoreDeviceResponseSchema)` to create a new message.
+ */
+export const RestoreDeviceResponseSchema: GenMessage<RestoreDeviceResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device, 11);
+
+/**
+ * @generated from message drift.v1.DeleteDeviceRequest
+ */
+export type DeleteDeviceRequest = Message<"drift.v1.DeleteDeviceRequest"> & {
+  /**
+   * @generated from field: drift.v1.RequestContext context = 1;
+   */
+  context?: RequestContext;
+
+  /**
+   * @generated from field: drift.v1.WorkspaceRef workspace = 2;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * @generated from field: string device_id = 3;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: string confirmation_device_id = 4;
+   */
+  confirmationDeviceId: string;
+
+  /**
+   * @generated from field: string reason = 5;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message drift.v1.DeleteDeviceRequest.
+ * Use `create(DeleteDeviceRequestSchema)` to create a new message.
+ */
+export const DeleteDeviceRequestSchema: GenMessage<DeleteDeviceRequest> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device, 12);
+
+/**
+ * @generated from message drift.v1.DeleteDeviceResponse
+ */
+export type DeleteDeviceResponse = Message<"drift.v1.DeleteDeviceResponse"> & {
+  /**
+   * @generated from field: string deletion_id = 1;
+   */
+  deletionId: string;
+
+  /**
+   * @generated from field: drift.v1.DeleteDeviceRefusalReason refusal_reason = 2;
+   */
+  refusalReason: DeleteDeviceRefusalReason;
+};
+
+/**
+ * Describes the message drift.v1.DeleteDeviceResponse.
+ * Use `create(DeleteDeviceResponseSchema)` to create a new message.
+ */
+export const DeleteDeviceResponseSchema: GenMessage<DeleteDeviceResponse> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device, 13);
+
+/**
+ * @generated from enum drift.v1.DeviceExpectation
+ */
+export enum DeviceExpectation {
+  /**
+   * @generated from enum value: DEVICE_EXPECTATION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: DEVICE_EXPECTATION_EXPECTED = 1;
+   */
+  EXPECTED = 1,
+
+  /**
+   * @generated from enum value: DEVICE_EXPECTATION_RETIRED = 2;
+   */
+  RETIRED = 2,
+}
+
+/**
+ * Describes the enum drift.v1.DeviceExpectation.
+ */
+export const DeviceExpectationSchema: GenEnum<DeviceExpectation> = /*@__PURE__*/
+  enumDesc(file_drift_v1_device, 0);
+
+/**
  * @generated from enum drift.v1.DeviceStatus
  */
 export enum DeviceStatus {
@@ -446,7 +649,7 @@ export enum DeviceStatus {
  * Describes the enum drift.v1.DeviceStatus.
  */
 export const DeviceStatusSchema: GenEnum<DeviceStatus> = /*@__PURE__*/
-  enumDesc(file_drift_v1_device, 0);
+  enumDesc(file_drift_v1_device, 1);
 
 /**
  * DeviceTransport is the transport a device was observed over.
@@ -482,7 +685,53 @@ export enum DeviceTransport {
  * Describes the enum drift.v1.DeviceTransport.
  */
 export const DeviceTransportSchema: GenEnum<DeviceTransport> = /*@__PURE__*/
-  enumDesc(file_drift_v1_device, 1);
+  enumDesc(file_drift_v1_device, 2);
+
+/**
+ * @generated from enum drift.v1.DeleteDeviceRefusalReason
+ */
+export enum DeleteDeviceRefusalReason {
+  /**
+   * @generated from enum value: DELETE_DEVICE_REFUSAL_REASON_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: DELETE_DEVICE_REFUSAL_REASON_CONFIRMATION_MISMATCH = 1;
+   */
+  CONFIRMATION_MISMATCH = 1,
+
+  /**
+   * @generated from enum value: DELETE_DEVICE_REFUSAL_REASON_DEVICE_ATTACHED = 2;
+   */
+  DEVICE_ATTACHED = 2,
+
+  /**
+   * @generated from enum value: DELETE_DEVICE_REFUSAL_REASON_ACTIVE_LEASE = 3;
+   */
+  ACTIVE_LEASE = 3,
+
+  /**
+   * @generated from enum value: DELETE_DEVICE_REFUSAL_REASON_ACTIVE_MIRROR = 4;
+   */
+  ACTIVE_MIRROR = 4,
+
+  /**
+   * @generated from enum value: DELETE_DEVICE_REFUSAL_REASON_ACTIVE_RUN = 5;
+   */
+  ACTIVE_RUN = 5,
+
+  /**
+   * @generated from enum value: DELETE_DEVICE_REFUSAL_REASON_ACTIVE_ASSIGNMENT = 6;
+   */
+  ACTIVE_ASSIGNMENT = 6,
+}
+
+/**
+ * Describes the enum drift.v1.DeleteDeviceRefusalReason.
+ */
+export const DeleteDeviceRefusalReasonSchema: GenEnum<DeleteDeviceRefusalReason> = /*@__PURE__*/
+  enumDesc(file_drift_v1_device, 3);
 
 /**
  * @generated from service drift.v1.DeviceService
@@ -511,6 +760,30 @@ export const DeviceService: GenService<{
     methodKind: "unary";
     input: typeof RefreshDeviceDiagnosticsRequestSchema;
     output: typeof RefreshDeviceDiagnosticsResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.DeviceService.RetireDevice
+   */
+  retireDevice: {
+    methodKind: "unary";
+    input: typeof RetireDeviceRequestSchema;
+    output: typeof RetireDeviceResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.DeviceService.RestoreDevice
+   */
+  restoreDevice: {
+    methodKind: "unary";
+    input: typeof RestoreDeviceRequestSchema;
+    output: typeof RestoreDeviceResponseSchema;
+  },
+  /**
+   * @generated from rpc drift.v1.DeviceService.DeleteDevice
+   */
+  deleteDevice: {
+    methodKind: "unary";
+    input: typeof DeleteDeviceRequestSchema;
+    output: typeof DeleteDeviceResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_drift_v1_device, 0);

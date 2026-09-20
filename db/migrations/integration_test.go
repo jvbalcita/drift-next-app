@@ -314,7 +314,7 @@ func TestSQLiteMigrationSeriesIsEmbeddedWhole(t *testing.T) {
 	if embedded == nil || onDisk == 0 {
 		t.Fatal("no SQLite migrations were found to compare")
 	}
-	if onDisk != 26 {
+	if onDisk != 27 {
 		t.Errorf("db/migrations holds %d SQLite migrations, and this test is the record of how many the series has", onDisk)
 	}
 }
@@ -326,8 +326,8 @@ func TestSQLiteMigrationsApplyFresh(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM drift_schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("ledger count error = %v", err)
 	}
-	if count != 26 {
-		t.Fatalf("ledger count = %d, want 26 SQLite migrations", count)
+	if count != 27 {
+		t.Fatalf("ledger count = %d, want 27 SQLite migrations", count)
 	}
 
 	var foreignKeys string

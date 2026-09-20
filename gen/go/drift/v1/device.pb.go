@@ -21,6 +21,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type DeviceExpectation int32
+
+const (
+	DeviceExpectation_DEVICE_EXPECTATION_UNSPECIFIED DeviceExpectation = 0
+	DeviceExpectation_DEVICE_EXPECTATION_EXPECTED    DeviceExpectation = 1
+	DeviceExpectation_DEVICE_EXPECTATION_RETIRED     DeviceExpectation = 2
+)
+
+// Enum value maps for DeviceExpectation.
+var (
+	DeviceExpectation_name = map[int32]string{
+		0: "DEVICE_EXPECTATION_UNSPECIFIED",
+		1: "DEVICE_EXPECTATION_EXPECTED",
+		2: "DEVICE_EXPECTATION_RETIRED",
+	}
+	DeviceExpectation_value = map[string]int32{
+		"DEVICE_EXPECTATION_UNSPECIFIED": 0,
+		"DEVICE_EXPECTATION_EXPECTED":    1,
+		"DEVICE_EXPECTATION_RETIRED":     2,
+	}
+)
+
+func (x DeviceExpectation) Enum() *DeviceExpectation {
+	p := new(DeviceExpectation)
+	*p = x
+	return p
+}
+
+func (x DeviceExpectation) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (DeviceExpectation) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_device_proto_enumTypes[0].Descriptor()
+}
+
+func (DeviceExpectation) Type() protoreflect.EnumType {
+	return &file_drift_v1_device_proto_enumTypes[0]
+}
+
+func (x DeviceExpectation) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use DeviceExpectation.Descriptor instead.
+func (DeviceExpectation) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{0}
+}
+
 type DeviceStatus int32
 
 const (
@@ -79,11 +128,11 @@ func (x DeviceStatus) String() string {
 }
 
 func (DeviceStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_drift_v1_device_proto_enumTypes[0].Descriptor()
+	return file_drift_v1_device_proto_enumTypes[1].Descriptor()
 }
 
 func (DeviceStatus) Type() protoreflect.EnumType {
-	return &file_drift_v1_device_proto_enumTypes[0]
+	return &file_drift_v1_device_proto_enumTypes[1]
 }
 
 func (x DeviceStatus) Number() protoreflect.EnumNumber {
@@ -92,7 +141,7 @@ func (x DeviceStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeviceStatus.Descriptor instead.
 func (DeviceStatus) EnumDescriptor() ([]byte, []int) {
-	return file_drift_v1_device_proto_rawDescGZIP(), []int{0}
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{1}
 }
 
 // DeviceTransport is the transport a device was observed over.
@@ -136,11 +185,11 @@ func (x DeviceTransport) String() string {
 }
 
 func (DeviceTransport) Descriptor() protoreflect.EnumDescriptor {
-	return file_drift_v1_device_proto_enumTypes[1].Descriptor()
+	return file_drift_v1_device_proto_enumTypes[2].Descriptor()
 }
 
 func (DeviceTransport) Type() protoreflect.EnumType {
-	return &file_drift_v1_device_proto_enumTypes[1]
+	return &file_drift_v1_device_proto_enumTypes[2]
 }
 
 func (x DeviceTransport) Number() protoreflect.EnumNumber {
@@ -149,7 +198,68 @@ func (x DeviceTransport) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeviceTransport.Descriptor instead.
 func (DeviceTransport) EnumDescriptor() ([]byte, []int) {
-	return file_drift_v1_device_proto_rawDescGZIP(), []int{1}
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{2}
+}
+
+type DeleteDeviceRefusalReason int32
+
+const (
+	DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_UNSPECIFIED           DeleteDeviceRefusalReason = 0
+	DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_CONFIRMATION_MISMATCH DeleteDeviceRefusalReason = 1
+	DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_DEVICE_ATTACHED       DeleteDeviceRefusalReason = 2
+	DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_ACTIVE_LEASE          DeleteDeviceRefusalReason = 3
+	DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_ACTIVE_MIRROR         DeleteDeviceRefusalReason = 4
+	DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_ACTIVE_RUN            DeleteDeviceRefusalReason = 5
+	DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_ACTIVE_ASSIGNMENT     DeleteDeviceRefusalReason = 6
+)
+
+// Enum value maps for DeleteDeviceRefusalReason.
+var (
+	DeleteDeviceRefusalReason_name = map[int32]string{
+		0: "DELETE_DEVICE_REFUSAL_REASON_UNSPECIFIED",
+		1: "DELETE_DEVICE_REFUSAL_REASON_CONFIRMATION_MISMATCH",
+		2: "DELETE_DEVICE_REFUSAL_REASON_DEVICE_ATTACHED",
+		3: "DELETE_DEVICE_REFUSAL_REASON_ACTIVE_LEASE",
+		4: "DELETE_DEVICE_REFUSAL_REASON_ACTIVE_MIRROR",
+		5: "DELETE_DEVICE_REFUSAL_REASON_ACTIVE_RUN",
+		6: "DELETE_DEVICE_REFUSAL_REASON_ACTIVE_ASSIGNMENT",
+	}
+	DeleteDeviceRefusalReason_value = map[string]int32{
+		"DELETE_DEVICE_REFUSAL_REASON_UNSPECIFIED":           0,
+		"DELETE_DEVICE_REFUSAL_REASON_CONFIRMATION_MISMATCH": 1,
+		"DELETE_DEVICE_REFUSAL_REASON_DEVICE_ATTACHED":       2,
+		"DELETE_DEVICE_REFUSAL_REASON_ACTIVE_LEASE":          3,
+		"DELETE_DEVICE_REFUSAL_REASON_ACTIVE_MIRROR":         4,
+		"DELETE_DEVICE_REFUSAL_REASON_ACTIVE_RUN":            5,
+		"DELETE_DEVICE_REFUSAL_REASON_ACTIVE_ASSIGNMENT":     6,
+	}
+)
+
+func (x DeleteDeviceRefusalReason) Enum() *DeleteDeviceRefusalReason {
+	p := new(DeleteDeviceRefusalReason)
+	*p = x
+	return p
+}
+
+func (x DeleteDeviceRefusalReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (DeleteDeviceRefusalReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_device_proto_enumTypes[3].Descriptor()
+}
+
+func (DeleteDeviceRefusalReason) Type() protoreflect.EnumType {
+	return &file_drift_v1_device_proto_enumTypes[3]
+}
+
+func (x DeleteDeviceRefusalReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use DeleteDeviceRefusalReason.Descriptor instead.
+func (DeleteDeviceRefusalReason) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{3}
 }
 
 // Device is the operator-facing projection of an edge-managed Android device.
@@ -186,10 +296,13 @@ type Device struct {
 	// that transport was usable: a device attached over USB and not yet authorized
 	// is attached over USB, and a surface that answers "no transport" about a unit
 	// that is plugged in cannot show it at all (ARC-196).
-	Transport     DeviceTransport    `protobuf:"varint,12,opt,name=transport,proto3,enum=drift.v1.DeviceTransport" json:"transport,omitempty"`
-	Diagnostics   *DeviceDiagnostics `protobuf:"bytes,13,opt,name=diagnostics,proto3" json:"diagnostics,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Transport                    DeviceTransport    `protobuf:"varint,12,opt,name=transport,proto3,enum=drift.v1.DeviceTransport" json:"transport,omitempty"`
+	Diagnostics                  *DeviceDiagnostics `protobuf:"bytes,13,opt,name=diagnostics,proto3" json:"diagnostics,omitempty"`
+	Expectation                  DeviceExpectation  `protobuf:"varint,14,opt,name=expectation,proto3,enum=drift.v1.DeviceExpectation" json:"expectation,omitempty"`
+	ExpectationDecidedAt         string             `protobuf:"bytes,15,opt,name=expectation_decided_at,json=expectationDecidedAt,proto3" json:"expectation_decided_at,omitempty"`
+	ObservedAgainAfterRetirement bool               `protobuf:"varint,16,opt,name=observed_again_after_retirement,json=observedAgainAfterRetirement,proto3" json:"observed_again_after_retirement,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *Device) Reset() {
@@ -311,6 +424,27 @@ func (x *Device) GetDiagnostics() *DeviceDiagnostics {
 		return x.Diagnostics
 	}
 	return nil
+}
+
+func (x *Device) GetExpectation() DeviceExpectation {
+	if x != nil {
+		return x.Expectation
+	}
+	return DeviceExpectation_DEVICE_EXPECTATION_UNSPECIFIED
+}
+
+func (x *Device) GetExpectationDecidedAt() string {
+	if x != nil {
+		return x.ExpectationDecidedAt
+	}
+	return ""
+}
+
+func (x *Device) GetObservedAgainAfterRetirement() bool {
+	if x != nil {
+		return x.ObservedAgainAfterRetirement
+	}
+	return false
 }
 
 // DeviceDiagnostics is a bounded, last-known snapshot collected from one
@@ -526,6 +660,7 @@ type ListDevicesRequest struct {
 	OrganizationId string                 `protobuf:"bytes,1,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
 	Workspace      *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
 	Page           *PageRequest           `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	IncludeRetired bool                   `protobuf:"varint,4,opt,name=include_retired,json=includeRetired,proto3" json:"include_retired,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -579,6 +714,13 @@ func (x *ListDevicesRequest) GetPage() *PageRequest {
 		return x.Page
 	}
 	return nil
+}
+
+func (x *ListDevicesRequest) GetIncludeRetired() bool {
+	if x != nil {
+		return x.IncludeRetired
+	}
+	return false
 }
 
 type ListDevicesResponse struct {
@@ -859,11 +1001,363 @@ func (x *RefreshDeviceDiagnosticsResponse) GetFailedDeviceIds() []string {
 	return nil
 }
 
+type RetireDeviceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId      string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetireDeviceRequest) Reset() {
+	*x = RetireDeviceRequest{}
+	mi := &file_drift_v1_device_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetireDeviceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetireDeviceRequest) ProtoMessage() {}
+
+func (x *RetireDeviceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetireDeviceRequest.ProtoReflect.Descriptor instead.
+func (*RetireDeviceRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RetireDeviceRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RetireDeviceRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *RetireDeviceRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *RetireDeviceRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type RetireDeviceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Device        *Device                `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetireDeviceResponse) Reset() {
+	*x = RetireDeviceResponse{}
+	mi := &file_drift_v1_device_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetireDeviceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetireDeviceResponse) ProtoMessage() {}
+
+func (x *RetireDeviceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetireDeviceResponse.ProtoReflect.Descriptor instead.
+func (*RetireDeviceResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *RetireDeviceResponse) GetDevice() *Device {
+	if x != nil {
+		return x.Device
+	}
+	return nil
+}
+
+type RestoreDeviceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace     *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId      string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreDeviceRequest) Reset() {
+	*x = RestoreDeviceRequest{}
+	mi := &file_drift_v1_device_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreDeviceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreDeviceRequest) ProtoMessage() {}
+
+func (x *RestoreDeviceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreDeviceRequest.ProtoReflect.Descriptor instead.
+func (*RestoreDeviceRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *RestoreDeviceRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RestoreDeviceRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *RestoreDeviceRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *RestoreDeviceRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type RestoreDeviceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Device        *Device                `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreDeviceResponse) Reset() {
+	*x = RestoreDeviceResponse{}
+	mi := &file_drift_v1_device_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreDeviceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreDeviceResponse) ProtoMessage() {}
+
+func (x *RestoreDeviceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreDeviceResponse.ProtoReflect.Descriptor instead.
+func (*RestoreDeviceResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *RestoreDeviceResponse) GetDevice() *Device {
+	if x != nil {
+		return x.Device
+	}
+	return nil
+}
+
+type DeleteDeviceRequest struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Context              *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Workspace            *WorkspaceRef          `protobuf:"bytes,2,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	DeviceId             string                 `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	ConfirmationDeviceId string                 `protobuf:"bytes,4,opt,name=confirmation_device_id,json=confirmationDeviceId,proto3" json:"confirmation_device_id,omitempty"`
+	Reason               string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *DeleteDeviceRequest) Reset() {
+	*x = DeleteDeviceRequest{}
+	mi := &file_drift_v1_device_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteDeviceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteDeviceRequest) ProtoMessage() {}
+
+func (x *DeleteDeviceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteDeviceRequest.ProtoReflect.Descriptor instead.
+func (*DeleteDeviceRequest) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *DeleteDeviceRequest) GetContext() *RequestContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *DeleteDeviceRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *DeleteDeviceRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *DeleteDeviceRequest) GetConfirmationDeviceId() string {
+	if x != nil {
+		return x.ConfirmationDeviceId
+	}
+	return ""
+}
+
+func (x *DeleteDeviceRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type DeleteDeviceResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	DeletionId    string                    `protobuf:"bytes,1,opt,name=deletion_id,json=deletionId,proto3" json:"deletion_id,omitempty"`
+	RefusalReason DeleteDeviceRefusalReason `protobuf:"varint,2,opt,name=refusal_reason,json=refusalReason,proto3,enum=drift.v1.DeleteDeviceRefusalReason" json:"refusal_reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteDeviceResponse) Reset() {
+	*x = DeleteDeviceResponse{}
+	mi := &file_drift_v1_device_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteDeviceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteDeviceResponse) ProtoMessage() {}
+
+func (x *DeleteDeviceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteDeviceResponse.ProtoReflect.Descriptor instead.
+func (*DeleteDeviceResponse) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *DeleteDeviceResponse) GetDeletionId() string {
+	if x != nil {
+		return x.DeletionId
+	}
+	return ""
+}
+
+func (x *DeleteDeviceResponse) GetRefusalReason() DeleteDeviceRefusalReason {
+	if x != nil {
+		return x.RefusalReason
+	}
+	return DeleteDeviceRefusalReason_DELETE_DEVICE_REFUSAL_REASON_UNSPECIFIED
+}
+
 var File_drift_v1_device_proto protoreflect.FileDescriptor
 
 const file_drift_v1_device_proto_rawDesc = "" +
 	"\n" +
-	"\x15drift/v1/device.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x8b\x04\n" +
+	"\x15drift/v1/device.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xc7\x05\n" +
 	"\x06Device\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x19\n" +
@@ -882,7 +1376,10 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	"\vrow_version\x18\v \x01(\x04R\n" +
 	"rowVersion\x127\n" +
 	"\ttransport\x18\f \x01(\x0e2\x19.drift.v1.DeviceTransportR\ttransport\x12=\n" +
-	"\vdiagnostics\x18\r \x01(\v2\x1b.drift.v1.DeviceDiagnosticsR\vdiagnostics\"\xdc\n" +
+	"\vdiagnostics\x18\r \x01(\v2\x1b.drift.v1.DeviceDiagnosticsR\vdiagnostics\x12=\n" +
+	"\vexpectation\x18\x0e \x01(\x0e2\x1b.drift.v1.DeviceExpectationR\vexpectation\x124\n" +
+	"\x16expectation_decided_at\x18\x0f \x01(\tR\x14expectationDecidedAt\x12E\n" +
+	"\x1fobserved_again_after_retirement\x18\x10 \x01(\bR\x1cobservedAgainAfterRetirement\"\xdc\n" +
 	"\n" +
 	"\x11DeviceDiagnostics\x12\x1f\n" +
 	"\vobserved_at\x18\x01 \x01(\tR\n" +
@@ -929,11 +1426,12 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	"\x14_ram_available_bytesB\x11\n" +
 	"\x0f_uptime_secondsB\x15\n" +
 	"\x13_foreground_packageB\x16\n" +
-	"\x14_foreground_activity\"\x9e\x01\n" +
+	"\x14_foreground_activity\"\xc7\x01\n" +
 	"\x12ListDevicesRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12)\n" +
-	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\"m\n" +
+	"\x04page\x18\x03 \x01(\v2\x15.drift.v1.PageRequestR\x04page\x12'\n" +
+	"\x0finclude_retired\x18\x04 \x01(\bR\x0eincludeRetired\"m\n" +
 	"\x13ListDevicesResponse\x12*\n" +
 	"\adevices\x18\x01 \x03(\v2\x10.drift.v1.DeviceR\adevices\x12*\n" +
 	"\x04page\x18\x02 \x01(\v2\x16.drift.v1.PageResponseR\x04page\"\x8e\x01\n" +
@@ -950,7 +1448,35 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	"\tattempted\x18\x01 \x01(\rR\tattempted\x12\x1c\n" +
 	"\tsucceeded\x18\x02 \x01(\rR\tsucceeded\x12\x16\n" +
 	"\x06failed\x18\x03 \x01(\rR\x06failed\x12*\n" +
-	"\x11failed_device_ids\x18\x04 \x03(\tR\x0ffailedDeviceIds*\xc1\x01\n" +
+	"\x11failed_device_ids\x18\x04 \x03(\tR\x0ffailedDeviceIds\"\xb4\x01\n" +
+	"\x13RetireDeviceRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\"@\n" +
+	"\x14RetireDeviceResponse\x12(\n" +
+	"\x06device\x18\x01 \x01(\v2\x10.drift.v1.DeviceR\x06device\"\xb5\x01\n" +
+	"\x14RestoreDeviceRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\"A\n" +
+	"\x15RestoreDeviceResponse\x12(\n" +
+	"\x06device\x18\x01 \x01(\v2\x10.drift.v1.DeviceR\x06device\"\xea\x01\n" +
+	"\x13DeleteDeviceRequest\x122\n" +
+	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
+	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x124\n" +
+	"\x16confirmation_device_id\x18\x04 \x01(\tR\x14confirmationDeviceId\x12\x16\n" +
+	"\x06reason\x18\x05 \x01(\tR\x06reason\"\x83\x01\n" +
+	"\x14DeleteDeviceResponse\x12\x1f\n" +
+	"\vdeletion_id\x18\x01 \x01(\tR\n" +
+	"deletionId\x12J\n" +
+	"\x0erefusal_reason\x18\x02 \x01(\x0e2#.drift.v1.DeleteDeviceRefusalReasonR\rrefusalReason*x\n" +
+	"\x11DeviceExpectation\x12\"\n" +
+	"\x1eDEVICE_EXPECTATION_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bDEVICE_EXPECTATION_EXPECTED\x10\x01\x12\x1e\n" +
+	"\x1aDEVICE_EXPECTATION_RETIRED\x10\x02*\xc1\x01\n" +
 	"\fDeviceStatus\x12\x1d\n" +
 	"\x19DEVICE_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14DEVICE_STATUS_ONLINE\x10\x01\x12\x1b\n" +
@@ -961,11 +1487,22 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	"\x0fDeviceTransport\x12 \n" +
 	"\x1cDEVICE_TRANSPORT_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14DEVICE_TRANSPORT_USB\x10\x01\x12\x18\n" +
-	"\x14DEVICE_TRANSPORT_TCP\x10\x022\x94\x02\n" +
+	"\x14DEVICE_TRANSPORT_TCP\x10\x02*\xf3\x02\n" +
+	"\x19DeleteDeviceRefusalReason\x12,\n" +
+	"(DELETE_DEVICE_REFUSAL_REASON_UNSPECIFIED\x10\x00\x126\n" +
+	"2DELETE_DEVICE_REFUSAL_REASON_CONFIRMATION_MISMATCH\x10\x01\x120\n" +
+	",DELETE_DEVICE_REFUSAL_REASON_DEVICE_ATTACHED\x10\x02\x12-\n" +
+	")DELETE_DEVICE_REFUSAL_REASON_ACTIVE_LEASE\x10\x03\x12.\n" +
+	"*DELETE_DEVICE_REFUSAL_REASON_ACTIVE_MIRROR\x10\x04\x12+\n" +
+	"'DELETE_DEVICE_REFUSAL_REASON_ACTIVE_RUN\x10\x05\x122\n" +
+	".DELETE_DEVICE_REFUSAL_REASON_ACTIVE_ASSIGNMENT\x10\x062\x84\x04\n" +
 	"\rDeviceService\x12J\n" +
 	"\vListDevices\x12\x1c.drift.v1.ListDevicesRequest\x1a\x1d.drift.v1.ListDevicesResponse\x12D\n" +
 	"\tGetDevice\x12\x1a.drift.v1.GetDeviceRequest\x1a\x1b.drift.v1.GetDeviceResponse\x12q\n" +
-	"\x18RefreshDeviceDiagnostics\x12).drift.v1.RefreshDeviceDiagnosticsRequest\x1a*.drift.v1.RefreshDeviceDiagnosticsResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
+	"\x18RefreshDeviceDiagnostics\x12).drift.v1.RefreshDeviceDiagnosticsRequest\x1a*.drift.v1.RefreshDeviceDiagnosticsResponse\x12M\n" +
+	"\fRetireDevice\x12\x1d.drift.v1.RetireDeviceRequest\x1a\x1e.drift.v1.RetireDeviceResponse\x12P\n" +
+	"\rRestoreDevice\x12\x1e.drift.v1.RestoreDeviceRequest\x1a\x1f.drift.v1.RestoreDeviceResponse\x12M\n" +
+	"\fDeleteDevice\x12\x1d.drift.v1.DeleteDeviceRequest\x1a\x1e.drift.v1.DeleteDeviceResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
 
 var (
 	file_drift_v1_device_proto_rawDescOnce sync.Once
@@ -979,46 +1516,71 @@ func file_drift_v1_device_proto_rawDescGZIP() []byte {
 	return file_drift_v1_device_proto_rawDescData
 }
 
-var file_drift_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_drift_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_drift_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_drift_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_drift_v1_device_proto_goTypes = []any{
-	(DeviceStatus)(0),                        // 0: drift.v1.DeviceStatus
-	(DeviceTransport)(0),                     // 1: drift.v1.DeviceTransport
-	(*Device)(nil),                           // 2: drift.v1.Device
-	(*DeviceDiagnostics)(nil),                // 3: drift.v1.DeviceDiagnostics
-	(*ListDevicesRequest)(nil),               // 4: drift.v1.ListDevicesRequest
-	(*ListDevicesResponse)(nil),              // 5: drift.v1.ListDevicesResponse
-	(*GetDeviceRequest)(nil),                 // 6: drift.v1.GetDeviceRequest
-	(*GetDeviceResponse)(nil),                // 7: drift.v1.GetDeviceResponse
-	(*RefreshDeviceDiagnosticsRequest)(nil),  // 8: drift.v1.RefreshDeviceDiagnosticsRequest
-	(*RefreshDeviceDiagnosticsResponse)(nil), // 9: drift.v1.RefreshDeviceDiagnosticsResponse
-	(*WorkspaceRef)(nil),                     // 10: drift.v1.WorkspaceRef
-	(*PageRequest)(nil),                      // 11: drift.v1.PageRequest
-	(*PageResponse)(nil),                     // 12: drift.v1.PageResponse
+	(DeviceExpectation)(0),                   // 0: drift.v1.DeviceExpectation
+	(DeviceStatus)(0),                        // 1: drift.v1.DeviceStatus
+	(DeviceTransport)(0),                     // 2: drift.v1.DeviceTransport
+	(DeleteDeviceRefusalReason)(0),           // 3: drift.v1.DeleteDeviceRefusalReason
+	(*Device)(nil),                           // 4: drift.v1.Device
+	(*DeviceDiagnostics)(nil),                // 5: drift.v1.DeviceDiagnostics
+	(*ListDevicesRequest)(nil),               // 6: drift.v1.ListDevicesRequest
+	(*ListDevicesResponse)(nil),              // 7: drift.v1.ListDevicesResponse
+	(*GetDeviceRequest)(nil),                 // 8: drift.v1.GetDeviceRequest
+	(*GetDeviceResponse)(nil),                // 9: drift.v1.GetDeviceResponse
+	(*RefreshDeviceDiagnosticsRequest)(nil),  // 10: drift.v1.RefreshDeviceDiagnosticsRequest
+	(*RefreshDeviceDiagnosticsResponse)(nil), // 11: drift.v1.RefreshDeviceDiagnosticsResponse
+	(*RetireDeviceRequest)(nil),              // 12: drift.v1.RetireDeviceRequest
+	(*RetireDeviceResponse)(nil),             // 13: drift.v1.RetireDeviceResponse
+	(*RestoreDeviceRequest)(nil),             // 14: drift.v1.RestoreDeviceRequest
+	(*RestoreDeviceResponse)(nil),            // 15: drift.v1.RestoreDeviceResponse
+	(*DeleteDeviceRequest)(nil),              // 16: drift.v1.DeleteDeviceRequest
+	(*DeleteDeviceResponse)(nil),             // 17: drift.v1.DeleteDeviceResponse
+	(*WorkspaceRef)(nil),                     // 18: drift.v1.WorkspaceRef
+	(*PageRequest)(nil),                      // 19: drift.v1.PageRequest
+	(*PageResponse)(nil),                     // 20: drift.v1.PageResponse
+	(*RequestContext)(nil),                   // 21: drift.v1.RequestContext
 }
 var file_drift_v1_device_proto_depIdxs = []int32{
-	0,  // 0: drift.v1.Device.status:type_name -> drift.v1.DeviceStatus
-	10, // 1: drift.v1.Device.workspace:type_name -> drift.v1.WorkspaceRef
-	1,  // 2: drift.v1.Device.transport:type_name -> drift.v1.DeviceTransport
-	3,  // 3: drift.v1.Device.diagnostics:type_name -> drift.v1.DeviceDiagnostics
-	10, // 4: drift.v1.ListDevicesRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	11, // 5: drift.v1.ListDevicesRequest.page:type_name -> drift.v1.PageRequest
-	2,  // 6: drift.v1.ListDevicesResponse.devices:type_name -> drift.v1.Device
-	12, // 7: drift.v1.ListDevicesResponse.page:type_name -> drift.v1.PageResponse
-	10, // 8: drift.v1.GetDeviceRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	2,  // 9: drift.v1.GetDeviceResponse.device:type_name -> drift.v1.Device
-	10, // 10: drift.v1.RefreshDeviceDiagnosticsRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	4,  // 11: drift.v1.DeviceService.ListDevices:input_type -> drift.v1.ListDevicesRequest
-	6,  // 12: drift.v1.DeviceService.GetDevice:input_type -> drift.v1.GetDeviceRequest
-	8,  // 13: drift.v1.DeviceService.RefreshDeviceDiagnostics:input_type -> drift.v1.RefreshDeviceDiagnosticsRequest
-	5,  // 14: drift.v1.DeviceService.ListDevices:output_type -> drift.v1.ListDevicesResponse
-	7,  // 15: drift.v1.DeviceService.GetDevice:output_type -> drift.v1.GetDeviceResponse
-	9,  // 16: drift.v1.DeviceService.RefreshDeviceDiagnostics:output_type -> drift.v1.RefreshDeviceDiagnosticsResponse
-	14, // [14:17] is the sub-list for method output_type
-	11, // [11:14] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	1,  // 0: drift.v1.Device.status:type_name -> drift.v1.DeviceStatus
+	18, // 1: drift.v1.Device.workspace:type_name -> drift.v1.WorkspaceRef
+	2,  // 2: drift.v1.Device.transport:type_name -> drift.v1.DeviceTransport
+	5,  // 3: drift.v1.Device.diagnostics:type_name -> drift.v1.DeviceDiagnostics
+	0,  // 4: drift.v1.Device.expectation:type_name -> drift.v1.DeviceExpectation
+	18, // 5: drift.v1.ListDevicesRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	19, // 6: drift.v1.ListDevicesRequest.page:type_name -> drift.v1.PageRequest
+	4,  // 7: drift.v1.ListDevicesResponse.devices:type_name -> drift.v1.Device
+	20, // 8: drift.v1.ListDevicesResponse.page:type_name -> drift.v1.PageResponse
+	18, // 9: drift.v1.GetDeviceRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	4,  // 10: drift.v1.GetDeviceResponse.device:type_name -> drift.v1.Device
+	18, // 11: drift.v1.RefreshDeviceDiagnosticsRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	21, // 12: drift.v1.RetireDeviceRequest.context:type_name -> drift.v1.RequestContext
+	18, // 13: drift.v1.RetireDeviceRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	4,  // 14: drift.v1.RetireDeviceResponse.device:type_name -> drift.v1.Device
+	21, // 15: drift.v1.RestoreDeviceRequest.context:type_name -> drift.v1.RequestContext
+	18, // 16: drift.v1.RestoreDeviceRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	4,  // 17: drift.v1.RestoreDeviceResponse.device:type_name -> drift.v1.Device
+	21, // 18: drift.v1.DeleteDeviceRequest.context:type_name -> drift.v1.RequestContext
+	18, // 19: drift.v1.DeleteDeviceRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	3,  // 20: drift.v1.DeleteDeviceResponse.refusal_reason:type_name -> drift.v1.DeleteDeviceRefusalReason
+	6,  // 21: drift.v1.DeviceService.ListDevices:input_type -> drift.v1.ListDevicesRequest
+	8,  // 22: drift.v1.DeviceService.GetDevice:input_type -> drift.v1.GetDeviceRequest
+	10, // 23: drift.v1.DeviceService.RefreshDeviceDiagnostics:input_type -> drift.v1.RefreshDeviceDiagnosticsRequest
+	12, // 24: drift.v1.DeviceService.RetireDevice:input_type -> drift.v1.RetireDeviceRequest
+	14, // 25: drift.v1.DeviceService.RestoreDevice:input_type -> drift.v1.RestoreDeviceRequest
+	16, // 26: drift.v1.DeviceService.DeleteDevice:input_type -> drift.v1.DeleteDeviceRequest
+	7,  // 27: drift.v1.DeviceService.ListDevices:output_type -> drift.v1.ListDevicesResponse
+	9,  // 28: drift.v1.DeviceService.GetDevice:output_type -> drift.v1.GetDeviceResponse
+	11, // 29: drift.v1.DeviceService.RefreshDeviceDiagnostics:output_type -> drift.v1.RefreshDeviceDiagnosticsResponse
+	13, // 30: drift.v1.DeviceService.RetireDevice:output_type -> drift.v1.RetireDeviceResponse
+	15, // 31: drift.v1.DeviceService.RestoreDevice:output_type -> drift.v1.RestoreDeviceResponse
+	17, // 32: drift.v1.DeviceService.DeleteDevice:output_type -> drift.v1.DeleteDeviceResponse
+	27, // [27:33] is the sub-list for method output_type
+	21, // [21:27] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_device_proto_init() }
@@ -1033,8 +1595,8 @@ func file_drift_v1_device_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_device_proto_rawDesc), len(file_drift_v1_device_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   8,
+			NumEnums:      4,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
