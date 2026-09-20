@@ -186,6 +186,22 @@ type OperationReadback struct {
 	Argv []string
 	// AdvancedExitCode is the exit status of that array.
 	AdvancedExitCode int
+	// Refusal names why this operation did not complete, when the reading this
+	// boundary took IS the refusal: a device that listed no enabled keyboard to
+	// switch to, or bytes the artifact store declined to keep after the file was
+	// read off the device.
+	//
+	// It is carried here rather than left to the error chain because the
+	// dispatch kernel reduces an adapter failure to an outcome and a class
+	// before a caller sees it, so the cause does not survive to the boundary
+	// that owns the row. The reading does: it is the same object the row states
+	// what the DEVICE answered from, so the refusal and the answer travel
+	// together and a row can never report one without the other.
+	//
+	// It is empty when the operation completed, and it is empty when the failure
+	// has no reason of its own - an unclassified failure stays indeterminate
+	// rather than being attributed to a reason this reading did not establish.
+	Refusal OperationRefusal
 }
 
 // ErrNoEnabledKeyboard reports a device that listed no enabled input method.
@@ -214,6 +230,15 @@ var ErrContentRefused = errors.New("the bytes the device answered with were not 
 // answered and does not hold the postcondition" apart from "the device was
 // never reached" without inventing a value for either.
 func (r OperationReadback) Read() bool {
+	// A reading that states a REFUSAL holds a device answer too, and that is
+	// precisely what the refusal is about: a device that listed no enabled input
+	// method answered the list it was asked for, and a file whose bytes were not
+	// admitted to the artifact store was read off the device first. Reporting
+	// "nothing was read" for either would be false, and it would drop the one
+	// fact an operator resolves the refusal with.
+	if r.Refusal != "" {
+		return true
+	}
 	switch r.Kind {
 	case action.Reboot:
 		return r.RebootSettleMillis > 0
@@ -823,7 +848,13 @@ func deviceOperationPath(name string) (string, error) {
 		return "", err
 	}
 	path := deviceOperationInboxDir + "/" + name
-	if err := adb.ValidateSerial(path); err != nil {
+	// The composed DEVICE path is gated by the device-path rule, not by the
+	// serial rule: a serial is a bare transport name with no separator, and
+	// asking that of a path would refuse every file operation this product has.
+	// The gate that applies is the one the device adapter itself re-derives for
+	// the directory this product owns, so the two boundaries agree by
+	// construction rather than by resemblance.
+	if err := adb.ValidateDeviceInboxPath(path); err != nil {
 		return "", platformerrors.Wrap(platformerrors.CodeInvalidInput, "the device file name cannot be addressed", err)
 	}
 	return path, nil

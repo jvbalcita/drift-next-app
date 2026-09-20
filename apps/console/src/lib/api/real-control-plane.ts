@@ -63,6 +63,7 @@ import {
 import { createControlPlaneServices, type ControlPlaneServices } from "@/lib/api/control-plane-clients"
 import { addressPoliciesAreEquivalent, isTransportPort, parseDiscoveryRange } from "@/lib/api/address-range"
 import { deviceSettingOutcomeSentence, deviceSettingOutcomeView, deviceSettingProto, deviceSettingsApplySentence, deviceSettingsApplyView } from "@/lib/device-settings"
+import { deviceOperationOutcomeSentence, deviceOperationOutcomeView, deviceOperationOutcomeViewFromAdvanced, deviceOperationProto, mediaTypeForFileName } from "@/lib/device-operations"
 import type {
   AccountAssignmentState as AccountAssignmentViewState,
   AccountDeviceAssignmentView,
@@ -2345,6 +2346,57 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         if (!intent.sequence) return failure(intent, "Spool sequence is required.", { errorCode: "invalid_input" })
         await this.services.runtime.confirmSpoolReplay(requestId, workspaceId, intent.sequence, intent.confirm)
         return mutation(intent, intent.confirm ? "Spool replay confirmed for the selected sequence." : "Spool item dropped without replay.")
+      }
+      case "runDeviceOperation": {
+        // The operation and the device are both read from the intent and both
+        // checked here before the call: a name this build cannot turn into a
+        // contract value, or an approval the operator did not give, would be a
+        // request the control plane answers with a shape or policy refusal rather
+        // than with the device's own answer.
+        const operation = deviceOperationProto(intent.operation)
+        if (operation === null) {
+          return failure(intent, "The requested device command is not one this console can dispatch. Nothing was sent.", { errorCode: "invalid_input" })
+        }
+        if (!intent.confirmed) {
+          return failure(intent, "Running a command on this device changes it and needs the operator's explicit confirmation. Nothing was sent.", { errorCode: "precondition_failed" })
+        }
+        const run = await this.services.deviceOperations.runDeviceOperation(
+          requestId,
+          workspaceId,
+          intent.deviceId,
+          operation,
+          // The media type is the operator's own declaration, derived from the
+          // bounded file name, and never a guess made on the artifact store's
+          // behalf: the store decides what it may keep from what was declared.
+          { fileName: intent.fileName, artifactId: intent.artifactId, mediaType: mediaTypeForFileName(intent.fileName), packageName: intent.packageName },
+          intent.confirmed,
+        )
+        const operationOutcome = run.result ? deviceOperationOutcomeView(run.result) : null
+        if (operationOutcome === null) {
+          // A row this build cannot name is NOT dropped: dropping it would hide a
+          // device's outcome, which is the one thing this surface must never do.
+          return failure(intent, "The control plane reported a device command this console build cannot render, so the device's outcome is withheld rather than shown in part.", { errorCode: "precondition_failed" })
+        }
+        return mutation(intent, deviceOperationOutcomeSentence(operationOutcome), { deviceOperation: operationOutcome })
+      }
+      case "runAdvancedCommand": {
+        // The advanced form is the operator's OWN array, so the shape it has to
+        // satisfy before it is sent is the operator's confirmation of that exact
+        // array rather than a name this build recognises: the control plane
+        // refuses an array it will not dispatch, with its own reason, and it
+        // reaches no device to say so.
+        if (intent.argv.length === 0) {
+          return failure(intent, "An advanced command needs at least one argument. Nothing was sent.", { errorCode: "invalid_input" })
+        }
+        if (!intent.confirmed) {
+          return failure(intent, "An advanced command dispatches the exact array you confirmed and needs that confirmation. Nothing was sent.", { errorCode: "precondition_failed" })
+        }
+        const advanced = await this.services.deviceOperations.runAdvancedCommand(requestId, workspaceId, intent.deviceId, intent.argv, intent.confirmed, intent.confirmed)
+        const advancedOutcome = advanced.result ? deviceOperationOutcomeViewFromAdvanced(advanced.result) : null
+        if (advancedOutcome === null) {
+          return failure(intent, "The control plane reported a device command this console build cannot render, so the device's outcome is withheld rather than shown in part.", { errorCode: "precondition_failed" })
+        }
+        return mutation(intent, deviceOperationOutcomeSentence(advancedOutcome), { deviceOperation: advancedOutcome })
       }
       case "updatePolicy":
       case "captureLabObservation":

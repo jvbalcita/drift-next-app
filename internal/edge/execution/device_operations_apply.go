@@ -570,6 +570,19 @@ func (a *DeviceOperationsApplier) runUnderSession(
 	if readback, ok := a.readbackFor(attemptID); ok {
 		row.Detail = operationDetail(readback)
 		row.ArtifactID = readback.ArtifactID
+		// The reading states which refusal the failure WAS, when it is a refusal
+		// of its own. It is taken from the reading rather than from the error
+		// because the dispatch kernel reduces an adapter failure to an outcome
+		// and a class before this boundary sees it, so the reason does not
+		// survive the hop. A reading with no reason leaves the row to the
+		// generic mapping below, where an unclassified failure stays
+		// indeterminate rather than being attributed to a fact nothing observed.
+		if refusal := readback.Refusal; refusal != "" {
+			row.Refusal = refusal
+			row.FailureClass = operationRefusalClass(refusal)
+			row.Message = refusal.Message()
+			return row
+		}
 	}
 	if runErr != nil {
 		return operationOutcomeFromError(row, runErr)
@@ -610,6 +623,20 @@ func operationOutcomeFromResult(row DeviceOperationOutcome, result action.Result
 	}
 	row.Message = row.Refusal.Message()
 	return row
+}
+
+// operationRefusalClass classifies a refusal a reading carried, so a client
+// branching on the class reads the same classification the reading established.
+var operationRefusalClasses = map[OperationRefusal]domain.FailureClass{
+	OperationNoEnabledKeyboard: domain.FailurePostcondition,
+	OperationContentRefused:    domain.FailureInvalidTransition,
+}
+
+func operationRefusalClass(refusal OperationRefusal) domain.FailureClass {
+	if class, ok := operationRefusalClasses[refusal]; ok {
+		return class
+	}
+	return domain.FailureInvalidTransition
 }
 
 // operationOutcomeFromError maps a refused dispatch onto this boundary's row.

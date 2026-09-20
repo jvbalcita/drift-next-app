@@ -1,5 +1,6 @@
-import type { AccountDeviceAssignmentView, AccountReferenceView, AccountRunEventView, AccountRunView, AccountServiceStateHistoryView, AccountServiceStateView, AccountSourceView, AccountSyncEventView, ArtifactAuditView, ArtifactView, AutomationAgentProfileView, AutomationAgentView, ControlPlaneClient, ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, DeviceSettingOutcomeView, DeviceSettingsApplyView, EdgeAgentView, EndpointView, EventKind, EventView, GroupView, IndeterminateActionView, LabAdapterView, LabDiscoveredDeviceView, LeaseView, MembershipView, MirrorSessionView, MutationResult, NetworkProfileView, ObservationView, ObservedDeviceView, PolicyDecisionView, PolicyView, PrerequisiteErrorCode, RecordingMediaView, RunTargetView, RunView, RuntimeConnectionView, ScanRunView, SettingHistoryView, SettingView, SkillView, SpoolHealthView, StorageHealthView, WorkflowView } from "@/lib/domain/control-plane"
+import type { AccountDeviceAssignmentView, AccountReferenceView, AccountRunEventView, AccountRunView, AccountServiceStateHistoryView, AccountServiceStateView, AccountSourceView, AccountSyncEventView, ArtifactAuditView, ArtifactView, AutomationAgentProfileView, AutomationAgentView, ControlPlaneClient, ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, DeviceOperationName, DeviceOperationOutcomeView, DeviceSettingOutcomeView, DeviceSettingsApplyView, EdgeAgentView, EndpointView, EventKind, EventView, GroupView, IndeterminateActionView, LabAdapterView, LabDiscoveredDeviceView, LeaseView, MembershipView, MirrorSessionView, MutationResult, NetworkProfileView, ObservationView, ObservedDeviceView, PolicyDecisionView, PolicyView, PrerequisiteErrorCode, RecordingMediaView, RunTargetView, RunView, RuntimeConnectionView, ScanRunView, SettingHistoryView, SettingView, SkillView, SpoolHealthView, StorageHealthView, WorkflowView } from "@/lib/domain/control-plane"
 import { addressPoliciesAreEquivalent, addressRangeContainsHost, isTransportPort, parseDiscoveryRange } from "@/lib/api/address-range"
+import { deviceOperationLabels } from "@/lib/device-operations"
 
 const workspace = {
   id: "workspace-demo",
@@ -1463,6 +1464,29 @@ function result(intent: ControlPlaneIntent, message: string, resourceId?: string
   }
 }
 
+/**
+ * mockOperationDetail states what the device WOULD have answered, so a surface
+ * that renders a row's detail can be exercised without a device. It is the mock's
+ * own fixed sentence and never device output, exactly as the control plane's own
+ * detail is.
+ */
+function mockOperationDetail(operation: DeviceOperationName, fileName: string): string {
+  switch (operation) {
+    case "reboot":
+      return "the device's transport would have stopped answering inside the settle window"
+    case "keyboard_switch":
+      return "the plane would have chosen a component from the device's own enabled list and read it back"
+    case "install_apk":
+      return `the device would have named the code path for the installed package (${fileName})`
+    case "import_file":
+      return `the device would have reported the file at the size that was sent (${fileName})`
+    case "export_file":
+      return `the bytes the device would have answered with would be stored as an artifact (${fileName})`
+    default:
+      return ""
+  }
+}
+
 function rejection(intent: ControlPlaneIntent, message: string, resourceId?: string, errorCode?: PrerequisiteErrorCode): MutationResult {
   return {
     ok: false,
@@ -1655,6 +1679,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.applyFleetDeviceSettings(intent)
       case "applyDeviceSetting":
         return this.applyDeviceSetting(intent)
+      case "runDeviceOperation":
+        return this.runDeviceOperation(intent)
+      case "runAdvancedCommand":
+        return this.runAdvancedCommand(intent)
       case "restartTransportServer":
         return this.restartTransportServer(intent)
       case "addDiscoveryRange":
@@ -2711,6 +2739,120 @@ export class MockControlPlaneClient implements ControlPlaneClient {
           message: "the setting would have been written and read back (mock: no device was contacted)",
         }
     return { ...result(intent, `Mock per-device settings apply for ${device.displayName}: ${outcome.applied ? "would have applied" : "would not apply"} ${intent.setting}. No device was contacted.`), deviceSetting: outcome }
+  }
+
+  /**
+   * runDeviceOperation is the mock's per-device device command.
+   *
+   * It answers with ONE row for the ONE device and the ONE operation the intent
+   * named, and it derives that device's row from this client's own projection —
+   * the endpoint it was observed on, and whether another operator holds its lease
+   * — so a device that could not be reached is named rather than folded into a
+   * count. An operation with no host path to a device is refused as its OWN
+   * reason, exactly as the control plane refuses it, so a surface that renders
+   * the refusal can be exercised without a device. Nothing is contacted: this is
+   * the mock, and every sentence says so.
+   */
+  private runDeviceOperation(intent: Extract<ControlPlaneIntent, { type: "runDeviceOperation" }>): MutationResult {
+    if (!intent.confirmed) {
+      return rejection(intent, "Running a command on this device changes device state and needs explicit confirmation. Nothing was sent.", undefined, "precondition_failed")
+    }
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) {
+      return rejection(intent, "No device in this client's projection matches the selected device, so its command was not run and nothing was sent.", undefined, "invalid_input")
+    }
+    const label = deviceOperationLabels[intent.operation]
+    if ((intent.operation === "import_file" || intent.operation === "install_apk") && intent.fileName === "") {
+      return rejection(intent, `A ${label.toLowerCase()} needs a bounded file name for the device's own directory. Nothing was sent.`, undefined, "invalid_input")
+    }
+    const endpoint = this.snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
+    const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === device.id && candidate.state === "active")
+    const refusal = !endpoint
+      ? { reason: "no_transport_serial", claim: "the device has no single current transport endpoint, so nothing was sent" }
+      : lease && lease.holder !== mockOperatorId
+        ? { reason: "lease_unavailable", claim: "another controller holds this device's lease, so nothing was sent" }
+        : null
+    const outcome: DeviceOperationOutcomeView = refusal
+      ? {
+          deviceId: device.id,
+          operation: intent.operation,
+          applied: false,
+          verified: false,
+          refusal: refusal.reason,
+          failureClass: "transport",
+          message: refusal.claim,
+          detail: "",
+          artifactId: "",
+          argv: [],
+        }
+      : {
+          deviceId: device.id,
+          operation: intent.operation,
+          applied: true,
+          verified: true,
+          refusal: "",
+          failureClass: "",
+          message: "the operation would have been dispatched and its postcondition read back (mock: no device was contacted)",
+          detail: mockOperationDetail(intent.operation, intent.fileName),
+          artifactId: intent.operation === "export_file" ? `mock-artifact-${intent.fileName}` : "",
+          argv: [],
+        }
+    return { ...result(intent, `Mock ${label} for ${device.displayName}: ${outcome.applied ? "would have run" : "would not run"}. No device was contacted.`), deviceOperation: outcome }
+  }
+
+  /**
+   * runAdvancedCommand is the mock's ADVANCED form.
+   *
+   * It refuses an empty array and an unconfirmed one with the control plane's own
+   * reasons, and it carries the array it would have dispatched back on the row, so
+   * a surface can be exercised on the exact argv. The array is never joined into
+   * a command string here either: it stays the discrete entries the operator
+   * confirmed. Nothing is contacted.
+   */
+  private runAdvancedCommand(intent: Extract<ControlPlaneIntent, { type: "runAdvancedCommand" }>): MutationResult {
+    if (intent.argv.length === 0) {
+      return rejection(intent, "An advanced command needs at least one argument. Nothing was sent.", undefined, "invalid_input")
+    }
+    if (!intent.confirmed) {
+      return rejection(intent, "An advanced command dispatches the exact array you confirmed and needs that confirmation. Nothing was sent.", undefined, "precondition_failed")
+    }
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) {
+      return rejection(intent, "No device in this client's projection matches the selected device, so its command was not run and nothing was sent.", undefined, "invalid_input")
+    }
+    const endpoint = this.snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
+    const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === device.id && candidate.state === "active")
+    const refusal = !endpoint
+      ? { reason: "no_transport_serial", claim: "the device has no single current transport endpoint, so nothing was sent" }
+      : lease && lease.holder !== mockOperatorId
+        ? { reason: "lease_unavailable", claim: "another controller holds this device's lease, so nothing was sent" }
+        : null
+    const outcome: DeviceOperationOutcomeView = refusal
+      ? {
+          deviceId: device.id,
+          operation: "advanced_command",
+          applied: false,
+          verified: false,
+          refusal: refusal.reason,
+          failureClass: "transport",
+          message: refusal.claim,
+          detail: "",
+          artifactId: "",
+          argv: [...intent.argv],
+        }
+      : {
+          deviceId: device.id,
+          operation: "advanced_command",
+          applied: true,
+          verified: true,
+          refusal: "",
+          failureClass: "",
+          message: "the argument array would have been dispatched and answered (mock: no device was contacted)",
+          detail: "the device would have answered the argument array",
+          artifactId: "",
+          argv: [...intent.argv],
+        }
+    return { ...result(intent, `Mock advanced command for ${device.displayName}: ${intent.argv.length} argument(s) ${outcome.applied ? "would have been dispatched" : "would not have been dispatched"}. No device was contacted.`), deviceOperation: outcome }
   }
 
   private restartTransportServer(intent: Extract<ControlPlaneIntent, { type: "restartTransportServer" }>): MutationResult {

@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react"
 import { createPortal } from "react-dom"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Crosshair, Image, Info, Keyboard, LoaderCircle, Network, Pin, Power, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Unplug, Volume1, Volume2, X } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Crosshair, Download, Image, Info, Keyboard, LoaderCircle, Network, Package, Pin, Power, RotateCcw, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Terminal, Unplug, Upload, Volume1, Volume2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceSettingName, DeviceSettingOutcomeView, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
+import type { ArtifactView, ControlPlaneIntent, ControlPlaneSnapshot, DeviceOperationName, DeviceOperationOutcomeView, DeviceOperationReportedName, DeviceSettingName, DeviceSettingOutcomeView, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, livePictureHeld, type LiveMirrorPreview, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
 import { useMirrorCapacity } from "@/lib/api/use-mirror-capacity"
@@ -19,6 +20,7 @@ import { LiveMirrorDeviceKeys, LiveMirrorInfo, LiveMirrorSurface, useLiveMirrorS
 import { LiveTilePicture } from "./live-tile"
 import { deviceObservationSentence, deviceStatusLabels, notObserved } from "@/lib/device-status"
 import { deviceSettingLabels, deviceSettingNames, deviceSettingOutcomeSentence } from "@/lib/device-settings"
+import { deviceOperationLabels, deviceOperationOutcomeSentence } from "@/lib/device-operations"
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import { captureSerialForDevice } from "./page-utils"
@@ -355,7 +357,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
    * here.
    */
   const sourceLease = source ? snapshot.leases.some((candidate) => candidate.deviceId === source.id && candidate.state === "active") : false
-  const deviceModal = source ? <FloatingDevice device={source} devices={snapshot.devices} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onCapture={captureDeviceScreen} onChangeDevice={changeSource} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease} dispatch={dispatch} /> : null
+  const deviceModal = source ? <FloatingDevice device={source} devices={snapshot.devices} artifacts={snapshot.artifacts} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onCapture={captureDeviceScreen} onChangeDevice={changeSource} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease} dispatch={dispatch} /> : null
   const selectedCount = (source ? 1 : 0) + followers.length
 
   return <div className="relative min-h-full">
@@ -700,7 +702,7 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
  * with no aspect to take - and the picture's drawn box stays honest either way,
  * so a pointer is still measured through the box the picture is actually in.
  */
-export function FloatingDevice({ device, devices, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onCapture, onChangeDevice, mirror, mirrorTransport, workspaceId, leaseRefusal, hasLease, dispatch }: { device: DeviceView; devices: readonly DeviceView[]; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onCapture: () => void; onChangeDevice: (deviceId: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; leaseRefusal?: string; hasLease: boolean; dispatch: DispatchIntent }) {
+export function FloatingDevice({ device, devices, artifacts, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onCapture, onChangeDevice, mirror, mirrorTransport, workspaceId, leaseRefusal, hasLease, dispatch }: { device: DeviceView; devices: readonly DeviceView[]; artifacts: readonly ArtifactView[]; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onCapture: () => void; onChangeDevice: (deviceId: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; leaseRefusal?: string; hasLease: boolean; dispatch: DispatchIntent }) {
   const session = useLiveMirrorSession({ device, mirror, transport: mirrorTransport, workspaceId, hasLease, leaseRefusal, dispatch })
   const controlsWidth = 220
   const frameGap = 12
@@ -722,7 +724,7 @@ export function FloatingDevice({ device, devices, followers, workspace, settings
     </div>
     <div aria-label={`${device.displayName} floating device controls`} className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-popover text-foreground" style={controlsFrameStyle}>
       <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><LiveMirrorInfo session={session} /><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">{livePictureHeld(session.phase) ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><PanelDevicePicker devices={devices} currentId={device.id} onSelect={onChangeDevice} /><PanelKeyCommands session={session} /><ControlButton icon={Image} label="Screenshot" onClick={onCapture} /><PanelSettingCommands device={device} dispatch={dispatch} /></div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">{livePictureHeld(session.phase) ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><PanelDevicePicker devices={devices} currentId={device.id} onSelect={onChangeDevice} /><PanelKeyCommands session={session} /><ControlButton icon={Image} label="Screenshot" onClick={onCapture} /><PanelSettingCommands device={device} dispatch={dispatch} /><PanelOperationCommands device={device} artifacts={artifacts} dispatch={dispatch} /></div>
       <div className="shrink-0 border-t border-border px-2 py-2">
         <p data-testid="live-mirror-followers" className="mb-1 text-center text-[10px] text-muted-foreground">{followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
         <LiveMirrorDeviceKeys session={session} />
@@ -803,6 +805,155 @@ function PanelSettingCommands({ device, dispatch }: { device: DeviceView; dispat
     <ControlButton icon={RotateCw} label="Lock Rotate" disabled={pending} onClick={() => { void applyRotationLock() }} />
     <p data-testid="panel-setting-outcome" role="status" aria-live="polite" className="px-2 pb-1 text-[10px] leading-4 text-muted-foreground">{reported}</p>
   </>
+}
+
+/**
+ * PanelOperationCommands draws the panel's per-device device OPERATIONS, for the
+ * SELECTED device.
+ *
+ * Every one of them dispatches a typed action on the device the frame has open,
+ * through the lease / fencing / policy / control-session kernel, and reports the
+ * control plane's OWN row: an operation that completed says what the DEVICE
+ * answered (the keyboard the plane chose, the size the device reported, the code
+ * path it named, the artifact that was written), and an operation that did not
+ * says which refusal it was and whether anything was read back. The sentence is
+ * announced as well as drawn, because a refusal an operator cannot read is the
+ * same as no answer.
+ *
+ * Which of these need an operator's input is a fact about the operation and not a
+ * preference: Reboot and Switch Keyboard take no parameter at all — the reboot's
+ * argument array is the operation's own, and the keyboard is chosen by the plane
+ * from the DEVICE's own enabled list — so they are one button each. Install,
+ * Import, Export and the advanced form name something the operator has to choose,
+ * so each opens a dialog that states exactly what will be sent before it is sent.
+ *
+ * Nothing here composes a command. The four catalogued operations that need a
+ * parameter take a bounded file NAME (never a path) and an artifact this
+ * workspace already holds; the advanced form takes the operator's own argument
+ * array, one entry per line, and is the only control that carries command text —
+ * which is why it is the only one that shows the exact argv back before dispatch.
+ */
+function PanelOperationCommands({ device, artifacts, dispatch }: { device: DeviceView; artifacts: readonly ArtifactView[]; dispatch: DispatchIntent }) {
+  const [pending, setPending] = useState("")
+  const [outcome, setOutcome] = useState<DeviceOperationOutcomeView | null>(null)
+  const [refusal, setRefusal] = useState("")
+  async function run(intent: ControlPlaneIntent, name: DeviceOperationReportedName) {
+    setPending(name)
+    const result = await dispatch(intent)
+    setPending("")
+    if (!result.ok) {
+      setOutcome(null)
+      setRefusal(result.message)
+      return
+    }
+    setRefusal("")
+    setOutcome(result.deviceOperation ?? null)
+  }
+  const reported = refusal !== "" ? refusal : outcome ? deviceOperationOutcomeSentence(outcome) : ""
+  const busy = pending !== ""
+  return <>
+    <ControlButton icon={RotateCcw} label={deviceOperationLabels.reboot} disabled={busy} onClick={() => { void run({ type: "runDeviceOperation", deviceId: device.id, operation: "reboot", fileName: "", artifactId: "", packageName: "", confirmed: true }, "reboot") }} />
+    <ControlButton icon={Keyboard} label={deviceOperationLabels.keyboard_switch} disabled={busy} onClick={() => { void run({ type: "runDeviceOperation", deviceId: device.id, operation: "keyboard_switch", fileName: "", artifactId: "", packageName: "", confirmed: true }, "keyboard_switch") }} />
+    <PanelFileCommand device={device} artifacts={artifacts} operation="install_apk" icon={Package} needsArtifact needsPackageName busy={busy} run={run} />
+    <PanelFileCommand device={device} artifacts={artifacts} operation="import_file" icon={Upload} needsArtifact busy={busy} run={run} />
+    <PanelFileCommand device={device} artifacts={artifacts} operation="export_file" icon={Download} busy={busy} run={run} />
+    <PanelAdvancedCommand device={device} busy={busy} run={run} />
+    <p data-testid="panel-operation-outcome" role="status" aria-live="polite" className="px-2 pb-1 text-[10px] leading-4 text-muted-foreground">{reported}</p>
+  </>
+}
+
+/**
+ * The bounded file-NAME rule, mirrored from the control plane's own.
+ *
+ * It is a name and never a path: no separator, no parent, no root and no
+ * character that carries meaning to a shell. This is the console's own
+ * pre-check rather than the boundary that decides — the control plane refuses a
+ * name it does not address, with its own reason, and it reaches no device to say
+ * so — and it exists so the dialog can say what is wrong while the operator is
+ * still looking at the field.
+ */
+const deviceFileNamePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+
+/**
+ * PanelFileCommand draws ONE file or package operation as a dialog.
+ *
+ * The dialog states what will be sent before anything is: the bounded file name
+ * the operation addresses on the device, the artifact this workspace holds, and
+ * — for an install — the package the device will be asked about afterwards. The
+ * Confirm control is disabled until the operation has what it needs, because a
+ * control that cannot act must not act; the refusals an operator reads come from
+ * the control plane, not from this dialog.
+ */
+function PanelFileCommand({ device, artifacts, operation, icon: Icon, needsArtifact = false, needsPackageName = false, busy, run }: { device: DeviceView; artifacts: readonly ArtifactView[]; operation: DeviceOperationName; icon: typeof Smartphone; needsArtifact?: boolean; needsPackageName?: boolean; busy: boolean; run: (intent: ControlPlaneIntent, name: DeviceOperationReportedName) => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [fileName, setFileName] = useState("")
+  const [artifactId, setArtifactId] = useState("")
+  const [packageName, setPackageName] = useState("")
+  const label = deviceOperationLabels[operation]
+  const nameValid = deviceFileNamePattern.test(fileName)
+  const ready = nameValid && (!needsArtifact || artifactId !== "") && (!needsPackageName || packageName.trim() !== "")
+  async function confirm() {
+    setOpen(false)
+    await run({ type: "runDeviceOperation", deviceId: device.id, operation, fileName, artifactId, packageName, confirmed: true }, operation)
+  }
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <DialogTrigger render={<Button variant="ghost" disabled={busy} className="h-9 w-full justify-start rounded-none px-2 text-xs" />}><Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />{label}</DialogTrigger>
+    <DialogContent>
+      <DialogHeader><DialogTitle>{`${label} on ${device.displayName}`}</DialogTitle><DialogDescription>{operation === "export_file" ? "Reads one file out of the device directory this product owns into this workspace's artifacts. The device is read back for the size it reports." : operation === "install_apk" ? "Pushes an artifact of this workspace onto the device, installs it, and asks the device where the package's code now is." : "Writes an artifact of this workspace onto the device and reads the destination's size back off it."}</DialogDescription></DialogHeader>
+      <label className="mt-2 block text-xs font-medium" htmlFor={`file-name-${operation}`}>File name on the device
+        <Input id={`file-name-${operation}`} value={fileName} onChange={(event) => setFileName(event.target.value)} placeholder="notes.txt" className="mt-2" />
+      </label>
+      <p className="text-[10px] leading-4 text-muted-foreground">{nameValid || fileName === "" ? "The file lives in the one device directory this product owns. It is a name, never a path." : "A file name is bounded and carries no separator, no parent and no shell character."}</p>
+      {needsArtifact ? <label className="block text-xs font-medium" htmlFor={`artifact-${operation}`}>Artifact this workspace holds
+        <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" aria-label="Artifact this workspace holds" className="mt-2 h-9 w-full justify-between rounded-none px-2 text-xs font-normal" />}><span className="truncate">{artifactId === "" ? "Choose an artifact" : artifactId}</span><ChevronDown className="size-3.5" aria-hidden="true" /></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[var(--anchor-width)]">{artifacts.length === 0 ? <DropdownMenuItem disabled>No artifact is stored in this workspace</DropdownMenuItem> : artifacts.map((artifact) => <DropdownMenuItem key={artifact.id} onClick={() => setArtifactId(artifact.id)}>{`${artifact.id} · ${artifact.category}`}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
+      </label> : null}
+      {needsPackageName ? <label className="block text-xs font-medium" htmlFor={`package-${operation}`}>Package the device is asked about
+        <Input id={`package-${operation}`} value={packageName} onChange={(event) => setPackageName(event.target.value)} placeholder="com.example.app" className="mt-2" />
+      </label> : null}
+      <div className="mt-2 flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button><Button size="sm" disabled={!ready} onClick={() => { void confirm() }}>Confirm and send</Button></div>
+    </DialogContent>
+  </Dialog>
+}
+
+/**
+ * PanelAdvancedCommand draws the ADVANCED form: the operator's own argument
+ * array, for the SELECTED device.
+ *
+ * It is the one control in this column that carries command text, and it is
+ * deliberately the one that shows the exact array back before it is dispatched.
+ * The array is entered one discrete argument per LINE and travels as discrete
+ * entries — never as one joined command string — so each argument stays visibly
+ * separate in the audit record, and the control plane spawns it without a shell.
+ * The dialog lists the array entry by entry, so what the operator confirms is
+ * what the record will name.
+ *
+ * The control plane refuses an array it will not dispatch — an over-long one, a
+ * token that is not a safe argv token, a command name that is a path or a flag,
+ * or a host path outside the admitted set — with its own reason, before anything
+ * reaches a device.
+ */
+function PanelAdvancedCommand({ device, busy, run }: { device: DeviceView; busy: boolean; run: (intent: ControlPlaneIntent, name: DeviceOperationReportedName) => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState("")
+  const argv = value.split("\n").map((line) => line.trim()).filter((line) => line !== "")
+  async function confirm() {
+    setOpen(false)
+    await run({ type: "runAdvancedCommand", deviceId: device.id, argv, confirmed: true }, "advanced_command")
+  }
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <DialogTrigger render={<Button variant="ghost" disabled={busy} className="h-9 w-full justify-start rounded-none px-2 text-xs" />}><Terminal className="size-3.5 text-muted-foreground" aria-hidden="true" />{deviceOperationLabels.advanced_command}</DialogTrigger>
+    <DialogContent>
+      <DialogHeader><DialogTitle>{`${deviceOperationLabels.advanced_command} on ${device.displayName}`}</DialogTitle><DialogDescription>One argument per line. The array is dispatched exactly as written, without a shell, only after you confirm it here, and it is recorded as the discrete arguments below.</DialogDescription></DialogHeader>
+      <label className="mt-2 block text-xs font-medium" htmlFor="advanced-argv">Argument array
+        <Textarea id="advanced-argv" value={value} onChange={(event) => setValue(event.target.value)} rows={4} placeholder={"get-state\n"} className="mt-2 font-mono text-xs" />
+      </label>
+      <div className="text-[10px] leading-4 text-muted-foreground">
+        <p>{argv.length === 0 ? "No argument has been entered, so nothing can be confirmed." : `${argv.length} argument(s) will be sent, in this order:`}</p>
+        <ol data-testid="advanced-argv-preview" className="mt-1 list-decimal pl-4 font-mono">{argv.map((argument, index) => <li key={`${index}-${argument}`}>{argument}</li>)}</ol>
+      </div>
+      <div className="mt-2 flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button><Button size="sm" disabled={argv.length === 0} onClick={() => { void confirm() }}>Confirm and dispatch</Button></div>
+    </DialogContent>
+  </Dialog>
 }
 
 /**

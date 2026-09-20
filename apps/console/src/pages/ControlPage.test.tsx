@@ -11,6 +11,7 @@ import { create } from "@bufbuild/protobuf"
 import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, liveStreamView, type LiveMirrorPreview, type MirrorCapacityView } from "@/lib/live-mirror"
+import { deviceOperationLabels } from "@/lib/device-operations"
 import { ControlPage } from "./ControlPage"
 import { liveTileCopy, tileViewerLimit, type MeasuredTileBudget } from "@/lib/live-tiles"
 import { planeBudget, planeCapacity } from "@/test/mirror-fixtures"
@@ -1128,17 +1129,20 @@ describe("ControlPage big-frame device commands", () => {
   })
 
   /**
-   * The six controls the panel renders, and the seven labels it must NOT render.
+   * The twelve controls the panel renders, and the one label it must NOT render.
    *
-   * `withdrawn` is what is left of "nine commands do nothing": each of them still
-   * has no typed per-device action this build can dispatch, so none of them is
-   * shown — a control whose click is the end of the interaction is the defect
-   * this column exists to remove. It is written out here rather than read from
-   * the rendering table, because a test that asked the table what to expect would
-   * pass whatever the table said.
+   * `withdrawn` is what is left of "nine commands do nothing". Six of them —
+   * Reboot, Switch Keyboard, Install APK, Import File, Export File and the
+   * advanced form — NOW have a typed per-device action and are rendered, so they
+   * moved out of this list into `rendered`. Quick Phrase still has none: it is a
+   * text-reference surface of its own rather than a device command, so it is the
+   * one label with nothing behind it and stays withdrawn — a control whose click
+   * is the end of the interaction is the defect this column exists to remove. The
+   * list is written out here rather than read from the rendering table, because a
+   * test that asked the table what to expect would pass whatever the table said.
    */
-  const rendered = ["Change Device", "Volume Up", "Volume Down", "Screenshot", "Power Button", "Lock Rotate"]
-  const withdrawn = ["Reboot", "Switch Keyboard", "Install APK", "Import File", "Export File", "ADB Command", "Quick Phrase"]
+  const rendered = ["Change Device", "Volume Up", "Volume Down", "Screenshot", "Power Button", "Lock Rotate", "Reboot", "Switch Keyboard", "Install APK", "Import File", "Export File", "ADB Command"]
+  const withdrawn = ["Quick Phrase"]
 
   /** frameHarness renders the page over the mock plane and records every dispatch. */
   function frameHarness(snapshot?: ReturnType<MockControlPlaneClient["getSnapshot"]>) {
@@ -1263,6 +1267,142 @@ describe("ControlPage big-frame device commands", () => {
 
     await waitFor(() => expect(within(controls).getByTestId("panel-setting-outcome")).toHaveTextContent(refusal))
     expect(dispatched.some((intent) => intent.type === "applyDeviceSetting")).toBe(true)
+  })
+
+  it("dispatches one device operation for Reboot and one for Switch Keyboard, for the selected device", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents } = frameHarness()
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+
+    for (const operation of ["reboot", "keyboard_switch"] as const) {
+      await user.click(within(controls).getByRole("button", { name: deviceOperationLabels[operation] }))
+      const dispatched = intents.filter((intent) => intent.type === "runDeviceOperation" && intent.operation === operation)
+      await waitFor(() => expect(dispatched).toHaveLength(1))
+      // The DISPATCH is what is asserted, never a toast: the control sends a typed
+      // per-device operation for the device the frame has open, carrying the
+      // operator's own approval, and it carries NO parameter — a reboot's argument
+      // array is the operation's own, and the keyboard is chosen by the plane from
+      // the DEVICE's enabled list rather than named here.
+      expect(dispatched[0]).toMatchObject({ deviceId: "atlas-04", operation, fileName: "", artifactId: "", packageName: "", confirmed: true })
+    }
+    // One click is one dispatch, and the two controls dispatch two different
+    // operations rather than the same one twice.
+    expect(intents.filter((intent) => intent.type === "runDeviceOperation")).toHaveLength(2)
+  })
+
+  it("sends a file operation only once the operator has named a bounded file and an artifact this workspace holds", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents, client } = frameHarness()
+    const artifact = client.getSnapshot().artifacts[0]
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+
+    await user.click(within(controls).getByRole("button", { name: "Import File" }))
+    const dialog = await screen.findByRole("dialog")
+    const confirm = within(dialog).getByRole("button", { name: "Confirm and send" })
+    // Nothing can be sent before the operation has what it needs: the name is
+    // bounded to a NAME and the artifact has to be one this workspace holds, so
+    // the control is disabled rather than sending a request the plane must refuse.
+    expect(confirm).toBeDisabled()
+    // A path is not a name. The console's own pre-check says so while the operator
+    // is still looking at the field.
+    await user.type(within(dialog).getByLabelText(/File name on the device/i), "../etc/passwd")
+    expect(confirm).toBeDisabled()
+    expect(within(dialog).getByText(/carries no separator, no parent and no shell character/i)).toBeInTheDocument()
+    await user.clear(within(dialog).getByLabelText(/File name on the device/i))
+    await user.type(within(dialog).getByLabelText(/File name on the device/i), "notes.txt")
+    expect(confirm).toBeDisabled()
+    await user.click(within(dialog).getByRole("button", { name: "Artifact this workspace holds" }))
+    await user.click(await screen.findByRole("menuitem", { name: new RegExp(artifact.id) }))
+    expect(confirm).toBeEnabled()
+    await user.click(confirm)
+
+    const dispatched = intents.filter((intent) => intent.type === "runDeviceOperation" && intent.operation === "import_file")
+    await waitFor(() => expect(dispatched).toHaveLength(1))
+    expect(dispatched[0]).toMatchObject({ deviceId: "atlas-04", operation: "import_file", fileName: "notes.txt", artifactId: artifact.id, confirmed: true })
+  })
+
+  it("dispatches Export File with the file it reads out, and nothing but the name", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents } = frameHarness()
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+
+    await user.click(within(controls).getByRole("button", { name: "Export File" }))
+    const dialog = await screen.findByRole("dialog")
+    await user.type(within(dialog).getByLabelText(/File name on the device/i), "dump.txt")
+    await user.click(within(dialog).getByRole("button", { name: "Confirm and send" }))
+
+    const dispatched = intents.filter((intent) => intent.type === "runDeviceOperation" && intent.operation === "export_file")
+    await waitFor(() => expect(dispatched).toHaveLength(1))
+    // An export names the file it reads OUT: it pulls bytes off the device into the
+    // artifact store, so it carries no artifact of its own to write.
+    expect(dispatched[0]).toMatchObject({ deviceId: "atlas-04", operation: "export_file", fileName: "dump.txt", artifactId: "", confirmed: true })
+  })
+
+  it("dispatches the advanced form as the exact argument array the operator confirmed, entry by entry", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents } = frameHarness()
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+
+    await user.click(within(controls).getByRole("button", { name: "ADB Command" }))
+    const dialog = await screen.findByRole("dialog")
+    const confirm = within(dialog).getByRole("button", { name: "Confirm and dispatch" })
+    expect(confirm).toBeDisabled()
+    // One argument per line, and the dialog lists the array entry by entry: what
+    // the operator confirms is what the record will name, and the array is never
+    // joined into one command string.
+    await user.type(within(dialog).getByLabelText(/Argument array/i), "get-state\n")
+    expect(confirm).toBeEnabled()
+    const preview = within(dialog).getByTestId("advanced-argv-preview")
+    expect(within(preview).getAllByRole("listitem")).toHaveLength(1)
+    expect(preview).toHaveTextContent("get-state")
+    await user.click(confirm)
+
+    const dispatched = intents.filter((intent) => intent.type === "runAdvancedCommand")
+    await waitFor(() => expect(dispatched).toHaveLength(1))
+    expect(dispatched[0]).toMatchObject({ deviceId: "atlas-04", confirmed: true })
+    expect((dispatched[0] as Extract<ControlPlaneIntent, { type: "runAdvancedCommand" }>).argv).toEqual(["get-state"])
+  })
+
+  it("reports the plane's own refusal for a device operation, and sends nothing else", async () => {
+    const user = userEvent.setup({ delay: null })
+    const client = new MockControlPlaneClient()
+    const dispatched: ControlPlaneIntent[] = []
+    // The plane refuses this attempt, and the sentence it refused WITH is what the
+    // panel has to show: a control that swallowed a refusal and drew a success is
+    // the defect this card exists to remove.
+    const refusal = "the device has no single current transport endpoint, so nothing was sent"
+    const dispatch = async (intent: ControlPlaneIntent): Promise<MutationResult> => {
+      dispatched.push(intent)
+      return { ok: false, kind: intent.type, message: refusal, errorCode: "precondition_failed" }
+    }
+    render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} mirror={fakeMirror().client} />)
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+
+    await user.click(within(controls).getByRole("button", { name: "Reboot" }))
+
+    await waitFor(() => expect(within(controls).getByTestId("panel-operation-outcome")).toHaveTextContent(refusal))
+    expect(dispatched.filter((intent) => intent.type === "runDeviceOperation")).toHaveLength(1)
+  })
+
+  it("states what the device answered when an operation completed", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents } = frameHarness()
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+
+    await user.click(within(controls).getByRole("button", { name: "Switch Keyboard" }))
+
+    // The row the plane reported is what is rendered — the plane's own sentence for
+    // the operation and device, not a console-side guess at what happened.
+    await waitFor(() => expect(within(controls).getByTestId("panel-operation-outcome")).not.toBeEmptyDOMElement())
+    const outcome = within(controls).getByTestId("panel-operation-outcome").textContent ?? ""
+    expect(outcome).toMatch(/Switch Keyboard/i)
+    expect(intents.filter((intent) => intent.type === "runDeviceOperation")).toHaveLength(1)
   })
 
   it("states the rule the action column follows, where the operator reads it", async () => {

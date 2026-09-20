@@ -97,7 +97,7 @@ function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; l
   render(
     <FloatingDevice
       device={options.device ?? device()}
-      devices={options.devices ?? []}
+      artifacts={[]} devices={options.devices ?? []}
       followers={[]}
       workspace={{ ...workspace }}
       settings={{ ...settings }}

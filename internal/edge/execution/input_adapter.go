@@ -26,7 +26,30 @@ import (
 // the union of what the catalog entries it runs require, so the actor's
 // capability check is a real check and not a formality.
 func inputCapabilities() []action.Capability {
-	return []action.Capability{action.CapabilityTap, action.CapabilityGesture, action.CapabilityTextInput, action.CapabilitySystemInput, action.CapabilityDeviceSettings}
+	// Every capability this boundary EXECUTES is declared here, and the list is
+	// what the kernel matches a catalog entry's required capabilities against.
+	// The three operation capabilities are declared because this adapter
+	// dispatches the catalogued device operations: without them the kernel
+	// refuses a reboot, a file or package operation and the operator-entered
+	// array at authorization, before anything reaches the device, and an
+	// operation that can never be authorized is a control the panel renders and
+	// finds dead.
+	//
+	// Declaring one is not permission: the risk, the review record and the
+	// approval an entry requires are all still the kernel's and the policy
+	// evaluator's decisions, and a capability declared here for a kind whose
+	// payload this adapter cannot build changes nothing - the payload check
+	// refuses it first.
+	return []action.Capability{
+		action.CapabilityTap,
+		action.CapabilityGesture,
+		action.CapabilityTextInput,
+		action.CapabilitySystemInput,
+		action.CapabilityDeviceSettings,
+		action.CapabilityDeviceLifecycle,
+		action.CapabilityDeviceFiles,
+		action.CapabilityDeviceCommand,
+	}
 }
 
 // countingTransport records whether the device was actually reached. It exists
@@ -455,6 +478,7 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 			// complete - and a reading that holds nothing is not published as
 			// an observation, so "the device answered and it does not hold" and
 			// "nothing was read" stay distinguishable.
+			operation.Refusal = operationRefusalForReading(runErr)
 			if operation.Read() {
 				report.observation = PostconditionObservation{OperationReadback: &operation, Token: operation.Token()}
 				report.observed = true
@@ -601,6 +625,29 @@ func carriesOperationReadback(kind action.Kind) bool {
 // asked for anything by path.
 type DeviceFileArchive interface {
 	StorePulledFile(ctx context.Context, workspace, mediaType, fileName string, payload []byte, actorType, actorID string) (string, error)
+}
+
+// operationRefusalForReading names the failure a reading this boundary took IS,
+// when it is a refusal of its own rather than a generic failure.
+//
+// It reads the classified cause, which only exists HERE: the dispatch kernel
+// reduces an adapter failure to an outcome and a class before a caller sees it,
+// so the boundary that owns the row cannot recover the reason from the error it
+// is handed. The reading it publishes carries it instead.
+//
+// A failure this table does not know leaves the reading with no reason, and the
+// row an operator reads is then indeterminate: attributing an unclassified
+// failure to a reason this reading did not establish would state a fact about
+// the device that nothing observed.
+func operationRefusalForReading(err error) OperationRefusal {
+	switch {
+	case errors.Is(err, ErrNoEnabledKeyboard):
+		return OperationNoEnabledKeyboard
+	case errors.Is(err, ErrContentRefused):
+		return OperationContentRefused
+	default:
+		return ""
+	}
 }
 
 // runOperation runs one catalogued device operation and answers the read-back it
