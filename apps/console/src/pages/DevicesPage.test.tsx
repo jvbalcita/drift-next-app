@@ -141,6 +141,15 @@ describe("DevicesPage registry table", () => {
     expect(await screen.findByRole("dialog")).toHaveTextContent("SM-G9750")
   })
 
+  it("refreshes the selected device before presenting its details", async () => {
+    const user = userEvent.setup()
+    const page = renderDevicesPage(scannedSnapshot())
+    await openInspect(user)
+
+    expect(page.intents).toContainEqual({ type: "refresh", deviceId: "device-777" })
+    expect(await screen.findByText("Mock diagnostics refreshed for device-777; no external service was contacted.")).toBeInTheDocument()
+  })
+
   it("withholds a stale endpoint when the device projection names another record", () => {
     // The fixture has a current endpoint for the device, but the device record
     // points at a different endpoint ID. The table must not silently substitute

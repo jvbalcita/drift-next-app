@@ -738,8 +738,11 @@ func (x *GetDeviceResponse) GetDevice() *Device {
 }
 
 type RefreshDeviceDiagnosticsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Workspace     *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Workspace *WorkspaceRef          `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	// When set, refresh only this online device. An empty value keeps the
+	// fleet-wide registry refresh behavior.
+	DeviceId      string `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -779,6 +782,13 @@ func (x *RefreshDeviceDiagnosticsRequest) GetWorkspace() *WorkspaceRef {
 		return x.Workspace
 	}
 	return nil
+}
+
+func (x *RefreshDeviceDiagnosticsRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
 }
 
 type RefreshDeviceDiagnosticsResponse struct {
@@ -932,9 +942,10 @@ const file_drift_v1_device_proto_rawDesc = "" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x124\n" +
 	"\tworkspace\x18\x03 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\"=\n" +
 	"\x11GetDeviceResponse\x12(\n" +
-	"\x06device\x18\x01 \x01(\v2\x10.drift.v1.DeviceR\x06device\"W\n" +
+	"\x06device\x18\x01 \x01(\v2\x10.drift.v1.DeviceR\x06device\"t\n" +
 	"\x1fRefreshDeviceDiagnosticsRequest\x124\n" +
-	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\"\xa2\x01\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
+	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\"\xa2\x01\n" +
 	" RefreshDeviceDiagnosticsResponse\x12\x1c\n" +
 	"\tattempted\x18\x01 \x01(\rR\tattempted\x12\x1c\n" +
 	"\tsucceeded\x18\x02 \x01(\rR\tsucceeded\x12\x16\n" +

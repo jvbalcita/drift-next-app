@@ -130,7 +130,12 @@ func parseBattery(output string, diagnostic *devices.Diagnostics) {
 	diagnostic.BatteryLevelPercent = boundedUint32(values["level"], 100)
 	if raw, err := strconv.ParseFloat(values["temperature"], 64); err == nil {
 		value := raw / 10
-		diagnostic.BatteryTemperatureCelsius = &value
+		// dumpsys battery uses sentinel values such as -200 when the
+		// thermistor is unavailable. Keep those as absent rather than
+		// presenting an impossible temperature as a captured fact.
+		if raw != -200 && value >= -40 && value <= 100 {
+			diagnostic.BatteryTemperatureCelsius = &value
+		}
 	}
 	status := map[string]string{"1": "unknown", "2": "charging", "3": "discharging", "4": "not charging", "5": "full"}[values["status"]]
 	diagnostic.BatteryStatus = text(status)

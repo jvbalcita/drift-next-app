@@ -769,7 +769,7 @@ export interface DeviceSettingsApplyView {
 }
 
 export type ControlPlaneIntent =
-  | { type: "refresh" }
+  | { type: "refresh"; deviceId?: string }
   | { type: "startMirrorPreview"; sourceDeviceId: string; followerDeviceIds: readonly string[] }
   | { type: "stopMirrorPreview"; sessionId: string }
   | { type: "createNetworkProfile"; name: string; addressPolicy: string; ports: readonly number[]; isDefault: boolean }

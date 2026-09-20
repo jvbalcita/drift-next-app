@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input"
 import type { ControlPlaneSnapshot, DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
 import { deviceName, endpointsFor, type InspectionSection, type InspectionTab } from "./device-inspection"
 
+type DeviceRefreshState = { deviceId: string; status: "refreshing" | "success" | "error"; message: string }
+
 /**
  * DeviceInspectSheet renders the inspection surface for one device.
  *
@@ -20,12 +22,14 @@ export function DeviceInspectSheet({
   onClose,
   snapshot,
   dispatch,
+  refreshState,
 }: {
   device?: DeviceView
   tabs: readonly InspectionTab[]
   onClose: () => void
   snapshot: ControlPlaneSnapshot
   dispatch: DispatchIntent
+  refreshState?: DeviceRefreshState
 }) {
   const endpoints = device ? endpointsFor(device.id, snapshot.endpoints) : []
   const name = device ? deviceName(device, endpoints) : undefined
@@ -45,6 +49,7 @@ export function DeviceInspectSheet({
         <SheetHeader className="border-b border-border px-4 py-4 pr-12 sm:px-5">
           <SheetTitle className="break-words text-lg tracking-[-0.025em]">{name?.primary ?? "Device Inspection"}</SheetTitle>
           <SheetDescription className="sr-only">Inspect the observed details and history for this device.</SheetDescription>
+          {refreshState ? <p aria-live="polite" aria-busy={refreshState.status === "refreshing"} className={`text-[11px] leading-5 ${refreshState.status === "error" ? "text-destructive" : "text-muted-foreground"}`}>{refreshState.message}</p> : null}
         </SheetHeader>
         {device ? (
           <SheetBody>

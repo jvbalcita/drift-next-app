@@ -112,7 +112,23 @@ func (h *DeviceHandler) RefreshDeviceDiagnostics(ctx context.Context, request *c
 		return nil, MapError(err)
 	}
 	response := &driftv1.RefreshDeviceDiagnosticsResponse{}
+	targetID := devices.DeviceID(request.Msg.GetDeviceId())
+	if targetID != "" {
+		found := false
+		for _, device := range listed {
+			if device.ID == targetID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, MapError(platformerrors.New(platformerrors.CodeNotFound, "device was not found"))
+		}
+	}
 	for _, device := range listed {
+		if targetID != "" && device.ID != targetID {
+			continue
+		}
 		endpoint, ok := current[device.ID]
 		if !ok || deviceStatusProto(device, &endpoint) != driftv1.DeviceStatus_DEVICE_STATUS_ONLINE || endpoint.Serial == "" {
 			continue

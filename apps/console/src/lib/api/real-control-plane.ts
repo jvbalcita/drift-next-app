@@ -1850,7 +1850,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       }
       if (intent.type === "refresh") {
         await this.refresh()
-        return mutation(intent, "Control plane projection refreshed.")
+        return result
       }
       return result
     } catch (cause: unknown) {
@@ -1866,8 +1866,13 @@ export class RealControlPlaneClient implements ControlPlaneClient {
     switch (intent.type) {
       case "refresh":
         {
-          const result = await this.services.device.refreshDeviceDiagnostics(workspaceId)
-          const summary = result.failed > 0 ? `${result.succeeded}/${result.attempted} online devices refreshed; ${result.failed} failed.` : `${result.succeeded}/${result.attempted} online devices refreshed.`
+          const result = await this.services.device.refreshDeviceDiagnostics(workspaceId, intent.deviceId)
+          const scope = intent.deviceId ? "Device diagnostics" : "Online device diagnostics"
+          const summary = result.attempted === 0 && intent.deviceId
+            ? `${scope} was not refreshed because the device is not currently online.`
+            : result.failed > 0
+              ? `${result.succeeded}/${result.attempted} ${intent.deviceId ? "device" : "online devices"} refreshed; ${result.failed} failed.`
+              : `${result.succeeded}/${result.attempted} ${intent.deviceId ? "device" : "online devices"} refreshed.`
           return mutation(intent, summary)
         }
       case "setHalt": {

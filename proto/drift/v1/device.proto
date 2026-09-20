@@ -133,6 +133,9 @@ message GetDeviceResponse {
 
 message RefreshDeviceDiagnosticsRequest {
   WorkspaceRef workspace = 1;
+  // When set, refresh only this online device. An empty value keeps the
+  // fleet-wide registry refresh behavior.
+  string device_id = 2;
 }
 
 message RefreshDeviceDiagnosticsResponse {
