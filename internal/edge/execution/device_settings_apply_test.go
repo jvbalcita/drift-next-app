@@ -11,6 +11,7 @@ import (
 
 	"drift.local/drift-next/internal/action"
 	"drift.local/drift-next/internal/devices"
+	"drift.local/drift-next/internal/domain"
 	"drift.local/drift-next/internal/edge/adb"
 	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/endpoints"
@@ -525,5 +526,180 @@ func assertFleetUnleased(t *testing.T, fixture settingsFixture) {
 		if string(session.State) == "active" || string(session.State) == "requested" {
 			t.Fatalf("control session %s is still %s after the apply", session.ID, session.State)
 		}
+	}
+}
+
+// applyOne runs the per-device form with the fixture's own workspace, holder and
+// request id unless the case named its own.
+func (f settingsFixture) applyOne(t *testing.T, request execution.DeviceSettingRequest) execution.DeviceSettingOutcome {
+	t.Helper()
+	if request.Workspace == "" {
+		request.Workspace = string(f.workspace)
+	}
+	if request.HolderID == "" {
+		request.HolderID = "operator-1"
+	}
+	if request.RequestID == "" {
+		request.RequestID = "request-1"
+	}
+	row, err := f.applier.ApplyDeviceSetting(context.Background(), request, "operator", "operator-1")
+	if err != nil {
+		t.Fatalf("apply device setting: %v", err)
+	}
+	return row
+}
+
+// TestPerDeviceSettingsApplyRunsOneSettingOnOneDeviceThroughTheKernel is the
+// whole path for the per-device form: the device named is the ONLY device
+// reached, its setting is its own attempt under its own lease with its own
+// idempotency key, the device is read back, the outcome is persisted and the
+// audit record is appended.
+//
+// The assertion that the OTHER device was sent nothing is the point of this
+// test rather than a detail of it: a per-device control that quietly acted on
+// the whole fleet would be the defect the owner's "per device" direction exists
+// to remove.
+func TestPerDeviceSettingsApplyRunsOneSettingOnOneDeviceThroughTheKernel(t *testing.T) {
+	fixture := newSettingsFixture(t, map[string]string{"device-alpha": "serial-alpha", "device-beta": "serial-beta"})
+	fixture.transport.
+		answersWith("serial-alpha", rotationAutoRead, "0\n", 0).
+		answersWith("serial-alpha", rotationZeroRead, "0\n", 0)
+
+	row := fixture.applyOne(t, execution.DeviceSettingRequest{DeviceID: "device-alpha", Setting: action.RotationLock})
+
+	if !row.Applied || !row.Verified || row.Refusal != "" {
+		t.Fatalf("row = %#v, want applied and verified", row)
+	}
+	if row.DeviceID != "device-alpha" || row.Setting != action.RotationLock {
+		t.Fatalf("row = %#v, want the device and setting the request named", row)
+	}
+	// The named device was asked exactly the arrays one rotation lock issues,
+	// in order: the two writes and the two read-backs.
+	want := []string{rotationAutoOffArgs, rotationZeroArgs, rotationAutoRead, rotationZeroRead}
+	if got := fixture.transport.issuedFor("serial-alpha"); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("device calls for serial-alpha =\n%v\nwant\n%v", got, want)
+	}
+	// The device the request did NOT name was sent nothing at all.
+	if got := fixture.transport.issuedFor("serial-beta"); len(got) != 0 {
+		t.Fatalf("serial-beta was sent %v by a per-device apply naming device-alpha", got)
+	}
+	records := fixture.evidence.appended()
+	if len(records) != 1 {
+		t.Fatalf("evidence records = %d, want one for the one attempt", len(records))
+	}
+	if records[0].Kind != action.RotationLock || records[0].Disposition != store.EvidenceDispatched || records[0].Outcome != action.OutcomeVerified {
+		t.Fatalf("evidence record = %#v, want a dispatched, verified rotation lock", records[0])
+	}
+	if records[0].Serial != "serial-alpha" || records[0].AttemptID == "" {
+		t.Fatalf("evidence record = %#v, want the named device's serial and the attempt identity", records[0])
+	}
+	assertFleetUnleased(t, fixture)
+}
+
+// TestPerDeviceSettingsApplyRefusesADeviceTheRegistryNeverRecorded: a device
+// this plane has never recorded is refused as ITSELF rather than as a missing
+// transport, and nothing is sent anywhere.
+func TestPerDeviceSettingsApplyRefusesADeviceTheRegistryNeverRecorded(t *testing.T) {
+	fixture := newSettingsFixture(t, map[string]string{"device-alpha": "serial-alpha"})
+
+	row := fixture.applyOne(t, execution.DeviceSettingRequest{DeviceID: "device-ghost", Setting: action.RotationLock})
+
+	if row.Refusal != execution.SettingsDeviceNotRegistered {
+		t.Fatalf("refusal = %q, want %q", row.Refusal, execution.SettingsDeviceNotRegistered)
+	}
+	if row.Applied || row.Verified {
+		t.Fatalf("row = %#v, want neither applied nor verified", row)
+	}
+	if row.FailureClass != domain.FailureInvalidTransition {
+		t.Fatalf("failure class = %q, want %q", row.FailureClass, domain.FailureInvalidTransition)
+	}
+	if row.DeviceID != "device-ghost" {
+		t.Fatalf("row names %q, want the device the request named", row.DeviceID)
+	}
+	if got := fixture.transport.issuedFor("serial-alpha"); len(got) != 0 {
+		t.Fatalf("a request naming an unregistered device sent %v to a registered one", got)
+	}
+	if len(fixture.evidence.appended()) != 0 {
+		t.Fatal("a request that reached no device appended evidence")
+	}
+	assertFleetUnleased(t, fixture)
+}
+
+// TestPerDeviceSettingsApplyRefusesADeviceWithNoCurrentTransportEndpoint: a
+// registered device the plane cannot reach is its own row, and the reason is the
+// missing transport rather than the missing registration.
+func TestPerDeviceSettingsApplyRefusesADeviceWithNoCurrentTransportEndpoint(t *testing.T) {
+	fixture := newSettingsFixture(t, map[string]string{"device-alpha": ""})
+
+	row := fixture.applyOne(t, execution.DeviceSettingRequest{DeviceID: "device-alpha", Setting: action.RotationLock})
+
+	if row.Refusal != execution.SettingsNoTransportSerial {
+		t.Fatalf("refusal = %q, want %q", row.Refusal, execution.SettingsNoTransportSerial)
+	}
+	if row.Applied {
+		t.Fatalf("row = %#v, want not applied", row)
+	}
+	if len(fixture.evidence.appended()) != 0 {
+		t.Fatal("a request that reached no device appended evidence")
+	}
+	assertFleetUnleased(t, fixture)
+}
+
+// TestPerDeviceSettingsApplyRefusesAnUnreviewedSetting: a kind that is not a
+// reviewed settings operation is refused before anything is read or dispatched,
+// and the refusal is the shape error rather than a device row.
+func TestPerDeviceSettingsApplyRefusesAnUnreviewedSetting(t *testing.T) {
+	fixture := newSettingsFixture(t, map[string]string{"device-alpha": "serial-alpha"})
+	for _, kind := range []action.Kind{"", action.Capture} {
+		_, err := fixture.applier.ApplyDeviceSetting(context.Background(), execution.DeviceSettingRequest{
+			Workspace: string(fixture.workspace), HolderID: "operator-1", RequestID: "unreviewed", DeviceID: "device-alpha", Setting: kind,
+		}, "operator", "operator-1")
+		if err == nil {
+			t.Fatalf("the per-device form accepted %q", kind)
+		}
+	}
+	if got := fixture.transport.issuedFor("serial-alpha"); len(got) != 0 {
+		t.Fatalf("an unreviewed setting sent %v to a device", got)
+	}
+	assertFleetUnleased(t, fixture)
+}
+
+// TestPerDeviceSettingsApplyRefusesWithoutAWorkspaceHolderRequestIDOrDevice: the
+// per-device form needs all four of its identity fields, and a missing one is a
+// shape error rather than a run against a device nobody named.
+func TestPerDeviceSettingsApplyRefusesWithoutAWorkspaceHolderRequestIDOrDevice(t *testing.T) {
+	fixture := newSettingsFixture(t, map[string]string{"device-alpha": "serial-alpha"})
+	cases := map[string]execution.DeviceSettingRequest{
+		"no workspace":  {HolderID: "operator-1", RequestID: "r", DeviceID: "device-alpha", Setting: action.RotationLock},
+		"no holder":     {Workspace: string(fixture.workspace), RequestID: "r", DeviceID: "device-alpha", Setting: action.RotationLock},
+		"no request id": {Workspace: string(fixture.workspace), HolderID: "operator-1", DeviceID: "device-alpha", Setting: action.RotationLock},
+		"no device":     {Workspace: string(fixture.workspace), HolderID: "operator-1", RequestID: "r", Setting: action.RotationLock},
+	}
+	for name, request := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := fixture.applier.ApplyDeviceSetting(context.Background(), request, "operator", "operator-1"); err == nil {
+				t.Fatalf("%s was accepted", name)
+			}
+		})
+	}
+	if got := fixture.transport.issuedFor("serial-alpha"); len(got) != 0 {
+		t.Fatalf("a shape error sent %v to a device", got)
+	}
+	assertFleetUnleased(t, fixture)
+}
+
+// TestPerDeviceSettingsApplyRefusesWhenTheFleetCannotBeRead: an unreadable
+// registry cannot say whether the device is reachable, so the run is refused
+// rather than reported as an unreachable device.
+func TestPerDeviceSettingsApplyRefusesWhenTheFleetCannotBeRead(t *testing.T) {
+	fixture := newSettingsFixture(t, map[string]string{"device-alpha": "serial-alpha"})
+	applier, err := execution.NewDeviceSettingsApplier(failingFleet{}, fixture.db, fixture.dispatcher, ids.NewRandom())
+	if err != nil {
+		t.Fatalf("new applier: %v", err)
+	}
+	if _, err := applier.ApplyDeviceSetting(context.Background(), execution.DeviceSettingRequest{
+		Workspace: string(fixture.workspace), HolderID: "operator-1", RequestID: "r", DeviceID: "device-alpha", Setting: action.RotationLock,
+	}, "operator", "operator-1"); err == nil {
+		t.Fatal("an unreadable fleet was accepted")
 	}
 }

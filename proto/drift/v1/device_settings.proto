@@ -100,6 +100,13 @@ enum DeviceSettingRefusalReason {
   // The attempt reached the device and its outcome could not be observed, so it
   // is reported as indeterminate rather than as either answer.
   DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE = 16;
+  // The device this request named is not in the workspace's registry at all, so
+  // there is no device to resolve a transport for and nothing was sent. It is a
+  // reason of its own rather than NO_TRANSPORT_SERIAL: "a device I know about and
+  // cannot reach" and "a device this plane has never recorded" send an operator
+  // to two different places, and collapsing them would report a sighting that
+  // never happened.
+  DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED = 17;
 }
 
 // DeviceSettingResult is ONE setting's outcome for ONE device.
@@ -181,6 +188,46 @@ message ApplyDeviceSettingsResponse {
   uint32 failed_devices = 4;
 }
 
+// ApplyDeviceSettingRequest asks for ONE setting to be applied to ONE named
+// device.
+//
+// It is the per-device form of the apply above, and the difference between the
+// two is a safety property rather than a convenience: the fleet form names no
+// device because the fleet is the SUBJECT of the action, while this form names
+// one device the operator selected, exactly as every other per-device action on
+// this plane does (a key event, a tap, a typed-text entry). The device named
+// here is the REGISTRY identity, never a transport serial: the serial this
+// request acts over is resolved by the control plane from the registry's current
+// endpoint projection, so a caller still cannot assert where a device is, and
+// cannot send a setting at a device the plane has not observed.
+message ApplyDeviceSettingRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  // device_id is the registry identity of the device to apply the setting to.
+  // It is resolved against the workspace's own registry, and a device that is
+  // not in it is refused rather than resolved to another device.
+  string device_id = 3;
+  // setting names the one setting to apply. UNSPECIFIED, or a value that is not
+  // a member of the closed enum, is refused before anything runs.
+  DeviceSetting setting = 4;
+  // approval_granted is the operator's explicit approval of the change, for the
+  // same reason the fleet form carries it: a high-risk setting is refused by the
+  // policy evaluator without it.
+  bool approval_granted = 5;
+}
+
+// ApplyDeviceSettingResponse reports the one setting's outcome for the one
+// device. It is the same DeviceSettingResult the fleet form reports per row, so
+// a client renders a per-device outcome exactly as it renders a fleet row, and
+// there is no second representation of "the device reported the setting
+// holding".
+message ApplyDeviceSettingResponse {
+  DeviceSettingResult result = 1;
+}
+
 service DeviceSettingsService {
   rpc ApplyDeviceSettings(ApplyDeviceSettingsRequest) returns (ApplyDeviceSettingsResponse);
+  // ApplyDeviceSetting is the per-device form: one setting, one device, one
+  // lease, one attempt, one read-back.
+  rpc ApplyDeviceSetting(ApplyDeviceSettingRequest) returns (ApplyDeviceSettingResponse);
 }

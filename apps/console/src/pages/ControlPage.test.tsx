@@ -1123,16 +1123,17 @@ describe("ControlPage big-frame device commands", () => {
   })
 
   /**
-   * The five controls the panel renders, and the eight labels it must NOT render.
+   * The six controls the panel renders, and the seven labels it must NOT render.
    *
-   * The withdrawn list is what "nine commands do nothing" is reduced to: each of
-   * them has no typed per-device action this build can dispatch yet, so none of
-   * them is shown. It is written out here rather than read from the rendering
-   * table, because a test that asked the table what to expect would pass whatever
-   * the table said.
+   * `withdrawn` is what is left of "nine commands do nothing": each of them still
+   * has no typed per-device action this build can dispatch, so none of them is
+   * shown — a control whose click is the end of the interaction is the defect
+   * this column exists to remove. It is written out here rather than read from
+   * the rendering table, because a test that asked the table what to expect would
+   * pass whatever the table said.
    */
-  const rendered = ["Change Device", "Volume Up", "Volume Down", "Screenshot", "Power Button"]
-  const withdrawn = ["Lock Rotate", "Reboot", "Switch Keyboard", "Install APK", "Import File", "Export File", "ADB Command", "Quick Phrase"]
+  const rendered = ["Change Device", "Volume Up", "Volume Down", "Screenshot", "Power Button", "Lock Rotate"]
+  const withdrawn = ["Reboot", "Switch Keyboard", "Install APK", "Import File", "Export File", "ADB Command", "Quick Phrase"]
 
   /** frameHarness renders the page over the mock plane and records every dispatch. */
   function frameHarness(snapshot?: ReturnType<MockControlPlaneClient["getSnapshot"]>) {
@@ -1216,6 +1217,47 @@ describe("ControlPage big-frame device commands", () => {
 
     for (const label of rendered) expect(within(controls).getByRole("button", { name: label })).toBeInTheDocument()
     for (const label of withdrawn) expect(within(controls).queryByRole("button", { name: label })).toBeNull()
+  })
+
+  it("dispatches one per-device settings apply for Lock Rotate, for the selected device", async () => {
+    const user = userEvent.setup({ delay: null })
+    const { intents } = frameHarness()
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+
+    await user.click(within(controls).getByRole("button", { name: "Lock Rotate" }))
+
+    // The DISPATCH is what is asserted, never a toast: the control has to send a
+    // typed per-device action for the device the frame has open, carrying the
+    // operator's own approval, and the catalogued setting is what it names.
+    const dispatched = intents.filter((intent) => intent.type === "applyDeviceSetting")
+    await waitFor(() => expect(dispatched).toHaveLength(1))
+    expect(dispatched[0]).toMatchObject({ deviceId: "atlas-04", setting: "rotation_lock", confirmed: true })
+    // One click is one dispatch: a control that re-fired on every render would be
+    // sending a settings write at the device the operator is not looking at.
+    expect(intents.filter((intent) => intent.type === "applyDeviceSetting")).toHaveLength(1)
+  })
+
+  it("reports the plane's own answer for Lock Rotate, including when it refused", async () => {
+    const user = userEvent.setup({ delay: null })
+    const client = new MockControlPlaneClient()
+    const dispatched: ControlPlaneIntent[] = []
+    // The plane refuses this attempt, and the sentence it refused WITH is what
+    // the frame has to show: a per-device control that swallowed a refusal and
+    // drew a success is the defect this card exists to remove.
+    const refusal = "the device is attached but this host is not authorized to control it"
+    const dispatch = async (intent: ControlPlaneIntent): Promise<MutationResult> => {
+      dispatched.push(intent)
+      return { ok: false, kind: intent.type, message: refusal, errorCode: "unauthorized" }
+    }
+    render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} mirror={fakeMirror().client} />)
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+
+    await user.click(within(controls).getByRole("button", { name: "Lock Rotate" }))
+
+    await waitFor(() => expect(within(controls).getByTestId("panel-setting-outcome")).toHaveTextContent(refusal))
+    expect(dispatched.some((intent) => intent.type === "applyDeviceSetting")).toBe(true)
   })
 
   it("states the rule the action column follows, where the operator reads it", async () => {

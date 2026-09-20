@@ -907,6 +907,22 @@ export type ControlPlaneIntent =
    * secure setting.
    */
   | { type: "applyFleetDeviceSettings"; settings: readonly DeviceSettingName[]; confirmed: boolean }
+  /**
+   * applyDeviceSetting applies ONE catalogued setting to ONE device — the
+   * per-device form of the fleet apply above, and the device the panel's own
+   * large frame has open.
+   *
+   * It names the device because this action's SUBJECT is that device, exactly as
+   * a key event or a typed-text entry names one; the fleet form names none
+   * because the fleet is its subject. It names the device by its registry
+   * identity and never by a transport serial, so this console still cannot
+   * assert where a device is: the control plane resolves the serial from its own
+   * registry, and the setting is verified by reading it back off the device.
+   *
+   * `confirmed` is the operator's explicit approval, which the policy evaluator
+   * requires for a setting that rewrites a device's secure settings.
+   */
+  | { type: "applyDeviceSetting"; deviceId: string; setting: DeviceSettingName; confirmed: boolean }
   | { type: "beginRecording"; deviceId: string }
   | { type: "stopRecording"; sessionId: string }
   | { type: "discardRecording"; sessionId: string }
@@ -929,6 +945,15 @@ export interface MutationResult {
    * by row: the summary sentence is derived from it, never a substitute for it.
    */
   deviceSettingsApply?: DeviceSettingsApplyView
+  /**
+   * deviceSetting carries a PER-DEVICE setting apply's one answer: the row for
+   * the device and setting the operator selected.
+   *
+   * It is the same row shape a fleet apply reports per device, so a surface
+   * renders a per-device outcome exactly as it renders a fleet row, and the
+   * summary sentence is derived from the row rather than from the refusal token.
+   */
+  deviceSetting?: DeviceSettingOutcomeView
 }
 
 export interface ControlPlaneClient {

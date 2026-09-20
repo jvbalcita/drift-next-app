@@ -52,7 +52,7 @@ import {
   type MirrorStream,
 } from "@/gen/drift/v1/device_mirror_pb"
 import { liveMirrorCopy, liveStreamView, mirrorCapacityView, previewRequestFor, purposeRequestFor, transportRequestFor, type LiveMirrorPreview, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView, type MirrorCapacityView } from "@/lib/live-mirror"
-import { ApplyDeviceSettingsRequestSchema, ApplyDeviceSettingsResponseSchema, DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
+import { ApplyDeviceSettingRequestSchema, ApplyDeviceSettingResponseSchema, ApplyDeviceSettingsRequestSchema, ApplyDeviceSettingsResponseSchema, DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
 import {
   DeleteArtifactRequestSchema,
   DeleteArtifactResponseSchema,
@@ -617,6 +617,24 @@ export class DeviceSettingsClient {
       context: requestContext({ requestId }),
       workspace: workspaceRef(workspaceId),
       settings: [...settings],
+      approvalGranted,
+    })
+  }
+
+  /**
+   * applyDeviceSetting applies ONE setting to ONE device: the per-device form.
+   *
+   * The device travels as its registry identity and never as a transport serial,
+   * so this call cannot assert where a device is — the control plane resolves the
+   * serial from the registry it observed. A device the registry does not hold is
+   * refused with its own reason rather than resolved to another device.
+   */
+  applyDeviceSetting(requestId: string, workspaceId: string, deviceId: string, setting: DeviceSetting, approvalGranted: boolean) {
+    return this.rpc.call("ApplyDeviceSetting", ApplyDeviceSettingRequestSchema, ApplyDeviceSettingResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      deviceId,
+      setting,
       approvalGranted,
     })
   }

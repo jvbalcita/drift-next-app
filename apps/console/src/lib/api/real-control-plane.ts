@@ -62,7 +62,7 @@ import {
 } from "@/lib/api/connect-json"
 import { createControlPlaneServices, type ControlPlaneServices } from "@/lib/api/control-plane-clients"
 import { addressPoliciesAreEquivalent, isTransportPort, parseDiscoveryRange } from "@/lib/api/address-range"
-import { deviceSettingProto, deviceSettingsApplySentence, deviceSettingsApplyView } from "@/lib/device-settings"
+import { deviceSettingOutcomeSentence, deviceSettingOutcomeView, deviceSettingProto, deviceSettingsApplySentence, deviceSettingsApplyView } from "@/lib/device-settings"
 import type {
   AccountAssignmentState as AccountAssignmentViewState,
   AccountDeviceAssignmentView,
@@ -1987,6 +1987,29 @@ export class RealControlPlaneClient implements ControlPlaneClient {
           return failure(intent, "The control plane reported a setting this console build cannot render, so the per-device outcomes are withheld rather than shown in part.", { errorCode: "precondition_failed" })
         }
         return mutation(intent, deviceSettingsApplySentence(view), { deviceSettingsApply: view })
+      }
+      case "applyDeviceSetting": {
+        // The setting and the device are both read from the intent and both
+        // checked here before the call: a name this build cannot turn into a
+        // contract value, or an approval the operator did not give, would be a
+        // request the control plane answers with a shape or policy refusal rather
+        // than with the device's own answer.
+        const setting = deviceSettingProto(intent.setting)
+        if (setting === null) {
+          return failure(intent, "The requested device setting is not one this console can apply. Nothing was sent.", { errorCode: "invalid_input" })
+        }
+        if (!intent.confirmed) {
+          return failure(intent, "Applying a setting changes this device and needs the operator's explicit confirmation. Nothing was sent.", { errorCode: "precondition_failed" })
+        }
+        const applied = await this.services.deviceSettings.applyDeviceSetting(requestId, workspaceId, intent.deviceId, setting, intent.confirmed)
+        const outcome = applied.result ? deviceSettingOutcomeView(applied.result) : null
+        if (outcome === null) {
+          // A row this build cannot name is NOT dropped: dropping it would hide
+          // the device's outcome, which is the one thing this surface must never
+          // do.
+          return failure(intent, "The control plane reported a setting this console build cannot render, so the device's outcome is withheld rather than shown in part.", { errorCode: "precondition_failed" })
+        }
+        return mutation(intent, deviceSettingOutcomeSentence(outcome), { deviceSetting: outcome })
       }
       case "restartTransportServer": {
         if (intent.endpoints.length === 0) {
