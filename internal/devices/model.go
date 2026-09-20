@@ -36,7 +36,38 @@ type Device struct {
 	State           State
 	LastSeenAt      *time.Time
 	RowVersion      uint64
+	Retired         bool
+	RetiredAt       *time.Time
+	ObservedAgain   bool
 }
+
+type RetirementDecision struct {
+	ID, ActorType, ActorID, Reason string
+	DeviceID                       DeviceID
+	Workspace                      organizations.WorkspaceID
+	Retired                        bool
+	DecidedAt                      time.Time
+}
+
+type Deletion struct {
+	ID, DisplayName, HardwareSerial, ActorType, ActorID, Reason string
+	DeviceID                                                    DeviceID
+	Workspace                                                   organizations.WorkspaceID
+	DeletedAt                                                   time.Time
+}
+
+type DeleteRefusalReason string
+
+const (
+	DeleteRefusalConfirmationMismatch DeleteRefusalReason = "CONFIRMATION_MISMATCH"
+	DeleteRefusalDeviceAttached       DeleteRefusalReason = "DEVICE_ATTACHED"
+	DeleteRefusalActiveLease          DeleteRefusalReason = "ACTIVE_LEASE"
+	DeleteRefusalActiveMirror         DeleteRefusalReason = "ACTIVE_MIRROR"
+	DeleteRefusalActiveRun            DeleteRefusalReason = "ACTIVE_RUN"
+	DeleteRefusalActiveAssignment     DeleteRefusalReason = "ACTIVE_ASSIGNMENT"
+)
+
+type DeleteRefusal struct{ Reason DeleteRefusalReason }
 
 func (s State) Valid() bool {
 	switch s {

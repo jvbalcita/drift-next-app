@@ -41,6 +41,15 @@ const (
 	// DeviceServiceRefreshDeviceDiagnosticsProcedure is the fully-qualified name of the DeviceService's
 	// RefreshDeviceDiagnostics RPC.
 	DeviceServiceRefreshDeviceDiagnosticsProcedure = "/drift.v1.DeviceService/RefreshDeviceDiagnostics"
+	// DeviceServiceRetireDeviceProcedure is the fully-qualified name of the DeviceService's
+	// RetireDevice RPC.
+	DeviceServiceRetireDeviceProcedure = "/drift.v1.DeviceService/RetireDevice"
+	// DeviceServiceRestoreDeviceProcedure is the fully-qualified name of the DeviceService's
+	// RestoreDevice RPC.
+	DeviceServiceRestoreDeviceProcedure = "/drift.v1.DeviceService/RestoreDevice"
+	// DeviceServiceDeleteDeviceProcedure is the fully-qualified name of the DeviceService's
+	// DeleteDevice RPC.
+	DeviceServiceDeleteDeviceProcedure = "/drift.v1.DeviceService/DeleteDevice"
 )
 
 // DeviceServiceClient is a client for the drift.v1.DeviceService service.
@@ -48,6 +57,9 @@ type DeviceServiceClient interface {
 	ListDevices(context.Context, *connect.Request[v1.ListDevicesRequest]) (*connect.Response[v1.ListDevicesResponse], error)
 	GetDevice(context.Context, *connect.Request[v1.GetDeviceRequest]) (*connect.Response[v1.GetDeviceResponse], error)
 	RefreshDeviceDiagnostics(context.Context, *connect.Request[v1.RefreshDeviceDiagnosticsRequest]) (*connect.Response[v1.RefreshDeviceDiagnosticsResponse], error)
+	RetireDevice(context.Context, *connect.Request[v1.RetireDeviceRequest]) (*connect.Response[v1.RetireDeviceResponse], error)
+	RestoreDevice(context.Context, *connect.Request[v1.RestoreDeviceRequest]) (*connect.Response[v1.RestoreDeviceResponse], error)
+	DeleteDevice(context.Context, *connect.Request[v1.DeleteDeviceRequest]) (*connect.Response[v1.DeleteDeviceResponse], error)
 }
 
 // NewDeviceServiceClient constructs a client for the drift.v1.DeviceService service. By default, it
@@ -79,6 +91,24 @@ func NewDeviceServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(deviceServiceMethods.ByName("RefreshDeviceDiagnostics")),
 			connect.WithClientOptions(opts...),
 		),
+		retireDevice: connect.NewClient[v1.RetireDeviceRequest, v1.RetireDeviceResponse](
+			httpClient,
+			baseURL+DeviceServiceRetireDeviceProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("RetireDevice")),
+			connect.WithClientOptions(opts...),
+		),
+		restoreDevice: connect.NewClient[v1.RestoreDeviceRequest, v1.RestoreDeviceResponse](
+			httpClient,
+			baseURL+DeviceServiceRestoreDeviceProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("RestoreDevice")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteDevice: connect.NewClient[v1.DeleteDeviceRequest, v1.DeleteDeviceResponse](
+			httpClient,
+			baseURL+DeviceServiceDeleteDeviceProcedure,
+			connect.WithSchema(deviceServiceMethods.ByName("DeleteDevice")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -87,6 +117,9 @@ type deviceServiceClient struct {
 	listDevices              *connect.Client[v1.ListDevicesRequest, v1.ListDevicesResponse]
 	getDevice                *connect.Client[v1.GetDeviceRequest, v1.GetDeviceResponse]
 	refreshDeviceDiagnostics *connect.Client[v1.RefreshDeviceDiagnosticsRequest, v1.RefreshDeviceDiagnosticsResponse]
+	retireDevice             *connect.Client[v1.RetireDeviceRequest, v1.RetireDeviceResponse]
+	restoreDevice            *connect.Client[v1.RestoreDeviceRequest, v1.RestoreDeviceResponse]
+	deleteDevice             *connect.Client[v1.DeleteDeviceRequest, v1.DeleteDeviceResponse]
 }
 
 // ListDevices calls drift.v1.DeviceService.ListDevices.
@@ -104,11 +137,29 @@ func (c *deviceServiceClient) RefreshDeviceDiagnostics(ctx context.Context, req 
 	return c.refreshDeviceDiagnostics.CallUnary(ctx, req)
 }
 
+// RetireDevice calls drift.v1.DeviceService.RetireDevice.
+func (c *deviceServiceClient) RetireDevice(ctx context.Context, req *connect.Request[v1.RetireDeviceRequest]) (*connect.Response[v1.RetireDeviceResponse], error) {
+	return c.retireDevice.CallUnary(ctx, req)
+}
+
+// RestoreDevice calls drift.v1.DeviceService.RestoreDevice.
+func (c *deviceServiceClient) RestoreDevice(ctx context.Context, req *connect.Request[v1.RestoreDeviceRequest]) (*connect.Response[v1.RestoreDeviceResponse], error) {
+	return c.restoreDevice.CallUnary(ctx, req)
+}
+
+// DeleteDevice calls drift.v1.DeviceService.DeleteDevice.
+func (c *deviceServiceClient) DeleteDevice(ctx context.Context, req *connect.Request[v1.DeleteDeviceRequest]) (*connect.Response[v1.DeleteDeviceResponse], error) {
+	return c.deleteDevice.CallUnary(ctx, req)
+}
+
 // DeviceServiceHandler is an implementation of the drift.v1.DeviceService service.
 type DeviceServiceHandler interface {
 	ListDevices(context.Context, *connect.Request[v1.ListDevicesRequest]) (*connect.Response[v1.ListDevicesResponse], error)
 	GetDevice(context.Context, *connect.Request[v1.GetDeviceRequest]) (*connect.Response[v1.GetDeviceResponse], error)
 	RefreshDeviceDiagnostics(context.Context, *connect.Request[v1.RefreshDeviceDiagnosticsRequest]) (*connect.Response[v1.RefreshDeviceDiagnosticsResponse], error)
+	RetireDevice(context.Context, *connect.Request[v1.RetireDeviceRequest]) (*connect.Response[v1.RetireDeviceResponse], error)
+	RestoreDevice(context.Context, *connect.Request[v1.RestoreDeviceRequest]) (*connect.Response[v1.RestoreDeviceResponse], error)
+	DeleteDevice(context.Context, *connect.Request[v1.DeleteDeviceRequest]) (*connect.Response[v1.DeleteDeviceResponse], error)
 }
 
 // NewDeviceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -136,6 +187,24 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(deviceServiceMethods.ByName("RefreshDeviceDiagnostics")),
 		connect.WithHandlerOptions(opts...),
 	)
+	deviceServiceRetireDeviceHandler := connect.NewUnaryHandler(
+		DeviceServiceRetireDeviceProcedure,
+		svc.RetireDevice,
+		connect.WithSchema(deviceServiceMethods.ByName("RetireDevice")),
+		connect.WithHandlerOptions(opts...),
+	)
+	deviceServiceRestoreDeviceHandler := connect.NewUnaryHandler(
+		DeviceServiceRestoreDeviceProcedure,
+		svc.RestoreDevice,
+		connect.WithSchema(deviceServiceMethods.ByName("RestoreDevice")),
+		connect.WithHandlerOptions(opts...),
+	)
+	deviceServiceDeleteDeviceHandler := connect.NewUnaryHandler(
+		DeviceServiceDeleteDeviceProcedure,
+		svc.DeleteDevice,
+		connect.WithSchema(deviceServiceMethods.ByName("DeleteDevice")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/drift.v1.DeviceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DeviceServiceListDevicesProcedure:
@@ -144,6 +213,12 @@ func NewDeviceServiceHandler(svc DeviceServiceHandler, opts ...connect.HandlerOp
 			deviceServiceGetDeviceHandler.ServeHTTP(w, r)
 		case DeviceServiceRefreshDeviceDiagnosticsProcedure:
 			deviceServiceRefreshDeviceDiagnosticsHandler.ServeHTTP(w, r)
+		case DeviceServiceRetireDeviceProcedure:
+			deviceServiceRetireDeviceHandler.ServeHTTP(w, r)
+		case DeviceServiceRestoreDeviceProcedure:
+			deviceServiceRestoreDeviceHandler.ServeHTTP(w, r)
+		case DeviceServiceDeleteDeviceProcedure:
+			deviceServiceDeleteDeviceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -163,4 +238,16 @@ func (UnimplementedDeviceServiceHandler) GetDevice(context.Context, *connect.Req
 
 func (UnimplementedDeviceServiceHandler) RefreshDeviceDiagnostics(context.Context, *connect.Request[v1.RefreshDeviceDiagnosticsRequest]) (*connect.Response[v1.RefreshDeviceDiagnosticsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceService.RefreshDeviceDiagnostics is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) RetireDevice(context.Context, *connect.Request[v1.RetireDeviceRequest]) (*connect.Response[v1.RetireDeviceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceService.RetireDevice is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) RestoreDevice(context.Context, *connect.Request[v1.RestoreDeviceRequest]) (*connect.Response[v1.RestoreDeviceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceService.RestoreDevice is not implemented"))
+}
+
+func (UnimplementedDeviceServiceHandler) DeleteDevice(context.Context, *connect.Request[v1.DeleteDeviceRequest]) (*connect.Response[v1.DeleteDeviceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("drift.v1.DeviceService.DeleteDevice is not implemented"))
 }

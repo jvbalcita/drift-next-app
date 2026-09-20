@@ -41,6 +41,15 @@ message Device {
   // that is plugged in cannot show it at all (ARC-196).
   DeviceTransport transport = 12;
   DeviceDiagnostics diagnostics = 13;
+  DeviceExpectation expectation = 14;
+  string expectation_decided_at = 15;
+  bool observed_again_after_retirement = 16;
+}
+
+enum DeviceExpectation {
+  DEVICE_EXPECTATION_UNSPECIFIED = 0;
+  DEVICE_EXPECTATION_EXPECTED = 1;
+  DEVICE_EXPECTATION_RETIRED = 2;
 }
 
 // DeviceDiagnostics is a bounded, last-known snapshot collected from one
@@ -114,6 +123,7 @@ message ListDevicesRequest {
   string organization_id = 1;
   WorkspaceRef workspace = 2;
   PageRequest page = 3;
+  bool include_retired = 4;
 }
 
 message ListDevicesResponse {
@@ -145,8 +155,51 @@ message RefreshDeviceDiagnosticsResponse {
   repeated string failed_device_ids = 4;
 }
 
+message RetireDeviceRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string reason = 4;
+}
+message RetireDeviceResponse {
+  Device device = 1;
+}
+message RestoreDeviceRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string reason = 4;
+}
+message RestoreDeviceResponse {
+  Device device = 1;
+}
+
+enum DeleteDeviceRefusalReason {
+  DELETE_DEVICE_REFUSAL_REASON_UNSPECIFIED = 0;
+  DELETE_DEVICE_REFUSAL_REASON_CONFIRMATION_MISMATCH = 1;
+  DELETE_DEVICE_REFUSAL_REASON_DEVICE_ATTACHED = 2;
+  DELETE_DEVICE_REFUSAL_REASON_ACTIVE_LEASE = 3;
+  DELETE_DEVICE_REFUSAL_REASON_ACTIVE_MIRROR = 4;
+  DELETE_DEVICE_REFUSAL_REASON_ACTIVE_RUN = 5;
+  DELETE_DEVICE_REFUSAL_REASON_ACTIVE_ASSIGNMENT = 6;
+}
+message DeleteDeviceRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  string device_id = 3;
+  string confirmation_device_id = 4;
+  string reason = 5;
+}
+message DeleteDeviceResponse {
+  string deletion_id = 1;
+  DeleteDeviceRefusalReason refusal_reason = 2;
+}
+
 service DeviceService {
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
   rpc GetDevice(GetDeviceRequest) returns (GetDeviceResponse);
   rpc RefreshDeviceDiagnostics(RefreshDeviceDiagnosticsRequest) returns (RefreshDeviceDiagnosticsResponse);
+  rpc RetireDevice(RetireDeviceRequest) returns (RetireDeviceResponse);
+  rpc RestoreDevice(RestoreDeviceRequest) returns (RestoreDeviceResponse);
+  rpc DeleteDevice(DeleteDeviceRequest) returns (DeleteDeviceResponse);
 }

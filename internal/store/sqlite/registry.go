@@ -305,6 +305,32 @@ func (d *DB) upsertObservedDevice(ctx context.Context, tx *sql.Tx, workspace org
 		if _, err := tx.ExecContext(ctx, `INSERT INTO devices (id, workspace_id, display_name, platform_version, state, hardware_serial, last_seen_at, created_at, updated_at, row_version) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, 1)`, deviceID, workspace, displayName, platformVersionFor(observation), nullableString(reported), at, at, at); err != nil {
 			return result, mapConstraint(err)
 		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO device_registry_entries (workspace_id, device_id, created_at) VALUES (?, ?, ?)`, workspace, deviceID, at); err != nil {
+			return result, mapConstraint(err)
+		}
+		// A permanently deleted physical unit never silently reclaims its old
+		// identity. Link the new identity to the outliving deletion decision so
+		// the return is explainable without putting the old row back in registry.
+		var deletionID, deletedDeviceID string
+		identity := reportedIdentity(observation)
+		if identity != "" {
+			err = tx.QueryRowContext(ctx, `SELECT id,device_id FROM device_deletions WHERE workspace_id=? AND hardware_serial=? ORDER BY rowid DESC LIMIT 1`, workspace, identity).Scan(&deletionID, &deletedDeviceID)
+		} else if strings.TrimSpace(observation.Serial) != "" {
+			err = tx.QueryRowContext(ctx, `SELECT dd.id,dd.device_id FROM device_deletions dd JOIN device_endpoints ep ON ep.workspace_id=dd.workspace_id AND ep.device_id=dd.device_id WHERE dd.workspace_id=? AND ep.serial=? ORDER BY dd.rowid DESC LIMIT 1`, workspace, observation.Serial).Scan(&deletionID, &deletedDeviceID)
+		} else {
+			err = tx.QueryRowContext(ctx, `SELECT dd.id,dd.device_id FROM device_deletions dd JOIN device_endpoints ep ON ep.workspace_id=dd.workspace_id AND ep.device_id=dd.device_id WHERE dd.workspace_id=? AND ep.host=? AND ep.port=? ORDER BY dd.rowid DESC LIMIT 1`, workspace, observation.Host, observation.Port).Scan(&deletionID, &deletedDeviceID)
+		}
+		if err == nil {
+			returnID, idErr := d.ids.NewID()
+			if idErr != nil {
+				return result, platformerrors.Wrap(platformerrors.CodeInternal, "generate deletion-return ID", idErr)
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO device_deletion_returns (id,workspace_id,deletion_id,deleted_device_id,returned_device_id,observed_at) VALUES (?,?,?,?,?,?)`, returnID, workspace, deletionID, deletedDeviceID, deviceID, at); err != nil {
+				return result, err
+			}
+		} else if err != sql.ErrNoRows {
+			return result, classifyContext(err)
+		}
 	} else {
 		var currentDisplayName, currentPlatformVersion string
 		if err := tx.QueryRowContext(ctx, `SELECT display_name, platform_version FROM devices WHERE workspace_id=? AND id=?`, workspace, deviceID).Scan(&currentDisplayName, &currentPlatformVersion); err != nil {
@@ -426,7 +452,7 @@ func deviceIDForObservation(ctx context.Context, tx *sql.Tx, workspace organizat
 	var stored string
 	var err error
 	if identity := reportedIdentity(observation); identity != "" {
-		err = tx.QueryRowContext(ctx, `SELECT id FROM devices WHERE workspace_id=? AND hardware_serial=?`, workspace, identity).Scan(&stored)
+		err = tx.QueryRowContext(ctx, `SELECT d.id FROM devices d JOIN device_registry_entries r ON r.workspace_id=d.workspace_id AND r.device_id=d.id WHERE d.workspace_id=? AND d.hardware_serial=?`, workspace, identity).Scan(&stored)
 		switch err {
 		case nil:
 			return devices.DeviceID(stored), true, nil
@@ -438,9 +464,9 @@ func deviceIDForObservation(ctx context.Context, tx *sql.Tx, workspace organizat
 		}
 	}
 	if strings.TrimSpace(observation.Serial) != "" {
-		err = tx.QueryRowContext(ctx, `SELECT device_id FROM device_endpoints WHERE workspace_id=? AND serial=? ORDER BY observed_at DESC, id LIMIT 1`, workspace, observation.Serial).Scan(&stored)
+		err = tx.QueryRowContext(ctx, `SELECT ep.device_id FROM device_endpoints ep JOIN device_registry_entries r ON r.workspace_id=ep.workspace_id AND r.device_id=ep.device_id WHERE ep.workspace_id=? AND ep.serial=? ORDER BY ep.observed_at DESC, ep.id LIMIT 1`, workspace, observation.Serial).Scan(&stored)
 	} else {
-		err = tx.QueryRowContext(ctx, `SELECT device_id FROM device_endpoints WHERE workspace_id=? AND host=? AND port=? ORDER BY observed_at DESC, id LIMIT 1`, workspace, observation.Host, observation.Port).Scan(&stored)
+		err = tx.QueryRowContext(ctx, `SELECT ep.device_id FROM device_endpoints ep JOIN device_registry_entries r ON r.workspace_id=ep.workspace_id AND r.device_id=ep.device_id WHERE ep.workspace_id=? AND ep.host=? AND ep.port=? ORDER BY ep.observed_at DESC, ep.id LIMIT 1`, workspace, observation.Host, observation.Port).Scan(&stored)
 	}
 	switch err {
 	case nil:
