@@ -159,11 +159,58 @@ func TestThePurposeDecidesTheBoundOnTheDeviceServerLaunch(t *testing.T) {
 		t.Fatalf("MirrorServerLaunchArgv(operator) = %v", err)
 	}
 	bound = boundOnLaunch(t, operator)
-	if bound.size != 1080 || bound.fps != 24 || bound.bitRate != 2_500_000 {
-		t.Fatalf("the operator's own launch carries %+v, want its own profile of max_size 1080, max_fps 24, video_bit_rate 2500000", bound)
+	if bound.size != 0 || bound.fps != 24 || bound.bitRate != 2_500_000 {
+		t.Fatalf("the operator's own launch carries %+v, want its own profile of max_size 0 (the device's own size), max_fps 24, video_bit_rate 2500000", bound)
 	}
 	if bound.size == 480 {
 		t.Fatal("the operator's own frame was carried at the preview setting chosen for the grid")
+	}
+}
+
+// TestTheOperatorsFrameIsNeverDownscaled is the property that makes the big
+// frame usable at all.
+//
+// The frame an operator points at is the frame their coordinate is measured in:
+// the console measures a gesture in the picture it was given and states that
+// picture's size as the render space, and the input boundary cross-checks that
+// stated size against the size the device presents at (`wm size`, the override).
+// A downscaled operator frame therefore reaches the device's own size check and
+// is refused - which is what a 1080p cap did on a fleet whose devices present at
+// 1080x2280: the encoder produced 510x1080, the console declared 510x1080, and
+// every tap and swipe was refused before it reached a device. Nothing in this
+// product rescales a point from one frame into another, so the only frame an
+// operator can point at is the device's own.
+//
+// The size is STATED rather than omitted (`max_size=0` is scrcpy's own "native"),
+// because an omitted option is the device's default rather than this product's
+// bound.
+func TestTheOperatorsFrameIsNeverDownscaled(t *testing.T) {
+	if MirrorOperatorEncodeProfile.MaxSize != 0 {
+		t.Fatalf("the operator's own frame is carried at max_size %d, want 0 (the device's own size): a downscaled operator frame states a render space the device does not present at, so every coordinate in it is refused",
+			MirrorOperatorEncodeProfile.MaxSize)
+	}
+	// The rest of the profile is still a bound, and it is the operator's own.
+	if MirrorOperatorEncodeProfile.BitRate <= 0 || MirrorOperatorEncodeProfile.MaxFPS <= 0 {
+		t.Fatalf("the operator's own profile is not a bound: %+v", MirrorOperatorEncodeProfile)
+	}
+	if MirrorOperatorEncodeProfile.IDRIntervalSeconds != MirrorOperatorIDRIntervalSeconds {
+		t.Fatalf("the operator's own frame is carried at a keyframe interval of %ds, want %ds",
+			MirrorOperatorEncodeProfile.IDRIntervalSeconds, MirrorOperatorIDRIntervalSeconds)
+	}
+	if err := MirrorOperatorEncodeProfile.Validate(); err != nil {
+		t.Fatalf("the operator's own profile does not validate: %v", err)
+	}
+
+	launch, err := MirrorServerLaunchArgv(mirrorTestSessionID, "info", true, MirrorOperatorEncodeProfile)
+	if err != nil {
+		t.Fatalf("MirrorServerLaunchArgv(operator) = %v", err)
+	}
+	if !strings.Contains(strings.Join(launch, " "), "max_size=0") {
+		t.Fatalf("the operator's own launch does not STATE its size: %q", launch)
+	}
+	if name, ok := matchesAllowlist(launch); !ok || name != MirrorServerLaunchOperation {
+		t.Fatalf("matchesAllowlist(%q) = %q, %v; want %q, true: a size this product states and the transport refuses is a frame nobody can open",
+			launch, name, ok, MirrorServerLaunchOperation)
 	}
 }
 
