@@ -607,6 +607,23 @@ describe("the info control beside the pin", () => {
     expect(screen.getByLabelText(/floating device controls/i).lastElementChild).toBe(footer)
   })
 
+  /**
+   * The owner's report: the panel said "0 followers selected" and read as though
+   * nothing was selected, when the frame in front of the operator is the device
+   * they are driving. The footer therefore names the device this panel controls
+   * first; the follower count stays beside it, because the owner asked for the
+   * count to be stated above the nav row and it is a fact about the preview
+   * rather than about the device.
+   */
+  it("names the device the panel is controlling beside the follower count", async () => {
+    const { intents } = renderPanel()
+    await live(intents)
+
+    const followers = screen.getByTestId("live-mirror-followers")
+    expect(followers).toHaveTextContent(`Controlling ${device().displayName}`)
+    expect(followers).toHaveTextContent(/0 followers selected/)
+  })
+
   it("refuses to describe an input it has no lease for, and names the missing lease", async () => {
     const user = userEvent.setup()
     const { intents } = renderPanel({ hasLease: false })
