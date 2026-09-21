@@ -658,14 +658,17 @@ describe("ControlPage device observation status", () => {
     const { snapshot, dispatch } = harness()
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
 
-    // 192px is the smallest frame the console offers, and landscape makes it
-    // 192x108. The mark is centred in the frame at every size rather than only in
-    // the default portrait one.
+    // 192px is the smallest frame the console offers, and a landscape frame is 192px
+    // WIDE with the tile's own shape turned for its height: this plane states no size
+    // for a device it holds no picture for, so the tile draws the console's own
+    // portrait shape turned - 16:9. The mark is centred in the frame at every size
+    // rather than only in the default portrait one.
     await user.click(screen.getByRole("button", { name: "Open Workspace Settings" }))
     await user.click(screen.getByRole("button", { name: "Landscape" }))
 
     const unseen = screen.getByRole("button", { name: /Atlas 09/i })
-    expect(unseen).toHaveStyle({ width: "192px", height: "108px" })
+    expect(unseen).toHaveStyle({ width: "192px" })
+    expect(within(unseen).getByTestId("still-tile-picture-atlas-09")).toHaveStyle({ aspectRatio: "16 / 9" })
     expect(within(unseen).getByRole("img", { name: /Atlas 09 is not observed/ })).toBeInTheDocument()
     expect(within(unseen).getByText("Not Observed")).toBeInTheDocument()
   })

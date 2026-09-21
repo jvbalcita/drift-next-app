@@ -519,6 +519,70 @@ export function gridTileStill(deviceId: string, input: { stills: Readonly<Record
   return { deviceId, state: still.state, picture: still.picture, still, report: "" }
 }
 
+/** StillPictureShape is a shape a tile draws at: a width and a height in the same units as the numbers they came from. */
+export interface StillPictureShape {
+  width: number
+  height: number
+}
+
+/**
+ * consolePortraitShape is the shape a tile draws when the plane stated no size for
+ * its still.
+ *
+ * It is this console's own portrait shape - the 9:16 box the fleet grid has always
+ * laid a frame out at, and the same fallback the big frame uses when its stream has
+ * not reported a size yet - and it is only ever the shape of a tile with no
+ * picture: the plane states the delivered still's size WITH the picture, so a tile
+ * whose still is pending, stale or unavailable has no size of its own to take.
+ */
+const consolePortraitShape: StillPictureShape = { width: 9, height: 16 }
+
+/**
+ * stillPictureShape is the shape the picture of one tile is drawn at.
+ *
+ * It is the PLANE's own reading, never one derived here: `width` and `height` are
+ * the delivered still's size, which is the level's cap applied to the device's
+ * screen, so a 1080x2280 device's still arrives at 360x760 and the tile draws that
+ * device's screen at that shape. A size the plane did not state - a still it holds
+ * no picture for, or an answer that named none - is not a shape this console may
+ * invent: the tile keeps its own portrait shape and says in words that it has no
+ * picture.
+ */
+export function stillPictureShape(tile: GridTileStill): StillPictureShape {
+  const still = tile.still
+  if (!still) return consolePortraitShape
+  const { width, height } = still
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return consolePortraitShape
+  return { width, height }
+}
+
+/**
+ * stillTileShape is the shape one tile is DRAWN at: the picture's own shape, turned
+ * when the workspace draws landscape frames.
+ *
+ * The turn is what makes a landscape frame a phone rather than a letterbox: the
+ * picture keeps its own aspect (it is never stretched and never cropped) and the
+ * frame takes it, so the screen fills the frame in either orientation.
+ */
+export function stillTileShape(tile: GridTileStill, orientation: "portrait" | "landscape"): StillPictureShape {
+  const shape = stillPictureShape(tile)
+  return orientation === "portrait" ? shape : { width: shape.height, height: shape.width }
+}
+
+/**
+ * stillFrameWidth is the width this grid lays one frame out at.
+ *
+ * It is the console's own shape at the workspace's size, which is the geometry the
+ * fleet grid's columns have always been laid out on and is deliberately NOT the
+ * device's: a frame is as wide as the operator asked for, and the picture inside it
+ * takes that width. The frame's height is the picture's own business - it is the
+ * shape the tile draws at - so a tile with a picture is exactly as tall as the
+ * device's screen at that width.
+ */
+export function stillFrameWidth(size: number, orientation: "portrait" | "landscape"): number {
+  return orientation === "portrait" ? Math.round(size * consolePortraitShape.width / consolePortraitShape.height) : size
+}
+
 /**
  * gridStillClassified reports whether a tile is drawing a failure the PLANE
  * classified.
