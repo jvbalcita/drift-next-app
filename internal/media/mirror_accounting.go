@@ -114,6 +114,7 @@ var mirrorEndClassOrder = []MirrorEndClass{
 	MirrorEndEngineStopped,
 	MirrorEndDeviceStreamEnded,
 	MirrorEndTransportUnavailable,
+	MirrorEndPushCancelled,
 	MirrorEndDeviceServerFailed,
 	MirrorEndNoStreamableScreen,
 }

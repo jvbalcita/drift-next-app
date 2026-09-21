@@ -134,6 +134,13 @@ var ErrCoordinateFrameRefused = errors.New("media: the coordinate is refused bec
 //   - DeviceServerFailed is the device-side server failing to start or dying
 //     after it started. It is the one class a reader would otherwise have to
 //     guess at from a generic failure, which is the whole reason it is its own.
+//   - PushCancelled is THIS PLANE cancelling its own device-side work - the push
+//     of the device-side server, the reverse tunnel, the launch - while it was
+//     opening a device. It is neither of the two classes either side of it: the
+//     transport was not unavailable (there was a path to the device and the
+//     plane used it) and the device's server did not fail (it was never asked to
+//     run), so a class that named either sent an operator to a network and a
+//     device that were both fine.
 //
 // The vocabulary is closed and the values are stable, because a class written
 // into a record is read later by somebody who was not there.
@@ -158,6 +165,19 @@ const (
 	// MirrorEndNoStreamableScreen: the device reported no screen this plane can
 	// stream, so a coordinate would have no frame to be measured in.
 	MirrorEndNoStreamableScreen MirrorEndClass = "no_streamable_screen"
+	// MirrorEndPushCancelled: THIS PLANE cancelled the device-side work it had
+	// already started - the push of the device-side server, the reverse tunnel,
+	// the launch - while it was opening a device, so no stream was ever
+	// established.
+	//
+	// It is its own class because the two classes that could otherwise be said of
+	// it name the wrong layer, and the difference is a wrong errand for an
+	// operator: measured on the lab fleet, this plane cancelling its own adb push
+	// four seconds in was recorded as `transport_unavailable` and reached an
+	// operator as "the transport to the device could not be established" - a
+	// sentence that sends somebody to check a network, a hub and a device that
+	// were all working while the fault was local.
+	MirrorEndPushCancelled MirrorEndClass = "push_cancelled"
 )
 
 // Valid reports whether this class is one the plane states. A class this
@@ -167,7 +187,8 @@ const (
 func (c MirrorEndClass) Valid() bool {
 	switch c {
 	case MirrorEndViewerDetached, MirrorEndEngineStopped, MirrorEndDeviceStreamEnded,
-		MirrorEndTransportUnavailable, MirrorEndDeviceServerFailed, MirrorEndNoStreamableScreen:
+		MirrorEndTransportUnavailable, MirrorEndDeviceServerFailed, MirrorEndNoStreamableScreen,
+		MirrorEndPushCancelled:
 		return true
 	default:
 		return false
@@ -216,6 +237,8 @@ func (c MirrorEndClass) Sentence() string {
 		return "media: the device-side server failed"
 	case MirrorEndNoStreamableScreen:
 		return "media: the device reported no screen this plane can stream"
+	case MirrorEndPushCancelled:
+		return "media: this plane cancelled the push of the device-side server, so the stream was never opened"
 	default:
 		return ""
 	}
@@ -1215,14 +1238,14 @@ type mirrorSession struct {
 	// operator's own frame, which has its own profile.
 	preview MirrorPreview
 
-	// upgrade is signalled when a viewer attaches that needs a stronger encode
-	// profile than the stream currently being carried. It carries no value: the
-	// worker re-reads which profile is required, so a session that gained two
-	// operator viewers in one instant re-encodes once.
-	upgrade chan struct{}
-	// dialCancel ends the current dial's read, which is how a stream that must
-	// be re-encoded is left: the reader is unblocked and the worker opens the
-	// device again at the profile the attached viewers require.
+	// dialCancel ends this session's own read of the stream it is carrying, which
+	// is how a viewer that needs a stronger profile than the stream was encoded
+	// at is answered without waiting for the device's next frame. It is the
+	// session's own cancellation and never the device's: the worker states it as
+	// such (see carryStream), and it is never applied to a device this session is
+	// still opening - the push of the device-side server and the handshake that
+	// follows it belong to the session and are allowed to finish (see
+	// requestProfile).
 	dialCancel context.CancelFunc
 
 	// ctx is the session's own lifetime: it ends when the starter's context
@@ -1248,7 +1271,6 @@ func newMirrorSession(deviceID, serial string, purpose MirrorViewerPurpose, prev
 		scid:      uint32(time.Now().UnixNano()) & 0x7fffffff,
 		opening:   purposeOrDefault(purpose),
 		preview:   preview,
-		upgrade:   make(chan struct{}, 1),
 	}
 }
 
@@ -1578,7 +1600,10 @@ func (s *mirrorSession) run() {
 // carryStream owns one device stream's whole lifetime: it opens the stream,
 // publishes what the device carries, and releases it before returning. It reports
 // whether the session should open another one, which it should exactly when a
-// viewer needing a stronger profile attached while this stream was being carried.
+// viewer needing a stronger profile attached - either while this stream was being
+// carried, or while the device was still being opened, in which case the open was
+// allowed to finish first (see requestProfile) and is re-made at the bound those
+// viewers require.
 //
 // Each path out of it states the CLASS of the end it caused, beside the sentence:
 // the class is what a surface renders a state from and what a record is grouped
@@ -1589,12 +1614,20 @@ func (s *mirrorSession) run() {
 //
 //   - the dial, which is the adapter and the reverse tunnel: a failure here
 //     classified itself at the adapter, because the adapter is the layer holding
-//     the device's own process, and what it did not classify is a transport that
-//     could not be established;
+//     the device's own process, and what it did not classify is either a
+//     transport that could not be established or - when the context that ended
+//     it is this session's own - a push this plane cancelled (see dialFailure);
 //   - the frame size, which is the device reporting no screen this plane can
 //     stream;
 //   - the read, which is the device's own stream ending, carrying the
 //     transport's error and whatever class that error already stated.
+//
+// The read is the one path that can be ended by THIS SESSION rather than by the
+// device, and it says which it was: the context the read is bounded by is the
+// session's own, so a read that returns because that context ended is this
+// session's cancellation - a re-encode it asked for, or a session that is ending
+// - and a read that returns with that context intact is the device's own stream
+// ending.
 func (s *mirrorSession) carryStream(redial bool) bool {
 	ctx := s.context()
 	dialCtx, cancel := context.WithCancel(ctx)
@@ -1604,7 +1637,8 @@ func (s *mirrorSession) carryStream(redial bool) bool {
 
 	stream, err := s.engine.dialer.Dial(dialCtx, s.deviceID, s.serial, purpose, s.preview)
 	if err != nil {
-		s.end(endClassOf(err, MirrorEndTransportUnavailable), fmt.Errorf("media: opening the mirror for %s: %w", s.deviceID, err))
+		class, reason := s.dialFailure(dialCtx, err)
+		s.end(class, reason)
 		return false
 	}
 	s.engine.accounting.streamDialed()
@@ -1616,6 +1650,14 @@ func (s *mirrorSession) carryStream(redial bool) bool {
 		return false
 	}
 	s.publishStream(stream, width, height, purpose)
+	if s.strongerStreamRequired() {
+		// A viewer that needs a stronger profile attached while this device was
+		// being opened. The open was allowed to finish rather than cancelled
+		// under it (see requestProfile), and what it produced is released here
+		// and the device opened again at the bound those viewers require: the
+		// re-encode follows the device's own work instead of tearing it down.
+		return true
+	}
 	if redial {
 		// The viewers of a stream that was replaced are already attached, so
 		// nothing asks this one for a first picture. A re-encoded stream is a
@@ -1644,20 +1686,81 @@ func (s *mirrorSession) carryStream(redial bool) bool {
 			s.publish(frame)
 			continue
 		}
-		if s.upgradeRequested() && ctx.Err() == nil {
+		// The read ended, and WHICH of the two it was decides what happens:
+		// this context is the session's own, so only the session can have
+		// cancelled it, and a read the session cancelled is the session's doing
+		// rather than the device's.
+		if dialCtx.Err() != nil {
+			if ctx.Err() != nil {
+				// The session is ending, and this read is how the worker
+				// learns it. The end that is already recorded stands - end is
+				// once - so this states the same class rather than a second
+				// reason.
+				s.end(endClassOf(readErr, MirrorEndDeviceStreamEnded), ctx.Err())
+				return false
+			}
+			// A viewer that needs a stronger profile attached while this stream
+			// was being carried, and the session ended its own read so the
+			// re-encode does not wait for the device's next frame. The stream is
+			// released and the device opened again at the bound those viewers
+			// require.
 			return true
-		}
-		if ctx.Err() != nil {
-			// The session is ending, and this read is how the worker
-			// learns it. The end that is already recorded stands - end is
-			// once - so this states the same class rather than a second
-			// reason.
-			s.end(endClassOf(readErr, MirrorEndDeviceStreamEnded), ctx.Err())
-			return false
 		}
 		s.end(endClassOf(readErr, MirrorEndDeviceStreamEnded), fmt.Errorf("media: the stream from %s ended: %w", s.deviceID, readErr))
 		return false
 	}
+}
+
+// strongerStreamRequired reports whether the stream this session is carrying is
+// weaker than the viewers attached to it now require.
+//
+// It is read from who is attached rather than from a message somebody left, and
+// that is what makes it safe to ask at any point: a viewer that attaches while
+// the device is still being opened leaves nothing behind, and a request that has
+// been overtaken - the viewer that asked has since detached, or the stream has
+// already been re-encoded - is answered by the same question rather than by a
+// stale flag.
+func (s *mirrorSession) strongerStreamRequired() bool {
+	required := s.requiredPurpose()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return profileRank(required) > profileRank(s.dialed)
+}
+
+// dialFailure reports how a device this session could not open is classified, and
+// the sentence beside it.
+//
+// The class a nearer layer stated stands: the adapter is the layer holding the
+// device's own process, and what it classified is what happened. What this adds
+// is the one failure no layer below can name - a dial THIS SESSION cancelled,
+// which is the push of the device-side server dying because the session that owns
+// it is ending. It is its own class and never the transport's: this plane
+// cancelled its own adb invocation, and a class that said the transport could not
+// be established sends an operator to check a network and a hub while the fault
+// is local (ARC-260).
+//
+// The sentence names the cancellation and what caused it for the same reason: the
+// error underneath it names the adb invocation that died and nothing about who
+// ended it.
+func (s *mirrorSession) dialFailure(dialCtx context.Context, err error) (MirrorEndClass, error) {
+	reason := fmt.Errorf("media: opening the mirror for %s: %w", s.deviceID, err)
+	if class, classified := MirrorEndClassOf(err); classified {
+		return class, reason
+	}
+	if dialCtx == nil || dialCtx.Err() == nil {
+		return MirrorEndTransportUnavailable, reason
+	}
+	// The context the open was given is this session's own, so a cancelled one is
+	// this session's cancellation. What the session was doing when it made it is
+	// read from the session rather than assumed: a cause this code cannot see is
+	// never stated.
+	cause := "the session was re-encoded for a viewer that needs a stronger profile"
+	if s.context().Err() != nil {
+		cause = "the session was ending"
+	}
+	return MirrorEndPushCancelled, fmt.Errorf(
+		"media: opening the mirror for %s was cancelled by this plane while %s, so the stream was never opened and the push of the device-side server was abandoned: %w",
+		s.deviceID, cause, err)
 }
 
 // requiredPurpose is the purpose this session's stream must be encoded for: the
@@ -1703,31 +1806,41 @@ func (s *mirrorSession) beginDial(purpose MirrorViewerPurpose, cancel context.Ca
 // the console's grid is drawing as a tile would be handed to the operator's own
 // frame at the grid's preview setting - a frame an operator works in, made blurry
 // by a setting they chose for a thumbnail.
+//
+// What it does NOT do is cancel a device this session is still opening. The push
+// of the device-side server, the reverse tunnel and the handshake that follow it
+// are the device's own work: this session started them, they belong to it, and a
+// viewer change must not tear them down mid-flight. Measured on the lab fleet,
+// that is exactly what a second viewing of one device did - the tile had opened
+// the device, the operator's frame arrived at a stronger profile four seconds
+// into the push of the server, and the push died with the re-encode, so neither
+// viewing ever received a picture (ARC-260).
+//
+// Waiting for that work to finish does not cost the viewer the bound it needs:
+// the dial settles, the session publishes the stream it opened, and the worker
+// re-encodes there (see carryStream) - so the device is still asked for the
+// profile the viewer requires, only after the work already on the device has
+// finished, rather than instead of it.
+//
+// What it DOES cancel is this session's own read of a stream it has already
+// published, and that read is the session's work and not the device's: it blocks
+// until the device sends something, so a stronger viewer would otherwise wait for
+// the device's next frame before the re-encode it needs even began. A read this
+// session cancelled is the session's own cancellation, and the worker states it
+// as such rather than as the device's stream ending (see carryStream).
 func (s *mirrorSession) requestProfile(purpose MirrorViewerPurpose) {
 	s.mu.Lock()
+	carried := s.stream
 	needs := profileRank(purpose) > profileRank(s.dialed)
 	cancel := s.dialCancel
 	s.mu.Unlock()
-	if !needs || cancel == nil {
+	// A session that has published no stream is still opening its device, and
+	// nothing here reaches that dial: the worker asks the device for the stronger
+	// profile once the open it is already making settles.
+	if !needs || carried == nil || cancel == nil {
 		return
 	}
-	// The signal is left for the worker to drain rather than consumed here, so
-	// two viewers attaching in one instant re-encode the device once.
-	select {
-	case s.upgrade <- struct{}{}:
-	default:
-	}
 	cancel()
-}
-
-// upgradeRequested reports and consumes a pending re-encode.
-func (s *mirrorSession) upgradeRequested() bool {
-	select {
-	case <-s.upgrade:
-		return true
-	default:
-		return false
-	}
 }
 
 // redeclared records the size a device's own encoder restarted at, mid-stream.
