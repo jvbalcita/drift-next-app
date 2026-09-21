@@ -9,6 +9,7 @@ import { useLiveMirror } from "@/lib/api/use-live-mirror"
 import type { DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
 import { drawnContentRect, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, livePictureHeld, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, transportSentence, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect } from "@/lib/live-mirror"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
+import { controlPointerCursor } from "@/lib/control-pointer"
 
 /**
  * The big frame, as the device an operator is working - and the two surfaces
@@ -517,7 +518,15 @@ export function LiveMirrorSurface({ session }: { session: LiveMirrorSessionView 
       data-testid="live-mirror-stage"
       tabIndex={0}
       aria-label={liveMirrorCopy.capture.frameLabel}
-      className={`relative size-full touch-none select-none overflow-hidden focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary ${session.inputReady ? "cursor-crosshair" : "cursor-not-allowed"}`}
+      // The pointer over a device's screen is the operator's own pointer ON the
+      // device, and it is the sidebar's Control glyph, all black (see
+      // `control-pointer`): a crosshair here said "pick a coordinate", which is
+      // not what a press does. A frame the console cannot send input on is not
+      // given that pointer at all - `not-allowed` is the honest reading, and it
+      // is a class rather than an inline style so the two states cannot both be
+      // in force.
+      style={session.inputReady ? { cursor: controlPointerCursor } : undefined}
+      className={`relative size-full touch-none select-none overflow-hidden focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary ${session.inputReady ? "" : "cursor-not-allowed"}`}
       onFocus={session.beginCapture}
       onBlur={session.releaseCapture}
       onKeyDown={session.pressKey}

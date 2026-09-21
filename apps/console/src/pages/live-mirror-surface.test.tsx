@@ -11,6 +11,7 @@ import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { ControlPlaneIntent, DispatchIntent, DeviceView } from "@/lib/domain/control-plane"
 import { deviceStatusMeanings } from "@/lib/device-status"
+import { controlPointerCursor } from "@/lib/control-pointer"
 import { keyRepeatIntervalMs, liveMirrorCopy, liveStreamView, scrollStepUnits, type LiveStreamView } from "@/lib/live-mirror"
 import { FloatingDevice } from "./ControlPage"
 import { LiveMirrorInfo, LiveMirrorSurface, type LiveMirrorSessionView } from "./live-mirror-surface"
@@ -34,7 +35,7 @@ import { planeCapacity } from "@/test/mirror-fixtures"
 const streamToken = "stream-1"
 const workspaceId = "workspace-lab-local"
 
-const workspace = { largeHeight: 480, smallHeight: 192, quality: "High", frameRate: 15, orientation: "portrait" } as const
+const workspace = { largeHeight: 480, smallHeight: 192, orientation: "portrait", frameOrder: [] } as const
 const settings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showIp: true, liveMirrorTransport: "webrtc" } as const
 
 function stream(overrides: { state?: MirrorStreamState; failure?: string; frames?: bigint; width?: number; height?: number } = {}): LiveStreamView {
@@ -659,7 +660,11 @@ describe("the info control beside the pin", () => {
     video.getBoundingClientRect = () => stageRect(540, 960)
     Object.defineProperty(video, "videoWidth", { value: 1080, configurable: true })
     Object.defineProperty(video, "videoHeight", { value: 1920, configurable: true })
-    await waitFor(() => expect(stage).toHaveClass("cursor-crosshair"))
+    // The pointer over a device's screen is the sidebar's Control glyph, all
+    // black, and it is present exactly while this frame can send input. It is a
+    // cursor IMAGE, so what is asserted is the cursor this frame hands the
+    // browser - the crosshair it used to hand it said "pick a coordinate".
+    await waitFor(() => expect(stage.getAttribute("style") ?? "").toContain(controlPointerCursor))
 
     fireEvent.pointerDown(stage, { pointerId: 4, clientX: 100, clientY: 100 })
     fireEvent.pointerUp(stage, { pointerId: 4, clientX: 100, clientY: 100 })

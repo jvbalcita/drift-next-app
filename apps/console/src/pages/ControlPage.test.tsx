@@ -12,6 +12,7 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, liveStreamView, type LiveMirrorPreview, type MirrorCapacityView } from "@/lib/live-mirror"
 import { deviceOperationLabels } from "@/lib/device-operations"
+import { frameOrderKey } from "@/lib/control-page-settings"
 import { ControlPage } from "./ControlPage"
 import { fakeGridPlane, gridProfile, gridProfileProto, gridStillBytes } from "@/test/grid-fixtures"
 import { planeCapacity } from "@/test/mirror-fixtures"
@@ -663,10 +664,21 @@ describe("ControlPage device observation status", () => {
     // for a device it holds no picture for, so the tile draws the console's own
     // portrait shape turned - 16:9. The mark is centred in the frame at every size
     // rather than only in the default portrait one.
+    //
+    // The smallest frame is reached by moving the slider to it rather than by being
+    // the default: the default is 264 (see the frame-size defaults case), and a case
+    // about the smallest frame has to hold the smallest frame. The slider commits
+    // when the operator stops moving it, so the release is what writes the value.
     await user.click(screen.getByRole("button", { name: "Open Workspace Settings" }))
+    const smallScreen = screen.getByRole("slider", { name: /Small Screen/i })
+    fireEvent.change(smallScreen, { target: { value: "192" } })
+    fireEvent.pointerUp(smallScreen)
     await user.click(screen.getByRole("button", { name: "Landscape" }))
 
-    const unseen = screen.getByRole("button", { name: /Atlas 09/i })
+    // The frame is read from the grid: Workspace Settings is open, and its
+    // frame-order list names every device too.
+    const grid = screen.getByLabelText("Compact phone frames")
+    const unseen = within(grid).getByRole("button", { name: /Atlas 09/i })
     expect(unseen).toHaveStyle({ width: "192px" })
     expect(within(unseen).getByTestId("still-tile-picture-atlas-09")).toHaveStyle({ aspectRatio: "16 / 9" })
     expect(within(unseen).getByRole("img", { name: /Atlas 09 is not observed/ })).toBeInTheDocument()
@@ -1222,7 +1234,8 @@ describe("ControlPage big-frame device commands", () => {
     const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
 
     await user.click(within(controls).getByRole("button", { name: "Change Device" }))
-    await user.click(await screen.findByRole("menuitem", { name: /Atlas 07/i }))
+    const picker = await screen.findByTestId("panel-device-picker")
+    await user.click(within(picker).getByRole("button", { name: /Atlas 07/i }))
 
     // The move is two dispatches and not a local selection: the device the frame
     // held is released through the kernel before the chosen device's session is
@@ -1233,6 +1246,54 @@ describe("ControlPage big-frame device commands", () => {
     expect(ended).toBeGreaterThanOrEqual(0)
     expect(begun).toBeGreaterThan(ended)
     expect(await screen.findByLabelText(/Atlas 07 floating phone frame/i)).toBeInTheDocument()
+  })
+
+  it("opens Change Device as a panel beside the frame, and offers only devices that are online", async () => {
+    const user = userEvent.setup({ delay: null })
+    frameHarness()
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+
+    await user.click(within(controls).getByRole("button", { name: "Change Device" }))
+    const picker = await screen.findByTestId("panel-device-picker")
+
+    // The list is the console's ONLINE reading and nothing else. Nova 05 is
+    // OFFLINE and Nova 02 needs ATTENTION: neither can receive the frame, so
+    // neither is offered. Atlas 07 and Orion 01 are online and both are.
+    expect(within(picker).getByRole("button", { name: /Atlas 07/i })).toBeInTheDocument()
+    expect(within(picker).getByRole("button", { name: /Orion 01/i })).toBeInTheDocument()
+    expect(within(picker).queryByRole("button", { name: /Nova 05/i })).not.toBeInTheDocument()
+    expect(within(picker).queryByRole("button", { name: /Nova 02/i })).not.toBeInTheDocument()
+    // The frame itself is not offered as somewhere to move to.
+    expect(within(picker).queryByRole("button", { name: /Atlas 04/i })).not.toBeInTheDocument()
+
+    // It is a SIBLING of the frame rather than an overlay drawn over or under it:
+    // the two share a parent, which is what lets an operator read the list and
+    // the frame at once.
+    const frame = screen.getByLabelText(/Atlas 04 floating phone frame/i)
+    expect(picker.parentElement).toBe(frame.parentElement)
+    expect(picker.tagName).toBe("ASIDE")
+    expect(picker.compareDocumentPosition(frame) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+
+    // Closing it is its own named control, and it goes away with it.
+    await user.click(within(picker).getByRole("button", { name: "Close device picker" }))
+    expect(screen.queryByTestId("panel-device-picker")).not.toBeInTheDocument()
+  })
+
+  it("says so when nothing else is online, rather than showing an empty list", async () => {
+    const user = userEvent.setup({ delay: null })
+    const client = new MockControlPlaneClient()
+    const snapshot = client.getSnapshot()
+    // One device is online - the one the frame holds. Every other device is
+    // offline or unobserved, so there is nothing this frame can be moved to.
+    snapshot.devices = snapshot.devices.map((device) => device.id === "atlas-04" ? device : { ...device, status: "offline" as const })
+    render(<ControlPage snapshot={snapshot} dispatch={async (intent) => client.dispatch(intent)} mirror={fakeMirror().client} />)
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+
+    await user.click(within(controls).getByRole("button", { name: "Change Device" }))
+    const picker = await screen.findByTestId("panel-device-picker")
+    expect(within(picker).getByTestId("panel-device-picker-empty")).toHaveTextContent(/No other device is online/)
   })
 
   it("renders every one of the thirteen controls, because every one of them dispatches", async () => {
@@ -1457,5 +1518,130 @@ describe("ControlPage big-frame device commands", () => {
     // a rule that no longer exists instead of what the column actually does.
     expect(screen.getByText(/command this build cannot dispatch to the selected device is not shown/i)).toBeInTheDocument()
     expect(screen.queryByText(/stay blocked/i)).toBeNull()
+  })
+})
+
+describe("ControlPage workspace display settings", () => {
+  function pageHarness() {
+    const client = new MockControlPlaneClient()
+    const intents: ControlPlaneIntent[] = []
+    const dispatch = async (intent: ControlPlaneIntent) => {
+      intents.push(intent)
+      return client.dispatch(intent)
+    }
+    const mirror = fakeMirror()
+    return { client, intents, dispatch, mirror }
+  }
+
+  /** page renders the Control page over the SAME control plane each time it is called. */
+  function page(harness: ReturnType<typeof pageHarness>) {
+    return <ControlPage snapshot={harness.client.getSnapshot()} dispatch={harness.dispatch} mirror={harness.mirror.client} />
+  }
+
+  /** storedValue is the workspace record's own value for a key, or null if it holds none. */
+  function storedValue(harness: ReturnType<typeof pageHarness>, key: string): string | null {
+    return harness.client.getSnapshot().settings.find((setting) => setting.key === key)?.valueJson ?? null
+  }
+
+  function settingWrites(harness: ReturnType<typeof pageHarness>) {
+    return harness.intents.filter((intent) => intent.type === "createSetting" || intent.type === "updateSetting")
+  }
+
+  it("draws 680 and 264 until the operator chooses a size, then writes the choice to the workspace record", async () => {
+    const user = userEvent.setup({ delay: null })
+    const harness = pageHarness()
+    render(page(harness))
+
+    await user.click(screen.getByRole("button", { name: "Open Workspace Settings" }))
+    const floating = screen.getByRole("slider", { name: /Floating Frame Size/i })
+    const small = screen.getByRole("slider", { name: /Small Screen/i })
+
+    // A workspace that has stored no size draws the two defaults. Reading them is
+    // not writing them: nothing is in the record until the operator chooses.
+    expect(floating).toHaveValue("680")
+    expect(small).toHaveValue("264")
+    expect(storedValue(harness, frameOrderKey)).toBeNull()
+    expect(settingWrites(harness)).toHaveLength(0)
+
+    // The value is written when the operator STOPS moving the control, not on
+    // every pixel of the drag: one drag is one choice, and the record says so.
+    fireEvent.change(floating, { target: { value: "760" } })
+    expect(settingWrites(harness)).toHaveLength(0)
+    fireEvent.pointerUp(floating)
+
+    await waitFor(() => expect(storedValue(harness, frameOrderKey)).toContain("760"))
+    expect(settingWrites(harness)).toHaveLength(1)
+    expect(settingWrites(harness)[0]).toMatchObject({ type: "createSetting", scope: "workspace", key: frameOrderKey })
+  })
+
+  it("keeps the size the operator chose when they leave the page and come back", async () => {
+    const user = userEvent.setup({ delay: null })
+    const harness = pageHarness()
+    const first = render(page(harness))
+    await user.click(screen.getByRole("button", { name: "Open Workspace Settings" }))
+    const floating = screen.getByRole("slider", { name: /Floating Frame Size/i })
+    fireEvent.change(floating, { target: { value: "760" } })
+    fireEvent.pointerUp(floating)
+    await waitFor(() => expect(storedValue(harness, frameOrderKey)).toContain("760"))
+
+    // Coming back to the page is a NEW page instance over the same control plane:
+    // nothing of the old one survives it, so the size the operator finds here is
+    // the size the workspace record carries rather than one this page remembered.
+    first.unmount()
+    render(page(harness))
+    await user.click(screen.getByRole("button", { name: "Open Workspace Settings" }))
+    expect(screen.getByRole("slider", { name: /Floating Frame Size/i })).toHaveValue("760")
+    expect(screen.getByRole("slider", { name: /Small Screen/i })).toHaveValue("264")
+  })
+
+  it("writes the WHOLE frame order when a frame is moved, and draws the grid in it", async () => {
+    const user = userEvent.setup({ delay: null })
+    const harness = pageHarness()
+    render(page(harness))
+
+    const drawn = () => within(screen.getByLabelText("Compact phone frames")).getAllByTestId(/^still-tile-picture-/).map((tile) => tile.getAttribute("data-testid"))
+    expect(drawn()[0]).toBe("still-tile-picture-atlas-04")
+
+    await user.click(screen.getByRole("button", { name: "Open Workspace Settings" }))
+    await user.click(screen.getByRole("button", { name: "Move Atlas 07 earlier" }))
+
+    // The whole order is written, not the one frame's new slot: an order that
+    // named only the moved device would leave every other frame with no place,
+    // and a device this console has not seen yet is placed by the same order.
+    await waitFor(() => expect(storedValue(harness, frameOrderKey)).toContain("atlas-07"))
+    const written = JSON.parse(storedValue(harness, frameOrderKey) ?? "{}") as { frameOrder?: string[] }
+    expect(written.frameOrder).toEqual(["atlas-07", "atlas-04", "nova-02", "nova-05", "orion-01", "orion-03"])
+    // The grid draws that order at once rather than after the projection catches
+    // up: the operator's own press is not a request they have to wait to see.
+    expect(drawn()[0]).toBe("still-tile-picture-atlas-07")
+  })
+
+  it("opens the device list as a table at the size a table needs, and lets the operator order and hide its columns", async () => {
+    const user = userEvent.setup({ delay: null })
+    const harness = pageHarness()
+    render(page(harness))
+
+    await user.click(screen.getByRole("button", { name: "Devices" }))
+    await screen.findByRole("dialog")
+
+    // The dialog NAMES the size a table needs rather than carrying a width of its
+    // own, and five columns fit inside it: an operator read them cut off at `sm`.
+    expect(screen.getByRole("dialog")).toHaveAttribute("data-size", "xl")
+    // The dialog is re-queried rather than held: what is asserted is the table the
+    // operator is looking at now, not the one that was rendered first.
+    const headers = () => within(screen.getByRole("dialog")).getAllByRole("columnheader").map((cell) => cell.textContent ?? "")
+    expect(headers()).toEqual(["Index", "Device Name", "Device ID", "Status", "Observed Port"])
+
+    // One place earlier: Status passes Device ID, and nothing else moves.
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Move Status column earlier" }))
+    expect(headers()).toEqual(["Index", "Device Name", "Status", "Device ID", "Observed Port"])
+
+    // Hiding a column is stated rather than silent, and the table is described by
+    // the notice: a table missing its Status column otherwise reads as a table
+    // that HAS no status.
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Status" }))
+    expect(headers()).toEqual(["Index", "Device Name", "Device ID", "Observed Port"])
+    expect(within(screen.getByRole("dialog")).getByTestId("device-list-hidden-columns")).toHaveTextContent(/1 of 5 columns are not shown: Status/)
+    expect(within(screen.getByRole("dialog")).getByRole("table")).toHaveAttribute("aria-describedby", "device-list-hidden-columns")
   })
 })

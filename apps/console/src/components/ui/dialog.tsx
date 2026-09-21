@@ -9,6 +9,19 @@ function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
 }
 
+/**
+ * The widths a dialog opens at, stated once so a dialog names a SIZE.
+ *
+ * `xl` is the width a table needs: the Devices dialog held five columns inside
+ * `sm` and an operator read them cut off. A screen narrower than the size falls
+ * back to the popup's own `w-full max-w-[calc(100%-2rem)]`.
+ */
+const dialogSizeClasses: Record<"sm" | "lg" | "xl", string> = {
+  sm: "sm:max-w-sm",
+  lg: "sm:max-w-2xl",
+  xl: "sm:max-w-5xl",
+}
+
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
 }
@@ -40,9 +53,19 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
+  size = "sm",
   showCloseButton = true,
   ...props
 }: DialogPrimitive.Popup.Props & {
+  /**
+   * size is the widest the dialog opens at. It exists because a dialog carries
+   * one thing: a short confirmation is `sm`, a form is `lg`, and a TABLE is
+   * `xl` - a table an operator has to read at `sm` is a table whose columns are
+   * cut off, which is what the Devices dialog was. It is a size rather than a
+   * bare class so a dialog states what it is, and the set of sizes stays in one
+   * place rather than in every caller's className.
+   */
+  size?: "sm" | "lg" | "xl"
   showCloseButton?: boolean
 }) {
   return (
@@ -50,8 +73,10 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        data-size={size}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          dialogSizeClasses[size],
           className
         )}
         {...props}
