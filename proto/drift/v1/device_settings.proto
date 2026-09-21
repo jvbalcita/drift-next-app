@@ -107,6 +107,15 @@ enum DeviceSettingRefusalReason {
   // to two different places, and collapsing them would report a sighting that
   // never happened.
   DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED = 17;
+  // The registry holds the device and the plane does NOT read it as online, so
+  // there is no transport to reach it at and nothing was sent. It is NOT a
+  // failure of the apply: nothing was asked of the device, so nothing about it
+  // failed. It is a reason of its own rather than NO_TRANSPORT_SERIAL because
+  // the device may well have a current transport endpoint - it is a device the
+  // plane is not prepared to say is there now, whether because the transport
+  // reported it as not answering, because this host may not act on it there, or
+  // because its most recent sighting has stopped standing.
+  DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_ONLINE = 18;
 }
 
 // DeviceSettingResult is ONE setting's outcome for ONE device.
@@ -177,15 +186,24 @@ message ApplyDeviceSettingsRequest {
 // `applied_devices` would hide exactly the device this surface exists to expose.
 message ApplyDeviceSettingsResponse {
   repeated DeviceSettingResult results = 1;
-  // total_devices counts the devices this apply ran for: every device in the
-  // workspace's registry that is not retired.
+  // total_devices counts the devices this apply TARGETED: the devices the plane
+  // read as online when it read the fleet. It is the FLEET, never the registry:
+  // a device that is not online was not contacted, and counting it here would
+  // report a run that reached units nothing reached.
   uint32 total_devices = 2;
-  // applied_devices counts the devices on which EVERY requested setting is
-  // applied and verified.
+  // applied_devices counts the targeted devices on which EVERY requested setting
+  // is applied and verified.
   uint32 applied_devices = 3;
-  // failed_devices counts the devices with at least one setting that is not
-  // applied. It is a device count, not a row count.
+  // failed_devices counts the TARGETED devices with at least one setting that is
+  // not applied. It is a device count, not a row count, and a device that was not
+  // contacted is not one of them: nothing was asked of it, so nothing about it
+  // failed.
   uint32 failed_devices = 4;
+  // not_contacted_devices counts the devices the registry holds that the plane
+  // did NOT read as online, so nothing was dispatched to them. They are still
+  // named in `results`, one row per requested setting, each carrying
+  // DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_ONLINE.
+  uint32 not_contacted_devices = 5;
 }
 
 // ApplyDeviceSettingRequest asks for ONE setting to be applied to ONE named

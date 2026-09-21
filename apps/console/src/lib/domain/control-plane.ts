@@ -4,11 +4,17 @@
  * It is derived from observation facts — never from a stored lifecycle column —
  * and it is not a claim that the device answers right now:
  * - "online" is the wire's ONLINE: the transport it was last observed at is
- *   still current, and that transport reported the device as usable.
+ *   still current, that transport reported the device as usable, AND that
+ *   sighting is recent enough to still stand. Currency alone is not freshness —
+ *   an endpoint stays current until the device is observed leaving it — so the
+ *   freshness term is what makes this a reading about now, and a sighting that
+ *   has stopped standing leaves an address that may since belong to another unit.
  * - "attention" is the wire's ATTENTION: it was observed with a condition to
  *   review.
- * - "offline" is the wire's OFFLINE: it was observed, and it is not observed
- *   now, so the operator can still see when it was last seen.
+ * - "offline" is the wire's OFFLINE: it was observed and no sighting of it still
+ *   stands — it is not observed now, or its most recent sighting is too old to
+ *   read as where the device is — so the operator can still see when it was last
+ *   seen.
  * - "unobserved" is the wire's UNSPECIFIED: no successful scan has observed
  *   this device yet. It is deliberately NOT folded into "offline" — a device
  *   that has never answered and a device that answered and then left are
@@ -762,9 +768,22 @@ export interface DeviceSettingOutcomeView {
 
 /** Every device's own answer for every setting an apply ran. */
 export interface DeviceSettingsApplyView {
+  /**
+   * The devices the apply TARGETED: the ones the plane read as online when it
+   * read the fleet. It is the fleet, never the registry - a device that is not
+   * online was not contacted, and counting it here would report a run that
+   * reached units nothing reached.
+   */
   totalDevices: number
   appliedDevices: number
+  /**
+   * The targeted devices with at least one setting that is not applied. A device
+   * that was not contacted is not one of them: nothing was asked of it, so
+   * nothing about it failed.
+   */
   failedDevices: number
+  /** The registered devices the plane did not read as online, so nothing was sent. */
+  notContactedDevices: number
   outcomes: readonly DeviceSettingOutcomeView[]
 }
 

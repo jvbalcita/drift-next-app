@@ -68,6 +68,7 @@ var deviceSettingRefusals = map[execution.SettingsRefusal]driftv1.DeviceSettingR
 	execution.SettingsPostconditionFailed:     driftv1.DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED,
 	execution.SettingsOutcomeIndeterminate:    driftv1.DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE,
 	execution.SettingsDeviceNotRegistered:     driftv1.DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED,
+	execution.SettingsDeviceNotOnline:         driftv1.DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_ONLINE,
 }
 
 // deviceSettingRefusal resolves one boundary refusal to its typed discriminator.
@@ -312,10 +313,11 @@ func settingsFromRequest(values []driftv1.DeviceSetting) ([]action.Kind, error) 
 // to expose.
 func applyDeviceSettingsResponse(report execution.SettingsApplyReport) *driftv1.ApplyDeviceSettingsResponse {
 	response := &driftv1.ApplyDeviceSettingsResponse{
-		TotalDevices:   uint32(report.TotalDevices),
-		AppliedDevices: uint32(report.AppliedDevices),
-		FailedDevices:  uint32(report.FailedDevices),
-		Results:        make([]*driftv1.DeviceSettingResult, 0, len(report.Results)),
+		TotalDevices:        uint32(report.TotalDevices),
+		AppliedDevices:      uint32(report.AppliedDevices),
+		FailedDevices:       uint32(report.FailedDevices),
+		NotContactedDevices: uint32(report.NotContactedDevices),
+		Results:             make([]*driftv1.DeviceSettingResult, 0, len(report.Results)),
 	}
 	for _, row := range report.Results {
 		response.Results = append(response.Results, deviceSettingResultProto(row))

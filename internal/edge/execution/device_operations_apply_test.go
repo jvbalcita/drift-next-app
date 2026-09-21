@@ -105,15 +105,20 @@ func newOperationsFixture(t *testing.T, fleet map[string]string) operationsFixtu
 			continue
 		}
 		endpoint := endpoints.Endpoint{
-			ID:         endpoints.EndpointID("endpoint-" + deviceID),
-			Workspace:  workspace.ID,
-			DeviceID:   devices.DeviceID(deviceID),
-			Transport:  endpoints.TransportTCP,
-			Serial:     serial,
-			Host:       "127.0.0.1",
-			Port:       5555,
-			State:      endpoints.Current,
-			ObservedAt: time.Date(2026, time.September, 17, 9, 0, 0, 0, time.UTC),
+			ID:        endpoints.EndpointID("endpoint-" + deviceID),
+			Workspace: workspace.ID,
+			DeviceID:  devices.DeviceID(deviceID),
+			Transport: endpoints.TransportTCP,
+			Serial:    serial,
+			Host:      "127.0.0.1",
+			Port:      5555,
+			State:     endpoints.Current,
+			// Observed now: an operation only acts on a device the plane READS
+			// AS ONLINE, which is a sighting recent enough to still stand
+			// (endpoints.Endpoint.Online) - a fixture that dated it days ago
+			// would be modeling a device whose address may since belong to
+			// another unit, and nothing is dispatched to one of those.
+			ObservedAt: time.Now().UTC(),
 		}
 		if err := store.NewEndpointService(db).BindCurrent(ctx, endpoint, "operator", "operator-1"); err != nil {
 			t.Fatalf("bind endpoint for %s: %v", deviceID, err)

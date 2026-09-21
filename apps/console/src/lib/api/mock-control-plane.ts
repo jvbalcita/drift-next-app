@@ -2628,10 +2628,14 @@ export class MockControlPlaneClient implements ControlPlaneClient {
   /**
    * The mock's fleet settings apply. It reports one row per device per setting,
    * exactly as the control plane does, and it derives each device's row from this
-   * client's own projection — the endpoint the device was observed on, and whether
-   * another operator holds its lease — so a device that could not be reached is
-   * named rather than folded into a count. Nothing is contacted: this is the mock,
-   * and every sentence says so.
+   * client's own projection — the status this console paints, the endpoint the
+   * device was observed on, and whether another operator holds its lease — so a
+   * device that could not be reached is named rather than folded into a count.
+   *
+   * Its TARGET SET is the devices this projection shows as ONLINE, which is the
+   * reading the operator can see, and a device that is not online is counted and
+   * named as NOT CONTACTED rather than as a failure of the apply. Nothing is
+   * contacted: this is the mock, and every sentence says so.
    */
   private applyFleetDeviceSettings(intent: Extract<ControlPlaneIntent, { type: "applyFleetDeviceSettings" }>): MutationResult {
     if (intent.settings.length === 0) {
@@ -2641,22 +2645,33 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       return rejection(intent, "Applying device settings to the fleet changes device state and needs explicit confirmation. Nothing was sent.", undefined, "precondition_failed")
     }
     const outcomes: DeviceSettingOutcomeView[] = []
+    let targeted = 0
     let appliedDevices = 0
     let failedDevices = 0
+    let notContactedDevices = 0
     for (const device of this.snapshot.devices) {
       const endpoint = this.snapshot.endpoints.find((candidate) => candidate.deviceId === device.id && candidate.state === "current")
       const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === device.id && candidate.state === "active")
-      const refusal = !endpoint
+      // The run's TARGET SET is the devices this projection shows as online — the
+      // same reading the console paints — so a device that is not online is not
+      // contacted and is counted and named as such rather than as a failure.
+      const refusal = device.status !== "online"
         ? {
-            reason: "no_transport_serial",
-            claim: "the device has no single current transport endpoint, so nothing was sent",
+            reason: "device_not_online",
+            claim: "the device is not online, so nothing was sent",
           }
-        : lease && lease.holder !== mockOperatorId
+        : !endpoint
           ? {
-              reason: "lease_unavailable",
-              claim: "another controller holds this device's lease, so nothing was sent",
+              reason: "no_transport_serial",
+              claim: "the device has no single current transport endpoint, so nothing was sent",
             }
-          : null
+          : lease && lease.holder !== mockOperatorId
+            ? {
+                reason: "lease_unavailable",
+                claim: "another controller holds this device's lease, so nothing was sent",
+              }
+            : null
+      const notContacted = refusal !== null && refusal.reason !== "lease_unavailable"
       for (const setting of intent.settings) {
         outcomes.push(
           refusal
@@ -2680,16 +2695,23 @@ export class MockControlPlaneClient implements ControlPlaneClient {
               },
         )
       }
-      if (refusal) failedDevices += 1
-      else appliedDevices += 1
+      if (notContacted) notContactedDevices += 1
+      else {
+        targeted += 1
+        if (refusal) failedDevices += 1
+        else appliedDevices += 1
+      }
     }
     const view: DeviceSettingsApplyView = {
-      totalDevices: this.snapshot.devices.length,
+      totalDevices: targeted,
       appliedDevices,
       failedDevices,
+      notContactedDevices,
       outcomes,
     }
-    const sentence = view.totalDevices === 0 ? "Mock fleet settings apply found no device in this client's projection. No device was contacted." : `Mock fleet settings apply: ${view.appliedDevices} of ${view.totalDevices} device(s) would have applied every requested setting, ${view.failedDevices} would not. No device was contacted.`
+    const sentence = view.totalDevices === 0
+      ? `Mock fleet settings apply: no device in this client's projection is online, so nothing was applied and no device was contacted. ${view.notContactedDevices} not online. No device was contacted.`
+      : `Mock fleet settings apply: ${view.totalDevices} online device(s) targeted, ${view.appliedDevices} would have applied every requested setting and ${view.failedDevices} would not; ${view.notContactedDevices} device(s) not online and not contacted. No device was contacted.`
     return { ...result(intent, sentence), deviceSettingsApply: view }
   }
 

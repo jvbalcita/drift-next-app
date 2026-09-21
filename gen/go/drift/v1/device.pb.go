@@ -75,13 +75,21 @@ type DeviceStatus int32
 const (
 	DeviceStatus_DEVICE_STATUS_UNSPECIFIED DeviceStatus = 0
 	// DEVICE_STATUS_ONLINE: observed at a current endpoint whose transport
-	// reported the device as usable.
+	// reported the device as usable, and observed recently enough for that
+	// sighting to still stand. CURRENCY is not freshness: an endpoint stays current
+	// until the device is observed leaving it, so a unit that left while the plane
+	// was not watching keeps one - and the address it was seen at may since have
+	// been handed to another unit. The window is what keeps this reading a claim
+	// about now.
 	DeviceStatus_DEVICE_STATUS_ONLINE DeviceStatus = 1
 	// DEVICE_STATUS_ATTENTION is a lifecycle reading no producer emits; it stays
 	// published for consumers that still map it.
 	DeviceStatus_DEVICE_STATUS_ATTENTION DeviceStatus = 2
-	// DEVICE_STATUS_OFFLINE: observed before and not observed now, or observed at
-	// a current transport that is listed but not answering.
+	// DEVICE_STATUS_OFFLINE: observed before and not observed now, observed at a
+	// current transport that is listed but not answering, or observed at a current
+	// transport whose most recent sighting no longer stands. It is the fail-closed
+	// reading: this plane is not prepared to say the device is there now, which is
+	// what an action's target set requires of it.
 	DeviceStatus_DEVICE_STATUS_OFFLINE DeviceStatus = 3
 	// DEVICE_STATUS_UNAUTHORIZED: ATTACHED at its current transport, and this host
 	// is not authorized by the device — the device's own debugging prompt has not

@@ -129,6 +129,12 @@ func NewEndpointService(store *DB) *EndpointService { return &EndpointService{st
 // then a new current observation is inserted atomically. An endpoint bound with
 // a transport records that transport; one bound without an observation behind it
 // is stored as the record it is rather than being guessed into a transport.
+//
+// The link state the endpoint carries is stored with it, exactly as the
+// serial-keyed registry upsert stores the one its observation reported. A caller
+// that holds the fact and binds the record would otherwise write NULL, which
+// every reader takes for "usable", so an attached unit this host may not open
+// would be recorded as one it may act on.
 func (s *EndpointService) BindCurrent(ctx context.Context, e endpoints.Endpoint, actorType, actorID string) error {
 	if ctx == nil || s == nil || s.store == nil {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite store are required")
@@ -136,13 +142,19 @@ func (s *EndpointService) BindCurrent(ctx context.Context, e endpoints.Endpoint,
 	if strings.TrimSpace(string(e.ID)) == "" || strings.TrimSpace(string(e.Workspace)) == "" || strings.TrimSpace(string(e.DeviceID)) == "" || !e.State.Valid() {
 		return platformerrors.New(platformerrors.CodeInvalidInput, "endpoint fields are required")
 	}
+	// An observation that recorded no link state stores NULL, which is the
+	// absence of the fact. The column's CHECK admits no other spelling of it.
+	var recordedLinkState any
+	if e.LinkState != endpoints.LinkStateUnrecorded {
+		recordedLinkState = string(e.LinkState)
+	}
 	at := e.ObservedAt.UTC().Format(time.RFC3339Nano)
 	return WithTx(ctx, s.store.db, func(tx *sql.Tx) error {
 		now := s.store.clock.Now().UTC().Format(time.RFC3339Nano)
 		if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET state='superseded', superseded_at=? WHERE workspace_id=? AND device_id=? AND state='current'`, now, e.Workspace, e.DeviceID); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id,workspace_id,device_id,endpoint_type,serial,host,port,state,observed_at) VALUES (?,?,?,?,?,?,?,?,?)`, e.ID, e.Workspace, e.DeviceID, transportToken(e.Transport), e.Serial, e.Host, e.Port, endpoints.Current, at); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints (id,workspace_id,device_id,endpoint_type,serial,host,port,state,link_state,observed_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, e.ID, e.Workspace, e.DeviceID, transportToken(e.Transport), e.Serial, e.Host, e.Port, endpoints.Current, recordedLinkState, at); err != nil {
 			return err
 		}
 		corr := "endpoint:" + string(e.ID)

@@ -600,7 +600,12 @@ export enum DeviceStatus {
 
   /**
    * DEVICE_STATUS_ONLINE: observed at a current endpoint whose transport
-   * reported the device as usable.
+   * reported the device as usable, and observed recently enough for that
+   * sighting to still stand. CURRENCY is not freshness: an endpoint stays current
+   * until the device is observed leaving it, so a unit that left while the plane
+   * was not watching keeps one - and the address it was seen at may since have
+   * been handed to another unit. The window is what keeps this reading a claim
+   * about now.
    *
    * @generated from enum value: DEVICE_STATUS_ONLINE = 1;
    */
@@ -615,8 +620,11 @@ export enum DeviceStatus {
   ATTENTION = 2,
 
   /**
-   * DEVICE_STATUS_OFFLINE: observed before and not observed now, or observed at
-   * a current transport that is listed but not answering.
+   * DEVICE_STATUS_OFFLINE: observed before and not observed now, observed at a
+   * current transport that is listed but not answering, or observed at a current
+   * transport whose most recent sighting no longer stands. It is the fail-closed
+   * reading: this plane is not prepared to say the device is there now, which is
+   * what an action's target set requires of it.
    *
    * @generated from enum value: DEVICE_STATUS_OFFLINE = 3;
    */

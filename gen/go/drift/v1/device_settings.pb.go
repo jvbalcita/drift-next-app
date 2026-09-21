@@ -138,6 +138,15 @@ const (
 	// to two different places, and collapsing them would report a sighting that
 	// never happened.
 	DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED DeviceSettingRefusalReason = 17
+	// The registry holds the device and the plane does NOT read it as online, so
+	// there is no transport to reach it at and nothing was sent. It is NOT a
+	// failure of the apply: nothing was asked of the device, so nothing about it
+	// failed. It is a reason of its own rather than NO_TRANSPORT_SERIAL because
+	// the device may well have a current transport endpoint - it is a device the
+	// plane is not prepared to say is there now, whether because the transport
+	// reported it as not answering, because this host may not act on it there, or
+	// because its most recent sighting has stopped standing.
+	DeviceSettingRefusalReason_DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_ONLINE DeviceSettingRefusalReason = 18
 )
 
 // Enum value maps for DeviceSettingRefusalReason.
@@ -161,6 +170,7 @@ var (
 		15: "DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED",
 		16: "DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE",
 		17: "DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED",
+		18: "DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_ONLINE",
 	}
 	DeviceSettingRefusalReason_value = map[string]int32{
 		"DEVICE_SETTING_REFUSAL_REASON_UNSPECIFIED":               0,
@@ -181,6 +191,7 @@ var (
 		"DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED":      15,
 		"DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE":     16,
 		"DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED":     17,
+		"DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_ONLINE":         18,
 	}
 )
 
@@ -423,17 +434,26 @@ func (x *ApplyDeviceSettingsRequest) GetApprovalGranted() bool {
 type ApplyDeviceSettingsResponse struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Results []*DeviceSettingResult `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
-	// total_devices counts the devices this apply ran for: every device in the
-	// workspace's registry that is not retired.
+	// total_devices counts the devices this apply TARGETED: the devices the plane
+	// read as online when it read the fleet. It is the FLEET, never the registry:
+	// a device that is not online was not contacted, and counting it here would
+	// report a run that reached units nothing reached.
 	TotalDevices uint32 `protobuf:"varint,2,opt,name=total_devices,json=totalDevices,proto3" json:"total_devices,omitempty"`
-	// applied_devices counts the devices on which EVERY requested setting is
-	// applied and verified.
+	// applied_devices counts the targeted devices on which EVERY requested setting
+	// is applied and verified.
 	AppliedDevices uint32 `protobuf:"varint,3,opt,name=applied_devices,json=appliedDevices,proto3" json:"applied_devices,omitempty"`
-	// failed_devices counts the devices with at least one setting that is not
-	// applied. It is a device count, not a row count.
+	// failed_devices counts the TARGETED devices with at least one setting that is
+	// not applied. It is a device count, not a row count, and a device that was not
+	// contacted is not one of them: nothing was asked of it, so nothing about it
+	// failed.
 	FailedDevices uint32 `protobuf:"varint,4,opt,name=failed_devices,json=failedDevices,proto3" json:"failed_devices,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// not_contacted_devices counts the devices the registry holds that the plane
+	// did NOT read as online, so nothing was dispatched to them. They are still
+	// named in `results`, one row per requested setting, each carrying
+	// DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_ONLINE.
+	NotContactedDevices uint32 `protobuf:"varint,5,opt,name=not_contacted_devices,json=notContactedDevices,proto3" json:"not_contacted_devices,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ApplyDeviceSettingsResponse) Reset() {
@@ -490,6 +510,13 @@ func (x *ApplyDeviceSettingsResponse) GetAppliedDevices() uint32 {
 func (x *ApplyDeviceSettingsResponse) GetFailedDevices() uint32 {
 	if x != nil {
 		return x.FailedDevices
+	}
+	return 0
+}
+
+func (x *ApplyDeviceSettingsResponse) GetNotContactedDevices() uint32 {
+	if x != nil {
+		return x.NotContactedDevices
 	}
 	return 0
 }
@@ -656,12 +683,13 @@ const file_drift_v1_device_settings_proto_rawDesc = "" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x123\n" +
 	"\bsettings\x18\x03 \x03(\x0e2\x17.drift.v1.DeviceSettingR\bsettings\x12)\n" +
-	"\x10approval_granted\x18\x04 \x01(\bR\x0fapprovalGranted\"\xcb\x01\n" +
+	"\x10approval_granted\x18\x04 \x01(\bR\x0fapprovalGranted\"\xff\x01\n" +
 	"\x1bApplyDeviceSettingsResponse\x127\n" +
 	"\aresults\x18\x01 \x03(\v2\x1d.drift.v1.DeviceSettingResultR\aresults\x12#\n" +
 	"\rtotal_devices\x18\x02 \x01(\rR\ftotalDevices\x12'\n" +
 	"\x0fapplied_devices\x18\x03 \x01(\rR\x0eappliedDevices\x12%\n" +
-	"\x0efailed_devices\x18\x04 \x01(\rR\rfailedDevices\"\x80\x02\n" +
+	"\x0efailed_devices\x18\x04 \x01(\rR\rfailedDevices\x122\n" +
+	"\x15not_contacted_devices\x18\x05 \x01(\rR\x13notContactedDevices\"\x80\x02\n" +
 	"\x19ApplyDeviceSettingRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
@@ -673,7 +701,7 @@ const file_drift_v1_device_settings_proto_rawDesc = "" +
 	"\rDeviceSetting\x12\x1e\n" +
 	"\x1aDEVICE_SETTING_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cDEVICE_SETTING_ROTATION_LOCK\x10\x01\x12\x1f\n" +
-	"\x1bDEVICE_SETTING_AUTOFILL_OFF\x10\x02*\xd1\a\n" +
+	"\x1bDEVICE_SETTING_AUTOFILL_OFF\x10\x02*\x86\b\n" +
 	"\x1aDeviceSettingRefusalReason\x12-\n" +
 	")DEVICE_SETTING_REFUSAL_REASON_UNSPECIFIED\x10\x00\x125\n" +
 	"1DEVICE_SETTING_REFUSAL_REASON_NO_TRANSPORT_SERIAL\x10\x01\x123\n" +
@@ -693,7 +721,8 @@ const file_drift_v1_device_settings_proto_rawDesc = "" +
 	",DEVICE_SETTING_REFUSAL_REASON_COMMAND_FAILED\x10\x0e\x126\n" +
 	"2DEVICE_SETTING_REFUSAL_REASON_POSTCONDITION_FAILED\x10\x0f\x127\n" +
 	"3DEVICE_SETTING_REFUSAL_REASON_OUTCOME_INDETERMINATE\x10\x10\x127\n" +
-	"3DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED\x10\x112\xdc\x01\n" +
+	"3DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_REGISTERED\x10\x11\x123\n" +
+	"/DEVICE_SETTING_REFUSAL_REASON_DEVICE_NOT_ONLINE\x10\x122\xdc\x01\n" +
 	"\x15DeviceSettingsService\x12b\n" +
 	"\x13ApplyDeviceSettings\x12$.drift.v1.ApplyDeviceSettingsRequest\x1a%.drift.v1.ApplyDeviceSettingsResponse\x12_\n" +
 	"\x12ApplyDeviceSetting\x12#.drift.v1.ApplyDeviceSettingRequest\x1a$.drift.v1.ApplyDeviceSettingResponseB0Z.drift.local/drift-next/gen/go/drift/v1;driftv1b\x06proto3"
