@@ -102,8 +102,13 @@ const (
 // MirrorCarrier is a stream this transport is carrying, whichever of the two
 // transports carries it: the browser is given its identity, and how the frames
 // reach it is the carrier's own business.
+//
+// One carrier is one VIEWING, and its identity is that viewing's own: a device
+// with two viewers is carried to both over ONE session, and each browser holds
+// a carrier whose identity names only what it is watching.
 type MirrorCarrier interface {
-	// StreamKey is the per-device stream identity the browser was given.
+	// StreamKey is the identity this viewing was given - the only handle its
+	// browser holds for the frames it receives.
 	StreamKey() string
 	// Answer completes a peer handshake. A carrier that is not negotiated
 	// refuses, naming what it is instead.
@@ -345,6 +350,10 @@ func (t *StreamTransport) Peers() []StreamStats {
 // Stream reports the live stream carrying one stream identity, or false when
 // there is none. It is how a surface finds the stream a browser named, and it
 // confers nothing: the carrier it returns is already this transport's own.
+//
+// One identity names ONE viewing, so this resolves exactly the carrier its
+// browser holds - never a second viewer's stream of the same device. That is
+// what makes a stop a viewer detach: the caller can only ever name its own.
 func (t *StreamTransport) Stream(streamKey string) (MirrorCarrier, bool) {
 	if t == nil || streamKey == "" {
 		return nil, false
@@ -451,7 +460,11 @@ func (t *StreamTransport) forgetEndpoint(endpoint *MirrorEndpoint) {
 
 // StreamStats is what one peer's stream did, for the service's own reporting.
 type StreamStats struct {
-	// StreamKey is the per-device stream identity the browser was given.
+	// StreamKey is the identity the viewing this carrier serves was given: the
+	// only handle its browser holds. Two viewers of one device report two of
+	// these over one session, and the picture counts below are that VIEWING's
+	// own - a surface polling one identity reads what ITS browser was carried,
+	// never what another viewer's was.
 	StreamKey string
 	// DeviceID names the device being mirrored.
 	DeviceID string
@@ -550,9 +563,11 @@ func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer Mir
 	if err != nil {
 		return nil, fmt.Errorf("media: open the peer connection for %s: %w", session.DeviceID(), err)
 	}
-	// The track's stream identity is the session's stream key and nothing else:
-	// what the browser can see of where these frames come from is this name.
-	track, err := webrtc.NewTrackLocalStaticSample(h264Capability(profileLevelID), "video", session.StreamKey())
+	// The track's stream identity is the identity THIS VIEWING was given and
+	// nothing else: what the browser can see of where these frames come from is
+	// that name. Two browsers watching one device are handed two identities over
+	// one session, so neither is named by the other's.
+	track, err := webrtc.NewTrackLocalStaticSample(h264Capability(profileLevelID), "video", viewer.StreamKey())
 	if err != nil {
 		_ = pc.Close()
 		return nil, fmt.Errorf("media: create the video track for %s: %w", session.DeviceID(), err)
@@ -642,7 +657,7 @@ func (p *StreamPeer) Answer(ctx context.Context, offerSDP string) (string, error
 		// An answer with the candidates gathered so far is still a valid answer
 		// on loopback; a browser that cannot reach this host then reports its
 		// own failure, which is visible where a hang would not be.
-		log.Printf("media: ICE gathering for %s did not complete within %s; answering with what is gathered", p.session.StreamKey(), p.transport.gather)
+		log.Printf("media: ICE gathering for %s did not complete within %s; answering with what is gathered", p.viewer.StreamKey(), p.transport.gather)
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
@@ -653,12 +668,14 @@ func (p *StreamPeer) Answer(ctx context.Context, offerSDP string) (string, error
 	return local.SDP, nil
 }
 
-// StreamKey is the per-device stream identity the browser was given.
+// StreamKey is the identity the viewing this peer carries was given. It is the
+// only handle the browser holds for these frames, and it names ONE viewing: two
+// viewers of one device are two identities over one session.
 func (p *StreamPeer) StreamKey() string {
 	if p == nil {
 		return ""
 	}
-	return p.session.StreamKey()
+	return p.viewer.StreamKey()
 }
 
 // Stats reports what this stream did.
@@ -670,7 +687,7 @@ func (p *StreamPeer) Stats() StreamStats {
 	defer p.mu.Unlock()
 	width, height := p.session.FrameSize()
 	stats := StreamStats{
-		StreamKey:       p.session.StreamKey(),
+		StreamKey:       p.viewer.StreamKey(),
 		DeviceID:        p.session.DeviceID(),
 		Serial:          p.session.Serial(),
 		RenderWidth:     width,

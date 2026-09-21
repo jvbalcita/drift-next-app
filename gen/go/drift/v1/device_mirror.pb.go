@@ -369,8 +369,18 @@ func (MirrorTileBound) EnumDescriptor() ([]byte, []int) {
 // coordinate measured in another frame is refused (AGENTS.md section 3).
 type MirrorStream struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// stream_id is the per-device stream identity. It is the only handle the
-	// browser is given for the frames it is about to receive.
+	// stream_id is the identity of ONE VIEWING of a device's live stream, and it
+	// is the only handle the browser is given for the frames it is about to
+	// receive.
+	//
+	// It is minted per viewing and never shared. One device is captured once and
+	// its session carries the same frames to every viewer of it, but two viewers
+	// are two of these - so a caller can only ever name its own: a stop ends the
+	// viewing it names, a negotiation attaches the browser holding it, a poll
+	// reports what THAT browser was carried, and the stream endpoint a fetched
+	// viewer pulls is the one its own identity names. What outlives a single
+	// viewing is the device's SESSION, which ends when its last viewer has
+	// detached for the plane's idle bound.
 	StreamId     string            `protobuf:"bytes,1,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
 	DeviceId     string            `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	Transport    MirrorTransport   `protobuf:"varint,3,opt,name=transport,proto3,enum=drift.v1.MirrorTransport" json:"transport,omitempty"`
@@ -385,8 +395,9 @@ type MirrorStream struct {
 	// that shows nothing is diagnosable only from what it was told.
 	//
 	// A state of ENDED carries none, and that is deliberate rather than an
-	// omission: ENDED means the stream stopped because its last viewer detached,
-	// which is a state and not a fault, and the sentence an operator needs there -
+	// omission: ENDED means the stream stopped without failing - the viewing this
+	// identity names ended because its viewer detached, or the device's capture
+	// ended because its last one did - and the sentence an operator needs there -
 	// that the picture they are looking at is the last one it carried rather than
 	// the device's screen now - is about the frame, which the plane does not own.
 	Failure string `protobuf:"bytes,7,opt,name=failure,proto3" json:"failure,omitempty"`
@@ -820,10 +831,14 @@ func (x *StartMirrorStreamResponse) GetStream() *MirrorStream {
 
 // NegotiateMirrorStreamRequest carries a browser's SDP offer for one stream.
 type NegotiateMirrorStreamRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
-	StreamId      string                 `protobuf:"bytes,2,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
-	OfferSdp      string                 `protobuf:"bytes,3,opt,name=offer_sdp,json=offerSdp,proto3" json:"offer_sdp,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Context *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	// stream_id names the VIEWING being attached. A device carried to several
+	// viewers has one of these per viewer, so a handshake can only ever be
+	// negotiated against the stream its own browser was handed - never against
+	// another viewer's stream of the same device.
+	StreamId      string `protobuf:"bytes,2,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
+	OfferSdp      string `protobuf:"bytes,3,opt,name=offer_sdp,json=offerSdp,proto3" json:"offer_sdp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -931,6 +946,13 @@ func (x *NegotiateMirrorStreamResponse) GetStream() *MirrorStream {
 	return nil
 }
 
+// StopMirrorStreamRequest ends the viewing that holds one stream identity.
+//
+// A stop is a VIEWER DETACH, not a capture-wide operation, and the identity is
+// what makes it one: it names a single viewing, so the session stops carrying
+// THIS browser and leaves every other viewer of the same device alone. The
+// device's capture ends when its LAST viewer has detached for the plane's idle
+// bound, which is the end an unsubscribed device already had.
 type StopMirrorStreamRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Context       *RequestContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -113,24 +114,53 @@ func (d *InputDelivery) DeliverInput(ctx context.Context, input execution.Mirror
 // observation is the one the input travels on, and a console that kept a stale
 // or another device's stream identity would satisfy it. A live frame's
 // observation is that frame's own live stream (AGENTS.md section 3), and the
-// session is the only thing that knows which stream that is - so the
+// session is the only thing that knows which streams those are - so the
 // reconciliation is made HERE, against the session the input is about to be
 // written to, and an input naming any other observation is refused instead of
 // delivered. An input that names none is refused too: it states no observation,
 // and the kinds a session can carry are exactly the kinds the catalog requires
 // one from.
+//
+// What a session knows is the identities it handed to ITS OWN viewers, and that
+// is deliberately a set rather than one name: the identity a browser holds names
+// its own viewing, so a device the operator's frame and a grid tile are both
+// watching has two identities over its one stream. Both are observations of the
+// same live frames - the session is what carries them - so both are accepted,
+// while an identity this session never handed out, which is what a stale or
+// another device's identity is, is refused. A device whose viewers have all
+// detached has handed out none, so it accepts none: an input measured from a
+// picture nobody is being carried is a precondition failure and not a delivery.
 func (d *InputDelivery) requireSessionObservation(deviceID, declared string) error {
 	session, live := d.engine.Session(deviceID)
 	if !live {
 		return platformerrors.New(platformerrors.CodeUnavailable, "the device has no live mirror, so this input has no stream to travel on")
 	}
 	observation := strings.TrimSpace(declared)
-	if observation != "" && observation == session.StreamKey() {
-		return nil
+	identities := session.ViewerIdentities()
+	for _, identity := range identities {
+		if observation != "" && observation == identity {
+			return nil
+		}
 	}
 	return platformerrors.Wrap(platformerrors.CodePreconditionFailed,
 		"the input names an observation that is not the stream carrying it, so it is refused rather than dispatched",
-		fmt.Errorf("%w: the input names %q and the stream delivering it is %q", ErrObservationStreamMismatch, observation, session.StreamKey()))
+		fmt.Errorf("%w: the input names %q and the streams this device's session has handed to its viewers are %s",
+			ErrObservationStreamMismatch, observation, viewerIdentityList(identities)))
+}
+
+// viewerIdentityList names the identities a session has handed to its viewers,
+// or says plainly that it has handed out none - which is itself the diagnosis
+// when every viewer of the device has detached and the session is inside its
+// idle bound.
+func viewerIdentityList(identities []string) string {
+	if len(identities) == 0 {
+		return "none: no viewer is attached to it"
+	}
+	quoted := make([]string, 0, len(identities))
+	for _, identity := range identities {
+		quoted = append(quoted, strconv.Quote(identity))
+	}
+	return strings.Join(quoted, ", ")
 }
 
 // DeliverText carries one released typed-text value to the device's live

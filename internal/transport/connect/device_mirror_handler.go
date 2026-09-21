@@ -217,11 +217,22 @@ func (h *DeviceMirrorHandler) NegotiateMirrorStream(ctx context.Context, request
 	}), nil
 }
 
-// StopMirrorStream ends one stream and returns it as it ended.
+// StopMirrorStream ends ONE VIEWING of a device's live stream and returns that
+// stream as it ended.
 //
-// Ending releases the browser's subscription, and a device whose last viewer has
-// gone stops being captured: this is the operator's own stop, and the state it
-// answers with reports what the stream carried rather than claiming a clean end.
+// A stop is a VIEWER DETACH and never a capture-wide operation, and the identity
+// is what makes it one. One device is captured once and its session carries the
+// same frames to every viewer of it, while each viewing holds an identity of its
+// own - so what this resolves is the caller's own stream, and releasing it
+// leaves every other viewer of that device exactly as it was. The device's
+// capture ends when its LAST viewer has detached for the idle bound, which is
+// the end an unsubscribed device already had; an answer of ENDED therefore says
+// that THIS viewing is over, which is a state and not a fault.
+//
+// What the stream carried is read before it is released, and the ending is then
+// stated over it: an operator asking a stream to stop is told what it delivered
+// as well as that it stopped. A stream that had already failed keeps its failure
+// - the ending did not fix it.
 func (h *DeviceMirrorHandler) StopMirrorStream(ctx context.Context, request *connectrpc.Request[driftv1.StopMirrorStreamRequest]) (*connectrpc.Response[driftv1.StopMirrorStreamResponse], error) {
 	if err := h.ready(); err != nil {
 		return nil, err
@@ -253,6 +264,11 @@ func (h *DeviceMirrorHandler) StopMirrorStream(ctx context.Context, request *con
 }
 
 // GetMirrorStream polls one stream's state while the console is showing it.
+//
+// The identity names one VIEWING, so the pictures the answer reports are what
+// THAT browser was carried and never what another viewer of the same device was:
+// a surface polling its own identity cannot be told a stream is delivering
+// pictures to somebody else.
 //
 // It reads; it never opens, negotiates or ends anything. A stream this service is
 // not carrying answers not-found, so a console whose stream ended learns that

@@ -331,9 +331,17 @@ type MirrorSession interface {
 	// the coordinate frame a viewer's input must be measured in. It is zero until
 	// the stream handshake has completed.
 	FrameSize() (width, height int)
-	// StreamKey is the per-device stream identity. It is what a viewer is given:
-	// the session's own identity, never the transport address it came from.
-	StreamKey() string
+	// ViewerIdentities reports the stream identities this session has handed to
+	// the VIEWINGS watching it, in a stable order - one identity per viewing,
+	// and none for the plane's own readers of them.
+	//
+	// It is how a typed input's declared observation is reconciled with the
+	// stream that would carry it: a coordinate is measured from a live frame,
+	// that frame is the one this device's session is carrying, and the identity
+	// a browser holds is ITS OWN viewing's - so an identity this session did not
+	// hand out is not an observation of this device's stream and the input is
+	// refused rather than dispatched (see the input delivery).
+	ViewerIdentities() []string
 	// Frames is the stream of access units. A viewer reads it until it closes.
 	Frames() <-chan StreamFrame
 	// Fails reports why the stream ended, once it has. It is nil while the
@@ -357,7 +365,20 @@ type MirrorSession interface {
 	// subscription it may release. Attaching is what tells the session whether
 	// the plane's ambient share is spent on it: a session an operator's own
 	// frame is watching is not a place the grid is holding.
+	//
+	// A subscription made here is a VIEWING: it mints the stream identity the
+	// caller's browser is handed, and it is what ViewerIdentities reports.
 	Subscribe(purpose MirrorViewerPurpose) (MirrorViewer, error)
+	// SubscribeReader attaches a second reader to a stream a caller has already
+	// asked for: one browser's own queue over a viewing that exists, which is
+	// what a fetch of a stream endpoint is.
+	//
+	// It mints no identity a caller is given - the viewing it reads holds the
+	// name that viewing's browser was handed - so it is deliberately absent from
+	// ViewerIdentities. An identity list that carried the plane's own reading
+	// positions would answer a surface's own question - is the name I hold a
+	// live stream of this device - with names no surface can hold.
+	SubscribeReader(purpose MirrorViewerPurpose) (MirrorViewer, error)
 	// LastFrameAt reports when the device last delivered a frame. It is what an
 	// idle check reads: a session whose device stopped encoding is stalled, and an
 	// operator must be told rather than shown a frozen picture.
@@ -366,8 +387,16 @@ type MirrorSession interface {
 
 // MirrorViewer is one attached viewer's handle on a session.
 type MirrorViewer interface {
-	// ID is the viewer's own identity, for logging and for counting.
-	ID() string
+	// StreamKey is the identity THIS VIEWING is given, and it is the only handle
+	// the browser holds for the frames it is about to receive.
+	//
+	// It is minted per viewing and never shared, and that is the whole of what
+	// one viewer owes another: two viewers of one device are two of these over
+	// ONE session - the device is captured once, and it fans out to both - so a
+	// stop, a negotiation and a stream fetch each name exactly one viewing, and
+	// nothing one viewer does reaches the picture another is watching. A session
+	// ends with its LAST viewer detaching, which is what the idle bound bounds.
+	StreamKey() string
 	// Keyframe reports the most recent cached key frame and the parameter sets
 	// that belong to it, or false when nothing has been cached yet. A viewer
 	// that attaches mid-stream is primed from here rather than from the next
@@ -1177,11 +1206,19 @@ func (e *MirrorEngine) forget(session *mirrorSession) {
 	}
 }
 
-// streamKey is the per-device stream identity a viewer is given: the session's
-// own name, never the transport address it came from. A viewer is told which
-// stream to watch and nothing about where the frames are produced.
-func streamKey(deviceID string, scid uint32) string {
-	return fmt.Sprintf("drift-%s-%08x", deviceID, scid)
+// streamKey mints one VIEWING's stream identity: the handle the browser holding
+// it is given, and the only name that reaches the frames it receives.
+//
+// It is minted per VIEWING and never per device, and that is the whole of the
+// sharing this engine used to have. One device's session is shared by its
+// viewers - the device is captured once and the frames fan out - while each
+// viewing holds an identity of its own, so a stop names exactly one viewing and
+// nothing one viewer does reaches another's picture. The session's own name is
+// the prefix, so two identities over one device are readable as that, and the
+// session counter in it keeps the identities of a device's PREVIOUS session
+// from naming anything in the one being carried now.
+func streamKey(deviceID string, scid uint32, viewing int) string {
+	return fmt.Sprintf("drift-%s-%08x-v%d", deviceID, scid, viewing)
 }
 
 // mirrorSession is one device's live session.
@@ -1317,8 +1354,28 @@ func (s *mirrorSession) context() context.Context {
 
 func (s *mirrorSession) DeviceID() string { return s.deviceID }
 func (s *mirrorSession) Serial() string   { return s.serial }
-func (s *mirrorSession) StreamKey() string {
-	return streamKey(s.deviceID, s.scid)
+
+// ViewerIdentities reports the identities of the VIEWINGS this session is
+// carrying, in a stable order, and answers an EMPTY list once every viewer has
+// detached: a viewing that has released its subscription is no longer an
+// observation any input can have been measured from.
+//
+// The plane's own readers of those viewings are not reported. They are streams of
+// this device and they hold its capture open, but they hold no name a surface was
+// given, and a list that carried them would answer "is the name I hold a live
+// stream of this device" with names no surface can hold.
+func (s *mirrorSession) ViewerIdentities() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, 0, len(s.viewers))
+	for _, viewer := range s.viewers {
+		if !viewer.viewing {
+			continue
+		}
+		out = append(out, viewer.streamKey)
+	}
+	sort.Strings(out)
+	return out
 }
 func (s *mirrorSession) Frames() <-chan StreamFrame { return s.frames }
 func (s *mirrorSession) Done() <-chan struct{}      { return s.done }
@@ -1349,15 +1406,35 @@ func (s *mirrorSession) EndClass() MirrorEndClass {
 	return s.endClass
 }
 
-// Subscribe attaches one viewer as the purpose it is given. A session that has
-// ended refuses: the console renders a session that failed, and it must never be
-// handed a live-looking viewer on a dead stream.
+// Subscribe attaches one VIEWING to this session, as the purpose it is given. A
+// session that has ended refuses: the console renders a session that failed, and it
+// must never be handed a live-looking viewer on a dead stream.
 //
 // The purpose is recorded on the session as well as on the viewer, and it is what
 // makes the ambient share of the plane's capacity honest: a session an operator's
 // own frame is watching is not a place the grid is holding, so the grid is not
 // refused a brand-new session on account of a device the operator has open.
 func (s *mirrorSession) Subscribe(purpose MirrorViewerPurpose) (MirrorViewer, error) {
+	return s.attach(purpose, true)
+}
+
+// SubscribeReader attaches one READER of a viewing that already exists: the queue
+// one browser is served from when it fetches the stream endpoint. It is the same
+// stream and the same viewer in every way that matters to the pictures - a reader
+// is a viewer of this session and holds the device's capture open exactly as much
+// as any other - but it is not a viewing of its own, so it mints no identity a
+// surface is given and ViewerIdentities does not report it.
+func (s *mirrorSession) SubscribeReader(purpose MirrorViewerPurpose) (MirrorViewer, error) {
+	return s.attach(purpose, false)
+}
+
+// attach builds one viewer's bounded queue and records it on the session. A
+// viewing also gets a name of its own to be held by (see streamKey): the identity
+// the caller's browser is handed, which is what a stop, a negotiation and a fetch
+// name - and the only kind of identity a session reports (ViewerIdentities),
+// because a reader's queue position is the plane's own business and no surface can
+// hold it.
+func (s *mirrorSession) attach(purpose MirrorViewerPurpose, viewing bool) (MirrorViewer, error) {
 	purpose = purposeOrDefault(purpose)
 	s.mu.Lock()
 	if s.closed {
@@ -1374,13 +1451,14 @@ func (s *mirrorSession) Subscribe(purpose MirrorViewerPurpose) (MirrorViewer, er
 	}
 	s.nextID++
 	viewer := &mirrorViewer{
-		id:      fmt.Sprintf("%s-v%d", s.deviceID, s.nextID),
-		session: s,
-		purpose: purpose,
-		queue:   make(chan StreamFrame, s.engine.queue),
-		done:    make(chan struct{}),
+		streamKey: streamKey(s.deviceID, s.scid, s.nextID),
+		session:   s,
+		purpose:   purpose,
+		viewing:   viewing,
+		queue:     make(chan StreamFrame, s.engine.queue),
+		done:      make(chan struct{}),
 	}
-	s.viewers[viewer.id] = viewer
+	s.viewers[viewer.streamKey] = viewer
 	if purpose == PurposeOperator {
 		s.operatorViewers.Add(1)
 	}
@@ -1991,12 +2069,25 @@ func (s *mirrorSession) trackParameterSets(data []byte) {
 
 // mirrorViewer is one attached viewer's bounded queue.
 type mirrorViewer struct {
-	id      string
-	session *mirrorSession
+	// streamKey is this viewer's own name on its session: the key it is held
+	// under, what a stop, a negotiation, a poll and a stream fetch resolve it by,
+	// and what a browser holds for a viewing. It is minted when the viewer
+	// attaches (see streamKey) and never shared between viewers.
+	//
+	// A viewer that is a READER of a viewing holds a name of its own as well -
+	// the session's map is keyed by it - but that name is the plane's internal
+	// business: nothing is handed it, so it is absent from ViewerIdentities.
+	streamKey string
+	session   *mirrorSession
 	// purpose is what this viewer is: the operator's own frame, or one of the
 	// console's ambient tiles. It is read when the viewer detaches, so a
 	// session's count of operator viewers falls with the frame that opened it.
 	purpose MirrorViewerPurpose
+	// viewing reports whether this viewer IS a viewing - a stream a caller asked
+	// for and was given the identity of - or a reader the plane attached to one of
+	// them. It is what makes ViewerIdentities report names a surface holds
+	// instead of the plane's own queue positions.
+	viewing bool
 	queue   chan StreamFrame
 	done    chan struct{}
 	once    sync.Once
@@ -2015,7 +2106,9 @@ type mirrorViewer struct {
 	dropped int
 }
 
-func (v *mirrorViewer) ID() string { return v.id }
+// StreamKey is this viewer's own name on its session: the identity a browser is
+// given for a viewing, and the plane's own reading position for a reader of one.
+func (v *mirrorViewer) StreamKey() string { return v.streamKey }
 
 // Keyframe reports the cached key frame and parameter sets, so a viewer that
 // attached after the stream started can decode something immediately rather than
@@ -2090,7 +2183,7 @@ func (v *mirrorViewer) Close() {
 			// they once opened.
 			v.session.operatorViewers.Add(-1)
 		}
-		v.session.detach(v.id)
+		v.session.detach(v.streamKey)
 	})
 }
 

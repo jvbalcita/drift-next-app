@@ -27,8 +27,18 @@ export const file_drift_v1_device_mirror: GenFile = /*@__PURE__*/
  */
 export type MirrorStream = Message<"drift.v1.MirrorStream"> & {
   /**
-   * stream_id is the per-device stream identity. It is the only handle the
-   * browser is given for the frames it is about to receive.
+   * stream_id is the identity of ONE VIEWING of a device's live stream, and it
+   * is the only handle the browser is given for the frames it is about to
+   * receive.
+   *
+   * It is minted per viewing and never shared. One device is captured once and
+   * its session carries the same frames to every viewer of it, but two viewers
+   * are two of these - so a caller can only ever name its own: a stop ends the
+   * viewing it names, a negotiation attaches the browser holding it, a poll
+   * reports what THAT browser was carried, and the stream endpoint a fetched
+   * viewer pulls is the one its own identity names. What outlives a single
+   * viewing is the device's SESSION, which ends when its last viewer has
+   * detached for the plane's idle bound.
    *
    * @generated from field: string stream_id = 1;
    */
@@ -68,8 +78,9 @@ export type MirrorStream = Message<"drift.v1.MirrorStream"> & {
    * that shows nothing is diagnosable only from what it was told.
    *
    * A state of ENDED carries none, and that is deliberate rather than an
-   * omission: ENDED means the stream stopped because its last viewer detached,
-   * which is a state and not a fault, and the sentence an operator needs there -
+   * omission: ENDED means the stream stopped without failing - the viewing this
+   * identity names ended because its viewer detached, or the device's capture
+   * ended because its last one did - and the sentence an operator needs there -
    * that the picture they are looking at is the last one it carried rather than
    * the device's screen now - is about the frame, which the plane does not own.
    *
@@ -329,6 +340,11 @@ export type NegotiateMirrorStreamRequest = Message<"drift.v1.NegotiateMirrorStre
   context?: RequestContext;
 
   /**
+   * stream_id names the VIEWING being attached. A device carried to several
+   * viewers has one of these per viewer, so a handshake can only ever be
+   * negotiated against the stream its own browser was handed - never against
+   * another viewer's stream of the same device.
+   *
    * @generated from field: string stream_id = 2;
    */
   streamId: string;
@@ -369,6 +385,14 @@ export const NegotiateMirrorStreamResponseSchema: GenMessage<NegotiateMirrorStre
   messageDesc(file_drift_v1_device_mirror, 5);
 
 /**
+ * StopMirrorStreamRequest ends the viewing that holds one stream identity.
+ *
+ * A stop is a VIEWER DETACH, not a capture-wide operation, and the identity is
+ * what makes it one: it names a single viewing, so the session stops carrying
+ * THIS browser and leaves every other viewer of the same device alone. The
+ * device's capture ends when its LAST viewer has detached for the plane's idle
+ * bound, which is the end an unsubscribed device already had.
+ *
  * @generated from message drift.v1.StopMirrorStreamRequest
  */
 export type StopMirrorStreamRequest = Message<"drift.v1.StopMirrorStreamRequest"> & {
@@ -748,6 +772,11 @@ export const DeviceMirrorService: GenService<{
     output: typeof NegotiateMirrorStreamResponseSchema;
   },
   /**
+   * StopMirrorStream ends ONE VIEWING of a device's live stream: it detaches the
+   * browser holding the identity and leaves every other viewer of that device
+   * alone. The device's capture ends with its last viewer, on the plane's idle
+   * bound, and never on one viewer's departure while another is watching.
+   *
    * @generated from rpc drift.v1.DeviceMirrorService.StopMirrorStream
    */
   stopMirrorStream: {
