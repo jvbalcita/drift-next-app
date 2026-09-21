@@ -236,7 +236,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
       return
     }
     setFollowerIds((ids) => ids.includes(device.id) ? ids.filter((id) => id !== device.id) : [...ids, device.id])
-    showToastMessage(`${device.displayName} ${followerIds.includes(device.id) ? "removed from" : "added to"} the follower selection. No command was sent to followers.`)
+    showToastMessage(`${device.displayName} ${followerIds.includes(device.id) ? "removed from" : "added to"} the follower selection. Input on the source frame is dispatched to each selected follower through the control plane, and each follower reports its own outcome.`)
   }
   /**
    * Screenshot is the action column's one command that is not a device key event.
@@ -408,7 +408,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
 
   return <div className="relative min-h-full">
     <div className="mb-5 flex items-center justify-between gap-3"><div className="drift-kicker flex items-center gap-3"><span className="h-px w-8 bg-primary" aria-hidden="true" /><span>Control / Device Workspace</span></div><div className="flex flex-wrap items-center justify-end gap-2"><StatusBadge label={snapshot.runtimeConnection.state} tone={snapshot.runtimeConnection.state === "connected" ? "healthy" : snapshot.runtimeConnection.state === "reconnecting" ? "attention" : "danger"} /><LabModeBadges adapter={snapshot.labAdapter} /></div></div>
-    <OperatorNotice>Selecting a phone opens a control session and acquires a per-device lease. Preview admits followers independently and does not copy commands. Every control in the frame&apos;s action column dispatches to the selected device through the control plane, and a command this build cannot dispatch to the selected device is not shown. Workspace display settings only change this local view.</OperatorNotice>
+    <OperatorNotice>Selecting a phone opens a control session and acquires a per-device lease. Preview admits followers independently, and an input you make on the source frame is dispatched to each selected follower as its own action through the control plane - each follower reports its own outcome, and a follower that refused, failed or is not online is named rather than counted as having received it. Every control in the frame&apos;s action column dispatches to the selected device through the control plane, and a command this build cannot dispatch to the selected device is not shown. Workspace display settings only change this local view.</OperatorNotice>
     <LabStatusStrip
       adapter={snapshot.labAdapter}
       runtimeConnection={snapshot.runtimeConnection}
@@ -868,7 +868,7 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
  * so a pointer is still measured through the box the picture is actually in.
  */
 export function FloatingDevice({ device, devices, artifacts, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onCapture, onChangeDevice, mirror, mirrorTransport, workspaceId, leaseRefusal, hasLease, dispatch }: { device: DeviceView; devices: readonly DeviceView[]; artifacts: readonly ArtifactView[]; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onCapture: () => void; onChangeDevice: (deviceId: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; leaseRefusal?: string; hasLease: boolean; dispatch: DispatchIntent }) {
-  const session = useLiveMirrorSession({ device, mirror, transport: mirrorTransport, workspaceId, hasLease, leaseRefusal, dispatch })
+  const session = useLiveMirrorSession({ device, mirror, transport: mirrorTransport, workspaceId, hasLease, leaseRefusal, followerDeviceIds: followers.map((follower) => follower.id), dispatch })
   /**
    * Whether the device list is open BESIDE the frame.
    *
@@ -899,7 +899,7 @@ export function FloatingDevice({ device, devices, artifacts, followers, workspac
     <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><LiveMirrorInfo session={session} /><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
     <div className="min-h-0 flex-1 overflow-y-auto p-2">{livePictureHeld(session.phase) ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><ChangeDeviceButton open={pickerOpen} onToggle={() => setPickerOpen((current) => !current)} /><PanelKeyCommands session={session} /><ControlButton icon={Image} label="Screenshot" onClick={onCapture} /><PanelSettingCommands device={device} dispatch={dispatch} /><PanelOperationCommands device={device} artifacts={artifacts} dispatch={dispatch} /></div>
     <div className="shrink-0 border-t border-border px-2 py-2">
-      <p data-testid="live-mirror-followers" className="mb-1 text-center text-[10px] text-muted-foreground">Controlling {device.displayName} · {followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
+      <p data-testid="live-mirror-followers" className="mb-1 text-center text-[10px] text-muted-foreground">Controlling {device.displayName} · {followers.length} follower{followers.length === 1 ? "" : "s"} selected{followers.length === 0 ? " · no input is sent to followers" : " · input on this frame is dispatched to each follower"}</p>
       <LiveMirrorDeviceKeys session={session} />
     </div>
   </div>

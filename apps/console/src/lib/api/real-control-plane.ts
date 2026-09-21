@@ -45,6 +45,7 @@ import { SkillState, TrustState as ProtoTrustState } from "@/gen/drift/v1/skill_
 import type { Workflow } from "@/gen/drift/v1/workflow_pb"
 import { WorkflowState } from "@/gen/drift/v1/workflow_pb"
 import type { MirrorSession as ProtoMirrorSession, MirrorTarget as ProtoMirrorTarget } from "@/gen/drift/v1/mirror_pb"
+import { FollowerInputDisposition, type FollowerInputFanout } from "@/gen/drift/v1/device_input_pb"
 import { MirrorSessionState, MirrorTargetState } from "@/gen/drift/v1/mirror_pb"
 import type { IndeterminateAction as ProtoIndeterminateAction, RuntimeConnection as ProtoRuntimeConnection, SpoolHealth as ProtoSpoolHealth } from "@/gen/drift/v1/runtime_pb"
 import { RuntimeConnectionState } from "@/gen/drift/v1/runtime_pb"
@@ -663,6 +664,38 @@ function mapMirrorSessionState(state: MirrorSessionState): MirrorViewState {
       return _exhaustive
     }
   }
+}
+
+/**
+ * followerFanoutSentence renders the control plane's own per-follower report for
+ * one gesture, so a console states what actually happened to the followers rather
+ * than implying that every selected follower received the input.
+ *
+ * It names each follower the plane did NOT dispatch to, with the plane's own
+ * reason, and it states the count the run TARGETED beside the number of followers
+ * that were selected - the two are not the same number, and a follower that is not
+ * online was never contacted and never failed. A report that named nothing because
+ * every follower was targeted says so plainly.
+ */
+export function followerFanoutSentence(fanout: FollowerInputFanout | undefined): string {
+  if (!fanout || fanout.followers.length === 0) return ""
+  const named = fanout.followers.filter((row) => row.disposition !== FollowerInputDisposition.ACCEPTED)
+  const head = `Followers: ${fanout.targetCount} of ${fanout.followers.length} targeted.`
+  if (named.length === 0) return ` ${head}`
+  const sentences = named.map((row) => {
+    const label = row.disposition === FollowerInputDisposition.EXCLUDED ? "excluded" : row.disposition === FollowerInputDisposition.INDETERMINATE ? "indeterminate" : "refused"
+    return `${row.deviceId} ${label} (${row.reason})`
+  })
+  return ` ${head} ${sentences.join("; ")}.`
+}
+
+/**
+ * followerDeviceIdsFor reads the followers a gesture names, dropping the device the
+ * gesture is being made on: the source cannot also be one of its own followers, and
+ * the control plane refuses that row rather than the console leaving it out.
+ */
+function followerDeviceIdsFor(followerDeviceIds: readonly string[] | undefined, deviceId: string): string[] {
+  return [...new Set(followerDeviceIds ?? [])].filter((id) => id !== deviceId && id.trim() !== "")
 }
 
 function mapMirrorTargetOutcome(target: ProtoMirrorTarget): MirrorTargetOutcome {
@@ -2355,20 +2388,20 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       case "submitDeviceTap": {
         const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
         if (!lease) return failure(intent, "Acquire an active lease before submitting a tap.", { errorCode: "precondition_failed" })
-        const response = await this.services.deviceInput.tap(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: intent.observationToken, approvalGranted: intent.confirmed, tap: { point: { x: intent.x, y: intent.y }, renderSpace: { renderWidth: intent.renderWidth, renderHeight: intent.renderHeight, observationToken: intent.observationToken } } })
-        return mutation(intent, `Tap outcome: ${response.result?.outcome ?? "unknown"}.`, { resourceId: response.result?.actionId })
+        const response = await this.services.deviceInput.tap(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: intent.observationToken, approvalGranted: intent.confirmed, followerDeviceIds: followerDeviceIdsFor(intent.followerDeviceIds, intent.deviceId), tap: { point: { x: intent.x, y: intent.y }, renderSpace: { renderWidth: intent.renderWidth, renderHeight: intent.renderHeight, observationToken: intent.observationToken } } })
+        return mutation(intent, `Tap outcome: ${response.result?.outcome ?? "unknown"}.${followerFanoutSentence(response.fanout)}`, { resourceId: response.result?.actionId })
       }
       case "submitDeviceSwipe": {
         const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
         if (!lease) return failure(intent, "Acquire an active lease before submitting a swipe.", { errorCode: "precondition_failed" })
-        const response = await this.services.deviceInput.swipe(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: intent.observationToken, approvalGranted: intent.confirmed, swipe: { start: { x: intent.startX, y: intent.startY }, end: { x: intent.endX, y: intent.endY }, durationMs: intent.durationMs, renderSpace: { renderWidth: intent.renderWidth, renderHeight: intent.renderHeight, observationToken: intent.observationToken } } })
-        return mutation(intent, `Swipe outcome: ${response.result?.outcome ?? "unknown"}.`, { resourceId: response.result?.actionId })
+        const response = await this.services.deviceInput.swipe(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: intent.observationToken, approvalGranted: intent.confirmed, followerDeviceIds: followerDeviceIdsFor(intent.followerDeviceIds, intent.deviceId), swipe: { start: { x: intent.startX, y: intent.startY }, end: { x: intent.endX, y: intent.endY }, durationMs: intent.durationMs, renderSpace: { renderWidth: intent.renderWidth, renderHeight: intent.renderHeight, observationToken: intent.observationToken } } })
+        return mutation(intent, `Swipe outcome: ${response.result?.outcome ?? "unknown"}.${followerFanoutSentence(response.fanout)}`, { resourceId: response.result?.actionId })
       }
       case "submitDeviceKeyEvent": {
         const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")
         if (!lease) return failure(intent, "Acquire an active lease before submitting a key event.", { errorCode: "precondition_failed" })
-        const response = await this.services.deviceInput.keyEvent(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: intent.observationToken, approvalGranted: intent.confirmed, keyEvent: { keyCode: intent.keyCode } })
-        return mutation(intent, `Key event outcome: ${response.result?.outcome ?? "unknown"}.`, { resourceId: response.result?.actionId })
+        const response = await this.services.deviceInput.keyEvent(requestId, { workspace: workspaceRef(workspaceId), deviceId: intent.deviceId, leaseId: lease.id, fencingToken: BigInt(lease.fencingToken), idempotencyKey: requestId, observationToken: intent.observationToken, approvalGranted: intent.confirmed, followerDeviceIds: followerDeviceIdsFor(intent.followerDeviceIds, intent.deviceId), keyEvent: { keyCode: intent.keyCode } })
+        return mutation(intent, `Key event outcome: ${response.result?.outcome ?? "unknown"}.${followerFanoutSentence(response.fanout)}`, { resourceId: response.result?.actionId })
       }
       case "submitDeviceText": {
         const lease = this.snapshot.leases.find((candidate) => candidate.deviceId === intent.deviceId && candidate.state === "active")

@@ -88,7 +88,7 @@ function device(): DeviceView {
  * it. `picture` is the stream's shape unless a test says otherwise, which is the
  * case with no letterbox.
  */
-function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; leaseRefusal?: string; rect?: DOMRect; picture?: { width: number; height: number }; device?: DeviceView; devices?: readonly DeviceView[]; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
+function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; leaseRefusal?: string; rect?: DOMRect; picture?: { width: number; height: number }; device?: DeviceView; devices?: readonly DeviceView[]; followers?: readonly DeviceView[]; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
   const intents: ControlPlaneIntent[] = []
   const dispatch: DispatchIntent = async (intent) => {
     intents.push(intent)
@@ -99,7 +99,7 @@ function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; l
     <FloatingDevice
       device={options.device ?? device()}
       artifacts={[]} devices={options.devices ?? []}
-      followers={[]}
+      followers={options.followers ?? []}
       workspace={{ ...workspace }}
       settings={{ ...settings }}
       position={{ x: 0, y: 0 }}
@@ -285,6 +285,34 @@ describe("the big frame is the device's screen", () => {
       renderWidth: 1080,
       renderHeight: 1920,
       observationToken: streamToken,
+    })
+  })
+
+  /**
+   * A gesture made on the source names the followers the operator selected.
+   *
+   * The followers RECEIVE the operator's input rather than only watching the
+   * source's screen, so the console has to carry the selection with every gesture
+   * it dispatches - otherwise the plane has no way to know which devices the
+   * gesture was meant for, and the console's own word for the selection would be
+   * the only place it existed.
+   */
+  it("names the operator's followers on the gesture made on the source", async () => {
+    const followers = [
+      { ...device(), id: "atlas-05", displayName: "Atlas 05" },
+      { ...device(), id: "atlas-06", displayName: "Atlas 06" },
+    ]
+    const { intents, stage } = renderPanel({ followers })
+    await live(intents)
+
+    fireEvent.pointerDown(stage, { pointerId: 9, clientX: 270, clientY: 480 })
+    fireEvent.pointerUp(stage, { pointerId: 9, clientX: 270, clientY: 480 })
+
+    await waitFor(() => expect(intents).toHaveLength(1))
+    expect(intents[0]).toMatchObject({
+      type: "submitDeviceTap",
+      deviceId: "atlas-04",
+      followerDeviceIds: ["atlas-05", "atlas-06"],
     })
   })
 
