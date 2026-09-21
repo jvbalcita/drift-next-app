@@ -1,0 +1,201 @@
+syntax = "proto3";
+
+package drift.v1;
+
+import "drift/v1/common.proto";
+
+option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
+
+// The fleet grid's still previews: one still picture per device, refreshed on a
+// cadence, for EVERY device the console draws.
+//
+// It is deliberately not the live mirror. A tile on the live mirror surface is a
+// device SESSION - one place of the plane's session capacity and one encoder on
+// the device - so the number of tiles a grid can carry is bounded by the capacity
+// the operator's own frame is kept out of, and "every device" is not reachable
+// from there at any preview level. A still spends no session and holds no
+// encoder: it is one bounded transaction on the existing capture path, so what
+// bounds the grid is the cadence and the plane's own concurrency, and the
+// operator's frame keeps the one live session it needs.
+//
+// What this surface carries is a PICTURE, never a stream: nothing here is
+// continuous, a tile that is a still is not a tile that is live, and the two fail
+// differently - which is why the console states which one it is showing and this
+// contract states the level, the cadence and the outcome of the last capture
+// rather than leaving a reader to infer them.
+
+// GridStillLevel is the level a device's still is carried at: a hard cap on the
+// size of the picture the plane delivers for one tile.
+//
+// It is a cap rather than a hint for the same reason the live preview levels are:
+// the capture path produces the device's screen at its own size - a native
+// 1080x2280 PNG is megabytes - and a grid of those is not a preview. A level
+// states the widest picture it may deliver and the JPEG quality it is encoded
+// at, and the plane publishes both beside the level's name so a tile can report
+// what it was shown rather than trusting a label.
+//
+// The three levels exist so a deployment can choose that cost, and what the
+// measurement says the cost is matters: the stills are what the transport
+// carries - measured on the lab fleet, a still is 9.6 KB at LOW, 18.7 KB at
+// MEDIUM and 30.7 KB at HIGH for a 1080x2280 screen - while what bounds the
+// CADENCE is the CAPTURE, which ships that screen as a ~3.4 MB PNG and took a
+// mean of 3.1-4.7 s per device over TCP. A deployment carrying a large fleet on a
+// slow hub states LOW and every device is still shown; the level moves the bytes
+// on the wire, not the capture the device and the hub pay for.
+enum GridStillLevel {
+  // UNSPECIFIED states no level, and the plane applies the level it is
+  // configured with - which is itself a level with a cap, never "no bound".
+  GRID_STILL_LEVEL_UNSPECIFIED = 0;
+  // LOW is a 240-pixel-wide JPEG at quality 60.
+  GRID_STILL_LEVEL_LOW = 1;
+  // MEDIUM is a 360-pixel-wide JPEG at quality 65. It is the level an unstated
+  // or unrecognised setting resolves to.
+  GRID_STILL_LEVEL_MEDIUM = 2;
+  // HIGH is a 480-pixel-wide JPEG at quality 70.
+  GRID_STILL_LEVEL_HIGH = 3;
+}
+
+// GridStillState is what a device's still IS, in the plane's own vocabulary.
+//
+// A still that was captured and a still that is the device's CURRENT screen are
+// two different facts: a capture that succeeded and a later one that failed
+// leaves a picture that is no longer what the device is showing, and a tile that
+// painted it would be showing an operator a screen the device left. The state is
+// therefore stated by the boundary that holds both facts rather than derived by a
+// reader from a timestamp.
+enum GridStillState {
+  GRID_STILL_STATE_UNSPECIFIED = 0;
+  // PENDING: the device is subscribed and no capture has succeeded yet. It is
+  // not a failure and it is not a picture.
+  GRID_STILL_STATE_PENDING = 1;
+  // CURRENT: the still carried here was captured, and no later attempt has
+  // failed, so it is the device's screen as of captured_at.
+  GRID_STILL_STATE_CURRENT = 2;
+  // STALE: a still was captured and a later attempt failed, so the plane holds
+  // no picture that is the device's screen now. The last still is deliberately
+  // NOT carried: it is not what the device is showing.
+  GRID_STILL_STATE_STALE = 3;
+  // UNAVAILABLE: nothing can be captured for this device and the plane says why
+  // - no transport the capture path accepts, or a refusal of its own.
+  GRID_STILL_STATE_UNAVAILABLE = 4;
+}
+
+// GridStill is one device's tile as the plane holds it.
+message GridStill {
+  string device_id = 1;
+  GridStillState state = 2;
+  // captured_at is when the still's own capture ran, RFC3339 in UTC. It is empty
+  // when nothing has been captured, and it is never refreshed by a failed
+  // attempt.
+  string captured_at = 3;
+  // content_hash references the capture this still was produced from: the
+  // SHA-256 of the device's own screenshot bytes, so two tiles showing the same
+  // hash are showing the same capture.
+  string content_hash = 4;
+  // width and height are the delivered still's own size, which is the level's
+  // cap applied to the device's screen.
+  uint32 width = 5;
+  uint32 height = 6;
+  // source_bytes is the capture's own size before it was carried at the level,
+  // and bytes is the still's size as delivered. They are both stated because the
+  // level's whole purpose is the difference between them.
+  uint32 source_bytes = 7;
+  uint32 bytes = 8;
+  // media_type is what the bytes in still_base64 ARE. It is stated rather than
+  // assumed: a reader that guessed would paint a JPEG that arrived as a PNG as
+  // nothing at all.
+  string media_type = 9;
+  // still_base64 is the bounded still, base64-encoded. It is empty when the
+  // state is PENDING, STALE or UNAVAILABLE, and it is empty when the capture was
+  // larger than the bound - in which case truncated says so and no partial image
+  // is delivered.
+  string still_base64 = 10;
+  // truncated reports a still larger than the plane's own still bound. A prefix
+  // of an image is the wrong image delivered silently, so none is delivered and
+  // the tile is told why.
+  bool truncated = 11;
+  // frames counts the captures that succeeded since this device was subscribed,
+  // and failures the attempts that failed. They are not reset: a device that
+  // failed four times and then recovered has a history, and only the most recent
+  // attempt decides the state.
+  uint32 frames = 12;
+  uint32 failures = 13;
+  // failure_class and failure_detail are the MOST RECENT capture failure, empty
+  // when that attempt succeeded. The detail is redacted and bounded prose and
+  // carries no device bytes.
+  string failure_class = 14;
+  string failure_detail = 15;
+  // observed_cadence_millis is the interval between this device's last two
+  // successful captures, as the plane measured it. It is zero until two captures
+  // have succeeded, and it is how a tile states how fresh its picture is: the
+  // configured cadence is what the plane aims for, and this is what it did.
+  uint32 observed_cadence_millis = 16;
+}
+
+// GridPreviewProfile is what this plane's grid costs and what it is carried at.
+message GridPreviewProfile {
+  // cadence_millis is how often the plane aims to capture each device.
+  uint32 cadence_millis = 1;
+  GridStillLevel level = 2;
+  // level_max_width and level_jpeg_quality are the level's own numbers, so a
+  // console states the bound it is shown rather than a label it looked up.
+  uint32 level_max_width = 3;
+  uint32 level_jpeg_quality = 4;
+  // still_byte_bound is the largest still the plane will deliver for one tile.
+  uint32 still_byte_bound = 5;
+  // max_devices is the capture-set bound this deployment stated. It is a bound on
+  // the work one sweep performs, not a session bound: stills spend no session, so
+  // it is far larger than any session capacity and it is published rather than
+  // inferred.
+  uint32 max_devices = 6;
+  // subscribed is how many devices the plane is capturing for this grid.
+  uint32 subscribed = 7;
+}
+
+// SyncGridPreviewsRequest names the devices the console's grid is drawing.
+//
+// The set is RECONCILED, not accumulated: the plane captures exactly the devices
+// named by the most recent request and releases every device that has left the
+// set, so a device the operator filtered out stops being captured rather than
+// being captured forever by a subscription nobody holds.
+message SyncGridPreviewsRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+  // device_ids are the devices the grid is drawing, in the grid's own order.
+  repeated string device_ids = 3;
+}
+
+message SyncGridPreviewsResponse {
+  // stills carries one entry per device this plane is capturing for the grid, in
+  // the order the request named them.
+  repeated GridStill stills = 1;
+  GridPreviewProfile profile = 2;
+  // refused_device_ids names the devices this plane's capture-set bound did not
+  // admit, so a tile that is not shown says WHICH bound it did not reach. They
+  // are named rather than left to be inferred from the stills that are missing.
+  repeated string refused_device_ids = 3;
+}
+
+// StopGridPreviewsRequest ends the grid's capture.
+message StopGridPreviewsRequest {
+  RequestContext context = 1;
+  WorkspaceRef workspace = 2;
+}
+
+message StopGridPreviewsResponse {
+  // released is how many devices stopped being captured.
+  uint32 released = 1;
+}
+
+service GridPreviewService {
+  // SyncGridPreviews reconciles the plane's capture set with the devices the
+  // console is drawing and answers with the still held for each. It is the whole
+  // of the grid's traffic: the plane owns the cadence and this call reads what
+  // that cadence produced, so a console that polls it does not drive a capture
+  // per device and cannot fan out.
+  rpc SyncGridPreviews(SyncGridPreviewsRequest) returns (SyncGridPreviewsResponse);
+  // StopGridPreviews releases the capture set. A device nothing is showing stops
+  // being captured, which is the same rule the one-shot capture and the live
+  // mirror already obey.
+  rpc StopGridPreviews(StopGridPreviewsRequest) returns (StopGridPreviewsResponse);
+}

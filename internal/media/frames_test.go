@@ -1,9 +1,14 @@
 package media_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"image/png"
 	"strings"
 	"sync"
 	"testing"
@@ -48,15 +53,50 @@ func heldFailure(err error) frameStep { return frameStep{err: err, hold: true} }
 // immediately.
 const heldCaptureTimeout = 30 * time.Second
 
-// pngBytes builds a payload of exactly size bytes behind the PNG signature. The
-// frame engine never parses the image - the adapter does, and checks it there -
-// so what these tests need is a payload of a known length.
+// pngBytes builds a real, decodable PNG payload of at least size bytes.
+//
+// The engine PARSES a capture: a still is produced by decoding the capture and
+// re-encoding it at the profile's level, so a payload of a stated length behind the
+// PNG signature is no longer a capture this path can carry - it would make every
+// device in these tests a failed capture. The picture is deterministic and grown
+// until the encoded payload reaches the requested size, so a test that needs a
+// large capture still gets one, and one that needs a small capture gets a 1x1
+// screen rather than padding no decoder would read.
 func pngBytes(size int) []byte {
-	payload := []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a}
-	for len(payload) < size {
-		payload = append(payload, 'x')
+	if size < 1 {
+		size = 1
 	}
-	return payload[:size]
+	side := 1
+	for {
+		payload := encodeTestPNG(side)
+		if len(payload) >= size || side >= 512 {
+			return payload
+		}
+		side *= 2
+	}
+}
+
+// encodeTestPNG encodes a deterministic side x side picture of per-pixel noise.
+//
+// The pixels are varied rather than smooth because a smooth picture compresses to
+// a few kilobytes at any size, and a test that needs a capture LARGER than the
+// preview bound has to be given one the size it asked for. Noise is also the worst
+// case a real fleet's encoder can be handed, which is the honest direction for a
+// fixture to lean in.
+func encodeTestPNG(side int) []byte {
+	screen := image.NewRGBA(image.Rect(0, 0, side, side))
+	state := uint32(1)
+	for y := 0; y < side; y++ {
+		for x := 0; x < side; x++ {
+			state = state*1664525 + 1013904223
+			screen.SetRGBA(x, y, color.RGBA{R: uint8(state >> 24), G: uint8(state >> 16), B: uint8(state >> 8), A: 0xff})
+		}
+	}
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, screen); err != nil {
+		panic("test fixture PNG could not be encoded: " + err.Error())
+	}
+	return buffer.Bytes()
 }
 
 // captureFailure is a failure the adapter would classify: the engine reads the
@@ -458,8 +498,16 @@ func TestFrameEngineClassifiesFailuresWithoutStoppingTheLoop(t *testing.T) {
 }
 
 // TestFrameEngineReportsTruncationRatherThanAPartialFrame pins the reuse of the
-// one-shot preview discipline: a capture larger than the bound is reported as
-// truncated with no preview at all, and a capture at the bound is delivered whole.
+// one-shot preview discipline: a still larger than the bound is reported as
+// truncated with no picture at all, and a still inside the bound is delivered
+// whole.
+//
+// The bound applies to the STILL - the picture the level delivers - and not to the
+// capture, because a capture is the device's screen at its own size: megabytes for
+// a real device, and always far larger than a tile's bound. A bound applied to the
+// capture would report every tile in the fleet as truncated. The bound no encoded
+// still can fit under is therefore how the truncation rule is exercised, and a
+// second engine carries the delivered-whole half of it.
 //
 // The oversize device's second capture is held, so the engine cannot complete a
 // second round before the test stops it. What the outcome reports is therefore one
@@ -467,12 +515,12 @@ func TestFrameEngineClassifiesFailuresWithoutStoppingTheLoop(t *testing.T) {
 // host load happened to let the loop run between the assertion and the stop.
 func TestFrameEngineReportsTruncationRatherThanAPartialFrame(t *testing.T) {
 	t.Parallel()
-	const bound = 64
-	oversize := pngBytes(128)
-	atBound := pngBytes(bound)
+	// No JPEG of a real picture fits 32 bytes, so this is a bound the encoded still
+	// deterministically exceeds - not one it happens to exceed.
+	const bound = 32
+	capture := pngBytes(64)
 	capturer := newFakeFrameCapturer().
-		script("SERIAL-A", shot(oversize), heldCapture()).
-		script("SERIAL-B", shot(atBound))
+		script("SERIAL-A", shot(capture), heldCapture())
 	engine, logs := newTestEngine(t, capturer, media.FrameEngineConfig{
 		Interval:       5 * time.Millisecond,
 		CaptureTimeout: heldCaptureTimeout,
@@ -481,52 +529,73 @@ func TestFrameEngineReportsTruncationRatherThanAPartialFrame(t *testing.T) {
 	if err := engine.Subscribe("SERIAL-A"); err != nil {
 		t.Fatalf("Subscribe(SERIAL-A): %v", err)
 	}
-	if err := engine.Subscribe("SERIAL-B"); err != nil {
-		t.Fatalf("Subscribe(SERIAL-B): %v", err)
-	}
 	stop := startEngine(t, engine)
 
 	waitFor(t, func() bool {
 		frame, ok := engine.Frame("SERIAL-A")
 		return ok && frame.PreviewTruncated
-	}, "the oversize capture to be reported as truncated")
+	}, "the oversize still to be reported as truncated")
 	oversizedFrame, _ := engine.Frame("SERIAL-A")
 	if oversizedFrame.PreviewBase64 != "" {
-		t.Fatalf("a truncated capture delivered a preview of %d character(s)", len(oversizedFrame.PreviewBase64))
+		t.Fatalf("a truncated still delivered a picture of %d character(s)", len(oversizedFrame.PreviewBase64))
 	}
-	if oversizedFrame.Bytes != len(oversize) {
-		t.Fatalf("bytes = %d, want the capture's real size %d", oversizedFrame.Bytes, len(oversize))
+	if oversizedFrame.Bytes != len(capture) {
+		t.Fatalf("bytes = %d, want the capture's real size %d", oversizedFrame.Bytes, len(capture))
 	}
-	if oversizedFrame.ContentHash != adb.HashBytes(oversize) {
+	if oversizedFrame.StillBytes <= bound {
+		t.Fatalf("still bytes = %d, want the encoded still's own size over the %d byte bound", oversizedFrame.StillBytes, bound)
+	}
+	if oversizedFrame.ContentHash != adb.HashBytes(capture) {
 		t.Fatalf("content hash = %q, want the capture's own hash", oversizedFrame.ContentHash)
 	}
 	if !oversizedFrame.Current() {
-		t.Fatalf("a truncated capture is still a captured frame: %+v", oversizedFrame)
-	}
-
-	waitFor(t, func() bool {
-		frame, ok := engine.Frame("SERIAL-B")
-		return ok && frame.PreviewBase64 != ""
-	}, "the capture at the bound to be delivered whole")
-	atBoundFrame, _ := engine.Frame("SERIAL-B")
-	if atBoundFrame.PreviewTruncated {
-		t.Fatal("a capture at exactly the bound was reported as truncated")
-	}
-	decoded, err := base64.StdEncoding.DecodeString(atBoundFrame.PreviewBase64)
-	if err != nil {
-		t.Fatalf("preview is not base64: %v", err)
-	}
-	if string(decoded) != string(atBound) {
-		t.Fatalf("the delivered preview is not the captured payload (%d of %d bytes)", len(decoded), len(atBound))
+		t.Fatalf("a truncated still is still a captured frame: %+v", oversizedFrame)
 	}
 
 	outcome := stop()
 	if outcome.Truncated != 1 {
 		t.Fatalf("outcome truncated = %d, want 1", outcome.Truncated)
 	}
-	if !logs.contains("reported as truncated with no preview") {
+	if !logs.contains("reported as truncated with no still") {
 		t.Fatalf("the truncation was not reported:\n%s", logs.joined())
 	}
+
+	// A still inside the bound is delivered whole: the picture is the encoded
+	// still, and the engine states the type and the size a tile paints from.
+	patient := newFakeFrameCapturer().script("SERIAL-B", shot(capture))
+	delivering, _ := newTestEngine(t, patient, media.FrameEngineConfig{Interval: 5 * time.Millisecond})
+	if err := delivering.Subscribe("SERIAL-B"); err != nil {
+		t.Fatalf("Subscribe(SERIAL-B): %v", err)
+	}
+	stopDelivering := startEngine(t, delivering)
+	waitFor(t, func() bool {
+		frame, ok := delivering.Frame("SERIAL-B")
+		return ok && frame.PreviewBase64 != ""
+	}, "a still inside the bound to be delivered whole")
+	delivered, _ := delivering.Frame("SERIAL-B")
+	if delivered.PreviewTruncated {
+		t.Fatal("a still inside the bound was reported as truncated")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(delivered.PreviewBase64)
+	if err != nil {
+		t.Fatalf("the delivered still is not base64: %v", err)
+	}
+	if delivered.MediaType != media.StillMediaType {
+		t.Fatalf("media type = %q, want %q", delivered.MediaType, media.StillMediaType)
+	}
+	if _, err := jpeg.Decode(bytes.NewReader(decoded)); err != nil {
+		t.Fatalf("the delivered still is not the JPEG its media type states: %v", err)
+	}
+	if delivered.StillBytes != len(decoded) {
+		t.Fatalf("still bytes = %d, want the delivered picture's %d", delivered.StillBytes, len(decoded))
+	}
+	if delivered.StillBytes > media.DefaultPreviewLimit {
+		t.Fatalf("the delivered still is %d bytes, over the %d byte bound", delivered.StillBytes, media.DefaultPreviewLimit)
+	}
+	if delivered.CapturedAt.IsZero() {
+		t.Fatal("a delivered still carries no capture time")
+	}
+	stopDelivering()
 }
 
 // TestFrameEngineBoundsAndReusesTheOneShotPreviewDiscipline pins the engine's
@@ -545,6 +614,9 @@ func TestFrameEngineBoundsAndReusesTheOneShotPreviewDiscipline(t *testing.T) {
 	}); platformerrors.CodeOf(err) != platformerrors.CodeInvalidInput {
 		t.Fatalf("a frame preview bound wider than the one-shot bound was accepted: %v", err)
 	}
+	// The default bound is the one-shot bound, and a capture that would have been
+	// refused as a CAPTURE is delivered as a STILL at the level: that is the whole
+	// difference this card makes, and it is asserted rather than assumed.
 	engine, _ := newTestEngine(t, capturer, media.FrameEngineConfig{})
 	capturer.script("SERIAL-A", shot(pngBytes(media.DefaultPreviewLimit+1)))
 	if err := engine.Subscribe("SERIAL-A"); err != nil {
@@ -553,10 +625,18 @@ func TestFrameEngineBoundsAndReusesTheOneShotPreviewDiscipline(t *testing.T) {
 	start := startEngine(t, engine)
 	waitFor(t, func() bool {
 		frame, ok := engine.Frame("SERIAL-A")
-		return ok && frame.PreviewTruncated
-	}, "the default bound to refuse a capture one byte over it")
-	if frame, _ := engine.Frame("SERIAL-A"); frame.PreviewBase64 != "" {
-		t.Fatal("the default bound delivered a preview of a capture it should have refused")
+		return ok && frame.Current()
+	}, "a capture larger than the preview bound to be delivered as a still")
+	frame, _ := engine.Frame("SERIAL-A")
+	if frame.Bytes <= media.DefaultPreviewLimit {
+		t.Fatalf("the fixture capture is %d bytes, and this test needs one over the %d byte bound",
+			frame.Bytes, media.DefaultPreviewLimit)
+	}
+	if frame.PreviewBase64 == "" {
+		t.Fatal("a capture over the ONE-SHOT bound was not delivered as a still at the level")
+	}
+	if frame.StillBytes > media.DefaultPreviewLimit {
+		t.Fatalf("the delivered still is %d bytes, over the %d byte bound", frame.StillBytes, media.DefaultPreviewLimit)
 	}
 	start()
 }
@@ -750,13 +830,28 @@ func TestFrameEngineCapturesThroughTheLabFixtureAdapter(t *testing.T) {
 	}
 	decoded, err := base64.StdEncoding.DecodeString(framed.PreviewBase64)
 	if err != nil {
-		t.Fatalf("preview is not base64: %v", err)
+		t.Fatalf("the delivered still is not base64: %v", err)
 	}
-	if string(decoded) != string(expected.PNG) {
-		t.Fatalf("the delivered preview is not the captured payload (%d of %d bytes)", len(decoded), len(expected.PNG))
+	// The delivered picture is the capture CARRIED AT THE LEVEL, not the capture
+	// itself: the fixture's capture is a screen the encoder re-encodes, which is
+	// what makes it a tile rather than a megabyte of PNG.
+	if _, err := jpeg.Decode(bytes.NewReader(decoded)); err != nil {
+		t.Fatalf("the delivered still is not a JPEG: %v", err)
+	}
+	if framed.MediaType != media.StillMediaType {
+		t.Fatalf("media type = %q, want %q", framed.MediaType, media.StillMediaType)
+	}
+	if framed.Width <= 0 || framed.Height <= 0 {
+		t.Fatalf("the delivered still states no size: %+v", framed)
+	}
+	if framed.Width > media.DefaultGridStillProfile().MaxWidth {
+		t.Fatalf("the delivered still is %d px wide, over the level's %d px cap", framed.Width, media.DefaultGridStillProfile().MaxWidth)
 	}
 	if len(decoded) > media.DefaultPreviewLimit {
-		t.Fatalf("the delivered preview is %d bytes, over the %d byte bound", len(decoded), media.DefaultPreviewLimit)
+		t.Fatalf("the delivered still is %d bytes, over the %d byte bound", len(decoded), media.DefaultPreviewLimit)
+	}
+	if framed.StillBytes != len(decoded) {
+		t.Fatalf("still bytes = %d, want the delivered picture's %d", framed.StillBytes, len(decoded))
 	}
 	stop()
 }

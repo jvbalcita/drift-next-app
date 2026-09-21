@@ -231,16 +231,36 @@ func main() {
 		log.Printf("%s", transportWatch.Run(ctx).Report())
 	}()
 
-	// The frame engine: one owned worker that captures a bounded still frame per
+	// The frame engine: one owned worker that captures a bounded still per
 	// subscribed device on a bounded interval, through the same allow-listed
 	// capture path the one-shot observation uses. It starts on the process's
 	// shutdown context, is cancelled by it, and is awaited below before the
 	// process returns. Nothing is subscribed at startup, so it captures nothing
 	// until something subscribes: a subscription is what starts the work, and an
 	// unsubscribed device is not captured at all. This is a bounded snapshot
-	// engine, not a video transport - it holds the most recent still frame per
+	// engine, not a video transport - it holds the most recent still per
 	// subscribed device and never claims to be continuous.
-	frameEngine, frameEngineErr := media.NewFrameEngine(media.FrameEngineConfig{Capturer: labService.FrameTransport()})
+	//
+	// It is the engine behind the console's fleet grid, which is why the grid's
+	// cost is decided HERE and nowhere else: the cadence, the still level and the
+	// sweep bound are read from the deployment's own configuration, stated in a
+	// startup line the operator can read back, and handed to the engine that
+	// spends them. A deployment that mistyped one of them is a startup diagnosis
+	// rather than a grid whose tiles refresh at a rate nobody chose - and the
+	// route is left unmounted, so a console is told the plane has no grid rather
+	// than shown one that is not the one it configured.
+	gridSettings, gridSettingsErr := media.GridSettingsFromEnv(os.LookupEnv)
+	if gridSettingsErr != nil {
+		log.Printf("grid preview surface not mounted: %v", gridSettingsErr)
+	} else {
+		log.Printf("%s", gridSettings.Report())
+	}
+	frameEngine, frameEngineErr := media.NewFrameEngine(media.FrameEngineConfig{
+		Capturer:       labService.FrameTransport(),
+		Interval:       gridSettings.Cadence,
+		Profile:        gridSettings.Profile,
+		MaxSubscribers: gridSettings.MaxDevices,
+	})
 	if frameEngineErr != nil {
 		log.Printf("frame engine not started: %v", frameEngineErr)
 	}
@@ -389,8 +409,19 @@ func main() {
 		streamEndpointMounted = true
 	}
 	log.Printf("live mirror stream endpoint %s at %s (a browser is given a per-device path on this service's own guarded surface; the loopback bind and the token check above are what stand in front of it)", mountState(streamEndpointMounted), transportconnect.MirrorStreamPath)
+	// The fleet grid's still previews: the surface that carries a still for EVERY
+	// device without spending a device session, so the operator's own frame keeps
+	// the one live session it needs. It is mounted only when the capture set was
+	// built AND the deployment's grid configuration was readable: a grid whose
+	// cadence and level nobody stated is a grid whose tiles behave inexplicably,
+	// and no surface is better than one that cannot say what it is carrying.
+	gridMounted := false
+	if gridRoute := gridPreviewRoute(frameEngine, frameEngineErr, gridSettingsErr, actionRuntime, labToken); gridRoute.Path != "" {
+		routes = append(routes, gridRoute)
+		gridMounted = true
+	}
 	server := service.NewHTTPServer("control-plane", address, routes...)
-	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, device settings surface %s, device operations surface %s, text reference surface %s, transport surface %s, live mirror surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), mountState(settingsMounted), operationsMountState(operationsMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted), mirrorMountState(mirrorMounted))
+	log.Printf("control-plane listening on %s with lab adapter in %s mode (lab token %s, device input surface %s, device settings surface %s, device operations surface %s, text reference surface %s, transport surface %s, live mirror surface %s, grid preview surface %s)", address, labMode, tokenState(labToken), mountState(inputMounted), mountState(settingsMounted), operationsMountState(operationsMounted), referenceMountState(referenceMounted), connectionMountState(connectionMounted), mirrorMountState(mirrorMounted), mountState(gridMounted))
 	serveErr := service.Serve(ctx, server)
 	// The startup scan, the post-launch watcher, the mirror-session sweep, the
 	// frame engine and the live mirror are owned work, not detached workers: wait
@@ -448,6 +479,32 @@ func deviceMirrorRoute(streams *media.StreamTransport, engine *media.MirrorEngin
 		return service.Route{}
 	}
 	return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
+}
+
+// gridPreviewRoute builds the fleet grid's still surface, or an empty Route when
+// the capture set was not built or the deployment's grid configuration could not
+// be read.
+//
+// The resolver is the same registry the input surface resolves devices through:
+// one vocabulary decides which transport a device is currently reachable at, and
+// a console names a device rather than a transport.
+//
+// Nothing here is derived: the engine is the plane's one owned capture worker, so
+// the cadence, the level and the sweep bound the grid is served at are the ones
+// that worker is running with.
+func gridPreviewRoute(engine *media.FrameEngine, engineErr error, settingsErr error, resolver transportconnect.DeviceSerialResolver, token string) service.Route {
+	if engineErr != nil {
+		log.Printf("grid preview surface not mounted: the capture set was not built: %v", engineErr)
+		return service.Route{}
+	}
+	if settingsErr != nil {
+		return service.Route{}
+	}
+	if engine == nil {
+		log.Print("grid preview surface not mounted: no capture set was constructed")
+		return service.Route{}
+	}
+	return service.GridPreviewRoute(engine, resolver, token)
 }
 
 // mirrorStreamPort adapts the media transport to the surface's own port: the

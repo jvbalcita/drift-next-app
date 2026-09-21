@@ -1,9 +1,13 @@
 package lab
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"image"
+	"image/color"
+	"image/png"
 	"sync"
 
 	"drift.local/drift-next/internal/domain"
@@ -182,11 +186,43 @@ func mockError(op, serial string, class domain.FailureClass, cause error) error 
 	return &adb.OperationError{Op: "mock-" + op, Serial: serial, FailureClass: class, Cause: cause}
 }
 
-// mockScreenshotPayload returns deterministic PNG-shaped bytes. The payload is
-// fixture material: it carries no screen content and no device data.
+// mockScreenshotPayload returns a deterministic synthetic screen as a real PNG.
+// The payload is fixture material: it carries no screen content and no device
+// data, and it is generated from the device's own name so two mock devices are
+// two different pictures.
+//
+// It is a decodable image rather than "PNG-shaped bytes" because the product now
+// PARSES a capture: the fleet grid's stills are produced by decoding the capture
+// and re-encoding it at a level, so a fixture that only carried the PNG signature
+// would make every mock device's tile a failed capture - a fixture that cannot
+// exercise the path it exists to stand in for.
 func mockScreenshotPayload(serial string) []byte {
-	payload := []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a}
-	return append(payload, []byte("drift-p13-mock-screenshot:"+serial)...)
+	const (
+		width  = 90
+		height = 200
+	)
+	seed := mockHashHex("screenshot:" + serial)
+	screen := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			// A coarse two-dimensional pattern derived from the device's own name:
+			// flat enough to compress, varied enough that a level's downscale is
+			// actually exercised rather than averaged into one colour.
+			screen.SetRGBA(x, y, color.RGBA{
+				R: uint8(x*2) ^ uint8(seed[0]),
+				G: uint8(y) ^ uint8(seed[1]),
+				B: uint8(x^y) ^ uint8(seed[2]),
+				A: 0xff,
+			})
+		}
+	}
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, screen); err != nil {
+		// A fixture PNG that cannot be encoded is a fixture defect rather than a
+		// device condition: this path is deterministic and reaches no device.
+		panic("mock screenshot fixture could not be encoded: " + err.Error())
+	}
+	return buffer.Bytes()
 }
 
 func mockNodes() []adapter.TargetNode {

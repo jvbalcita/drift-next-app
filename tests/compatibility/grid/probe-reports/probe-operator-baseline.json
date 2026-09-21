@@ -1,0 +1,51 @@
+{
+  "MeasuredAt": "2026-09-21T09:15:02Z",
+  "Host": "ArtisanClaws-MacBook-Pro.local",
+  "HostLoad": "{ 11.45 20.11 23.13 }",
+  "ADBVersion": "Android Debug Bridge version 1.0.41",
+  "ScrcpyServerPath": "/opt/homebrew/share/scrcpy/scrcpy-server",
+  "DeviceCount": 19,
+  "HoldSeconds": 60,
+  "Counts": [
+    1
+  ],
+  "Runs": [
+    {
+      "Concurrency": 1,
+      "Requested": 1,
+      "Opened": 1,
+      "HoldSeconds": 60,
+      "AggregateMbps": 0.06948305454545455,
+      "StalledStreams": 1,
+      "FirstStallAt": 6,
+      "Degraded": true,
+      "SerialMask": [
+        "device-sha256:15bae"
+      ],
+      "OpenFailures": null,
+      "Streams": [
+        {
+          "Serial": "device-sha256:15bae",
+          "Width": 510,
+          "Height": 1080,
+          "Frames": 22,
+          "KeyFrames": 1,
+          "Configs": 0,
+          "Bytes": 624078,
+          "SteadyFrames": 11,
+          "SteadyBytes": 477696,
+          "FPS": 0.2,
+          "Mbps": 0.06948305454545455,
+          "StalledSeconds": 53,
+          "FirstStallSecond": 6,
+          "PTSDeltaMinUS": 100000,
+          "PTSDeltaMedianUS": 100000,
+          "PTSDeltaMaxUS": 55409447,
+          "Ended": ""
+        }
+      ],
+      "Note": ""
+    }
+  ],
+  "Conclusion": "the first point at which a STREAM stalled is 1 concurrent live session(s); no measured point carried every session it asked for; largest measured point: 1"
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { ConnectJsonClient, configuredLabToken, controlPlaneBaseUrl, defaultOperatorId, usesMockControlPlane } from "@/lib/api/connect-json"
-import { DeviceMirrorClient, type LiveMirrorClient } from "@/lib/api/control-plane-clients"
+import { DeviceGridPreviewClient, DeviceMirrorClient, type GridPreviewClient, type LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { loadRuntimeConfig } from "@/lib/runtime-config"
 
 /**
@@ -44,10 +44,10 @@ interface ControlPlaneConnection {
  * control-plane address at startup does not carry a second, differently
  * configured path to the same service.
  *
- * It is the one place the answer is resolved, and both readers below are built
- * on it: a live stream and a device's own observations are two reads of one
- * control plane, and two copies of "how this console reaches it" would be two
- * chances for one of them to reach a different one.
+ * It is the one place the answer is resolved, and every reader below is built on
+ * it: a live stream, the grid's stills and a device's own observations are three
+ * reads of one control plane, and three copies of "how this console reaches it"
+ * would be three chances for one of them to reach a different one.
  */
 function useControlPlaneConnection(): ControlPlaneConnection | undefined {
   const mock = usesMockControlPlane()
@@ -77,4 +77,19 @@ function connectFromEnvironment(): ControlPlaneConnection | undefined {
 export function useLiveMirrorClient(): LiveMirrorClient | undefined {
   const connection = useControlPlaneConnection()
   return useMemo(() => (connection ? new DeviceMirrorClient(connection.json, connection.operatorId) : undefined), [connection])
+}
+
+/**
+ * useGridPreviewClient is the grid's still-preview client, or nothing when this
+ * console has no control plane.
+ *
+ * It is built on the same resolved connection as the live path, so the grid's
+ * stills and the stream beside them come from ONE control plane reached one way:
+ * the two surfaces are different (a still spends no session, a stream is one
+ * session) and they are the same plane, which is the fact a console with two
+ * separately configured clients could get wrong.
+ */
+export function useGridPreviewClient(): GridPreviewClient | undefined {
+  const connection = useControlPlaneConnection()
+  return useMemo(() => (connection ? new DeviceGridPreviewClient(connection.json, connection.operatorId) : undefined), [connection])
 }

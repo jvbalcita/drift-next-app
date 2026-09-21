@@ -74,6 +74,13 @@ import {
 } from "@/gen/drift/v1/automation_agent_pb"
 import { PageRequestSchema, ResourceRefSchema } from "@/gen/drift/v1/common_pb"
 import {
+  StopGridPreviewsRequestSchema,
+  StopGridPreviewsResponseSchema,
+  SyncGridPreviewsRequestSchema,
+  SyncGridPreviewsResponseSchema,
+  type SyncGridPreviewsResponse,
+} from "@/gen/drift/v1/grid_preview_pb"
+import {
   GetDeviceRequestSchema,
   GetDeviceResponseSchema,
   ListDevicesRequestSchema,
@@ -1167,6 +1174,65 @@ export class DeviceMirrorClient implements LiveMirrorClient {
 function requireStream(stream: MirrorStream | undefined): LiveStreamView {
   if (!stream) throw new ConnectJsonError("internal", liveMirrorCopy.failure.noStream)
   return liveStreamView(stream)
+}
+
+/**
+ * GridPreviewClient is the port the console's fleet grid drives: reconcile the
+ * plane's capture set with the devices this grid is drawing, and release it when
+ * the grid goes away.
+ *
+ * It is deliberately not part of ControlPlaneIntent, for the same reason a stream
+ * is not: a still is not a snapshot mutation. The plane OWNS the cadence - one
+ * owned worker captures each subscribed device once per sweep - so this is a
+ * reconciliation the console polls, not a capture it drives per device, and a
+ * console that named the set it is drawing cannot fan the fleet's work out.
+ *
+ * The port carries no session, no viewer place and no stream identity: a still
+ * spends no device session, so there is nothing here to allocate and no bound to
+ * run out of. The one live session this console opens is the operator's own frame,
+ * which is `LiveMirrorClient`'s business.
+ */
+export interface GridPreviewClient {
+  /**
+   * syncGridPreviews names EVERY device the grid is drawing, in the grid's own
+   * order, and reads what the plane's cadence produced for each. The set is
+   * reconciled rather than accumulated: the plane captures exactly the devices
+   * named by the most recent request, so the console STATES the set every time
+   * rather than adding to a subscription it would then have to remember to remove.
+   */
+  syncGridPreviews(request: { workspaceId: string; deviceIds: readonly string[] }): Promise<SyncGridPreviewsResponse>
+  /**
+   * stopGridPreviews releases the capture set: a device nothing is showing must not
+   * stay captured. It is best-effort and idempotent - a second stop releases nobody
+   * and says so - so a console that closed its grid twice is not an error.
+   */
+  stopGridPreviews(workspaceId: string): Promise<number>
+}
+
+export class DeviceGridPreviewClient implements GridPreviewClient {
+  private readonly rpc: TypedConnectClient
+  private readonly operatorId: string
+  constructor(json: ConnectJsonClient, operatorId = defaultOperatorId) {
+    this.rpc = new TypedConnectClient(json, "drift.v1.GridPreviewService")
+    this.operatorId = operatorId
+  }
+  syncGridPreviews(request: { workspaceId: string; deviceIds: readonly string[] }): Promise<SyncGridPreviewsResponse> {
+    return this.rpc.call("SyncGridPreviews", SyncGridPreviewsRequestSchema, SyncGridPreviewsResponseSchema, {
+      context: requestContext({ requestId: newRequestId(), actorId: this.operatorId }),
+      workspace: workspaceRef(request.workspaceId),
+      // Every device the grid draws travels, one entry each, uncapped: this list IS
+      // the plane's capture set, so a console that shortened it would silently stop
+      // capturing every device past the cut.
+      deviceIds: [...request.deviceIds],
+    })
+  }
+  async stopGridPreviews(workspaceId: string): Promise<number> {
+    const response = await this.rpc.call("StopGridPreviews", StopGridPreviewsRequestSchema, StopGridPreviewsResponseSchema, {
+      context: requestContext({ requestId: newRequestId(), actorId: this.operatorId }),
+      workspace: workspaceRef(workspaceId),
+    })
+    return response.released
+  }
 }
 
 export class MirrorClient {
