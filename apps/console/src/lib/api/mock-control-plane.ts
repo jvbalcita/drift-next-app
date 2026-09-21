@@ -1641,6 +1641,12 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return result(intent, intent.deviceId
           ? `Mock diagnostics refreshed for ${intent.deviceId}; no external service was contacted.`
           : "Mock projection refreshed; no external service was contacted.")
+      case "retireDevice":
+        return this.retireDevice(intent)
+      case "restoreDevice":
+        return this.restoreDevice(intent)
+      case "deleteDevice":
+        return this.deleteDevice(intent)
       case "setHalt":
         if (!intent.confirmed) return rejection(intent, `${intent.state === "emergency_stop" ? "Engaging" : "Releasing"} the emergency stop requires confirmation.`, undefined, "precondition_failed")
         if (!intent.reason.trim()) return rejection(intent, "A reason is required for the emergency stop change.", undefined, "invalid_input")
@@ -3008,6 +3014,49 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const groups = this.snapshot.groups.map((candidate) => (candidate.id === group.id ? { ...candidate, name, rowVersion: candidate.rowVersion + 1 } : candidate))
     this.snapshot = { ...this.snapshot, groups }
     return result(intent, "Device group renamed.", group.id)
+  }
+
+  private retireDevice(intent: Extract<ControlPlaneIntent, { type: "retireDevice" }>): MutationResult {
+    if (!intent.reason.trim()) return rejection(intent, "A reason is required to retire a device.", intent.deviceId, "invalid_input")
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) return rejection(intent, "Device was not found.", intent.deviceId, "invalid_input")
+    if (device.expectation === "retired") return rejection(intent, "Device expectation is already retired.", intent.deviceId, "precondition_failed")
+    this.snapshot = {
+      ...this.snapshot,
+      devices: this.snapshot.devices.map((candidate) => candidate.id === device.id ? { ...candidate, expectation: "retired" as const } : candidate),
+    }
+    return result(intent, "Device retired. Its registry history and evidence were preserved.", device.id)
+  }
+
+  private restoreDevice(intent: Extract<ControlPlaneIntent, { type: "restoreDevice" }>): MutationResult {
+    if (!intent.reason.trim()) return rejection(intent, "A reason is required to restore a device.", intent.deviceId, "invalid_input")
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) return rejection(intent, "Device was not found.", intent.deviceId, "invalid_input")
+    if (device.expectation !== "retired") return rejection(intent, "Device expectation is already expected.", intent.deviceId, "precondition_failed")
+    this.snapshot = {
+      ...this.snapshot,
+      devices: this.snapshot.devices.map((candidate) => candidate.id === device.id ? { ...candidate, expectation: "expected" as const, observedAgainAfterRetirement: false } : candidate),
+    }
+    return result(intent, "Device restored to the expected registry view.", device.id)
+  }
+
+  private deleteDevice(intent: Extract<ControlPlaneIntent, { type: "deleteDevice" }>): MutationResult {
+    if (!intent.reason.trim()) return rejection(intent, "A reason is required to permanently delete a device.", intent.deviceId, "invalid_input")
+    if (intent.confirmationDeviceId.trim() !== intent.deviceId) return rejection(intent, "Permanent deletion refused: the exact device identity confirmation did not match.", intent.deviceId, "precondition_failed")
+    const device = this.snapshot.devices.find((candidate) => candidate.id === intent.deviceId)
+    if (!device) return rejection(intent, "Device was not found.", intent.deviceId, "invalid_input")
+    if (device.status === "online") return rejection(intent, "Permanent deletion refused: the device still has a current attached endpoint.", intent.deviceId, "precondition_failed")
+    if (this.snapshot.leases.some((lease) => lease.deviceId === device.id && (lease.state === "requested" || lease.state === "active"))) {
+      return rejection(intent, "Permanent deletion refused: the device has an active control lease.", intent.deviceId, "precondition_failed")
+    }
+    if (this.snapshot.memberships.some((membership) => membership.deviceId === device.id && membership.state === "active")) {
+      return rejection(intent, "Permanent deletion refused: the device still has an active group assignment.", intent.deviceId, "precondition_failed")
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      devices: this.snapshot.devices.filter((candidate) => candidate.id !== device.id),
+    }
+    return result(intent, "Device permanently deleted from the registry. Its audit and evidence history was preserved.", device.id)
   }
 
   private deleteDeviceGroup(intent: Extract<ControlPlaneIntent, { type: "deleteDeviceGroup" }>): MutationResult {

@@ -1,20 +1,20 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest"
-import { render, screen, within } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 import { Toaster } from "@/components/ui/sonner"
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
-import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, EndpointView, MutationResult } from "@/lib/domain/control-plane"
+import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, DispatchIntent, EndpointView, MutationResult } from "@/lib/domain/control-plane"
 import { DevicesPage } from "./DevicesPage"
 
-function renderDevicesPage(snapshot?: ControlPlaneSnapshot) {
+function renderDevicesPage(snapshot?: ControlPlaneSnapshot, dispatchOverride?: DispatchIntent) {
   const client = new MockControlPlaneClient()
   const intents: ControlPlaneIntent[] = []
   const dispatch = async (intent: ControlPlaneIntent): Promise<MutationResult> => {
     intents.push(intent)
-    return await client.dispatch(intent)
+    return dispatchOverride ? await dispatchOverride(intent) : await client.dispatch(intent)
   }
   const active = snapshot ?? client.getSnapshot()
   const view = () => <><Toaster /><DevicesPage snapshot={active} dispatch={dispatch} view="all" onViewChange={() => undefined} /></>
@@ -146,10 +146,10 @@ describe("DevicesPage registry table", () => {
   it("refreshes the selected device before presenting its details", async () => {
     const user = userEvent.setup()
     const page = renderDevicesPage(scannedSnapshot())
-    await openInspect(user)
+    const sheet = await openInspect(user)
 
     expect(page.intents).toContainEqual({ type: "refresh", deviceId: "device-777" })
-    expect(await screen.findByText("Mock diagnostics refreshed for device-777; no external service was contacted.")).toBeInTheDocument()
+    await waitFor(() => expect(within(sheet).getByText("Mock diagnostics refreshed for device-777; no external service was contacted.")).toBeInTheDocument())
   })
 
   it("withholds a stale endpoint when the device projection names another record", () => {
@@ -344,6 +344,38 @@ describe("DevicesPage inspection surface", () => {
     expect(within(accessSheet).getByText("Operations demo")).toBeInTheDocument()
     await user.click(within(accessSheet).getByRole("button", { name: "Back to device details" }))
     expect(screen.getByRole("dialog", { name: "Atlas 04" })).toBeInTheDocument()
+  })
+
+  it("retires a device with an attributable reason through the typed intent", async () => {
+    const user = userEvent.setup()
+    const page = renderDevicesPage(scannedSnapshot(), async (intent) => ({ ok: true, kind: intent.type, message: "Device retired. Its registry history and evidence were preserved." }))
+    const sheet = await openInspect(user)
+
+    await user.click(within(sheet).getByRole("button", { name: "Retire device" }))
+    const dialog = screen.getByRole("dialog", { name: "Retire device?" })
+    await user.type(within(dialog).getByLabelText("Reason"), "Device removed from the lab fleet")
+    await user.click(within(dialog).getByRole("button", { name: "Retire device" }))
+
+    expect(page.intents).toContainEqual({ type: "retireDevice", deviceId: "device-777", reason: "Device removed from the lab fleet" })
+    await waitFor(() => expect(screen.getByText("Registry action: Device retired. Its registry history and evidence were preserved.")).toBeInTheDocument())
+  })
+
+  it("requires the exact device ID before permanent deletion", async () => {
+    const user = userEvent.setup()
+    const page = renderDevicesPage(snapshotWithDevices(["nova-05"]), async (intent) => ({ ok: true, kind: intent.type, message: "Device permanently deleted from the registry. Its audit and evidence history was preserved." }))
+    const sheet = await openInspect(user)
+
+    await user.click(within(sheet).getByRole("button", { name: "Delete permanently" }))
+    const dialog = screen.getByRole("dialog", { name: "Delete device permanently?" })
+    const submit = within(dialog).getByRole("button", { name: "Delete permanently" })
+    expect(submit).toBeDisabled()
+    await user.type(within(dialog).getByLabelText("Type the exact device ID: nova-05"), "nova-05")
+    await user.type(within(dialog).getByLabelText("Reason"), "Device was decommissioned")
+    expect(submit).toBeEnabled()
+    await user.click(submit)
+
+    expect(page.intents).toContainEqual({ type: "deleteDevice", deviceId: "nova-05", confirmationDeviceId: "nova-05", reason: "Device was decommissioned" })
+    expect(within(sheet).getByRole("status")).toHaveTextContent("Device permanently deleted")
   })
 
   it("hides an inspection section the device has no data source for", async () => {

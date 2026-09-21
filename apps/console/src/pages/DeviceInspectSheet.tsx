@@ -1,5 +1,5 @@
 import { useRef, useState } from "react"
-import { ArrowLeft, ChevronDown, ChevronRight, Network, ShieldCheck } from "lucide-react"
+import { Archive, ArrowLeft, ChevronDown, ChevronRight, Network, RotateCcw, ShieldCheck, Trash2 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
@@ -74,6 +74,7 @@ export function DeviceInspectSheet({
               </div> : null}
               <div className="px-4 pb-5 sm:px-5">
                 <DeviceInputControls device={device} snapshot={snapshot} dispatch={dispatch} />
+                <DeviceLifecycleControls device={device} dispatch={dispatch} />
               </div>
             </div>
           </SheetBody>
@@ -104,13 +105,83 @@ export function DeviceInspectSheet({
   )
 }
 
+type LifecycleAction = "retire" | "restore" | "delete"
+
+function DeviceLifecycleControls({ device, dispatch }: { device: DeviceView; dispatch: DispatchIntent }) {
+  const [action, setAction] = useState<LifecycleAction | null>(null)
+  const [reason, setReason] = useState("")
+  const [confirmation, setConfirmation] = useState("")
+  const [status, setStatus] = useState("")
+  const [pending, setPending] = useState(false)
+  const retired = device.expectation === "retired"
+  const canDelete = retired || device.observedAgainAfterRetirement || device.status === "offline" || device.status === "unobserved"
+
+  function open(next: LifecycleAction) {
+    setAction(next)
+    setReason("")
+    setConfirmation("")
+  }
+
+  function close() {
+    if (pending) return
+    setAction(null)
+    setReason("")
+    setConfirmation("")
+  }
+
+  async function submit() {
+    if (!action || !reason.trim() || pending) return
+    setPending(true)
+    const result = action === "retire"
+      ? await dispatch({ type: "retireDevice", deviceId: device.id, reason: reason.trim() })
+      : action === "restore"
+        ? await dispatch({ type: "restoreDevice", deviceId: device.id, reason: reason.trim() })
+        : await dispatch({ type: "deleteDevice", deviceId: device.id, confirmationDeviceId: confirmation.trim(), reason: reason.trim() })
+    setPending(false)
+    setStatus(`${result.ok ? "Registry action" : "Registry refusal"}: ${result.message}`)
+    if (result.ok) close()
+  }
+
+  return (
+    <section aria-labelledby="device-lifecycle-title" className="mt-6 space-y-3 border-t border-border pt-5">
+      <div>
+        <h3 id="device-lifecycle-title" className="text-[10px] font-semibold uppercase tracking-[.08em]">Registry actions</h3>
+        <p className="text-[11px] leading-5 text-muted-foreground">Retirement is reversible and preserves history. Permanent deletion removes only registry membership after an exact confirmation.</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {retired ? <Button type="button" size="sm" variant="ghost" className="border border-border" onClick={() => open("restore")}><RotateCcw className="size-3.5" aria-hidden="true" />Restore expectation</Button> : <Button type="button" size="sm" variant="ghost" className="border border-border" onClick={() => open("retire")}><Archive className="size-3.5" aria-hidden="true" />Retire device</Button>}
+        {canDelete ? <Button type="button" size="sm" variant="destructive" onClick={() => open("delete")}><Trash2 className="size-3.5" aria-hidden="true" />Delete permanently</Button> : null}
+      </div>
+      {status ? <p role="status" aria-live="polite" className="min-h-5 text-xs">{status}</p> : null}
+      {action ? <div role="dialog" aria-modal="false" aria-labelledby="device-lifecycle-confirm-title" className="space-y-4 border border-border bg-muted/30 p-4">
+        <div className="space-y-2">
+          <h4 id="device-lifecycle-confirm-title" className="font-medium">{action === "retire" ? "Retire device?" : action === "restore" ? "Restore device expectation?" : "Delete device permanently?"}</h4>
+          <p className="text-xs leading-5 text-muted-foreground">
+            {action === "retire"
+              ? "This records that the device is no longer expected. Its identity, observations, and evidence stay intact."
+              : action === "restore"
+                ? "This records that the device is expected again. It does not fabricate an observation or endpoint."
+                : "This removes the device from the registry only. Append-only observations, evidence, audit, and deletion history are retained; the control plane refuses if the device is attached or still referenced by active work."}
+          </p>
+        </div>
+        {action === "delete" ? <div className="space-y-2"><label htmlFor="delete-device-confirmation" className="text-xs font-medium">Type the exact device ID: <span className="drift-data">{device.id}</span></label><Input id="delete-device-confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" autoFocus /></div> : null}
+        <div className="space-y-2"><label htmlFor="device-lifecycle-reason" className="text-xs font-medium">Reason</label><Input id="device-lifecycle-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why is this registry decision being made?" autoFocus={action !== "delete"} /></div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="outline" onClick={close} disabled={pending}>Cancel</Button>
+          <Button type="button" variant={action === "delete" ? "destructive" : "default"} onClick={() => void submit()} disabled={pending || !reason.trim() || action === "delete" && confirmation.trim() !== device.id}>{pending ? "Saving…" : action === "retire" ? "Retire device" : action === "restore" ? "Restore expectation" : "Delete permanently"}</Button>
+        </div>
+      </div> : null}
+    </section>
+  )
+}
+
 function DeviceInputControls({ device, snapshot, dispatch }: { device: DeviceView; snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent }) {
   const [mode, setMode] = useState<"tap" | "swipe" | "key">("tap")
   const [values, setValues] = useState({ x: "0", y: "0", startX: "0", startY: "0", endX: "0", endY: "0", durationMs: "300", width: "1080", height: "1920", keyCode: "4", observationToken: "" })
   const [status, setStatus] = useState("")
   const lease = snapshot.leases.find((candidate) => candidate.deviceId === device.id && candidate.state === "active")
   const observation = snapshot.observations.find((candidate) => candidate.deviceId === device.id && candidate.freshnessToken)
-  if (device.lifecycle === "retired" || device.controlEligibility !== "eligible" || !lease || !observation) return null
+  if (device.expectation === "retired" || device.controlEligibility !== "eligible" || !lease || !observation) return null
   const token = observation.freshnessToken
   const set = (key: keyof typeof values, value: string) => setValues((current) => ({ ...current, [key]: value }))
 

@@ -866,6 +866,9 @@ export interface DeviceOperationOutcomeView {
 
 export type ControlPlaneIntent =
   | { type: "refresh"; deviceId?: string }
+  | { type: "retireDevice"; deviceId: string; reason: string }
+  | { type: "restoreDevice"; deviceId: string; reason: string }
+  | { type: "deleteDevice"; deviceId: string; confirmationDeviceId: string; reason: string }
   | { type: "startMirrorPreview"; sourceDeviceId: string; followerDeviceIds: readonly string[] }
   | { type: "stopMirrorPreview"; sessionId: string }
   | { type: "createNetworkProfile"; name: string; addressPolicy: string; ports: readonly number[]; isDefault: boolean }
