@@ -267,16 +267,24 @@ func TestThePurposeDecidesTheBoundTheDeviceIsAskedFor(t *testing.T) {
 	// The operator's own frame is carried at its own profile, at the same stated
 	// setting: a level an operator chose for a grid of thumbnails must never make
 	// the frame they work in blurry.
+	//
+	// Its size is the device's own, and that is what makes the frame usable: the
+	// frame an operator points at is the frame their coordinate is measured in,
+	// and a downscaled frame states a render space the device does not present
+	// at, so every gesture in it is refused before it reaches a device.
 	operator, recordedOperator := newHarness(t, newFakeSession(), nil)
 	if _, err := operator.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeOperator, stated); err != nil {
 		t.Fatalf("Dial(operator): %v", err)
 	}
 	launch = launchFor(t, recordedOperator.options)
-	if !hasToken(launch, "max_size=1080") || !hasToken(launch, "max_fps=24") || !hasToken(launch, "video_bit_rate=2500000") {
-		t.Fatalf("the operator's own launch is %q, want its own profile of 1080 at 24 fps and 2.5 Mbps", launch)
+	if !hasToken(launch, "max_size=0") || !hasToken(launch, "max_fps=24") || !hasToken(launch, "video_bit_rate=2500000") {
+		t.Fatalf("the operator's own launch is %q, want its own profile of the device's own size (max_size=0) at 24 fps and 2.5 Mbps", launch)
 	}
 	if hasToken(launch, "max_fps=20") {
 		t.Fatal("the operator's own frame was captured at the preview setting chosen for the grid")
+	}
+	if hasToken(launch, "max_size=1080") {
+		t.Fatal("the operator's own frame was downscaled to the preview level's size, which is a render space the device does not present at")
 	}
 
 	// A purpose this adapter does not know is refused rather than mapped onto

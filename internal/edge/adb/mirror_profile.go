@@ -124,11 +124,28 @@ var mirrorPreviewLevels = map[string]mirrorPreviewLevel{
 //
 // The big frame is where the work happens, so it takes its own profile and never
 // the workspace's preview setting: a preview level an operator chose for a grid
-// of thumbnails must not make the frame they are working in blurry. It is the
-// level the frame's own work needs - 1080p at 2.5 Mbps, 24 fps - and its
-// keyframe cadence is the one this mirror has always asked for.
+// of thumbnails must not make the frame they are working in blurry. Its frame
+// rate is the fastest this product asks for and its keyframe cadence is the one
+// this mirror has always asked for.
+//
+// Its SIZE is the device's own, and that is a correctness bound rather than a
+// cost one. The frame an operator points at IS the frame their coordinate is
+// measured in: the console measures a gesture in the picture it was given and
+// states that frame as the render space, the media session refuses a coordinate
+// that is not in the frame it is streaming, and the input boundary cross-checks
+// the declared frame against the size the device presents at (`wm size`, the
+// override). A downscaled operator frame satisfies the session and fails the
+// device, and every gesture on the big frame is then refused before it reaches a
+// device - nothing in this product rescales a point from one frame into another,
+// because that is the defect that puts a plausible, wrong coordinate on a
+// screen. So the operator's frame states no downscale at all (`max_size=0`,
+// scrcpy's own "native"), which leaves the bit rate as the bound on what one
+// operator's stream costs the transport. A 1080p cap here was exactly this
+// mistake: on a device that presents at 1080x2280 the encoder produced 510x1080,
+// the console declared 510x1080, and the device's own size refused every tap and
+// swipe.
 var MirrorOperatorEncodeProfile = MirrorEncodeProfile{
-	MaxSize:            1080,
+	MaxSize:            0,
 	MaxFPS:             24,
 	BitRate:            2_500_000,
 	IDRIntervalSeconds: MirrorOperatorIDRIntervalSeconds,

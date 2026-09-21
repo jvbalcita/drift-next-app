@@ -65,9 +65,14 @@ func TestRegistryRefusesAnEndpointSerialThatIsNotAttached(t *testing.T) {
 		t.Fatal("registry completed a capture for an endpoint serial that is not attached")
 	}
 	// The capture refuses the name, so no fresh observation ever satisfies the
-	// action and completion is refused. Either classification is fail-closed.
+	// action and it is not completed as successful. Either classification is
+	// fail-closed: the frame/precondition gate refuses it, the kernel refuses a
+	// completion against the token the attempt was dispatched with, or - when no
+	// reading of the device could be taken at all - the attempt is left
+	// indeterminate for reconciliation rather than being recorded as a stale
+	// completion of an action nothing read.
 	switch platformerrors.CodeOf(runErr) {
-	case platformerrors.CodePreconditionFailed, platformerrors.CodeStaleObservation:
+	case platformerrors.CodePreconditionFailed, platformerrors.CodeStaleObservation, platformerrors.CodeIndeterminateCompletion:
 	default:
 		t.Fatalf("unattached endpoint serial code = %v, want a fail-closed classification; err=%v", platformerrors.CodeOf(runErr), runErr)
 	}

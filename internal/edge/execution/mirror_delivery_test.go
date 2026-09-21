@@ -363,8 +363,19 @@ func TestASessionThatRefusesTheInputIsRefusedAndNotRetriedElsewhere(t *testing.T
 	if calls := fixture.transport.invocationCount(); calls != 0 {
 		t.Fatalf("the refused input was retried as %d adb command(s), want 0", calls)
 	}
-	if fixture.observer.observations != 0 {
-		t.Fatalf("a refused input observed the device %d times, want 0", fixture.observer.observations)
+	// The refusal is completed against a reading taken AFTER it, so the boundary
+	// does take one - and that is the point: the kernel completes an attempt only
+	// against a fresh observation, so an input refused before the device still
+	// has to be read for, or its attempt cannot be completed at all. What must
+	// not happen is the input being retried or reported as verified.
+	if fixture.observer.observations != 1 {
+		t.Fatalf("a refused input observed the device %d times, want exactly 1: the completion names the reading it was evaluated against", fixture.observer.observations)
+	}
+	if completion := fixture.control.lastCompletion(t); completion.ObservationToken != postToken {
+		t.Fatalf("the refused input was completed against %q, want the fresh reading %q", completion.ObservationToken, postToken)
+	}
+	if completion := fixture.control.lastCompletion(t); completion.Postcondition != action.PostconditionFailed {
+		t.Fatalf("the refused input was completed with postcondition %q, want %q: no device call was made, so the action did not happen", completion.Postcondition, action.PostconditionFailed)
 	}
 }
 

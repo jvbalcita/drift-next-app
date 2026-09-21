@@ -39,7 +39,7 @@ type sqliteInputFixture struct {
 	clock      *advancingClock
 }
 
-func newSQLiteInputFixture(t *testing.T, leaseTTL time.Duration, transportState adb.DeviceAuthState) sqliteInputFixture {
+func newSQLiteInputFixture(t *testing.T, leaseTTL time.Duration, transportState adb.DeviceAuthState, options ...execution.DispatcherOption) sqliteInputFixture {
 	t.Helper()
 	ctx := context.Background()
 	controlled := &advancingClock{now: time.Date(2026, time.September, 16, 9, 0, 0, 0, time.UTC)}
@@ -74,7 +74,11 @@ func newSQLiteInputFixture(t *testing.T, leaseTTL time.Duration, transportState 
 		t.Fatal("store-backed readiness probe was not constructed")
 	}
 	control := store.NewActionService(db)
-	dispatcher, err := execution.NewInputDispatcher(control, probe, observer, transport, &fakeResolver{value: typedValueFixture}, execution.WithRenderSizeSourceFactory(testRenderSizeSource), execution.WithEvidenceRecorder(store.NewActionEvidenceService(db)))
+	dispatcherOptions := append([]execution.DispatcherOption{
+		execution.WithRenderSizeSourceFactory(testRenderSizeSource),
+		execution.WithEvidenceRecorder(store.NewActionEvidenceService(db)),
+	}, options...)
+	dispatcher, err := execution.NewInputDispatcher(control, probe, observer, transport, &fakeResolver{value: typedValueFixture}, dispatcherOptions...)
 	if err != nil {
 		t.Fatalf("new input dispatcher: %v", err)
 	}

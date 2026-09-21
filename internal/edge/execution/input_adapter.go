@@ -421,11 +421,11 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 		// The render-size source could not be established for a kind whose
 		// frame has to be checked. No device call was made, so this is a
 		// refusal before the input, not a failure of the input.
-		return adapter.Execution{}, &adapter.ExecutionError{Cause: err, FailureClass: domain.FailureInfrastructure}
+		return adapter.Execution{}, a.refusal(ctx, intent, payload, err, domain.FailureInfrastructure, counted, &report)
 	}
 	inputs, err := NewInputs(counted, a.resolver, a.serial, options...)
 	if err != nil {
-		return adapter.Execution{}, &adapter.ExecutionError{Cause: err, FailureClass: domain.FailureInfrastructure}
+		return adapter.Execution{}, a.refusal(ctx, intent, payload, err, domain.FailureInfrastructure, counted, &report)
 	}
 	// The render-space cross-check runs here, explicitly, before the input is
 	// sent: a coordinate whose frame the device does not present at is refused
@@ -441,7 +441,7 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 			// call site is the render-space gate, so its refusal is named as
 			// such even when the reader's own code (an unreadable device) is one
 			// the generic mapping would otherwise report as a transport failure.
-			return adapter.Execution{}, &adapter.ExecutionError{Cause: err, FailureClass: renderSpaceFailureClass(err)}
+			return adapter.Execution{}, a.refusal(ctx, intent, payload, err, renderSpaceFailureClass(err), counted, &report)
 		}
 	}
 	readback, readBack, runErr := SettingReadback{}, false, error(nil)
@@ -486,11 +486,7 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 		}
 		// The typed payload and the transport's own diagnostics are never
 		// echoed: a failing device command can quote what it was given.
-		return adapter.Execution{}, &adapter.ExecutionError{
-			Cause:        runErr,
-			Dispatched:   counted.attempted(),
-			FailureClass: failureClassFor(runErr),
-		}
+		return adapter.Execution{}, a.refusal(ctx, intent, payload, runErr, failureClassFor(runErr), counted, &report)
 	}
 	if operationRead {
 		// A catalogued device operation read its own postcondition back off the
@@ -545,10 +541,15 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 		// The input reached the device and the outcome could not be observed:
 		// that is indeterminate, never success. The evidence record says so,
 		// and carries no observation rather than an invented one.
+		//
+		// The class names the READING rather than the transport, because that is
+		// what failed: the input was carried and the device could not be read
+		// afterwards, so a caller left holding an uncompleted attempt is told the
+		// reading is missing instead of being told the device went quiet.
 		return adapter.Execution{
 			Outcome:       action.OutcomeIndeterminate,
 			Postcondition: action.PostconditionUnknown,
-			FailureClass:  domain.FailureIndeterminate,
+			FailureClass:  domain.FailureObservation,
 			Dispatched:    true,
 		}, nil
 	}
@@ -562,6 +563,44 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 		Dispatched:       true,
 		ObservationToken: observation.Token,
 	}, nil
+}
+
+// refusal is the failure this boundary reports for an attempt that did NOT reach
+// the device: the render-space gate's refusal, an input whose bound could not be
+// built, or a delivery the live session did not carry.
+//
+// It takes the reading that attempt's completion has to name. The kernel
+// completes an attempt only against an observation taken AFTER it - a completion
+// carrying the token the attempt was dispatched with, or none, is refused as
+// stale - and that refusal is about the READING rather than about the input, so
+// submitting one would replace the reason the input failed with a sentence about
+// an observation nobody took. The reading is taken here, where the refusal is
+// known, and travels on the failure so the completion can name it.
+//
+// A reading that CANNOT be taken is not replaced with a token: the token is left
+// empty and the caller then leaves the attempt uncompleted for reconciliation,
+// which keeps "the input was refused" and "the device could not be read after it"
+// two different states.
+//
+// An attempt whose device command WAS issued takes no reading here: its outcome
+// is indeterminate whatever this boundary saw, and the kernel ends it without
+// one.
+func (a *inputAdapter) refusal(ctx context.Context, intent action.Intent, payload InputPayload, cause error, class domain.FailureClass, counted *countingTransport, report *attemptReport) *adapter.ExecutionError {
+	dispatched := counted != nil && counted.attempted()
+	token := ""
+	if !dispatched {
+		if observation, observeErr := a.observer.ObservePostcondition(ctx, intent, payload); observeErr == nil {
+			report.observation = observation
+			report.observed = true
+			token = observation.Token
+		}
+	}
+	return &adapter.ExecutionError{
+		Cause:            cause,
+		Dispatched:       dispatched,
+		FailureClass:     class,
+		ObservationToken: token,
+	}
 }
 
 // runInput dispatches to exactly the primitive the payload names. A typed-text
