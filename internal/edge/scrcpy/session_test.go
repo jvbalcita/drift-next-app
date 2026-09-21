@@ -42,13 +42,24 @@ type fakeRunner struct {
 	mu    sync.Mutex
 	calls []allowlistedCall
 	err   error
+	// respond, when it is set, answers one call from the array it was given. A
+	// runner with a single canned answer cannot express what the device-side
+	// sweep is about - a process list that held a leftover before a clear and
+	// nothing after it - so the answers a test needs the device to give are
+	// supplied per array.
+	respond func(args []string) (adb.Result, error)
 }
 
 func (r *fakeRunner) RunAllowlisted(_ context.Context, serial string, args []string) (adb.Result, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.calls = append(r.calls, allowlistedCall{serial: serial, args: append([]string(nil), args...)})
-	return adb.Result{}, r.err
+	respond := r.respond
+	err := r.err
+	r.mu.Unlock()
+	if respond != nil {
+		return respond(args)
+	}
+	return adb.Result{}, err
 }
 
 // argvMatching returns every recorded argument array containing the marker.
@@ -288,6 +299,15 @@ type harness struct {
 
 func newHarness(t *testing.T, head []byte, packets [][]byte, mutate func(*Options)) harness {
 	t.Helper()
+	return newHarnessOver(t, head, packets, &fakeRunner{}, mutate)
+}
+
+// newHarnessOver is newHarness with the device's own answers supplied: a runner
+// that answers per array is what a test of the device-side sweep needs, because
+// the question the sweep asks - what does this device hold now - has to change
+// between two reads of it.
+func newHarnessOver(t *testing.T, head []byte, packets [][]byte, runner *fakeRunner, mutate func(*Options)) harness {
+	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
@@ -296,7 +316,6 @@ func newHarness(t *testing.T, head []byte, packets [][]byte, mutate func(*Option
 	if err := os.WriteFile(serverPath, []byte("server"), 0o600); err != nil {
 		t.Fatalf("write server: %v", err)
 	}
-	runner := &fakeRunner{}
 	starter := &fakeStarter{}
 	opts := Options{
 		ADB:        fakeADBPath(t),

@@ -57,6 +57,36 @@ func TestADeadDeviceServerIsClassifiedWhereTheDeviceProcessIs(t *testing.T) {
 	}
 }
 
+// TestADeviceHoldingItsOwnLeftoverIsItsOwnClass is acceptance 3's first half at
+// the adapter: a device this plane could not clear of a server a previous session
+// left behind is NOT a transport that could not be established, and the two are
+// told apart here - where the device's own process is - rather than by whoever
+// reads the words.
+func TestADeviceHoldingItsOwnLeftoverIsItsOwnClass(t *testing.T) {
+	cause := fmt.Errorf("%w: pid 1709 (session 48f26d0b), pid 1711 (session 48f26d0b) survived 2 clear(s) on the device", scrcpy.ErrServerLeftover)
+	dialer := dialFailing(t, cause)
+	_, err := dialer.Dial(context.Background(), "device-1", "SERIAL-1", media.PurposeOperator, media.DefaultPreview())
+	if err == nil {
+		t.Fatal("a device holding a leftover produced a stream")
+	}
+	class, classified := media.MirrorEndClassOf(err)
+	if !classified {
+		t.Fatalf("the refusal carries no class at all: %v", err)
+	}
+	if class != media.MirrorEndDeviceServerLeftover {
+		t.Fatalf("a device holding its own leftover is classified %q, want %q", class, media.MirrorEndDeviceServerLeftover)
+	}
+	if class == media.MirrorEndTransportUnavailable {
+		t.Fatal("a device holding a leftover is reported as a transport that could not be established, which sends an operator to a network that is working")
+	}
+	if !strings.Contains(err.Error(), "48f26d0b") {
+		t.Fatalf("the refusal does not name the processes that are holding the device: %v", err)
+	}
+	if sentence := class.Sentence(); sentence == "" || !strings.Contains(sentence, "left behind") {
+		t.Fatalf("the class's own sentence is %q, which does not name what happened", sentence)
+	}
+}
+
 // TestEveryDeviceServerFailureIsItsOwnClass: a server that is not there, one that
 // will not launch, and one that exits are the same fact for an operator - the
 // device's own server - and all three are told apart from the transport.

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +22,10 @@ const (
 	mirrorTestSerial    = "192.168.1.104:5555"
 	mirrorTestSessionID = uint32(0x2abc1234)
 	mirrorTestHostPath  = "/opt/homebrew/share/scrcpy/scrcpy-server"
+	// mirrorTestProcessID is a process id of the shape a device's own process
+	// list returns: the lab fleet's are four digits, and this one is the pid the
+	// fixture's server was measured at.
+	mirrorTestProcessID = 1709
 )
 
 func mirrorTestPush(t *testing.T) []string {
@@ -48,6 +53,93 @@ func mirrorTestLaunch(t *testing.T) []string {
 		t.Fatalf("MirrorServerLaunchArgv() = %v", err)
 	}
 	return args
+}
+
+func mirrorTestSignal(t *testing.T) []string {
+	t.Helper()
+	args, err := MirrorProcessSignalArgv(mirrorTestProcessID, false)
+	if err != nil {
+		t.Fatalf("MirrorProcessSignalArgv() = %v", err)
+	}
+	return args
+}
+
+func mirrorTestHardSignal(t *testing.T) []string {
+	t.Helper()
+	args, err := MirrorProcessSignalArgv(mirrorTestProcessID, true)
+	if err != nil {
+		t.Fatalf("MirrorProcessSignalArgv(hard) = %v", err)
+	}
+	return args
+}
+
+// TestTheDeviceSweepAndReapAreAdmittedUnderTheirOwnNames is the admission for the
+// three commands that clear a device of the servers a previous session left
+// behind (ARC-264).
+//
+// They are separate operations rather than one, because they answer different
+// questions on the device: the read asks what the device holds, the whole-plane
+// reap clears everything THIS PLANE left there before a launch, and the session
+// reap clears exactly the one capture a session started as that session ends - a
+// session that reached another session's capture would be a session ending that
+// stops a train somebody is watching.
+func TestTheDeviceSweepAndReapAreAdmittedUnderTheirOwnNames(t *testing.T) {
+	cases := []struct {
+		operation string
+		args      []string
+	}{
+		{MirrorProcessListOperation, MirrorProcessListArgv()},
+		{MirrorProcessSignalOperation, mirrorTestSignal(t)},
+		{MirrorProcessKillOperation, mirrorTestHardSignal(t)},
+	}
+	for _, test := range cases {
+		name, ok := matchesAllowlist(test.args)
+		if !ok || name != test.operation {
+			t.Fatalf("matchesAllowlist(%q) = %q, %v; want %q, true", test.args, name, ok, test.operation)
+		}
+	}
+	// The read asks the device for one thing this plane can classify. The
+	// default column set this fleet's toybox prints names every `app_process` by
+	// its executable, so a read without the command line cannot tell a leftover
+	// server from any other process on the device.
+	read := MirrorProcessListArgv()
+	if len(read) != 5 || read[4] != "PID,ARGS" {
+		t.Fatalf("the process-list read is %q, want the pid and the command line", read)
+	}
+	// The clear is addressed by PROCESS ID, and that is the design rather than a
+	// detail: a pattern is not admissible here. `pkill -f` matches a process by
+	// its whole command line, and the command line of the shell carrying the
+	// pattern holds the pattern's own text - so a plain pattern kills its own
+	// shell (measured on the fleet: exit 143 and no output at all, which this
+	// plane classified as a transport that could not be established). Writing the
+	// pattern so it cannot match itself needs a character class, and `[` is one of
+	// the runes the token gate refuses, deliberately. A process id needs neither:
+	// it is a number the read returned, and nothing on the device interprets it.
+	signal := mirrorTestSignal(t)
+	if len(signal) != 3 || signal[0] != "shell" || signal[1] != "kill" {
+		t.Fatalf("the clear is %q, want a signal addressed to one process id", signal)
+	}
+	if signal[2] != strconv.Itoa(mirrorTestProcessID) {
+		t.Fatalf("the clear names %q, want the process id the read returned (%d)", signal[2], mirrorTestProcessID)
+	}
+	hard := mirrorTestHardSignal(t)
+	if len(hard) != 4 || hard[2] != "-9" || hard[3] != strconv.Itoa(mirrorTestProcessID) {
+		t.Fatalf("the second attempt of a clear is %q, want SIGKILL addressed to the same process id", hard)
+	}
+	// Neither form can select a second command, a pattern or a flag: the only
+	// variable position is the id, and it is a canonical bounded decimal.
+	if _, err := MirrorProcessSignalArgv(0, false); err == nil {
+		t.Fatal("the clear accepted process id 0, which is not a process on any device")
+	}
+	if _, err := MirrorProcessSignalArgv(-1, true); err == nil {
+		t.Fatal("the clear accepted a negative process id")
+	}
+	if _, err := MirrorProcessSignalArgv(maxMirrorProcessID+1, false); err == nil {
+		t.Fatalf("the clear accepted a process id beyond the largest a kernel hands out (%d)", maxMirrorProcessID)
+	}
+	if _, err := MirrorProcessSignalArgv(maxMirrorProcessID, false); err != nil {
+		t.Fatalf("the clear refused the largest process id a kernel hands out: %v", err)
+	}
 }
 
 // TestTheMirrorRemovalIsAdbOwnGrammar pins the removal to the array adb accepts.
@@ -86,6 +178,9 @@ func TestTheMirrorAdmissionRecognisesTheArraysItsBuildersProduce(t *testing.T) {
 		{MirrorReverseAddOperation, mirrorTestReverse(t, false)},
 		{MirrorReverseRemoveOperation, mirrorTestReverse(t, true)},
 		{MirrorServerLaunchOperation, mirrorTestLaunch(t)},
+		{MirrorProcessListOperation, MirrorProcessListArgv()},
+		{MirrorProcessSignalOperation, mirrorTestSignal(t)},
+		{MirrorProcessKillOperation, mirrorTestHardSignal(t)},
 	}
 	names := map[string]bool{}
 	for _, test := range cases {
@@ -101,8 +196,8 @@ func TestTheMirrorAdmissionRecognisesTheArraysItsBuildersProduce(t *testing.T) {
 		}
 		names[name] = true
 	}
-	if len(names) != 4 {
-		t.Fatalf("the mirror admission reports %d operation names, want 4", len(names))
+	if len(names) != 7 {
+		t.Fatalf("the mirror admission reports %d operation names, want 7", len(names))
 	}
 }
 
@@ -117,6 +212,9 @@ func TestTheMirrorShapesCarryNoSerial(t *testing.T) {
 		mirrorTestReverse(t, false),
 		mirrorTestReverse(t, true),
 		mirrorTestLaunch(t),
+		MirrorProcessListArgv(),
+		mirrorTestSignal(t),
+		mirrorTestHardSignal(t),
 	} {
 		withSerial := append([]string{"-s", mirrorTestSerial}, args...)
 		if name, ok := matchesAllowlist(withSerial); ok {
@@ -242,6 +340,43 @@ func TestTheMirrorAdmissionRefusesEveryNearMiss(t *testing.T) {
 		append(append([]string(nil), launch...), "max_fps=30"),
 		launch[:len(launch)-1],
 		append([]string{"shell", "sh", "-c"}, launch[1:]...),
+		// The device-side sweep and the clear: a read that asks for the process
+		// NAME rather than its command line (which cannot tell this plane's server
+		// from any other app_process on the device), a read of something else, a
+		// clear addressed by a pattern (the form that kills its own shell), a clear
+		// with no id, with a zero, with a leading zero, with a sign, beyond the
+		// largest process id a kernel hands out, with two ids, with a second
+		// command, and the whole clear wrapped in a shell.
+		{"shell", "ps", "-A"},
+		{"shell", "ps", "-A", "-o", "PID,NAME"},
+		{"shell", "ps", "-A", "-o", "ARGS,PID"},
+		{"shell", "ps", "-A", "-o", "PID,CMD"},
+		{"shell", "ps", "-x"},
+		{"shell", "ps", "-A", "-o", "PID,ARGS", "extra"},
+		{"shell", "pkill", "-f", "scid=2abc1234"},
+		{"shell", "pkill", "-f", MirrorServerMainClass},
+		{"shell", "pkill", "-f", "app_process"},
+		{"shell", "pkill", "-9", "-f", "scrcpy"},
+		{"pkill", "-f", "scrcpy"},
+		{"shell", "kill"},
+		{"shell", "kill", "-9"},
+		{"shell", "kill", "0"},
+		{"shell", "kill", "-9", "0"},
+		{"shell", "kill", "01709"},
+		{"shell", "kill", "-9", "01709"},
+		{"shell", "kill", "+1709"},
+		{"shell", "kill", "-1709"},
+		{"shell", "kill", "-9", "-1709"},
+		{"shell", "kill", "99999999"},
+		{"shell", "kill", "-9", "99999999"},
+		{"shell", "kill", "1709 1711"},
+		{"shell", "kill", "1709", "1711"},
+		{"shell", "kill", "-9", "1709", "1711"},
+		{"shell", "kill", "-TERM", "1709"},
+		{"shell", "kill", "1709; rm -rf /data/local/tmp"},
+		{"shell", "kill", "1709", "extra"},
+		{"shell", "sh", "-c", "kill 1709"},
+		{"kill", "1709"},
 		// A device command that is not a mirror shape at all.
 		{"shell", "app_process", "/", MirrorServerMainClass, MirrorServerVersion},
 	}

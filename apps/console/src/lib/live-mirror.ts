@@ -603,8 +603,23 @@ export const liveMirrorCopy = {
      * hands out a stream identity and forgets it on every read, so it says what
      * actually happened rather than borrowing the words of a failure the plane
      * never reported.
+     *
+     * `planeSaid` is the plane's own answer to the read it refused, carried
+     * verbatim on the end when this console has one, because the plane's answer is
+     * the CAUSE and this sentence is not: a refusal that named the device's own
+     * leftover server was reported here as "the plane forgot the stream", which
+     * sends an operator to the plane's bookkeeping instead of to the device that
+     * cannot be opened (ARC-264). A console with no answer of its own to carry
+     * keeps the sentence above alone - it has no cause to state, and inventing one
+     * would be the same mistake in the other direction.
      */
-    unresumable: "The control plane no longer knows this stream and opened no other for the device, so this console is carrying no picture for it. The plane is the one that forgot the stream, and nothing here was stopped for a read this console could not complete.",
+    unresumable: (planeSaid: string) => {
+      const reason = planeSaid.trim()
+      if (reason === "") {
+        return "The control plane no longer knows this stream and opened no other for the device, so this console is carrying no picture for it. The plane is the one that forgot the stream, and nothing here was stopped for a read this console could not complete."
+      }
+      return `The control plane no longer knows this stream and opened no other for the device, so this console is carrying no picture for it. The plane is the one that forgot the stream, and nothing here was stopped for a read this console could not complete. The control plane's own answer to that read: ${reason}`
+    },
     noEndpoint: "The control plane opened a stream over the TCP transport and named no stream endpoint to fetch, so there is nothing to read.",
     /**
      * The stream endpoint was accepted and never handed over a picture.

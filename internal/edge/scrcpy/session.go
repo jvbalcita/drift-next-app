@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -167,13 +168,24 @@ type Stats struct {
 	StartedAt    time.Time
 }
 
+// reapTimeout bounds the device-side reap a session performs on itself as it
+// ends.
+//
+// The reap runs on its own context rather than the caller's, and that is
+// deliberate: it is the one step of a session's teardown that must still happen
+// when the reason the session is ending IS the caller's context - a shut-down
+// plane, a cancelled dial, an engine stopping mid-session - so it cannot inherit
+// a context that is already gone.
+const reapTimeout = 5 * time.Second
+
 // Start pushes the server, opens the loopback listener, registers the reverse
 // tunnel, launches the device-side server, and returns the session once the
 // device has reported what it is encoding.
 //
 // Every step that can fail leaves nothing behind: a launch that fails removes
-// the tunnel and kills the process it started, so a session either exists and
-// can be closed, or does not exist at all.
+// the tunnel, kills the process it started, and reaps the device-side server, so
+// a session either exists and can be closed, or does not exist at all - on the
+// device as well as on the host.
 func Start(ctx context.Context, opts Options) (*Session, error) {
 	if err := validateOptions(opts); err != nil {
 		return nil, err
@@ -206,6 +218,17 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 		// classifies it as the device-side server rather than as a transport
 		// it can do nothing about.
 		return nil, fmt.Errorf("%w: building the device server launch: %w", ErrServerStart, err)
+	}
+
+	// The device is cleared of any server a PREVIOUS session left behind, before
+	// anything of this session is put on it, and the order is the whole of it: a
+	// leftover refuses the next capture from inside the device, so a sweep that
+	// ran after the launch would be a sweep that reports a failure instead of
+	// preventing one (see deviceServerReaper.sweep).
+	if report, sweepErr := session.reaper().sweep(ctx); sweepErr != nil {
+		return nil, sweepErr
+	} else if line := report.Line(); line != "" {
+		log.Print(line)
 	}
 
 	// The server is pushed on every session rather than reused from a previous
@@ -255,19 +278,14 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 	session.proc = proc
 
 	if session.video, err = session.accept(listener); err != nil {
-		_ = proc.Kill()
-		return nil, session.explain(err)
+		return nil, session.abort(err)
 	}
 	deadline := time.Now().Add(opts.AcceptWait)
 	if err := session.readStreamMeta(deadline); err != nil {
-		session.video.Close()
-		_ = proc.Kill()
-		return nil, session.explain(err)
+		return nil, session.abort(err)
 	}
 	if session.ctrl, err = session.accept(listener); err != nil {
-		session.video.Close()
-		_ = proc.Kill()
-		return nil, session.explain(err)
+		return nil, session.abort(err)
 	}
 
 	cleanupTunnel = false
@@ -561,8 +579,17 @@ func (s *Session) RequestKeyframe() error {
 }
 
 // Close ends the session: it closes both sockets, stops the device-side server,
-// removes the reverse tunnel, and waits for the session's own goroutines to
-// observe it. It is idempotent.
+// reaps whatever that server left running on the device, removes the reverse
+// tunnel, and waits for the session's own goroutines to observe it. It is
+// idempotent.
+//
+// Stopping the host-side client is not the same thing as stopping the capture,
+// and the difference is measured rather than assumed: killing the adb client the
+// server was launched through leaves the device-side process running - one lab
+// device was found carrying six of them, one 1h19m old, left by sessions that had
+// already ended - and a device that still holds one refuses the next capture from
+// inside itself. So the reap below is part of ending a session rather than an
+// extra: a session that ended and left its server running has not ended.
 func (s *Session) Close(ctx context.Context) error {
 	var err error
 	s.closeOnce.Do(func() {
@@ -587,11 +614,66 @@ func (s *Session) Close(ctx context.Context) error {
 				err = fmt.Errorf("scrcpy: stopping the device server: %w", killErr)
 			}
 		}
+		// The reap is what makes "the session ended" true ON THE DEVICE, and it
+		// runs whether or not the host-side kill reported anything: the two are
+		// different facts, and the one this plane has measured is that the
+		// device keeps the process.
+		if reapErr := s.reapDeviceServer(); reapErr != nil && err == nil {
+			err = reapErr
+		}
 		if removeErr := s.reverse(ctx, "remove"); removeErr != nil && err == nil {
 			err = removeErr
 		}
 	})
 	return err
+}
+
+// reaper is the device-side clearer this session reads and clears its own device
+// with: the same allow-listed runner and the same serial every other command of
+// this session goes through.
+func (s *Session) reaper() deviceServerReaper {
+	return deviceServerReaper{runner: s.opts.Runner, serial: s.opts.Serial, wait: leftoverSweepWaitDefault}
+}
+
+// reapDeviceServer clears this session's own device-side server and confirms it
+// is gone.
+//
+// It runs on a context of its own, bounded, because it is the one step of a
+// session's teardown that has to happen precisely when the context that ended the
+// session is already dead: a plane shutting down, a dial the caller cancelled, an
+// engine stopping mid-session. Inheriting the caller's context would mean the
+// reap is skipped in exactly the cases it exists for.
+func (s *Session) reapDeviceServer() error {
+	ctx, cancel := context.WithTimeout(context.Background(), reapTimeout)
+	defer cancel()
+	return s.reaper().reapSession(ctx, s.scid)
+}
+
+// abort ends a session that was never handed to a caller.
+//
+// A launch that failed halfway has already put work on the device - a pushed
+// server, a registered tunnel, and possibly a running server that is waiting for
+// two sockets that will never come - so it is torn down in the same order Close
+// uses, with the device-side reap included. The failure it reports is the one
+// that ended the launch, with whatever the device's own server said beside it,
+// and a reap that did not take is stated with it rather than hidden: the caller
+// above classifies on the way out, and a leftover is a fact it should classify
+// on.
+func (s *Session) abort(cause error) error {
+	explained := s.explain(cause)
+	if s.ctrl != nil {
+		_ = s.ctrl.Close()
+	}
+	if s.video != nil {
+		_ = s.video.Close()
+	}
+	if s.proc != nil {
+		_ = s.proc.Kill()
+	}
+	if reapErr := s.reapDeviceServer(); reapErr != nil {
+		return fmt.Errorf("%w; and the device-side server this attempt started was not reaped: %w", explained, reapErr)
+	}
+	return explained
 }
 
 // SessionID reports the id the device named its socket after. It is reported so

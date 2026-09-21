@@ -109,6 +109,31 @@ const (
 
 	// maxMirrorHostPathLength bounds the host path a push may name.
 	maxMirrorHostPathLength = 512
+
+	// maxMirrorProcessID bounds the process id a clear may name. Linux's own
+	// default maximum is 32768 and a kernel may be configured up to 2^22; the
+	// bound is the largest value the kernel can hand out rather than the smallest
+	// it happens to use, because the cost of being wrong here is a clear that
+	// refuses a device whose pids run high.
+	maxMirrorProcessID = 4194304
+
+	// MirrorProcessListFields is the `ps` field list the plane reads a device's
+	// processes with: the pid and the full command line, and nothing else.
+	//
+	// It is a field LIST rather than the default column set because the default
+	// set this fleet's toybox prints names a process by its executable - every
+	// `app_process` on a device reads as `app_process` and nothing else - so a
+	// reader could not tell this plane's device-side server from any other
+	// process on the device. The command line is what carries the main class,
+	// the pinned server version and the session id, which is what makes a
+	// leftover identifiable at all (measured on the lab fleet, toybox 0.8.4).
+	MirrorProcessListFields = "PID,ARGS"
+
+	// maxMirrorProcessLineLength bounds one process command line this plane will
+	// classify. A device's command line is its own business and may be long; the
+	// bound is what keeps a reader from scanning something that is not a command
+	// line at all.
+	maxMirrorProcessLineLength = 4096
 )
 
 var (
@@ -307,25 +332,137 @@ func mirrorSessionIDHex(sessionID uint32) (string, error) {
 	return fmt.Sprintf("%08x", sessionID), nil
 }
 
+// --- the device-side leftovers -------------------------------------------
+//
+// A device-side server outlives the session that started it more often than it
+// should: the host kills the adb client it launched the server through, and the
+// device keeps the process. Measured on the lab fleet on 2026-09-21, one bench
+// device was carrying SIX of this plane's own servers at once - scids 48f26d0b,
+// 423ac5f6, 2a780b34, 191d0757, 6074d266 and 1608aadd, each still holding its
+// `sh -c` parent - left behind by sessions that had long since ended, and a
+// fresh launch could not open until they were killed by hand.
+//
+// What the plane clears them with is a signal addressed to a process id, and the
+// marker below is what identifies a process as this plane's own leftover rather
+// than as somebody else's use of the same server. Both are properties of the
+// LAUNCH above and are stated here beside it: a marker that drifted from the
+// launch it describes would clear the wrong processes or none.
+
+// MirrorServerProcessMarker is the text that identifies a DEVICE PROCESS as this
+// plane's own device-side server: the main class and the pinned server version,
+// exactly as the launch above spells them.
+//
+// It is the version that makes this plane's server identifiable rather than the
+// main class alone, and that is measured rather than assumed: the lab fleet's
+// devices also run a second, unrelated screen-capture tool that drives
+// `com.genymobile.scrcpy.Server 2.4` from `/data/local/tmp/XWCaptureScreen.jar`
+// (`tunnel_forward=true`, `cleanup=false`, scid 20). A marker of the main class
+// alone would have cleared a process this plane did not start, and the pinned
+// version is exactly what tells the two apart - see MirrorServerVersion, which
+// is a pin rather than configuration for this reason among others.
+func MirrorServerProcessMarker() string {
+	return MirrorServerMainClass + " " + MirrorServerVersion
+}
+
+// IsMirrorServerProcessCommandLine reports whether a device process's command
+// line is this plane's own device-side server, as a `ps` read of that device
+// reports it.
+//
+// It matches the marker as a substring, because a device reports the server's
+// command line as the whole of what started it - `app_process / <marker> scid=…`
+// for the server, and `sh -c CLASSPATH=… app_process / <marker> scid=…` for the
+// shell that launched it, which is the process whose death does NOT stop the
+// one it started. Both are this plane's leftover and both are classified here.
+func IsMirrorServerProcessCommandLine(line string) bool {
+	if line == "" || len(line) > maxMirrorProcessLineLength {
+		return false
+	}
+	return strings.Contains(line, MirrorServerProcessMarker())
+}
+
+// MirrorProcessListArgv builds the read of a device's own process list. It is
+// how the plane establishes whether a device still holds a server a previous
+// session left behind, and how it confirms that clearing one worked.
+//
+// Every token is a literal: `ps` runs on the device as itself, with a field list
+// this file states, and no part of what is asked for comes from a caller.
+func MirrorProcessListArgv() []string {
+	return []string{"shell", "ps", "-A", "-o", MirrorProcessListFields}
+}
+
+// MirrorProcessSignalArgv builds the signal sent to ONE process this plane has
+// already identified on the device through the read above.
+//
+// It is addressed by PROCESS ID rather than by a pattern, and that is the whole
+// design of the clear. A pattern is not available to this plane. `pkill -f`
+// matches a process by its whole command line, and the command line of the shell
+// that carries the pattern holds the pattern's own text - so a plain pattern
+// kills the shell that invoked it, and the dead connection that results was
+// classified as a transport that could not be established. Measured on the lab
+// fleet's toybox:
+//
+//	adb shell 'pkill -f scid=deadbeef; echo exit=$?'  ->  no output at all,
+//	                                                      adb exits 143
+//
+// Writing the pattern so that it cannot match itself is possible - a one-character
+// class around its first character - but it is not admissible here, and the
+// admission is right: a character class needs `[`, and `[` is one of the runes the
+// token gate refuses because it is a shell metacharacter.
+//
+// What this plane does instead is the stronger thing: it reads the device's own
+// process list, identifies its OWN servers by the marker above, and signals exactly
+// the process ids it found. Nothing is signalled that was not read, no part of the
+// command is interpreted by the device's shell, and a process that has already gone
+// answers "no such process" - an answer about a clear that had nothing left to do
+// rather than a failure.
+//
+// `hard` sends SIGKILL instead of the default SIGTERM, and it is the SECOND
+// attempt of a clear rather than the first: a server that ignores the polite
+// signal is a server that is not shutting down, and the process this plane must
+// not leave behind is the one holding the device's capture.
+func MirrorProcessSignalArgv(pid int, hard bool) ([]string, error) {
+	token, err := mirrorProcessIDToken(pid)
+	if err != nil {
+		return nil, err
+	}
+	if hard {
+		return []string{"shell", "kill", "-9", token}, nil
+	}
+	return []string{"shell", "kill", token}, nil
+}
+
+// mirrorProcessIDToken renders a device process id as the canonical decimal the
+// admission accepts: no leading zero, no sign, no whitespace, and bounded to the
+// largest process id a Linux kernel can be configured to hand out.
+func mirrorProcessIDToken(pid int) (string, error) {
+	if pid < 1 || pid > maxMirrorProcessID {
+		return "", fmt.Errorf("%w: a device process id must be in 1..%d, got %d", ErrMirrorShapeInvalid, maxMirrorProcessID, pid)
+	}
+	return strconv.Itoa(pid), nil
+}
+
 // --- the admission --------------------------------------------------------
 
-// matchesMirrorAllowlist recognises exactly the four argument arrays the mirror
-// builders produce: the server push, the two reverse-tunnel forms, and the
-// device-side server launch. All four are serial-free: the device serial is
-// supplied as its own -s token by the entry point that executes the array, so
-// the serial is never part of a shape and a shape can never carry another
-// device's serial.
+// matchesMirrorAllowlist recognises exactly the seven argument arrays the mirror
+// builders produce: the server push, the two reverse-tunnel forms, the
+// device-side server launch, the read of the device's own process list, and the
+// two signals that clear a device-side server this plane left behind - SIGTERM
+// and SIGKILL, both addressed to a process id the read above returned. All seven are
+// serial-free: the device serial is supplied as its own -s token by the entry
+// point that executes the array, so the serial is never part of a shape and a
+// shape can never carry another device's serial.
 //
 // It is narrow by construction, in three independent ways:
 //
 //  1. Every array starts with a fixed literal that selects either `push`, adb's
-//     own `reverse` subcommand, or a fixed device binary through adb's remote
-//     shell (`app_process`). Nothing here can select a shell, a file operation,
-//     a package manager or a second command.
-//  2. Every variable position is a canonical bounded decimal (the tunnel port),
-//     a bounded hexadecimal session id, a value from a fixed vocabulary (the log
-//     level, the screen-awake flag), or - for the push alone - an absolute host
-//     path whose base name is the scrcpy server's own (IsMirrorHostServerPath).
+//     own `reverse` subcommand, a fixed device binary through adb's remote shell
+//     (`app_process`, `ps`, `kill`). Nothing here can select a shell, a file
+//     operation, a package manager or a second command.
+//  2. Every variable position is a canonical bounded decimal (the tunnel port,
+//     and the process id a signal names), a bounded hexadecimal session id, a
+//     value from a fixed vocabulary (the log level, the screen-awake flag), or -
+//     for the push alone - an absolute host path whose base name is the scrcpy
+//     server's own (IsMirrorHostServerPath).
 //     Nothing accepts whitespace, a quote, a shell metacharacter or a flag.
 //  3. The tokens that identify what is being driven - the device path, the
 //     server version, the main class and the IDR option - are spelled here as
@@ -342,6 +479,12 @@ func matchesMirrorAllowlist(args []string) (string, bool) {
 		return MirrorReverseRemoveOperation, true
 	case matchesMirrorServerLaunch(args):
 		return MirrorServerLaunchOperation, true
+	case len(args) == 5 && args[0] == "shell" && args[1] == "ps" && args[2] == "-A" && args[3] == "-o" && args[4] == "PID,ARGS":
+		return MirrorProcessListOperation, true
+	case len(args) == 3 && args[0] == "shell" && args[1] == "kill" && isMirrorProcessIDToken(args[2]):
+		return MirrorProcessSignalOperation, true
+	case len(args) == 4 && args[0] == "shell" && args[1] == "kill" && args[2] == "-9" && isMirrorProcessIDToken(args[3]):
+		return MirrorProcessKillOperation, true
 	default:
 		return "", false
 	}
@@ -355,6 +498,15 @@ const (
 	MirrorReverseAddOperation    = "mirror-reverse-add"
 	MirrorReverseRemoveOperation = "mirror-reverse-remove"
 	MirrorServerLaunchOperation  = "mirror-server-launch"
+	// MirrorProcessListOperation is the read of a device's own process list.
+	MirrorProcessListOperation = "mirror-process-list"
+	// MirrorProcessSignalOperation sends SIGTERM to ONE device process this
+	// plane identified as its own device-side server.
+	MirrorProcessSignalOperation = "mirror-process-signal"
+	// MirrorProcessKillOperation sends SIGKILL to the same, and it is the second
+	// attempt of a clear: a server that ignored the polite signal is a server
+	// that is not shutting down.
+	MirrorProcessKillOperation = "mirror-process-kill"
 )
 
 // matchesMirrorServerLaunch recognises the device-side server launch. It is an
@@ -498,6 +650,13 @@ func isMirrorTunnelTarget(token string) bool {
 		return false
 	}
 	return isBoundedDecimalBetween(port, 1, 65535)
+}
+
+// isMirrorProcessIDToken reports the process id a clear names: a canonical
+// decimal, bounded, and nothing else. It is the only variable position either
+// clear has, so it is the whole of what a caller can put into one.
+func isMirrorProcessIDToken(token string) bool {
+	return isBoundedDecimalBetween(token, 1, maxMirrorProcessID)
 }
 
 // isMirrorSessionIDToken reports the launch's `scid` option: eight lowercase hex
