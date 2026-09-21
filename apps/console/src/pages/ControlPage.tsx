@@ -24,9 +24,10 @@ import { deviceOperationLabels, deviceOperationOutcomeSentence } from "@/lib/dev
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import { captureSerialForDevice } from "./page-utils"
-import { applyFrameOrder, moveFrame, useControlPageSettings, wholeFrameOrder, workspaceLayoutBounds, workspaceLayoutDefaults, type ConsoleSettings, type WorkspaceLayout } from "@/lib/control-page-settings"
+import { applyFrameSort, frameSortKeys, moveFrame, useControlPageSettings, workspaceLayoutBounds, workspaceLayoutDefaults, type ConsoleSettings, type FrameSortKey, type WorkspaceLayout } from "@/lib/control-page-settings"
 import { deviceListColumnIds, deviceListColumns, DeviceListTable, type DeviceListColumnId } from "./device-list-table"
-import { onlineDevices } from "@/lib/device-status"
+import { deviceOfferWithheldSentence, offeredDevices, onlineDevices, tallyOfferRefusals, withheldDevices } from "@/lib/device-status"
+import { deviceAddress, deviceAddressCopy } from "@/lib/device-endpoints"
 import { EmptyState, OperatorNotice, StatusBadge } from "./shared"
 
 /**
@@ -145,15 +146,33 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
   // order, and never a claim about which devices are attached.
   const observedEndpoints = Array.from(new Set(snapshot.endpoints.filter((endpoint) => endpoint.state === "current" && endpoint.host.trim() !== "").map((endpoint) => `${endpoint.host}:${endpoint.port}`))).sort()
   /**
-   * The devices in the ORDER THE WORKSPACE RECORD HOLDS.
+   * The devices in the ORDER THE CHOSEN SORT KEY RESOLVES.
    *
-   * The grid, the frame-order control and the picker all read this one list, so
-   * what the operator arranged is what every surface draws and no surface
-   * re-derives an order of its own. A device the stored order has never seen is
-   * still drawn, after the ones it names.
+   * The grid, the frame sort control and the picker all read this one list, so
+   * what the key resolves is what every surface draws and no surface re-derives
+   * an order of its own. The key is read from the workspace record; the order it
+   * resolves is produced in one place (`applyFrameSort`), which is also where
+   * `placement` reads the domain's own persisted arrangement.
    */
-  const orderedDevices = useMemo(() => applyFrameOrder(snapshot.devices, workspace.frameOrder), [snapshot.devices, workspace.frameOrder])
-  const visibleDevices = orderedDevices.filter((device) => matchesConnectionFilter(device, connectionFilter))
+  const orderedDevices = useMemo(
+    () => applyFrameSort(snapshot.devices, workspace.frameSortKey, { endpoints: snapshot.endpoints, groups: snapshot.groups, memberships: snapshot.memberships }),
+    [snapshot.devices, snapshot.endpoints, snapshot.groups, snapshot.memberships, workspace.frameSortKey],
+  )
+  /**
+   * The devices this board OFFERS: the registry rows minus the ones that are not
+   * a device an operator could switch to.
+   *
+   * The predicate is stated once, in `@/lib/device-status`, and read here for the
+   * whole surface: a row that is retired, a row that is the replaced identity a
+   * later observation surfaced, and a row nobody has ever observed are not
+   * devices this board can select, so they are not drawn here and not counted
+   * here. They are NOT hidden - the sentence above the board names how many were
+   * withheld and why, and the Devices page lists every one with its state.
+   */
+  const boardDevices = useMemo(() => offeredDevices(orderedDevices), [orderedDevices])
+  const withheld = useMemo(() => withheldDevices(snapshot.devices), [snapshot.devices])
+  const withheldReasons = useMemo(() => tallyOfferRefusals(withheld), [withheld])
+  const visibleDevices = boardDevices.filter((device) => matchesConnectionFilter(device, connectionFilter))
   /**
    * The grid's stills, as the control plane answered for the devices this view is
    * drawing.
@@ -374,19 +393,17 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
   const deviceModal = source ? <FloatingDevice device={source} devices={snapshot.devices} artifacts={snapshot.artifacts} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onCapture={captureDeviceScreen} onChangeDevice={changeSource} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease} dispatch={dispatch} /> : null
   const selectedCount = (source ? 1 : 0) + followers.length
   /**
-   * moveFrameInOrder writes the WHOLE frame order, in one settings write.
+   * chooseFrameSort writes the CHOSEN KEY, in one settings write.
    *
-   * It is not a slot swap and not a local re-sort: AGENTS.md requires an
-   * operator order to be written as a whole order rather than by overwriting a
-   * neighbour's position, so what travels is the entire arrangement, resolved
-   * from the devices the plane holds plus the order it already stores. The
-   * order the operator set is then read back out of the projection by every
-   * surface on this page - the grid, the picker and this control - so a reorder
-   * that did not persist would be visible as a grid that snapped back.
+   * The key is a selection, not an arrangement, so there is nothing to resolve
+   * against the devices the plane holds and nothing to write as a whole: the
+   * value that travels is the key itself, and the order it resolves is produced
+   * where every surface reads it (`applyFrameSort`). The key is read back out of
+   * the projection, so a choice that did not persist would be visible as a board
+   * that snapped back to the previous key.
    */
-  function moveFrameInOrder(deviceId: string, direction: -1 | 1) {
-    const current = wholeFrameOrder(snapshot.devices, workspace.frameOrder)
-    setWorkspace({ ...workspace, frameOrder: moveFrame(current, deviceId, direction) })
+  function chooseFrameSort(key: FrameSortKey) {
+    setWorkspace({ ...workspace, frameSortKey: key })
   }
 
   return <div className="relative min-h-full">
@@ -411,10 +428,18 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
       <Button size="sm" variant="outline" disabled={!source || modalPinned} onClick={() => setPosition(initialPosition)}><Crosshair className="size-3.5" aria-hidden="true" />Reset Position</Button>
     </div>
     <div className={`mt-4 grid items-start gap-4 ${workspaceOpen ? settings.workspaceSide === "right" ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
-      {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setRangeEndLastOctet} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} endpoints={snapshot.endpoints} pendingAction={pendingAction} onActivate={activateFleet} onRestartServer={restartAdbServer} onAddRange={addDiscoveryRange} onScanRange={scanEnteredRange} onScanSavedNetwork={scanSavedNetwork} onReloadDevices={reloadDevices} devices={orderedDevices} onMoveFrame={moveFrameInOrder} /></div> : null}
+      {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setRangeEndLastOctet} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} endpoints={snapshot.endpoints} pendingAction={pendingAction} onActivate={activateFleet} onRestartServer={restartAdbServer} onAddRange={addDiscoveryRange} onScanRange={scanEnteredRange} onScanSavedNetwork={scanSavedNetwork} onReloadDevices={reloadDevices} onSortKeyChange={chooseFrameSort} /></div> : null}
       <section className={`min-w-0 ${workspaceOpen && settings.workspaceSide === "left" ? "xl:order-2" : ""}`} aria-label="Phone control workspace">
         <LabObservationFrame adapter={snapshot.labAdapter} height={workspace.largeHeight} />
-        <ConnectionFilterBar filter={connectionFilter} onChange={setConnectionFilter} shown={visibleDevices.length} total={snapshot.devices.length} />
+        <ConnectionFilterBar filter={connectionFilter} onChange={setConnectionFilter} shown={visibleDevices.length} offered={boardDevices.length} />
+        {/*
+          What this board does NOT hold, stated rather than left to be noticed. A
+          board that dropped a hundred registry rows without a word would be a
+          board an operator has to guess about: the count they can no longer see
+          is the count that explains why the device they were looking for is not
+          here, and where it still is.
+        */}
+        {withheld.length === 0 ? null : <p data-testid="board-withheld" role="status" className="border-b border-border bg-muted/30 py-2 text-[11px] leading-4 text-muted-foreground">{deviceOfferWithheldSentence(withheld.length, snapshot.devices.length, withheldReasons)}</p>}
         {/*
           What this grid's pictures ARE, and what they cost. It is stated once here
           rather than repeated in every tile, because the cadence, the level and the
@@ -425,7 +450,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
         */}
         <p data-testid="grid-stills-line" className="mt-2 text-[11px] leading-4 text-muted-foreground">{gridSentence({ devices: visibleDevices.length, refused: gridStills.refusedDeviceIds.length, profile: gridStills.profile, unreadable: gridStills.unreadable, failure: gridStills.reading.failure })}</p>
         <div className={`grid items-start gap-4 ${modalPinned && source ? "xl:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
-          {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail="No device in the current view has an observed transport matching this filter." /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${stillFrameWidth(workspace.smallHeight, workspace.orientation)}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} tile={stillFor(device.id)} profile={gridStills.profile} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
+          {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail={emptyBoardDetail(boardDevices.length, withheld.length)} /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${stillFrameWidth(workspace.smallHeight, workspace.orientation)}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} tile={stillFor(device.id)} profile={gridStills.profile} endpoints={snapshot.endpoints} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
           {modalPinned ? deviceModal : null}
         </div>
       </section>
@@ -433,14 +458,38 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
     {!modalPinned && deviceModal && typeof document !== "undefined" ? createPortal(deviceModal, document.body) : null}
   </div>
 }
-function ConnectionFilterBar({ filter, onChange, shown, total }: { filter: ConnectionFilter; onChange: (value: ConnectionFilter) => void; shown: number; total: number }) {
+/**
+ * ConnectionFilterBar is the connection-type selector.
+ *
+ * Its count is over the devices this board OFFERS rather than over the registry:
+ * the number an operator compares is the number of frames the filter is choosing
+ * between, and the registry's own total is stated once, in the withheld sentence
+ * above the board, where the difference is explained rather than left to a
+ * second count that looks like a contradiction.
+ */
+function ConnectionFilterBar({ filter, onChange, shown, offered }: { filter: ConnectionFilter; onChange: (value: ConnectionFilter) => void; shown: number; offered: number }) {
   return <div className="flex flex-wrap items-center gap-2 py-3" aria-label="Device connection filters">
     <span className="mr-2 text-xs font-semibold">Connection type</span>
     <div className="flex flex-wrap gap-1" role="group" aria-label="Filter devices by connection type">
       {connectionFilters.map((item) => <Button key={item.value} type="button" size="sm" variant={filter === item.value ? "default" : "outline"} aria-pressed={filter === item.value} onClick={() => onChange(item.value)}>{item.label}</Button>)}
     </div>
-    <span className="ml-auto text-xs text-muted-foreground" aria-live="polite"><span className="drift-data font-semibold">{shown} / {total}</span> devices shown</span>
+    <span className="ml-auto text-xs text-muted-foreground" aria-live="polite"><span className="drift-data font-semibold">{shown} / {offered}</span> devices shown</span>
   </div>
+}
+
+/**
+ * emptyBoardDetail states WHICH emptiness this is.
+ *
+ * A board with no frame in the current view is either a filter that matches
+ * nothing or a workspace with nothing to offer, and the two need different
+ * actions: one is a filter to change, the other is a fleet to plug in or
+ * authorize. Saying "no device matches this filter" over a board that is empty
+ * because nobody is offerable would send an operator to the wrong control.
+ */
+function emptyBoardDetail(offered: number, withheld: number): string {
+  if (offered > 0) return "No device in the current view has an observed transport matching this filter."
+  if (withheld > 0) return `This board holds no device it can offer: ${withheld} device${withheld === 1 ? " is" : "s are"} in this workspace's registry and none of them is a device this board can switch to. The Devices page lists every one with the state it is in.`
+  return "This workspace holds no device at all. A scan or an arrival records the first one."
 }
 function matchesConnectionFilter(device: DeviceView, filter: ConnectionFilter) {
   if (filter === "all") return true
@@ -457,11 +506,11 @@ function TaskButton({ action, pendingAction, icon: Icon, children, className, di
   return <Button type="button" size="sm" variant={variant} className={className} disabled={disabled || pendingAction !== null} aria-busy={pending} onClick={onClick}>{pending ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : Icon ? <Icon className="size-3.5" aria-hidden="true" /> : null}{children}</Button>
 }
 
-function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, side, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, profiles, endpoints, pendingAction, onActivate, onRestartServer, onAddRange, onScanRange, onScanSavedNetwork, onReloadDevices, devices, onMoveFrame }: { workspace: Workspace; onWorkspaceChange: (value: Workspace) => void; pinned: boolean; onPinnedChange: (value: boolean) => void; side: "left" | "right"; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; profiles: ControlPlaneSnapshot["networkProfiles"]; endpoints: ControlPlaneSnapshot["endpoints"]; pendingAction: TaskAction | null; onActivate: () => void; onRestartServer: () => void; onAddRange: () => void; onScanRange: () => void; onScanSavedNetwork: () => void; onReloadDevices: () => void; devices: readonly DeviceView[]; onMoveFrame: (deviceId: string, direction: -1 | 1) => void }) {
+function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, side, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, profiles, endpoints, pendingAction, onActivate, onRestartServer, onAddRange, onScanRange, onScanSavedNetwork, onReloadDevices, onSortKeyChange }: { workspace: Workspace; onWorkspaceChange: (value: Workspace) => void; pinned: boolean; onPinnedChange: (value: boolean) => void; side: "left" | "right"; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; profiles: ControlPlaneSnapshot["networkProfiles"]; endpoints: ControlPlaneSnapshot["endpoints"]; pendingAction: TaskAction | null; onActivate: () => void; onRestartServer: () => void; onAddRange: () => void; onScanRange: () => void; onScanSavedNetwork: () => void; onReloadDevices: () => void; onSortKeyChange: (key: FrameSortKey) => void }) {
   return <aside className="border border-border bg-card" aria-label="Workspace Settings">
     <div className="flex items-start gap-3 border-b border-border p-4">
       <span className="grid size-8 shrink-0 place-items-center border border-primary/40 bg-secondary text-primary"><SlidersHorizontal className="size-4" aria-hidden="true" /></span>
-      <div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">Workspace Settings</h2><p className="mt-1 text-[11px] leading-4 text-muted-foreground">Display, frame order and OTG setup</p></div>
+      <div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">Workspace Settings</h2><p className="mt-1 text-[11px] leading-4 text-muted-foreground">Display, frame sort and OTG setup</p></div>
       <Button size="icon-sm" variant="ghost" aria-label="Unpin Workspace Settings" aria-pressed={pinned} onClick={() => onPinnedChange(false)}>{side === "left" ? <ChevronsLeft className="size-3.5" aria-hidden="true" /> : <ChevronsRight className="size-3.5" aria-hidden="true" />}</Button>
     </div>
     <Tabs defaultValue="display">
@@ -472,15 +521,16 @@ function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, 
         <div className="border-t border-border pt-4"><p className="text-xs font-semibold">Compact Phone Frames</p><p className="mt-1 text-[11px] text-muted-foreground">Orientation applies only to compact frames.</p></div>
         <Slider label="Small Screen" value={workspace.smallHeight} min={workspaceLayoutBounds.smallHeight.min} max={workspaceLayoutBounds.smallHeight.max} step={workspaceLayoutBounds.smallHeight.step} unit="px" onChange={(smallHeight) => onWorkspaceChange({ ...workspace, smallHeight })} />
         <div className="grid grid-cols-2 gap-2"><Button size="sm" variant={workspace.orientation === "portrait" ? "default" : "outline"} onClick={() => onWorkspaceChange({ ...workspace, orientation: "portrait" })}>Portrait</Button><Button size="sm" variant={workspace.orientation === "landscape" ? "default" : "outline"} onClick={() => onWorkspaceChange({ ...workspace, orientation: "landscape" })}>Landscape</Button></div>
-        <FrameOrderPanel devices={devices} order={workspace.frameOrder} onMoveFrame={onMoveFrame} />
+        <FrameSortPanel sortKey={workspace.frameSortKey} onChange={onSortKeyChange} />
         {/*
-          Reset restores the SIZES and the orientation and leaves the frame order
-          alone. The order is not a display size the operator can re-guess: it is
-          an arrangement they built frame by frame, it has its own two controls
-          directly above, and a button labelled "Reset Workspace" quietly
-          discarding it would be a destructive action under a display heading.
+          Reset restores the SIZES and the orientation and leaves the sort key
+          alone. The key is not a display size the operator can re-guess: it is
+          the order they chose for this workspace, it has its own control directly
+          above, and a button labelled "Reset Workspace" quietly putting the board
+          back to an order they did not choose would be a destructive action under
+          a display heading.
         */}
-        <Button variant="outline" className="w-full rounded-none" onClick={() => onWorkspaceChange({ ...workspaceLayoutDefaults, frameOrder: workspace.frameOrder })}>Reset Workspace</Button>
+        <Button variant="outline" className="w-full rounded-none" onClick={() => onWorkspaceChange({ ...workspaceLayoutDefaults, frameSortKey: workspace.frameSortKey })}>Reset Workspace</Button>
       </TabsContent>
       <TabsContent value="otg" className="space-y-5 p-4">
         <OtgSetupPanel endpoints={endpoints} profiles={profiles} port={port} onPortChange={onPortChange} startIp={startIp} onStartIpChange={onStartIpChange} endIp={endIp} onEndIpChange={onEndIpChange} profileId={profileId} onProfileIdChange={onProfileIdChange} pendingAction={pendingAction} onActivate={onActivate} onRestartServer={onRestartServer} onAddRange={onAddRange} onScanRange={onScanRange} onScanSavedNetwork={onScanSavedNetwork} onReloadDevices={onReloadDevices} />
@@ -490,35 +540,31 @@ function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, 
 }
 
 /**
- * FrameOrderPanel is where the small frames are arranged.
+ * FrameSortPanel is where the board's order is chosen.
  *
  * It is in WORKSPACE settings because the order is a property of the workspace's
  * layout and not of one operator's browser: two operators looking at this
  * workspace see the same board in the same order.
  *
- * It writes a WHOLE order rather than moving one frame into one slot (AGENTS.md
- * sections 2 and 7). The list it shows is the resolved order, so a device the
- * stored order has not seen yet appears at the end where the grid draws it, and
- * the first press of a Move control adopts the arrangement the operator is
- * actually looking at rather than an order that only exists in the record.
+ * It REPLACES a list of every device with two Move controls per device. That list
+ * was retired on the owner's verdict - too long to manage - and what it stored
+ * (a whole `frameOrder` over device ids) went with it; what is written now is the
+ * KEY, which is one value on the same workspace record (see `workspaceLayoutKey`).
  *
- * The controls are buttons rather than drag handles: a drag is unreachable by
- * keyboard, and an operator arranging a board is exactly the operator who may be
- * doing it with one.
+ * The keys are buttons rather than a dropdown: the whole choice is three short
+ * names, so an operator sees the alternatives and which one is in force without
+ * opening anything, and each is a real `aria-pressed` toggle rather than an item
+ * in a menu. The explanation of each key is the same sentence for every reader,
+ * because it is stated once in `frameSortKeys` and drawn here from it.
  */
-function FrameOrderPanel({ devices, order, onMoveFrame }: { devices: readonly DeviceView[]; order: readonly string[]; onMoveFrame: (deviceId: string, direction: -1 | 1) => void }) {
-  const resolved = applyFrameOrder(devices, order)
-  if (resolved.length < 2) return null
-  return <div className="border-t border-border pt-4" data-testid="frame-order-panel">
-    <ControlLabel label="Frame Order" explanation="The order the compact frames are drawn in, for everyone reading this workspace. Each press writes the whole order to the workspace record, so it outlasts this browser and this page. A device this order has not seen yet is drawn after the ones it names." />
-    <ol className="mt-2 space-y-1">
-      {resolved.map((device, index) => <li key={device.id} className="flex items-center gap-2 border border-border px-2 py-1" data-testid={`frame-order-${device.id}`}>
-        <span className="drift-data w-5 shrink-0 text-[10px] text-muted-foreground">{index + 1}</span>
-        <span className="min-w-0 flex-1 truncate text-xs">{device.displayName}</span>
-        <Button type="button" size="icon-sm" variant="ghost" aria-label={`Move ${device.displayName} earlier`} disabled={index === 0} onClick={() => onMoveFrame(device.id, -1)}><ChevronLeft className="size-3.5" aria-hidden="true" /></Button>
-        <Button type="button" size="icon-sm" variant="ghost" aria-label={`Move ${device.displayName} later`} disabled={index === resolved.length - 1} onClick={() => onMoveFrame(device.id, 1)}><ChevronRight className="size-3.5" aria-hidden="true" /></Button>
-      </li>)}
-    </ol>
+function FrameSortPanel({ sortKey, onChange }: { sortKey: FrameSortKey; onChange: (key: FrameSortKey) => void }) {
+  const chosen = frameSortKeys.find((key) => key.value === sortKey)
+  return <div className="border-t border-border pt-4" data-testid="frame-sort-panel">
+    <ControlLabel label="Frame Sort" explanation="How the compact frames are ordered, for everyone reading this workspace. The choice is stored on the workspace record, so it outlasts this browser and this page." />
+    <div role="group" aria-label="Sort frames by" className="mt-2 grid grid-cols-1 border border-input p-1">
+      {frameSortKeys.map((key) => <Button key={key.value} type="button" size="sm" variant={sortKey === key.value ? "default" : "ghost"} aria-pressed={sortKey === key.value} className="rounded-none justify-start" onClick={() => onChange(key.value)}>{key.label}</Button>)}
+    </div>
+    {chosen ? <p data-testid="frame-sort-explanation" className="mt-2 text-[11px] leading-4 text-muted-foreground">{chosen.explanation}</p> : null}
   </div>
 }
 
@@ -594,7 +640,7 @@ function OtgSetupPanel({ endpoints, profiles, port, onPortChange, startIp, onSta
  * control that does alter device state.
  */
 function ConsoleSettingsDialog({ settings, onChange, modalPinned, onModalPinnedChange, dispatch }: { settings: ConsoleSettings; onChange: (value: ConsoleSettings) => void; modalPinned: boolean; onModalPinnedChange: (value: boolean) => void; dispatch: DispatchIntent }) {
-  return <Dialog><DialogTrigger render={<Button size="sm" variant="outline" />}><Settings2 className="size-3.5" aria-hidden="true" />Settings</DialogTrigger><DialogContent size="lg" className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-none"><DialogHeader><DialogTitle>Console Settings</DialogTitle><DialogDescription>Appearance and presentation are local console preferences. Fleet defaults change device state across the workspace through the control plane&apos;s lease, fencing, and postcondition checks.</DialogDescription></DialogHeader><Tabs defaultValue="appearance" className="border-y border-border py-4"><TabsList aria-label="Console Settings sections"><TabsTrigger value="appearance">Appearance</TabsTrigger><TabsTrigger value="presentation">Presentation</TabsTrigger><TabsTrigger value="fleet">Fleet</TabsTrigger></TabsList><TabsContent value="appearance" className="space-y-5 p-1 pt-5"><Slider label="Devices Gap" value={settings.gap} min={4} max={32} unit="px" onChange={(gap) => onChange({ ...settings, gap })} /><Slider label="Info Opacity" value={settings.opacity} min={30} max={100} unit="%" onChange={(opacity) => onChange({ ...settings, opacity })} /><SettingToggle label="Auto Screen Off" description="Preference for inactive compact frames." checked={settings.autoScreenOff} onChange={(autoScreenOff) => onChange({ ...settings, autoScreenOff })} /><SettingToggle label="Control Small Screen" description="Uses compact-frame control rather than opening the big device." checked={settings.controlSmall} onChange={(controlSmall) => onChange({ ...settings, controlSmall })} /><div className="border-t border-border pt-4"><Choice label={liveMirrorCopy.settings.label} value={settings.liveMirrorTransport} options={["webrtc", "tcp"]} labels={liveMirrorCopy.settings.choice} onChange={(value) => onChange({ ...settings, liveMirrorTransport: value as LiveMirrorTransportChoice })} /><p className="mt-2 text-[11px] leading-4 text-muted-foreground">{liveMirrorCopy.settings.notice}</p></div></TabsContent><TabsContent value="presentation" className="space-y-5 p-1 pt-5"><PositionToggle label="Control Position" value={settings.controlsSide} onChange={(controlsSide) => onChange({ ...settings, controlsSide })} /><PositionToggle label="Workspace Position" value={settings.workspaceSide} onChange={(workspaceSide) => onChange({ ...settings, workspaceSide })} /><SettingToggle label="Connect Tag" description="Show the OTG or Hold badge on compact frames." checked={settings.showTag} onChange={(showTag) => onChange({ ...settings, showTag })} /><SettingToggle label="Device Index" description="Show the numbered device index." checked={settings.showIndex} onChange={(showIndex) => onChange({ ...settings, showIndex })} /><SettingToggle label="Device Name" description="Show the device display name." checked={settings.showName} onChange={(showName) => onChange({ ...settings, showName })} /><SettingToggle label="Device IP" description="Show the compact-frame endpoint identifier." checked={settings.showIp} onChange={(showIp) => onChange({ ...settings, showIp })} /><SettingToggle label="Modal Control Position" description="Pinned places the big frame beside the device grid; drag floats it above the page." checked={modalPinned} onChange={onModalPinnedChange} onLabel="Pinned" offLabel="Drag" /></TabsContent><TabsContent value="fleet" className="space-y-5 p-1 pt-5"><FleetDeviceSettingsPanel dispatch={dispatch} /></TabsContent></Tabs></DialogContent></Dialog>
+  return <Dialog><DialogTrigger render={<Button size="sm" variant="outline" />}><Settings2 className="size-3.5" aria-hidden="true" />Settings</DialogTrigger><DialogContent size="lg" className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-none"><DialogHeader><DialogTitle>Console Settings</DialogTitle><DialogDescription>Appearance and presentation are local console preferences. Fleet defaults change device state across the workspace through the control plane&apos;s lease, fencing, and postcondition checks.</DialogDescription></DialogHeader><Tabs defaultValue="appearance" className="border-y border-border py-4"><TabsList aria-label="Console Settings sections"><TabsTrigger value="appearance">Appearance</TabsTrigger><TabsTrigger value="presentation">Presentation</TabsTrigger><TabsTrigger value="fleet">Fleet</TabsTrigger></TabsList><TabsContent value="appearance" className="space-y-5 p-1 pt-5"><Slider label="Devices Gap" value={settings.gap} min={4} max={32} unit="px" onChange={(gap) => onChange({ ...settings, gap })} /><Slider label="Info Opacity" value={settings.opacity} min={30} max={100} unit="%" onChange={(opacity) => onChange({ ...settings, opacity })} /><SettingToggle label="Auto Screen Off" description="Preference for inactive compact frames." checked={settings.autoScreenOff} onChange={(autoScreenOff) => onChange({ ...settings, autoScreenOff })} /><SettingToggle label="Control Small Screen" description="Uses compact-frame control rather than opening the big device." checked={settings.controlSmall} onChange={(controlSmall) => onChange({ ...settings, controlSmall })} /><div className="border-t border-border pt-4"><Choice label={liveMirrorCopy.settings.label} value={settings.liveMirrorTransport} options={["webrtc", "tcp"]} labels={liveMirrorCopy.settings.choice} onChange={(value) => onChange({ ...settings, liveMirrorTransport: value as LiveMirrorTransportChoice })} /><p className="mt-2 text-[11px] leading-4 text-muted-foreground">{liveMirrorCopy.settings.notice}</p></div></TabsContent><TabsContent value="presentation" className="space-y-5 p-1 pt-5"><PositionToggle label="Control Position" value={settings.controlsSide} onChange={(controlsSide) => onChange({ ...settings, controlsSide })} /><PositionToggle label="Workspace Position" value={settings.workspaceSide} onChange={(workspaceSide) => onChange({ ...settings, workspaceSide })} /><SettingToggle label="Connect Tag" description="Show the OTG or Hold badge on compact frames." checked={settings.showTag} onChange={(showTag) => onChange({ ...settings, showTag })} /><SettingToggle label="Device Index" description="Show the numbered device index." checked={settings.showIndex} onChange={(showIndex) => onChange({ ...settings, showIndex })} /><SettingToggle label="Device Name" description="Show the device display name." checked={settings.showName} onChange={(showName) => onChange({ ...settings, showName })} /><SettingToggle label="Device Address" description="Show the address recorded on the device's current endpoint on compact frames. A device with no current endpoint reads &quot;No address&quot;." checked={settings.showAddress} onChange={(showAddress) => onChange({ ...settings, showAddress })} /><SettingToggle label="Modal Control Position" description="Pinned places the big frame beside the device grid; drag floats it above the page." checked={modalPinned} onChange={onModalPinnedChange} onLabel="Pinned" offLabel="Drag" /></TabsContent><TabsContent value="fleet" className="space-y-5 p-1 pt-5"><FleetDeviceSettingsPanel dispatch={dispatch} /></TabsContent></Tabs></DialogContent></Dialog>
 }
 
 /**
@@ -733,7 +779,7 @@ function DeviceListDialog({ devices, endpoints, onReload, pendingAction }: { dev
   </DialogContent></Dialog>
 }
 
-function CompactPhone({ device, index, size, orientation, active, follower, settings, tile, profile, onClick }: { device: DeviceView; index: number; size: number; orientation: Workspace["orientation"]; active: boolean; follower: boolean; settings: ConsoleSettings; tile: GridTileStill; profile: GridProfileView | null; onClick: () => void }) {
+function CompactPhone({ device, index, size, orientation, active, follower, settings, tile, profile, endpoints, onClick }: { device: DeviceView; index: number; size: number; orientation: Workspace["orientation"]; active: boolean; follower: boolean; settings: ConsoleSettings; tile: GridTileStill; profile: GridProfileView | null; endpoints: ControlPlaneSnapshot["endpoints"]; onClick: () => void }) {
   // The frame is as wide as the operator asked for and as TALL as the picture the
   // plane holds for this device: the still is drawn at the device's own shape, so a
   // frame at the console's own 9:16 would leave its own colour down both sides of a
@@ -757,7 +803,26 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
   const absent = notObserved(device.status)
   const AbsentIcon = device.status === "unobserved" ? SearchX : Unplug
   const frameColor = absent ? absentPhoneColor : phoneColors[index % phoneColors.length]
-  return <button type="button" aria-pressed={active || follower} onClick={onClick} className={`relative justify-self-center self-start overflow-hidden rounded-[9px] border-[3px] text-left text-white transition-colors focus-visible:outline-3 focus-visible:outline-primary ${active ? "border-primary ring-2 ring-primary/40" : follower ? "border-primary/70" : "border-slate-500"} ${frameColor}`} style={{ width, boxSizing: "border-box" }}><StillTile device={device} tile={tile} profile={profile} orientation={orientation} /><span className="absolute inset-0 bg-black/10" style={{ opacity: 1 - settings.opacity / 100 }} />{settings.showTag ? <span className="absolute left-0 top-0 bg-red-500 px-1 text-[8px] font-bold leading-4">{device.controlEligibility === "eligible" ? "OTG" : "HOLD"}</span> : null}<span className="absolute inset-x-0 top-6 text-center">{settings.showIndex ? <span className="block text-lg font-bold leading-none">{index + 1}</span> : null}{settings.showName ? <span className="mt-1 block text-[10px] font-semibold">{device.displayName}</span> : null}{settings.showIp ? <span className="mt-1 block font-mono text-[8px] text-white/80">{device.endpointId}</span> : null}</span>{absent ? <span className="pointer-events-none absolute inset-0 grid place-items-center"><span className="grid place-items-center border border-white/40 bg-slate-950/75 p-1.5"><AbsentIcon role="img" aria-label={deviceObservationSentence(device.displayName, device.status)} className="size-5" /></span></span> : null}<span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] text-white/90"><Smartphone className="size-3" aria-hidden="true" /><span>{deviceStatusLabels[device.status]}</span></span>{active ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Open</span> : follower ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Follower</span> : null}</button>
+  /**
+   * The ADDRESS this frame is at, read from the endpoint record the plane holds.
+   *
+   * This is the fact the tile used to get wrong: it drew the device's ENDPOINT ID,
+   * a long identifier that looks nothing like an address and cannot be dialled,
+   * where the operator expected the address. The address is a mutable fact
+   * recorded on the device's CURRENT endpoint (AGENTS.md: a handler, a projection
+   * or the console must never rebuild it from the shape of an endpoint address),
+   * so it is read from that record through the ONE reading in
+   * `@/lib/device-endpoints` - the same one the Devices page and the inspection
+   * panel read - rather than assembled here.
+   *
+   * When the device has no current endpoint the plane names no address, and the
+   * tile says "No address". It does NOT fall back to an identifier: a serial or an
+   * endpoint id in an address's place reads as an address and is not one, which is
+   * the report this fixes. Which of the two the operator is looking at is the
+   * rendered text itself.
+   */
+  const address = deviceAddressCopy(device.displayName, deviceAddress(device, endpoints))
+  return <button type="button" aria-pressed={active || follower} onClick={onClick} className={`relative justify-self-center self-start overflow-hidden rounded-[9px] border-[3px] text-left text-white transition-colors focus-visible:outline-3 focus-visible:outline-primary ${active ? "border-primary ring-2 ring-primary/40" : follower ? "border-primary/70" : "border-slate-500"} ${frameColor}`} style={{ width, boxSizing: "border-box" }}><StillTile device={device} tile={tile} profile={profile} orientation={orientation} /><span className="absolute inset-0 bg-black/10" style={{ opacity: 1 - settings.opacity / 100 }} />{settings.showTag ? <span className="absolute left-0 top-0 bg-red-500 px-1 text-[8px] font-bold leading-4">{device.controlEligibility === "eligible" ? "OTG" : "HOLD"}</span> : null}<span className="absolute inset-x-0 top-6 text-center">{settings.showIndex ? <span className="block text-lg font-bold leading-none">{index + 1}</span> : null}{settings.showName ? <span className="mt-1 block text-[10px] font-semibold">{device.displayName}</span> : null}{settings.showAddress ? <span data-testid={`tile-address-${device.id}`} title={address.sentence} className="mt-1 block font-mono text-[8px] text-white/80">{address.text}</span> : null}</span>{absent ? <span className="pointer-events-none absolute inset-0 grid place-items-center"><span className="grid place-items-center border border-white/40 bg-slate-950/75 p-1.5"><AbsentIcon role="img" aria-label={deviceObservationSentence(device.displayName, device.status)} className="size-5" /></span></span> : null}<span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] text-white/90"><Smartphone className="size-3" aria-hidden="true" /><span>{deviceStatusLabels[device.status]}</span></span>{active ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Open</span> : follower ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Follower</span> : null}</button>
 }
 
 /**

@@ -41,6 +41,8 @@ const scannedDevice: DeviceView = {
   lastSeen: "12 sec ago",
   agentId: "",
   endpointId: "endpoint-777",
+  expectation: "expected",
+  observedAgainAfterRetirement: false,
   transport: "tcp",
   location: "",
   packageName: "",

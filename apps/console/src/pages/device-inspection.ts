@@ -7,6 +7,7 @@ import type {
   EventView,
 } from "@/lib/domain/control-plane"
 import { deviceStatusLabels, deviceStatusMeanings } from "@/lib/device-status"
+import { endpointAddress } from "@/lib/device-endpoints"
 
 /**
  * device-inspection builds the operator-facing inspection surface for one
@@ -95,11 +96,13 @@ export function endpointsFor(deviceId: string, endpoints: readonly EndpointView[
   return endpoints.filter((endpoint) => endpoint.deviceId === deviceId)
 }
 
-export function endpointAddress(endpoint: EndpointView): string {
-  const host = trimmed(endpoint.host)
-  if (host.length > 0 && endpoint.port > 0) return `${host}:${endpoint.port}`
-  return host || trimmed(endpoint.serial)
-}
+/**
+ * endpointAddress is re-exported from `@/lib/device-endpoints`, where the ONE
+ * reading of "where a device is" lives: the compact frames and this inspection
+ * surface answer with the same address because they read the same record
+ * through the same function (see that module for the rule).
+ */
+export { endpointAddress }
 
 export function endpointHost(endpoint: EndpointView): string {
   return trimmed(endpoint.host)

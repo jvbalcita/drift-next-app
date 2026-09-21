@@ -115,6 +115,22 @@ export type MirrorTargetOutcome = "preview_admitted" | "simulated_success" | "of
  */
 export type DeviceTransportView = "usb" | "tcp" | "unspecified"
 
+/**
+ * The workspace's own expectation decision about a device identity.
+ *
+ * It is NOT a device lifecycle state: AGENTS.md holds that retirement is an
+ * attributable, REVERSIBLE expectation decision rather than a state a device is
+ * in, that a later observation surfaces the still-retired device instead of
+ * silently restoring or hiding it, and that a physical device observed after
+ * permanent deletion receives a NEW identity linked by the deletion record
+ * rather than undoing the decision. The control plane decides it once and
+ * publishes it (`Device.expectation`); the console reads it back here rather
+ * than deriving retirement from a status, which cannot express it: a retired
+ * device that has been observed again reads ONLINE, and a console that inferred
+ * retirement from the status would offer it as a device it may switch to.
+ */
+export type DeviceExpectationView = "expected" | "retired"
+
 export interface DeviceDiagnosticsView {
   observedAt: string
   inventoryObservedAt: string
@@ -153,6 +169,21 @@ export interface DeviceView {
   lastSeen: string
   agentId: string
   endpointId: string
+  /**
+   * The workspace's expectation decision for this identity, read from the plane
+   * (`Device.expectation`) rather than derived here: retirement is a decision
+   * about a device, and a status cannot carry it.
+   */
+  expectation: DeviceExpectationView
+  /**
+   * Whether this identity has been OBSERVED AGAIN since it was retired. A
+   * retired identity that comes back is surfaced rather than silently restored
+   * or hidden (AGENTS.md section 2), so the fact is carried beside the
+   * expectation: it is what tells a reader that this row is the identity a
+   * later observation surfaced, and not the unit's live one where the unit was
+   * deleted and returned under a new identity linked by the deletion record.
+   */
+  observedAgainAfterRetirement: boolean
   transport: DeviceTransportView
   location: string
   packageName: string

@@ -13,7 +13,7 @@ import { ActionKind, HaltState as ProtoHaltState } from "@/gen/drift/v1/action_p
 import type { AutomationAgent, AutomationAgentProfile } from "@/gen/drift/v1/automation_agent_pb"
 import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
-import { DeviceStatus, DeviceTransport } from "@/gen/drift/v1/device_pb"
+import { DeviceExpectation, DeviceStatus, DeviceTransport } from "@/gen/drift/v1/device_pb"
 import type { ActivateFleetResponse, FleetActivationOutcome, RestartServerResponse } from "@/gen/drift/v1/connection_pb"
 import type { DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
 import type { ObservedDevice, ScanRun } from "@/gen/drift/v1/discovery_pb"
@@ -91,6 +91,7 @@ import type {
   ControlPlaneIntent,
   ControlPlaneSnapshot,
   DeviceLifecycleState,
+  DeviceExpectationView,
   DeviceStatus as DeviceStatusView,
   DeviceTransportView,
   DeviceView,
@@ -348,6 +349,30 @@ function lifecycleFor(status: DeviceStatusView): DeviceLifecycleState {
 }
 
 /**
+ * mapExpectation reads the workspace's own expectation decision off the wire.
+ *
+ * It is NOT derived from the status: a retired device that a later observation
+ * surfaced reads ONLINE, and a console that inferred retirement from the status
+ * would offer a device the workspace has decided is not expected as one it may
+ * switch to. A decision the wire does not carry is reported as EXPECTED rather
+ * than guessed into RETIRED, so an older plane cannot retire a device by
+ * omission; the plane's published value is the reading.
+ */
+function mapExpectation(expectation: DeviceExpectation): DeviceExpectationView {
+  switch (expectation) {
+    case DeviceExpectation.RETIRED:
+      return "retired"
+    case DeviceExpectation.EXPECTED:
+    case DeviceExpectation.UNSPECIFIED:
+      return "expected"
+    default: {
+      const _exhaustive: never = expectation
+      return _exhaustive
+    }
+  }
+}
+
+/**
  * mapTransport reads the transport the control plane recorded for a device. A
  * transport the control plane did not observe is reported as "unspecified"
  * rather than derived here from the endpoint address: the console reads the fact
@@ -387,6 +412,8 @@ export function mapDevice(device: Device): DeviceView {
     lastSeen: device.lastSeenAt,
     agentId: device.agentId,
     endpointId: device.endpointId,
+    expectation: mapExpectation(device.expectation),
+    observedAgainAfterRetirement: device.observedAgainAfterRetirement,
     transport: mapTransport(device.transport),
     location: "",
     packageName: "",

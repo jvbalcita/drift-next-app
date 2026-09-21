@@ -6,13 +6,13 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import { Toaster } from "@/components/ui/sonner"
-import type { ControlPlaneIntent, DeviceView, MutationResult } from "@/lib/domain/control-plane"
+import type { ControlPlaneIntent, DeviceView, EndpointView, MutationResult } from "@/lib/domain/control-plane"
 import { create } from "@bufbuild/protobuf"
 import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, liveStreamView, type LiveMirrorPreview, type MirrorCapacityView } from "@/lib/live-mirror"
 import { deviceOperationLabels } from "@/lib/device-operations"
-import { frameOrderKey } from "@/lib/control-page-settings"
+import { workspaceLayoutKey } from "@/lib/control-page-settings"
 import { ControlPage } from "./ControlPage"
 import { fakeGridPlane, gridProfile, gridProfileProto, gridStillBytes } from "@/test/grid-fixtures"
 import { planeCapacity } from "@/test/mirror-fixtures"
@@ -549,6 +549,8 @@ describe("ControlPage connection filters", () => {
       lastSeen: "2 sec ago",
       agentId: "",
       endpointId: "endpoint-atlas-09-current",
+      expectation: "expected",
+      observedAgainAfterRetirement: false,
       transport: "usb",
       location: "",
       packageName: "",
@@ -572,6 +574,105 @@ describe("ControlPage connection filters", () => {
     // Attached is not eligible: the device it cannot act on is still shown by
     // transport and still withheld from control.
     expect(screen.queryByRole("button", { name: /Atlas 09/i })).not.toBeInTheDocument()
+  })
+
+  it("offers no registry row that is not a device an operator could switch to, and states what it withheld", async () => {
+    // The three readings that put a row in the registry without putting a
+    // switchable device on the board: the workspace's expectation decision is
+    // retired; that retired identity has been observed again since, so it is the
+    // replaced identity a later observation surfaced. Each is a reading the PLANE
+    // reports - `expectation` and `observedAgainAfterRetirement` - rather than
+    // anything this console infers.
+    //
+    // The fourth row is the deliberate NON-refusal: a device nobody has ever
+    // observed. It is not refused, and it is asserted here rather than left out,
+    // because "not a connectable device" and "not a device" are different facts
+    // and the board draws this one with an absent state of its own.
+    const user = userEvent.setup({ delay: null })
+    const client = new MockControlPlaneClient()
+    const snapshot = client.getSnapshot()
+    const base = snapshot.devices[0]
+    const withheldRows: DeviceView[] = [
+      { ...base, id: "atlas-19", displayName: "Atlas 19", stableIdentity: "device-119", expectation: "retired", observedAgainAfterRetirement: false, status: "online", endpointId: "endpoint-atlas-19-current" },
+      { ...base, id: "nova-19", displayName: "Nova 19", stableIdentity: "device-119-n", expectation: "retired", observedAgainAfterRetirement: true, status: "online", endpointId: "endpoint-nova-19-current" },
+      { ...base, id: "orion-19", displayName: "Orion 19", stableIdentity: "device-119-o", expectation: "expected", observedAgainAfterRetirement: false, status: "unobserved", endpointId: "" },
+    ]
+    snapshot.devices = [...snapshot.devices, ...withheldRows]
+    render(<ControlPage snapshot={snapshot} dispatch={async (intent) => client.dispatch(intent)} />)
+
+    // The selector offers the seven it can offer, and the board says how many of
+    // the registry it is not offering and why. The count an operator compares is
+    // the count of frames the filter is choosing between.
+    expect(screen.getByLabelText("Device connection filters")).toHaveTextContent("7 / 7 devices shown")
+    const withheld = screen.getByTestId("board-withheld")
+    expect(withheld).toHaveTextContent("2 of 9 devices in this workspace are not offered on this board")
+    expect(withheld).toHaveTextContent("1 retired, because the workspace's expectation decision for this identity is retired")
+    expect(withheld).toHaveTextContent("1 replaced identity, because this identity was retired and the unit has been observed again since")
+    for (const name of [/Atlas 19/i, /Nova 19/i]) {
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument()
+    }
+    // The row the selector does NOT refuse: it has no address, so its frame says
+    // that, and it is still a frame the operator can select and read a state from.
+    const unseen = screen.getByRole("button", { name: /Orion 19/i })
+    expect(within(unseen).getByText("Not Observed")).toBeInTheDocument()
+    expect(within(unseen).getByTestId("tile-address-orion-19")).toHaveTextContent("No address")
+
+    // NOT hidden, and not a filter over the registry: the device list is the
+    // registry view, and it still holds every row with the state it is in. A
+    // retired device that a later observation surfaced is exactly what AGENTS.md
+    // requires a surface to keep showing rather than silently restore or hide.
+    await user.click(screen.getByRole("button", { name: "Devices" }))
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByRole("row", { name: /Nova 19/ })).toBeInTheDocument()
+    expect(within(dialog).getByRole("row", { name: /Atlas 19/ })).toBeInTheDocument()
+  })
+})
+
+describe("ControlPage compact frame address", () => {
+  it("labels a frame with the address on its current endpoint, not with an identifier", async () => {
+    // The owner's report: the tile showed a long identifier where the address
+    // belongs. atlas-04 answers at 192.0.2.10:5555, and its endpoint id and its
+    // transport serial are both identifiers that are NOT that address, so the
+    // assertion is falsifiable by exactly the defect it fixes.
+    const client = new MockControlPlaneClient()
+    render(<ControlPage snapshot={client.getSnapshot()} dispatch={async (intent) => client.dispatch(intent)} />)
+
+    const frame = screen.getByRole("button", { name: /Atlas 04/i })
+    const address = within(frame).getByTestId("tile-address-atlas-04")
+    expect(address).toHaveTextContent("192.0.2.10:5555")
+    expect(address.textContent).not.toContain("endpoint-atlas-04")
+    expect(address.textContent).not.toContain("MOCK-DEVICE-101")
+    // Which of the two facts the operator is looking at is the label itself.
+    expect(address).toHaveAttribute("title", "Atlas 04 is at 192.0.2.10:5555, the address on its current transport endpoint.")
+  })
+
+  it("says a device has no address rather than standing an identifier in its place", async () => {
+    // A device the plane holds no CURRENT endpoint for has no address. The plane
+    // still holds the device, its id and its serial, and the tile says so in words
+    // instead of printing one of them where an address would be.
+    const client = new MockControlPlaneClient()
+    const snapshot = client.getSnapshot()
+    snapshot.endpoints = snapshot.endpoints.filter((endpoint) => endpoint.deviceId !== "nova-02")
+    render(<ControlPage snapshot={snapshot} dispatch={async (intent) => client.dispatch(intent)} />)
+
+    const frame = screen.getByRole("button", { name: /Nova 02/i })
+    const address = within(frame).getByTestId("tile-address-nova-02")
+    expect(address).toHaveTextContent("No address")
+    expect(address.textContent).not.toContain("endpoint-nova-02")
+    expect(address.textContent).not.toContain("MOCK-DEVICE-103")
+    expect(address).toHaveAttribute("title", "Nova 02 has no address: the control plane holds no current transport endpoint for it, so no address has been observed.")
+  })
+
+  it("still draws a device it holds no address for, and reads a stored address toggle back", async () => {
+    // The address is one fact on the frame and not the frame's existence: a device
+    // with no address is still offered, still drawn, and still selectable. The
+    // toggle that shows the address is read from the console's settings like the
+    // name and the index beside it.
+    const client = new MockControlPlaneClient()
+    const snapshot = client.getSnapshot()
+    snapshot.endpoints = snapshot.endpoints.filter((endpoint) => endpoint.deviceId !== "nova-02")
+    render(<ControlPage snapshot={snapshot} dispatch={async (intent) => client.dispatch(intent)} />)
+    expect(within(screen.getByLabelText("Compact phone frames")).getByRole("button", { name: /Nova 02/i })).toBeInTheDocument()
   })
 })
 
@@ -597,6 +698,8 @@ describe("ControlPage device observation status", () => {
       lastSeen: "",
       agentId: "",
       endpointId: "",
+      expectation: "expected",
+      observedAgainAfterRetirement: false,
       transport: "unspecified",
       location: "",
       packageName: "",
@@ -669,14 +772,18 @@ describe("ControlPage device observation status", () => {
     // the default: the default is 264 (see the frame-size defaults case), and a case
     // about the smallest frame has to hold the smallest frame. The slider commits
     // when the operator stops moving it, so the release is what writes the value.
+    //
+    // The frame measured is the never-observed unit: a device the plane holds and
+    // has never observed is DRAWN - it is a device with an identity and an absent
+    // state of its own (see the fleet tiles case) - so its frame is measurable like
+    // any other.
     await user.click(screen.getByRole("button", { name: "Open Workspace Settings" }))
     const smallScreen = screen.getByRole("slider", { name: /Small Screen/i })
     fireEvent.change(smallScreen, { target: { value: "192" } })
     fireEvent.pointerUp(smallScreen)
     await user.click(screen.getByRole("button", { name: "Landscape" }))
 
-    // The frame is read from the grid: Workspace Settings is open, and its
-    // frame-order list names every device too.
+    // The frame is read from the grid itself rather than from any list of devices.
     const grid = screen.getByLabelText("Compact phone frames")
     const unseen = within(grid).getByRole("button", { name: /Atlas 09/i })
     expect(unseen).toHaveStyle({ width: "192px" })
@@ -1560,7 +1667,7 @@ describe("ControlPage workspace display settings", () => {
     // not writing them: nothing is in the record until the operator chooses.
     expect(floating).toHaveValue("680")
     expect(small).toHaveValue("264")
-    expect(storedValue(harness, frameOrderKey)).toBeNull()
+    expect(storedValue(harness, workspaceLayoutKey)).toBeNull()
     expect(settingWrites(harness)).toHaveLength(0)
 
     // The value is written when the operator STOPS moving the control, not on
@@ -1569,9 +1676,9 @@ describe("ControlPage workspace display settings", () => {
     expect(settingWrites(harness)).toHaveLength(0)
     fireEvent.pointerUp(floating)
 
-    await waitFor(() => expect(storedValue(harness, frameOrderKey)).toContain("760"))
+    await waitFor(() => expect(storedValue(harness, workspaceLayoutKey)).toContain("760"))
     expect(settingWrites(harness)).toHaveLength(1)
-    expect(settingWrites(harness)[0]).toMatchObject({ type: "createSetting", scope: "workspace", key: frameOrderKey })
+    expect(settingWrites(harness)[0]).toMatchObject({ type: "createSetting", scope: "workspace", key: workspaceLayoutKey })
   })
 
   it("keeps the size the operator chose when they leave the page and come back", async () => {
@@ -1582,7 +1689,7 @@ describe("ControlPage workspace display settings", () => {
     const floating = screen.getByRole("slider", { name: /Floating Frame Size/i })
     fireEvent.change(floating, { target: { value: "760" } })
     fireEvent.pointerUp(floating)
-    await waitFor(() => expect(storedValue(harness, frameOrderKey)).toContain("760"))
+    await waitFor(() => expect(storedValue(harness, workspaceLayoutKey)).toContain("760"))
 
     // Coming back to the page is a NEW page instance over the same control plane:
     // nothing of the old one survives it, so the size the operator finds here is
@@ -1594,26 +1701,55 @@ describe("ControlPage workspace display settings", () => {
     expect(screen.getByRole("slider", { name: /Small Screen/i })).toHaveValue("264")
   })
 
-  it("writes the WHOLE frame order when a frame is moved, and draws the grid in it", async () => {
+  it("writes the CHOSEN sort key to the workspace record and draws the grid by it", async () => {
     const user = userEvent.setup({ delay: null })
     const harness = pageHarness()
-    render(page(harness))
+    const snapshot = harness.client.getSnapshot()
+    // A unit at the FRONT of the address order and the BACK of the placement order:
+    // it belongs to no group, and it answers at the lowest address in the fleet.
+    // The two keys cannot agree about it, so the first frame the grid draws is what
+    // tells the operator - and this case - which key is in force.
+    const scanned: DeviceView = {
+      id: "zulu-01", displayName: "Zulu 01", stableIdentity: "device-190", lifecycle: "registered", status: "online",
+      platformVersion: "Android 14", batteryPercent: 64, latencyMs: 30, lastSeen: "1 min ago", agentId: "",
+      endpointId: "endpoint-zulu-01-current", expectation: "expected", observedAgainAfterRetirement: false, transport: "tcp",
+      location: "", packageName: "", activityName: "", workflow: "", workflowStatus: "", taskProgress: 0,
+      controlEligibility: "eligible", capabilities: [],
+    }
+    const scannedEndpoint: EndpointView = {
+      id: "endpoint-zulu-01-current", deviceId: "zulu-01", endpointType: "network transport", serial: "MOCK-DEVICE-190",
+      host: "192.0.2.7", port: 5555, state: "current", observedAt: "2026-09-14T09:42:18Z",
+    }
+    snapshot.devices = [...snapshot.devices, scanned]
+    snapshot.endpoints = [...snapshot.endpoints, scannedEndpoint]
+    const first = render(<ControlPage snapshot={snapshot} dispatch={harness.dispatch} mirror={harness.mirror.client} />)
 
     const drawn = () => within(screen.getByLabelText("Compact phone frames")).getAllByTestId(/^still-tile-picture-/).map((tile) => tile.getAttribute("data-testid"))
+    // The key a workspace that has never chosen one draws: the arrangement the
+    // domain already holds, in which the group-less device is drawn last.
     expect(drawn()[0]).toBe("still-tile-picture-atlas-04")
+    expect(drawn()[drawn().length - 1]).toBe("still-tile-picture-zulu-01")
 
     await user.click(screen.getByRole("button", { name: "Open Workspace Settings" }))
-    await user.click(screen.getByRole("button", { name: "Move Atlas 07 earlier" }))
+    await user.click(screen.getByRole("button", { name: "Device Address" }))
 
-    // The whole order is written, not the one frame's new slot: an order that
-    // named only the moved device would leave every other frame with no place,
-    // and a device this console has not seen yet is placed by the same order.
-    await waitFor(() => expect(storedValue(harness, frameOrderKey)).toContain("atlas-07"))
-    const written = JSON.parse(storedValue(harness, frameOrderKey) ?? "{}") as { frameOrder?: string[] }
-    expect(written.frameOrder).toEqual(["atlas-07", "atlas-04", "nova-02", "nova-05", "orion-01", "orion-03"])
-    // The grid draws that order at once rather than after the projection catches
-    // up: the operator's own press is not a request they have to wait to see.
-    expect(drawn()[0]).toBe("still-tile-picture-atlas-07")
+    // The KEY is what is written: one value on the workspace record, and not an
+    // order over every device. A record that still held the retired `frameOrder`
+    // would be a second order this build does not read.
+    await waitFor(() => expect(storedValue(harness, workspaceLayoutKey)).toContain("address"))
+    const written = JSON.parse(storedValue(harness, workspaceLayoutKey) ?? "{}") as { frameSortKey?: string; frameOrder?: string[] }
+    expect(written.frameSortKey).toBe("address")
+    expect(written.frameOrder).toBeUndefined()
+    // The grid draws the new order at once rather than after the projection
+    // catches up: the operator's own press is not a request they wait to see.
+    await waitFor(() => expect(drawn()[0]).toBe("still-tile-picture-zulu-01"))
+
+    // Leaving the page and coming back is a NEW page instance over the same
+    // control plane, so the key it draws is the one the RECORD carries rather than
+    // one this page remembered.
+    first.unmount()
+    render(<ControlPage snapshot={{ ...snapshot, settings: harness.client.getSnapshot().settings }} dispatch={harness.dispatch} mirror={harness.mirror.client} />)
+    await waitFor(() => expect(drawn()[0]).toBe("still-tile-picture-zulu-01"))
   })
 
   it("opens the device list as a table at the size a table needs, and lets the operator order and hide its columns", async () => {

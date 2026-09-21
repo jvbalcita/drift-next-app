@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { DeviceStatus } from "@/lib/domain/control-plane"
-import { deviceObservationSentence, deviceStatusLabels, deviceStatusMeanings, notObserved } from "./device-status"
+import { deviceObservationSentence, deviceOfferRefusal, deviceOfferRefusalCountLabels, deviceOfferRefusalMeanings, deviceOfferWithheldSentence, deviceStatusLabels, deviceStatusMeanings, notObserved, offeredDevices, tallyOfferRefusals, withheldDevices, type DeviceOfferFacts } from "./device-status"
 
 const statuses: DeviceStatus[] = ["online", "attention", "offline", "unobserved", "unauthorized", "no_permissions"]
 
@@ -63,5 +63,56 @@ describe("device observation status copy", () => {
     // An attached device is not an absent one, whatever it cannot do yet.
     expect(notObserved("unauthorized")).toBe(false)
     expect(notObserved("no_permissions")).toBe(false)
+  })
+})
+
+describe("the selector's offered set", () => {
+  const device = (overrides: Partial<DeviceOfferFacts> = {}): DeviceOfferFacts => ({ status: "online", expectation: "expected", observedAgainAfterRetirement: false, ...overrides })
+
+  it("reads the offer from the plane's own facts, and never from the status alone", () => {
+    // Retirement is not a lifecycle a status can carry: a retired identity that a
+    // later observation surfaced reads ONLINE, so a predicate that tested the
+    // status would offer exactly the row the owner reported as noise.
+    expect(deviceOfferRefusal(device({ expectation: "retired" }))).toBe("retired")
+    expect(deviceOfferRefusal(device({ status: "online", expectation: "retired" }))).toBe("retired")
+    expect(deviceOfferRefusal(device({ expectation: "expected", status: "online" }))).toBeNull()
+  })
+
+  it("names the replaced identity a later observation surfaced apart from a plain retirement", () => {
+    // A device deleted and observed again is registered under a NEW identity
+    // linked by the deletion record, so the retired row is history: it is refused
+    // for its own reason, and the reason an operator reads says which one it is.
+    expect(deviceOfferRefusal(device({ expectation: "retired", observedAgainAfterRetirement: true }))).toBe("superseded_identity")
+    expect(deviceOfferRefusalMeanings.superseded_identity).not.toBe(deviceOfferRefusalMeanings.retired)
+    expect(deviceOfferRefusalCountLabels.retired).not.toBe(deviceOfferRefusalCountLabels.superseded_identity)
+  })
+
+  it("offers a device that is merely unreachable, and one nobody has observed", () => {
+    // The refusals are about a device's IDENTITY and the workspace's standing
+    // decision about it, never about how much the plane knows right now. A device
+    // that is offline, attached-but-unauthorized, unopenable, or never observed is
+    // still a device: it is drawn with the state it is in, and the one fact it
+    // lacks - an address - is what its frame says it lacks.
+    for (const status of ["offline", "attention", "unauthorized", "no_permissions", "unobserved"] as DeviceStatus[]) {
+      expect(deviceOfferRefusal(device({ status }))).toBeNull()
+    }
+    expect(offeredDevices([device({ status: "unobserved" })])).toHaveLength(1)
+    expect(withheldDevices([device({ status: "unobserved" })])).toHaveLength(0)
+  })
+
+  it("counts every refusal reason, including the ones that counted zero", () => {
+    const withheld = [device({ expectation: "retired" }), device({ expectation: "retired" }), device({ expectation: "retired", observedAgainAfterRetirement: true })]
+    expect(tallyOfferRefusals([...withheld, device()])).toEqual({ retired: 2, superseded_identity: 1 })
+  })
+
+  it("states the withheld count and each reason rather than dropping rows silently", () => {
+    const fleet = [device(), device({ expectation: "retired" }), device({ status: "unobserved" })]
+    const sentence = deviceOfferWithheldSentence(withheldDevices(fleet).length, fleet.length, tallyOfferRefusals(fleet))
+    expect(sentence).toContain("1 of 3 devices in this workspace is not offered on this board")
+    expect(sentence).toContain("1 retired")
+    // The sentence points at where the withheld rows can still be read, because a
+    // board that dropped them without a word is a board an operator has to guess
+    // about - and the registry is the reading the retirement rule protects.
+    expect(sentence).toContain("Devices page lists every device in the registry")
   })
 })
