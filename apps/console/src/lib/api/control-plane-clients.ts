@@ -81,12 +81,18 @@ import {
   type SyncGridPreviewsResponse,
 } from "@/gen/drift/v1/grid_preview_pb"
 import {
+  DeleteDeviceRequestSchema,
+  DeleteDeviceResponseSchema,
   GetDeviceRequestSchema,
   GetDeviceResponseSchema,
   ListDevicesRequestSchema,
   ListDevicesResponseSchema,
   RefreshDeviceDiagnosticsRequestSchema,
   RefreshDeviceDiagnosticsResponseSchema,
+  RetireDeviceRequestSchema,
+  RetireDeviceResponseSchema,
+  RestoreDeviceRequestSchema,
+  RestoreDeviceResponseSchema,
 } from "@/gen/drift/v1/device_pb"
 import {
   ListScanRunsRequestSchema,
@@ -303,6 +309,31 @@ export class DeviceClient {
   }
   refreshDeviceDiagnostics(workspaceId: string, deviceId = "") {
     return this.rpc.call("RefreshDeviceDiagnostics", RefreshDeviceDiagnosticsRequestSchema, RefreshDeviceDiagnosticsResponseSchema, { workspace: workspaceRef(workspaceId), deviceId })
+  }
+  retireDevice(requestId: string, workspaceId: string, deviceId: string, reason: string) {
+    return this.rpc.call("RetireDevice", RetireDeviceRequestSchema, RetireDeviceResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      deviceId,
+      reason,
+    })
+  }
+  restoreDevice(requestId: string, workspaceId: string, deviceId: string, reason: string) {
+    return this.rpc.call("RestoreDevice", RestoreDeviceRequestSchema, RestoreDeviceResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      deviceId,
+      reason,
+    })
+  }
+  deleteDevice(requestId: string, workspaceId: string, deviceId: string, confirmationDeviceId: string, reason: string) {
+    return this.rpc.call("DeleteDevice", DeleteDeviceRequestSchema, DeleteDeviceResponseSchema, {
+      context: requestContext({ requestId }),
+      workspace: workspaceRef(workspaceId),
+      deviceId,
+      confirmationDeviceId,
+      reason,
+    })
   }
 }
 

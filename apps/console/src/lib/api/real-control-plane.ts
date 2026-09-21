@@ -13,7 +13,7 @@ import { ActionKind, HaltState as ProtoHaltState } from "@/gen/drift/v1/action_p
 import type { AutomationAgent, AutomationAgentProfile } from "@/gen/drift/v1/automation_agent_pb"
 import { AutomationAgentState } from "@/gen/drift/v1/automation_agent_pb"
 import type { Device } from "@/gen/drift/v1/device_pb"
-import { DeviceExpectation, DeviceStatus, DeviceTransport } from "@/gen/drift/v1/device_pb"
+import { DeleteDeviceRefusalReason, DeviceExpectation, DeviceStatus, DeviceTransport } from "@/gen/drift/v1/device_pb"
 import type { ActivateFleetResponse, FleetActivationOutcome, RestartServerResponse } from "@/gen/drift/v1/connection_pb"
 import type { DeviceSetting } from "@/gen/drift/v1/device_settings_pb"
 import type { ObservedDevice, ScanRun } from "@/gen/drift/v1/discovery_pb"
@@ -1510,6 +1510,29 @@ function failure(intent: ControlPlaneIntent, message: string, extra?: Partial<Mu
   return { ok: false, kind: intent.type, message, errorCode: extra?.errorCode ?? "precondition_failed", ...extra }
 }
 
+function deleteDeviceRefusalMessage(reason: DeleteDeviceRefusalReason): string {
+  switch (reason) {
+    case DeleteDeviceRefusalReason.CONFIRMATION_MISMATCH:
+      return "Permanent deletion refused: the exact device identity confirmation did not match."
+    case DeleteDeviceRefusalReason.DEVICE_ATTACHED:
+      return "Permanent deletion refused: the device still has a current attached endpoint."
+    case DeleteDeviceRefusalReason.ACTIVE_LEASE:
+      return "Permanent deletion refused: the device has an active control lease."
+    case DeleteDeviceRefusalReason.ACTIVE_MIRROR:
+      return "Permanent deletion refused: the device has an active mirror session."
+    case DeleteDeviceRefusalReason.ACTIVE_RUN:
+      return "Permanent deletion refused: the device is targeted by an active run."
+    case DeleteDeviceRefusalReason.ACTIVE_ASSIGNMENT:
+      return "Permanent deletion refused: the device still has an active assignment."
+    case DeleteDeviceRefusalReason.UNSPECIFIED:
+      return "Permanent deletion was refused by the control plane."
+    default: {
+      const _exhaustive: never = reason
+      return _exhaustive
+    }
+  }
+}
+
 /**
  * fleetActivationReport states what Activate did, per serial, because a count is
  * not something an operator can act on: the device that was refused, the one
@@ -1903,6 +1926,25 @@ export class RealControlPlaneClient implements ControlPlaneClient {
               : `${result.succeeded}/${result.attempted} ${intent.deviceId ? "device" : "online devices"} refreshed.`
           return mutation(intent, summary)
         }
+      case "retireDevice": {
+        if (!intent.reason.trim()) return failure(intent, "A reason is required to retire a device.", { errorCode: "invalid_input" })
+        await this.services.device.retireDevice(requestId, workspaceId, intent.deviceId, intent.reason.trim())
+        return mutation(intent, "Device retired. Its registry history and evidence were preserved.", { resourceId: intent.deviceId })
+      }
+      case "restoreDevice": {
+        if (!intent.reason.trim()) return failure(intent, "A reason is required to restore a device.", { errorCode: "invalid_input" })
+        await this.services.device.restoreDevice(requestId, workspaceId, intent.deviceId, intent.reason.trim())
+        return mutation(intent, "Device restored to the expected registry view.", { resourceId: intent.deviceId })
+      }
+      case "deleteDevice": {
+        if (!intent.reason.trim()) return failure(intent, "A reason is required to permanently delete a device.", { errorCode: "invalid_input" })
+        const response = await this.services.device.deleteDevice(requestId, workspaceId, intent.deviceId, intent.confirmationDeviceId.trim(), intent.reason.trim())
+        if (response.refusalReason !== DeleteDeviceRefusalReason.UNSPECIFIED) {
+          return failure(intent, deleteDeviceRefusalMessage(response.refusalReason), { errorCode: "precondition_failed", resourceId: intent.deviceId })
+        }
+        if (!response.deletionId) return failure(intent, "The control plane did not return a deletion record.", { errorCode: "precondition_failed", resourceId: intent.deviceId })
+        return mutation(intent, "Device permanently deleted from the registry. Its audit and evidence history was preserved.", { resourceId: response.deletionId })
+      }
       case "setHalt": {
         if (!intent.confirmed) return failure(intent, `${intent.state === "emergency_stop" ? "Engaging" : "Releasing"} the emergency stop requires confirmation.`, { errorCode: "precondition_failed" })
         if (!intent.reason.trim()) return failure(intent, "A reason is required for the emergency stop change.", { errorCode: "invalid_input" })

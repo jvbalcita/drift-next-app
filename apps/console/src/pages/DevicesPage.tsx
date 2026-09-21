@@ -22,9 +22,9 @@ const filters: { value: Filter; label: string }[] = [
   { value: "retired", label: "Retired" },
 ]
 
-// This registry is read-only: the device service exposes ListDevices and
-// GetDevice and nothing else. No control on this page may offer a mutation the
-// service cannot execute, and none may open a destructive confirmation for one.
+// Registry mutations stay in the inspection sheet, where the selected device
+// identity and the confirmation context are visible. The table itself remains
+// a projection and never invents a row-level mutation.
 export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; view?: string; onViewChange?: (view: Filter) => void }) {
   const filter: Filter = isFilter(view) ? view : "all"
   const [query, setQuery] = useState("")
@@ -152,5 +152,5 @@ function searchable(device: DeviceView, endpoints: ControlPlaneSnapshot["endpoin
 function matches(device: DeviceView, filter: Filter) {
   // Online is asked of the ONE online reading rather than tested here, so this
   // view and every action-candidate set resolve the same fleet (AGENTS.md §2).
-  return filter === "all" || filter === "online" && isOnlineDevice(device) || filter === "attention" && !isOnlineDevice(device) || filter === "replaced" && device.lifecycle === "unavailable" || filter === "retired" && device.lifecycle === "retired"
+  return filter === "all" || filter === "online" && isOnlineDevice(device) || filter === "attention" && !isOnlineDevice(device) || filter === "replaced" && device.observedAgainAfterRetirement || filter === "retired" && device.expectation === "retired"
 }
