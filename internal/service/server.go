@@ -172,6 +172,27 @@ func DeviceMirrorRoute(streams transportconnect.DeviceMirrors, serials transport
 	return Route{Path: path, Handler: RequireLabToken(token, connectHandler)}
 }
 
+// GridPreviewRoute mounts the fleet grid's still previews, and only when a capture
+// set and a device-to-serial resolver were both constructed.
+//
+// A nil capture set and a typed-nil one both yield an empty route, so a deployment
+// with no frame engine exposes no grid surface at all - rather than a surface that
+// can only answer with a refusal, which a console renders as a grid of dead tiles.
+// The gate is on the handler the constructor actually returned, not on the caller's
+// argument.
+//
+// The route carries the same constant-time token check as the other local
+// surfaces. It reaches devices and carries their screens, so loopback reachability
+// alone is not authority for a hostile local caller.
+func GridPreviewRoute(grid transportconnect.GridStills, serials transportconnect.DeviceSerialResolver, token string) Route {
+	handler := transportconnect.NewGridPreviewHandler(grid, serials)
+	if handler == nil {
+		return Route{}
+	}
+	path, connectHandler := driftv1connect.NewGridPreviewServiceHandler(handler)
+	return Route{Path: path, Handler: RequireLabToken(token, connectHandler)}
+}
+
 // MirrorStreamRoute mounts the per-device stream endpoint a browser fetches when
 // the operator's transport is TCP: the response body is one device's live mirror
 // as fragmented MP4.

@@ -15,28 +15,19 @@ import (
 )
 
 const (
-	// DefaultFrameInterval is how often each subscribed device is captured. It is
-	// the trade between how current a frame is and how much device work the engine
-	// performs, and it is what bounds that work: one capture per subscribed device
-	// per interval, whatever else the process is doing.
-	DefaultFrameInterval = 2 * time.Second
-
 	// DefaultFrameCaptureTimeout bounds one capture. A device that stops answering
 	// must not hold the engine's tick open, and no capture may outlive the shutdown
 	// that cancelled it.
-	DefaultFrameCaptureTimeout = 5 * time.Second
-
-	// MaxFrameSubscribers bounds the subscriber set. The fleet may be larger than
-	// this; what matters here is that the engine's work is finite, so a
-	// subscription beyond the bound is refused rather than queued.
 	//
-	// The bound is on the SET, not on one tick's duration: a tick captures every
-	// subscribed device once, sequentially, so a tick's worst case is
-	// MaxFrameSubscribers × the capture timeout. The ticker coalesces missed ticks
-	// (it does not queue them), so a slow tick delays the next capture rather than
-	// building a backlog of them - the cadence is best effort under that worst
-	// case, and it is stated here rather than implied.
-	MaxFrameSubscribers = 8
+	// It IS the capture path's own bound rather than a tighter one of the engine's
+	// making: the engine adds a cadence over the whole sweep, not a second, shorter
+	// limit on the same invocation. Measured on the lab fleet (19 devices attached
+	// over TCP), one capture of a 1080x2280 screen sends about 3.4 MB and needs
+	// most of the path's bound to deliver it, so a 5s engine bound reported half
+	// the fleet as timed out while the same captures completed under the path's
+	// own DefaultOperationTimeout - evidence in
+	// tests/compatibility/grid/evidence-2026-09-21-fleet-still-grid.md.
+	DefaultFrameCaptureTimeout = adb.DefaultOperationTimeout
 )
 
 // FrameCapturer is the narrow capture seam the engine drives: the existing
@@ -52,15 +43,15 @@ type FrameCapturer interface {
 	Screenshot(ctx context.Context, serial string) (adb.ScreenshotResult, error)
 }
 
-// Frame is one device's view as the engine holds it: the most recent bounded
-// still frame, plus the classified outcome of the most recent capture attempt.
-// It is never a video frame, and nothing here may be presented as continuous
-// video.
+// Frame is one device's grid tile as the engine holds it: the most recent bounded
+// still at the profile's level, plus the classified outcome of the most recent
+// capture attempt. It is never a video frame, and nothing here may be presented
+// as continuous video.
 //
-// The two facts are separate on purpose. A frame left over from an earlier
-// success is NOT this device's current screen once a later capture has failed,
-// so Current reports that distinction rather than letting a reader treat any
-// non-zero frame as healthy. A failed capture never clears the hash either: a
+// The two facts are separate on purpose. A still left over from an earlier
+// success is NOT this device's current screen once a later capture has failed, so
+// Current reports that distinction rather than letting a reader treat any
+// non-zero still as healthy. A failed capture never clears the hash either: a
 // content-addressed reference to what was actually captured stays readable, and
 // the failure class beside it says it is no longer current.
 type Frame struct {
@@ -73,17 +64,36 @@ type Frame struct {
 	// ContentHash references the captured PNG. It is empty until a capture
 	// succeeds.
 	ContentHash string
-	// Bytes is the size of the captured PNG, whatever the preview bound: a capture
-	// too large to deliver is still reported at its real size.
+	// Bytes is the size of the capture, whatever the level: a capture too large to
+	// deliver is still reported at its real size, and the level is applied on the
+	// way out rather than being read back as the capture's own size.
 	Bytes int
-	// PreviewBase64 is the bounded inline preview. It is empty when no capture has
-	// succeeded, and it is empty when the capture was larger than the bound - in
-	// which case PreviewTruncated says so and no partial image is delivered.
+	// MediaType is what PreviewBase64 decodes to - the still's own type, stated
+	// rather than assumed, because a reader that guessed would paint a JPEG that
+	// arrived as a PNG as nothing at all.
+	MediaType string
+	// Width and Height are the delivered still's own size: the profile's cap
+	// applied to the device's screen. They are zero until a still is delivered.
+	Width  int
+	Height int
+	// StillBytes is the size of the delivered still, which is what a tile's cost
+	// to the transport is. It is zero when no still was delivered.
+	StillBytes int
+	// PreviewBase64 is the bounded inline still: base64 of the encoded image. It
+	// is empty when no capture has succeeded, and it is empty when the still was
+	// larger than the bound - in which case PreviewTruncated says so and no partial
+	// image is delivered.
 	PreviewBase64 string
-	// PreviewTruncated reports a capture larger than the bound. A prefix of an
-	// image is the wrong image delivered silently, so the engine delivers none and
-	// says why instead.
+	// PreviewTruncated reports a still larger than the bound. A prefix of an image
+	// is the wrong image delivered silently, so the engine delivers none and says
+	// why instead.
 	PreviewTruncated bool
+	// ObservedCadence is the interval between this device's last two successful
+	// captures, as the engine measured it. It is zero until two captures have
+	// succeeded, and it is what a tile states how fresh its picture is from: the
+	// cadence the engine was configured with is what it AIMS for, and this is what
+	// it did on a fleet of this size.
+	ObservedCadence time.Duration
 	// Frames counts the captures that succeeded since this device was subscribed.
 	Frames int
 	// Failures counts the capture attempts that failed since this device was
@@ -110,6 +120,26 @@ func (f Frame) HasFrame() bool { return f.ContentHash != "" }
 // captures are failing is therefore not current, and cannot be read as healthy
 // by a reader that only asks whether a frame exists.
 func (f Frame) Current() bool { return f.HasFrame() && f.FailureClass == "" }
+
+// State is the frame as the plane's own reading of it, which is the fact a
+// grid tile renders.
+//
+// It exists so that the classification is decided ONCE, beside the two facts it
+// is derived from - whether a capture has succeeded and whether a later attempt
+// failed - rather than by each surface that draws a tile from a timestamp. A
+// tile told only when its picture was captured cannot tell "the device is busy"
+// from "the plane stopped capturing it", and those are different sentences to an
+// operator.
+func (f Frame) State() GridStillState {
+	switch {
+	case f.Current():
+		return GridStillCurrent
+	case f.HasFrame():
+		return GridStillStale
+	default:
+		return GridStillPending
+	}
+}
 
 // FrameEngineState is how the engine ended. Both states are normal process
 // outcomes: the engine never aborts startup and never fails the process.
@@ -147,6 +177,12 @@ type FrameEngineOutcome struct {
 	// Truncated is how many successful captures were larger than the preview bound
 	// and were therefore reported as truncated with no preview.
 	Truncated int
+	// LongestSweep is the longest time one round of captures took. It is stated
+	// because the cadence is best effort over a set: a sweep longer than the
+	// configured cadence is the plane telling the truth about a fleet it cannot
+	// refresh that fast, and a reader of the report can see which cadence the
+	// plane actually achieved rather than only the one it was configured with.
+	LongestSweep time.Duration
 	// Cancelled is how many captures shutdown abandoned mid-flight. They are kept
 	// apart from Failures because the device did not fail; the engine stopped.
 	Cancelled int
@@ -170,6 +206,9 @@ func (o FrameEngineOutcome) Report() string {
 		"frame engine stopped after %d tick(s) over %d subscribed device(s): %d capture(s), %d frame(s), %d failed capture(s)",
 		o.Ticks, o.Subscribed, o.Captures, o.Frames, o.Failures,
 	)
+	if o.LongestSweep > 0 {
+		report += fmt.Sprintf(", longest sweep %s", o.LongestSweep.Round(time.Millisecond))
+	}
 	if o.Truncated > 0 {
 		report += fmt.Sprintf(", %d reported as truncated rather than delivered", o.Truncated)
 	}
@@ -192,15 +231,35 @@ type FrameEngineConfig struct {
 	// engine with no capture path is not an engine, and constructing one would
 	// advertise a surface that cannot capture anything.
 	Capturer FrameCapturer
-	// Interval is the capture cadence; a zero value uses DefaultFrameInterval.
+	// Interval is how often each subscribed device is CAPTURED: the grid's
+	// cadence, which is what one sweep of the whole set aims to finish inside. A
+	// zero value uses DefaultGridStillCadence.
 	Interval time.Duration
 	// CaptureTimeout bounds one capture; a zero value uses
 	// DefaultFrameCaptureTimeout.
 	CaptureTimeout time.Duration
-	// MaxSubscribers bounds the subscriber set; a zero value uses
-	// MaxFrameSubscribers.
+	// MaxSubscribers is how many devices one sweep may carry. It is a bound on the
+	// WORK rather than on the fleet - a still spends no device session - so it is
+	// deliberately far larger than a session capacity. A zero value uses
+	// DefaultGridMaxDevices.
+	//
+	// The bound is on the SET, not on one tick's duration: a tick captures every
+	// subscribed device once, sequentially, so a tick's worst case is
+	// MaxSubscribers x the capture timeout. The ticker coalesces missed ticks (it
+	// does not queue them), so a sweep that runs long delays the next capture
+	// rather than building a backlog of them - the cadence is best effort over a
+	// set, the sweep's own duration is reported in the outcome, and each device's
+	// OBSERVED cadence is stated on its frame rather than implied.
 	MaxSubscribers int
-	// PreviewBytes bounds one delivered preview; a zero value uses
+	// Profile is the level every still is carried at; a zero value uses
+	// DefaultGridStillProfile.
+	Profile GridStillProfile
+	// Encoder turns a capture into the still carried at the profile's level; a nil
+	// value uses ImageStillEncoder. It is a seam because the transform's cost and
+	// its output can be measured without a device, while what the ENGINE does with
+	// a capture is what the engine's own tests assert.
+	Encoder StillEncoder
+	// PreviewBytes bounds one delivered still; a zero value uses
 	// DefaultPreviewLimit. It may not exceed that limit: the engine reuses the
 	// one-shot capture's bound rather than widening it.
 	PreviewBytes int
@@ -232,6 +291,8 @@ type FrameEngine struct {
 	captureTimeout time.Duration
 	maxSubscribers int
 	previewBytes   int
+	profile        GridStillProfile
+	encoder        StillEncoder
 	logf           func(string, ...any)
 	now            func() time.Time
 
@@ -255,7 +316,7 @@ func NewFrameEngine(cfg FrameEngineConfig) (*FrameEngine, error) {
 	}
 	interval := cfg.Interval
 	if interval <= 0 {
-		interval = DefaultFrameInterval
+		interval = DefaultGridStillCadence
 	}
 	captureTimeout := cfg.CaptureTimeout
 	if captureTimeout <= 0 {
@@ -263,7 +324,15 @@ func NewFrameEngine(cfg FrameEngineConfig) (*FrameEngine, error) {
 	}
 	maxSubscribers := cfg.MaxSubscribers
 	if maxSubscribers <= 0 {
-		maxSubscribers = MaxFrameSubscribers
+		maxSubscribers = DefaultGridMaxDevices
+	}
+	profile := cfg.Profile
+	if profile.MaxWidth <= 0 || profile.JPEGQuality <= 0 {
+		profile = DefaultGridStillProfile()
+	}
+	encoder := cfg.Encoder
+	if encoder == nil {
+		encoder = ImageStillEncoder{}
 	}
 	previewBytes := cfg.PreviewBytes
 	if previewBytes < 0 || previewBytes > DefaultPreviewLimit {
@@ -287,10 +356,145 @@ func NewFrameEngine(cfg FrameEngineConfig) (*FrameEngine, error) {
 		captureTimeout: captureTimeout,
 		maxSubscribers: maxSubscribers,
 		previewBytes:   previewBytes,
+		profile:        profile,
+		encoder:        encoder,
 		logf:           logf,
 		now:            now,
 		subscribers:    make(map[string]Frame),
 	}, nil
+}
+
+// GridCost is what this plane's grid costs the deployment, as the engine resolved
+// it: the cadence it aims for, the level every still is carried at, and how many
+// devices one sweep may carry.
+//
+// It is read rather than recomputed by whoever draws a grid, because these three
+// numbers ARE the grid's cost - `devices x still bytes / cadence` - and a console
+// that held its own copy of any of them could state a bound this plane is not
+// applying.
+type GridCost struct {
+	// Cadence is how often each subscribed device is captured.
+	Cadence time.Duration
+	// Profile is the level a still is carried at.
+	Profile GridStillProfile
+	// MaxDevices is how many devices one sweep may carry.
+	MaxDevices int
+	// Subscribed is how many devices are being captured right now.
+	Subscribed int
+}
+
+// GridCost reports the grid this engine is carrying.
+func (e *FrameEngine) GridCost() GridCost {
+	if e == nil {
+		return GridCost{Profile: DefaultGridStillProfile(), MaxDevices: DefaultGridMaxDevices}
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return GridCost{
+		Cadence:    e.interval,
+		Profile:    e.profile,
+		MaxDevices: e.maxSubscribers,
+		Subscribed: len(e.subscribers),
+	}
+}
+
+// GridSubscription is what one reconciliation of the capture set did, in the
+// terms a caller has to be able to report: which devices are now captured, which
+// were released because they left the set, which the sweep bound did not admit, and
+// which the capture path would not accept at all.
+//
+// The four are separate because they are four different sentences to an operator:
+// "the plane is showing you this device", "you stopped looking at it", "the plane
+// captures at most N devices at once and this one is past that bound", and "this
+// device cannot be captured at all".
+type GridSubscription struct {
+	// Admitted are the serials being captured after this reconciliation.
+	Admitted []string
+	// Released are the serials that stopped being captured because the set that
+	// named them no longer does.
+	Released []string
+	// Refused are the serials the sweep bound did not admit, in the order they
+	// were asked for.
+	Refused []string
+	// Invalid are the serials the capture path would not accept.
+	Invalid []string
+}
+
+// SyncSubscriptions makes the capture set exactly the serials a caller names.
+//
+// The set is reconciled rather than accumulated, and that is the whole point of
+// the method: a device the operator filtered out of the grid must stop being
+// captured, or a console that narrowed its view would leave the plane capturing
+// devices nothing is showing - which is the state every capture path in this
+// product refuses (a device is captured because something is subscribed to it).
+//
+// The order asked for is the order admitted, so a caller renders a stable grid,
+// and a bound that cannot admit every device refuses the remainder rather than
+// admitting a subset chosen by map order: which devices are shown is then
+// explicable from the bound, and the ones left out are named.
+func (e *FrameEngine) SyncSubscriptions(serials []string) GridSubscription {
+	result := GridSubscription{}
+	if e == nil {
+		return result
+	}
+	wanted := make([]string, 0, len(serials))
+	seen := make(map[string]bool, len(serials))
+	for _, serial := range serials {
+		trimmed := strings.TrimSpace(serial)
+		if trimmed == "" || seen[trimmed] {
+			continue
+		}
+		seen[trimmed] = true
+		if err := adb.ValidateSerial(trimmed); err != nil {
+			result.Invalid = append(result.Invalid, trimmed)
+			continue
+		}
+		wanted = append(wanted, trimmed)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	keep := make(map[string]bool, len(wanted))
+	for _, serial := range wanted {
+		keep[serial] = true
+	}
+	// Release first, so a device that has left the set frees its place before the
+	// set's new members are admitted: a grid that swapped devices between two
+	// sweeps is not refused its own new devices because of the ones it dropped.
+	for serial := range e.subscribers {
+		if keep[serial] {
+			continue
+		}
+		delete(e.subscribers, serial)
+		result.Released = append(result.Released, serial)
+	}
+	sort.Strings(result.Released)
+	for _, serial := range wanted {
+		if _, subscribed := e.subscribers[serial]; subscribed {
+			result.Admitted = append(result.Admitted, serial)
+			continue
+		}
+		if len(e.subscribers) >= e.maxSubscribers {
+			result.Refused = append(result.Refused, serial)
+			continue
+		}
+		e.subscribers[serial] = Frame{Serial: serial}
+		result.Admitted = append(result.Admitted, serial)
+	}
+	return result
+}
+
+// StopSubscriptions releases every subscribed device and reports how many
+// stopped being captured. A plane whose console has gone stops capturing rather
+// than holding devices for a viewer that is no longer there.
+func (e *FrameEngine) StopSubscriptions() int {
+	if e == nil {
+		return 0
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	released := len(e.subscribers)
+	e.subscribers = make(map[string]Frame)
+	return released
 }
 
 // Subscribe starts capturing a device. The subscription is the work: until one
@@ -424,15 +628,19 @@ func (e *FrameEngine) capture(ctx context.Context) FrameEngineOutcome {
 // tick, each on its own bounded context, never a fan-out.
 func (e *FrameEngine) tick(ctx context.Context, outcome *FrameEngineOutcome) {
 	serials := e.Subscribers()
+	started := e.now()
 	outcome.Ticks++
 	outcome.Subscribed = len(serials)
 	for _, serial := range serials {
 		if ctx.Err() != nil {
 			// Shutdown began mid-tick. The devices left in this tick are not
 			// captured on a dead context; they are simply not this tick's work.
-			return
+			break
 		}
 		e.captureOne(ctx, serial, outcome)
+	}
+	if sweep := e.now().Sub(started); sweep > outcome.LongestSweep {
+		outcome.LongestSweep = sweep
 	}
 }
 
@@ -451,20 +659,25 @@ func (e *FrameEngine) captureOne(ctx context.Context, serial string, outcome *Fr
 			outcome.Cancelled++
 			return
 		}
-		class := adb.FailureClassOf(err)
-		detail := boundedFrameDetail(err)
-		outcome.Captures++
-		outcome.Failures++
-		outcome.LastFailureClass = class
-		outcome.LastFailureDetail = detail
-		if e.recordFailure(serial, class, detail) {
-			e.logf("frame engine could not capture %s (%s): %s", serial, class, detail)
+		e.recordCaptureFailure(serial, adb.FailureClassOf(err), boundedFrameDetail(err), outcome)
+		return
+	}
+	// The capture is carried at the profile's level on the way out. A capture that
+	// cannot be turned into a still is a failure of THIS path and is classified as
+	// one: a device left reading "pending" beside a capture that arrived and could
+	// not be read would send an operator looking at the device instead of here.
+	still, encodeErr := e.encoder.EncodeStill(shot.PNG, e.profile)
+	if encodeErr != nil {
+		if ctx.Err() != nil {
+			outcome.Cancelled++
+			return
 		}
+		e.recordCaptureFailure(serial, StillFailureClass(encodeErr), boundedFrameDetail(encodeErr), outcome)
 		return
 	}
 	// The frame's own time is taken here, from the capture that produced it, not
 	// from the tick that asked for it.
-	frame, stored := e.recordFrame(serial, shot, e.now())
+	frame, stored := e.recordFrame(serial, shot, still, e.now())
 	outcome.Captures++
 	if !stored {
 		// The device was unsubscribed while its frame was being captured. Nothing
@@ -475,27 +688,53 @@ func (e *FrameEngine) captureOne(ctx context.Context, serial string, outcome *Fr
 	outcome.Frames++
 	if frame.PreviewTruncated {
 		outcome.Truncated++
-		e.logf("frame engine captured %s: %d byte(s), over the %d byte preview bound, reported as truncated with no preview",
-			serial, len(shot.PNG), e.previewBytes)
+		e.logf("frame engine captured %s: still from a %d byte capture at q%d is %d byte(s), over the %d byte bound, reported as truncated with no still",
+			serial, len(shot.PNG), still.JPEGQuality, frame.StillBytes, e.previewBytes)
 		return
 	}
-	e.logf("frame engine captured %s: %d byte(s), hash %s", serial, len(shot.PNG), shot.Hash)
+	e.logf("frame engine captured %s: %d byte capture at %s, still %dx%d of %d byte(s) at q%d, hash %s",
+		serial, len(shot.PNG), e.profile.Level, still.Width, still.Height, frame.StillBytes, still.JPEGQuality, shot.Hash)
 }
 
-// recordFrame stores a captured frame for a still-subscribed device. It reports
-// false when the subscription ended while the capture was in flight.
-func (e *FrameEngine) recordFrame(serial string, shot adb.ScreenshotResult, capturedAt time.Time) (Frame, bool) {
-	preview, truncated := boundedPreview(shot.PNG, e.previewBytes)
+// recordCaptureFailure counts and records one failed capture attempt against its
+// device. The classification is decided by the caller, at the point that knows
+// which layer failed - the capture path or the transform - rather than guessed
+// here from an error's shape.
+func (e *FrameEngine) recordCaptureFailure(serial string, class domain.FailureClass, detail string, outcome *FrameEngineOutcome) {
+	outcome.Captures++
+	outcome.Failures++
+	outcome.LastFailureClass = class
+	outcome.LastFailureDetail = detail
+	if e.recordFailure(serial, class, detail) {
+		e.logf("frame engine could not capture %s (%s): %s", serial, class, detail)
+	}
+}
+
+// recordFrame stores a captured still for a subscribed device. It reports false
+// when the subscription ended while the capture was in flight.
+func (e *FrameEngine) recordFrame(serial string, shot adb.ScreenshotResult, still GridStillImage, capturedAt time.Time) (Frame, bool) {
+	preview, truncated := boundedPreview(still.JPEG, e.previewBytes)
+	at := capturedAt.UTC()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	frame, subscribed := e.subscribers[serial]
 	if !subscribed {
 		return Frame{}, false
 	}
+	// The observed cadence is measured from the capture that preceded this one, so
+	// a tile can state how fresh its picture is from what the plane did rather
+	// than from what it was configured to do.
+	if !frame.CapturedAt.IsZero() && at.After(frame.CapturedAt) {
+		frame.ObservedCadence = at.Sub(frame.CapturedAt)
+	}
 	frame.Serial = serial
-	frame.CapturedAt = capturedAt.UTC()
+	frame.CapturedAt = at
 	frame.ContentHash = shot.Hash
 	frame.Bytes = len(shot.PNG)
+	frame.MediaType = StillMediaType
+	frame.Width = still.Width
+	frame.Height = still.Height
+	frame.StillBytes = len(still.JPEG)
 	frame.PreviewBase64 = preview
 	frame.PreviewTruncated = truncated
 	frame.Frames++

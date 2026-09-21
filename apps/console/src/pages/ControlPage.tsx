@@ -12,12 +12,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { ArtifactView, ControlPlaneIntent, ControlPlaneSnapshot, DeviceOperationName, DeviceOperationOutcomeView, DeviceSettingName, DeviceSettingOutcomeView, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
-import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import { liveMirrorCopy, livePictureHeld, type LiveMirrorPreview, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
-import { useMirrorCapacity } from "@/lib/api/use-mirror-capacity"
-import { allocateTileViewers, tileBudgetSentence, tileViewerBudget, type TileViewerBudget } from "@/lib/live-tiles"
+import type { GridPreviewClient, LiveMirrorClient } from "@/lib/api/control-plane-clients"
+import { liveMirrorCopy, livePictureHeld, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
+import { useGridStills } from "@/lib/api/use-grid-stills"
+import { gridSentence, gridTileStill, type GridProfileView, type GridTileStill } from "@/lib/grid-stills"
 import { LiveMirrorDeviceKeys, LiveMirrorInfo, LiveMirrorSurface, useLiveMirrorSession, type LiveMirrorSessionView } from "./live-mirror-surface"
-import { LiveTilePicture } from "./live-tile"
+import { StillTile } from "./still-tile"
 import { deviceObservationSentence, deviceStatusLabels, notObserved } from "@/lib/device-status"
 import { deviceSettingLabels, deviceSettingNames, deviceSettingOutcomeSentence } from "@/lib/device-settings"
 import { deviceOperationLabels, deviceOperationOutcomeSentence } from "@/lib/device-operations"
@@ -26,7 +26,18 @@ import { reportDispatch } from "@/lib/api/report-dispatch"
 import { captureSerialForDevice } from "./page-utils"
 import { DeviceStatus as DeviceStatusBadge, EmptyState, OperatorNotice, StatusBadge } from "./shared"
 
-type Workspace = { largeHeight: number; smallHeight: number; quality: "Low" | "Medium" | "High" | "Extra"; frameRate: number; orientation: "portrait" | "landscape" }
+/**
+ * Workspace is this console's OWN display state: how big the frames are drawn and
+ * which way round.
+ *
+ * It used to carry a preview level and a frame rate as well, because each compact
+ * frame was a live stream whose encoder level the panel set. A compact frame is a
+ * STILL now, and the level and cadence a still is carried at are the control
+ * plane's deployment inputs - not this console's - so the two controls that set
+ * them are gone rather than left bounding nothing: a control an operator can move
+ * that changes nothing is a surface claiming a bound it does not own.
+ */
+type Workspace = { largeHeight: number; smallHeight: number; orientation: "portrait" | "landscape" }
 type ConsoleSettings = { gap: number; opacity: number; autoScreenOff: boolean; controlSmall: boolean; controlsSide: "left" | "right"; workspaceSide: "left" | "right"; showTag: boolean; showIndex: boolean; showName: boolean; showIp: boolean; liveMirrorTransport: LiveMirrorTransportChoice }
 type FloatingPosition = { x: number; y: number }
 type ConnectionFilter = "all" | "usb" | "wifi" | "otg"
@@ -49,7 +60,7 @@ const connectionFilters: { value: ConnectionFilter; label: string }[] = [
   { value: "otg", label: "OTG" },
 ]
 
-const workspaceDefaults: Workspace = { largeHeight: 480, smallHeight: 192, quality: "Medium", frameRate: 15, orientation: "portrait" }
+const workspaceDefaults: Workspace = { largeHeight: 480, smallHeight: 192, orientation: "portrait" }
 /**
  * The transport a device is streamed over until the operator says otherwise.
  *
@@ -85,7 +96,7 @@ function errorMessage(error: unknown): string {
   return "The action could not be completed."
 }
 
-export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", mirror }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; dispatchLab?: (intent: ControlPlaneIntent) => Promise<MutationResult>; labNotice?: string; mirror?: LiveMirrorClient }) {
+export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", mirror, grid }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; dispatchLab?: (intent: ControlPlaneIntent) => Promise<MutationResult>; labNotice?: string; mirror?: LiveMirrorClient; grid?: GridPreviewClient }) {
   const [workspace, setWorkspace] = useState(workspaceDefaults)
   const [settings, setSettings] = useState(settingsDefaults)
   const [sourceId, setSourceId] = useState<string | null>(null)
@@ -132,31 +143,22 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
   const observedEndpoints = Array.from(new Set(snapshot.endpoints.filter((endpoint) => endpoint.state === "current" && endpoint.host.trim() !== "").map((endpoint) => `${endpoint.host}:${endpoint.port}`))).sort()
   const visibleDevices = snapshot.devices.filter((device) => matchesConnectionFilter(device, connectionFilter))
   /**
-   * What this console may spend on tiles, as the CONTROL PLANE stated it.
+   * The grid's stills, as the control plane answered for the devices this view is
+   * drawing.
    *
-   * The bound is the plane's, not the projection's and not this console's: a live
-   * tile is a device session on the plane, so how many tiles may subscribe is read
-   * from the plane's own capacity less the place it keeps for the operator's own
-   * frame. This console used to hold the number itself, which let a grid of four
-   * tiles be opened against a plane that could carry one - and the refusals that
-   * followed had nothing on screen to explain them. Until the reading arrives, the
-   * budget is unmeasured and no tile subscribes, which is the same thing a plane
-   * that refused every stream would produce but is reported as the reading it is.
+   * EVERY visible device is named in the request, with no allocation, no cap and
+   * nothing dropped, and a tile is drawn for every one of them. That is the whole
+   * difference this surface makes: a still spends no device session, so a tile is
+   * not a viewer competing for one of the plane's places - the only number that can
+   * ever leave a device without a picture is the plane's own sweep bound, and the
+   * tile says so when it is that one. The one live session this console opens is
+   * the operator's own big frame.
    */
-  const capacityReading = useMirrorCapacity(mirror, snapshot.workspaceId)
-  const tileBudget: TileViewerBudget = tileViewerBudget(capacityReading.capacity)
-  /**
-   * The workspace's encode setting, as the grid's tiles state it.
-   *
-   * It is built from the two controls the operator set in the workspace panel, and
-   * it is the bound the control plane applies to an AMBIENT tile's stream. The
-   * operator's own big frame is deliberately not sent it: that frame is where the
-   * work happens and the plane carries it at its own profile, so a level chosen for
-   * a grid of thumbnails can never make it blurry.
-   */
-  const workspacePreview: LiveMirrorPreview = { quality: workspace.quality, frameRate: workspace.frameRate }
-  /** The tiles that carry a live picture, in the grid's own order. */
-  const tileViewers = allocateTileViewers(visibleDevices, tileBudget)
+  const gridStills = useGridStills({ client: grid, workspaceId: snapshot.workspaceId, deviceIds: visibleDevices.map((device) => device.id) })
+  /** What one tile holds: what the plane reported for the device, or the reason this console has no report for it. */
+  function stillFor(deviceId: string): GridTileStill {
+    return gridTileStill(deviceId, { stills: gridStills.byDeviceId, refusedDeviceIds: gridStills.refusedDeviceIds, unreadable: gridStills.unreadable })
+  }
 
   function showToastMessage(message: string) {
     if (message.trim() !== "") toast.info(message)
@@ -387,16 +389,16 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
         <LabObservationFrame adapter={snapshot.labAdapter} height={workspace.largeHeight} />
         <ConnectionFilterBar filter={connectionFilter} onChange={setConnectionFilter} shown={visibleDevices.length} total={snapshot.devices.length} />
         {/*
-          How many tiles this console carries, and which bound decided it. It is stated
-          once here rather than repeated in every tile because the bound is one fact
-          about the whole grid: a tile that says "Not shown" carries the count for
-          itself, and an operator asking why the grid carries fewer pictures than it
-          used to reads the reason - the session share, or the profile's cost against
-          the transport budget - in this line.
+          What this grid's pictures ARE, and what they cost. It is stated once here
+          rather than repeated in every tile, because the cadence, the level and the
+          fact that a still spends no device session are facts about the whole grid:
+          a tile that says "Not current" or "Not shown" carries its own reason, and
+          an operator asking whether this is a live view reads the answer in this
+          line.
         */}
-        <p className="mt-2 text-[11px] leading-4 text-muted-foreground">{tileBudgetSentence(tileBudget)}</p>
+        <p data-testid="grid-stills-line" className="mt-2 text-[11px] leading-4 text-muted-foreground">{gridSentence({ devices: visibleDevices.length, refused: gridStills.refusedDeviceIds.length, profile: gridStills.profile, unreadable: gridStills.unreadable, failure: gridStills.reading.failure })}</p>
         <div className={`grid items-start gap-4 ${modalPinned && source ? "xl:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
-          {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail="No device in the current view has an observed transport matching this filter." /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${workspace.orientation === "portrait" ? Math.round(workspace.smallHeight * 9 / 16) : workspace.smallHeight}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} mirror={mirror} transport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} viewing={tileViewers.includes(device.id)} budget={tileBudget} preview={workspacePreview} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
+          {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail="No device in the current view has an observed transport matching this filter." /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${workspace.orientation === "portrait" ? Math.round(workspace.smallHeight * 9 / 16) : workspace.smallHeight}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} tile={stillFor(device.id)} profile={gridStills.profile} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
           {modalPinned ? deviceModal : null}
         </div>
       </section>
@@ -443,9 +445,6 @@ function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, 
         <div className="border-t border-border pt-4"><p className="text-xs font-semibold">Compact Phone Frames</p><p className="mt-1 text-[11px] text-muted-foreground">Orientation applies only to compact frames.</p></div>
         <Slider label="Small Screen" value={workspace.smallHeight} min={192} max={840} step={24} unit="px" onChange={(smallHeight) => onWorkspaceChange({ ...workspace, smallHeight })} />
         <div className="grid grid-cols-2 gap-2"><Button size="sm" variant={workspace.orientation === "portrait" ? "default" : "outline"} onClick={() => onWorkspaceChange({ ...workspace, orientation: "portrait" })}>Portrait</Button><Button size="sm" variant={workspace.orientation === "landscape" ? "default" : "outline"} onClick={() => onWorkspaceChange({ ...workspace, orientation: "landscape" })}>Landscape</Button></div>
-        <Choice label="Preview Quality" value={workspace.quality} options={["Low", "Medium", "High", "Extra"]} onChange={(quality) => onWorkspaceChange({ ...workspace, quality: quality as Workspace["quality"] })} />
-        <Slider label="Frame Rate" value={workspace.frameRate} min={1} max={24} unit="fps" onChange={(frameRate) => onWorkspaceChange({ ...workspace, frameRate })} />
-        <p className="text-[11px] leading-4 text-muted-foreground">The grid&apos;s pictures are carried at these two bounds: each level caps the size and the bit rate the device&apos;s encoder may spend on a tile, and the rate caps how often it captures. The big frame you work a device from is carried at its own profile and is never bounded by this setting.</p>
         <Button variant="outline" className="w-full rounded-none" onClick={() => onWorkspaceChange(workspaceDefaults)}>Reset Workspace</Button>
       </TabsContent>
       <TabsContent value="otg" className="space-y-5 p-4">
@@ -638,7 +637,7 @@ function DeviceListDialog({ devices, endpoints, onReload, pendingAction }: { dev
   })}</tbody></table></div></DialogContent></Dialog>
 }
 
-function CompactPhone({ device, index, size, orientation, active, follower, settings, mirror, transport, workspaceId, viewing, budget, preview, onClick }: { device: DeviceView; index: number; size: number; orientation: Workspace["orientation"]; active: boolean; follower: boolean; settings: ConsoleSettings; mirror?: LiveMirrorClient; transport: LiveMirrorTransportChoice; workspaceId: string; viewing: boolean; budget: TileViewerBudget; preview: LiveMirrorPreview; onClick: () => void }) {
+function CompactPhone({ device, index, size, orientation, active, follower, settings, tile, profile, onClick }: { device: DeviceView; index: number; size: number; orientation: Workspace["orientation"]; active: boolean; follower: boolean; settings: ConsoleSettings; tile: GridTileStill; profile: GridProfileView | null; onClick: () => void }) {
   const width = orientation === "portrait" ? Math.round(size * 9 / 16) : size
   const height = orientation === "portrait" ? size : Math.round(size * 9 / 16)
   // A device that is not currently observed carries a mark CENTRED in its frame,
@@ -657,7 +656,7 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
   const absent = notObserved(device.status)
   const AbsentIcon = device.status === "unobserved" ? SearchX : Unplug
   const frameColor = absent ? absentPhoneColor : phoneColors[index % phoneColors.length]
-  return <button type="button" aria-pressed={active || follower} onClick={onClick} className={`relative justify-self-center overflow-hidden rounded-[9px] border-[3px] text-left text-white transition-colors focus-visible:outline-3 focus-visible:outline-primary ${active ? "border-primary ring-2 ring-primary/40" : follower ? "border-primary/70" : "border-slate-500"} ${frameColor}`} style={{ width, height, boxSizing: "border-box" }}>{absent ? null : <LiveTilePicture device={device} mirror={mirror} transport={transport} workspaceId={workspaceId} viewing={viewing} budget={budget} preview={preview} />}<span className="absolute inset-0 bg-black/10" style={{ opacity: 1 - settings.opacity / 100 }} />{settings.showTag ? <span className="absolute left-0 top-0 bg-red-500 px-1 text-[8px] font-bold leading-4">{device.controlEligibility === "eligible" ? "OTG" : "HOLD"}</span> : null}<span className="absolute inset-x-0 top-6 text-center">{settings.showIndex ? <span className="block text-lg font-bold leading-none">{index + 1}</span> : null}{settings.showName ? <span className="mt-1 block text-[10px] font-semibold">{device.displayName}</span> : null}{settings.showIp ? <span className="mt-1 block font-mono text-[8px] text-white/80">{device.endpointId}</span> : null}</span>{absent ? <span className="pointer-events-none absolute inset-0 grid place-items-center"><span className="grid place-items-center border border-white/40 bg-slate-950/75 p-1.5"><AbsentIcon role="img" aria-label={deviceObservationSentence(device.displayName, device.status)} className="size-5" /></span></span> : null}<span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] text-white/90"><Smartphone className="size-3" aria-hidden="true" /><span>{deviceStatusLabels[device.status]}</span></span>{active ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Open</span> : follower ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Follower</span> : null}</button>
+  return <button type="button" aria-pressed={active || follower} onClick={onClick} className={`relative justify-self-center overflow-hidden rounded-[9px] border-[3px] text-left text-white transition-colors focus-visible:outline-3 focus-visible:outline-primary ${active ? "border-primary ring-2 ring-primary/40" : follower ? "border-primary/70" : "border-slate-500"} ${frameColor}`} style={{ width, height, boxSizing: "border-box" }}><StillTile device={device} tile={tile} profile={profile} /><span className="absolute inset-0 bg-black/10" style={{ opacity: 1 - settings.opacity / 100 }} />{settings.showTag ? <span className="absolute left-0 top-0 bg-red-500 px-1 text-[8px] font-bold leading-4">{device.controlEligibility === "eligible" ? "OTG" : "HOLD"}</span> : null}<span className="absolute inset-x-0 top-6 text-center">{settings.showIndex ? <span className="block text-lg font-bold leading-none">{index + 1}</span> : null}{settings.showName ? <span className="mt-1 block text-[10px] font-semibold">{device.displayName}</span> : null}{settings.showIp ? <span className="mt-1 block font-mono text-[8px] text-white/80">{device.endpointId}</span> : null}</span>{absent ? <span className="pointer-events-none absolute inset-0 grid place-items-center"><span className="grid place-items-center border border-white/40 bg-slate-950/75 p-1.5"><AbsentIcon role="img" aria-label={deviceObservationSentence(device.displayName, device.status)} className="size-5" /></span></span> : null}<span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] text-white/90"><Smartphone className="size-3" aria-hidden="true" /><span>{deviceStatusLabels[device.status]}</span></span>{active ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Open</span> : follower ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Follower</span> : null}</button>
 }
 
 /**

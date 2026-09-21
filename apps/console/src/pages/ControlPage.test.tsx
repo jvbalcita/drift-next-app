@@ -13,8 +13,8 @@ import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, liveStreamView, type LiveMirrorPreview, type MirrorCapacityView } from "@/lib/live-mirror"
 import { deviceOperationLabels } from "@/lib/device-operations"
 import { ControlPage } from "./ControlPage"
-import { liveTileCopy, tileViewerLimit, type MeasuredTileBudget } from "@/lib/live-tiles"
-import { planeBudget, planeCapacity } from "@/test/mirror-fixtures"
+import { fakeGridPlane, gridProfile, gridProfileProto, gridStillBytes } from "@/test/grid-fixtures"
+import { planeCapacity } from "@/test/mirror-fixtures"
 
 /**
  * The browser's WebRTC stack is stubbed rather than exercised: what these tests
@@ -63,10 +63,8 @@ function fakeMirror(state: "starting" | "live" | "ended" = "live", transport: Mi
   return { client, calls, purposes, previews }
 }
 
-/** The plane the page's fixtures run against: five sessions, one kept for the frame. */
+/** The plane the big frame's fixtures run against: five device sessions, one kept for the operator's own frame. */
 const gridPlane: MirrorCapacityView = planeCapacity(5, 1)
-/** The grid's own budget, derived from that plane rather than stated. */
-const gridBudget: MeasuredTileBudget = planeBudget(5, 1)
 
 /** openLiveMirrorDetails opens the info control beside the pin and returns what it holds. */
 async function openLiveMirrorDetails(user: ReturnType<typeof userEvent.setup>) {
@@ -80,7 +78,7 @@ beforeEach(() => {
 
 describe("ControlPage screenshot", () => {
   it("does not authorize capture when the device has no current transport endpoint", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const client = new MockControlPlaneClient()
     const intents: ControlPlaneIntent[] = []
     const dispatch = async (intent: ControlPlaneIntent) => {
@@ -102,7 +100,7 @@ describe("ControlPage screenshot", () => {
   })
 
   it("names the device's current endpoint serial when capturing", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const client = new MockControlPlaneClient()
     const intents: ControlPlaneIntent[] = []
     const dispatch = async (intent: ControlPlaneIntent) => {
@@ -154,7 +152,7 @@ describe("ControlPage OTG Setup tab", () => {
   }
 
   it("offers Set Port at 5555 and a fleet Activate, and no per-device target or transport control", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, intents, dispatch } = harness()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
     await openOtgTab(user)
@@ -202,7 +200,7 @@ describe("ControlPage OTG Setup tab", () => {
   })
 
   it("reports a fleet activation per serial rather than as one verdict", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, dispatch } = harness()
     const snapshot = client.getSnapshot()
     const serials = snapshot.devices.map((device) => snapshot.endpoints.find((endpoint) => endpoint.deviceId === device.id && endpoint.state === "current")?.serial ?? "")
@@ -221,7 +219,7 @@ describe("ControlPage OTG Setup tab", () => {
   })
 
   it("runs the whole flow — Set Port, Activate, Scan — with no Connect control in it", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, intents, dispatch } = harness()
     const snapshot = client.getSnapshot()
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
@@ -261,7 +259,7 @@ describe("ControlPage OTG Setup tab", () => {
   })
 
   it("sits the saved network with the ADB server controls, with its own scan of the saved profile", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, intents, dispatch } = harness()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
     await openOtgTab(user)
@@ -288,7 +286,7 @@ describe("ControlPage OTG Setup tab", () => {
   })
 
   it("scans the entered range from the IP Range inputs, and never the selected profile", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, intents, dispatch } = harness()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
     await openOtgTab(user)
@@ -321,7 +319,7 @@ describe("ControlPage OTG Setup tab", () => {
   })
 
   it("locks the second range's first three octets to the first range, and refuses an edit to them", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, intents, dispatch } = harness()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
     await openOtgTab(user)
@@ -350,7 +348,7 @@ describe("ControlPage OTG Setup tab", () => {
   })
 
   it("refuses an out-of-range last octet with a named reason and scans nothing", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, dispatch } = harness()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
     await openOtgTab(user)
@@ -367,7 +365,7 @@ describe("ControlPage OTG Setup tab", () => {
   })
 
   it("reports a concise reload summary without dumping every device", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, intents, dispatch } = harness()
     const snapshot = client.getSnapshot()
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
@@ -389,7 +387,7 @@ describe("ControlPage OTG Setup tab", () => {
   })
 
   it("keeps guidance in visible labels with focused info icons", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, dispatch } = harness()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
     await openOtgTab(user)
@@ -420,7 +418,7 @@ describe("ControlPage OTG Setup tab", () => {
   })
 
   it("shows a loader while reloading and reports completion in a toast", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const client = new MockControlPlaneClient()
     let resolveReload: ((result: MutationResult) => void) | undefined
     const dispatch = async (intent: ControlPlaneIntent) => {
@@ -450,7 +448,7 @@ describe("ControlPage OTG Setup tab", () => {
   })
 
   it("reports the transport surface's own answer rather than a claimed success", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, dispatch } = harness()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
     await openOtgTab(user)
@@ -464,7 +462,7 @@ describe("ControlPage OTG Setup tab", () => {
   })
 
   it("does not render the adb restart without an observed endpoint to re-establish", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, dispatch } = harness()
     const snapshot = client.getSnapshot()
     snapshot.endpoints = []
@@ -482,7 +480,7 @@ describe("ControlPage OTG Setup tab", () => {
 
 describe("ControlPage connection filters", () => {
   it("shows all devices by default, filters by observed transport, and updates the count", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const client = new MockControlPlaneClient()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={async (intent) => client.dispatch(intent)} />)
 
@@ -502,7 +500,7 @@ describe("ControlPage connection filters", () => {
   })
 
   it("filters OTG-eligible devices separately from their transport", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const client = new MockControlPlaneClient()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={async (intent) => client.dispatch(intent)} />)
 
@@ -516,7 +514,7 @@ describe("ControlPage connection filters", () => {
   })
 
   it("keeps Workspace Settings in the toolbar when there are no devices", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const client = new MockControlPlaneClient()
     const snapshot = { ...client.getSnapshot(), devices: [], endpoints: [] }
     render(<ControlPage snapshot={snapshot} dispatch={async (intent) => client.dispatch(intent)} />)
@@ -535,7 +533,7 @@ describe("ControlPage connection filters", () => {
     // attached-but-unauthorized device IS a USB device - that is where it is -
     // and a view that filters on the observed transport must show it. It is not
     // OTG-eligible, so the two filters answer two different questions (ARC-196).
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const client = new MockControlPlaneClient()
     const snapshot = client.getSnapshot()
     const unauthorized: DeviceView = {
@@ -656,7 +654,7 @@ describe("ControlPage device observation status", () => {
   })
 
   it("keeps the absent mark at the smallest landscape frame", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { snapshot, dispatch } = harness()
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
 
@@ -673,7 +671,7 @@ describe("ControlPage device observation status", () => {
   })
 
   it("shows the same observation truth per row in the Device List, with copy that says what a status means", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { snapshot, dispatch } = harness()
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
 
@@ -720,7 +718,7 @@ describe("ControlPage Console Settings fleet device settings", () => {
   }
 
   it("says in the dialog that this tab changes device state", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { client, dispatch } = harness()
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
 
@@ -738,7 +736,11 @@ describe("ControlPage Console Settings fleet device settings", () => {
   })
 
   it("does not apply anything until the operator confirms, and then reports the ONLINE fleet rather than the registry", async () => {
-    const user = userEvent.setup()
+    // AGENTS.md §10: the delay between the events of one interaction runs on a real
+    // timer and is taken out unless the delay is itself under test. This line came
+    // from main with the PREVIOUS version of this case; this branch's base predates
+    // it, so the merge restores the rule rather than dropping it with the old case.
+    const user = userEvent.setup({ delay: null })
     // The mock fleet holds four devices it paints as ONLINE and two it does not:
     // one ATTENTION and one OFFLINE. The control plane's target set is the reading
     // this console shows the operator, so the run acts on the four, and the two are
@@ -812,7 +814,7 @@ describe("ControlPage live mirror frame", () => {
   })
 
   it("opens the selected device's live frame, and the placeholder decoration is gone", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const mock = new MockControlPlaneClient()
     const mirror = fakeMirror()
     render(<ControlPage snapshot={mock.getSnapshot()} dispatch={async (intent) => mock.dispatch(intent)} mirror={mirror.client} />)
@@ -844,7 +846,7 @@ describe("ControlPage live mirror frame", () => {
   })
 
   it("offers both transports, and opens the device's stream over the one chosen", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const mock = new MockControlPlaneClient()
     const mirror = fakeMirror("live", MirrorTransport.TCP)
     // The TCP transport reads its bytes from the control plane's stream endpoint;
@@ -882,7 +884,7 @@ describe("ControlPage live mirror frame", () => {
   })
 
   it("shows no live frame for a console that has no control plane behind it", async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const mock = new MockControlPlaneClient()
     render(<ControlPage snapshot={mock.getSnapshot()} dispatch={async (intent) => mock.dispatch(intent)} />)
 
@@ -900,10 +902,12 @@ describe("ControlPage live mirror frame", () => {
  * The fleet grid's tiles.
  *
  * Two claims, both about what a tile IS: a device with no current observation is
- * drawn in ONE fixed colour rather than its index, and an observed tile carries
- * the device's live picture within a bound the console decides rather than the
- * grid's size. A tile is a viewer: nothing here takes a lease, opens a control
- * session, or dispatches anything.
+ * drawn in ONE fixed colour rather than its index, and every device in the view
+ * carries the control plane's STILL - a picture the plane captured on its own
+ * cadence - with no allocation and no bound a tile can be denied by. A tile is a
+ * picture and nothing else: nothing here takes a lease, opens a control session, or
+ * dispatches anything, and the one live session this console opens is the big frame
+ * the operator works a device from.
  */
 describe("ControlPage fleet tiles", () => {
   beforeEach(() => {
@@ -912,30 +916,6 @@ describe("ControlPage fleet tiles", () => {
   afterEach(() => {
     vi.unstubAllGlobals()
   })
-
-  /**
-   * mirrorFor answers each device's own stream, its purpose, the workspace's
-   * preview setting it stated, and the plane's capacity.
-   */
-  function mirrorFor(): { client: LiveMirrorClient; started: string[]; purposes: string[]; previews: (LiveMirrorPreview | undefined)[] } {
-    const started: string[] = []
-    const purposes: string[] = []
-    const previews: (LiveMirrorPreview | undefined)[] = []
-    const client: LiveMirrorClient = {
-      async startStream(request) {
-        started.push(request.deviceId)
-        purposes.push(request.purpose)
-        previews.push(request.preview)
-        return liveStreamView(create(MirrorStreamSchema, { streamId: `stream-${request.deviceId}`, deviceId: request.deviceId, transport: MirrorTransport.WEBRTC, renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n }))
-      },
-      async getCapacity() { return gridPlane },
-      async negotiate(_streamId, _offerSdp) { return { answerSdp: "answer-sdp", stream: liveStreamView(create(MirrorStreamSchema, { streamId: "stream", deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n })) } },
-      async stopStream() { return liveStreamView(create(MirrorStreamSchema, { streamId: "stream", deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.ENDED })) },
-      async getStream(streamId) { return liveStreamView(create(MirrorStreamSchema, { streamId, deviceId: "atlas-04", renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n })) },
-      streamEndpoint(path) { return { url: `http://control-plane.test${path}`, headers: {} } },
-    }
-    return { client, started, purposes, previews }
-  }
 
   function grid() {
     const mock = new MockControlPlaneClient()
@@ -974,157 +954,175 @@ describe("ControlPage fleet tiles", () => {
     expect(within(unseen).getByText("Not Observed")).toBeInTheDocument()
   })
 
-  it("carries a live picture on an observed tile, subscribed no further than the plane's own share", async () => {
+  it("draws only the devices the view's connection filter shows, with no bound deciding how many of them may be carried", async () => {
+    const user = userEvent.setup({ delay: null })
     const { snapshot, dispatch } = grid()
-    const mirror = mirrorFor()
-    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={mirror.client} />)
+    const plane = fakeGridPlane({ stills: { "atlas-04": { state: "current" }, "nova-05": { state: "current" } } })
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} grid={plane.client} />)
+    await waitFor(() => expect(plane.requests).toHaveLength(1))
+    expect(screen.getAllByTestId(/^still-tile-state-/)).toHaveLength(7)
 
-    // The observed tiles carry a picture, and the grid holds five of them while the
-    // PLANE offers four: the subscriber set is the share the control plane stated,
-    // not the grid's size and not a number this console keeps.
-    expect(await screen.findByTestId("live-tile-video-atlas-04")).toBeInTheDocument()
-    const pictures = screen.getAllByTestId(/^live-tile-video-/)
-    expect(pictures).toHaveLength(tileViewerLimit(gridBudget))
-    expect(mirror.started.sort()).toEqual(["atlas-04", "atlas-07", "nova-02", "orion-01"])
-    // And every one of them asked as an ambient viewer: the plane's capacity is
-    // spent per purpose, so a grid that opened as the operator's own frames would
-    // spend the place the big frame is kept for.
-    expect(mirror.purposes).toEqual(["ambient", "ambient", "ambient", "ambient"])
-
-    // The device with no current observation is not subscribed at all, and spends
-    // none of the bound: there is nothing to carry for it.
-    expect(mirror.started).not.toContain("nova-05")
-    expect(screen.queryByTestId("live-tile-video-nova-05")).not.toBeInTheDocument()
-    expect(screen.queryByTestId("live-tile-video-atlas-09")).not.toBeInTheDocument()
-
-    // The tile the bound does not reach says so in the tile, and does not imply
-    // it is live: no picture element, and the whole sentence behind the mark.
-    const unshown = screen.getByTestId("live-tile-state-orion-03")
-    expect(unshown).toHaveAttribute("aria-label", liveTileCopy.unshown(gridBudget))
-    expect(unshown).toHaveTextContent(liveTileCopy.unshownShort)
-    expect(screen.queryByTestId("live-tile-video-orion-03")).not.toBeInTheDocument()
+    // The grid follows the view: with the filter set to USB, the two USB devices are
+    // drawn and the rest are not, because a tile is a picture of a device in the view
+    // and not a place on the plane that some other device is holding.
+    await user.click(screen.getByRole("button", { name: "USB" }))
+    const shown = screen.getAllByTestId(/^still-tile-state-/).map((tile) => (tile.getAttribute("data-testid") ?? "").replace("still-tile-state-", ""))
+    expect(shown.sort()).toEqual(["atlas-04", "nova-05"])
+    expect(screen.getByTestId("still-tile-image-atlas-04")).toHaveAttribute("src", `data:image/jpeg;base64,${gridStillBytes}`)
+    // The plane's next sweep is the release for the devices that left the view and the
+    // capture set for the ones that stayed, so the set is NAMED to it whole - which the
+    // hook's own test drives on the plane's cadence rather than waiting four seconds
+    // for it here.
+    expect(plane.requests[0]).toHaveLength(7)
   })
 
-  it("carries the workspace's Preview Quality on every tile it opens", async () => {
+  it("draws a still for EVERY device in the view, names every one of them to the plane, and opens no tile stream", async () => {
     const { snapshot, dispatch } = grid()
-    const mirror = mirrorFor()
-    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={mirror.client} />)
-    await screen.findByTestId("live-tile-video-atlas-04")
+    const mirror = fakeMirror()
+    const plane = fakeGridPlane({
+      stills: { "atlas-04": { state: "current" }, "atlas-07": { state: "current" }, "nova-02": { state: "current" }, "orion-01": { state: "current" }, "orion-03": { state: "current" } },
+    })
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={mirror.client} grid={plane.client} />)
 
-    // Every tile states the workspace's setting, because a tile is what the plane
-    // bounds an ambient stream with - and it states the setting the operator's own
-    // panel shows rather than a value this console invents.
-    expect(mirror.previews).toHaveLength(tileViewerLimit(gridBudget))
-    for (const stated of mirror.previews) {
-      expect(stated).toEqual({ quality: "Medium", frameRate: 15 })
-    }
+    // Seven devices are in this view and every one of them is a tile: a still spends
+    // no device session, so there is no place for a tile to be denied and nothing for
+    // this console to allocate. The set the grid is drawing IS the plane's capture
+    // set, so it is named whole, in the grid's own order.
+    await waitFor(() => expect(plane.requests).toHaveLength(1))
+    const tiles = screen.getAllByTestId(/^still-tile-state-/)
+    expect(tiles).toHaveLength(7)
+    expect(plane.requests[0]).toEqual(tiles.map((tile) => (tile.getAttribute("data-testid") ?? "").replace("still-tile-state-", "")))
+
+    // A device the plane captured is drawn from the media type and the bytes it
+    // stated, and the tile says it is a STILL rather than claiming a live picture.
+    const current = await screen.findByTestId("still-tile-state-atlas-04")
+    expect(current).toHaveAttribute("data-tile-state", "current")
+    expect(current).toHaveTextContent(/^Still/)
+    expect(current).not.toHaveAttribute("role")
+    expect(screen.getByTestId("still-tile-image-atlas-04")).toHaveAttribute("src", `data:image/jpeg;base64,${gridStillBytes}`)
+
+    // A device the plane cannot capture is answered in the plane's own words rather
+    // than left off the grid, and it carries no picture.
+    const unavailable = screen.getByTestId("still-tile-state-nova-05")
+    expect(unavailable).toHaveAttribute("data-tile-state", "unavailable")
+    expect(unavailable).toHaveTextContent("No picture")
+    expect(screen.getByTestId("still-tile-image-nova-05")).not.toHaveAttribute("src")
+
+    // And NO tile is a viewer of anything: the grid opens no device stream at all,
+    // because the one live session this console opens is the operator's own frame.
+    expect(mirror.calls.filter((call) => call.startsWith("start:"))).toEqual([])
   })
 
-  it("opens Preview Quality at Medium, with High still selectable, and carries a change to the plane", async () => {
-    const user = userEvent.setup()
+  it("draws no picture for a still the plane reports not current, and carries the plane's own failure sentence", async () => {
     const { snapshot, dispatch } = grid()
-    const mirror = mirrorFor()
-    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={mirror.client} />)
-    await screen.findByTestId("live-tile-video-atlas-04")
+    const reason = "the capture path could not read this device's screen"
+    const plane = fakeGridPlane({
+      stills: { "atlas-04": { state: "stale", failureClass: "observation", failureDetail: reason }, "atlas-07": { state: "current" } },
+    })
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} grid={plane.client} />)
 
-    // The default is Medium and not High: the plane's own default capacity lets the
-    // grid carry several tiles at once, and each level above Medium is a per-stream
-    // cost a grid multiplies (High 2.5 Mbps, Extra 6 Mbps against Medium's 1.2).
-    await user.click(screen.getByRole("button", { name: "Open Workspace Settings" }))
-    const quality = screen.getByRole("button", { name: "Preview Quality" })
-    expect(quality).toHaveTextContent("Medium")
+    const stale = await screen.findByTestId("still-tile-state-atlas-04")
+    await waitFor(() => expect(stale).toHaveAttribute("data-tile-state", "stale"))
+    expect(stale).toHaveTextContent("Not current")
+    // The plane's OWN classification reaches the operator, in the tile's own
+    // element: the class it grouped the failure under and the detail it recorded,
+    // never a generic "failed" that names nothing to act on.
+    expect(stale).toHaveAttribute("aria-label", expect.stringContaining(reason) as unknown as string)
+    expect(stale).toHaveAttribute("aria-label", expect.stringContaining("observation") as unknown as string)
+    // A failed capture is a classified failure, so it announces itself; the states
+    // that are not failures do not (see the refused case below).
+    expect(stale).toHaveAttribute("role", "alert")
 
-    // High is still selectable, and choosing it reaches the plane: the control is
-    // not local state that bounds nothing, which is the defect this replaces.
-    await user.click(quality)
-    await user.click(await screen.findByRole("menuitem", { name: "High" }))
-    await waitFor(() => expect(screen.getByRole("button", { name: "Preview Quality" })).toHaveTextContent("High"))
-    await waitFor(() => expect(mirror.previews).toContainEqual({ quality: "High", frameRate: 15 }))
+    // The element the picture is written into is the tile's for its whole lifetime,
+    // and it carries NO source: the last still the plane holds is not this device's
+    // screen now, so nothing is passed off as the screen.
+    expect(screen.getByTestId("still-tile-image-atlas-04")).not.toHaveAttribute("src")
+    expect(screen.getByTestId("still-tile-image-atlas-04")).toHaveClass("invisible")
 
-    // And Extra, the level whose size is the device's own, is offered too.
-    await user.click(screen.getByRole("button", { name: "Preview Quality" }))
-    expect(await screen.findByRole("menuitem", { name: "Extra" })).toBeInTheDocument()
-    expect(await screen.findByRole("menuitem", { name: "Low" })).toBeInTheDocument()
+    // One device's failed capture is not a reason for the grid to stop drawing every
+    // other device.
+    expect(screen.getByTestId("still-tile-image-atlas-07")).toHaveAttribute("src", `data:image/jpeg;base64,${gridStillBytes}`)
   })
 
-  it("offers no Priority control: the setting it meant is the workspace's own preview setting", async () => {
-    const user = userEvent.setup()
+  it("says which bound kept a device out when the plane's own sweep bound did not reach it", async () => {
+    const { snapshot, dispatch } = grid()
+    const plane = fakeGridPlane({ stills: { "atlas-04": { state: "current" } }, refused: ["orion-03"] })
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} grid={plane.client} />)
+
+    const refused = await screen.findByTestId("still-tile-state-orion-03")
+    await waitFor(() => expect(refused).toHaveAttribute("data-tile-state", "refused"))
+    expect(refused).toHaveTextContent("Not shown")
+    // The bound is the PLANE's, named with the numbers it published: how many devices
+    // one sweep carries, and the level every still is carried at. It is a bound on the
+    // plane's own work, not a place this device is waiting for, so the tile carries no
+    // alert and no picture.
+    expect(refused).toHaveAttribute("aria-label", expect.stringContaining("64 device(s) in one sweep") as unknown as string)
+    expect(refused).toHaveAttribute("aria-label", expect.stringContaining("medium level, 360 px wide at JPEG quality 65") as unknown as string)
+    expect(refused).not.toHaveAttribute("role")
+    expect(screen.getByTestId("still-tile-image-orion-03")).not.toHaveAttribute("src")
+
+    // The line beside the grid names that bound because a device in this view reached
+    // it - and it states the cadence, the level and the fact that a still spends no
+    // device session, so the grid carries no tile count to run out of.
+    const line = screen.getByTestId("grid-stills-line")
+    expect(line).toHaveTextContent("about every 4 seconds")
+    expect(line).toHaveTextContent("the medium level, 360 px wide at JPEG quality 65")
+    expect(line).toHaveTextContent("A still spends NO device session")
+    expect(line).toHaveTextContent("captures at most 64 device(s) in one sweep, and 1 device(s) in this view are past that bound")
+    expect(line).toHaveTextContent("the operator's own big frame keeps the one live session it needs")
+    expect(line.textContent ?? "").not.toMatch(/\bis live\b/i)
+  })
+
+  it("states the PLANE's own cadence, level and numbers beside the grid, and no sweep bound nothing reached", async () => {
+    const { snapshot, dispatch } = grid()
+    const plane = fakeGridPlane({
+      stills: { "atlas-04": { state: "current" } },
+      profile: gridProfileProto(gridProfile({ cadenceMillis: 5_000, level: "high", levelMaxWidth: 480, levelJpegQuality: 70, stillByteBound: 120_000, maxDevices: 12 })),
+    })
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} grid={plane.client} />)
+
+    await waitFor(() => expect(plane.requests).toHaveLength(1))
+    const line = screen.getByTestId("grid-stills-line")
+    // The cadence and the level are the PLANE's, in the numbers it published BESIDE the
+    // level's name: a line that printed "high" alone could not say whether the pictures
+    // are 480 or 720 pixels wide, and one that printed this console's own workspace
+    // setting would state a bound the plane is not applying to anything.
+    expect(line).toHaveTextContent("about every 5 seconds")
+    expect(line).toHaveTextContent("the high level, 480 px wide at JPEG quality 70")
+    expect(line).toHaveTextContent("up to 120000 bytes per still")
+    // A bound stated where nothing reached it reads as the tile count this surface
+    // removed, so the plane's sweep bound is named only for the devices it did not
+    // reach - and in this view it reached it for nobody.
+    expect(line).not.toHaveTextContent("in one sweep")
+  })
+
+  it("claims nothing about any device, and says so, when a read it could not complete arrives", async () => {
+    const { snapshot, dispatch } = grid()
+    const plane = fakeGridPlane()
+    plane.fail(new Error("the control plane is not answering"))
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} grid={plane.client} />)
+
+    // A read this console could not complete is a fact about this console's reach and
+    // not a report about any device, so the grid states its own missing report instead
+    // of claiming anything the plane did not say.
+    await waitFor(() => expect(screen.getByTestId("grid-stills-line")).toHaveTextContent("could not read the control plane"))
+    const tile = screen.getByTestId("still-tile-state-atlas-04")
+    expect(tile).toHaveAttribute("data-tile-state", "unreadable")
+    expect(tile).toHaveTextContent("No report")
+    expect(tile).not.toHaveAttribute("role")
+    expect(screen.getByTestId("still-tile-image-atlas-04")).not.toHaveAttribute("src")
+  })
+
+  it("says which fact it is missing when this console has no control plane behind it", async () => {
     const { snapshot, dispatch } = grid()
     render(<ControlPage snapshot={snapshot} dispatch={dispatch} />)
-    await user.click(screen.getByRole("button", { name: "Settings" }))
-    // A control that changes nothing must not be shown. Priority (Speed/Quality)
-    // was read by nothing in the mirror path, and the bound it meant is the
-    // workspace's Preview Quality - one control for one fact.
-    expect(screen.queryByRole("button", { name: "Priority" })).not.toBeInTheDocument()
-  })
 
-  it("carries only as many tiles as the PLANE's own capacity leaves, not a number of its own", async () => {
-    // The plane carries two device sessions and keeps one of them for the
-    // operator's own big frame, so the grid may hold exactly one tile. This console
-    // used to carry four regardless - and the three streams the plane refused left
-    // three tiles that showed nothing with nothing on screen to explain them.
-    const { snapshot, dispatch } = grid()
-    const mirror = mirrorFor()
-    const singlePlace = { ...mirror, client: { ...mirror.client, async getCapacity() { return planeCapacity(2, 1) } } }
-    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={singlePlace.client} />)
-
-    expect(await screen.findByTestId("live-tile-video-atlas-04")).toBeInTheDocument()
-    await waitFor(() => expect(mirror.started).toEqual(["atlas-04"]))
-    // No second tile subscribes, and the tiles the plane's share does not reach say
-    // which bound kept them out rather than reading as devices with nothing to show.
-    expect(screen.getAllByTestId(/^live-tile-video-/)).toHaveLength(1)
-    const unshown = screen.getByTestId("live-tile-state-atlas-07")
-    expect(unshown).toHaveAttribute("aria-label", liveTileCopy.unshown(planeBudget(2, 1)))
-    expect(unshown).toHaveTextContent(liveTileCopy.unshownShort)
-  })
-
-  it("carries no tile pictures at all, and says so, when the plane's capacity cannot be read", async () => {
-    const { snapshot, dispatch } = grid()
-    const mirror = mirrorFor()
-    const unreadable = { ...mirror, client: { ...mirror.client, async getCapacity(): Promise<MirrorCapacityView> { throw new Error("the control plane is not answering") } } }
-    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={unreadable.client} />)
-
-    // Nothing subscribes: the number this console used to carry tiles at was its own
-    // invention, and carrying pictures at it here would be carrying more than the
-    // plane was ever asked to hold.
-    await waitFor(() => expect(screen.getByTestId("live-tile-state-atlas-04")).toHaveAttribute("aria-label", liveTileCopy.unmeasured.long))
-    expect(mirror.started).toEqual([])
-    expect(screen.queryAllByTestId(/^live-tile-video-/)).toHaveLength(0)
-    // And the frames that do not depend on the plane's capacity still work: opening
-    // the operator's own big frame is not gated on a reading of it.
-    expect(screen.getByRole("button", { name: /Atlas 04/i })).toBeInTheDocument()
-  })
-
-  it("says a tile is not live rather than showing the last frame a failed stream produced", async () => {
-    const { snapshot, dispatch } = grid()
-    const refusal = "the peer produced no picture within its bound"
-    const client: LiveMirrorClient = {
-      ...mirrorFor().client,
-      async startStream(request) {
-        if (request.deviceId === "atlas-04") throw new Error(refusal)
-        return liveStreamView(create(MirrorStreamSchema, { streamId: `stream-${request.deviceId}`, deviceId: request.deviceId, transport: MirrorTransport.WEBRTC, renderWidth: 1080, renderHeight: 1920, state: MirrorStreamState.LIVE, frames: 4n }))
-      },
-    }
-    render(<ControlPage snapshot={snapshot} dispatch={dispatch} mirror={client} />)
-
-    // The allocation is a READ of the plane's capacity, so no tile subscribes
-    // until that reading has arrived: this waits for the state rather than for the
-    // element, which is rendered from the first frame and starts out idle.
-    const failed = await screen.findByTestId("live-tile-state-atlas-04")
-    await waitFor(() => expect(failed).toHaveAttribute("data-tile-state", "failed"))
-    // The classification reaches the operator: the plane's own reason, in the
-    // tile's own element, and NO picture kept from before the failure. The tile
-    // holds the element its picture would be written into - it is what makes the
-    // first frame land - so what is checked is that the element carries no
-    // picture and is not shown, rather than that it is absent.
-    expect(failed).toHaveAttribute("aria-label", expect.stringContaining(refusal) as unknown as string)
-    const droppedElement = screen.getByTestId("live-tile-video-atlas-04")
-    expect(droppedElement).toHaveProperty("srcObject", null)
-    expect(droppedElement).toHaveClass("invisible")
-
-    // The other observed tiles are unaffected: one tile's failure is not a reason
-    // for the grid to stop carrying every other device.
-    expect(await screen.findByTestId("live-tile-video-atlas-07")).toBeInTheDocument()
+    // No client at all is the missing reading, not a plane with no pictures: every
+    // device is still drawn, every tile states its own missing report, and nothing is
+    // claimed about a device.
+    await waitFor(() => expect(screen.getByTestId("grid-stills-line")).toHaveTextContent("no control plane"))
+    expect(screen.getAllByTestId(/^still-tile-state-/)).toHaveLength(7)
+    expect(screen.getByTestId("still-tile-state-atlas-04")).toHaveTextContent("No report")
   })
 })
 
