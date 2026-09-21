@@ -26,9 +26,9 @@ export const deviceStatusLabels: Record<DeviceStatus, string> = {
  * the device answers at this moment.
  */
 export const deviceStatusMeanings: Record<DeviceStatus, string> = {
-  online: "observed by the control plane and still current",
+  online: "observed by the control plane, and that sighting still stands",
   attention: "observed by the control plane with a condition to review",
-  offline: "observed before, but no current transport is recorded",
+  offline: "observed before, and no sighting of it still stands",
   unobserved: "no observation has been recorded for this device",
   unauthorized: "observed by the control plane at a transport this host is not authorized to use",
   no_permissions: "observed by the control plane at a transport this host may not open",

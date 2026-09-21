@@ -354,11 +354,15 @@ func (a *DeviceOperationsApplier) RunDeviceOperation(ctx context.Context, reques
 	if err != nil {
 		return row, err
 	}
-	serial, registered := fleet[request.DeviceID]
+	reading, registered := fleet[request.DeviceID]
 	if !registered {
 		return refusedOperationRow(row, OperationDeviceNotRegistered, domain.FailureInvalidTransition), nil
 	}
-	if strings.TrimSpace(serial) == "" {
+	// A device the plane does not read as online has no transport named here, so
+	// this path reaches no device either: a stale-but-current endpoint is not a
+	// transport to dispatch to.
+	serial := strings.TrimSpace(reading.Serial)
+	if serial == "" {
 		return refusedOperationRow(row, OperationNoTransportSerial, domain.FailureTransport), nil
 	}
 	workspace := organizations.WorkspaceID(request.Workspace)
@@ -414,11 +418,15 @@ func (a *DeviceOperationsApplier) RunAdvancedCommand(ctx context.Context, reques
 	if err != nil {
 		return row, err
 	}
-	serial, registered := fleet[request.DeviceID]
+	reading, registered := fleet[request.DeviceID]
 	if !registered {
 		return refusedOperationRow(row, OperationDeviceNotRegistered, domain.FailureInvalidTransition), nil
 	}
-	if strings.TrimSpace(serial) == "" {
+	// A device the plane does not read as online has no transport named here, so
+	// this path reaches no device either: a stale-but-current endpoint is not a
+	// transport to dispatch to.
+	serial := strings.TrimSpace(reading.Serial)
+	if serial == "" {
 		return refusedOperationRow(row, OperationNoTransportSerial, domain.FailureTransport), nil
 	}
 	workspace := organizations.WorkspaceID(request.Workspace)

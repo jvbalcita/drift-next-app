@@ -32,6 +32,7 @@ import (
 	"drift.local/drift-next/internal/domain"
 	"drift.local/drift-next/internal/leases"
 	"drift.local/drift-next/internal/organizations"
+	"drift.local/drift-next/internal/platform/clock"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 	store "drift.local/drift-next/internal/store/sqlite"
 )
@@ -73,6 +74,15 @@ const (
 	// observed, while this one says the plane has never recorded the device the
 	// request named, and the two send an operator to different places.
 	SettingsDeviceNotRegistered SettingsRefusal = "device_not_registered"
+	// SettingsDeviceNotOnline is this boundary's reason for a device the
+	// registry holds and the plane does NOT read as online: nothing was
+	// dispatched to it. It is not a failure of the apply. An offline unit, a
+	// unit nobody has observed, an attached unit this host may not act on, and
+	// a unit whose most recent sighting no longer stands are all devices that
+	// were not contacted rather than devices the run failed against, and an
+	// operator who reads one for a failure goes looking for a device-side fault
+	// that does not exist.
+	SettingsDeviceNotOnline SettingsRefusal = "device_not_online"
 )
 
 // settingsRefusalMessages is the single reviewable place where a refusal is
@@ -97,6 +107,7 @@ var settingsRefusalMessages = map[SettingsRefusal]string{
 	SettingsPostconditionFailed:     "the device answered and does not report the setting holding the required value",
 	SettingsOutcomeIndeterminate:    "the setting was dispatched and its outcome could not be observed, so it is UNKNOWN",
 	SettingsDeviceNotRegistered:     "the device is not in this workspace's registry, so there is no transport to resolve and nothing was sent",
+	SettingsDeviceNotOnline:         "the device is not online, so nothing was sent",
 }
 
 // Message is the fixed sentence an operator reads for a refusal.
@@ -167,15 +178,25 @@ type DeviceSettingOutcome struct {
 // requested setting.
 type SettingsApplyReport struct {
 	Results []DeviceSettingOutcome
-	// TotalDevices counts the devices this apply ran for: every device in the
-	// workspace's registry that is not retired.
+	// TotalDevices counts the devices this apply TARGETED: the devices the plane
+	// reads as online at the moment the fleet was read, so it is the fleet and
+	// never the registry. A device that is not online is counted by
+	// NotContactedDevices instead, and nothing is dispatched to it.
 	TotalDevices int
-	// AppliedDevices counts the devices on which every requested setting is
-	// applied and verified.
+	// AppliedDevices counts the targeted devices on which every requested setting
+	// is applied and verified.
 	AppliedDevices int
-	// FailedDevices counts the devices with at least one setting that is not
-	// applied. It is a device count, not a row count.
+	// FailedDevices counts the TARGETED devices with at least one setting that is
+	// not applied. It is a device count, not a row count, and a device that was
+	// not contacted is not one of them: the plane never asked it anything, so
+	// nothing about it failed.
 	FailedDevices int
+	// NotContactedDevices counts the devices the registry holds that the plane
+	// does NOT read as online, so the run never asked them anything. They are
+	// still named in Results - one row per requested setting, each carrying
+	// SettingsDeviceNotOnline - because a device the operator asked about and
+	// cannot see is worse than one reported as not contacted.
+	NotContactedDevices int
 }
 
 // SettingsApplyRequest is one fleet-wide apply. The fleet is NOT part of it:
@@ -233,40 +254,84 @@ type SettingsAttemptIDSource interface {
 	NewID() (string, error)
 }
 
-// DeviceFleetReader reads the devices a fleet-wide apply runs against: every
-// device in the workspace that is not retired, mapped to the serial of its single
-// current transport endpoint.
+// FleetDevice is ONE device's reading in the fleet: whether the plane reads it
+// as online, and the transport to reach it at when it does.
 //
-// A device with no current endpoint is in the fleet with an EMPTY serial rather
-// than absent from it. It is a device the operation was run for and could not
-// reach, and an operator has to be able to read that: a device silently missing
-// from the report is the one outcome this boundary must not produce.
+// It carries the READING rather than only the address, because the two are not
+// the same fact and a caller that had only the address would have to re-derive
+// the reading itself. `Serial` is empty for a device the plane does not read as
+// online, which is what the per-device forms act on.
+type FleetDevice struct {
+	// Online is the plane's own ONLINE reading for this device: a current
+	// endpoint whose transport reported a usable link, observed recently enough
+	// for that sighting to stand (endpoints.Endpoint.Online). It is the SAME
+	// reading the console shows the operator and the same predicate the device
+	// status is derived from, so a surface that shows a device as online and a
+	// run that acts on the online fleet cannot disagree about which devices
+	// those are.
+	Online bool
+	// Serial is the transport this device was observed at, and is EMPTY for a
+	// device the plane does not read as online. It is resolved from the same
+	// current endpoint projection every other device read uses.
+	Serial string
+}
+
+// DeviceFleetReader reads the fleet a fleet-wide apply runs against: every
+// device in the workspace that is not retired, and for each one the plane's own
+// reading of whether it is online and the serial to reach it at.
+//
+// The map is the REGISTRY, not the target set: a device that is not online is in
+// it with Online false rather than absent from it. Two callers read it and both
+// need the whole registry - a fleet-wide run has to be able to NAME the devices
+// it did not contact, and a per-device form has to tell "this workspace has never
+// recorded the device you named" from "the device is recorded and is not online".
+// An operator action's CANDIDATE SET is the online members of this map and
+// nothing else.
 type DeviceFleetReader interface {
-	Fleet(ctx context.Context, workspace string) (map[string]string, error)
+	Fleet(ctx context.Context, workspace string) (map[string]FleetDevice, error)
 }
 
 // StoreFleetReader reads the fleet from the registry, through the same current
 // endpoint projection every other device read uses.
-type StoreFleetReader struct{ db *store.DB }
+type StoreFleetReader struct {
+	db    *store.DB
+	clock clock.Clock
+}
 
+// NewStoreFleetReader reads the fleet against the system clock.
 func NewStoreFleetReader(db *store.DB) *StoreFleetReader {
+	return NewStoreFleetReaderWithClock(db, clock.System{})
+}
+
+// NewStoreFleetReaderWithClock is NewStoreFleetReader dated by the clock given,
+// so the ONLINE reading's freshness term is a seam a test can drive instead of
+// the wall clock that happens to be running. A nil clock reads the system clock.
+func NewStoreFleetReaderWithClock(db *store.DB, source clock.Clock) *StoreFleetReader {
 	if db == nil {
 		return nil
 	}
-	return &StoreFleetReader{db: db}
+	if source == nil {
+		source = clock.System{}
+	}
+	return &StoreFleetReader{db: db, clock: source}
 }
 
-// Fleet returns the workspace's devices and the serial of each one's USABLE
-// current transport endpoint, or the empty string for a device that has no
-// usable one.
+// Fleet returns every device in the workspace's registry that is not retired,
+// with the plane's ONLINE reading of each and the serial of each online device's
+// current transport endpoint.
+//
+// The reading is `endpoints.Endpoint.Online` and nothing else, so a device is
+// online here exactly when the console shows the operator ONLINE, and an action's
+// target set is the reading the operator sees rather than a second definition
+// invented beside it.
 //
 // A device whose current transport reported it as present but unauthorized, not
-// openable by this host, or not answering reads as the empty string here, so a
-// fleet-wide run reports it as its OWN row with nothing dispatched to it rather
-// than sending a write at a device this host may not act on. Its transport is
-// still current - that is where the device is, and the console shows it - and
-// being at a transport is not permission to use it (ARC-196).
-func (r *StoreFleetReader) Fleet(ctx context.Context, workspace string) (map[string]string, error) {
+// openable by this host, or not answering is recorded and NOT online: its
+// transport is still current - that is where the device is, and the console shows
+// it - and being at a transport is not permission to use it (ARC-196). A device
+// whose most recent observation no longer stands is not online either: the
+// address it was observed at may since belong to another unit.
+func (r *StoreFleetReader) Fleet(ctx context.Context, workspace string) (map[string]FleetDevice, error) {
 	if r == nil || r.db == nil {
 		return nil, platformerrors.New(platformerrors.CodeUnavailable, "the device fleet reader is not configured")
 	}
@@ -278,17 +343,21 @@ func (r *StoreFleetReader) Fleet(ctx context.Context, workspace string) (map[str
 	if err != nil {
 		return nil, err
 	}
-	fleet := make(map[string]string, len(listed))
+	// One instant for the whole read: a fleet whose edge fell inside the loop
+	// would answer "online" and "not online" about the same moment.
+	now := r.clock.Now()
+	fleet := make(map[string]FleetDevice, len(listed))
 	for _, device := range listed {
 		if device.State == devices.Retired {
 			// A retired device is retired in place, and nothing acts on it.
 			continue
 		}
-		if endpoint, observed := current[device.ID]; observed && endpoint.LinkState.Usable() {
-			fleet[string(device.ID)] = endpoint.Serial
+		endpoint, observed := current[device.ID]
+		if !observed || !endpoint.Online(now) {
+			fleet[string(device.ID)] = FleetDevice{}
 			continue
 		}
-		fleet[string(device.ID)] = ""
+		fleet[string(device.ID)] = FleetDevice{Online: true, Serial: endpoint.Serial}
 	}
 	return fleet, nil
 }
@@ -366,8 +435,38 @@ func (a *DeviceSettingsApplier) ApplyDeviceSettings(ctx context.Context, request
 	// The order is the registry's own, made deterministic: a map has no order,
 	// and a report whose rows moved between runs could not be compared.
 	sort.Strings(deviceIDs)
-	report.TotalDevices = len(deviceIDs)
-	if len(deviceIDs) == 0 {
+	// The TARGET SET and the devices that are not in it are decided here, before
+	// anything is read or dispatched, and the run's counts are the target set's:
+	// TotalDevices is what this apply asked, never the size of the registry.
+	//
+	// A device that is not online is NAMED. It gets its own row per requested
+	// setting, carrying SettingsDeviceNotOnline, and it is counted as not
+	// contacted rather than as a failure - the plane never asked it anything, so
+	// nothing about it failed.
+	targets := make([]string, 0, len(deviceIDs))
+	for _, deviceID := range deviceIDs {
+		reading := fleet[deviceID]
+		switch {
+		case !reading.Online:
+			report.Results = append(report.Results, refusedRows(deviceID, settings, SettingsDeviceNotOnline, domain.FailureTransport)...)
+			report.NotContactedDevices++
+		case strings.TrimSpace(reading.Serial) == "":
+			// The plane reads the device as online and cannot name the transport
+			// to reach it at, which is a contradiction the reader should not be
+			// able to produce. Refused and not contacted, rather than skipped: a
+			// device the operator asked about and cannot see is worse than one
+			// reported as unreachable.
+			report.Results = append(report.Results, refusedRows(deviceID, settings, SettingsNoTransportSerial, domain.FailureTransport)...)
+			report.NotContactedDevices++
+		default:
+			targets = append(targets, deviceID)
+		}
+	}
+	report.TotalDevices = len(targets)
+	if len(targets) == 0 {
+		// No device is online, so the run contacts nothing and opens no control
+		// session: a session nobody dispatches under is control held for its own
+		// sake. The devices it did not contact are already in the report.
 		return report, nil
 	}
 	// ONE control session for the whole apply, opened on the caller's behalf.
@@ -385,21 +484,13 @@ func (a *DeviceSettingsApplier) ApplyDeviceSettings(ctx context.Context, request
 		// their own devices.
 		_, _ = a.sessions.Close(context.WithoutCancel(ctx), workspace, session.ID, actorType, actorID)
 	}()
-	for _, deviceID := range deviceIDs {
+	for _, deviceID := range targets {
 		if err := ctx.Err(); err != nil {
 			return report, err
 		}
-		serial := strings.TrimSpace(fleet[deviceID])
-		if serial == "" {
-			// The device is in the registry and has no single current transport
-			// endpoint, so there is no serial to reach it at. It is reported as
-			// its own refused rows rather than being absent from the report: a
-			// device the operator asked about and cannot see is worse than one
-			// reported as unreachable.
-			report.Results = append(report.Results, refusedRows(deviceID, settings, SettingsNoTransportSerial, domain.FailureTransport)...)
-			report.FailedDevices++
-			continue
-		}
+		// The transport was resolved with the target set, so it is named here:
+		// every member of `targets` carries one.
+		serial := strings.TrimSpace(fleet[deviceID].Serial)
 		rows := a.applyToDevice(ctx, workspace, request, deviceID, serial, session.ID, settings, actorType, actorID)
 		report.Results = append(report.Results, rows...)
 		deviceApplied := true
@@ -424,11 +515,10 @@ func (a *DeviceSettingsApplier) ApplyDeviceSettings(ctx context.Context, request
 // control session opened on the caller's behalf, one lease on that device, one
 // attempt, verified by reading the setting back off the device — narrowed to the
 // device the operator selected, and it refuses a device the registry does not
-// hold. It is deliberately not implemented as a fleet apply of one device: the
-// fleet reader answers "every device, and the serial of each", so a device that
-// is not in it is indistinguishable there from a device that is, and "this
-// console named a device this plane has never recorded" would be reported as a
-// missing transport.
+// hold. It is deliberately not implemented as a fleet apply of one device: a
+// fleet-wide apply's SUBJECT is the online fleet, so the device the operator
+// selected is not its subject at all, and "the device you named is not online"
+// would be reported as a refusal the operator did not ask about.
 //
 // An error is returned only when the run could not be attempted at all — an
 // unreadable fleet, a control session that could not be opened, a cancelled
@@ -455,14 +545,23 @@ func (a *DeviceSettingsApplier) ApplyDeviceSetting(ctx context.Context, request 
 	if err != nil {
 		return row, err
 	}
-	serial, registered := fleet[request.DeviceID]
+	reading, registered := fleet[request.DeviceID]
 	if !registered {
 		// The registry has never recorded this device, so there is nothing to
 		// resolve a transport from and nothing was sent. Its own reason, and its
 		// own row, rather than an aggregate failure.
 		return refusedRow(row, SettingsDeviceNotRegistered, domain.FailureInvalidTransition), nil
 	}
-	if strings.TrimSpace(serial) == "" {
+	if !reading.Online {
+		// The registry holds this device and the plane does not read it as
+		// online, so there is nothing to reach it at and nothing was sent. Its
+		// own reason: the operator selected a device the plane is not prepared to
+		// say is there, which is not a missing transport and not a device this
+		// workspace has never recorded.
+		return refusedRow(row, SettingsDeviceNotOnline, domain.FailureTransport), nil
+	}
+	serial := strings.TrimSpace(reading.Serial)
+	if serial == "" {
 		return refusedRow(row, SettingsNoTransportSerial, domain.FailureTransport), nil
 	}
 	// ONE control session for this attempt, opened on the caller's behalf, so

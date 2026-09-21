@@ -622,7 +622,7 @@ describe("ControlPage device observation status", () => {
     // depend on the frame's colour.
     const departed = screen.getByRole("button", { name: /Nova 05/i })
     expect(within(departed).getByText("Offline")).toBeInTheDocument()
-    const departedMark = within(departed).getByRole("img", { name: "Nova 05 is offline: observed before, but no current transport is recorded." })
+    const departedMark = within(departed).getByRole("img", { name: "Nova 05 is offline: observed before, and no sighting of it still stands." })
     expect(departedMark.parentElement?.parentElement).toHaveClass("inset-0", "place-items-center")
 
     // Atlas 09 has never been observed. It reads as NOT OBSERVED — not as
@@ -737,15 +737,13 @@ describe("ControlPage Console Settings fleet device settings", () => {
     expect(screen.getByText("Autofill Off")).toBeInTheDocument()
   })
 
-  it("does not apply anything until the operator confirms, and then reports every device and setting", async () => {
+  it("does not apply anything until the operator confirms, and then reports the ONLINE fleet rather than the registry", async () => {
     const user = userEvent.setup()
-    // The fleet is seeded WITHOUT one device's current endpoint, and both the page
-    // and the client are given that same fleet: the control plane reads the fleet
-    // from its own registry, so a device nothing has observed has to be reported
-    // as its own refusal rather than folded into a count.
-    const seeded = new MockControlPlaneClient().getSnapshot()
-    seeded.endpoints = seeded.endpoints.filter((endpoint) => endpoint.deviceId !== "nova-02")
-    const client = new MockControlPlaneClient(seeded)
+    // The mock fleet holds four devices it paints as ONLINE and two it does not:
+    // one ATTENTION and one OFFLINE. The control plane's target set is the reading
+    // this console shows the operator, so the run acts on the four, and the two are
+    // NAMED as not contacted rather than reported as failures of the apply.
+    const client = new MockControlPlaneClient()
     const intents: ControlPlaneIntent[] = []
     const dispatch = async (intent: ControlPlaneIntent) => {
       intents.push(intent)
@@ -754,6 +752,15 @@ describe("ControlPage Console Settings fleet device settings", () => {
     render(<ControlPage snapshot={client.getSnapshot()} dispatch={dispatch} />)
 
     await openFleetTab(user)
+
+    // §7: the text beside a control is part of the control, so the control states
+    // the new behaviour itself - the ONLINE fleet, and a report carrying the count
+    // of what was targeted - rather than leaving "every device" to be read into it.
+    screen.getByRole("button", { name: "About Apply To Fleet" }).focus()
+    await waitFor(() => {
+      expect(screen.getByText(/every device the control plane reads as ONLINE/)).toBeInTheDocument()
+    })
+    expect(screen.getByText(/states how many devices were targeted/)).toBeInTheDocument()
 
     const apply = screen.getByRole("button", { name: "Apply to Fleet" })
     expect(apply).toBeDisabled()
@@ -772,19 +779,27 @@ describe("ControlPage Console Settings fleet device settings", () => {
     // device list: a console cannot assert which devices are attached.
     expect(applied).toEqual({ type: "applyFleetDeviceSettings", settings: ["rotation_lock", "autofill_off"], confirmed: true })
 
+    // The summary states what the run TARGETED and keeps the devices it did not
+    // contact apart from the ones that failed. Counting the registry would report
+    // a run that reached two units nothing reached.
+    const summary = await screen.findByText((_, element) => element?.tagName === "P" && (element.textContent ?? "").includes("not online and not contacted"))
+    expect(summary.textContent).toContain("Targeted 4 online device(s)")
+    expect(summary.textContent).toContain("4 applied and verified every requested setting")
+    expect(summary.textContent).toContain("0 did not")
+    expect(summary.textContent).toContain("2 not online and not contacted")
+
     const table = await screen.findByRole("table", { name: /every setting this apply ran/i })
-    // One row per device per setting: 6 devices x 2 settings, plus the header.
+    // One row per device per setting: 6 devices x 2 settings, plus the header. A
+    // device that was not contacted keeps its rows - it is named, never dropped.
     expect(within(table).getAllByRole("row")).toHaveLength(13)
+    // The two devices the plane does not read as online carry the control plane's
+    // own sentence for that fact, and it is not a transport failure.
+    expect(within(table).getAllByText("the device is not online, so nothing was sent")).toHaveLength(4)
     expect(within(table).getAllByText("nova-02")).toHaveLength(2)
-    // The outcome cell also carries whether the device was read back, so it is
-    // matched by prefix: "Applied · read back off the device" is a confirmed
-    // change and "Not applied · no read-back" is a device nothing was read from.
-    expect(within(table).getAllByText(/^Not applied/)).toHaveLength(2)
-    expect(within(table).getAllByText(/^Applied/)).toHaveLength(10)
-    expect(within(table).getAllByText(/no read-back/)).toHaveLength(2)
-    // The refused device carries the control plane's own sentence, not a generic
-    // failure.
-    expect(within(table).getAllByText(/no single current transport endpoint/)).toHaveLength(2)
+    expect(within(table).getAllByText("nova-05")).toHaveLength(2)
+    expect(within(table).getAllByText(/^Applied/)).toHaveLength(8)
+    expect(within(table).getAllByText(/^Not applied/)).toHaveLength(4)
+    expect(within(table).getAllByText(/no read-back/)).toHaveLength(4)
   })
 })
 

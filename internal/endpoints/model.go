@@ -169,6 +169,49 @@ func (s LinkState) Usable() bool {
 	return s == LinkStateOnline || s == LinkStateUnrecorded
 }
 
+// OnlineObservationWindow is how long a recorded observation stands as the
+// plane's reading that a device is ONLINE.
+//
+// The plane records an observation when it sees a transport, and refreshes it
+// when it observes that same transport again. Past this window the most recent
+// sighting no longer stands as evidence that the device is where it was
+// observed: a LAN hands the address it issued back out when the lease ends, so
+// an address last observed long ago may belong to another unit today. An action
+// that dialled it would act on a device nobody selected, which is why the
+// reading fails closed rather than reporting a device as reachable from an
+// observation that has stopped meaning anything.
+//
+// The window is deliberately wide rather than tight. The plane re-observes an
+// attached device when it sees the transport again - on a scan, or on the poll
+// that observes an arrival - and not on a timer, so a tight window would report
+// a fleet that has been attached since the last scan as not online, which is the
+// opposite of what this reading is for. A day is the longest it can be without
+// letting a departed unit stay dialable across a whole address-lease cycle.
+const OnlineObservationWindow = 24 * time.Hour
+
+// Online reports whether a device observed at this endpoint reads as ONLINE now:
+// the transport reported a usable link, and that reading is recent enough to
+// stand.
+//
+// It is the ONE place the ONLINE reading is decided, so a surface that shows the
+// operator a device as ONLINE and a surface that acts on the ONLINE fleet cannot
+// disagree about which devices those are. The endpoint it is asked of must be the
+// device's CURRENT one: currency says the device has not been observed leaving
+// that transport, and this answers whether that sighting still stands.
+//
+// Both terms fail closed. An observation that recorded no link state at all
+// still reads usable - history written before the column existed was only ever
+// made current for a device the adapter could use - but an observation with no
+// time on it is not a reading anybody can date, so it does not stand.
+func (e *Endpoint) Online(now time.Time) bool {
+	if e == nil || !e.LinkState.Usable() || e.ObservedAt.IsZero() {
+		return false
+	}
+	// A clock that reads behind the observation is not evidence of staleness:
+	// the sighting is at least as new as it says it is, so it stands.
+	return now.Sub(e.ObservedAt) <= OnlineObservationWindow
+}
+
 // Condition is the clause that names what an unusable transport reported, for a
 // refusal sentence an operator reads. It is one function so a single dispatch, a
 // fleet-wide run and an error message cannot describe one condition three ways.

@@ -11,6 +11,7 @@ import (
 	"drift.local/drift-next/internal/discovery"
 	"drift.local/drift-next/internal/endpoints"
 	"drift.local/drift-next/internal/organizations"
+	"drift.local/drift-next/internal/platform/clock"
 	store "drift.local/drift-next/internal/store/sqlite"
 	transportconnect "drift.local/drift-next/internal/transport/connect"
 )
@@ -60,6 +61,23 @@ func depart(t *testing.T, db *store.DB, serial string) {
 func statusOf(t *testing.T, db *store.DB, id devices.DeviceID) *driftv1.Device {
 	t.Helper()
 	response, err := transportconnect.NewDeviceHandler(db).GetDevice(context.Background(), connectrpc.NewRequest(&driftv1.GetDeviceRequest{
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: string(statusWorkspace)},
+		DeviceId:  string(id),
+	}))
+	if err != nil {
+		t.Fatalf("GetDevice(%s) error = %v", id, err)
+	}
+	return response.Msg.GetDevice()
+}
+
+// statusOfAt reads one device's projection through a handler dated at ONE
+// instant, so the freshness term the ONLINE reading carries is the test's to set
+// rather than the wall clock's.
+func statusOfAt(t *testing.T, db *store.DB, id devices.DeviceID, now time.Time) *driftv1.Device {
+	t.Helper()
+	handler := transportconnect.NewDeviceHandler(db)
+	handler.SetClock(clock.NewFixed(now))
+	response, err := handler.GetDevice(context.Background(), connectrpc.NewRequest(&driftv1.GetDeviceRequest{
 		Workspace: &driftv1.WorkspaceRef{WorkspaceId: string(statusWorkspace)},
 		DeviceId:  string(id),
 	}))
@@ -296,5 +314,58 @@ func TestACurrentEndpointWithoutARecordedLinkStateReadsAsUsable(t *testing.T) {
 	}
 	if got := projected.GetTransport(); got != driftv1.DeviceTransport_DEVICE_TRANSPORT_USB {
 		t.Fatalf("device with unrecorded link state transport = %v, want USB", got)
+	}
+}
+
+// A device observed at a transport that reported a usable link reads ONLINE only
+// while that sighting still stands. Currency is not freshness: an endpoint stays
+// current until the device is observed leaving it, so a unit that left while the
+// plane was not watching keeps one - and the address it was seen at may since have
+// been handed to another unit.
+//
+// The assertion is the READING, and both devices below carry an identical current
+// endpoint row: a test that asserted "it kept a current endpoint" passes on both,
+// which is exactly the tree this case exists for.
+func TestASightingThatHasStoppedStandingDoesNotReadOnline(t *testing.T) {
+	db := openProductDB(t)
+	now := time.Date(2026, time.September, 21, 12, 0, 0, 0, time.UTC)
+	fresh := observe(t, db, "SER-FRESH")
+	stale := observe(t, db, "SER-STALE")
+	for _, bound := range []struct {
+		id         devices.DeviceID
+		serial     string
+		observedAt time.Time
+	}{
+		{id: fresh, serial: "SER-FRESH", observedAt: now.Add(-time.Minute)},
+		{id: stale, serial: "SER-STALE", observedAt: now.Add(-2 * endpoints.OnlineObservationWindow)},
+	} {
+		if err := store.NewEndpointService(db).BindCurrent(context.Background(), endpoints.Endpoint{
+			ID:         endpoints.EndpointID("endpoint-" + string(bound.id)),
+			Workspace:  statusWorkspace,
+			DeviceID:   bound.id,
+			Transport:  endpoints.TransportUSB,
+			Serial:     bound.serial,
+			State:      endpoints.Current,
+			LinkState:  endpoints.LinkStateOnline,
+			ObservedAt: bound.observedAt,
+		}, "operator", "op-1"); err != nil {
+			t.Fatalf("BindCurrent(%s) error = %v", bound.id, err)
+		}
+	}
+
+	if got := statusOfAt(t, db, fresh, now).GetStatus(); got != driftv1.DeviceStatus_DEVICE_STATUS_ONLINE {
+		t.Fatalf("device observed a minute ago = %v, want ONLINE", got)
+	}
+	// The sighting no longer stands, so the device is not offered as reachable. It
+	// is not reported as never observed either - the operator can still see what
+	// the plane last read about it - and its transport stays listed, because where
+	// the device was observed is a different fact from whether that reading still
+	// stands.
+	staleRead := statusOfAt(t, db, stale, now)
+	if got := staleRead.GetStatus(); got != driftv1.DeviceStatus_DEVICE_STATUS_OFFLINE {
+		t.Fatalf("device observed %v ago = %v, want OFFLINE: the sighting no longer stands", 2*endpoints.OnlineObservationWindow, got)
+	}
+	if got := staleRead.GetTransport(); got != driftv1.DeviceTransport_DEVICE_TRANSPORT_USB {
+		t.Fatalf("stale sighting transport = %v, want USB: the transport is where the device was observed", got)
 	}
 }

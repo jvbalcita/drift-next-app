@@ -75,6 +75,7 @@ const refusalTokens: Record<number, string> = {
   [DeviceSettingRefusalReason.POSTCONDITION_FAILED]: "postcondition_failed",
   [DeviceSettingRefusalReason.OUTCOME_INDETERMINATE]: "outcome_indeterminate",
   [DeviceSettingRefusalReason.DEVICE_NOT_REGISTERED]: "device_not_registered",
+  [DeviceSettingRefusalReason.DEVICE_NOT_ONLINE]: "device_not_online",
 }
 
 /** The token a contract refusal renders as. UNSPECIFIED is the empty string, because nothing was refused. */
@@ -105,6 +106,7 @@ export function deviceSettingsApplyView(response: ApplyDeviceSettingsResponse): 
     totalDevices: response.totalDevices,
     appliedDevices: response.appliedDevices,
     failedDevices: response.failedDevices,
+    notContactedDevices: response.notContactedDevices,
     outcomes,
   }
 }
@@ -159,19 +161,33 @@ export function deviceSettingOutcomeSentence(outcome: DeviceSettingOutcomeView):
  * deviceSettingsApplySentence states what an apply did, as the summary an
  * operator reads without opening the table.
  *
- * It counts the devices that were prepared and names every device that was not,
- * with the control plane's own sentence for it: an aggregate "applied 12 of 14"
- * would name none of the devices an operator has to go and look at, and a count
- * of zero is only reported when it was READ.
+ * It states the TARGETED count first, because that is the set the control plane
+ * acted on, and it names every device that was not, with the control plane's own
+ * sentence for it: an aggregate "applied 12 of 14" would name none of the devices
+ * an operator has to go and look at, and a count of zero is only reported when it
+ * was READ. A device that is not online is stated as not contacted rather than as
+ * a failure - nothing was asked of it, so nothing about it failed - and the two
+ * sentences are separate so neither can be read for the other.
  */
 export function deviceSettingsApplySentence(view: DeviceSettingsApplyView): string {
+  // One sentence for the excluded set, and it is stated as what happened to it
+  // rather than as a verdict on it: the devices that were not contacted are not
+  // failures of the apply, so they are not folded into a failure count.
+  const notOnline = view.notContactedDevices === 1
+    ? "1 device is not online and was not contacted"
+    : `${view.notContactedDevices} devices are not online and were not contacted`
+  const failures = view.outcomes
+    .filter((outcome) => !outcome.applied)
+    .map((outcome) => `${outcome.deviceId} · ${deviceSettingLabels[outcome.setting]}: ${outcome.message}`)
   if (view.totalDevices === 0) {
-    return "No device in this workspace's registry has a current transport endpoint, so nothing was applied and no device was contacted."
+    const head = "No device in this workspace is online, so nothing was applied and no device was contacted"
+    return view.notContactedDevices === 0 ? `${head}.` : `${head}; ${notOnline}.`
   }
-  if (view.appliedDevices === view.totalDevices) {
-    return `All ${view.totalDevices} device(s) applied and verified every requested setting.`
-  }
-  const failures = view.outcomes.filter((outcome) => !outcome.applied)
-  const sentences = failures.map((outcome) => `${outcome.deviceId} · ${deviceSettingLabels[outcome.setting]}: ${outcome.message}`)
-  return `${view.appliedDevices} of ${view.totalDevices} device(s) applied and verified every requested setting; ${view.failedDevices} did not. ${sentences.join(" ")}`
+  const targeted = view.appliedDevices === view.totalDevices
+    ? `All ${view.totalDevices} online device(s) applied and verified every requested setting`
+    : `${view.appliedDevices} of ${view.totalDevices} online device(s) applied and verified every requested setting; ${view.failedDevices} did not`
+  const clauses = [targeted]
+  if (view.notContactedDevices > 0) clauses.push(notOnline)
+  if (failures.length > 0) clauses.push(failures.join(" "))
+  return `${clauses.join(". ")}.`
 }

@@ -88,6 +88,7 @@ describe("device settings apply sentence", () => {
       totalDevices: 2,
       appliedDevices: 1,
       failedDevices: 1,
+      notContactedDevices: 0,
       outcomes: [
         { deviceId: "device-alpha", setting: "rotation_lock", applied: true, verified: true, refusal: "", failureClass: "", message: "applied" },
         { deviceId: "device-beta", setting: "autofill_off", applied: false, verified: true, refusal: "postcondition_failed", failureClass: "postcondition", message: "the device answered and does not report the setting holding the required value" },
@@ -99,19 +100,57 @@ describe("device settings apply sentence", () => {
     expect(sentence).toContain("does not report the setting holding")
   })
 
-  it("says so when every device applied", () => {
+  it("states the targeted count, and says so when every targeted device applied", () => {
     const sentence = deviceSettingsApplySentence({
       totalDevices: 1,
       appliedDevices: 1,
       failedDevices: 0,
+      notContactedDevices: 0,
       outcomes: [{ deviceId: "device-alpha", setting: "rotation_lock", applied: true, verified: true, refusal: "", failureClass: "", message: "applied" }],
     })
-    expect(sentence).toContain("All 1 device(s)")
+    expect(sentence).toContain("All 1 online device(s)")
+  })
+
+  it("separates the devices that were NOT contacted from the ones that failed", () => {
+    // A device that is not online is not a failure of the apply: nothing was
+    // asked of it, so nothing about it failed. It is still NAMED, and the count
+    // of what was targeted is what the run acted on rather than the registry.
+    const sentence = deviceSettingsApplySentence({
+      totalDevices: 1,
+      appliedDevices: 1,
+      failedDevices: 0,
+      notContactedDevices: 2,
+      outcomes: [
+        { deviceId: "device-alpha", setting: "rotation_lock", applied: true, verified: true, refusal: "", failureClass: "", message: "applied" },
+        { deviceId: "device-never", setting: "rotation_lock", applied: false, verified: false, refusal: "device_not_online", failureClass: "transport", message: "the device is not online, so nothing was sent" },
+      ],
+    })
+    expect(sentence).toContain("All 1 online device(s)")
+    expect(sentence).toContain("2 devices are not online and were not contacted")
+    expect(sentence).not.toContain("did not")
   })
 
   it("reports an empty fleet as an empty fleet rather than as success", () => {
-    const sentence = deviceSettingsApplySentence({ totalDevices: 0, appliedDevices: 0, failedDevices: 0, outcomes: [] })
+    const sentence = deviceSettingsApplySentence({ totalDevices: 0, appliedDevices: 0, failedDevices: 0, notContactedDevices: 0, outcomes: [] })
     expect(sentence).toContain("No device")
     expect(sentence).toContain("nothing was applied")
+  })
+
+  it("keeps the count of a device that is not online out of the registry", () => {
+    // The registry holds two devices and the plane reads one as online. A count
+    // of 2 would report a run that reached a device nothing reached.
+    const view = deviceSettingsApplyView(create(ApplyDeviceSettingsResponseSchema, {
+      totalDevices: 1,
+      appliedDevices: 1,
+      failedDevices: 0,
+      notContactedDevices: 1,
+      results: [
+        { deviceId: "device-alpha", setting: DeviceSetting.ROTATION_LOCK, applied: true, verified: true, message: "applied" },
+        { deviceId: "device-never", setting: DeviceSetting.ROTATION_LOCK, applied: false, refusal: DeviceSettingRefusalReason.DEVICE_NOT_ONLINE, failureClass: "transport", message: "the device is not online, so nothing was sent" },
+      ],
+    }))
+    expect(view?.totalDevices).toBe(1)
+    expect(view?.notContactedDevices).toBe(1)
+    expect(view?.outcomes[1]).toMatchObject({ deviceId: "device-never", applied: false, refusal: "device_not_online" })
   })
 })

@@ -12,6 +12,7 @@ import (
 	"drift.local/drift-next/internal/health"
 	"drift.local/drift-next/internal/inventory"
 	"drift.local/drift-next/internal/organizations"
+	"drift.local/drift-next/internal/platform/clock"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 	store "drift.local/drift-next/internal/store/sqlite"
 )
@@ -23,9 +24,34 @@ type DeviceDiagnosticsCollector interface {
 type DeviceHandler struct {
 	db          *store.DB
 	diagnostics DeviceDiagnosticsCollector
+	// clock dates the observation a device's status is read against, so the
+	// ONLINE reading's freshness term is a seam a test can drive rather than the
+	// wall clock that happens to be running. A nil clock reads the system clock.
+	clock clock.Clock
 }
 
 func NewDeviceHandler(db *store.DB) *DeviceHandler { return &DeviceHandler{db: db} }
+
+// SetClock replaces the clock every device status this handler reports is dated
+// against. It is deliberately a setter rather than a constructor argument: the
+// composition root constructs the handler with the store it has, and a test that
+// needs a fixed instant supplies one.
+func (h *DeviceHandler) SetClock(source clock.Clock) {
+	if source != nil {
+		h.clock = source
+	}
+}
+
+// now is the instant this response's device statuses are read at. One response
+// is read at ONE instant, so a page of devices cannot be split across the
+// freshness window's edge by the time the loop took.
+func (h *DeviceHandler) now() time.Time {
+	if h == nil || h.clock == nil {
+		return clock.System{}.Now()
+	}
+	return h.clock.Now()
+}
+
 func (h *DeviceHandler) SetDiagnosticsCollector(collector DeviceDiagnosticsCollector) {
 	h.diagnostics = collector
 }
@@ -53,6 +79,7 @@ func (h *DeviceHandler) ListDevices(ctx context.Context, request *connectrpc.Req
 		return nil, MapError(endpointErr)
 	}
 	page, next := applyPage(listed, offset, limit)
+	now := h.now()
 	out := make([]*driftv1.Device, 0, len(page))
 	for _, device := range page {
 		// A device with no current endpoint is projected without one rather than
@@ -61,10 +88,10 @@ func (h *DeviceHandler) ListDevices(ctx context.Context, request *connectrpc.Req
 		endpoint, observed := current[device.ID]
 		diagnostics := currentDiagnostics(ctx, h.db, workspace, device.ID)
 		if !observed {
-			out = append(out, deviceProto(device, nil, diagnostics))
+			out = append(out, deviceProto(device, nil, diagnostics, now))
 			continue
 		}
-		out = append(out, deviceProto(device, &endpoint, diagnostics))
+		out = append(out, deviceProto(device, &endpoint, diagnostics, now))
 	}
 	return connectrpc.NewResponse(&driftv1.ListDevicesResponse{Devices: out, Page: pageResponse(next)}), nil
 }
@@ -93,7 +120,7 @@ func (h *DeviceHandler) RetireDevice(ctx context.Context, request *connectrpc.Re
 		return nil, MapError(err)
 	}
 	endpoint, _ := currentEndpoint(ctx, h.db, workspace, id)
-	return connectrpc.NewResponse(&driftv1.RetireDeviceResponse{Device: deviceProto(device, endpoint, currentDiagnostics(ctx, h.db, workspace, id))}), nil
+	return connectrpc.NewResponse(&driftv1.RetireDeviceResponse{Device: deviceProto(device, endpoint, currentDiagnostics(ctx, h.db, workspace, id), h.now())}), nil
 }
 
 func (h *DeviceHandler) RestoreDevice(ctx context.Context, request *connectrpc.Request[driftv1.RestoreDeviceRequest]) (*connectrpc.Response[driftv1.RestoreDeviceResponse], error) {
@@ -120,7 +147,7 @@ func (h *DeviceHandler) RestoreDevice(ctx context.Context, request *connectrpc.R
 		return nil, MapError(err)
 	}
 	endpoint, _ := currentEndpoint(ctx, h.db, workspace, id)
-	return connectrpc.NewResponse(&driftv1.RestoreDeviceResponse{Device: deviceProto(device, endpoint, currentDiagnostics(ctx, h.db, workspace, id))}), nil
+	return connectrpc.NewResponse(&driftv1.RestoreDeviceResponse{Device: deviceProto(device, endpoint, currentDiagnostics(ctx, h.db, workspace, id), h.now())}), nil
 }
 
 func (h *DeviceHandler) DeleteDevice(ctx context.Context, request *connectrpc.Request[driftv1.DeleteDeviceRequest]) (*connectrpc.Response[driftv1.DeleteDeviceResponse], error) {
@@ -189,7 +216,7 @@ func (h *DeviceHandler) GetDevice(ctx context.Context, request *connectrpc.Reque
 	if endpointErr != nil {
 		return nil, MapError(endpointErr)
 	}
-	return connectrpc.NewResponse(&driftv1.GetDeviceResponse{Device: deviceProto(device, endpoint, currentDiagnostics(ctx, h.db, workspace, device.ID))}), nil
+	return connectrpc.NewResponse(&driftv1.GetDeviceResponse{Device: deviceProto(device, endpoint, currentDiagnostics(ctx, h.db, workspace, device.ID), h.now())}), nil
 }
 
 func (h *DeviceHandler) RefreshDeviceDiagnostics(ctx context.Context, request *connectrpc.Request[driftv1.RefreshDeviceDiagnosticsRequest]) (*connectrpc.Response[driftv1.RefreshDeviceDiagnosticsResponse], error) {
@@ -213,6 +240,7 @@ func (h *DeviceHandler) RefreshDeviceDiagnostics(ctx context.Context, request *c
 	}
 	response := &driftv1.RefreshDeviceDiagnosticsResponse{}
 	targetID := devices.DeviceID(request.Msg.GetDeviceId())
+	now := h.now()
 	if targetID != "" {
 		found := false
 		for _, device := range listed {
@@ -230,7 +258,7 @@ func (h *DeviceHandler) RefreshDeviceDiagnostics(ctx context.Context, request *c
 			continue
 		}
 		endpoint, ok := current[device.ID]
-		if !ok || deviceStatusProto(device, &endpoint) != driftv1.DeviceStatus_DEVICE_STATUS_ONLINE || endpoint.Serial == "" {
+		if !ok || deviceStatusProto(device, &endpoint, now) != driftv1.DeviceStatus_DEVICE_STATUS_ONLINE || endpoint.Serial == "" {
 			continue
 		}
 		response.Attempted++
@@ -302,11 +330,11 @@ func currentEndpoint(ctx context.Context, db *store.DB, workspace organizations.
 // The transport is read from the endpoint record. It is never inferred here from
 // the endpoint's address: a boundary that reconstructs it can report a transport
 // the control plane never observed.
-func deviceProto(device devices.Device, endpoint *endpoints.Endpoint, diagnostics *driftv1.DeviceDiagnostics) *driftv1.Device {
+func deviceProto(device devices.Device, endpoint *endpoints.Endpoint, diagnostics *driftv1.DeviceDiagnostics, now time.Time) *driftv1.Device {
 	projected := &driftv1.Device{
 		Id:                           string(device.ID),
 		DisplayName:                  device.DisplayName,
-		Status:                       deviceStatusProto(device, endpoint),
+		Status:                       deviceStatusProto(device, endpoint, now),
 		PlatformVersion:              device.PlatformVersion,
 		LastSeenAt:                   formatTimePtr(device.LastSeenAt),
 		Workspace:                    workspaceRef(device.Workspace),
@@ -367,7 +395,14 @@ func deviceTransportProto(transport endpoints.Transport) driftv1.DeviceTransport
 // observed at - the link state that transport reported, and the time of its last
 // positive observation:
 //
-//   - a current endpoint whose transport reported a usable link reads ONLINE;
+//   - a current endpoint whose transport reported a usable link reads ONLINE
+//     while that sighting still stands (endpoints.Endpoint.Online). The freshness
+//     term is explicit rather than implied by "still current": currency says the
+//     device was not observed leaving that transport, and it is the same fact
+//     whether the observation was taken a second or a week ago. An observation
+//     that has stopped standing reads OFFLINE, so a device whose recorded address
+//     may since belong to another unit is never offered as reachable - the same
+//     reading the fleet-wide apply targets, through the same predicate;
 //   - a current endpoint whose transport reported the device as present but
 //     unauthorized reads UNAUTHORIZED, and one this host may not open reads
 //     NO_PERMISSIONS. Both are devices that are ATTACHED and cannot be acted on,
@@ -397,24 +432,32 @@ func deviceTransportProto(transport endpoints.Transport) driftv1.DeviceTransport
 // fact - a recorded departure time rather than the endpoint record a departure
 // supersedes - refines this one function; no second reader of device status is
 // opened for it.
-func deviceStatusProto(device devices.Device, endpoint *endpoints.Endpoint) driftv1.DeviceStatus {
+func deviceStatusProto(device devices.Device, endpoint *endpoints.Endpoint, now time.Time) driftv1.DeviceStatus {
 	switch {
 	case endpoint != nil:
 		// The device was observed at this transport and has not been observed
 		// leaving it. What the transport REPORTED about the device decides which
-		// reading an operator gets, and only a usable link is ONLINE.
-		switch endpoint.LinkState {
-		case endpoints.LinkStateUnauthorized:
+		// reading an operator gets, and a usable link is ONLINE only while the
+		// observation that reported it still stands.
+		switch {
+		case endpoint.LinkState == endpoints.LinkStateUnauthorized:
 			return driftv1.DeviceStatus_DEVICE_STATUS_UNAUTHORIZED
-		case endpoints.LinkStateNoPermissions:
+		case endpoint.LinkState == endpoints.LinkStateNoPermissions:
 			return driftv1.DeviceStatus_DEVICE_STATUS_NO_PERMISSIONS
-		case endpoints.LinkStateOffline:
+		case endpoint.LinkState == endpoints.LinkStateOffline:
 			return driftv1.DeviceStatus_DEVICE_STATUS_OFFLINE
-		default:
+		case endpoint.Online(now):
 			// A usable link, and a current endpoint written before the link
 			// state was recorded: the registry only ever made a row current
-			// when the adapter could use the device, so history reads as it did.
+			// when the adapter could use the device, so history reads as it did
+			// while its sighting is recent enough to stand.
 			return driftv1.DeviceStatus_DEVICE_STATUS_ONLINE
+		default:
+			// The transport reported a usable link and that observation has
+			// stopped standing: the address it was observed at may since belong
+			// to another device. Offline is the fail-closed reading - this plane
+			// is not prepared to say the device is there now.
+			return driftv1.DeviceStatus_DEVICE_STATUS_OFFLINE
 		}
 	case device.LastSeenAt == nil:
 		return driftv1.DeviceStatus_DEVICE_STATUS_UNSPECIFIED

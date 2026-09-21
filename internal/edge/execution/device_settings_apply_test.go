@@ -3,6 +3,7 @@ package execution_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"drift.local/drift-next/internal/edge/execution"
 	"drift.local/drift-next/internal/endpoints"
 	"drift.local/drift-next/internal/organizations"
+	"drift.local/drift-next/internal/platform/clock"
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 	"drift.local/drift-next/internal/platform/ids"
 	store "drift.local/drift-next/internal/store/sqlite"
@@ -101,6 +103,21 @@ func (r *auditEvidence) appended() []store.ActionEvidence {
 	return append([]store.ActionEvidence(nil), r.records...)
 }
 
+// settingsObservedAt is the instant this fixture's devices are observed at, and
+// settingsNow is the instant its fleet is read at. Both are FIXED instants rather
+// than the wall clock: the plane's ONLINE reading has an explicit freshness term,
+// and a case that asserted it against "about now" would be asserting how long
+// the test took to run.
+var (
+	settingsObservedAt = time.Date(2026, time.September, 17, 9, 0, 0, 0, time.UTC)
+	settingsNow        = settingsObservedAt.Add(5 * time.Minute)
+)
+
+// settingsStaleAt is an instant far enough behind the fixture's read that the
+// observation taken at it no longer stands: it is what a device last seen before
+// the plane stopped watching looks like.
+var settingsStaleAt = settingsNow.Add(-2 * endpoints.OnlineObservationWindow)
+
 type settingsFixture struct {
 	db         *store.DB
 	dispatcher *execution.InputDispatcher
@@ -110,8 +127,35 @@ type settingsFixture struct {
 	workspace  organizations.WorkspaceID
 }
 
-// newSettingsFixture builds a workspace with the named devices, each with a
-// current transport endpoint unless its serial is empty.
+// bindEndpoint re-binds a device's CURRENT endpoint, which is how a case places a
+// device in a state other than "observed at a usable transport, recently". It is
+// a fresh observation of the same device, so the previous current row is
+// superseded exactly as it would be on a device that moved.
+func (f settingsFixture) bindEndpoint(t *testing.T, deviceID, serial string, linkState endpoints.LinkState, observedAt time.Time) {
+	t.Helper()
+	endpoint := endpoints.Endpoint{
+		// The identity of an observation, not of the device: one device re-bound
+		// at the same instant in the same state would be the same observation.
+		ID:         endpoints.EndpointID(fmt.Sprintf("endpoint-%s-%s-%d", deviceID, linkState, observedAt.UnixNano())),
+		Workspace:  f.workspace,
+		DeviceID:   devices.DeviceID(deviceID),
+		Transport:  endpoints.TransportTCP,
+		Serial:     serial,
+		Host:       "127.0.0.1",
+		Port:       5555,
+		State:      endpoints.Current,
+		ObservedAt: observedAt,
+		LinkState:  linkState,
+	}
+	if err := store.NewEndpointService(f.db).BindCurrent(context.Background(), endpoint, "operator", "operator-1"); err != nil {
+		t.Fatalf("bind endpoint for %s: %v", deviceID, err)
+	}
+}
+
+// newSettingsFixture builds a workspace with the named devices. A device with a
+// serial is observed at a usable transport at settingsObservedAt, so the plane
+// reads it as ONLINE; a device with an empty serial has no current endpoint at
+// all. A case that needs another state re-binds the endpoint it cares about.
 func newSettingsFixture(t *testing.T, fleet map[string]string) settingsFixture {
 	t.Helper()
 	ctx := context.Background()
@@ -125,27 +169,20 @@ func newSettingsFixture(t *testing.T, fleet map[string]string) settingsFixture {
 	if err := store.NewWorkspaceService(db).Create(ctx, workspace, "operator", "operator-1"); err != nil {
 		t.Fatalf("create workspace: %v", err)
 	}
+	fixture := settingsFixture{db: db, workspace: workspace.ID}
 	for deviceID, serial := range fleet {
 		if err := store.NewDeviceService(db).Create(ctx, devices.Device{ID: devices.DeviceID(deviceID), Workspace: workspace.ID, DisplayName: deviceID, PlatformVersion: "fake", State: devices.Registered}, "operator", "operator-1"); err != nil {
 			t.Fatalf("create device %s: %v", deviceID, err)
 		}
 		if serial == "" {
+			// A device the registry holds and nothing has observed: it has no
+			// current endpoint at all.
 			continue
 		}
-		endpoint := endpoints.Endpoint{
-			ID:         endpoints.EndpointID("endpoint-" + deviceID),
-			Workspace:  workspace.ID,
-			DeviceID:   devices.DeviceID(deviceID),
-			Transport:  endpoints.TransportTCP,
-			Serial:     serial,
-			Host:       "127.0.0.1",
-			Port:       5555,
-			State:      endpoints.Current,
-			ObservedAt: time.Date(2026, time.September, 17, 9, 0, 0, 0, time.UTC),
-		}
-		if err := store.NewEndpointService(db).BindCurrent(ctx, endpoint, "operator", "operator-1"); err != nil {
-			t.Fatalf("bind endpoint for %s: %v", deviceID, err)
-		}
+		// The default state of a fixture device is the ordinary one: observed at
+		// a usable transport, recently enough for the sighting to stand. A case
+		// that wants another state re-binds the endpoint through bindEndpoint.
+		fixture.bindEndpoint(t, deviceID, serial, endpoints.LinkStateOnline, settingsObservedAt)
 	}
 
 	transport := newFleetTransport()
@@ -175,11 +212,14 @@ func newSettingsFixture(t *testing.T, fleet map[string]string) settingsFixture {
 	}
 	t.Cleanup(func() { _ = dispatcher.Close() })
 
-	applier, err := execution.NewDeviceSettingsApplier(execution.NewStoreFleetReader(db), db, dispatcher, ids.NewRandom())
+	// The fleet is read at the fixture's own instant, so the freshness term is a
+	// number in the test rather than the wall clock.
+	applier, err := execution.NewDeviceSettingsApplier(execution.NewStoreFleetReaderWithClock(db, clock.NewFixed(settingsNow)), db, dispatcher, ids.NewRandom())
 	if err != nil {
 		t.Fatalf("new device settings applier: %v", err)
 	}
-	return settingsFixture{db: db, dispatcher: dispatcher, transport: transport, applier: applier, evidence: evidence, workspace: workspace.ID}
+	fixture.dispatcher, fixture.transport, fixture.applier, fixture.evidence = dispatcher, transport, applier, evidence
+	return fixture
 }
 
 func (f settingsFixture) apply(t *testing.T, request execution.SettingsApplyRequest) execution.SettingsApplyReport {
@@ -232,8 +272,8 @@ func TestFleetSettingsApplyIsPerDeviceThroughTheKernel(t *testing.T) {
 		ApprovalGranted: true,
 	})
 
-	if report.TotalDevices != 2 || report.AppliedDevices != 2 || report.FailedDevices != 0 {
-		t.Fatalf("report = %d total / %d applied / %d failed, want 2 / 2 / 0", report.TotalDevices, report.AppliedDevices, report.FailedDevices)
+	if report.TotalDevices != 2 || report.AppliedDevices != 2 || report.FailedDevices != 0 || report.NotContactedDevices != 0 {
+		t.Fatalf("report = %d total / %d applied / %d failed / %d not contacted, want 2 / 2 / 0 / 0", report.TotalDevices, report.AppliedDevices, report.FailedDevices, report.NotContactedDevices)
 	}
 	if len(report.Results) != 4 {
 		t.Fatalf("rows = %d, want one per device per setting (4): %#v", len(report.Results), report.Results)
@@ -391,10 +431,11 @@ func TestUnapprovedHighRiskSettingIsRefusedForEveryDevice(t *testing.T) {
 	}
 }
 
-// TestADeviceWithNoCurrentTransportEndpointIsReportedAsRefused: a device the
-// registry holds but nothing has observed is a device the apply ran for and could
-// not reach, and it is reported rather than omitted.
-func TestADeviceWithNoCurrentTransportEndpointIsReportedAsRefused(t *testing.T) {
+// TestADeviceWithNoCurrentTransportEndpointIsNamedAndNotContacted: a device the
+// registry holds but nothing has observed is NOT part of the run's target set,
+// and it is NAMED rather than omitted: the operator asked about the fleet, and a
+// device missing from the report is worse than one reported as not contacted.
+func TestADeviceWithNoCurrentTransportEndpointIsNamedAndNotContacted(t *testing.T) {
 	fixture := newSettingsFixture(t, map[string]string{"device-alpha": "serial-alpha", "device-gamma": ""})
 	fixture.transport.
 		answersWith("serial-alpha", rotationAutoRead, "0\n", 0).
@@ -402,16 +443,141 @@ func TestADeviceWithNoCurrentTransportEndpointIsReportedAsRefused(t *testing.T) 
 
 	report := fixture.apply(t, execution.SettingsApplyRequest{Settings: []action.Kind{action.RotationLock}})
 
-	if report.TotalDevices != 2 {
-		t.Fatalf("total devices = %d, want 2: the unreachable device is in the report, not absent from it", report.TotalDevices)
+	// The run's device list is the ONLINE fleet, so it is one device and not the
+	// two rows the registry holds. The second is counted, and named, as not
+	// contacted rather than as a failure: nothing was asked of it.
+	if report.TotalDevices != 1 || report.NotContactedDevices != 1 || report.FailedDevices != 0 {
+		t.Fatalf("report = %d total / %d not contacted / %d failed, want 1 / 1 / 0", report.TotalDevices, report.NotContactedDevices, report.FailedDevices)
 	}
 	gamma := settingRow(t, report, "device-gamma", action.RotationLock)
-	if gamma.Applied || gamma.Refusal != execution.SettingsNoTransportSerial {
-		t.Fatalf("device-gamma = %#v, want refused with no transport serial", gamma)
+	if gamma.Applied || gamma.Refusal != execution.SettingsDeviceNotOnline {
+		t.Fatalf("device-gamma = %#v, want refused with %q", gamma, execution.SettingsDeviceNotOnline)
 	}
 	if !settingRow(t, report, "device-alpha", action.RotationLock).Applied {
-		t.Fatal("device-alpha was not applied alongside an unreachable device")
+		t.Fatal("device-alpha was not applied alongside a device that is not online")
 	}
+}
+
+// recordingDispatchPort is a fake DISPATCH PORT: it answers every settings
+// attempt with a verified result and records the devices it was called for.
+//
+// It is deliberately not the kernel. The property this card is about is the RUN's
+// target set, and the assertion is on the READING - which devices the run asked,
+// and what the operator is shown - rather than on the endpoint row a reading is
+// derived from.
+type recordingDispatchPort struct {
+	mu      sync.Mutex
+	devices []string
+}
+
+func (p *recordingDispatchPort) Run(_ context.Context, request execution.InputRequest, _, _ string) (action.Result, error) {
+	p.mu.Lock()
+	p.devices = append(p.devices, request.DeviceID)
+	p.mu.Unlock()
+	// A verified result, because the port is answering ON BEHALF of a device that
+	// ran the command and read the setting back. Nothing here is what is under
+	// test: what is under test is WHO this port was called for.
+	return action.Result{
+		Outcome: action.OutcomeVerified,
+		Attempt: action.Attempt{ID: request.IntentID, DeviceID: request.DeviceID, Postcondition: action.PostconditionPassed},
+	}, nil
+}
+
+// dispatched returns the devices this port was called for, once each, in the
+// order the run first asked them.
+func (p *recordingDispatchPort) dispatched() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	seen := make(map[string]struct{}, len(p.devices))
+	ordered := make([]string, 0, len(p.devices))
+	for _, deviceID := range p.devices {
+		if _, already := seen[deviceID]; already {
+			continue
+		}
+		seen[deviceID] = struct{}{}
+		ordered = append(ordered, deviceID)
+	}
+	return ordered
+}
+
+// TestAFleetApplyTargetsTheOnlineFleetAndNotTheRegistry is this card's acceptance:
+// a registry holding three online devices, a device nobody has observed, a device
+// whose transport is attached and not answering, and a device whose current
+// endpoint was last observed LONG AGO with a usable recorded link state.
+//
+// The run must ask the three online devices and nothing else. The stale-endpoint
+// device is the half with teeth rather than a cosmetic one: it passes a "is there
+// a current usable endpoint" check, and the address it was observed at may since
+// belong to another handset.
+func TestAFleetApplyTargetsTheOnlineFleetAndNotTheRegistry(t *testing.T) {
+	fixture := newSettingsFixture(t, map[string]string{
+		"device-alpha":   "serial-alpha",
+		"device-beta":    "serial-beta",
+		"device-gamma":   "serial-gamma",
+		"device-never":   "",
+		"device-offline": "serial-offline",
+		"device-stale":   "serial-stale",
+	})
+	// The transport is attached and not answering.
+	fixture.bindEndpoint(t, "device-offline", "serial-offline", endpoints.LinkStateOffline, settingsObservedAt)
+	// A usable link state recorded at an observation that no longer stands.
+	fixture.bindEndpoint(t, "device-stale", "serial-stale", endpoints.LinkStateOnline, settingsStaleAt)
+
+	port := &recordingDispatchPort{}
+	applier, err := execution.NewDeviceSettingsApplier(
+		execution.NewStoreFleetReaderWithClock(fixture.db, clock.NewFixed(settingsNow)), fixture.db, port, ids.NewRandom())
+	if err != nil {
+		t.Fatalf("new applier: %v", err)
+	}
+	report, err := applier.ApplyDeviceSettings(context.Background(), execution.SettingsApplyRequest{
+		Workspace:       string(fixture.workspace),
+		HolderID:        "operator-1",
+		RequestID:       "acceptance-1",
+		ApprovalGranted: true,
+		Settings:        []action.Kind{action.RotationLock, action.AutofillOff},
+	}, "operator", "operator-1")
+	if err != nil {
+		t.Fatalf("apply device settings: %v", err)
+	}
+
+	// WHO the run asked, read off the dispatch port's own record.
+	asked := port.dispatched()
+	if strings.Join(asked, ",") != "device-alpha,device-beta,device-gamma" {
+		t.Fatalf("devices dispatched to = %v, want the three the plane reads as online and no others", asked)
+	}
+	// The counts are the TARGET SET's, and the excluded devices are named rather
+	// than counted as failures.
+	if report.TotalDevices != 3 || report.AppliedDevices != 3 || report.FailedDevices != 0 || report.NotContactedDevices != 3 {
+		t.Fatalf("report = %d targeted / %d applied / %d failed / %d not contacted, want 3 / 3 / 0 / 3",
+			report.TotalDevices, report.AppliedDevices, report.FailedDevices, report.NotContactedDevices)
+	}
+	if len(report.Results) != 12 {
+		t.Fatalf("rows = %d, want one per device per setting (12): a device the operator asked about is named, never dropped", len(report.Results))
+	}
+	for _, deviceID := range []string{"device-never", "device-offline", "device-stale"} {
+		for _, setting := range []action.Kind{action.RotationLock, action.AutofillOff} {
+			row := settingRow(t, report, deviceID, setting)
+			if row.Applied || row.Verified {
+				t.Fatalf("%s/%s = %#v, want neither applied nor read back: nothing was sent to it", deviceID, setting, row)
+			}
+			if row.Refusal != execution.SettingsDeviceNotOnline {
+				t.Fatalf("%s/%s refusal = %q, want %q", deviceID, setting, row.Refusal, execution.SettingsDeviceNotOnline)
+			}
+			if row.Message != execution.SettingsDeviceNotOnline.Message() {
+				t.Fatalf("%s/%s message = %q, want the boundary's own sentence %q", deviceID, setting, row.Message, execution.SettingsDeviceNotOnline.Message())
+			}
+		}
+	}
+	for _, deviceID := range []string{"device-alpha", "device-beta", "device-gamma"} {
+		for _, setting := range []action.Kind{action.RotationLock, action.AutofillOff} {
+			if row := settingRow(t, report, deviceID, setting); !row.Applied || !row.Verified {
+				t.Fatalf("%s/%s = %#v, want applied and verified", deviceID, setting, row)
+			}
+		}
+	}
+	// A device that was not contacted is not left leased, and the session the run
+	// opened for the devices it DID contact is closed.
+	assertFleetUnleased(t, fixture)
 }
 
 // TestFleetSettingsApplyRefusesAnUnreviewedSettingSet: the set of settings is
@@ -456,7 +622,7 @@ func TestFleetSettingsApplyRefusesWithoutAWorkspaceHolderOrRequestID(t *testing.
 func TestFleetSettingsApplyOnAnEmptyFleetIsNotAnError(t *testing.T) {
 	fixture := newSettingsFixture(t, map[string]string{})
 	report := fixture.apply(t, execution.SettingsApplyRequest{Settings: []action.Kind{action.RotationLock}})
-	if report.TotalDevices != 0 || report.AppliedDevices != 0 || report.FailedDevices != 0 || len(report.Results) != 0 {
+	if report.TotalDevices != 0 || report.AppliedDevices != 0 || report.FailedDevices != 0 || report.NotContactedDevices != 0 || len(report.Results) != 0 {
 		t.Fatalf("report = %#v, want an empty report", report)
 	}
 }
@@ -499,7 +665,7 @@ func TestFleetSettingsApplyRefusesWithoutItsParts(t *testing.T) {
 // failingFleet is a registry read that cannot be taken.
 type failingFleet struct{}
 
-func (failingFleet) Fleet(context.Context, string) (map[string]string, error) {
+func (failingFleet) Fleet(context.Context, string) (map[string]execution.FleetDevice, error) {
 	return nil, platformerrors.New(platformerrors.CodeUnavailable, "the registry could not be read")
 }
 
@@ -625,16 +791,17 @@ func TestPerDeviceSettingsApplyRefusesADeviceTheRegistryNeverRecorded(t *testing
 	assertFleetUnleased(t, fixture)
 }
 
-// TestPerDeviceSettingsApplyRefusesADeviceWithNoCurrentTransportEndpoint: a
-// registered device the plane cannot reach is its own row, and the reason is the
-// missing transport rather than the missing registration.
-func TestPerDeviceSettingsApplyRefusesADeviceWithNoCurrentTransportEndpoint(t *testing.T) {
+// TestPerDeviceSettingsApplyRefusesADeviceThatIsNotOnline: a registered device
+// the plane does not read as online is its own row, and the reason is that the
+// device is not online rather than that it is unregistered or has no transport:
+// the operator selected a device the plane is not prepared to say is there now.
+func TestPerDeviceSettingsApplyRefusesADeviceThatIsNotOnline(t *testing.T) {
 	fixture := newSettingsFixture(t, map[string]string{"device-alpha": ""})
 
 	row := fixture.applyOne(t, execution.DeviceSettingRequest{DeviceID: "device-alpha", Setting: action.RotationLock})
 
-	if row.Refusal != execution.SettingsNoTransportSerial {
-		t.Fatalf("refusal = %q, want %q", row.Refusal, execution.SettingsNoTransportSerial)
+	if row.Refusal != execution.SettingsDeviceNotOnline {
+		t.Fatalf("refusal = %q, want %q", row.Refusal, execution.SettingsDeviceNotOnline)
 	}
 	if row.Applied {
 		t.Fatalf("row = %#v, want not applied", row)

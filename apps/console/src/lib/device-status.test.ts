@@ -32,7 +32,7 @@ describe("device observation status copy", () => {
     }
     // The two absent states say different things: one was seen and left, the
     // other was never seen at all.
-    expect(deviceStatusMeanings.offline).toBe("observed before, but no current transport is recorded")
+    expect(deviceStatusMeanings.offline).toBe("observed before, and no sighting of it still stands")
     expect(deviceStatusMeanings.unobserved).toBe("no observation has been recorded for this device")
   })
 
