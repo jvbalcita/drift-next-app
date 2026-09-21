@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import { browserMirrorPlaybackFactory, streamRefusalStatus, type MirrorPlayback, type MirrorPlaybackFactory } from "@/lib/api/mirror-playback"
+import { browserMirrorPlaybackFactory, streamRefusalStatus, type MirrorPlayback, type MirrorPlaybackFactory, type MirrorPlaybackRequest } from "@/lib/api/mirror-playback"
 import { liveMirrorCopy, type LiveMirrorPhase, type LiveMirrorPreview, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
 
 /**
@@ -35,6 +35,16 @@ import { liveMirrorCopy, type LiveMirrorPhase, type LiveMirrorPreview, type Live
  * re-entered rather than reported as failed: the console opens the same device's
  * stream again, which the plane resolves to the session it already carries or
  * starts again.
+ *
+ * The FETCHED transport (TCP) has one rule of its own, and it is the same rule
+ * stated from the endpoint's side: what this console awaits is the endpoint's
+ * ACCEPTANCE - its status read and its first bytes in hand - never the end of its
+ * body, because on that transport the response body IS the picture. The read that
+ * follows runs in the background, the poll runs from the moment of acceptance, and
+ * the wait for acceptance is BOUNDED (see `establishTimeoutMs`): an endpoint that
+ * answers and hands nothing over reaches a reported failure that names the bound
+ * rather than a surface that sits in `opening`, on a first open and on a re-entry
+ * alike.
  */
 export interface MirrorPeer {
   /** createOffer returns a complete offer: the SDP carries its candidates already. */
@@ -149,6 +159,19 @@ export interface UseLiveMirrorOptions {
   /** pollIntervalMs is how often the stream's own state is read while it is open. */
   pollIntervalMs?: number
   /**
+   * establishTimeoutMs bounds how long this console waits for a fetched stream to be
+   * ESTABLISHED - the endpoint's status read and its first bytes in hand - before it
+   * reports that the picture never came.
+   *
+   * It is a bound rather than a wait because on the TCP transport the endpoint's
+   * response body IS the picture: an endpoint that answers and then hands nothing
+   * over leaves a surface with nothing to show and nothing to say, which is a frame
+   * an operator cannot act on. Reaching the bound is reported as a failure, and the
+   * operator's own reopen control asks again - the same contract `open` already
+   * holds for every other refusal on this path.
+   */
+  establishTimeoutMs?: number
+  /**
    * pollFailureLimit is how many consecutive reads may fail before the console
    * stops claiming to show a live stream. A stream whose state is no longer known
    * is not live, so this console stops saying it is - and that is the WHOLE of what
@@ -223,6 +246,19 @@ export const defaultMirrorPollFailureLimit = 2
 export const defaultMirrorPollRetryCeilingMs = 4_000
 /** How many times one frame's stream may be re-opened after the plane forgot it. */
 export const defaultMirrorReopenLimit = 3
+/**
+ * The bound on establishing a FETCHED stream: how long this console waits for the
+ * stream endpoint to answer with its first bytes before it reports that the picture
+ * never came (see `establishTimeoutMs` and `liveMirrorCopy.failure.neverEstablished`).
+ *
+ * It is generous beside what this fleet's endpoint actually needs - TCP carried its
+ * first picture in 1-2 ms in the measurement behind the console's default transport
+ * (see `liveMirrorCopy.settings.notice`) - and it is the same order as the
+ * browser's own media-source bound (`sourceOpenTimeoutMs`), because the two wait on
+ * the same stack: an endpoint that has answered and handed over nothing within this
+ * bound is a surface nothing is going to be painted on.
+ */
+export const defaultMirrorEstablishTimeoutMs = 5_000
 
 /**
  * mirrorRetryDelayMs is how long the console waits before asking the plane about a
@@ -248,7 +284,7 @@ export function mirrorRetryDelayMs(consecutiveFailures: number, baseMs: number, 
 }
 
 export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = {}): LiveMirrorSession {
-  const { client, workspaceId = "", transport = "webrtc", purpose = "operator", previewQuality, previewFrameRate, peerFactory, playbackFactory, pollIntervalMs = defaultMirrorPollIntervalMs, pollFailureLimit = defaultMirrorPollFailureLimit, pollRetryCeilingMs = defaultMirrorPollRetryCeilingMs, reopenLimit = defaultMirrorReopenLimit, schedule = browserMirrorSchedule } = options
+  const { client, workspaceId = "", transport = "webrtc", purpose = "operator", previewQuality, previewFrameRate, peerFactory, playbackFactory, pollIntervalMs = defaultMirrorPollIntervalMs, establishTimeoutMs = defaultMirrorEstablishTimeoutMs, pollFailureLimit = defaultMirrorPollFailureLimit, pollRetryCeilingMs = defaultMirrorPollRetryCeilingMs, reopenLimit = defaultMirrorReopenLimit, schedule = browserMirrorSchedule } = options
   const [phase, setPhase] = useState<LiveMirrorPhase>("idle")
   const [stream, setStream] = useState<LiveStreamView | null>(null)
   const [failure, setFailure] = useState("")
@@ -362,6 +398,46 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       cancelRead()
       cancelScheduled = schedule(delayMs, () => { void read() })
     }
+
+    /**
+     * awaitAccepted bounds the wait for a FETCHED endpoint to be established, and it
+     * is the point at which this console stops caring about the body's lifetime.
+     *
+     * The bound is this console's own, and it earns its place: on the TCP transport
+     * the endpoint's response body IS the picture, so an endpoint that answers and
+     * then hands nothing over is a stream nothing will ever be painted on - and a
+     * surface that waited on it would sit in `opening` with nothing to report for as
+     * long as the operator stayed there, which is the frame nobody can act on.
+     * Reaching the bound is therefore reported as a failure in this console's own
+     * words, with the bound named, rather than as anything the plane said: the plane
+     * refused nothing here.
+     *
+     * What settles this promise is the endpoint's ACCEPTANCE (see
+     * `MirrorPlayback.start`), not the end of the body: the read that follows runs in
+     * the background and is ended by this session's own teardown. A playback whose
+     * start never answers is exactly the case the bound exists for; a rejection that
+     * arrives after the bound has already reported is not a second fact.
+     */
+    const awaitAccepted = (started: MirrorPlayback) =>
+      new Promise<void>((resolve, reject) => {
+        let answered = false
+        cancelScheduled = schedule(establishTimeoutMs, () => {
+          cancelScheduled = null
+          if (answered) return
+          answered = true
+          reject(new Error(liveMirrorCopy.failure.neverEstablished(establishTimeoutMs)))
+        })
+        const settle = (run: () => void) => {
+          if (answered) return
+          answered = true
+          cancelRead()
+          run()
+        }
+        void started.start().then(
+          () => settle(resolve),
+          (cause: unknown) => settle(() => reject(cause)),
+        )
+      })
 
     async function read() {
       if (disposed || settled) return
@@ -485,10 +561,28 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
             return
           }
           const endpoint = client!.streamEndpoint(opened.streamUrl)
-          const request = { element: videoRef.current, url: endpoint.url, headers: endpoint.headers }
+          const request: MirrorPlaybackRequest = {
+            element: videoRef.current,
+            url: endpoint.url,
+            headers: endpoint.headers,
+            // The body is the picture, so a body that dies after the endpoint was
+            // accepted cannot reach this console as a refusal `start` threw: it is
+            // reported here, and reported as a failure of the picture this console
+            // was showing - so the place the stream holds on the plane is given
+            // back rather than left capturing a device nobody is watching.
+            onFailure: (cause: unknown) => {
+              if (disposed || settled) return
+              finish("failed", errorSentence(cause), true)
+            },
+          }
           const started = playbackFactory ? playbackFactory(request) : browserMirrorPlaybackFactory(request)
           playback = started
-          await started.start()
+          // What is awaited is the endpoint's ACCEPTANCE - its status read and its
+          // first bytes in hand - and never the end of its body, which IS the
+          // picture. Everything after that point hangs off it: the phase the
+          // surface shows, the poll that reads what the plane says about the
+          // stream, and the report of a picture that never came.
+          await awaitAccepted(started)
           if (disposed || settled) return
           setPhase(opened.state === "live" ? "live" : "starting")
           readAgain(pollIntervalMs)
@@ -559,7 +653,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       release()
       teardownRef.current = null
     }
-  }, [attempt, client, deviceId, peerFactory, playbackFactory, pollFailureLimit, pollRetryCeilingMs, pollIntervalMs, previewFrameRate, previewQuality, purpose, reopenLimit, schedule, transport, workspaceId])
+  }, [attempt, client, deviceId, establishTimeoutMs, peerFactory, playbackFactory, pollFailureLimit, pollRetryCeilingMs, pollIntervalMs, previewFrameRate, previewQuality, purpose, reopenLimit, schedule, transport, workspaceId])
 
   return { phase, stream, failure, attachVideo, retry, stop }
 }

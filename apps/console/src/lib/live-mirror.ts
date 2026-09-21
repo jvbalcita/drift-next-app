@@ -606,6 +606,18 @@ export const liveMirrorCopy = {
      */
     unresumable: "The control plane no longer knows this stream and opened no other for the device, so this console is carrying no picture for it. The plane is the one that forgot the stream, and nothing here was stopped for a read this console could not complete.",
     noEndpoint: "The control plane opened a stream over the TCP transport and named no stream endpoint to fetch, so there is nothing to read.",
+    /**
+     * The stream endpoint was accepted and never handed over a picture.
+     *
+     * It is the one failure the TCP path reports about its OWN reach, and it is
+     * deliberately not dressed as a refusal: the control plane refused nothing, and
+     * on this transport the endpoint's response body IS the picture - so what this
+     * says is that the picture never arrived, within the bound the console allows
+     * for one (see `establishTimeoutMs`). The bound is stated in the sentence
+     * because it is the operator's own question about a surface that never painted:
+     * whether the console gave up too early, which only the console can answer.
+     */
+    neverEstablished: (boundMs: number) => `The stream endpoint accepted this console's request and handed over no picture within ${boundMs} ms, so no picture was painted and the stream was given back to the control plane. The endpoint is fetched rather than negotiated, so the control plane refused nothing here: what did not arrive is the picture itself. Open the device again to retry.`,
     refusedEndpoint: "The control plane refused the stream endpoint for this stream.",
     noInitSegment: "The stream carried a picture before the segment that describes its codec, so a decoder cannot be told what it is about to decode.",
     noCodec: "The stream's initialisation segment declares no H.264 codec, so there is nothing to hand a decoder.",

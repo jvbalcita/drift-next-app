@@ -9,7 +9,7 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { MirrorPlayback, MirrorPlaybackFactory, MirrorPlaybackRequest } from "@/lib/api/mirror-playback"
-import { mirrorRetryDelayMs, useLiveMirror, type MirrorSchedule } from "@/lib/api/use-live-mirror"
+import { defaultMirrorEstablishTimeoutMs, mirrorRetryDelayMs, useLiveMirror, type MirrorSchedule } from "@/lib/api/use-live-mirror"
 import { liveMirrorCopy, livePictureHeld, liveStreamView, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
 import { planeCapacity } from "@/test/mirror-fixtures"
 
@@ -45,10 +45,11 @@ function fakePlayback() {
   const factory: MirrorPlaybackFactory = (request) => {
     starts.push(request)
     const playback: MirrorPlayback = {
-      async start() {
-        // The endpoint's own state is read by the poll, not by the fetch: a body
-        // that never carries a picture is a failure the poll reports.
-      },
+      // The endpoint ACCEPTS and the picture streams: `start` answers at that point
+      // (see MirrorPlayback.start), and what the body does afterwards is the poll's to
+      // report - a body that never carries a picture is a failure the plane's own
+      // state names, not one this fake could throw.
+      async start() {},
       stop() { stops += 1 },
     }
     return playback
@@ -469,6 +470,104 @@ describe("the console's live mirror session", () => {
     await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
     expect(screen.getByTestId("failure")).toHaveTextContent(liveMirrorCopy.failure.noEndpoint)
     expect(playback.starts).toHaveLength(0)
+  })
+
+  /**
+   * The defect this file's TCP cases were blind to: `open` awaited the playback's
+   * WHOLE body, and on this transport that body IS the picture - so an endpoint that
+   * answered and then handed nothing over left the surface in `opening` for as long as
+   * the stream was supposed to be alive, with no phase, no poll and no failure for the
+   * operator to act on. A fake whose `start` resolves instantly cannot show it: the
+   * case below is the one the console actually faced, an endpoint that is accepted and
+   * never yields a picture.
+   */
+  it("reports a stream endpoint that is accepted and never hands over a picture, instead of waiting in `opening`", async () => {
+    const handle = fakeClient(stream({ transport: MirrorTransport.TCP, streamUrl: "/drift/v1/mirror/stream?stream_id=stream-1", state: MirrorStreamState.LIVE, frames: 6n }))
+    const clock = fakeSchedule()
+    // The endpoint accepted the request and its body never answers: `start` never
+    // resolves, which is exactly what the console is waiting on.
+    const stalled: MirrorPlaybackFactory = () => ({ start: () => new Promise<void>(() => {}), stop() {} })
+    render(<Harness client={handle.client} playbackFactory={stalled} transport="tcp" schedule={clock.schedule} />)
+
+    // The one piece of work this console is waiting on is the endpoint itself.
+    await waitFor(() => expect(clock.delays()).toEqual([defaultMirrorEstablishTimeoutMs]))
+    expect(screen.getByTestId("phase")).toHaveTextContent("opening")
+
+    await clock.runNext()
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
+    expect(screen.getByTestId("failure")).toHaveTextContent(liveMirrorCopy.failure.neverEstablished(defaultMirrorEstablishTimeoutMs))
+    // The picture never came, so the place this stream holds on the plane is given
+    // back rather than left capturing a device nobody is watching.
+    expect(handle.calls).toContain("stop:stream-1")
+  })
+
+  it("runs the poll from the endpoint's acceptance, so the plane's own state reaches the operator while the picture streams", async () => {
+    const handle = fakeClient(stream({ transport: MirrorTransport.TCP, streamUrl: "/drift/v1/mirror/stream?stream_id=stream-1", state: MirrorStreamState.LIVE, frames: 8n }))
+    const clock = fakeSchedule()
+    const playback = fakePlayback()
+    render(<Harness client={handle.client} playbackFactory={playback.factory} transport="tcp" schedule={clock.schedule} pollIntervalMs={1_000} />)
+
+    // Accepted: the console's only waiting work is the poll on its own cadence. The
+    // establishment bound is CANCELLED at acceptance rather than left running beside it
+    // - a bound that outlived the establishment would report a picture that arrived.
+    await waitFor(() => expect(clock.delays()).toEqual([1_000]))
+    await clock.runNext()
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("live"))
+    expect(screen.getByTestId("frames")).toHaveTextContent("8")
+    expect(screen.getByTestId("failure")).toHaveTextContent("")
+  })
+
+  it("reports a re-entry the endpoint cannot establish, rather than sitting in `opening` a second time", async () => {
+    // The same property on the reopen path: a re-entry IS an open, so its establishment
+    // is bounded exactly as the first one is. A plane that hands out an identity whose
+    // picture never arrives leaves the operator a reported failure, not a second wait.
+    const handle = fakeClient(stream({ transport: MirrorTransport.TCP, streamUrl: "/drift/v1/mirror/stream?stream_id=stream-1", state: MirrorStreamState.LIVE, frames: 5n }))
+    const clock = fakeSchedule()
+    let opens = 0
+    const reopening: MirrorPlaybackFactory = () => ({
+      start() {
+        opens += 1
+        return opens === 1 ? Promise.resolve() : new Promise<void>(() => {})
+      },
+      stop() {},
+    })
+    render(<Harness client={handle.client} playbackFactory={reopening} transport="tcp" schedule={clock.schedule} />)
+
+    await waitFor(() => expect(clock.delays()).toEqual([5]))
+    // The plane no longer knows the stream it handed out, so the console re-enters the
+    // same device (see `forget`).
+    handle.unknown(true)
+    await clock.runNext()
+    expect(screen.getByTestId("phase")).toHaveTextContent("opening")
+
+    // The re-entry's endpoint is accepted and never yields its picture.
+    await clock.runNext()
+    await waitFor(() => expect(clock.delays()).toEqual([defaultMirrorEstablishTimeoutMs]))
+    await clock.runNext()
+
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
+    expect(screen.getByTestId("failure")).toHaveTextContent(liveMirrorCopy.failure.neverEstablished(defaultMirrorEstablishTimeoutMs))
+    expect(screen.getByTestId("phase")).not.toHaveTextContent("opening")
+    expect(handle.calls.filter((call) => call.startsWith("start:"))).toHaveLength(2)
+  })
+
+  it("reports a picture that died under a stream this console is showing", async () => {
+    // The body IS the picture, so a body that fails after the endpoint was accepted
+    // cannot reach this console as a refusal `start` threw: the playback reports it, and
+    // what the operator reads is that failure rather than a surface still claiming a
+    // stream whose picture is gone.
+    const handle = fakeClient(stream({ transport: MirrorTransport.TCP, streamUrl: "/drift/v1/mirror/stream?stream_id=stream-1", state: MirrorStreamState.LIVE, frames: 9n }))
+    const playback = fakePlayback()
+    render(<Harness client={handle.client} playbackFactory={playback.factory} transport="tcp" />)
+    await waitFor(() => expect(playback.starts).toHaveLength(1))
+
+    const dropped = new Error("the transport dropped under the picture")
+    await act(async () => { playback.starts[0].onFailure?.(dropped) })
+
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
+    expect(screen.getByTestId("failure")).toHaveTextContent("the transport dropped under the picture")
+    expect(playback.stops()).toBe(1)
+    expect(handle.calls).toContain("stop:stream-1")
   })
 
   it("re-enters the device when the endpoint answers that the plane does not hold the identity it just opened", async () => {

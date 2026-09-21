@@ -834,8 +834,10 @@ describe("ControlPage live mirror frame", () => {
     const mirror = fakeMirror("live", MirrorTransport.TCP)
     // The TCP transport reads its bytes from the control plane's stream endpoint;
     // what this case asserts is the wiring, so the endpoint answers with an empty
-    // body rather than reaching a network.
-    const emptyBody = { getReader: () => ({ read: async () => ({ done: true, value: undefined }) }) } as unknown as ReadableStream<Uint8Array>
+    // body rather than reaching a network. The reader is the port the playback reads
+    // the picture through and the one its teardown releases the response with (see
+    // MirrorPlayback.stop), so the fake answers both.
+    const emptyBody = { getReader: () => ({ read: async () => ({ done: true, value: undefined }), cancel: async () => undefined }) } as unknown as ReadableStream<Uint8Array>
     vi.stubGlobal("fetch", async () => ({ ok: true, body: emptyBody }))
     render(<ControlPage snapshot={mock.getSnapshot()} dispatch={async (intent) => mock.dispatch(intent)} mirror={mirror.client} />)
 
