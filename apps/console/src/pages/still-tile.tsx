@@ -1,5 +1,6 @@
 import type { DeviceView } from "@/lib/domain/control-plane"
 import { gridStillClassified, gridTileSentence, stillPictureShape, stillTileShape, type GridProfileView, type GridTileStill } from "@/lib/grid-stills"
+import driftNowMark from "../../src-tauri/icons/128x128.png"
 
 /**
  * One fleet tile's still picture.
@@ -86,6 +87,13 @@ export function StillTile({ device, tile, profile, orientation }: StillTileProps
           height: turned ? `${(shape.height / shape.width) * 100}%` : "100%",
         }}
       />
+      {tile.state === "pending" ? <span
+        data-testid={`still-tile-loader-${device.id}`}
+        role="status"
+        aria-label={`${device.displayName} is loading its first still`}
+        title={`${device.displayName} is loading its first still`}
+        className="pointer-events-none absolute inset-0 grid place-items-center"
+      ><span className="grid size-12 place-items-center"><img src={driftNowMark} alt="" aria-hidden="true" draggable={false} className="drift-device-loader-mark size-full" /></span></span> : null}
     </span>
     <span
       data-testid={`still-tile-state-${device.id}`}

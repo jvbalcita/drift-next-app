@@ -136,6 +136,20 @@
 }
 
 @layer components {
+  @keyframes drift-device-loading {
+    0%, 100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-0.25rem);
+    }
+  }
+
+  .drift-device-loader-mark {
+    animation: drift-device-loading 1.6s ease-in-out infinite;
+  }
+
   .drift-editorial-grid {
     position: relative;
     isolation: isolate;

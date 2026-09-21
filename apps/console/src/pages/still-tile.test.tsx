@@ -111,16 +111,22 @@ describe("a tile without a current still", () => {
     expect(screen.getByTestId("still-tile-image-atlas-04")).not.toHaveAttribute("src")
   })
 
-  it("says a device waiting for its first still is waiting, and is neither a failure nor a picture", () => {
+  it("shows a device loading its first still as a branded loading mark, and is neither a failure nor a picture", () => {
     render(<StillTile device={device} tile={hold(view({ state: GridStillState.PENDING }))} profile={profile} orientation="portrait" />)
 
     const state = screen.getByTestId("still-tile-state-atlas-04")
-    expect(state).toHaveTextContent("Waiting")
+    expect(state).toHaveTextContent("Loading")
     expect(state).toHaveAttribute("aria-label", expect.stringContaining("has not delivered its first still yet") as unknown as string)
     // Nothing has failed, so nothing announces itself: an alert here would train an
     // operator to ignore the one that means a device.
     expect(state).not.toHaveAttribute("role")
     expect(screen.getByTestId("still-tile-image-atlas-04")).not.toHaveAttribute("src")
+    const loader = screen.getByTestId("still-tile-loader-atlas-04")
+    expect(loader).toHaveAttribute("role", "status")
+    expect(loader).toHaveAccessibleName("Atlas 04 is loading its first still")
+    const mark = loader.querySelector(".drift-device-loader-mark")
+    expect(mark).not.toBeNull()
+    expect(mark).toHaveAttribute("src", expect.stringContaining("128x128") as unknown as string)
   })
 
   it("names the plane's sweep bound, and the level it carries, for a device the bound did not reach", () => {
@@ -225,14 +231,14 @@ describe("the shape a tile draws its picture at", () => {
     expect(paddingOf(screen.getByTestId("still-tile-image-atlas-04"))).toEqual([])
   })
 
-  it("keeps the console's own portrait shape for a tile the plane stated no size for", () => {
+  it("keeps the standard device shape for a tile the plane stated no size for", () => {
     // The plane states the delivered still's size WITH the picture - `Width` and
-    // `Height` are set only for a CURRENT still - so a device waiting for its first
-    // still arrives with no size of its own to take and the frame keeps the shape
-    // this grid has always drawn.
+    // `Height` are set only for a CURRENT still - so a device loading its first
+    // still arrives with no size of its own to take and uses the standard 9:19
+    // device frame without inventing a device-specific size.
     render(<StillTile device={device} tile={hold(view({ state: GridStillState.PENDING, width: 0, height: 0 }))} profile={profile} orientation="portrait" />)
 
-    expect(screen.getByTestId("still-tile-picture-atlas-04")).toHaveStyle({ aspectRatio: "9 / 16" })
+    expect(screen.getByTestId("still-tile-picture-atlas-04")).toHaveStyle({ aspectRatio: "9 / 19" })
   })
 
   it("draws the device's screen turned when the workspace draws landscape frames", () => {

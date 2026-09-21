@@ -765,7 +765,7 @@ describe("ControlPage device observation status", () => {
     // 192px is the smallest frame the console offers, and a landscape frame is 192px
     // WIDE with the tile's own shape turned for its height: this plane states no size
     // for a device it holds no picture for, so the tile draws the console's own
-    // portrait shape turned - 16:9. The mark is centred in the frame at every size
+    // standard 9:19 device shape turned - 19:9. The mark is centred in the frame at every size
     // rather than only in the default portrait one.
     //
     // The smallest frame is reached by moving the slider to it rather than by being
@@ -787,7 +787,7 @@ describe("ControlPage device observation status", () => {
     const grid = screen.getByLabelText("Compact phone frames")
     const unseen = within(grid).getByRole("button", { name: /Atlas 09/i })
     expect(unseen).toHaveStyle({ width: "192px" })
-    expect(within(unseen).getByTestId("still-tile-picture-atlas-09")).toHaveStyle({ aspectRatio: "16 / 9" })
+    expect(within(unseen).getByTestId("still-tile-picture-atlas-09")).toHaveStyle({ aspectRatio: "19 / 9" })
     expect(within(unseen).getByRole("img", { name: /Atlas 09 is not observed/ })).toBeInTheDocument()
     expect(within(unseen).getByText("Not Observed")).toBeInTheDocument()
   })
@@ -1074,6 +1074,17 @@ describe("ControlPage fleet tiles", () => {
     expect(online).not.toHaveClass("bg-zinc-800")
     expect(within(departed).getByText("Offline")).toBeInTheDocument()
     expect(within(unseen).getByText("Not Observed")).toBeInTheDocument()
+  })
+
+  it("draws a device loading its first still on the same neutral surface", async () => {
+    const { snapshot, dispatch } = grid()
+    const plane = fakeGridPlane({ stills: { "atlas-04": { state: "pending" } } })
+    render(<ControlPage snapshot={snapshot} dispatch={dispatch} grid={plane.client} />)
+
+    const loading = await screen.findByRole("button", { name: /Atlas 04/i })
+    await waitFor(() => expect(within(loading).getByTestId("still-tile-state-atlas-04")).toHaveAttribute("data-tile-state", "pending"))
+    expect(loading).toHaveClass("bg-zinc-800")
+    expect(within(loading).getByTestId("still-tile-loader-atlas-04")).toHaveAccessibleName("Atlas 04 is loading its first still")
   })
 
   it("draws only the devices the view's connection filter shows, with no bound deciding how many of them may be carried", async () => {

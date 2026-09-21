@@ -90,7 +90,7 @@ const phoneColors = ["bg-emerald-700", "bg-sky-700", "bg-teal-700", "bg-fuchsia-
  * The colour is decoration: the tile's centred mark and its status label are
  * what state the fact in words, and they are unchanged.
  */
-const absentPhoneColor = "bg-zinc-800"
+const unconnectedPhoneColor = "bg-zinc-800"
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
@@ -801,8 +801,12 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
   // index, so every disconnected tile reads the same whatever its placement, and
   // the index colour is left to the tiles that are actually carrying something.
   const absent = notObserved(device.status)
+  const loading = tile.state === "pending"
   const AbsentIcon = device.status === "unobserved" ? SearchX : Unplug
-  const frameColor = absent ? absentPhoneColor : phoneColors[index % phoneColors.length]
+  // A device with no picture is one neutral surface while it becomes visible.
+  // Status words and the classified tile sentence retain the reason; colour never
+  // asks an operator to infer a different connection state from its grid position.
+  const frameColor = absent || loading ? unconnectedPhoneColor : phoneColors[index % phoneColors.length]
   /**
    * The ADDRESS this frame is at, read from the endpoint record the plane holds.
    *
