@@ -85,16 +85,14 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
       <div><p className="font-semibold">Registry read needs attention</p><ul className="mt-1 list-disc pl-4">{snapshot.projectionWarnings.map((warning) => <li key={`${warning.source}-${warning.message}`}>{warning.message}</li>)}</ul></div>
     </div> : null}
     <Tabs value={filter} onValueChange={(next) => { if (isFilter(next)) { setPage(0); setSelectedIds(new Set()); onViewChange?.(next) } }}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border py-3">
+      <div className="flex flex-wrap items-center gap-3 border-y border-border py-3">
         <TabsList aria-label="Device Registry Views">
           {filters.map((item) => <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>)}
         </TabsList>
-        <div className="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
-          <BulkDeviceLifecycleControls devices={devices} selectedDeviceIds={selectedDeviceIds} dispatch={dispatch} onSelectionChange={setSelectedIds} />
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-2 top-2.5 size-3.5 text-muted-foreground" aria-hidden="true" />
-            <Input aria-label="Search Device Registry" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0) }} placeholder="Search devices" className="h-9 rounded-none pl-7 text-xs" />
-          </div>
+        <BulkDeviceLifecycleControls devices={devices} selectedDeviceIds={selectedDeviceIds} dispatch={dispatch} onSelectionChange={setSelectedIds} />
+        <div className="relative w-full sm:ml-auto sm:w-64">
+          <Search className="absolute left-2 top-2.5 size-3.5 text-muted-foreground" aria-hidden="true" />
+          <Input aria-label="Search Device Registry" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0) }} placeholder="Search devices" className="h-9 rounded-none pl-7 text-xs" />
         </div>
       </div>
       <TabsContent value={filter} className="mt-4">
