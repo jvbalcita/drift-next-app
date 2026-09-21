@@ -10,7 +10,7 @@ import type { ControlPlaneIntent, ControlPlaneSnapshot, DeviceView, DispatchInte
 import { DevicesPage } from "./DevicesPage"
 
 function renderDevicesPage(snapshot?: ControlPlaneSnapshot, dispatchOverride?: DispatchIntent) {
-  const client = new MockControlPlaneClient()
+  const client = new MockControlPlaneClient(snapshot)
   const intents: ControlPlaneIntent[] = []
   const dispatch = async (intent: ControlPlaneIntent): Promise<MutationResult> => {
     intents.push(intent)
@@ -121,15 +121,15 @@ describe("DevicesPage registry table", () => {
     expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument()
     expect(screen.queryByRole("columnheader", { name: "Lifecycle" })).not.toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Last Seen" })).toBeInTheDocument()
-    expect(cells[0]).toHaveTextContent("SM-G9750")
-    expect(cells[0]).not.toHaveTextContent("stable · device-777")
     expect(cells[1]).toHaveTextContent("SM-G9750")
-    expect(cells[2]).toHaveTextContent("192.168.1.123:5555")
-    expect(cells[3]).toHaveTextContent("192.168.1.123")
-    expect(cells[4]).toHaveTextContent("5555")
-    expect(cells[5]).toHaveTextContent("Online")
-    expect(cells[5]).not.toHaveTextContent("Registered")
-    expect(cells[6]).toHaveTextContent("12 sec ago")
+    expect(cells[1]).not.toHaveTextContent("stable · device-777")
+    expect(cells[2]).toHaveTextContent("SM-G9750")
+    expect(cells[3]).toHaveTextContent("192.168.1.123:5555")
+    expect(cells[4]).toHaveTextContent("192.168.1.123")
+    expect(cells[5]).toHaveTextContent("5555")
+    expect(cells[6]).toHaveTextContent("Online")
+    expect(cells[6]).not.toHaveTextContent("Registered")
+    expect(cells[7]).toHaveTextContent("12 sec ago")
     expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^Inspect / })).not.toBeInTheDocument()
   })
@@ -163,9 +163,9 @@ describe("DevicesPage registry table", () => {
 
     const row = screen.getByRole("row", { name: /SM-G9750/ })
     const cells = within(row).getAllByRole("cell")
-    expect(cells[2]).toHaveTextContent("—")
     expect(cells[3]).toHaveTextContent("—")
     expect(cells[4]).toHaveTextContent("—")
+    expect(cells[5]).toHaveTextContent("—")
   })
 })
 
@@ -236,7 +236,7 @@ describe("DevicesPage refresh", () => {
 })
 
 describe("DevicesPage bulk controls", () => {
-  it("renders no control for an operation this registry cannot perform", () => {
+  it("renders selection without inventing unrelated registry operations", () => {
     const page = renderDevicesPage()
 
     expect(screen.queryByRole("button", { name: "Bulk Move" })).not.toBeInTheDocument()
@@ -246,8 +246,44 @@ describe("DevicesPage bulk controls", () => {
     expect(screen.queryByText(/no registry data changed/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/Bulk move is unavailable/i)).not.toBeInTheDocument()
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "Select all 6 devices in this view" })).toBeInTheDocument()
     expect(page.intents).toEqual([])
+  })
+
+  it("selects every device in the current view and retires the selection with one reason", async () => {
+    const user = userEvent.setup()
+    const page = renderDevicesPage(snapshotWithDevices(["nova-05", "nova-02", "atlas-07"]))
+
+    await user.click(screen.getByRole("button", { name: "Select all 3" }))
+    expect(screen.getByText("3 selected")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Retire selected" }))
+    const dialog = screen.getByRole("dialog", { name: "Retire 3 devices?" })
+    await user.type(within(dialog).getByLabelText("Reason"), "Lab fleet decommissioned")
+    await user.click(within(dialog).getByRole("button", { name: "Retire selected" }))
+
+    expect(page.intents).toContainEqual({ type: "bulkRetireDevices", deviceIds: ["atlas-07", "nova-02", "nova-05"], reason: "Lab fleet decommissioned" })
+    expect(await screen.findByRole("status")).toHaveTextContent("3 devices retired.")
+    expect(screen.getByText("0 selected")).toBeInTheDocument()
+  })
+
+  it("requires the exact selected set before bulk deletion and reports partial refusals", async () => {
+    const user = userEvent.setup()
+    const page = renderDevicesPage(snapshotWithDevices(["atlas-04", "nova-05"], { memberships: [], accountDeviceAssignments: [], leases: [], mirrorSessions: [], runTargets: [] }))
+
+    await user.click(screen.getByRole("button", { name: "Select all 2" }))
+    await user.click(screen.getByRole("button", { name: "Delete selected" }))
+    const dialog = screen.getByRole("dialog", { name: "Delete 2 devices permanently?" })
+    const submit = within(dialog).getByRole("button", { name: "Delete selected" })
+    expect(submit).toBeDisabled()
+    await user.type(within(dialog).getByLabelText(/Type DELETE 2 DEVICES/), "DELETE 2 DEVICES")
+    await user.type(within(dialog).getByLabelText("Reason"), "Devices decommissioned")
+    expect(submit).toBeEnabled()
+    await user.click(submit)
+
+    expect(page.intents).toContainEqual({ type: "bulkDeleteDevices", deviceIds: ["atlas-04", "nova-05"], confirmationDeviceIds: ["atlas-04", "nova-05"], reason: "Devices decommissioned" })
+    expect(await screen.findByRole("status")).toHaveTextContent("1 device deleted from the registry; 1 refused.")
+    expect(screen.getByText("atlas-04")).toBeInTheDocument()
+    expect(screen.getByText(/current attached endpoint/i)).toBeInTheDocument()
   })
 })
 
