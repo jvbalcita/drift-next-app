@@ -471,6 +471,63 @@ describe("the console's live mirror session", () => {
     expect(playback.starts).toHaveLength(0)
   })
 
+  it("re-enters the device when the endpoint answers that the plane does not hold the identity it just opened", async () => {
+    // The stream endpoint is FETCHED rather than called through the JSON client, so a
+    // plane that does not hold this identity answers there with a 404 - the session it
+    // named ended as this frame opened it, or the fetch reached the endpoint before
+    // that session existed. That is the same fact a poll reports as `not_found`, and a
+    // frame that re-enters for one and reports a failure for the other treats one plane
+    // answer two ways: it left the operator a dead surface, naming a stream the plane
+    // had already forgotten, for a plane that would have carried the picture again on
+    // the next attempt.
+    const handle = fakeClient(stream({ transport: MirrorTransport.TCP, streamUrl: "/drift/v1/mirror/stream?stream_id=stream-1", state: MirrorStreamState.LIVE, frames: 4n }))
+    // The endpoint refuses the FIRST fetch and answers the second, which is what a plane
+    // that ended the session as this frame opened it looks like from here.
+    let attempts = 0
+    const factory: MirrorPlaybackFactory = () => ({
+      async start() {
+        attempts += 1
+        if (attempts === 1) {
+          const refusal = new Error("control plane: no live stream with that identity is being carried")
+          ;(refusal as Error & { httpStatus?: number }).httpStatus = 404
+          throw refusal
+        }
+      },
+      stop() {},
+    })
+
+    render(<Harness client={handle.client} playbackFactory={factory} transport="tcp" />)
+
+    // It asks for the SAME device again rather than reporting the refusal as a failure.
+    await waitFor(() => expect(handle.calls.filter((call) => call.startsWith("start:"))).toHaveLength(2))
+    expect(handle.calls).toContain("start:device-1")
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("live"))
+    expect(screen.getByTestId("phase")).not.toHaveTextContent("failed")
+    // And it stops nothing: the plane has already forgotten this identity, so a stop
+    // for it would be a stop issued for a stream the plane last reported live.
+    expect(handle.calls.some((call) => call.startsWith("stop:"))).toBe(false)
+  })
+
+  it("still reports a refusal that is not the plane forgetting the identity", async () => {
+    // The re-entry above is bounded and it is not a licence to retry everything: a
+    // plane that refuses the open for its own reason is reported in its own words.
+    const handle = fakeClient(stream({ transport: MirrorTransport.TCP, streamUrl: "/drift/v1/mirror/stream?stream_id=stream-1" }))
+    const factory: MirrorPlaybackFactory = () => ({
+      async start() {
+        const refusal = new Error("control plane: the plane is carrying too many streams")
+        ;(refusal as Error & { httpStatus?: number }).httpStatus = 503
+        throw refusal
+      },
+      stop() {},
+    })
+
+    render(<Harness client={handle.client} playbackFactory={factory} transport="tcp" />)
+
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
+    expect(screen.getByTestId("failure")).toHaveTextContent("too many streams")
+    expect(handle.calls.filter((call) => call.startsWith("start:"))).toHaveLength(1)
+  })
+
   it("tells an operator whose console has no control plane that there is nothing to show", async () => {
     render(<Harness />)
     await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("unavailable"))

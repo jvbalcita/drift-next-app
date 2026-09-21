@@ -176,7 +176,32 @@ async function defaultFetchStream(url: string, headers: Record<string, string>):
   // from the frame instead of from the plane's database. Reporting this console's
   // own sentence in its place would throw away the only part of the refusal that
   // says why, so the plane's answer is kept behind it.
-  throw new Error(refusalSentence(liveMirrorCopy.failure.refusedEndpoint, await refusalText(response)))
+  //
+  // The status is kept beside the sentence because the sentence alone cannot be
+  // classified, and one status carries a fact the frame has to act on: 404 is the
+  // plane saying it does not hold this identity at all. That is the same fact
+  // `getStream` answers with `not_found`, and a frame that re-enters the device for
+  // one and reports a failure for the other would treat one plane answer two ways
+  // depending on which endpoint carried it.
+  const refusal = new Error(refusalSentence(liveMirrorCopy.failure.refusedEndpoint, await refusalText(response)))
+  ;(refusal as Error & { httpStatus?: number }).httpStatus = response.status
+  throw refusal
+}
+
+/**
+ * streamRefusalStatus reports the HTTP status a refused stream endpoint answered
+ * with, or 0 when the cause is not a refusal from that endpoint.
+ *
+ * The stream endpoint is fetched rather than called through the JSON client, so its
+ * refusals arrive as plain errors; this is how the caller recovers the one number it
+ * needs to classify them the same way it classifies the client's own answers.
+ */
+export function streamRefusalStatus(cause: unknown): number {
+  if (cause instanceof Error) {
+    const status = (cause as Error & { httpStatus?: unknown }).httpStatus
+    if (typeof status === "number") return status
+  }
+  return 0
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import { browserMirrorPlaybackFactory, type MirrorPlayback, type MirrorPlaybackFactory } from "@/lib/api/mirror-playback"
+import { browserMirrorPlaybackFactory, streamRefusalStatus, type MirrorPlayback, type MirrorPlaybackFactory } from "@/lib/api/mirror-playback"
 import { liveMirrorCopy, type LiveMirrorPhase, type LiveMirrorPreview, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
 
 /**
@@ -527,6 +527,20 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
         readAgain(pollIntervalMs)
       } catch (cause: unknown) {
         if (disposed || settled) return
+        // A plane that does not hold the identity this frame just opened is the same
+        // fact the poll acts on, and the frame has to act on it the same way: RE-ENTER
+        // the same device rather than report a failure for a stream the plane has
+        // already forgotten. The identity can be gone the moment it is handed out - the
+        // session it named ended as this frame opened it, or a fetch reached the
+        // endpoint before that session existed - and reporting that as a failed stream
+        // left the operator with a dead surface for a plane that would have carried the
+        // picture again immediately. The re-entry is bounded by `reopenLimit` exactly as
+        // a read's is, so a plane that hands out an identity and forgets it on EVERY
+        // open is still reported rather than asked forever.
+        if (isNotFound(cause)) {
+          forget()
+          return
+        }
         finish("failed", errorSentence(cause), true)
       }
     }
@@ -551,7 +565,12 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
 }
 
 function isNotFound(cause: unknown): boolean {
-  return cause instanceof ConnectJsonError && cause.code === "not_found"
+  if (cause instanceof ConnectJsonError && cause.code === "not_found") return true
+  // The stream endpoint is fetched rather than called through the JSON client, so a
+  // plane that does not hold this identity answers there with a 404 rather than with a
+  // `not_found` code. It is the same fact about the same plane, so it is classified in
+  // one place: the poll and the open must not treat it two different ways.
+  return streamRefusalStatus(cause) === 404
 }
 
 function errorSentence(cause: unknown): string {
