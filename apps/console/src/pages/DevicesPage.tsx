@@ -1,8 +1,9 @@
 import { useMemo, useState, type KeyboardEvent } from "react"
-import { Loader2, RefreshCw, Search, TriangleAlert } from "lucide-react"
+import { Check, Copy, Loader2, RefreshCw, Search, TriangleAlert } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
@@ -79,7 +80,6 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
       description="Names come from the captured Android device name when available. Status and endpoint values come from the current transport observation."
       actions={<><LabAdapterIndicator adapter={snapshot.labAdapter} /><Button variant="outline" size="sm" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="size-3.5" aria-hidden="true" />}{refreshing ? "Refreshing…" : "Refresh"}</Button></>}
     />
-    <BulkDeviceLifecycleControls devices={devices} selectedDeviceIds={selectedDeviceIds} dispatch={dispatch} onSelectionChange={setSelectedIds} />
     {snapshot.projectionWarnings.length > 0 ? <div role="alert" className="mb-5 flex items-start gap-2 border-l-2 border-amber-600 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
       <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <div><p className="font-semibold">Registry read needs attention</p><ul className="mt-1 list-disc pl-4">{snapshot.projectionWarnings.map((warning) => <li key={`${warning.source}-${warning.message}`}>{warning.message}</li>)}</ul></div>
@@ -89,9 +89,12 @@ export function DevicesPage({ snapshot, dispatch, view = "all", onViewChange }: 
         <TabsList aria-label="Device Registry Views">
           {filters.map((item) => <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>)}
         </TabsList>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-2 top-2.5 size-3.5 text-muted-foreground" aria-hidden="true" />
-          <Input aria-label="Search Device Registry" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0) }} placeholder="Search devices" className="h-9 rounded-none pl-7 text-xs" />
+        <div className="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
+          <BulkDeviceLifecycleControls devices={devices} selectedDeviceIds={selectedDeviceIds} dispatch={dispatch} onSelectionChange={setSelectedIds} />
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2 top-2.5 size-3.5 text-muted-foreground" aria-hidden="true" />
+            <Input aria-label="Search Device Registry" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0) }} placeholder="Search devices" className="h-9 rounded-none pl-7 text-xs" />
+          </div>
         </div>
       </div>
       <TabsContent value={filter} className="mt-4">
@@ -127,6 +130,8 @@ function BulkDeviceLifecycleControls({ devices, selectedDeviceIds, dispatch, onS
   const [action, setAction] = useState<"retire" | "delete" | null>(null)
   const [reason, setReason] = useState("")
   const [confirmation, setConfirmation] = useState("")
+  const [copiedConfirmation, setCopiedConfirmation] = useState(false)
+  const [copyError, setCopyError] = useState("")
   const [status, setStatus] = useState("")
   const [outcomes, setOutcomes] = useState<readonly { deviceId: string; ok: boolean; message: string }[]>([])
   const [pending, setPending] = useState(false)
@@ -138,6 +143,8 @@ function BulkDeviceLifecycleControls({ devices, selectedDeviceIds, dispatch, onS
     setAction(next)
     setReason("")
     setConfirmation("")
+    setCopiedConfirmation(false)
+    setCopyError("")
     setStatus("")
     setOutcomes([])
   }
@@ -147,6 +154,8 @@ function BulkDeviceLifecycleControls({ devices, selectedDeviceIds, dispatch, onS
     setAction(null)
     setReason("")
     setConfirmation("")
+    setCopiedConfirmation(false)
+    setCopyError("")
   }
 
   async function submit() {
@@ -160,11 +169,29 @@ function BulkDeviceLifecycleControls({ devices, selectedDeviceIds, dispatch, onS
     setStatus(result.message)
     setOutcomes(result.deviceLifecycleBatch?.outcomes ?? [])
     onSelectionChange(new Set())
-    close()
+    setAction(null)
+    setReason("")
+    setConfirmation("")
+    setCopiedConfirmation(false)
+    setCopyError("")
+  }
+
+  async function copyConfirmation() {
+    if (!navigator.clipboard) {
+      setCopyError("Copy is unavailable in this browser.")
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(requiredConfirmation)
+      setCopiedConfirmation(true)
+      setCopyError("")
+    } catch {
+      setCopyError("The confirmation text could not be copied.")
+    }
   }
 
   return <>
-    <div role="region" aria-label="Bulk device actions" className="mb-4 flex flex-wrap items-center gap-2 border-y border-border py-3">
+    <div role="region" aria-label="Bulk device actions" className="flex flex-wrap items-center gap-2">
       <Button type="button" size="sm" variant="ghost" className="border border-border" onClick={() => onSelectionChange(allSelected ? new Set() : new Set(devices.map((device) => device.id)))} disabled={devices.length === 0}>{allSelected ? "Clear selection" : `Select all ${devices.length}`}</Button>
       <span className="text-xs text-muted-foreground">{selected.length} selected</span>
       {selected.length > 0 ? <>
@@ -179,18 +206,34 @@ function BulkDeviceLifecycleControls({ devices, selectedDeviceIds, dispatch, onS
         {outcomes.map((outcome) => <li key={outcome.deviceId} className={outcome.ok ? "text-muted-foreground" : "text-destructive"}><span className="drift-data">{outcome.deviceId}</span>: {outcome.message}</li>)}
       </ul>
     </details> : null}
-    {action ? <div role="dialog" aria-modal="false" aria-labelledby="bulk-device-lifecycle-title" className="mb-4 space-y-4 border border-border bg-muted/30 p-4">
-      <div className="space-y-2">
-        <h2 id="bulk-device-lifecycle-title" className="font-medium">{action === "retire" ? `Retire ${selected.length} devices?` : `Delete ${selected.length} devices permanently?`}</h2>
-        <p className="text-xs leading-5 text-muted-foreground">{action === "retire" ? "This records one reversible expectation decision per selected device and preserves every device history record." : "Review the exact selected identities below. Each device is checked independently; attached devices and devices with active work are refused and reported."}</p>
-      </div>
-      {action === "delete" ? <>
-        <div aria-label="Selected device identities" className="max-h-40 overflow-y-auto border border-border bg-background p-2 text-xs"><ul className="space-y-1">{selected.map((device) => <li key={device.id}><span className="drift-data">{device.id}</span> · {device.displayName}</li>)}</ul></div>
-        <div className="space-y-2"><label htmlFor="bulk-device-confirmation" className="text-xs font-medium">Type <span className="drift-data">{requiredConfirmation}</span> to confirm</label><Input id="bulk-device-confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" autoFocus /></div>
-      </> : null}
-      <div className="space-y-2"><label htmlFor="bulk-device-reason" className="text-xs font-medium">Reason</label><Input id="bulk-device-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why is this registry decision being made?" autoFocus={action === "retire"} /></div>
-      <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={close} disabled={pending}>Cancel</Button><Button type="button" variant={action === "delete" ? "destructive" : "default"} onClick={() => void submit()} disabled={pending || !reason.trim() || action === "delete" && confirmation !== requiredConfirmation}>{pending ? "Saving…" : action === "retire" ? "Retire selected" : "Delete selected"}</Button></div>
-    </div> : null}
+    {action ? <Dialog open onOpenChange={(open) => { if (!open) close() }}>
+      <DialogContent size="lg" className="rounded-none">
+        <DialogHeader>
+          <DialogTitle>{action === "retire" ? `Retire ${selected.length} devices?` : `Delete ${selected.length} devices permanently?`}</DialogTitle>
+          <DialogDescription>{action === "retire" ? "This records one reversible expectation decision per selected device and preserves every device history record." : "Review the exact selected identities below. Each device is checked independently; attached devices and devices with active work are refused and reported."}</DialogDescription>
+        </DialogHeader>
+        {action === "delete" ? <>
+          <div aria-label="Selected device identities" className="max-h-40 overflow-y-auto border border-border bg-background p-2 text-xs"><ul className="space-y-1">{selected.map((device) => <li key={device.id}><span className="drift-data">{device.id}</span> · {device.displayName}</li>)}</ul></div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="bulk-device-confirmation" className="text-xs font-medium">Type <span className="drift-data">{requiredConfirmation}</span> to confirm</label>
+              <Button type="button" size="sm" variant="outline" onClick={() => void copyConfirmation()} aria-label={copiedConfirmation ? "Copied deletion confirmation" : "Copy deletion confirmation"}>
+                {copiedConfirmation ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
+                {copiedConfirmation ? "Copied" : "Copy"}
+              </Button>
+            </div>
+            <code className="block border border-border bg-muted/40 px-3 py-2 text-xs font-semibold tracking-wide">{requiredConfirmation}</code>
+            <Input id="bulk-device-confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" autoFocus />
+            {copyError ? <p role="status" className="text-xs text-destructive">{copyError}</p> : null}
+          </div>
+        </> : null}
+        <div className="space-y-2"><label htmlFor="bulk-device-reason" className="text-xs font-medium">Reason</label><Input id="bulk-device-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why is this registry decision being made?" autoFocus={action === "retire"} /></div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={close} disabled={pending}>Cancel</Button>
+          <Button type="button" variant={action === "delete" ? "destructive" : "default"} onClick={() => void submit()} disabled={pending || !reason.trim() || action === "delete" && confirmation !== requiredConfirmation}>{pending ? "Saving…" : action === "retire" ? "Retire selected" : "Delete selected"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog> : null}
   </>
 }
 

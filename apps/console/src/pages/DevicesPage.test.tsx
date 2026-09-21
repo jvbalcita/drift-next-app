@@ -274,6 +274,7 @@ describe("DevicesPage bulk controls", () => {
     await user.click(screen.getByRole("button", { name: "Delete selected" }))
     const dialog = screen.getByRole("dialog", { name: "Delete 2 devices permanently?" })
     const submit = within(dialog).getByRole("button", { name: "Delete selected" })
+    expect(within(dialog).getByRole("button", { name: "Copy deletion confirmation" })).toBeInTheDocument()
     expect(submit).toBeDisabled()
     await user.type(within(dialog).getByLabelText(/Type DELETE 2 DEVICES/), "DELETE 2 DEVICES")
     await user.type(within(dialog).getByLabelText("Reason"), "Devices decommissioned")
