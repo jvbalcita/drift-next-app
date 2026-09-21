@@ -241,7 +241,7 @@ describe("Drift command center", () => {
     expect(screen.getByLabelText(/Atlas 04 floating phone frame/i)).toHaveStyle({ width: "383px", height: "681px" })
     const compact = within(grid).getByRole("button", { name: /Atlas 07/i })
     expect(compact).toHaveStyle({ width: "149px" })
-    expect(within(compact).getByTestId(/^still-tile-picture-/)).toHaveStyle({ aspectRatio: "9 / 16" })
+    expect(within(compact).getByTestId(/^still-tile-picture-/)).toHaveStyle({ aspectRatio: "9 / 19" })
   })
 
   it("opens a source and selects followers by clicking compact frames, with no preview control to press", async () => {
