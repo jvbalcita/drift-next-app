@@ -124,6 +124,102 @@ service DeviceInputService {
   rpc TypeText(TypeTextRequest) returns (TypeTextResponse);
 }
 
+// The follower fan-out: one operator gesture on the SOURCE frame, carried to each
+// follower the operator selected as its own action through the kernel.
+//
+// The owner's reading of source/follower mirroring is that the followers must also
+// RECEIVE what the operator does on the source - watching is the preview fan-out
+// that already exists, and receiving is this message. A gesture the operator
+// performs on the source is dispatched to the source exactly as it was before, and
+// the same typed input is dispatched to each selected follower as its own action:
+// in the kernel, that means the follower's own lease, its own policy and capability
+// decision, its own fresh observation, its own postcondition, its own evidence
+// record and its own result. One follower's outcome can never change another's.
+//
+// ORDERING is stated here because a client has to be able to rely on it: the
+// followers proceed INDEPENDENTLY of the operator's gesture. The source's own
+// dispatch is answered from the source's own result, and it never waits for the
+// slowest follower - so what this report carries for an accepted follower is the
+// ACCEPTANCE of that follower's run, and the follower's own outcome is recorded on
+// the plane as its run completes. A gesture on the source must not hang on a
+// follower, and a follower that is slow, stuck or unreachable is answered in its
+// own row.
+//
+// The CANDIDATE SET is the plane's own ONLINE reading, made in one place, so a
+// device the console paints as online and a device this run treats as online
+// cannot disagree. A follower that is not online was never contacted and never
+// failed: it is EXCLUDED, NAMED with a reason of its own, and the count this report
+// carries is the set the run TARGETED rather than the set the operator selected.
+//
+// A typed-text gesture and an app launch are deliberately NOT carried to
+// followers, and each follower is refused with its own reason rather than being
+// silently left out: a text reference is released exactly once, so carrying one
+// reference to N followers would be either N releases of one value or one release
+// that N devices silently did without, and a launch names one device's package.
+message FollowerInputFanout {
+  // run_id identifies this fan-out, assigned before anything is dispatched, so a
+  // retried fan-out is recognisable as the same gesture.
+  string run_id = 1;
+  // target_count is the size of the set this run TARGETED: the followers whose own
+  // actions it dispatched. It is never the number of followers selected, because a
+  // follower that is not online was never contacted and never failed.
+  int32 target_count = 2;
+  // followers carries one row per follower the operator named, in the order the
+  // operator named them, deduplicated by device. Nothing the operator selected is
+  // absent from it.
+  repeated FollowerInputOutcome followers = 3;
+}
+
+// FollowerInputDisposition is what happened to ONE follower's copy of the gesture.
+//
+// It is deliberately four values rather than a boolean. ACCEPTED says the
+// follower's action was dispatched through the kernel and the outcome beside it is
+// the device's own; REFUSED says the plane decided not to dispatch it and the
+// reason beside it is why; EXCLUDED says the follower was never a candidate at all,
+// so nothing about it was contacted OR failed; INDETERMINATE says the action was
+// dispatched and its outcome could not be established, which is never a success.
+message FollowerInputOutcome {
+  string device_id = 1;
+  FollowerInputDisposition disposition = 2;
+  // reason is the plane's own stable reason for this row, so a client adds a value
+  // rather than re-deriving one from the outcome text.
+  string reason = 3;
+  // detail is the plane's own fixed sentence for this row, or the dispatch
+  // boundary's own refusal sentence. It never carries device content, a transport
+  // diagnostic or a stack trace.
+  string detail = 4;
+  // refusal is the dispatch boundary's typed refusal, present only for a row the
+  // kernel or the readiness probe refused.
+  DeviceInputRefusal refusal = 5;
+  // outcome is the kernel's own reading for a row that was dispatched.
+  string outcome = 6;
+  // attempt_id identifies this follower's own action attempt, which is what an
+  // append-only evidence record references. Empty for a row that reached no device.
+  string attempt_id = 7;
+  // idempotency_key is the key this follower's action carries: this follower's OWN,
+  // so a retried fan-out does not double-apply on a follower that already took it.
+  string idempotency_key = 8;
+  // frame_width and frame_height are the render space this follower was given. They
+  // are the SOURCE's declared frame, unchanged: this plane refuses a follower that
+  // does not present at that frame and never rescales a coordinate into the
+  // follower's own size.
+  uint32 frame_width = 9;
+  uint32 frame_height = 10;
+}
+
+// FollowerInputDisposition names what happened to one follower's copy of a gesture.
+enum FollowerInputDisposition {
+  FOLLOWER_INPUT_DISPOSITION_UNSPECIFIED = 0;
+  // The follower's own action was dispatched through the kernel.
+  FOLLOWER_INPUT_DISPOSITION_ACCEPTED = 1;
+  // The plane did not dispatch this follower's action, and named the reason.
+  FOLLOWER_INPUT_DISPOSITION_REFUSED = 2;
+  // The follower was not a candidate, so the run never contacted it.
+  FOLLOWER_INPUT_DISPOSITION_EXCLUDED = 3;
+  // The action was dispatched and its outcome could not be established.
+  FOLLOWER_INPUT_DISPOSITION_INDETERMINATE = 4;
+}
+
 // TapRequest submits one tap: a semantic target, or a point inside
 // the render space it was measured in. A tap that names neither, or both, is
 // refused before the kernel is asked.
@@ -141,10 +237,20 @@ message TapRequest {
   string observation_token = 7;
   TapInput tap = 8;
   bool approval_granted = 9;
+  // follower_device_ids are the followers the operator selected when the gesture
+  // was performed on the SOURCE frame. Each one receives the same typed input as
+  // its own action through the kernel (see FollowerInputFanout). An empty list
+  // means the gesture is the source's alone, exactly as it was before.
+  repeated string follower_device_ids = 10;
 }
 
 message TapResponse {
   ActionResult result = 1;
+  // fanout reports the followers this gesture was carried to, one row each. It is
+  // present whenever followers were named, including when none of them was a
+  // candidate, because a report that went missing would read as a fan-out that
+  // never happened.
+  FollowerInputFanout fanout = 2;
 }
 
 // SwipeRequest submits one swipe. Both endpoints belong to the one
@@ -163,10 +269,16 @@ message SwipeRequest {
   string observation_token = 7;
   SwipeInput swipe = 8;
   bool approval_granted = 9;
+  // follower_device_ids are the followers the operator selected when the gesture
+  // was performed on the SOURCE frame. Each one receives the same typed input as
+  // its own action through the kernel (see FollowerInputFanout). An empty list
+  // means the gesture is the source's alone, exactly as it was before.
+  repeated string follower_device_ids = 10;
 }
 
 message SwipeResponse {
   ActionResult result = 1;
+  FollowerInputFanout fanout = 2;
 }
 
 // KeyEventRequest submits one key event. It carries a bounded key
@@ -189,10 +301,16 @@ message KeyEventRequest {
   string observation_token = 7;
   KeyEventInput key_event = 8;
   bool approval_granted = 9;
+  // follower_device_ids are the followers the operator selected when the gesture
+  // was performed on the SOURCE frame. Each one receives the same typed input as
+  // its own action through the kernel (see FollowerInputFanout). An empty list
+  // means the gesture is the source's alone, exactly as it was before.
+  repeated string follower_device_ids = 10;
 }
 
 message KeyEventResponse {
   ActionResult result = 1;
+  FollowerInputFanout fanout = 2;
 }
 
 // TypeTextRequest submits one typed-text entry. Its value is NOT here: it names

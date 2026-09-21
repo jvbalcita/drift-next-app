@@ -72,6 +72,22 @@ type DeviceInputs interface {
 	Run(ctx context.Context, input DeviceInputTarget, actorType, actorID string) (action.Result, error)
 }
 
+// DeviceInputFollowers is the second half of this surface, and it is a separate
+// interface because it is a separate capability.
+//
+// A deployment that carries a gesture to the source alone is a complete
+// deployment: it mounts this surface, dispatches the source's input, and refuses a
+// request that names followers rather than answering it with followers that
+// received nothing. *DeviceInputBoundary satisfies it when a fan-out was bound.
+//
+// It reports the ACCEPTANCE of each follower's run, never the follower's finished
+// outcome: the followers proceed independently of the operator's gesture, so the
+// source's dispatch is answered from the source's own result and never from the
+// slowest follower.
+type DeviceInputFollowers interface {
+	RunFollowers(ctx context.Context, input DeviceInputTarget, followers []string, actorType, actorID string) (execution.FollowerFanoutReport, error)
+}
+
 // DeviceInputHandler serves the device input surface from one constructed
 // application boundary.
 type DeviceInputHandler struct {
@@ -137,11 +153,21 @@ func (h *DeviceInputHandler) Tap(ctx context.Context, request *connectrpc.Reques
 		return nil, err
 	}
 	target.Payload = tapPayload(message.GetTap(), message.GetObservationToken())
+	followers := followerDeviceIDs(message.GetFollowerDeviceIds())
+	if err := h.requireFollowerPort(followers); err != nil {
+		return nil, err
+	}
+	// The SOURCE's own dispatch is answered first and on its own: the operator's
+	// gesture never waits for a follower (see DeviceInputFollowers).
 	result, runErr := h.inputs.Run(ctx, target, actorType, actorID)
 	if runErr != nil {
 		return nil, mapDeviceInputError(runErr)
 	}
-	return connectrpc.NewResponse(&driftv1.TapResponse{Result: actionResultProto(result)}), nil
+	fanout, fanoutErr := h.fanOut(ctx, target, followers, actorType, actorID)
+	if fanoutErr != nil {
+		return nil, fanoutErr
+	}
+	return connectrpc.NewResponse(&driftv1.TapResponse{Result: actionResultProto(result), Fanout: fanout}), nil
 }
 
 // Swipe submits one swipe.
@@ -165,11 +191,19 @@ func (h *DeviceInputHandler) Swipe(ctx context.Context, request *connectrpc.Requ
 		return nil, err
 	}
 	target.Payload = swipePayload(message.GetSwipe())
+	followers := followerDeviceIDs(message.GetFollowerDeviceIds())
+	if err := h.requireFollowerPort(followers); err != nil {
+		return nil, err
+	}
 	result, runErr := h.inputs.Run(ctx, target, actorType, actorID)
 	if runErr != nil {
 		return nil, mapDeviceInputError(runErr)
 	}
-	return connectrpc.NewResponse(&driftv1.SwipeResponse{Result: actionResultProto(result)}), nil
+	fanout, fanoutErr := h.fanOut(ctx, target, followers, actorType, actorID)
+	if fanoutErr != nil {
+		return nil, fanoutErr
+	}
+	return connectrpc.NewResponse(&driftv1.SwipeResponse{Result: actionResultProto(result), Fanout: fanout}), nil
 }
 
 // KeyEvent submits one key event.
@@ -196,11 +230,19 @@ func (h *DeviceInputHandler) KeyEvent(ctx context.Context, request *connectrpc.R
 		KeyCode: message.GetKeyEvent().GetKeyCode(),
 		Repeat:  1,
 	}}
+	followers := followerDeviceIDs(message.GetFollowerDeviceIds())
+	if err := h.requireFollowerPort(followers); err != nil {
+		return nil, err
+	}
 	result, runErr := h.inputs.Run(ctx, target, actorType, actorID)
 	if runErr != nil {
 		return nil, mapDeviceInputError(runErr)
 	}
-	return connectrpc.NewResponse(&driftv1.KeyEventResponse{Result: actionResultProto(result)}), nil
+	fanout, fanoutErr := h.fanOut(ctx, target, followers, actorType, actorID)
+	if fanoutErr != nil {
+		return nil, fanoutErr
+	}
+	return connectrpc.NewResponse(&driftv1.KeyEventResponse{Result: actionResultProto(result), Fanout: fanout}), nil
 }
 
 // TypeText submits one typed-text entry.
@@ -239,6 +281,70 @@ func (h *DeviceInputHandler) TypeText(ctx context.Context, request *connectrpc.R
 		return nil, mapDeviceInputError(runErr)
 	}
 	return connectrpc.NewResponse(&driftv1.TypeTextResponse{Result: actionResultProto(result)}), nil
+}
+
+// followerDeviceIDs reads the followers the operator selected, in the operator's
+// own order. Blank entries are kept: an unnamed entry is a hole in the operator's
+// selection, and the fan-out NAMES it rather than quietly dropping it.
+func followerDeviceIDs(ids []string) []string {
+	followers := make([]string, 0, len(ids))
+	for _, id := range ids {
+		followers = append(followers, strings.TrimSpace(id))
+	}
+	return followers
+}
+
+// followersPort returns the fan-out this handler can reach, or reports that this
+// deployment has none.
+func (h *DeviceInputHandler) followersPort() (DeviceInputFollowers, bool) {
+	if h == nil {
+		return nil, false
+	}
+	port, ok := h.inputs.(DeviceInputFollowers)
+	if !ok || isNilInterface(port) {
+		return nil, false
+	}
+	return port, true
+}
+
+// requireFollowerPort refuses a request that names followers on a deployment that
+// carries a gesture to the source alone.
+//
+// It is checked BEFORE the source is dispatched, because a request the plane
+// cannot answer must not half happen: dispatching the source and then reporting
+// that the followers could not be reached would be a gesture the operator cannot
+// account for.
+func (h *DeviceInputHandler) requireFollowerPort(followers []string) error {
+	if len(followers) == 0 {
+		return nil
+	}
+	if _, ok := h.followersPort(); !ok {
+		return connectrpc.NewError(connectrpc.CodeUnavailable, &safeError{message: "this deployment does not carry a gesture to followers"})
+	}
+	return nil
+}
+
+// fanOut carries the gesture the source has just performed to the followers the
+// operator selected, and renders the acceptance report.
+//
+// It returns no report for a gesture with no followers, which is the source's own
+// input exactly as it was before this surface carried a fan-out.
+func (h *DeviceInputHandler) fanOut(ctx context.Context, target DeviceInputTarget, followers []string, actorType, actorID string) (*driftv1.FollowerInputFanout, error) {
+	if len(followers) == 0 {
+		return nil, nil
+	}
+	port, ok := h.followersPort()
+	if !ok {
+		return nil, connectrpc.NewError(connectrpc.CodeUnavailable, &safeError{message: "this deployment does not carry a gesture to followers"})
+	}
+	report, err := port.RunFollowers(ctx, target, followers, actorType, actorID)
+	if err != nil {
+		// The run as a whole could not be attempted - an unreadable fleet, a
+		// cancelled context. It is reported as this surface's own failure and
+		// never as a follower that received nothing quietly.
+		return nil, mapDeviceInputError(err)
+	}
+	return followerFanoutMessage(report), nil
 }
 
 // ready reports whether this handler was constructed with something to call.

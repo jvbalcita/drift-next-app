@@ -139,3 +139,94 @@ func unfinishedMirrorSessionTx(ctx context.Context, tx *sql.Tx, workspace organi
 		return sessionID, nil
 	}
 }
+
+// followerInputOutcome is the event name one follower's own input outcome is
+// recorded under: "mirror.follower_input_outcome". It is spelled for the surface it
+// belongs to, so a reader filtering this table by name gets the follower fan-out's
+// own rows and not every event that happens to carry the word.
+const followerInputOutcome = "mirror.follower_input_outcome"
+
+// followerInputOutcomeSchemaVersion is the shape of the payload below, stated per
+// row because a later version must be readable beside this one and never instead
+// of it.
+const followerInputOutcomeSchemaVersion = 1
+
+// RecordFollowerInputOutcome appends ONE follower's own finished outcome.
+//
+// It is the row that makes per-follower failure visible after the response that
+// asked for it is gone: the fan-out's report carries each follower's acceptance,
+// and this carries what the follower's own action did. The row names the follower,
+// the source, the run and the attempt, and carries the plane's own sentences - the
+// disposition, the stable reason and the fixed detail - beside the render space the
+// follower was given. It carries no device content and no credential.
+//
+// No mirror session is required and none is invented: a fan-out is an operator's
+// gesture carried to followers, which is not the same fact as a viewing session, so
+// the session column is left null rather than filled with a session this row has
+// nothing to do with.
+func (s *MirrorEventService) RecordFollowerInputOutcome(ctx context.Context, record mirrors.FollowerInputOutcomeRecord) error {
+	if ctx == nil || s == nil || s.store == nil || s.store.db == nil {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite store are required")
+	}
+	workspace := organizations.WorkspaceID(strings.TrimSpace(record.WorkspaceID))
+	if err := validateWorkspace(string(workspace)); err != nil {
+		return err
+	}
+	deviceID := devices.DeviceID(strings.TrimSpace(record.DeviceID))
+	if deviceID == "" {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "a follower input outcome requires the follower it is about")
+	}
+	if strings.TrimSpace(record.SourceDeviceID) == "" || strings.TrimSpace(record.RunID) == "" {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "a follower input outcome requires the source device and the fan-out run it belongs to")
+	}
+	occurredAt := s.store.clock.Now().UTC().Format(time.RFC3339Nano)
+	payload, err := json.Marshal(struct {
+		SourceDeviceID string `json:"source_device_id"`
+		RunID          string `json:"run_id"`
+		Disposition    string `json:"disposition"`
+		Reason         string `json:"reason"`
+		Detail         string `json:"detail"`
+		RefusalReason  string `json:"refusal_reason,omitempty"`
+		FailureClass   string `json:"failure_class,omitempty"`
+		KernelOutcome  string `json:"kernel_outcome,omitempty"`
+		AttemptID      string `json:"attempt_id,omitempty"`
+		IdempotencyKey string `json:"idempotency_key,omitempty"`
+		FrameWidth     uint32 `json:"frame_width,omitempty"`
+		FrameHeight    uint32 `json:"frame_height,omitempty"`
+	}{
+		SourceDeviceID: record.SourceDeviceID,
+		RunID:          record.RunID,
+		Disposition:    record.Disposition,
+		Reason:         record.Reason,
+		Detail:         record.Detail,
+		RefusalReason:  record.RefusalReason,
+		FailureClass:   record.FailureClass,
+		KernelOutcome:  record.KernelOutcome,
+		AttemptID:      record.AttemptID,
+		IdempotencyKey: record.IdempotencyKey,
+		FrameWidth:     record.FrameWidth,
+		FrameHeight:    record.FrameHeight,
+	})
+	if err != nil {
+		return platformerrors.Wrap(platformerrors.CodeInternal, "encode follower input outcome", err)
+	}
+	actorID := strings.TrimSpace(record.ActorID)
+	if actorID == "" {
+		actorID = mirrorEventSource
+	}
+	return WithTx(ctx, s.store.db, func(tx *sql.Tx) error {
+		eventID, idErr := s.store.ids.NewID()
+		if idErr != nil {
+			return platformerrors.Wrap(platformerrors.CodeInternal, "generate follower input outcome ID", idErr)
+		}
+		correlation, correlationErr := s.store.ids.NewID()
+		if correlationErr != nil {
+			return platformerrors.Wrap(platformerrors.CodeInternal, "generate follower input outcome correlation ID", correlationErr)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO mirror_events (id, workspace_id, mirror_session_id, mirror_target_id, device_id, event_name, schema_version, correlation_id, causation_id, actor_id, source, payload_json, occurred_at) VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+			eventID, workspace, deviceID, followerInputOutcome, followerInputOutcomeSchemaVersion, correlation, actorID, mirrorEventSource, string(payload), occurredAt); err != nil {
+			return mapConstraint(err)
+		}
+		return nil
+	})
+}

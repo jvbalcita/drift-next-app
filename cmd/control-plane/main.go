@@ -337,8 +337,37 @@ func main() {
 	if dispatcherErr != nil {
 		log.Printf("device dispatch path not constructed: %v", dispatcherErr)
 	}
+	// The follower fan-out: one operator gesture on the SOURCE frame, carried to
+	// each follower the operator selected as its own action through the same
+	// kernel. It is built ONCE here and owned by this process - the executor is
+	// cancelled by the same shutdown context as the listener and awaited below -
+	// because its whole ordering decision is that the followers proceed
+	// INDEPENDENTLY of the operator's gesture: a gesture on the source cannot wait
+	// for the slowest follower, so the followers' own work has to live somewhere
+	// that outlives the request that asked for it.
+	//
+	// A deployment that cannot build it mounts the input surface without it: a
+	// request that names followers is then REFUSED rather than answered with
+	// followers that received nothing.
+	fanout, fanoutErr := followerFanout(dispatcher, db)
+	if fanoutErr != nil {
+		log.Printf("follower fan-out not carried: %v", fanoutErr)
+	}
+	fanoutExecutor, executorErr := followerFanoutExecutor(fanout, db)
+	if executorErr != nil {
+		log.Printf("follower fan-out not carried: %v", executorErr)
+	}
+	fanoutDone := make(chan struct{})
+	if fanoutExecutor != nil {
+		go func() {
+			defer close(fanoutDone)
+			log.Printf("%s", fanoutExecutor.Run(ctx).Report())
+		}()
+	} else {
+		close(fanoutDone)
+	}
 	inputMounted := false
-	if inputRoute := deviceInputRoute(dispatcher, actionRuntime, labToken); inputRoute.Path != "" {
+	if inputRoute := deviceInputRoute(dispatcher, actionRuntime, fanout, labToken); inputRoute.Path != "" {
 		routes = append(routes, inputRoute)
 		inputMounted = true
 	}
@@ -433,6 +462,11 @@ func main() {
 	<-transportWatchDone
 	<-frameEngineDone
 	<-mirrorDone
+	// The follower fan-out is owned work too: wait for the runs it accepted to
+	// finish, bounded, so no follower's action outlived this plane and every one
+	// of them left a row. The wait is the executor's own lifetime, and its line
+	// says what it stopped with.
+	<-fanoutDone
 	// The peers are closed after the engine has stopped, and the wait is bounded:
 	// every browser it was carrying is released, and nothing this process opened
 	// is left running when it returns.
@@ -762,17 +796,69 @@ func deviceTransferRoot() (string, error) {
 // contract with the evidence recorder bound; and the application boundary resolves
 // the device to its serial and assigns the attempt identity (4c), which is what
 // satisfies the port this route serves.
-func deviceInputRoute(dispatcher *execution.InputDispatcher, resolver *execution.Registry, token string) service.Route {
+func deviceInputRoute(dispatcher *execution.InputDispatcher, resolver *execution.Registry, fanout *execution.FollowerFanout, token string) service.Route {
 	if dispatcher == nil {
 		log.Print("device input surface not mounted: the dispatcher was not constructed")
 		return service.Route{}
 	}
-	boundary, err := transportconnect.NewDeviceInputBoundary(dispatcher, resolver, ids.NewRandom())
+	options := []transportconnect.DeviceInputBoundaryOption{}
+	if fanout != nil {
+		options = append(options, transportconnect.WithFollowerFanout(fanout))
+	} else {
+		log.Print("device input surface mounted without the follower fan-out: a request that names followers will be refused")
+	}
+	boundary, err := transportconnect.NewDeviceInputBoundary(dispatcher, resolver, ids.NewRandom(), options...)
 	if err != nil {
 		log.Printf("device input surface not mounted: %v", err)
 		return service.Route{}
 	}
 	return service.DeviceInputRoute(boundary, token)
+}
+
+// followerFanout builds the fan-out an operator's gesture is carried to the
+// selected followers through, or reports why it cannot be built.
+//
+// Every part is the SAME part the source's own input travels: the fleet reader that
+// makes the one ONLINE reading, the dispatcher that owns one serialized actor per
+// device, and the store's own control services. A fan-out that resolved its own
+// candidates or dispatched beside the kernel would be a second, unaudited place
+// where authority is decided.
+func followerFanout(dispatcher *execution.InputDispatcher, db *store.DB) (*execution.FollowerFanout, error) {
+	if dispatcher == nil {
+		return nil, platformerrors.New(platformerrors.CodeUnavailable, "the follower fan-out requires the device input dispatcher, which was not constructed")
+	}
+	if db == nil {
+		return nil, platformerrors.New(platformerrors.CodeUnavailable, "the follower fan-out requires the store")
+	}
+	fleet := execution.NewStoreFleetReader(db)
+	control := product.NewFollowerInputControl(db)
+	if control == nil {
+		return nil, platformerrors.New(platformerrors.CodeUnavailable, "the follower fan-out requires the plane's control services")
+	}
+	return execution.NewFollowerFanout(fleet, control, dispatcher, ids.NewRandom())
+}
+
+// followerFanoutExecutor builds the bounded, owned worker the fan-out's runs are
+// handed to, and binds it back to the fan-out it runs work through.
+//
+// The two halves need each other - the fan-out accepts the work and the executor
+// runs it, and the executor runs work through the fan-out - so the binding is
+// explicit and one-directional here rather than a cycle the constructors resolve.
+func followerFanoutExecutor(fanout *execution.FollowerFanout, db *store.DB) (*execution.FollowerFanoutExecutor, error) {
+	if fanout == nil || db == nil {
+		return nil, platformerrors.New(platformerrors.CodeUnavailable, "the follower fan-out executor requires the fan-out and the store")
+	}
+	executor, err := execution.NewFollowerFanoutExecutor(execution.FollowerFanoutConfig{
+		Runner: fanout,
+		Sink:   product.NewFollowerInputOutcomeSink(db),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := fanout.BindRunStarter(executor); err != nil {
+		return nil, err
+	}
+	return executor, nil
 }
 
 // deviceSettingsRoute builds the fleet device-settings route, or an empty Route
