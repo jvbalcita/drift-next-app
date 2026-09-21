@@ -49,13 +49,21 @@ type DeviceInputBoundary struct {
 	dispatch DeviceInputDispatcher
 	serials  DeviceSerialResolver
 	ids      DeviceAttemptIDSource
+	// fanout carries a gesture to the operator's followers. It is nil for a
+	// deployment that carries a gesture to the source alone, and a request naming
+	// followers is then refused rather than answered with followers that received
+	// nothing.
+	fanout DeviceFollowerFanout
 }
 
 // NewDeviceInputBoundary requires all three parts. A boundary missing any of them
 // cannot dispatch anything, so it refuses to be constructed and the composition
 // root mounts no route rather than a route that answers every request with a
 // refusal.
-func NewDeviceInputBoundary(dispatch DeviceInputDispatcher, serials DeviceSerialResolver, ids DeviceAttemptIDSource) (*DeviceInputBoundary, error) {
+//
+// The follower fan-out is an OPTION: a deployment that carries a gesture to the
+// source alone is a complete deployment.
+func NewDeviceInputBoundary(dispatch DeviceInputDispatcher, serials DeviceSerialResolver, ids DeviceAttemptIDSource, options ...DeviceInputBoundaryOption) (*DeviceInputBoundary, error) {
 	switch {
 	case dispatch == nil:
 		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "the device input boundary requires a dispatcher")
@@ -64,7 +72,16 @@ func NewDeviceInputBoundary(dispatch DeviceInputDispatcher, serials DeviceSerial
 	case ids == nil:
 		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "the device input boundary requires an attempt identity source")
 	}
-	return &DeviceInputBoundary{dispatch: dispatch, serials: serials, ids: ids}, nil
+	boundary := &DeviceInputBoundary{dispatch: dispatch, serials: serials, ids: ids}
+	for _, option := range options {
+		if option == nil {
+			return nil, platformerrors.New(platformerrors.CodeInvalidInput, "a device input boundary option is required")
+		}
+		if err := option(boundary); err != nil {
+			return nil, err
+		}
+	}
+	return boundary, nil
 }
 
 // Run resolves the device, assigns the attempt identity, and dispatches. The order

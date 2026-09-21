@@ -964,8 +964,8 @@ export type ControlPlaneIntent =
   | { type: "beginDeviceControl"; deviceId: string }
   | { type: "endDeviceControl"; deviceId: string }
   | { type: "submitDeviceAction"; deviceId: string; kind: DeviceActionKind; confirmed: boolean }
-  | { type: "submitDeviceTap"; deviceId: string; x: number; y: number; renderWidth: number; renderHeight: number; observationToken: string; confirmed: boolean }
-  | { type: "submitDeviceSwipe"; deviceId: string; startX: number; startY: number; endX: number; endY: number; durationMs: number; renderWidth: number; renderHeight: number; observationToken: string; confirmed: boolean }
+  | { type: "submitDeviceTap"; deviceId: string; x: number; y: number; renderWidth: number; renderHeight: number; observationToken: string; confirmed: boolean; followerDeviceIds?: readonly string[] }
+  | { type: "submitDeviceSwipe"; deviceId: string; startX: number; startY: number; endX: number; endY: number; durationMs: number; renderWidth: number; renderHeight: number; observationToken: string; confirmed: boolean; followerDeviceIds?: readonly string[] }
   /**
    * submitDeviceKeyEvent sends one key event for the device.
    *
@@ -981,7 +981,7 @@ export type ControlPlaneIntent =
    * optional because a dispatch that cannot name an observation has nothing to
    * send: a console that let one through would be asking the kernel to guess.
    */
-  | { type: "submitDeviceKeyEvent"; deviceId: string; keyCode: number; observationToken: string; confirmed: boolean }
+  | { type: "submitDeviceKeyEvent"; deviceId: string; keyCode: number; observationToken: string; confirmed: boolean; followerDeviceIds?: readonly string[] }
   /**
    * submitDeviceText types text into the device through its live session.
    *

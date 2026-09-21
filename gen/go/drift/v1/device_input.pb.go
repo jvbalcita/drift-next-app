@@ -127,6 +127,66 @@ func (DeviceInputRefusalReason) EnumDescriptor() ([]byte, []int) {
 	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{0}
 }
 
+// FollowerInputDisposition names what happened to one follower's copy of a gesture.
+type FollowerInputDisposition int32
+
+const (
+	FollowerInputDisposition_FOLLOWER_INPUT_DISPOSITION_UNSPECIFIED FollowerInputDisposition = 0
+	// The follower's own action was dispatched through the kernel.
+	FollowerInputDisposition_FOLLOWER_INPUT_DISPOSITION_ACCEPTED FollowerInputDisposition = 1
+	// The plane did not dispatch this follower's action, and named the reason.
+	FollowerInputDisposition_FOLLOWER_INPUT_DISPOSITION_REFUSED FollowerInputDisposition = 2
+	// The follower was not a candidate, so the run never contacted it.
+	FollowerInputDisposition_FOLLOWER_INPUT_DISPOSITION_EXCLUDED FollowerInputDisposition = 3
+	// The action was dispatched and its outcome could not be established.
+	FollowerInputDisposition_FOLLOWER_INPUT_DISPOSITION_INDETERMINATE FollowerInputDisposition = 4
+)
+
+// Enum value maps for FollowerInputDisposition.
+var (
+	FollowerInputDisposition_name = map[int32]string{
+		0: "FOLLOWER_INPUT_DISPOSITION_UNSPECIFIED",
+		1: "FOLLOWER_INPUT_DISPOSITION_ACCEPTED",
+		2: "FOLLOWER_INPUT_DISPOSITION_REFUSED",
+		3: "FOLLOWER_INPUT_DISPOSITION_EXCLUDED",
+		4: "FOLLOWER_INPUT_DISPOSITION_INDETERMINATE",
+	}
+	FollowerInputDisposition_value = map[string]int32{
+		"FOLLOWER_INPUT_DISPOSITION_UNSPECIFIED":   0,
+		"FOLLOWER_INPUT_DISPOSITION_ACCEPTED":      1,
+		"FOLLOWER_INPUT_DISPOSITION_REFUSED":       2,
+		"FOLLOWER_INPUT_DISPOSITION_EXCLUDED":      3,
+		"FOLLOWER_INPUT_DISPOSITION_INDETERMINATE": 4,
+	}
+)
+
+func (x FollowerInputDisposition) Enum() *FollowerInputDisposition {
+	p := new(FollowerInputDisposition)
+	*p = x
+	return p
+}
+
+func (x FollowerInputDisposition) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (FollowerInputDisposition) Descriptor() protoreflect.EnumDescriptor {
+	return file_drift_v1_device_input_proto_enumTypes[1].Descriptor()
+}
+
+func (FollowerInputDisposition) Type() protoreflect.EnumType {
+	return &file_drift_v1_device_input_proto_enumTypes[1]
+}
+
+func (x FollowerInputDisposition) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FollowerInputDisposition.Descriptor instead.
+func (FollowerInputDisposition) EnumDescriptor() ([]byte, []int) {
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{1}
+}
+
 // A refused device input, as the dispatch boundary reports it.
 //
 // The dispatch boundary's refusal vocabulary is deliberately finer grained than
@@ -214,6 +274,246 @@ func (x *DeviceInputRefusal) GetMessage() string {
 	return ""
 }
 
+// The follower fan-out: one operator gesture on the SOURCE frame, carried to each
+// follower the operator selected as its own action through the kernel.
+//
+// The owner's reading of source/follower mirroring is that the followers must also
+// RECEIVE what the operator does on the source - watching is the preview fan-out
+// that already exists, and receiving is this message. A gesture the operator
+// performs on the source is dispatched to the source exactly as it was before, and
+// the same typed input is dispatched to each selected follower as its own action:
+// in the kernel, that means the follower's own lease, its own policy and capability
+// decision, its own fresh observation, its own postcondition, its own evidence
+// record and its own result. One follower's outcome can never change another's.
+//
+// ORDERING is stated here because a client has to be able to rely on it: the
+// followers proceed INDEPENDENTLY of the operator's gesture. The source's own
+// dispatch is answered from the source's own result, and it never waits for the
+// slowest follower - so what this report carries for an accepted follower is the
+// ACCEPTANCE of that follower's run, and the follower's own outcome is recorded on
+// the plane as its run completes. A gesture on the source must not hang on a
+// follower, and a follower that is slow, stuck or unreachable is answered in its
+// own row.
+//
+// The CANDIDATE SET is the plane's own ONLINE reading, made in one place, so a
+// device the console paints as online and a device this run treats as online
+// cannot disagree. A follower that is not online was never contacted and never
+// failed: it is EXCLUDED, NAMED with a reason of its own, and the count this report
+// carries is the set the run TARGETED rather than the set the operator selected.
+//
+// A typed-text gesture and an app launch are deliberately NOT carried to
+// followers, and each follower is refused with its own reason rather than being
+// silently left out: a text reference is released exactly once, so carrying one
+// reference to N followers would be either N releases of one value or one release
+// that N devices silently did without, and a launch names one device's package.
+type FollowerInputFanout struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// run_id identifies this fan-out, assigned before anything is dispatched, so a
+	// retried fan-out is recognisable as the same gesture.
+	RunId string `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	// target_count is the size of the set this run TARGETED: the followers whose own
+	// actions it dispatched. It is never the number of followers selected, because a
+	// follower that is not online was never contacted and never failed.
+	TargetCount int32 `protobuf:"varint,2,opt,name=target_count,json=targetCount,proto3" json:"target_count,omitempty"`
+	// followers carries one row per follower the operator named, in the order the
+	// operator named them, deduplicated by device. Nothing the operator selected is
+	// absent from it.
+	Followers     []*FollowerInputOutcome `protobuf:"bytes,3,rep,name=followers,proto3" json:"followers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FollowerInputFanout) Reset() {
+	*x = FollowerInputFanout{}
+	mi := &file_drift_v1_device_input_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FollowerInputFanout) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FollowerInputFanout) ProtoMessage() {}
+
+func (x *FollowerInputFanout) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_input_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FollowerInputFanout.ProtoReflect.Descriptor instead.
+func (*FollowerInputFanout) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *FollowerInputFanout) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *FollowerInputFanout) GetTargetCount() int32 {
+	if x != nil {
+		return x.TargetCount
+	}
+	return 0
+}
+
+func (x *FollowerInputFanout) GetFollowers() []*FollowerInputOutcome {
+	if x != nil {
+		return x.Followers
+	}
+	return nil
+}
+
+// FollowerInputDisposition is what happened to ONE follower's copy of the gesture.
+//
+// It is deliberately four values rather than a boolean. ACCEPTED says the
+// follower's action was dispatched through the kernel and the outcome beside it is
+// the device's own; REFUSED says the plane decided not to dispatch it and the
+// reason beside it is why; EXCLUDED says the follower was never a candidate at all,
+// so nothing about it was contacted OR failed; INDETERMINATE says the action was
+// dispatched and its outcome could not be established, which is never a success.
+type FollowerInputOutcome struct {
+	state       protoimpl.MessageState   `protogen:"open.v1"`
+	DeviceId    string                   `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	Disposition FollowerInputDisposition `protobuf:"varint,2,opt,name=disposition,proto3,enum=drift.v1.FollowerInputDisposition" json:"disposition,omitempty"`
+	// reason is the plane's own stable reason for this row, so a client adds a value
+	// rather than re-deriving one from the outcome text.
+	Reason string `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	// detail is the plane's own fixed sentence for this row, or the dispatch
+	// boundary's own refusal sentence. It never carries device content, a transport
+	// diagnostic or a stack trace.
+	Detail string `protobuf:"bytes,4,opt,name=detail,proto3" json:"detail,omitempty"`
+	// refusal is the dispatch boundary's typed refusal, present only for a row the
+	// kernel or the readiness probe refused.
+	Refusal *DeviceInputRefusal `protobuf:"bytes,5,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	// outcome is the kernel's own reading for a row that was dispatched.
+	Outcome string `protobuf:"bytes,6,opt,name=outcome,proto3" json:"outcome,omitempty"`
+	// attempt_id identifies this follower's own action attempt, which is what an
+	// append-only evidence record references. Empty for a row that reached no device.
+	AttemptId string `protobuf:"bytes,7,opt,name=attempt_id,json=attemptId,proto3" json:"attempt_id,omitempty"`
+	// idempotency_key is the key this follower's action carries: this follower's OWN,
+	// so a retried fan-out does not double-apply on a follower that already took it.
+	IdempotencyKey string `protobuf:"bytes,8,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	// frame_width and frame_height are the render space this follower was given. They
+	// are the SOURCE's declared frame, unchanged: this plane refuses a follower that
+	// does not present at that frame and never rescales a coordinate into the
+	// follower's own size.
+	FrameWidth    uint32 `protobuf:"varint,9,opt,name=frame_width,json=frameWidth,proto3" json:"frame_width,omitempty"`
+	FrameHeight   uint32 `protobuf:"varint,10,opt,name=frame_height,json=frameHeight,proto3" json:"frame_height,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FollowerInputOutcome) Reset() {
+	*x = FollowerInputOutcome{}
+	mi := &file_drift_v1_device_input_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FollowerInputOutcome) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FollowerInputOutcome) ProtoMessage() {}
+
+func (x *FollowerInputOutcome) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_input_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FollowerInputOutcome.ProtoReflect.Descriptor instead.
+func (*FollowerInputOutcome) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *FollowerInputOutcome) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *FollowerInputOutcome) GetDisposition() FollowerInputDisposition {
+	if x != nil {
+		return x.Disposition
+	}
+	return FollowerInputDisposition_FOLLOWER_INPUT_DISPOSITION_UNSPECIFIED
+}
+
+func (x *FollowerInputOutcome) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *FollowerInputOutcome) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+func (x *FollowerInputOutcome) GetRefusal() *DeviceInputRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+func (x *FollowerInputOutcome) GetOutcome() string {
+	if x != nil {
+		return x.Outcome
+	}
+	return ""
+}
+
+func (x *FollowerInputOutcome) GetAttemptId() string {
+	if x != nil {
+		return x.AttemptId
+	}
+	return ""
+}
+
+func (x *FollowerInputOutcome) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *FollowerInputOutcome) GetFrameWidth() uint32 {
+	if x != nil {
+		return x.FrameWidth
+	}
+	return 0
+}
+
+func (x *FollowerInputOutcome) GetFrameHeight() uint32 {
+	if x != nil {
+		return x.FrameHeight
+	}
+	return 0
+}
+
 // TapRequest submits one tap: a semantic target, or a point inside
 // the render space it was measured in. A tap that names neither, or both, is
 // refused before the kernel is asked.
@@ -232,13 +532,18 @@ type TapRequest struct {
 	ObservationToken string    `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
 	Tap              *TapInput `protobuf:"bytes,8,opt,name=tap,proto3" json:"tap,omitempty"`
 	ApprovalGranted  bool      `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// follower_device_ids are the followers the operator selected when the gesture
+	// was performed on the SOURCE frame. Each one receives the same typed input as
+	// its own action through the kernel (see FollowerInputFanout). An empty list
+	// means the gesture is the source's alone, exactly as it was before.
+	FollowerDeviceIds []string `protobuf:"bytes,10,rep,name=follower_device_ids,json=followerDeviceIds,proto3" json:"follower_device_ids,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *TapRequest) Reset() {
 	*x = TapRequest{}
-	mi := &file_drift_v1_device_input_proto_msgTypes[1]
+	mi := &file_drift_v1_device_input_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -250,7 +555,7 @@ func (x *TapRequest) String() string {
 func (*TapRequest) ProtoMessage() {}
 
 func (x *TapRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_input_proto_msgTypes[1]
+	mi := &file_drift_v1_device_input_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -263,7 +568,7 @@ func (x *TapRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TapRequest.ProtoReflect.Descriptor instead.
 func (*TapRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{1}
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *TapRequest) GetContext() *RequestContext {
@@ -329,16 +634,28 @@ func (x *TapRequest) GetApprovalGranted() bool {
 	return false
 }
 
+func (x *TapRequest) GetFollowerDeviceIds() []string {
+	if x != nil {
+		return x.FollowerDeviceIds
+	}
+	return nil
+}
+
 type TapResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Result        *ActionResult          `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Result *ActionResult          `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	// fanout reports the followers this gesture was carried to, one row each. It is
+	// present whenever followers were named, including when none of them was a
+	// candidate, because a report that went missing would read as a fan-out that
+	// never happened.
+	Fanout        *FollowerInputFanout `protobuf:"bytes,2,opt,name=fanout,proto3" json:"fanout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TapResponse) Reset() {
 	*x = TapResponse{}
-	mi := &file_drift_v1_device_input_proto_msgTypes[2]
+	mi := &file_drift_v1_device_input_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -350,7 +667,7 @@ func (x *TapResponse) String() string {
 func (*TapResponse) ProtoMessage() {}
 
 func (x *TapResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_input_proto_msgTypes[2]
+	mi := &file_drift_v1_device_input_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -363,12 +680,19 @@ func (x *TapResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TapResponse.ProtoReflect.Descriptor instead.
 func (*TapResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{2}
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *TapResponse) GetResult() *ActionResult {
 	if x != nil {
 		return x.Result
+	}
+	return nil
+}
+
+func (x *TapResponse) GetFanout() *FollowerInputFanout {
+	if x != nil {
+		return x.Fanout
 	}
 	return nil
 }
@@ -390,13 +714,18 @@ type SwipeRequest struct {
 	ObservationToken string      `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
 	Swipe            *SwipeInput `protobuf:"bytes,8,opt,name=swipe,proto3" json:"swipe,omitempty"`
 	ApprovalGranted  bool        `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// follower_device_ids are the followers the operator selected when the gesture
+	// was performed on the SOURCE frame. Each one receives the same typed input as
+	// its own action through the kernel (see FollowerInputFanout). An empty list
+	// means the gesture is the source's alone, exactly as it was before.
+	FollowerDeviceIds []string `protobuf:"bytes,10,rep,name=follower_device_ids,json=followerDeviceIds,proto3" json:"follower_device_ids,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *SwipeRequest) Reset() {
 	*x = SwipeRequest{}
-	mi := &file_drift_v1_device_input_proto_msgTypes[3]
+	mi := &file_drift_v1_device_input_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -408,7 +737,7 @@ func (x *SwipeRequest) String() string {
 func (*SwipeRequest) ProtoMessage() {}
 
 func (x *SwipeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_input_proto_msgTypes[3]
+	mi := &file_drift_v1_device_input_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -421,7 +750,7 @@ func (x *SwipeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SwipeRequest.ProtoReflect.Descriptor instead.
 func (*SwipeRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{3}
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SwipeRequest) GetContext() *RequestContext {
@@ -487,16 +816,24 @@ func (x *SwipeRequest) GetApprovalGranted() bool {
 	return false
 }
 
+func (x *SwipeRequest) GetFollowerDeviceIds() []string {
+	if x != nil {
+		return x.FollowerDeviceIds
+	}
+	return nil
+}
+
 type SwipeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Result        *ActionResult          `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	Fanout        *FollowerInputFanout   `protobuf:"bytes,2,opt,name=fanout,proto3" json:"fanout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SwipeResponse) Reset() {
 	*x = SwipeResponse{}
-	mi := &file_drift_v1_device_input_proto_msgTypes[4]
+	mi := &file_drift_v1_device_input_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -508,7 +845,7 @@ func (x *SwipeResponse) String() string {
 func (*SwipeResponse) ProtoMessage() {}
 
 func (x *SwipeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_input_proto_msgTypes[4]
+	mi := &file_drift_v1_device_input_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -521,12 +858,19 @@ func (x *SwipeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SwipeResponse.ProtoReflect.Descriptor instead.
 func (*SwipeResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{4}
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SwipeResponse) GetResult() *ActionResult {
 	if x != nil {
 		return x.Result
+	}
+	return nil
+}
+
+func (x *SwipeResponse) GetFanout() *FollowerInputFanout {
+	if x != nil {
+		return x.Fanout
 	}
 	return nil
 }
@@ -552,13 +896,18 @@ type KeyEventRequest struct {
 	ObservationToken string         `protobuf:"bytes,7,opt,name=observation_token,json=observationToken,proto3" json:"observation_token,omitempty"`
 	KeyEvent         *KeyEventInput `protobuf:"bytes,8,opt,name=key_event,json=keyEvent,proto3" json:"key_event,omitempty"`
 	ApprovalGranted  bool           `protobuf:"varint,9,opt,name=approval_granted,json=approvalGranted,proto3" json:"approval_granted,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// follower_device_ids are the followers the operator selected when the gesture
+	// was performed on the SOURCE frame. Each one receives the same typed input as
+	// its own action through the kernel (see FollowerInputFanout). An empty list
+	// means the gesture is the source's alone, exactly as it was before.
+	FollowerDeviceIds []string `protobuf:"bytes,10,rep,name=follower_device_ids,json=followerDeviceIds,proto3" json:"follower_device_ids,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *KeyEventRequest) Reset() {
 	*x = KeyEventRequest{}
-	mi := &file_drift_v1_device_input_proto_msgTypes[5]
+	mi := &file_drift_v1_device_input_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -570,7 +919,7 @@ func (x *KeyEventRequest) String() string {
 func (*KeyEventRequest) ProtoMessage() {}
 
 func (x *KeyEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_input_proto_msgTypes[5]
+	mi := &file_drift_v1_device_input_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -583,7 +932,7 @@ func (x *KeyEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyEventRequest.ProtoReflect.Descriptor instead.
 func (*KeyEventRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{5}
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *KeyEventRequest) GetContext() *RequestContext {
@@ -649,16 +998,24 @@ func (x *KeyEventRequest) GetApprovalGranted() bool {
 	return false
 }
 
+func (x *KeyEventRequest) GetFollowerDeviceIds() []string {
+	if x != nil {
+		return x.FollowerDeviceIds
+	}
+	return nil
+}
+
 type KeyEventResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Result        *ActionResult          `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	Fanout        *FollowerInputFanout   `protobuf:"bytes,2,opt,name=fanout,proto3" json:"fanout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *KeyEventResponse) Reset() {
 	*x = KeyEventResponse{}
-	mi := &file_drift_v1_device_input_proto_msgTypes[6]
+	mi := &file_drift_v1_device_input_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -670,7 +1027,7 @@ func (x *KeyEventResponse) String() string {
 func (*KeyEventResponse) ProtoMessage() {}
 
 func (x *KeyEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_input_proto_msgTypes[6]
+	mi := &file_drift_v1_device_input_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -683,12 +1040,19 @@ func (x *KeyEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyEventResponse.ProtoReflect.Descriptor instead.
 func (*KeyEventResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{6}
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *KeyEventResponse) GetResult() *ActionResult {
 	if x != nil {
 		return x.Result
+	}
+	return nil
+}
+
+func (x *KeyEventResponse) GetFanout() *FollowerInputFanout {
+	if x != nil {
+		return x.Fanout
 	}
 	return nil
 }
@@ -723,7 +1087,7 @@ type TypeTextRequest struct {
 
 func (x *TypeTextRequest) Reset() {
 	*x = TypeTextRequest{}
-	mi := &file_drift_v1_device_input_proto_msgTypes[7]
+	mi := &file_drift_v1_device_input_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -735,7 +1099,7 @@ func (x *TypeTextRequest) String() string {
 func (*TypeTextRequest) ProtoMessage() {}
 
 func (x *TypeTextRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_input_proto_msgTypes[7]
+	mi := &file_drift_v1_device_input_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -748,7 +1112,7 @@ func (x *TypeTextRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeTextRequest.ProtoReflect.Descriptor instead.
 func (*TypeTextRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{7}
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *TypeTextRequest) GetContext() *RequestContext {
@@ -816,7 +1180,7 @@ type TypeTextResponse struct {
 
 func (x *TypeTextResponse) Reset() {
 	*x = TypeTextResponse{}
-	mi := &file_drift_v1_device_input_proto_msgTypes[8]
+	mi := &file_drift_v1_device_input_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -828,7 +1192,7 @@ func (x *TypeTextResponse) String() string {
 func (*TypeTextResponse) ProtoMessage() {}
 
 func (x *TypeTextResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_input_proto_msgTypes[8]
+	mi := &file_drift_v1_device_input_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -841,7 +1205,7 @@ func (x *TypeTextResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeTextResponse.ProtoReflect.Descriptor instead.
 func (*TypeTextResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{8}
+	return file_drift_v1_device_input_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *TypeTextResponse) GetResult() *ActionResult {
@@ -860,7 +1224,25 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"\x06reason\x18\x01 \x01(\x0e2\".drift.v1.DeviceInputRefusalReasonR\x06reason\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12#\n" +
 	"\rfailure_class\x18\x03 \x01(\tR\ffailureClass\x12\x18\n" +
-	"\amessage\x18\x04 \x01(\tR\amessage\"\xfa\x02\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\"\x8d\x01\n" +
+	"\x13FollowerInputFanout\x12\x15\n" +
+	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12!\n" +
+	"\ftarget_count\x18\x02 \x01(\x05R\vtargetCount\x12<\n" +
+	"\tfollowers\x18\x03 \x03(\v2\x1e.drift.v1.FollowerInputOutcomeR\tfollowers\"\x87\x03\n" +
+	"\x14FollowerInputOutcome\x12\x1b\n" +
+	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12D\n" +
+	"\vdisposition\x18\x02 \x01(\x0e2\".drift.v1.FollowerInputDispositionR\vdisposition\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x16\n" +
+	"\x06detail\x18\x04 \x01(\tR\x06detail\x126\n" +
+	"\arefusal\x18\x05 \x01(\v2\x1c.drift.v1.DeviceInputRefusalR\arefusal\x12\x18\n" +
+	"\aoutcome\x18\x06 \x01(\tR\aoutcome\x12\x1d\n" +
+	"\n" +
+	"attempt_id\x18\a \x01(\tR\tattemptId\x12'\n" +
+	"\x0fidempotency_key\x18\b \x01(\tR\x0eidempotencyKey\x12\x1f\n" +
+	"\vframe_width\x18\t \x01(\rR\n" +
+	"frameWidth\x12!\n" +
+	"\fframe_height\x18\n" +
+	" \x01(\rR\vframeHeight\"\xaa\x03\n" +
 	"\n" +
 	"TapRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
@@ -871,9 +1253,12 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x12+\n" +
 	"\x11observation_token\x18\a \x01(\tR\x10observationToken\x12$\n" +
 	"\x03tap\x18\b \x01(\v2\x12.drift.v1.TapInputR\x03tap\x12)\n" +
-	"\x10approval_granted\x18\t \x01(\bR\x0fapprovalGranted\"=\n" +
+	"\x10approval_granted\x18\t \x01(\bR\x0fapprovalGranted\x12.\n" +
+	"\x13follower_device_ids\x18\n" +
+	" \x03(\tR\x11followerDeviceIds\"t\n" +
 	"\vTapResponse\x12.\n" +
-	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result\"\x82\x03\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result\x125\n" +
+	"\x06fanout\x18\x02 \x01(\v2\x1d.drift.v1.FollowerInputFanoutR\x06fanout\"\xb2\x03\n" +
 	"\fSwipeRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
@@ -883,9 +1268,12 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x12+\n" +
 	"\x11observation_token\x18\a \x01(\tR\x10observationToken\x12*\n" +
 	"\x05swipe\x18\b \x01(\v2\x14.drift.v1.SwipeInputR\x05swipe\x12)\n" +
-	"\x10approval_granted\x18\t \x01(\bR\x0fapprovalGranted\"?\n" +
+	"\x10approval_granted\x18\t \x01(\bR\x0fapprovalGranted\x12.\n" +
+	"\x13follower_device_ids\x18\n" +
+	" \x03(\tR\x11followerDeviceIds\"v\n" +
 	"\rSwipeResponse\x12.\n" +
-	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result\"\x8f\x03\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result\x125\n" +
+	"\x06fanout\x18\x02 \x01(\v2\x1d.drift.v1.FollowerInputFanoutR\x06fanout\"\xbf\x03\n" +
 	"\x0fKeyEventRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
@@ -895,9 +1283,12 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x12+\n" +
 	"\x11observation_token\x18\a \x01(\tR\x10observationToken\x124\n" +
 	"\tkey_event\x18\b \x01(\v2\x17.drift.v1.KeyEventInputR\bkeyEvent\x12)\n" +
-	"\x10approval_granted\x18\t \x01(\bR\x0fapprovalGranted\"B\n" +
+	"\x10approval_granted\x18\t \x01(\bR\x0fapprovalGranted\x12.\n" +
+	"\x13follower_device_ids\x18\n" +
+	" \x03(\tR\x11followerDeviceIds\"y\n" +
 	"\x10KeyEventResponse\x12.\n" +
-	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result\"\xe2\x02\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.drift.v1.ActionResultR\x06result\x125\n" +
+	"\x06fanout\x18\x02 \x01(\v2\x1d.drift.v1.FollowerInputFanoutR\x06fanout\"\xe2\x02\n" +
 	"\x0fTypeTextRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1b\n" +
@@ -925,7 +1316,13 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"/DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAUTHORIZED\x10\v\x122\n" +
 	".DEVICE_INPUT_REFUSAL_REASON_DEVICE_UNAVAILABLE\x10\f\x129\n" +
 	"5DEVICE_INPUT_REFUSAL_REASON_DUPLICATE_IDEMPOTENCY_KEY\x10\r\x12.\n" +
-	"*DEVICE_INPUT_REFUSAL_REASON_LEASE_RELEASED\x10\x0e2\x88\x02\n" +
+	"*DEVICE_INPUT_REFUSAL_REASON_LEASE_RELEASED\x10\x0e*\xee\x01\n" +
+	"\x18FollowerInputDisposition\x12*\n" +
+	"&FOLLOWER_INPUT_DISPOSITION_UNSPECIFIED\x10\x00\x12'\n" +
+	"#FOLLOWER_INPUT_DISPOSITION_ACCEPTED\x10\x01\x12&\n" +
+	"\"FOLLOWER_INPUT_DISPOSITION_REFUSED\x10\x02\x12'\n" +
+	"#FOLLOWER_INPUT_DISPOSITION_EXCLUDED\x10\x03\x12,\n" +
+	"(FOLLOWER_INPUT_DISPOSITION_INDETERMINATE\x10\x042\x88\x02\n" +
 	"\x12DeviceInputService\x122\n" +
 	"\x03Tap\x12\x14.drift.v1.TapRequest\x1a\x15.drift.v1.TapResponse\x128\n" +
 	"\x05Swipe\x12\x16.drift.v1.SwipeRequest\x1a\x17.drift.v1.SwipeResponse\x12A\n" +
@@ -944,58 +1341,67 @@ func file_drift_v1_device_input_proto_rawDescGZIP() []byte {
 	return file_drift_v1_device_input_proto_rawDescData
 }
 
-var file_drift_v1_device_input_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_drift_v1_device_input_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_drift_v1_device_input_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_drift_v1_device_input_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_drift_v1_device_input_proto_goTypes = []any{
 	(DeviceInputRefusalReason)(0),  // 0: drift.v1.DeviceInputRefusalReason
-	(*DeviceInputRefusal)(nil),     // 1: drift.v1.DeviceInputRefusal
-	(*TapRequest)(nil),             // 2: drift.v1.TapRequest
-	(*TapResponse)(nil),            // 3: drift.v1.TapResponse
-	(*SwipeRequest)(nil),           // 4: drift.v1.SwipeRequest
-	(*SwipeResponse)(nil),          // 5: drift.v1.SwipeResponse
-	(*KeyEventRequest)(nil),        // 6: drift.v1.KeyEventRequest
-	(*KeyEventResponse)(nil),       // 7: drift.v1.KeyEventResponse
-	(*TypeTextRequest)(nil),        // 8: drift.v1.TypeTextRequest
-	(*TypeTextResponse)(nil),       // 9: drift.v1.TypeTextResponse
-	(*RequestContext)(nil),         // 10: drift.v1.RequestContext
-	(*WorkspaceRef)(nil),           // 11: drift.v1.WorkspaceRef
-	(*TapInput)(nil),               // 12: drift.v1.TapInput
-	(*ActionResult)(nil),           // 13: drift.v1.ActionResult
-	(*SwipeInput)(nil),             // 14: drift.v1.SwipeInput
-	(*KeyEventInput)(nil),          // 15: drift.v1.KeyEventInput
-	(*SensitiveTextReference)(nil), // 16: drift.v1.SensitiveTextReference
+	(FollowerInputDisposition)(0),  // 1: drift.v1.FollowerInputDisposition
+	(*DeviceInputRefusal)(nil),     // 2: drift.v1.DeviceInputRefusal
+	(*FollowerInputFanout)(nil),    // 3: drift.v1.FollowerInputFanout
+	(*FollowerInputOutcome)(nil),   // 4: drift.v1.FollowerInputOutcome
+	(*TapRequest)(nil),             // 5: drift.v1.TapRequest
+	(*TapResponse)(nil),            // 6: drift.v1.TapResponse
+	(*SwipeRequest)(nil),           // 7: drift.v1.SwipeRequest
+	(*SwipeResponse)(nil),          // 8: drift.v1.SwipeResponse
+	(*KeyEventRequest)(nil),        // 9: drift.v1.KeyEventRequest
+	(*KeyEventResponse)(nil),       // 10: drift.v1.KeyEventResponse
+	(*TypeTextRequest)(nil),        // 11: drift.v1.TypeTextRequest
+	(*TypeTextResponse)(nil),       // 12: drift.v1.TypeTextResponse
+	(*RequestContext)(nil),         // 13: drift.v1.RequestContext
+	(*WorkspaceRef)(nil),           // 14: drift.v1.WorkspaceRef
+	(*TapInput)(nil),               // 15: drift.v1.TapInput
+	(*ActionResult)(nil),           // 16: drift.v1.ActionResult
+	(*SwipeInput)(nil),             // 17: drift.v1.SwipeInput
+	(*KeyEventInput)(nil),          // 18: drift.v1.KeyEventInput
+	(*SensitiveTextReference)(nil), // 19: drift.v1.SensitiveTextReference
 }
 var file_drift_v1_device_input_proto_depIdxs = []int32{
 	0,  // 0: drift.v1.DeviceInputRefusal.reason:type_name -> drift.v1.DeviceInputRefusalReason
-	10, // 1: drift.v1.TapRequest.context:type_name -> drift.v1.RequestContext
-	11, // 2: drift.v1.TapRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	12, // 3: drift.v1.TapRequest.tap:type_name -> drift.v1.TapInput
-	13, // 4: drift.v1.TapResponse.result:type_name -> drift.v1.ActionResult
-	10, // 5: drift.v1.SwipeRequest.context:type_name -> drift.v1.RequestContext
-	11, // 6: drift.v1.SwipeRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	14, // 7: drift.v1.SwipeRequest.swipe:type_name -> drift.v1.SwipeInput
-	13, // 8: drift.v1.SwipeResponse.result:type_name -> drift.v1.ActionResult
-	10, // 9: drift.v1.KeyEventRequest.context:type_name -> drift.v1.RequestContext
-	11, // 10: drift.v1.KeyEventRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	15, // 11: drift.v1.KeyEventRequest.key_event:type_name -> drift.v1.KeyEventInput
-	13, // 12: drift.v1.KeyEventResponse.result:type_name -> drift.v1.ActionResult
-	10, // 13: drift.v1.TypeTextRequest.context:type_name -> drift.v1.RequestContext
-	11, // 14: drift.v1.TypeTextRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	16, // 15: drift.v1.TypeTextRequest.text:type_name -> drift.v1.SensitiveTextReference
-	13, // 16: drift.v1.TypeTextResponse.result:type_name -> drift.v1.ActionResult
-	2,  // 17: drift.v1.DeviceInputService.Tap:input_type -> drift.v1.TapRequest
-	4,  // 18: drift.v1.DeviceInputService.Swipe:input_type -> drift.v1.SwipeRequest
-	6,  // 19: drift.v1.DeviceInputService.KeyEvent:input_type -> drift.v1.KeyEventRequest
-	8,  // 20: drift.v1.DeviceInputService.TypeText:input_type -> drift.v1.TypeTextRequest
-	3,  // 21: drift.v1.DeviceInputService.Tap:output_type -> drift.v1.TapResponse
-	5,  // 22: drift.v1.DeviceInputService.Swipe:output_type -> drift.v1.SwipeResponse
-	7,  // 23: drift.v1.DeviceInputService.KeyEvent:output_type -> drift.v1.KeyEventResponse
-	9,  // 24: drift.v1.DeviceInputService.TypeText:output_type -> drift.v1.TypeTextResponse
-	21, // [21:25] is the sub-list for method output_type
-	17, // [17:21] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	4,  // 1: drift.v1.FollowerInputFanout.followers:type_name -> drift.v1.FollowerInputOutcome
+	1,  // 2: drift.v1.FollowerInputOutcome.disposition:type_name -> drift.v1.FollowerInputDisposition
+	2,  // 3: drift.v1.FollowerInputOutcome.refusal:type_name -> drift.v1.DeviceInputRefusal
+	13, // 4: drift.v1.TapRequest.context:type_name -> drift.v1.RequestContext
+	14, // 5: drift.v1.TapRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	15, // 6: drift.v1.TapRequest.tap:type_name -> drift.v1.TapInput
+	16, // 7: drift.v1.TapResponse.result:type_name -> drift.v1.ActionResult
+	3,  // 8: drift.v1.TapResponse.fanout:type_name -> drift.v1.FollowerInputFanout
+	13, // 9: drift.v1.SwipeRequest.context:type_name -> drift.v1.RequestContext
+	14, // 10: drift.v1.SwipeRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	17, // 11: drift.v1.SwipeRequest.swipe:type_name -> drift.v1.SwipeInput
+	16, // 12: drift.v1.SwipeResponse.result:type_name -> drift.v1.ActionResult
+	3,  // 13: drift.v1.SwipeResponse.fanout:type_name -> drift.v1.FollowerInputFanout
+	13, // 14: drift.v1.KeyEventRequest.context:type_name -> drift.v1.RequestContext
+	14, // 15: drift.v1.KeyEventRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	18, // 16: drift.v1.KeyEventRequest.key_event:type_name -> drift.v1.KeyEventInput
+	16, // 17: drift.v1.KeyEventResponse.result:type_name -> drift.v1.ActionResult
+	3,  // 18: drift.v1.KeyEventResponse.fanout:type_name -> drift.v1.FollowerInputFanout
+	13, // 19: drift.v1.TypeTextRequest.context:type_name -> drift.v1.RequestContext
+	14, // 20: drift.v1.TypeTextRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	19, // 21: drift.v1.TypeTextRequest.text:type_name -> drift.v1.SensitiveTextReference
+	16, // 22: drift.v1.TypeTextResponse.result:type_name -> drift.v1.ActionResult
+	5,  // 23: drift.v1.DeviceInputService.Tap:input_type -> drift.v1.TapRequest
+	7,  // 24: drift.v1.DeviceInputService.Swipe:input_type -> drift.v1.SwipeRequest
+	9,  // 25: drift.v1.DeviceInputService.KeyEvent:input_type -> drift.v1.KeyEventRequest
+	11, // 26: drift.v1.DeviceInputService.TypeText:input_type -> drift.v1.TypeTextRequest
+	6,  // 27: drift.v1.DeviceInputService.Tap:output_type -> drift.v1.TapResponse
+	8,  // 28: drift.v1.DeviceInputService.Swipe:output_type -> drift.v1.SwipeResponse
+	10, // 29: drift.v1.DeviceInputService.KeyEvent:output_type -> drift.v1.KeyEventResponse
+	12, // 30: drift.v1.DeviceInputService.TypeText:output_type -> drift.v1.TypeTextResponse
+	27, // [27:31] is the sub-list for method output_type
+	23, // [23:27] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_device_input_proto_init() }
@@ -1010,8 +1416,8 @@ func file_drift_v1_device_input_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_device_input_proto_rawDesc), len(file_drift_v1_device_input_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   9,
+			NumEnums:      2,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

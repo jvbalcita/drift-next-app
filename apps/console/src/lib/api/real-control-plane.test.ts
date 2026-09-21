@@ -1585,4 +1585,64 @@ describe("RealControlPlaneClient key events", () => {
     expect(body.leaseId).toBe("lease-1")
     expect(body.fencingToken).toBe("7")
   })
+
+  /**
+   * The gesture names the operator's followers, and the console STATES each
+   * follower's own outcome.
+   *
+   * Both halves matter. The followers are carried with the input rather than only
+   * watching the source's screen, so an operator's gesture reaches each of them as
+   * its own action; and what comes back is the plane's own per-follower report, so
+   * the console cannot imply that every selected follower received the input when
+   * one of them was never contacted. The second follower here is EXCLUDED - it is
+   * not online - and it is named with the plane's own reason rather than counted as
+   * having received anything.
+   */
+  it("carries the operator's followers on a gesture and states each follower's own outcome", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/drift.v1.DeviceService/ListDevices")) return onlineDevice()
+      if (url.includes("/drift.v1.LeaseService/ListDeviceLeases")) return activeLease()
+      if (url.includes("/drift.v1.DeviceInputService/Tap")) {
+        return new Response(JSON.stringify({
+          fanout: {
+            runId: "run-1",
+            targetCount: 1,
+            followers: [
+              { deviceId: "device-pixel-2", disposition: 1, reason: "delivered" },
+              { deviceId: "device-pixel-3", disposition: 3, reason: "follower_not_online" },
+            ],
+          },
+        }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      return emptyResponse()
+    })
+
+    const client = createRealControlPlaneClient({ baseUrl: "http://127.0.0.1:8080", token: "lab-token" })
+    await client.refresh()
+    const result = await client.dispatch({
+      type: "submitDeviceTap",
+      deviceId: "device-pixel-1",
+      x: 10,
+      y: 20,
+      renderWidth: 1080,
+      renderHeight: 1920,
+      observationToken: "stream-1",
+      confirmed: true,
+      followerDeviceIds: ["device-pixel-1", "device-pixel-2", "device-pixel-3"],
+    })
+
+    expect(result.ok).toBe(true)
+    const sent = fetchSpy.mock.calls.find((call) => String(call[0]).includes("/drift.v1.DeviceInputService/Tap"))
+    expect(sent).toBeDefined()
+    const body = JSON.parse(String(sent?.[1]?.body)) as { followerDeviceIds?: string[] }
+    // The source cannot also be one of its own followers, so it is dropped where
+    // the selection is read rather than sent as a row the plane would refuse.
+    expect(body.followerDeviceIds).toEqual(["device-pixel-2", "device-pixel-3"])
+    // The count is the set the run TARGETED, and the follower that was not
+    // contacted is named with its own reason.
+    expect(result.message).toContain("Followers: 1 of 2 targeted.")
+    expect(result.message).toContain("device-pixel-3 excluded (follower_not_online)")
+    expect(result.message).not.toContain("device-pixel-2 ")
+  })
 })

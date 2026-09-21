@@ -82,6 +82,17 @@ export interface LiveMirrorSurfaceProps {
    * so a refusal is readable rather than merely visible.
    */
   leaseRefusal?: string
+  /**
+   * followerDeviceIds are the devices the operator selected as followers of this
+   * frame, in the operator's own selection order.
+   *
+   * They travel with every gesture made on the frame because a follower RECEIVES
+   * the operator's input rather than only watching the source's screen: the
+   * control plane dispatches the same typed input to each follower as its own
+   * action, and reports each follower's own outcome. An empty list is the
+   * operator's own gesture, exactly as it was before this console carried one.
+   */
+  followerDeviceIds?: readonly string[]
   dispatch: DispatchIntent
 }
 
@@ -155,7 +166,7 @@ export interface LiveMirrorSessionView {
  * and named, and the kernel cross-checks the declared frame against the size the
  * device presents at before anything reaches it.
  */
-export function useLiveMirrorSession({ device, mirror, transport = "webrtc", workspaceId, hasLease, leaseRefusal = "", dispatch }: LiveMirrorSurfaceProps): LiveMirrorSessionView {
+export function useLiveMirrorSession({ device, mirror, transport = "webrtc", workspaceId, hasLease, leaseRefusal = "", followerDeviceIds = [], dispatch }: LiveMirrorSurfaceProps): LiveMirrorSessionView {
   const reducedMotion = useReducedMotion()
   const { phase, stream, failure, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport, purpose: "operator" })
   const frame = liveStreamFrame(stream)
@@ -238,13 +249,13 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
 
   async function sendTap(x: number, y: number) {
     if (!frame) return
-    const result = await dispatch({ type: "submitDeviceTap", deviceId: device.id, x, y, renderWidth: frame.width, renderHeight: frame.height, observationToken: coordinateObservation, confirmed: true })
+    const result = await dispatch({ type: "submitDeviceTap", deviceId: device.id, x, y, renderWidth: frame.width, renderHeight: frame.height, observationToken: coordinateObservation, confirmed: true, followerDeviceIds })
     setNotice(`${result.message}`)
   }
 
   async function sendSwipe(startX: number, startY: number, endX: number, endY: number, durationMs: number) {
     if (!frame) return
-    const result = await dispatch({ type: "submitDeviceSwipe", deviceId: device.id, startX, startY, endX, endY, durationMs, renderWidth: frame.width, renderHeight: frame.height, observationToken: coordinateObservation, confirmed: true })
+    const result = await dispatch({ type: "submitDeviceSwipe", deviceId: device.id, startX, startY, endX, endY, durationMs, renderWidth: frame.width, renderHeight: frame.height, observationToken: coordinateObservation, confirmed: true, followerDeviceIds })
     setNotice(`${result.message}`)
   }
 
@@ -273,7 +284,7 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
       setRefusal(inputBlockedReason)
       return
     }
-    const result = await dispatch({ type: "submitDeviceKeyEvent", deviceId: device.id, keyCode, observationToken: coordinateObservation, confirmed: true })
+    const result = await dispatch({ type: "submitDeviceKeyEvent", deviceId: device.id, keyCode, observationToken: coordinateObservation, confirmed: true, followerDeviceIds })
     setNotice(`${label}: ${result.message}`)
     setRefusal(result.ok ? "" : result.message)
   }

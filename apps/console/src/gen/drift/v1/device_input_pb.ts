@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device_input.proto.
  */
 export const file_drift_v1_device_input: GenFile = /*@__PURE__*/
-  fileDesc("ChtkcmlmdC92MS9kZXZpY2VfaW5wdXQucHJvdG8SCGRyaWZ0LnYxIn4KEkRldmljZUlucHV0UmVmdXNhbBIyCgZyZWFzb24YASABKA4yIi5kcmlmdC52MS5EZXZpY2VJbnB1dFJlZnVzYWxSZWFzb24SDAoEY29kZRgCIAEoCRIVCg1mYWlsdXJlX2NsYXNzGAMgASgJEg8KB21lc3NhZ2UYBCABKAkijQIKClRhcFJlcXVlc3QSKQoHY29udGV4dBgBIAEoCzIYLmRyaWZ0LnYxLlJlcXVlc3RDb250ZXh0EikKCXdvcmtzcGFjZRgCIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZhIRCglkZXZpY2VfaWQYAyABKAkSEAoIbGVhc2VfaWQYBCABKAkSFQoNZmVuY2luZ190b2tlbhgFIAEoBBIXCg9pZGVtcG90ZW5jeV9rZXkYBiABKAkSGQoRb2JzZXJ2YXRpb25fdG9rZW4YByABKAkSHwoDdGFwGAggASgLMhIuZHJpZnQudjEuVGFwSW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI1CgtUYXBSZXNwb25zZRImCgZyZXN1bHQYASABKAsyFi5kcmlmdC52MS5BY3Rpb25SZXN1bHQikwIKDFN3aXBlUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIQCghsZWFzZV9pZBgEIAEoCRIVCg1mZW5jaW5nX3Rva2VuGAUgASgEEhcKD2lkZW1wb3RlbmN5X2tleRgGIAEoCRIZChFvYnNlcnZhdGlvbl90b2tlbhgHIAEoCRIjCgVzd2lwZRgIIAEoCzIULmRyaWZ0LnYxLlN3aXBlSW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI3Cg1Td2lwZVJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCKdAgoPS2V5RXZlbnRSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEhAKCGxlYXNlX2lkGAQgASgJEhUKDWZlbmNpbmdfdG9rZW4YBSABKAQSFwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJEhkKEW9ic2VydmF0aW9uX3Rva2VuGAcgASgJEioKCWtleV9ldmVudBgIIAEoCzIXLmRyaWZ0LnYxLktleUV2ZW50SW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCCI6ChBLZXlFdmVudFJlc3BvbnNlEiYKBnJlc3VsdBgBIAEoCzIWLmRyaWZ0LnYxLkFjdGlvblJlc3VsdCKGAgoPVHlwZVRleHRSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEhAKCGxlYXNlX2lkGAQgASgJEhUKDWZlbmNpbmdfdG9rZW4YBSABKAQSFwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJEi4KBHRleHQYByABKAsyIC5kcmlmdC52MS5TZW5zaXRpdmVUZXh0UmVmZXJlbmNlEhgKEGFwcHJvdmFsX2dyYW50ZWQYCCABKAgiOgoQVHlwZVRleHRSZXNwb25zZRImCgZyZXN1bHQYASABKAsyFi5kcmlmdC52MS5BY3Rpb25SZXN1bHQq/gUKGERldmljZUlucHV0UmVmdXNhbFJlYXNvbhIrCidERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fVU5TUEVDSUZJRUQQABItCilERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fTEVBU0VfTUlTU0lORxABEi0KKURFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9MRUFTRV9FWFBJUkVEEAISLgoqREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0xFQVNFX05PVF9IRUxEEAMSKwonREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0ZFTkNFX1NUQUxFEAQSMgouREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX05PX0NPTlRST0xfU0VTU0lPThAFEi4KKkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9MRUFTRV9DT05GTElDVBAGEi4KKkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9FTUVSR0VOQ1lfU1RPUBAHEi0KKURFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9QT0xJQ1lfREVOSUVEEAgSMwovREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0NBUEFCSUxJVFlfTUlTTUFUQ0gQCRIuCipERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fREVWSUNFX09GRkxJTkUQChIzCi9ERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fREVWSUNFX1VOQVVUSE9SSVpFRBALEjIKLkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9ERVZJQ0VfVU5BVkFJTEFCTEUQDBI5CjVERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fRFVQTElDQVRFX0lERU1QT1RFTkNZX0tFWRANEi4KKkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9MRUFTRV9SRUxFQVNFRBAOMogCChJEZXZpY2VJbnB1dFNlcnZpY2USMgoDVGFwEhQuZHJpZnQudjEuVGFwUmVxdWVzdBoVLmRyaWZ0LnYxLlRhcFJlc3BvbnNlEjgKBVN3aXBlEhYuZHJpZnQudjEuU3dpcGVSZXF1ZXN0GhcuZHJpZnQudjEuU3dpcGVSZXNwb25zZRJBCghLZXlFdmVudBIZLmRyaWZ0LnYxLktleUV2ZW50UmVxdWVzdBoaLmRyaWZ0LnYxLktleUV2ZW50UmVzcG9uc2USQQoIVHlwZVRleHQSGS5kcmlmdC52MS5UeXBlVGV4dFJlcXVlc3QaGi5kcmlmdC52MS5UeXBlVGV4dFJlc3BvbnNlQjBaLmRyaWZ0LmxvY2FsL2RyaWZ0LW5leHQvZ2VuL2dvL2RyaWZ0L3YxO2RyaWZ0djFiBnByb3RvMw", [file_drift_v1_action, file_drift_v1_common]);
+  fileDesc("ChtkcmlmdC92MS9kZXZpY2VfaW5wdXQucHJvdG8SCGRyaWZ0LnYxIn4KEkRldmljZUlucHV0UmVmdXNhbBIyCgZyZWFzb24YASABKA4yIi5kcmlmdC52MS5EZXZpY2VJbnB1dFJlZnVzYWxSZWFzb24SDAoEY29kZRgCIAEoCRIVCg1mYWlsdXJlX2NsYXNzGAMgASgJEg8KB21lc3NhZ2UYBCABKAkibgoTRm9sbG93ZXJJbnB1dEZhbm91dBIOCgZydW5faWQYASABKAkSFAoMdGFyZ2V0X2NvdW50GAIgASgFEjEKCWZvbGxvd2VycxgDIAMoCzIeLmRyaWZ0LnYxLkZvbGxvd2VySW5wdXRPdXRjb21lIpoCChRGb2xsb3dlcklucHV0T3V0Y29tZRIRCglkZXZpY2VfaWQYASABKAkSNwoLZGlzcG9zaXRpb24YAiABKA4yIi5kcmlmdC52MS5Gb2xsb3dlcklucHV0RGlzcG9zaXRpb24SDgoGcmVhc29uGAMgASgJEg4KBmRldGFpbBgEIAEoCRItCgdyZWZ1c2FsGAUgASgLMhwuZHJpZnQudjEuRGV2aWNlSW5wdXRSZWZ1c2FsEg8KB291dGNvbWUYBiABKAkSEgoKYXR0ZW1wdF9pZBgHIAEoCRIXCg9pZGVtcG90ZW5jeV9rZXkYCCABKAkSEwoLZnJhbWVfd2lkdGgYCSABKA0SFAoMZnJhbWVfaGVpZ2h0GAogASgNIqoCCgpUYXBSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEhAKCGxlYXNlX2lkGAQgASgJEhUKDWZlbmNpbmdfdG9rZW4YBSABKAQSFwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJEhkKEW9ic2VydmF0aW9uX3Rva2VuGAcgASgJEh8KA3RhcBgIIAEoCzISLmRyaWZ0LnYxLlRhcElucHV0EhgKEGFwcHJvdmFsX2dyYW50ZWQYCSABKAgSGwoTZm9sbG93ZXJfZGV2aWNlX2lkcxgKIAMoCSJkCgtUYXBSZXNwb25zZRImCgZyZXN1bHQYASABKAsyFi5kcmlmdC52MS5BY3Rpb25SZXN1bHQSLQoGZmFub3V0GAIgASgLMh0uZHJpZnQudjEuRm9sbG93ZXJJbnB1dEZhbm91dCKwAgoMU3dpcGVSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEhAKCGxlYXNlX2lkGAQgASgJEhUKDWZlbmNpbmdfdG9rZW4YBSABKAQSFwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJEhkKEW9ic2VydmF0aW9uX3Rva2VuGAcgASgJEiMKBXN3aXBlGAggASgLMhQuZHJpZnQudjEuU3dpcGVJbnB1dBIYChBhcHByb3ZhbF9ncmFudGVkGAkgASgIEhsKE2ZvbGxvd2VyX2RldmljZV9pZHMYCiADKAkiZgoNU3dpcGVSZXNwb25zZRImCgZyZXN1bHQYASABKAsyFi5kcmlmdC52MS5BY3Rpb25SZXN1bHQSLQoGZmFub3V0GAIgASgLMh0uZHJpZnQudjEuRm9sbG93ZXJJbnB1dEZhbm91dCK6AgoPS2V5RXZlbnRSZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIpCgl3b3Jrc3BhY2UYAiABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSEQoJZGV2aWNlX2lkGAMgASgJEhAKCGxlYXNlX2lkGAQgASgJEhUKDWZlbmNpbmdfdG9rZW4YBSABKAQSFwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJEhkKEW9ic2VydmF0aW9uX3Rva2VuGAcgASgJEioKCWtleV9ldmVudBgIIAEoCzIXLmRyaWZ0LnYxLktleUV2ZW50SW5wdXQSGAoQYXBwcm92YWxfZ3JhbnRlZBgJIAEoCBIbChNmb2xsb3dlcl9kZXZpY2VfaWRzGAogAygJImkKEEtleUV2ZW50UmVzcG9uc2USJgoGcmVzdWx0GAEgASgLMhYuZHJpZnQudjEuQWN0aW9uUmVzdWx0Ei0KBmZhbm91dBgCIAEoCzIdLmRyaWZ0LnYxLkZvbGxvd2VySW5wdXRGYW5vdXQihgIKD1R5cGVUZXh0UmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIQCghsZWFzZV9pZBgEIAEoCRIVCg1mZW5jaW5nX3Rva2VuGAUgASgEEhcKD2lkZW1wb3RlbmN5X2tleRgGIAEoCRIuCgR0ZXh0GAcgASgLMiAuZHJpZnQudjEuU2Vuc2l0aXZlVGV4dFJlZmVyZW5jZRIYChBhcHByb3ZhbF9ncmFudGVkGAggASgIIjoKEFR5cGVUZXh0UmVzcG9uc2USJgoGcmVzdWx0GAEgASgLMhYuZHJpZnQudjEuQWN0aW9uUmVzdWx0Kv4FChhEZXZpY2VJbnB1dFJlZnVzYWxSZWFzb24SKwonREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX1VOU1BFQ0lGSUVEEAASLQopREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0xFQVNFX01JU1NJTkcQARItCilERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fTEVBU0VfRVhQSVJFRBACEi4KKkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9MRUFTRV9OT1RfSEVMRBADEisKJ0RFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9GRU5DRV9TVEFMRRAEEjIKLkRFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9OT19DT05UUk9MX1NFU1NJT04QBRIuCipERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fTEVBU0VfQ09ORkxJQ1QQBhIuCipERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fRU1FUkdFTkNZX1NUT1AQBxItCilERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fUE9MSUNZX0RFTklFRBAIEjMKL0RFVklDRV9JTlBVVF9SRUZVU0FMX1JFQVNPTl9DQVBBQklMSVRZX01JU01BVENIEAkSLgoqREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0RFVklDRV9PRkZMSU5FEAoSMwovREVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0RFVklDRV9VTkFVVEhPUklaRUQQCxIyCi5ERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fREVWSUNFX1VOQVZBSUxBQkxFEAwSOQo1REVWSUNFX0lOUFVUX1JFRlVTQUxfUkVBU09OX0RVUExJQ0FURV9JREVNUE9URU5DWV9LRVkQDRIuCipERVZJQ0VfSU5QVVRfUkVGVVNBTF9SRUFTT05fTEVBU0VfUkVMRUFTRUQQDiruAQoYRm9sbG93ZXJJbnB1dERpc3Bvc2l0aW9uEioKJkZPTExPV0VSX0lOUFVUX0RJU1BPU0lUSU9OX1VOU1BFQ0lGSUVEEAASJwojRk9MTE9XRVJfSU5QVVRfRElTUE9TSVRJT05fQUNDRVBURUQQARImCiJGT0xMT1dFUl9JTlBVVF9ESVNQT1NJVElPTl9SRUZVU0VEEAISJwojRk9MTE9XRVJfSU5QVVRfRElTUE9TSVRJT05fRVhDTFVERUQQAxIsCihGT0xMT1dFUl9JTlBVVF9ESVNQT1NJVElPTl9JTkRFVEVSTUlOQVRFEAQyiAIKEkRldmljZUlucHV0U2VydmljZRIyCgNUYXASFC5kcmlmdC52MS5UYXBSZXF1ZXN0GhUuZHJpZnQudjEuVGFwUmVzcG9uc2USOAoFU3dpcGUSFi5kcmlmdC52MS5Td2lwZVJlcXVlc3QaFy5kcmlmdC52MS5Td2lwZVJlc3BvbnNlEkEKCEtleUV2ZW50EhkuZHJpZnQudjEuS2V5RXZlbnRSZXF1ZXN0GhouZHJpZnQudjEuS2V5RXZlbnRSZXNwb25zZRJBCghUeXBlVGV4dBIZLmRyaWZ0LnYxLlR5cGVUZXh0UmVxdWVzdBoaLmRyaWZ0LnYxLlR5cGVUZXh0UmVzcG9uc2VCMFouZHJpZnQubG9jYWwvZHJpZnQtbmV4dC9nZW4vZ28vZHJpZnQvdjE7ZHJpZnR2MWIGcHJvdG8z", [file_drift_v1_action, file_drift_v1_common]);
 
 /**
  * A refused device input, as the dispatch boundary reports it.
@@ -67,6 +67,171 @@ export type DeviceInputRefusal = Message<"drift.v1.DeviceInputRefusal"> & {
  */
 export const DeviceInputRefusalSchema: GenMessage<DeviceInputRefusal> = /*@__PURE__*/
   messageDesc(file_drift_v1_device_input, 0);
+
+/**
+ * The follower fan-out: one operator gesture on the SOURCE frame, carried to each
+ * follower the operator selected as its own action through the kernel.
+ *
+ * The owner's reading of source/follower mirroring is that the followers must also
+ * RECEIVE what the operator does on the source - watching is the preview fan-out
+ * that already exists, and receiving is this message. A gesture the operator
+ * performs on the source is dispatched to the source exactly as it was before, and
+ * the same typed input is dispatched to each selected follower as its own action:
+ * in the kernel, that means the follower's own lease, its own policy and capability
+ * decision, its own fresh observation, its own postcondition, its own evidence
+ * record and its own result. One follower's outcome can never change another's.
+ *
+ * ORDERING is stated here because a client has to be able to rely on it: the
+ * followers proceed INDEPENDENTLY of the operator's gesture. The source's own
+ * dispatch is answered from the source's own result, and it never waits for the
+ * slowest follower - so what this report carries for an accepted follower is the
+ * ACCEPTANCE of that follower's run, and the follower's own outcome is recorded on
+ * the plane as its run completes. A gesture on the source must not hang on a
+ * follower, and a follower that is slow, stuck or unreachable is answered in its
+ * own row.
+ *
+ * The CANDIDATE SET is the plane's own ONLINE reading, made in one place, so a
+ * device the console paints as online and a device this run treats as online
+ * cannot disagree. A follower that is not online was never contacted and never
+ * failed: it is EXCLUDED, NAMED with a reason of its own, and the count this report
+ * carries is the set the run TARGETED rather than the set the operator selected.
+ *
+ * A typed-text gesture and an app launch are deliberately NOT carried to
+ * followers, and each follower is refused with its own reason rather than being
+ * silently left out: a text reference is released exactly once, so carrying one
+ * reference to N followers would be either N releases of one value or one release
+ * that N devices silently did without, and a launch names one device's package.
+ *
+ * @generated from message drift.v1.FollowerInputFanout
+ */
+export type FollowerInputFanout = Message<"drift.v1.FollowerInputFanout"> & {
+  /**
+   * run_id identifies this fan-out, assigned before anything is dispatched, so a
+   * retried fan-out is recognisable as the same gesture.
+   *
+   * @generated from field: string run_id = 1;
+   */
+  runId: string;
+
+  /**
+   * target_count is the size of the set this run TARGETED: the followers whose own
+   * actions it dispatched. It is never the number of followers selected, because a
+   * follower that is not online was never contacted and never failed.
+   *
+   * @generated from field: int32 target_count = 2;
+   */
+  targetCount: number;
+
+  /**
+   * followers carries one row per follower the operator named, in the order the
+   * operator named them, deduplicated by device. Nothing the operator selected is
+   * absent from it.
+   *
+   * @generated from field: repeated drift.v1.FollowerInputOutcome followers = 3;
+   */
+  followers: FollowerInputOutcome[];
+};
+
+/**
+ * Describes the message drift.v1.FollowerInputFanout.
+ * Use `create(FollowerInputFanoutSchema)` to create a new message.
+ */
+export const FollowerInputFanoutSchema: GenMessage<FollowerInputFanout> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_input, 1);
+
+/**
+ * FollowerInputDisposition is what happened to ONE follower's copy of the gesture.
+ *
+ * It is deliberately four values rather than a boolean. ACCEPTED says the
+ * follower's action was dispatched through the kernel and the outcome beside it is
+ * the device's own; REFUSED says the plane decided not to dispatch it and the
+ * reason beside it is why; EXCLUDED says the follower was never a candidate at all,
+ * so nothing about it was contacted OR failed; INDETERMINATE says the action was
+ * dispatched and its outcome could not be established, which is never a success.
+ *
+ * @generated from message drift.v1.FollowerInputOutcome
+ */
+export type FollowerInputOutcome = Message<"drift.v1.FollowerInputOutcome"> & {
+  /**
+   * @generated from field: string device_id = 1;
+   */
+  deviceId: string;
+
+  /**
+   * @generated from field: drift.v1.FollowerInputDisposition disposition = 2;
+   */
+  disposition: FollowerInputDisposition;
+
+  /**
+   * reason is the plane's own stable reason for this row, so a client adds a value
+   * rather than re-deriving one from the outcome text.
+   *
+   * @generated from field: string reason = 3;
+   */
+  reason: string;
+
+  /**
+   * detail is the plane's own fixed sentence for this row, or the dispatch
+   * boundary's own refusal sentence. It never carries device content, a transport
+   * diagnostic or a stack trace.
+   *
+   * @generated from field: string detail = 4;
+   */
+  detail: string;
+
+  /**
+   * refusal is the dispatch boundary's typed refusal, present only for a row the
+   * kernel or the readiness probe refused.
+   *
+   * @generated from field: drift.v1.DeviceInputRefusal refusal = 5;
+   */
+  refusal?: DeviceInputRefusal;
+
+  /**
+   * outcome is the kernel's own reading for a row that was dispatched.
+   *
+   * @generated from field: string outcome = 6;
+   */
+  outcome: string;
+
+  /**
+   * attempt_id identifies this follower's own action attempt, which is what an
+   * append-only evidence record references. Empty for a row that reached no device.
+   *
+   * @generated from field: string attempt_id = 7;
+   */
+  attemptId: string;
+
+  /**
+   * idempotency_key is the key this follower's action carries: this follower's OWN,
+   * so a retried fan-out does not double-apply on a follower that already took it.
+   *
+   * @generated from field: string idempotency_key = 8;
+   */
+  idempotencyKey: string;
+
+  /**
+   * frame_width and frame_height are the render space this follower was given. They
+   * are the SOURCE's declared frame, unchanged: this plane refuses a follower that
+   * does not present at that frame and never rescales a coordinate into the
+   * follower's own size.
+   *
+   * @generated from field: uint32 frame_width = 9;
+   */
+  frameWidth: number;
+
+  /**
+   * @generated from field: uint32 frame_height = 10;
+   */
+  frameHeight: number;
+};
+
+/**
+ * Describes the message drift.v1.FollowerInputOutcome.
+ * Use `create(FollowerInputOutcomeSchema)` to create a new message.
+ */
+export const FollowerInputOutcomeSchema: GenMessage<FollowerInputOutcome> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_input, 2);
 
 /**
  * TapRequest submits one tap: a semantic target, or a point inside
@@ -125,6 +290,16 @@ export type TapRequest = Message<"drift.v1.TapRequest"> & {
    * @generated from field: bool approval_granted = 9;
    */
   approvalGranted: boolean;
+
+  /**
+   * follower_device_ids are the followers the operator selected when the gesture
+   * was performed on the SOURCE frame. Each one receives the same typed input as
+   * its own action through the kernel (see FollowerInputFanout). An empty list
+   * means the gesture is the source's alone, exactly as it was before.
+   *
+   * @generated from field: repeated string follower_device_ids = 10;
+   */
+  followerDeviceIds: string[];
 };
 
 /**
@@ -132,7 +307,7 @@ export type TapRequest = Message<"drift.v1.TapRequest"> & {
  * Use `create(TapRequestSchema)` to create a new message.
  */
 export const TapRequestSchema: GenMessage<TapRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_input, 1);
+  messageDesc(file_drift_v1_device_input, 3);
 
 /**
  * @generated from message drift.v1.TapResponse
@@ -142,6 +317,16 @@ export type TapResponse = Message<"drift.v1.TapResponse"> & {
    * @generated from field: drift.v1.ActionResult result = 1;
    */
   result?: ActionResult;
+
+  /**
+   * fanout reports the followers this gesture was carried to, one row each. It is
+   * present whenever followers were named, including when none of them was a
+   * candidate, because a report that went missing would read as a fan-out that
+   * never happened.
+   *
+   * @generated from field: drift.v1.FollowerInputFanout fanout = 2;
+   */
+  fanout?: FollowerInputFanout;
 };
 
 /**
@@ -149,7 +334,7 @@ export type TapResponse = Message<"drift.v1.TapResponse"> & {
  * Use `create(TapResponseSchema)` to create a new message.
  */
 export const TapResponseSchema: GenMessage<TapResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_input, 2);
+  messageDesc(file_drift_v1_device_input, 4);
 
 /**
  * SwipeRequest submits one swipe. Both endpoints belong to the one
@@ -207,6 +392,16 @@ export type SwipeRequest = Message<"drift.v1.SwipeRequest"> & {
    * @generated from field: bool approval_granted = 9;
    */
   approvalGranted: boolean;
+
+  /**
+   * follower_device_ids are the followers the operator selected when the gesture
+   * was performed on the SOURCE frame. Each one receives the same typed input as
+   * its own action through the kernel (see FollowerInputFanout). An empty list
+   * means the gesture is the source's alone, exactly as it was before.
+   *
+   * @generated from field: repeated string follower_device_ids = 10;
+   */
+  followerDeviceIds: string[];
 };
 
 /**
@@ -214,7 +409,7 @@ export type SwipeRequest = Message<"drift.v1.SwipeRequest"> & {
  * Use `create(SwipeRequestSchema)` to create a new message.
  */
 export const SwipeRequestSchema: GenMessage<SwipeRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_input, 3);
+  messageDesc(file_drift_v1_device_input, 5);
 
 /**
  * @generated from message drift.v1.SwipeResponse
@@ -224,6 +419,11 @@ export type SwipeResponse = Message<"drift.v1.SwipeResponse"> & {
    * @generated from field: drift.v1.ActionResult result = 1;
    */
   result?: ActionResult;
+
+  /**
+   * @generated from field: drift.v1.FollowerInputFanout fanout = 2;
+   */
+  fanout?: FollowerInputFanout;
 };
 
 /**
@@ -231,7 +431,7 @@ export type SwipeResponse = Message<"drift.v1.SwipeResponse"> & {
  * Use `create(SwipeResponseSchema)` to create a new message.
  */
 export const SwipeResponseSchema: GenMessage<SwipeResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_input, 4);
+  messageDesc(file_drift_v1_device_input, 6);
 
 /**
  * KeyEventRequest submits one key event. It carries a bounded key
@@ -293,6 +493,16 @@ export type KeyEventRequest = Message<"drift.v1.KeyEventRequest"> & {
    * @generated from field: bool approval_granted = 9;
    */
   approvalGranted: boolean;
+
+  /**
+   * follower_device_ids are the followers the operator selected when the gesture
+   * was performed on the SOURCE frame. Each one receives the same typed input as
+   * its own action through the kernel (see FollowerInputFanout). An empty list
+   * means the gesture is the source's alone, exactly as it was before.
+   *
+   * @generated from field: repeated string follower_device_ids = 10;
+   */
+  followerDeviceIds: string[];
 };
 
 /**
@@ -300,7 +510,7 @@ export type KeyEventRequest = Message<"drift.v1.KeyEventRequest"> & {
  * Use `create(KeyEventRequestSchema)` to create a new message.
  */
 export const KeyEventRequestSchema: GenMessage<KeyEventRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_input, 5);
+  messageDesc(file_drift_v1_device_input, 7);
 
 /**
  * @generated from message drift.v1.KeyEventResponse
@@ -310,6 +520,11 @@ export type KeyEventResponse = Message<"drift.v1.KeyEventResponse"> & {
    * @generated from field: drift.v1.ActionResult result = 1;
    */
   result?: ActionResult;
+
+  /**
+   * @generated from field: drift.v1.FollowerInputFanout fanout = 2;
+   */
+  fanout?: FollowerInputFanout;
 };
 
 /**
@@ -317,7 +532,7 @@ export type KeyEventResponse = Message<"drift.v1.KeyEventResponse"> & {
  * Use `create(KeyEventResponseSchema)` to create a new message.
  */
 export const KeyEventResponseSchema: GenMessage<KeyEventResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_input, 6);
+  messageDesc(file_drift_v1_device_input, 8);
 
 /**
  * TypeTextRequest submits one typed-text entry. Its value is NOT here: it names
@@ -385,7 +600,7 @@ export type TypeTextRequest = Message<"drift.v1.TypeTextRequest"> & {
  * Use `create(TypeTextRequestSchema)` to create a new message.
  */
 export const TypeTextRequestSchema: GenMessage<TypeTextRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_input, 7);
+  messageDesc(file_drift_v1_device_input, 9);
 
 /**
  * @generated from message drift.v1.TypeTextResponse
@@ -402,7 +617,7 @@ export type TypeTextResponse = Message<"drift.v1.TypeTextResponse"> & {
  * Use `create(TypeTextResponseSchema)` to create a new message.
  */
 export const TypeTextResponseSchema: GenMessage<TypeTextResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_input, 8);
+  messageDesc(file_drift_v1_device_input, 10);
 
 /**
  * DeviceInputRefusalReason is the dispatch boundary's stable refusal vocabulary.
@@ -525,6 +740,52 @@ export enum DeviceInputRefusalReason {
  */
 export const DeviceInputRefusalReasonSchema: GenEnum<DeviceInputRefusalReason> = /*@__PURE__*/
   enumDesc(file_drift_v1_device_input, 0);
+
+/**
+ * FollowerInputDisposition names what happened to one follower's copy of a gesture.
+ *
+ * @generated from enum drift.v1.FollowerInputDisposition
+ */
+export enum FollowerInputDisposition {
+  /**
+   * @generated from enum value: FOLLOWER_INPUT_DISPOSITION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The follower's own action was dispatched through the kernel.
+   *
+   * @generated from enum value: FOLLOWER_INPUT_DISPOSITION_ACCEPTED = 1;
+   */
+  ACCEPTED = 1,
+
+  /**
+   * The plane did not dispatch this follower's action, and named the reason.
+   *
+   * @generated from enum value: FOLLOWER_INPUT_DISPOSITION_REFUSED = 2;
+   */
+  REFUSED = 2,
+
+  /**
+   * The follower was not a candidate, so the run never contacted it.
+   *
+   * @generated from enum value: FOLLOWER_INPUT_DISPOSITION_EXCLUDED = 3;
+   */
+  EXCLUDED = 3,
+
+  /**
+   * The action was dispatched and its outcome could not be established.
+   *
+   * @generated from enum value: FOLLOWER_INPUT_DISPOSITION_INDETERMINATE = 4;
+   */
+  INDETERMINATE = 4,
+}
+
+/**
+ * Describes the enum drift.v1.FollowerInputDisposition.
+ */
+export const FollowerInputDispositionSchema: GenEnum<FollowerInputDisposition> = /*@__PURE__*/
+  enumDesc(file_drift_v1_device_input, 1);
 
 /**
  * The device input surface.

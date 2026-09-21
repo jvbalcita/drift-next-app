@@ -135,3 +135,48 @@ type StreamRefusal struct {
 	// is genuinely no place at all.
 	OperatorReserve int
 }
+
+// FollowerInputOutcomeRecord is ONE follower's own finished outcome on the
+// operator's gesture, in the terms an append-only row needs.
+//
+// It exists because a follower's outcome has to be explainable from the plane's own
+// record and not only from whatever console asked for it: the report the input
+// surface returns carries each follower's ACCEPTANCE, and what each follower's
+// action actually did outlives that response. What it carries is the whole of the
+// row - which gesture, which follower, what the plane decided and why, and the
+// identity of the attempt an evidence record references - so a later reader with
+// only the rows can still tell one follower's story from another's.
+//
+// It carries no device content and no credential: a device input is a typed
+// gesture, and every field here is the plane's own vocabulary.
+type FollowerInputOutcomeRecord struct {
+	WorkspaceID string
+	// SourceDeviceID is the device the operator performed the gesture on.
+	SourceDeviceID string
+	// DeviceID is the follower this row is about.
+	DeviceID string
+	// RunID identifies the fan-out this follower's action belonged to.
+	RunID string
+	// Disposition is what happened to this follower's copy of the gesture.
+	Disposition string
+	// Reason is the plane's own stable reason for this row.
+	Reason string
+	// Detail is the plane's own fixed sentence for the row, or the dispatch
+	// boundary's own refusal sentence.
+	Detail string
+	// RefusalReason, FailureClass and KernelOutcome are the dispatch boundary's own
+	// vocabulary, carried for the rows that reached the kernel.
+	RefusalReason string
+	FailureClass  string
+	KernelOutcome string
+	// AttemptID identifies this follower's own action attempt.
+	AttemptID string
+	// IdempotencyKey is the key this follower's action carried.
+	IdempotencyKey string
+	// FrameWidth and FrameHeight are the render space this follower was given: the
+	// SOURCE's declared frame, unchanged.
+	FrameWidth  uint32
+	FrameHeight uint32
+	// ActorID is the holder the follower's lease was taken for.
+	ActorID string
+}
