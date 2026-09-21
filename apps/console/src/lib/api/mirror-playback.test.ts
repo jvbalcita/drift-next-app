@@ -65,6 +65,46 @@ function body(chunks: Uint8Array[]) {
   })
 }
 
+/**
+ * stalledBody is a response body that stays open: a case decides what arrives and
+ * when, which is what the body of a LIVE stream is from this side of the wire.
+ *
+ * It is the fake the defect is invisible without: a body that ends as soon as it is
+ * read cannot tell a playback that reads to the end from one that stops at the
+ * endpoint's acceptance.
+ */
+function stalledBody() {
+  let controller: ReadableStreamDefaultController<Uint8Array> | null = null
+  let cancelled: unknown = null
+  const body = new ReadableStream<Uint8Array>({
+    start(next) { controller = next },
+    cancel(cause) { cancelled = cause ?? true },
+  })
+  return {
+    body,
+    /** send delivers chunk as the next read's answer. */
+    send(chunk: Uint8Array) { controller!.enqueue(chunk) },
+    /** fail ends the body the way a transport that dropped under a picture does. */
+    fail(cause: unknown) { controller!.error(cause) },
+    /** finish ends the body the way a response that has carried everything does. */
+    finish() { controller!.close() },
+    /** cancelled is whether the response was RELEASED rather than left being read. */
+    cancelled: () => cancelled !== null,
+  }
+}
+
+/**
+ * flush gives the background read of a body a turn to run.
+ *
+ * Everything after the endpoint's acceptance is deliberately not awaited by anybody
+ * - that is the whole point of the split - so a case that asserts what it did has to
+ * hand it a turn: one macrotask, which every pending microtask of that read drains
+ * before.
+ */
+async function flush(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 function element() {
   const stripped: string[] = []
   let source = ""
@@ -113,15 +153,132 @@ describe("the TCP transport's playback", () => {
       createSource: () => media.source,
       openObjectURL: () => "blob:stream-1",
       revokeObjectURL: () => undefined,
-      // The network preserves no boundaries: the fragment arrives in two pieces.
+      // The network preserves no boundaries: the fragment arrives in two pieces - the
+      // first of them in the very read that establishes the endpoint, which is where
+      // the two readers below meet (see MirrorPlayback.start).
       fetchStream: async () => body([concatBytes([initSegment, complete.subarray(0, 5)]), complete.subarray(5)]),
     })
 
     await playback.start()
+    // The second half of the fragment is carried in the background, so the case hands
+    // it the turn the console never takes.
+    await flush()
 
     const fragments = media.buffer.appended.filter((bytes) => bytes.length === complete.length)
     expect(fragments).toHaveLength(1)
     expect(fragments[0]).toEqual(complete)
+  })
+
+  it("resolves at the endpoint's acceptance, without waiting for the body that IS the picture", async () => {
+    // The defect: `start` read the response body to its end, and on this transport the
+    // body IS the picture - so `start` could not resolve while the stream was alive,
+    // and everything the console hangs off it (the phase, the poll, the report of a
+    // picture that never came) was unreachable for exactly as long as the stream
+    // worked. The body below stays open after its first bytes, which is what a working
+    // stream looks like from this side of the wire: this call resolving at all IS the
+    // assertion, and on a playback that read to the end it never resolves.
+    const media = fakeSource()
+    const video = element()
+    const stream = stalledBody()
+    const playback = browserMirrorPlayback({
+      element: video.video,
+      url: "http://control-plane.test/stream",
+      headers: {},
+      createSource: () => media.source,
+      openObjectURL: () => "blob:stream-1",
+      revokeObjectURL: () => undefined,
+      fetchStream: async () => stream.body,
+    })
+
+    stream.send(initSegment)
+    await playback.start()
+
+    // Accepted: the first bytes are in hand and the picture is being painted.
+    expect(media.buffer.appended[0]).toEqual(initSegment)
+    expect(video.srcValue()).toBe("blob:stream-1")
+    // And the stream itself is untouched by that: nothing ended it, and nothing
+    // released the response it is still being carried on.
+    expect(media.endedCount()).toBe(0)
+    expect(stream.cancelled()).toBe(false)
+  })
+
+  it("carries the rest of the body in the background, and still paints what it carries", async () => {
+    const media = fakeSource()
+    const stream = stalledBody()
+    const playback = browserMirrorPlayback({
+      element: null,
+      url: "http://control-plane.test/stream",
+      headers: {},
+      createSource: () => media.source,
+      openObjectURL: () => "blob:stream-1",
+      revokeObjectURL: () => undefined,
+      fetchStream: async () => stream.body,
+    })
+
+    stream.send(initSegment)
+    await playback.start()
+    // A picture that arrives after the endpoint was accepted is still handed to the
+    // media stack: the read did not STOP at acceptance, it stopped being awaited.
+    stream.send(fragment())
+    await flush()
+    expect(media.buffer.appended[1]).toEqual(fragment())
+
+    // And the response ending still tells the browser that nothing more is coming.
+    stream.finish()
+    await flush()
+    expect(media.endedCount()).toBe(1)
+  })
+
+  it("reports a body that died after the endpoint was accepted", async () => {
+    // Half a picture is not a picture, and the console can no longer await this one -
+    // the body is not the establishment - so it is reported where the console can hear
+    // it rather than dropped.
+    const media = fakeSource()
+    const stream = stalledBody()
+    const failures: unknown[] = []
+    const playback = browserMirrorPlayback({
+      element: null,
+      url: "http://control-plane.test/stream",
+      headers: {},
+      createSource: () => media.source,
+      openObjectURL: () => "blob:stream-1",
+      revokeObjectURL: () => undefined,
+      fetchStream: async () => stream.body,
+      onFailure: (cause) => failures.push(cause),
+    })
+
+    stream.send(initSegment)
+    await playback.start()
+    expect(failures).toHaveLength(0)
+
+    const dropped = new Error("the transport dropped under the picture")
+    stream.fail(dropped)
+    await flush()
+    expect(failures).toEqual([dropped])
+  })
+
+  it("releases the response when it is stopped, rather than leaving the body being read", async () => {
+    // This is what makes a background read safe to have: the console's own teardown
+    // ends it, so a stream nothing is showing is not left holding its response - and
+    // the connection with it - open.
+    const media = fakeSource()
+    const stream = stalledBody()
+    const playback = browserMirrorPlayback({
+      element: null,
+      url: "http://control-plane.test/stream",
+      headers: {},
+      createSource: () => media.source,
+      openObjectURL: () => "blob:stream-1",
+      revokeObjectURL: () => undefined,
+      fetchStream: async () => stream.body,
+    })
+
+    stream.send(initSegment)
+    await playback.start()
+
+    playback.stop()
+    await flush()
+    expect(stream.cancelled()).toBe(true)
   })
 
   it("queues pictures while the buffer is busy rather than dropping or interleaving them", async () => {
@@ -140,6 +297,11 @@ describe("the TCP transport's playback", () => {
     await playback.start()
 
     // Nothing is appended while the buffer is mid-append: appending would throw.
+    expect(media.buffer.appended).toHaveLength(0)
+    // The pictures after the initialisation segment are carried in the background, so
+    // the case hands them the turn the console never takes - and they queue behind the
+    // initialisation segment rather than overtaking it or being dropped.
+    await flush()
     expect(media.buffer.appended).toHaveLength(0)
     media.buffer.finish()
     expect(media.buffer.appended[0]).toEqual(initSegment)
@@ -230,8 +392,11 @@ describe("the TCP transport's playback", () => {
     })
 
     await playback.start()
-    // The response is over: the browser is told nothing more is coming, and the
-    // picture is left for the console's own state to end.
+    // The response's own end is carried in the background now - the case hands it the
+    // turn the console never takes - and what it means is unchanged: the browser is
+    // told nothing more is coming, and the picture is left for the console's own state
+    // to end.
+    await flush()
     expect(media.endedCount()).toBe(1)
     expect(revoked).toHaveLength(0)
     expect(video.stripped).toHaveLength(0)

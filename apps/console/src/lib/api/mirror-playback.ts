@@ -42,6 +42,18 @@ export interface MirrorPlaybackRequest {
   url: string
   /** headers are how this console authenticates to the control plane. */
   headers: Record<string, string>
+  /**
+   * onFailure is where a body that failed AFTER the endpoint was accepted is
+   * reported.
+   *
+   * On this transport the response body IS the picture, so its lifetime is not a
+   * caller's to await: the body keeps being read after `start()` has answered (see
+   * `MirrorPlayback.start`), and a body that dies under a stream this console is
+   * showing is reported here or nowhere. It is never called for a refusal the
+   * endpoint itself answered with - that arrives as `start()`'s rejection, before
+   * any picture exists to lose.
+   */
+  onFailure?: (cause: unknown) => void
   /** The seams a test supplies in place of the browser's own stack. */
   createSource?: () => MediaSourcePort
   openObjectURL?: (source: MediaSourcePort) => string
@@ -50,7 +62,21 @@ export interface MirrorPlaybackRequest {
 }
 
 export interface MirrorPlayback {
-  /** start reads the stream until it ends, or until the caller throws or stops it. */
+  /**
+   * start reads the endpoint up to the point it has been ACCEPTED - the response's
+   * status read, and its first bytes in hand and handed to the media stack - and no
+   * further.
+   *
+   * It deliberately does not read the body to its end: what the response body
+   * carries IS the picture, so a start that waited for the body would answer only
+   * when the stream was over, and every decision that hangs off that answer - the
+   * phase the surface shows, the poll that reports what the control plane says
+   * about the stream, and any report of a picture that never came - would be
+   * unreachable for exactly as long as the stream was working.
+   *
+   * What remains of the body's lifetime runs in the background; a failure in it
+   * arrives through `onFailure`, and `stop()` is what ends it.
+   */
   start(): Promise<void>
   /** stop takes the picture down and releases everything this playback owns. */
   stop(): void
@@ -72,9 +98,15 @@ export function browserMirrorPlayback(request: MirrorPlaybackRequest): MirrorPla
   const fetchStream = request.fetchStream ?? defaultFetchStream
 
   let stopped = false
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
   let source: MediaSourcePort | null = null
   let objectURL = ""
   let buffer: SourceBufferPort | null = null
+  // pending is the bytes of a segment the network has not finished delivering: the
+  // bytes come from a network stream, so they are not narrowed to one backing
+  // buffer, and the accumulator accepts whatever the reader hands over. It is held
+  // across both readers below (see `handBytes`).
+  let pending: Uint8Array = new Uint8Array(0)
   const queue: Uint8Array[] = []
 
   /** drain appends what is queued, one segment at a time, while the buffer is free. */
@@ -105,63 +137,122 @@ export function browserMirrorPlayback(request: MirrorPlaybackRequest): MirrorPla
     }
   }
 
+  /**
+   * handBytes is the whole of what this playback does with the stream: it
+   * accumulates what has arrived, splits it into segments, and gives the media
+   * stack its initialisation segment and its fragments in that order.
+   *
+   * It is one function rather than the body of one loop because the first bytes are
+   * read while the endpoint is being established and every byte after them is read
+   * in the background (see `establish` and `pump`) - two readers, one set of rules,
+   * and a rule that lived in both of them is a rule one of them gets wrong.
+   */
+  const handBytes = async (chunk: Uint8Array): Promise<void> => {
+    pending = concatBytes([pending, chunk])
+    const split = splitStream(pending, { initialisation: buffer === null })
+    if (!split.ok) throw new Error(split.reason)
+    pending = split.rest
+    if (split.init && buffer === null) {
+      const mediaType = mp4MediaType(split.init)
+      if (mediaType === null) throw new Error(liveMirrorCopy.failure.noCodec)
+      source = createSource()
+      objectURL = openObjectURL(source)
+      if (request.element) request.element.src = objectURL
+      await waitForSourceOpen(source)
+      if (stopped) return
+      buffer = source.addSourceBuffer(mediaType)
+      buffer.mode = "segments"
+      buffer.addEventListener("updateend", drain)
+      queue.push(split.init)
+      drain()
+    }
+    if (split.segments.length > 0 && buffer === null) {
+      throw new Error(liveMirrorCopy.failure.noInitSegment)
+    }
+    for (const segment of split.segments) queue.push(segment)
+    drain()
+  }
+
+  /**
+   * establish reads up to the endpoint's ACCEPTANCE: the response has been answered
+   * with a body, and that body's first bytes are in hand and handed over.
+   *
+   * A body that ends before it carried a byte is an endpoint that was accepted and
+   * carried no picture. That is deliberately NOT a failure reported from here: the
+   * control plane refused nothing, and the stream's own state - whether it ended,
+   * or failed, and with what sentence - is read from the plane by the poll, which is
+   * the only authority on it. What this does not do is wait for bytes that are not
+   * coming; how long an endpoint may take over its first bytes is the caller's own
+   * bound, because the caller is the one with an operator to answer to.
+   */
+  const establish = async (): Promise<void> => {
+    for (;;) {
+      const read = await reader!.read()
+      if (stopped) return
+      if (read.done) return
+      if (!read.value || read.value.length === 0) continue
+      await handBytes(read.value)
+      return
+    }
+  }
+
+  /**
+   * pump carries the rest of the response's lifetime: the fragments that arrive
+   * after the endpoint was accepted, and the end of the response itself.
+   *
+   * It runs in the background and nobody awaits it, so its failures are reported
+   * through `onFailure` rather than thrown - and it stops at the first of them,
+   * because half a picture is not a picture. Everything it holds is released by
+   * `stop`, which is the console's own teardown.
+   */
+  const pump = async (): Promise<void> => {
+    let ended = false
+    try {
+      for (;;) {
+        const read = await reader!.read()
+        if (stopped) return
+        if (read.done) break
+        if (!read.value || read.value.length === 0) continue
+        await handBytes(read.value)
+      }
+      ended = true
+    } catch (cause: unknown) {
+      if (!stopped) request.onFailure?.(cause)
+      return
+    } finally {
+      if (ended) {
+        // The response ended: nothing more is coming, and saying so lets the
+        // browser finish what it already holds. The picture is NOT taken down
+        // here - the console's own state machine ends the session, so what the
+        // operator sees is the state that says the stream is over rather than a
+        // frame that disappeared on its own.
+        try {
+          source?.endOfStream()
+        } catch {
+          // A source the browser already closed is not an ending to report.
+        }
+      }
+    }
+  }
+
   return {
     async start() {
       const body = await fetchStream(request.url, request.headers)
       if (!body) throw new Error(liveMirrorCopy.failure.refusedEndpoint)
-      const reader = body.getReader()
-      // The bytes come from a network stream, so they are not narrowed to one
-      // backing buffer: the accumulator accepts whatever the reader hands over.
-      let pending: Uint8Array = new Uint8Array(0)
-      let ended = false
-      try {
-        for (;;) {
-          const { value, done } = await reader.read()
-          if (stopped) return
-          if (done) break
-          if (!value || value.length === 0) continue
-          pending = concatBytes([pending, value])
-          const split = splitStream(pending, { initialisation: buffer === null })
-          if (!split.ok) throw new Error(split.reason)
-          pending = split.rest
-          if (split.init && buffer === null) {
-            const mediaType = mp4MediaType(split.init)
-            if (mediaType === null) throw new Error(liveMirrorCopy.failure.noCodec)
-            source = createSource()
-            objectURL = openObjectURL(source)
-            if (request.element) request.element.src = objectURL
-            await waitForSourceOpen(source)
-            if (stopped) return
-            buffer = source.addSourceBuffer(mediaType)
-            buffer.mode = "segments"
-            buffer.addEventListener("updateend", drain)
-            queue.push(split.init)
-            drain()
-          }
-          if (split.segments.length > 0 && buffer === null) {
-            throw new Error(liveMirrorCopy.failure.noInitSegment)
-          }
-          for (const segment of split.segments) queue.push(segment)
-          drain()
-        }
-        ended = true
-      } finally {
-        if (ended) {
-          // The response ended: nothing more is coming, and saying so lets the
-          // browser finish what it already holds. The picture is NOT taken down
-          // here - the console's own state machine ends the session, so what the
-          // operator sees is the state that says the stream is over rather than a
-          // frame that disappeared on its own.
-          try {
-            source?.endOfStream()
-          } catch {
-            // A source the browser already closed is not an ending to report.
-          }
-        }
-      }
+      reader = body.getReader()
+      await establish()
+      if (stopped) return
+      // The endpoint is accepted and the picture is being written, so this call is
+      // done: what is left of the body's lifetime - the picture itself - is carried
+      // in the background, and `stop` is what ends it.
+      void pump()
     },
     stop() {
       stopped = true
+      // The body IS the picture and its reader is still reading it: a teardown that
+      // left that read pending would leave the response open - the connection held
+      // and the plane still writing - for a stream nothing is showing.
+      void reader?.cancel().catch(() => undefined)
       takeDown()
     },
   }
