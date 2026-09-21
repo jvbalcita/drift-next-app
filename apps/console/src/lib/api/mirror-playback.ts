@@ -12,12 +12,18 @@ import { liveMirrorCopy } from "@/lib/live-mirror"
  * testing is what this code does with the bytes: which pieces it appends in what
  * order, what it refuses, and what it does when the stream ends.
  *
- * Three rules it holds:
+ * Four rules it holds:
  *
- *  - the initialisation segment goes in before any fragment, and a fragment that
- *    arrives first is a failure rather than a fragment;
+ *  - the first initialisation segment goes in before any fragment, and a fragment
+ *    that arrives first is a failure rather than a fragment;
  *  - the codec is read out of that segment rather than assumed, because a source
  *    buffer told the wrong profile refuses the stream;
+ *  - a SECOND initialisation segment is a re-declaration and not the end of the
+ *    stream. The device re-encodes mid-stream in ordinary use - a grid tile opened
+ *    into the operator's own frame re-dials it at the operator profile, and a
+ *    screen that changed size re-declares on its own - so the codec change is
+ *    signalled with `changeType` and the new segment appended where it arrived,
+ *    with the picture KEPT rather than dropped;
  *  - the response ending ends the media stream, and the picture is dropped rather
  *    than left in the element looking current.
  */
@@ -25,6 +31,12 @@ export interface SourceBufferPort {
   mode: string
   readonly updating: boolean
   appendBuffer(bytes: Uint8Array): void
+  /**
+   * changeType is how a source buffer is told a codec change before the
+   * initialisation segment that carries it: without it, a buffer created for one
+   * codec refuses a segment declaring another.
+   */
+  changeType(mediaType: string): void
   addEventListener(type: "updateend", listener: () => void): void
 }
 
@@ -84,6 +96,17 @@ export interface MirrorPlayback {
 
 export type MirrorPlaybackFactory = (request: MirrorPlaybackRequest) => MirrorPlayback
 
+/**
+ * QueuedSegment is one piece waiting to be appended, with the media type it has to
+ * be appended AS when it is an initialisation segment that states one: a
+ * re-declaration whose codec moved has to be signalled before it is appended, and
+ * the append is only legal while the buffer is free (see `drain`).
+ */
+interface QueuedSegment {
+  bytes: Uint8Array
+  declares?: string
+}
+
 /** sourceOpenTimeoutMs bounds the wait for a media source to open. */
 export const sourceOpenTimeoutMs = 5_000
 
@@ -107,14 +130,28 @@ export function browserMirrorPlayback(request: MirrorPlaybackRequest): MirrorPla
   // buffer, and the accumulator accepts whatever the reader hands over. It is held
   // across both readers below (see `handBytes`).
   let pending: Uint8Array = new Uint8Array(0)
-  const queue: Uint8Array[] = []
+  // configured is the codec the source buffer was created for or last switched to.
+  // A re-declaration that states a different one is signalled with changeType
+  // before its segment is appended; a re-declaration that states the same one -
+  // a frame size that changed, which is not part of a media type - needs only the
+  // segment itself.
+  let configured = ""
+  const queue: QueuedSegment[] = []
 
   /** drain appends what is queued, one segment at a time, while the buffer is free. */
   const drain = () => {
     if (stopped || buffer === null || buffer.updating || queue.length === 0) return
     const next = queue.shift()
     if (next === undefined) return
-    buffer.appendBuffer(next)
+    // A source buffer refuses an initialisation segment declaring a codec it was
+    // not told about, and changeType is only legal while it is not updating -
+    // which is exactly the moment this runs in, right before the segment that
+    // carries the change.
+    if (next.declares !== undefined && next.declares !== configured) {
+      buffer.changeType(next.declares)
+      configured = next.declares
+    }
+    buffer.appendBuffer(next.bytes)
   }
 
   const takeDown = () => {
@@ -139,8 +176,9 @@ export function browserMirrorPlayback(request: MirrorPlaybackRequest): MirrorPla
 
   /**
    * handBytes is the whole of what this playback does with the stream: it
-   * accumulates what has arrived, splits it into segments, and gives the media
-   * stack its initialisation segment and its fragments in that order.
+   * accumulates what has arrived, splits it into the pieces a source buffer can be
+   * handed, and gives the media stack its initialisation segment and its fragments
+   * in that order.
    *
    * It is one function rather than the body of one loop because the first bytes are
    * read while the endpoint is being established and every byte after them is read
@@ -149,12 +187,29 @@ export function browserMirrorPlayback(request: MirrorPlaybackRequest): MirrorPla
    */
   const handBytes = async (chunk: Uint8Array): Promise<void> => {
     pending = concatBytes([pending, chunk])
-    const split = splitStream(pending, { initialisation: buffer === null })
+    const split = splitStream(pending)
     if (!split.ok) throw new Error(split.reason)
     pending = split.rest
-    if (split.init && buffer === null) {
-      const mediaType = mp4MediaType(split.init)
+    for (const piece of split.pieces) {
+      if (!piece.initialisation) {
+        if (buffer === null) throw new Error(liveMirrorCopy.failure.noInitSegment)
+        queue.push({ bytes: piece.bytes })
+        drain()
+        continue
+      }
+      const mediaType = mp4MediaType(piece.bytes)
       if (mediaType === null) throw new Error(liveMirrorCopy.failure.noCodec)
+      if (buffer !== null) {
+        // A second initialisation segment: the device re-encoded under a stream
+        // this console is already carrying - a screen that changed size, or the
+        // plane re-dialling the device at the operator's own profile. Nothing is
+        // taken down and no second media source is made: the picture is KEPT, and
+        // the new declaration is appended where it arrived, before the pictures it
+        // describes, with the codec change signalled first when the codec moved.
+        queue.push({ bytes: piece.bytes, declares: mediaType })
+        drain()
+        continue
+      }
       source = createSource()
       objectURL = openObjectURL(source)
       if (request.element) request.element.src = objectURL
@@ -163,14 +218,10 @@ export function browserMirrorPlayback(request: MirrorPlaybackRequest): MirrorPla
       buffer = source.addSourceBuffer(mediaType)
       buffer.mode = "segments"
       buffer.addEventListener("updateend", drain)
-      queue.push(split.init)
+      configured = mediaType
+      queue.push({ bytes: piece.bytes })
       drain()
     }
-    if (split.segments.length > 0 && buffer === null) {
-      throw new Error(liveMirrorCopy.failure.noInitSegment)
-    }
-    for (const segment of split.segments) queue.push(segment)
-    drain()
   }
 
   /**

@@ -13,28 +13,45 @@ import { liveMirrorCopy } from "@/lib/live-mirror"
  * the bytes and in what order, which is the part that can be got wrong.
  */
 
-function box(type: string, payload: number[] = []): Uint8Array {
-  const size = 8 + payload.length
-  return new Uint8Array([(size >> 24) & 0xff, (size >> 16) & 0xff, (size >> 8) & 0xff, size & 0xff, ...[...type].map((character) => character.charCodeAt(0)), ...payload])
+function box(type: string, payload: number[] | Uint8Array = []): Uint8Array {
+  const body = payload instanceof Uint8Array ? payload : new Uint8Array(payload)
+  const size = 8 + body.length
+  return concatBytes([
+    new Uint8Array([(size >> 24) & 0xff, (size >> 16) & 0xff, (size >> 8) & 0xff, size & 0xff, ...[...type].map((character) => character.charCodeAt(0))]),
+    body,
+  ])
 }
 
-const initSegment = concatBytes([box("ftyp", [1, 2, 3, 4]), box("avcC", [1, 0x42, 0xe0, 0x1f, 0xff, 0xe1])])
+/**
+ * declaration builds an initialisation segment the way the plane writes one: a
+ * file type box, then the movie box carrying the codec record (profile,
+ * compatibility, level) and the frame size.
+ */
+function declaration(codec: [number, number, number] = [0x42, 0xe0, 0x1f], size: [number, number] = [1080, 2280]): Uint8Array {
+  const record = concatBytes([box("avcC", [1, ...codec, 0xff, 0xe1]), box("size", size)])
+  return concatBytes([box("ftyp", [1, 2, 3, 4]), box("moov", record)])
+}
+
+const initSegment = declaration()
 const fragment = (payload: number[] = [7, 8]) => concatBytes([box("moof", [9]), box("mdat", payload)])
 
 /** fakeSourceBuffer records what it was handed and lets a case control the updates. */
 function fakeSourceBuffer() {
   const appended: Uint8Array[] = []
+  const switched: string[] = []
   let updating = false
   const listeners: (() => void)[] = []
   const buffer: SourceBufferPort = {
     mode: "segments",
     get updating() { return updating },
     appendBuffer(bytes) { appended.push(bytes) },
+    changeType(mediaType) { switched.push(mediaType) },
     addEventListener(_type, listener) { listeners.push(listener) },
   }
   return {
     buffer,
     appended,
+    switched,
     /** finish marks the current append finished, which is what unblocks the queue. */
     finish() { updating = false; for (const listener of listeners) listener() },
     /** hold makes the buffer busy, as a decoder that has not caught up is. */
@@ -140,6 +157,7 @@ describe("the TCP transport's playback", () => {
     expect(media.mediaTypes).toEqual(['video/mp4; codecs="avc1.42E01F"'])
     expect(media.buffer.appended[0]).toEqual(initSegment)
     expect(media.buffer.appended[1]).toEqual(fragment())
+    expect(media.buffer.switched).toHaveLength(0)
     expect(video.srcValue()).toBe("blob:stream-1")
   })
 
@@ -309,6 +327,119 @@ describe("the TCP transport's playback", () => {
     expect(media.buffer.appended[1]).toEqual(fragment([1]))
     media.buffer.finish()
     expect(media.buffer.appended[2]).toEqual(fragment([2]))
+  })
+
+  it("accepts a second initialisation segment mid-stream, switching the codec and keeping the picture", async () => {
+    // The device re-encoded: a grid tile opened into the operator's own frame
+    // re-dials it at another profile, so the codec moved and a second
+    // initialisation segment arrives on the stream that is already playing. The
+    // picture is KEPT - the element is not emptied, no second media source is
+    // made, and nothing is ended.
+    const media = fakeSource()
+    const video = element()
+    const reencoded = declaration([0x64, 0x00, 0x28], [1080, 2280])
+    const playback = browserMirrorPlayback({
+      element: video.video,
+      url: "http://control-plane.test/stream",
+      headers: {},
+      createSource: () => media.source,
+      openObjectURL: () => "blob:stream-1",
+      revokeObjectURL: () => undefined,
+      fetchStream: async () => body([initSegment, fragment([1]), reencoded, fragment([2])]),
+    })
+
+    await playback.start()
+    // The re-declaration and the pictures after it are carried in the background
+    // (see establish/pump in the playback), so the case hands that read a turn.
+    await flush()
+
+    // One source buffer, created for the codec the stream opened with, and the
+    // second segment appended where it arrived - after the picture that preceded
+    // it and before the pictures it describes.
+    expect(media.mediaTypes).toEqual(['video/mp4; codecs="avc1.42E01F"'])
+    expect(media.buffer.switched).toEqual(['video/mp4; codecs="avc1.640028"'])
+    expect(media.buffer.appended).toEqual([initSegment, fragment([1]), reencoded, fragment([2])])
+    expect(video.srcValue()).toBe("blob:stream-1")
+    expect(video.stripped).toHaveLength(0)
+    expect(media.endedCount()).toBe(1) // the response ended, which is its own fact
+  })
+
+  it("appends a re-declaration that only changed the frame size without switching the codec", async () => {
+    // A device whose screen changed size re-declares at the same codec and a
+    // different frame: the size is not part of a media type, so the segment is
+    // appended as it is and no changeType is signalled.
+    const media = fakeSource()
+    const resized = declaration([0x42, 0xe0, 0x1f], [720, 1280])
+    const playback = browserMirrorPlayback({
+      element: null,
+      url: "http://control-plane.test/stream",
+      headers: {},
+      createSource: () => media.source,
+      openObjectURL: () => "blob:stream-1",
+      revokeObjectURL: () => undefined,
+      fetchStream: async () => body([initSegment, fragment([1]), resized, fragment([2])]),
+    })
+
+    await playback.start()
+    await flush()
+
+    expect(media.buffer.switched).toHaveLength(0)
+    expect(media.buffer.appended).toEqual([initSegment, fragment([1]), resized, fragment([2])])
+  })
+
+  it("signals the codec change before the segment that carries it, even when the buffer is busy", async () => {
+    // changeType is only legal while the buffer is not updating, so the switch
+    // happens at the moment the append does - not when the bytes arrived.
+    const media = fakeSource()
+    const reencoded = declaration([0x64, 0x00, 0x28], [1080, 2280])
+    const playback = browserMirrorPlayback({
+      element: null,
+      url: "http://control-plane.test/stream",
+      headers: {},
+      createSource: () => media.source,
+      openObjectURL: () => "blob:stream-1",
+      revokeObjectURL: () => undefined,
+      fetchStream: async () => body([initSegment, fragment([1]), reencoded, fragment([2])]),
+    })
+
+    media.buffer.hold()
+    await playback.start()
+    // The pieces after the first are carried in the background, so the case hands
+    // that read its turn before asserting what the held buffer has been given.
+    await flush()
+    expect(media.buffer.appended).toHaveLength(0)
+    expect(media.buffer.switched).toHaveLength(0)
+
+    media.buffer.finish() // the initialisation segment
+    media.buffer.finish() // the picture before the re-declaration
+    expect(media.buffer.switched).toHaveLength(0)
+    media.buffer.finish() // the re-declaration: the switch lands with its own append
+    expect(media.buffer.switched).toEqual(['video/mp4; codecs="avc1.640028"'])
+    expect(media.buffer.appended[2]).toEqual(reencoded)
+    media.buffer.finish()
+    expect(media.buffer.appended[3]).toEqual(fragment([2]))
+  })
+
+  it("holds a declaration that was split across two reads rather than creating a buffer from half of it", async () => {
+    const media = fakeSource()
+    const playback = browserMirrorPlayback({
+      element: null,
+      url: "http://control-plane.test/stream",
+      headers: {},
+      createSource: () => media.source,
+      openObjectURL: () => "blob:stream-1",
+      revokeObjectURL: () => undefined,
+      fetchStream: async () => body([initSegment.subarray(0, 12), concatBytes([initSegment.subarray(12), fragment([31])])]),
+    })
+
+    await playback.start()
+    // The rest of the declaration and the picture after it are carried in the
+    // background, so the case hands that read a turn.
+    await flush()
+
+    expect(media.mediaTypes).toEqual(['video/mp4; codecs="avc1.42E01F"'])
+    expect(media.buffer.appended[0]).toEqual(initSegment)
+    expect(media.buffer.appended[1]).toEqual(fragment([31]))
   })
 
   it("refuses a picture that arrived before the segment describing its codec", async () => {
