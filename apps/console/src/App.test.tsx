@@ -227,14 +227,20 @@ describe("Drift command center", () => {
     expect(screen.queryByRole("dialog", { name: /workspace settings/i })).not.toBeInTheDocument()
     expect(document.querySelector('[data-slot="scroll-area"]')).toBeInTheDocument()
     await user.keyboard("{Escape}")
-    expect(screen.getByRole("button", { name: /Atlas 04/i })).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
-    expect(screen.getByLabelText(/Atlas 04 floating phone frame/i)).toHaveStyle({ width: "270px", height: "480px" })
-    // A compact frame is as wide as the console's own shape at the workspace's size and
-    // as tall as the shape its TILE draws: this plane states no size for a still, so the
-    // tile draws the console's own portrait shape and the frame is 108 x 192.
-    const compact = screen.getByRole("button", { name: /Atlas 07/i })
-    expect(compact).toHaveStyle({ width: "108px" })
+    // The compact frames are read from the grid, not from the page: Workspace
+    // Settings is open and its frame-order list also names every device, so a
+    // query for a button named after a device has two honest answers here.
+    const grid = screen.getByLabelText("Compact phone frames")
+    expect(within(grid).getByRole("button", { name: /Atlas 04/i })).toBeInTheDocument()
+    await user.click(within(grid).getByRole("button", { name: /Atlas 04/i }))
+    // A workspace that has never set a size draws the two defaults: 680 for the
+    // floating frame and 264 for a compact one. The floating frame is as wide as
+    // the console's own portrait shape at that height and as tall as the shape
+    // its tile draws - this plane states no size for a still, so the tile draws
+    // the console's own portrait shape.
+    expect(screen.getByLabelText(/Atlas 04 floating phone frame/i)).toHaveStyle({ width: "383px", height: "681px" })
+    const compact = within(grid).getByRole("button", { name: /Atlas 07/i })
+    expect(compact).toHaveStyle({ width: "149px" })
     expect(within(compact).getByTestId(/^still-tile-picture-/)).toHaveStyle({ aspectRatio: "9 / 16" })
   })
 

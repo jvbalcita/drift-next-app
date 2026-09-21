@@ -70,3 +70,29 @@ export function deviceObservationSentence(deviceName: string, status: DeviceStat
 export function notObserved(status: DeviceStatus): boolean {
   return status === "offline" || status === "unobserved"
 }
+
+/**
+ * isOnlineDevice is THE online reading, and there is exactly one of it.
+ *
+ * AGENTS.md requires the ONLINE reading to be made in one place: a device is
+ * online only while its current endpoint reported a usable link and that sighting
+ * still stands, and the reading the console PAINTS has to be the same reading
+ * every action resolves its candidates from, or a surface that shows a device as
+ * online and a run that acts on the online fleet would disagree about which
+ * devices those are. The control plane derives that fact and reports it as this
+ * one wire status, so the console's share of the rule is that no surface tests
+ * the status itself: they ask here.
+ *
+ * It is a strictly narrower reading than "not absent". An attached device whose
+ * transport reported it unauthorized, and one this host may not open, are both
+ * present and both unactionable, and neither is online: a control that offers a
+ * device the plane does not read as online offers a device it cannot act on.
+ */
+export function isOnlineDevice(device: { status: DeviceStatus }): boolean {
+  return device.status === "online"
+}
+
+/** onlineDevices is the fleet the plane reads as online, in the order it was given. */
+export function onlineDevices<T extends { status: DeviceStatus }>(devices: readonly T[]): T[] {
+  return devices.filter(isOnlineDevice)
+}

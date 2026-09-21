@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ControlPlaneSnapshot, DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
 import { LabAdapterIndicator } from "./lab-adapter"
+import { isOnlineDevice } from "@/lib/device-status"
 import { DataTablePagination, DeviceStatus, EmptyState, PageIntro } from "./shared"
 import { buildInspection, deviceName, endpointHost, endpointPort, humanTimestamp } from "./device-inspection"
 import { DeviceInspectSheet } from "./DeviceInspectSheet"
@@ -149,5 +150,7 @@ function searchable(device: DeviceView, endpoints: ControlPlaneSnapshot["endpoin
 }
 
 function matches(device: DeviceView, filter: Filter) {
-  return filter === "all" || filter === "online" && device.status === "online" || filter === "attention" && device.status !== "online" || filter === "replaced" && device.lifecycle === "unavailable" || filter === "retired" && device.lifecycle === "retired"
+  // Online is asked of the ONE online reading rather than tested here, so this
+  // view and every action-candidate set resolve the same fleet (AGENTS.md §2).
+  return filter === "all" || filter === "online" && isOnlineDevice(device) || filter === "attention" && !isOnlineDevice(device) || filter === "replaced" && device.lifecycle === "unavailable" || filter === "retired" && device.lifecycle === "retired"
 }

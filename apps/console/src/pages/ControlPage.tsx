@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react"
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react"
 import { createPortal } from "react-dom"
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Crosshair, Download, Image, Info, Keyboard, LoaderCircle, MessageSquareText, Network, Package, Pin, Power, RotateCcw, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Terminal, Unplug, Upload, Volume1, Volume2, X } from "lucide-react"
 import { toast } from "sonner"
@@ -24,21 +24,21 @@ import { deviceOperationLabels, deviceOperationOutcomeSentence } from "@/lib/dev
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
 import { reportDispatch } from "@/lib/api/report-dispatch"
 import { captureSerialForDevice } from "./page-utils"
-import { DeviceStatus as DeviceStatusBadge, EmptyState, OperatorNotice, StatusBadge } from "./shared"
+import { applyFrameOrder, moveFrame, useControlPageSettings, wholeFrameOrder, workspaceLayoutBounds, workspaceLayoutDefaults, type ConsoleSettings, type WorkspaceLayout } from "@/lib/control-page-settings"
+import { deviceListColumnIds, deviceListColumns, DeviceListTable, type DeviceListColumnId } from "./device-list-table"
+import { onlineDevices } from "@/lib/device-status"
+import { EmptyState, OperatorNotice, StatusBadge } from "./shared"
 
 /**
- * Workspace is this console's OWN display state: how big the frames are drawn and
- * which way round.
+ * Workspace is this console's OWN display state: how big the frames are drawn,
+ * which way round, and in what order.
  *
- * It used to carry a preview level and a frame rate as well, because each compact
- * frame was a live stream whose encoder level the panel set. A compact frame is a
- * STILL now, and the level and cadence a still is carried at are the control
- * plane's deployment inputs - not this console's - so the two controls that set
- * them are gone rather than left bounding nothing: a control an operator can move
- * that changes nothing is a surface claiming a bound it does not own.
+ * It is not this page's state any more. It is read from, and written to, the
+ * workspace record through `useControlPageSettings`: leaving the Control page
+ * used to reset every one of these values, because they were `useState`
+ * defaults that died with the page.
  */
-type Workspace = { largeHeight: number; smallHeight: number; orientation: "portrait" | "landscape" }
-type ConsoleSettings = { gap: number; opacity: number; autoScreenOff: boolean; controlSmall: boolean; controlsSide: "left" | "right"; workspaceSide: "left" | "right"; showTag: boolean; showIndex: boolean; showName: boolean; showIp: boolean; liveMirrorTransport: LiveMirrorTransportChoice }
+type Workspace = WorkspaceLayout
 type FloatingPosition = { x: number; y: number }
 type ConnectionFilter = "all" | "usb" | "wifi" | "otg"
 type TaskAction = "activate" | "addRange" | "scanRange" | "scanSavedNetwork" | "reloadDevices" | "restartAdbServer" | "refreshDeviceList"
@@ -60,7 +60,6 @@ const connectionFilters: { value: ConnectionFilter; label: string }[] = [
   { value: "otg", label: "OTG" },
 ]
 
-const workspaceDefaults: Workspace = { largeHeight: 480, smallHeight: 192, orientation: "portrait" }
 /**
  * The transport a device is streamed over until the operator says otherwise.
  *
@@ -72,8 +71,10 @@ const workspaceDefaults: Workspace = { largeHeight: 480, smallHeight: 192, orien
  * where WebRTC stalled twice for 1.2 s and showed worst gaps of 98-1250 ms.
  * `cmd/mirror-transport-measure` is the harness that took it; the numbers and
  * the method are in docs/operations/mirror-transport-measurement.md.
+ *
+ * The default itself lives in `consoleSettingsDefaults`, with the rest of this
+ * page's settings, because all of them now persist to the workspace record.
  */
-const settingsDefaults: ConsoleSettings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showIp: true, liveMirrorTransport: "tcp" }
 const initialPosition: FloatingPosition = { x: 120, y: 88 }
 const phoneColors = ["bg-emerald-700", "bg-sky-700", "bg-teal-700", "bg-fuchsia-700", "bg-rose-700", "bg-slate-950", "bg-neutral-950", "bg-cyan-800", "bg-violet-800", "bg-purple-800", "bg-teal-800", "bg-slate-600"]
 /**
@@ -97,8 +98,10 @@ function errorMessage(error: unknown): string {
 }
 
 export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", mirror, grid }: { snapshot: ControlPlaneSnapshot; dispatch: DispatchIntent; dispatchLab?: (intent: ControlPlaneIntent) => Promise<MutationResult>; labNotice?: string; mirror?: LiveMirrorClient; grid?: GridPreviewClient }) {
-  const [workspace, setWorkspace] = useState(workspaceDefaults)
-  const [settings, setSettings] = useState(settingsDefaults)
+  // Both settings live in the workspace record, and this is the whole of this
+  // page's read and write path to them: there is no second copy in React state,
+  // which is what made them reset the moment the operator left the page.
+  const { layout: workspace, consoleSettings: settings, updateLayout: setWorkspace, updateConsoleSettings: setSettings } = useControlPageSettings(snapshot.settings, dispatch, showToastMessage)
   const [sourceId, setSourceId] = useState<string | null>(null)
   const [followerIds, setFollowerIds] = useState<string[]>([])
   /**
@@ -141,7 +144,16 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
   // currently holds, deduplicated and in a stable order rather than in list
   // order, and never a claim about which devices are attached.
   const observedEndpoints = Array.from(new Set(snapshot.endpoints.filter((endpoint) => endpoint.state === "current" && endpoint.host.trim() !== "").map((endpoint) => `${endpoint.host}:${endpoint.port}`))).sort()
-  const visibleDevices = snapshot.devices.filter((device) => matchesConnectionFilter(device, connectionFilter))
+  /**
+   * The devices in the ORDER THE WORKSPACE RECORD HOLDS.
+   *
+   * The grid, the frame-order control and the picker all read this one list, so
+   * what the operator arranged is what every surface draws and no surface
+   * re-derives an order of its own. A device the stored order has never seen is
+   * still drawn, after the ones it names.
+   */
+  const orderedDevices = useMemo(() => applyFrameOrder(snapshot.devices, workspace.frameOrder), [snapshot.devices, workspace.frameOrder])
+  const visibleDevices = orderedDevices.filter((device) => matchesConnectionFilter(device, connectionFilter))
   /**
    * The grid's stills, as the control plane answered for the devices this view is
    * drawing.
@@ -361,6 +373,21 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
   const sourceLease = source ? snapshot.leases.some((candidate) => candidate.deviceId === source.id && candidate.state === "active") : false
   const deviceModal = source ? <FloatingDevice device={source} devices={snapshot.devices} artifacts={snapshot.artifacts} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onCapture={captureDeviceScreen} onChangeDevice={changeSource} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease} dispatch={dispatch} /> : null
   const selectedCount = (source ? 1 : 0) + followers.length
+  /**
+   * moveFrameInOrder writes the WHOLE frame order, in one settings write.
+   *
+   * It is not a slot swap and not a local re-sort: AGENTS.md requires an
+   * operator order to be written as a whole order rather than by overwriting a
+   * neighbour's position, so what travels is the entire arrangement, resolved
+   * from the devices the plane holds plus the order it already stores. The
+   * order the operator set is then read back out of the projection by every
+   * surface on this page - the grid, the picker and this control - so a reorder
+   * that did not persist would be visible as a grid that snapped back.
+   */
+  function moveFrameInOrder(deviceId: string, direction: -1 | 1) {
+    const current = wholeFrameOrder(snapshot.devices, workspace.frameOrder)
+    setWorkspace({ ...workspace, frameOrder: moveFrame(current, deviceId, direction) })
+  }
 
   return <div className="relative min-h-full">
     <div className="mb-5 flex items-center justify-between gap-3"><div className="drift-kicker flex items-center gap-3"><span className="h-px w-8 bg-primary" aria-hidden="true" /><span>Control / Device Workspace</span></div><div className="flex flex-wrap items-center justify-end gap-2"><StatusBadge label={snapshot.runtimeConnection.state} tone={snapshot.runtimeConnection.state === "connected" ? "healthy" : snapshot.runtimeConnection.state === "reconnecting" ? "attention" : "danger"} /><LabModeBadges adapter={snapshot.labAdapter} /></div></div>
@@ -384,7 +411,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
       <Button size="sm" variant="outline" disabled={!source || modalPinned} onClick={() => setPosition(initialPosition)}><Crosshair className="size-3.5" aria-hidden="true" />Reset Position</Button>
     </div>
     <div className={`mt-4 grid items-start gap-4 ${workspaceOpen ? settings.workspaceSide === "right" ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
-      {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setRangeEndLastOctet} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} endpoints={snapshot.endpoints} pendingAction={pendingAction} onActivate={activateFleet} onRestartServer={restartAdbServer} onAddRange={addDiscoveryRange} onScanRange={scanEnteredRange} onScanSavedNetwork={scanSavedNetwork} onReloadDevices={reloadDevices} /></div> : null}
+      {workspaceOpen ? <div className={`xl:sticky xl:top-4 ${settings.workspaceSide === "right" ? "xl:order-2" : "xl:order-1"}`}><WorkspacePanel workspace={workspace} onWorkspaceChange={setWorkspace} pinned={workspacePinned} onPinnedChange={(value) => { setWorkspacePinned(value); setWorkspaceOpen(value) }} side={settings.workspaceSide} port={port} onPortChange={setPort} startIp={startIp} onStartIpChange={setStartIp} endIp={endIp} onEndIpChange={setRangeEndLastOctet} profileId={profileId} onProfileIdChange={setProfileId} profiles={snapshot.networkProfiles} endpoints={snapshot.endpoints} pendingAction={pendingAction} onActivate={activateFleet} onRestartServer={restartAdbServer} onAddRange={addDiscoveryRange} onScanRange={scanEnteredRange} onScanSavedNetwork={scanSavedNetwork} onReloadDevices={reloadDevices} devices={orderedDevices} onMoveFrame={moveFrameInOrder} /></div> : null}
       <section className={`min-w-0 ${workspaceOpen && settings.workspaceSide === "left" ? "xl:order-2" : ""}`} aria-label="Phone control workspace">
         <LabObservationFrame adapter={snapshot.labAdapter} height={workspace.largeHeight} />
         <ConnectionFilterBar filter={connectionFilter} onChange={setConnectionFilter} shown={visibleDevices.length} total={snapshot.devices.length} />
@@ -430,28 +457,69 @@ function TaskButton({ action, pendingAction, icon: Icon, children, className, di
   return <Button type="button" size="sm" variant={variant} className={className} disabled={disabled || pendingAction !== null} aria-busy={pending} onClick={onClick}>{pending ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : Icon ? <Icon className="size-3.5" aria-hidden="true" /> : null}{children}</Button>
 }
 
-function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, side, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, profiles, endpoints, pendingAction, onActivate, onRestartServer, onAddRange, onScanRange, onScanSavedNetwork, onReloadDevices }: { workspace: Workspace; onWorkspaceChange: (value: Workspace) => void; pinned: boolean; onPinnedChange: (value: boolean) => void; side: "left" | "right"; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; profiles: ControlPlaneSnapshot["networkProfiles"]; endpoints: ControlPlaneSnapshot["endpoints"]; pendingAction: TaskAction | null; onActivate: () => void; onRestartServer: () => void; onAddRange: () => void; onScanRange: () => void; onScanSavedNetwork: () => void; onReloadDevices: () => void }) {
+function WorkspacePanel({ workspace, onWorkspaceChange, pinned, onPinnedChange, side, port, onPortChange, startIp, onStartIpChange, endIp, onEndIpChange, profileId, onProfileIdChange, profiles, endpoints, pendingAction, onActivate, onRestartServer, onAddRange, onScanRange, onScanSavedNetwork, onReloadDevices, devices, onMoveFrame }: { workspace: Workspace; onWorkspaceChange: (value: Workspace) => void; pinned: boolean; onPinnedChange: (value: boolean) => void; side: "left" | "right"; port: string; onPortChange: (value: string) => void; startIp: string; onStartIpChange: (value: string) => void; endIp: string; onEndIpChange: (value: string) => void; profileId: string; onProfileIdChange: (value: string) => void; profiles: ControlPlaneSnapshot["networkProfiles"]; endpoints: ControlPlaneSnapshot["endpoints"]; pendingAction: TaskAction | null; onActivate: () => void; onRestartServer: () => void; onAddRange: () => void; onScanRange: () => void; onScanSavedNetwork: () => void; onReloadDevices: () => void; devices: readonly DeviceView[]; onMoveFrame: (deviceId: string, direction: -1 | 1) => void }) {
   return <aside className="border border-border bg-card" aria-label="Workspace Settings">
     <div className="flex items-start gap-3 border-b border-border p-4">
       <span className="grid size-8 shrink-0 place-items-center border border-primary/40 bg-secondary text-primary"><SlidersHorizontal className="size-4" aria-hidden="true" /></span>
-      <div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">Workspace Settings</h2><p className="mt-1 text-[11px] leading-4 text-muted-foreground">Display and OTG setup</p></div>
+      <div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">Workspace Settings</h2><p className="mt-1 text-[11px] leading-4 text-muted-foreground">Display, frame order and OTG setup</p></div>
       <Button size="icon-sm" variant="ghost" aria-label="Unpin Workspace Settings" aria-pressed={pinned} onClick={() => onPinnedChange(false)}>{side === "left" ? <ChevronsLeft className="size-3.5" aria-hidden="true" /> : <ChevronsRight className="size-3.5" aria-hidden="true" />}</Button>
     </div>
     <Tabs defaultValue="display">
       <TabsList aria-label="Workspace Settings Sections"><TabsTrigger value="display">Display</TabsTrigger><TabsTrigger value="otg">OTG Setup</TabsTrigger></TabsList>
       <TabsContent value="display" className="space-y-5 p-4">
         <div className="border-l-2 border-primary pl-3"><p className="text-xs font-semibold">Floating Device</p><p className="mt-1 text-[11px] text-muted-foreground">One scale keeps the phone and controls in proportion.</p></div>
-        <Slider label="Floating Frame Size" value={workspace.largeHeight} min={480} max={1240} step={40} unit="px" onChange={(largeHeight) => onWorkspaceChange({ ...workspace, largeHeight })} />
+        <Slider label="Floating Frame Size" value={workspace.largeHeight} min={workspaceLayoutBounds.largeHeight.min} max={workspaceLayoutBounds.largeHeight.max} step={workspaceLayoutBounds.largeHeight.step} unit="px" onChange={(largeHeight) => onWorkspaceChange({ ...workspace, largeHeight })} />
         <div className="border-t border-border pt-4"><p className="text-xs font-semibold">Compact Phone Frames</p><p className="mt-1 text-[11px] text-muted-foreground">Orientation applies only to compact frames.</p></div>
-        <Slider label="Small Screen" value={workspace.smallHeight} min={192} max={840} step={24} unit="px" onChange={(smallHeight) => onWorkspaceChange({ ...workspace, smallHeight })} />
+        <Slider label="Small Screen" value={workspace.smallHeight} min={workspaceLayoutBounds.smallHeight.min} max={workspaceLayoutBounds.smallHeight.max} step={workspaceLayoutBounds.smallHeight.step} unit="px" onChange={(smallHeight) => onWorkspaceChange({ ...workspace, smallHeight })} />
         <div className="grid grid-cols-2 gap-2"><Button size="sm" variant={workspace.orientation === "portrait" ? "default" : "outline"} onClick={() => onWorkspaceChange({ ...workspace, orientation: "portrait" })}>Portrait</Button><Button size="sm" variant={workspace.orientation === "landscape" ? "default" : "outline"} onClick={() => onWorkspaceChange({ ...workspace, orientation: "landscape" })}>Landscape</Button></div>
-        <Button variant="outline" className="w-full rounded-none" onClick={() => onWorkspaceChange(workspaceDefaults)}>Reset Workspace</Button>
+        <FrameOrderPanel devices={devices} order={workspace.frameOrder} onMoveFrame={onMoveFrame} />
+        {/*
+          Reset restores the SIZES and the orientation and leaves the frame order
+          alone. The order is not a display size the operator can re-guess: it is
+          an arrangement they built frame by frame, it has its own two controls
+          directly above, and a button labelled "Reset Workspace" quietly
+          discarding it would be a destructive action under a display heading.
+        */}
+        <Button variant="outline" className="w-full rounded-none" onClick={() => onWorkspaceChange({ ...workspaceLayoutDefaults, frameOrder: workspace.frameOrder })}>Reset Workspace</Button>
       </TabsContent>
       <TabsContent value="otg" className="space-y-5 p-4">
         <OtgSetupPanel endpoints={endpoints} profiles={profiles} port={port} onPortChange={onPortChange} startIp={startIp} onStartIpChange={onStartIpChange} endIp={endIp} onEndIpChange={onEndIpChange} profileId={profileId} onProfileIdChange={onProfileIdChange} pendingAction={pendingAction} onActivate={onActivate} onRestartServer={onRestartServer} onAddRange={onAddRange} onScanRange={onScanRange} onScanSavedNetwork={onScanSavedNetwork} onReloadDevices={onReloadDevices} />
       </TabsContent>
     </Tabs>
   </aside>
+}
+
+/**
+ * FrameOrderPanel is where the small frames are arranged.
+ *
+ * It is in WORKSPACE settings because the order is a property of the workspace's
+ * layout and not of one operator's browser: two operators looking at this
+ * workspace see the same board in the same order.
+ *
+ * It writes a WHOLE order rather than moving one frame into one slot (AGENTS.md
+ * sections 2 and 7). The list it shows is the resolved order, so a device the
+ * stored order has not seen yet appears at the end where the grid draws it, and
+ * the first press of a Move control adopts the arrangement the operator is
+ * actually looking at rather than an order that only exists in the record.
+ *
+ * The controls are buttons rather than drag handles: a drag is unreachable by
+ * keyboard, and an operator arranging a board is exactly the operator who may be
+ * doing it with one.
+ */
+function FrameOrderPanel({ devices, order, onMoveFrame }: { devices: readonly DeviceView[]; order: readonly string[]; onMoveFrame: (deviceId: string, direction: -1 | 1) => void }) {
+  const resolved = applyFrameOrder(devices, order)
+  if (resolved.length < 2) return null
+  return <div className="border-t border-border pt-4" data-testid="frame-order-panel">
+    <ControlLabel label="Frame Order" explanation="The order the compact frames are drawn in, for everyone reading this workspace. Each press writes the whole order to the workspace record, so it outlasts this browser and this page. A device this order has not seen yet is drawn after the ones it names." />
+    <ol className="mt-2 space-y-1">
+      {resolved.map((device, index) => <li key={device.id} className="flex items-center gap-2 border border-border px-2 py-1" data-testid={`frame-order-${device.id}`}>
+        <span className="drift-data w-5 shrink-0 text-[10px] text-muted-foreground">{index + 1}</span>
+        <span className="min-w-0 flex-1 truncate text-xs">{device.displayName}</span>
+        <Button type="button" size="icon-sm" variant="ghost" aria-label={`Move ${device.displayName} earlier`} disabled={index === 0} onClick={() => onMoveFrame(device.id, -1)}><ChevronLeft className="size-3.5" aria-hidden="true" /></Button>
+        <Button type="button" size="icon-sm" variant="ghost" aria-label={`Move ${device.displayName} later`} disabled={index === resolved.length - 1} onClick={() => onMoveFrame(device.id, 1)}><ChevronRight className="size-3.5" aria-hidden="true" /></Button>
+      </li>)}
+    </ol>
+  </div>
 }
 
 /**
@@ -526,7 +594,7 @@ function OtgSetupPanel({ endpoints, profiles, port, onPortChange, startIp, onSta
  * control that does alter device state.
  */
 function ConsoleSettingsDialog({ settings, onChange, modalPinned, onModalPinnedChange, dispatch }: { settings: ConsoleSettings; onChange: (value: ConsoleSettings) => void; modalPinned: boolean; onModalPinnedChange: (value: boolean) => void; dispatch: DispatchIntent }) {
-  return <Dialog><DialogTrigger render={<Button size="sm" variant="outline" />}><Settings2 className="size-3.5" aria-hidden="true" />Settings</DialogTrigger><DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-none sm:max-w-2xl"><DialogHeader><DialogTitle>Console Settings</DialogTitle><DialogDescription>Appearance and presentation are local console preferences. Fleet defaults change device state across the workspace through the control plane&apos;s lease, fencing, and postcondition checks.</DialogDescription></DialogHeader><Tabs defaultValue="appearance" className="border-y border-border py-4"><TabsList aria-label="Console Settings sections"><TabsTrigger value="appearance">Appearance</TabsTrigger><TabsTrigger value="presentation">Presentation</TabsTrigger><TabsTrigger value="fleet">Fleet</TabsTrigger></TabsList><TabsContent value="appearance" className="space-y-5 p-1 pt-5"><Slider label="Devices Gap" value={settings.gap} min={4} max={32} unit="px" onChange={(gap) => onChange({ ...settings, gap })} /><Slider label="Info Opacity" value={settings.opacity} min={30} max={100} unit="%" onChange={(opacity) => onChange({ ...settings, opacity })} /><SettingToggle label="Auto Screen Off" description="Preference for inactive compact frames." checked={settings.autoScreenOff} onChange={(autoScreenOff) => onChange({ ...settings, autoScreenOff })} /><SettingToggle label="Control Small Screen" description="Uses compact-frame control rather than opening the big device." checked={settings.controlSmall} onChange={(controlSmall) => onChange({ ...settings, controlSmall })} /><div className="border-t border-border pt-4"><Choice label={liveMirrorCopy.settings.label} value={settings.liveMirrorTransport} options={["webrtc", "tcp"]} labels={liveMirrorCopy.settings.choice} onChange={(value) => onChange({ ...settings, liveMirrorTransport: value as LiveMirrorTransportChoice })} /><p className="mt-2 text-[11px] leading-4 text-muted-foreground">{liveMirrorCopy.settings.notice}</p></div></TabsContent><TabsContent value="presentation" className="space-y-5 p-1 pt-5"><PositionToggle label="Control Position" value={settings.controlsSide} onChange={(controlsSide) => onChange({ ...settings, controlsSide })} /><PositionToggle label="Workspace Position" value={settings.workspaceSide} onChange={(workspaceSide) => onChange({ ...settings, workspaceSide })} /><SettingToggle label="Connect Tag" description="Show the OTG or Hold badge on compact frames." checked={settings.showTag} onChange={(showTag) => onChange({ ...settings, showTag })} /><SettingToggle label="Device Index" description="Show the numbered device index." checked={settings.showIndex} onChange={(showIndex) => onChange({ ...settings, showIndex })} /><SettingToggle label="Device Name" description="Show the device display name." checked={settings.showName} onChange={(showName) => onChange({ ...settings, showName })} /><SettingToggle label="Device IP" description="Show the compact-frame endpoint identifier." checked={settings.showIp} onChange={(showIp) => onChange({ ...settings, showIp })} /><SettingToggle label="Modal Control Position" description="Pinned places the big frame beside the device grid; drag floats it above the page." checked={modalPinned} onChange={onModalPinnedChange} onLabel="Pinned" offLabel="Drag" /></TabsContent><TabsContent value="fleet" className="space-y-5 p-1 pt-5"><FleetDeviceSettingsPanel dispatch={dispatch} /></TabsContent></Tabs></DialogContent></Dialog>
+  return <Dialog><DialogTrigger render={<Button size="sm" variant="outline" />}><Settings2 className="size-3.5" aria-hidden="true" />Settings</DialogTrigger><DialogContent size="lg" className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-none"><DialogHeader><DialogTitle>Console Settings</DialogTitle><DialogDescription>Appearance and presentation are local console preferences. Fleet defaults change device state across the workspace through the control plane&apos;s lease, fencing, and postcondition checks.</DialogDescription></DialogHeader><Tabs defaultValue="appearance" className="border-y border-border py-4"><TabsList aria-label="Console Settings sections"><TabsTrigger value="appearance">Appearance</TabsTrigger><TabsTrigger value="presentation">Presentation</TabsTrigger><TabsTrigger value="fleet">Fleet</TabsTrigger></TabsList><TabsContent value="appearance" className="space-y-5 p-1 pt-5"><Slider label="Devices Gap" value={settings.gap} min={4} max={32} unit="px" onChange={(gap) => onChange({ ...settings, gap })} /><Slider label="Info Opacity" value={settings.opacity} min={30} max={100} unit="%" onChange={(opacity) => onChange({ ...settings, opacity })} /><SettingToggle label="Auto Screen Off" description="Preference for inactive compact frames." checked={settings.autoScreenOff} onChange={(autoScreenOff) => onChange({ ...settings, autoScreenOff })} /><SettingToggle label="Control Small Screen" description="Uses compact-frame control rather than opening the big device." checked={settings.controlSmall} onChange={(controlSmall) => onChange({ ...settings, controlSmall })} /><div className="border-t border-border pt-4"><Choice label={liveMirrorCopy.settings.label} value={settings.liveMirrorTransport} options={["webrtc", "tcp"]} labels={liveMirrorCopy.settings.choice} onChange={(value) => onChange({ ...settings, liveMirrorTransport: value as LiveMirrorTransportChoice })} /><p className="mt-2 text-[11px] leading-4 text-muted-foreground">{liveMirrorCopy.settings.notice}</p></div></TabsContent><TabsContent value="presentation" className="space-y-5 p-1 pt-5"><PositionToggle label="Control Position" value={settings.controlsSide} onChange={(controlsSide) => onChange({ ...settings, controlsSide })} /><PositionToggle label="Workspace Position" value={settings.workspaceSide} onChange={(workspaceSide) => onChange({ ...settings, workspaceSide })} /><SettingToggle label="Connect Tag" description="Show the OTG or Hold badge on compact frames." checked={settings.showTag} onChange={(showTag) => onChange({ ...settings, showTag })} /><SettingToggle label="Device Index" description="Show the numbered device index." checked={settings.showIndex} onChange={(showIndex) => onChange({ ...settings, showIndex })} /><SettingToggle label="Device Name" description="Show the device display name." checked={settings.showName} onChange={(showName) => onChange({ ...settings, showName })} /><SettingToggle label="Device IP" description="Show the compact-frame endpoint identifier." checked={settings.showIp} onChange={(showIp) => onChange({ ...settings, showIp })} /><SettingToggle label="Modal Control Position" description="Pinned places the big frame beside the device grid; drag floats it above the page." checked={modalPinned} onChange={onModalPinnedChange} onLabel="Pinned" offLabel="Drag" /></TabsContent><TabsContent value="fleet" className="space-y-5 p-1 pt-5"><FleetDeviceSettingsPanel dispatch={dispatch} /></TabsContent></Tabs></DialogContent></Dialog>
 }
 
 /**
@@ -628,13 +696,41 @@ function FleetSettingsResult({ view }: { view: DeviceSettingsApplyView }) {
   </div>
 }
 
+/**
+ * DeviceListDialog is the workspace's device registry, as a table.
+ *
+ * It is `xl` because it IS a table: it held five columns inside the `sm` width
+ * and an operator read them cut off, which is a dialog that cannot do the one
+ * thing it was opened for.
+ *
+ * Its columns are the operator's: each header carries the two controls that move
+ * that column one place, and the Columns control filters which of them are shown.
+ * The columns are not a second column set - they are the ones
+ * `device-list-table` states - and hiding one never hides the fact that it is
+ * hidden: the notice under the toolbar names every column that is not being
+ * shown, and the table is described by it, because a table missing its Status
+ * column otherwise reads as a table that HAS no status.
+ */
 function DeviceListDialog({ devices, endpoints, onReload, pendingAction }: { devices: readonly DeviceView[]; endpoints: ControlPlaneSnapshot["endpoints"]; onReload: () => void; pendingAction: TaskAction | null }) {
-  return <Dialog><DialogTrigger render={<Button size="sm" variant="outline" />}><Smartphone className="size-3.5" aria-hidden="true" />Devices</DialogTrigger><DialogContent className="max-w-3xl rounded-none"><DialogHeader><DialogTitle>Device List</DialogTitle><DialogDescription>Devices in this workspace&apos;s registry. Status reports the current observation fact recorded by the control plane, not a claim that the device answers at this moment. The ADB server restart lives in Workspace Settings → OTG Setup, so the host-wide operation has one control.</DialogDescription></DialogHeader><div className="flex flex-wrap gap-2 border-y border-border py-3"><TaskButton action="refreshDeviceList" pendingAction={pendingAction} variant="outline" icon={RotateCw} onClick={onReload}>Reload</TaskButton></div><div className="max-h-[60vh] overflow-y-auto"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-muted/80 text-[10px] uppercase tracking-[.08em] text-muted-foreground"><tr><th className="px-3 py-2 font-semibold">Index</th><th className="px-3 py-2 font-semibold">Device Name</th><th className="px-3 py-2 font-semibold">Device ID</th><th className="px-3 py-2 font-semibold">Status</th><th className="px-3 py-2 font-semibold">Observed Port</th></tr></thead><tbody className="divide-y divide-border">{devices.map((device, index) => {
-    // The port is the one the device was OBSERVED on, or nothing. Painting one
-    // field into every row would show a port no device answered on.
-    const observed = endpoints.find((endpoint) => endpoint.deviceId === device.id && endpoint.state === "current")
-    return <tr key={device.id}><td className="px-3 py-3 font-mono text-muted-foreground">{index + 1}</td><td className="px-3 py-3 font-medium">{device.displayName}</td><td className="px-3 py-3 font-mono text-[10px] text-muted-foreground">{device.id}</td><td className="px-3 py-3"><DeviceStatusBadge device={device} /></td><td className="px-3 py-3 font-mono">{observed ? observed.port : "—"}</td></tr>
-  })}</tbody></table></div></DialogContent></Dialog>
+  const [columnOrder, setColumnOrder] = useState<DeviceListColumnId[]>(() => [...deviceListColumnIds])
+  const [hiddenColumns, setHiddenColumns] = useState<DeviceListColumnId[]>([])
+  const shownColumns = columnOrder.filter((id) => !hiddenColumns.includes(id))
+  const hiddenLabels = deviceListColumns.filter((column) => hiddenColumns.includes(column.id)).map((column) => column.label)
+  return <Dialog><DialogTrigger render={<Button size="sm" variant="outline" />}><Smartphone className="size-3.5" aria-hidden="true" />Devices</DialogTrigger><DialogContent size="xl" className="rounded-none"><DialogHeader><DialogTitle>Device List</DialogTitle><DialogDescription>Devices in this workspace&apos;s registry. Status reports the current observation fact recorded by the control plane, not a claim that the device answers at this moment. The ADB server restart lives in Workspace Settings → OTG Setup, so the host-wide operation has one control.</DialogDescription></DialogHeader>
+    <div className="flex flex-wrap items-center gap-3 border-y border-border py-3">
+      <TaskButton action="refreshDeviceList" pendingAction={pendingAction} variant="outline" icon={RotateCw} onClick={onReload}>Reload</TaskButton>
+      <div role="group" aria-label="Columns shown in the device list" className="flex flex-wrap items-center gap-1">
+        <span className="text-xs font-semibold">Columns</span>
+        {deviceListColumns.map((column) => <Button key={column.id} type="button" size="sm" variant={hiddenColumns.includes(column.id) ? "outline" : "default"} aria-pressed={!hiddenColumns.includes(column.id)} onClick={() => setHiddenColumns((current) => current.includes(column.id) ? current.filter((id) => id !== column.id) : [...current, column.id])}>{column.label}</Button>)}
+      </div>
+    </div>
+    {hiddenLabels.length === 0
+      ? null
+      : <p id="device-list-hidden-columns" role="status" data-testid="device-list-hidden-columns" className="border-b border-border bg-muted/30 px-3 py-2 text-[11px] leading-4 text-muted-foreground">
+        <span className="drift-data font-semibold">{hiddenLabels.length}</span> of <span className="drift-data font-semibold">{deviceListColumns.length}</span> columns are not shown: {hiddenLabels.join(", ")}. The rows below are complete; only these columns are withheld.
+      </p>}
+    <DeviceListTable devices={devices} endpoints={endpoints} columns={shownColumns} onMoveColumn={(id, direction) => setColumnOrder((current) => moveFrame(current, id, direction))} describedBy={hiddenLabels.length === 0 ? undefined : "device-list-hidden-columns"} />
+  </DialogContent></Dialog>
 }
 
 function CompactPhone({ device, index, size, orientation, active, follower, settings, tile, profile, onClick }: { device: DeviceView; index: number; size: number; orientation: Workspace["orientation"]; active: boolean; follower: boolean; settings: ConsoleSettings; tile: GridTileStill; profile: GridProfileView | null; onClick: () => void }) {
@@ -708,32 +804,52 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
  */
 export function FloatingDevice({ device, devices, artifacts, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onCapture, onChangeDevice, mirror, mirrorTransport, workspaceId, leaseRefusal, hasLease, dispatch }: { device: DeviceView; devices: readonly DeviceView[]; artifacts: readonly ArtifactView[]; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onCapture: () => void; onChangeDevice: (deviceId: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; leaseRefusal?: string; hasLease: boolean; dispatch: DispatchIntent }) {
   const session = useLiveMirrorSession({ device, mirror, transport: mirrorTransport, workspaceId, hasLease, leaseRefusal, dispatch })
+  /**
+   * Whether the device list is open BESIDE the frame.
+   *
+   * It is a panel of its own rather than a menu anchored in the action column:
+   * the list is a surface the operator reads WHILE looking at the frame, and a
+   * menu that opens over the frame - or, as it did, under it - is a list that is
+   * only readable once the thing it is about has been covered up.
+   */
+  const [pickerOpen, setPickerOpen] = useState(false)
   const controlsWidth = 220
+  /** The picker panel is the action column's own width: two surfaces, one scale. */
+  const pickerWidth = 220
   const frameGap = 12
   const viewportWidth = typeof window === "undefined" ? Number.POSITIVE_INFINITY : window.innerWidth
   const viewportMargin = 16
   const availableWidth = Number.isFinite(viewportWidth) ? Math.max(320, viewportWidth - viewportMargin * 2) : Number.POSITIVE_INFINITY
   const requestedPhoneWidth = Math.round(workspace.largeHeight * 9 / 16)
-  const phoneWidth = Math.min(requestedPhoneWidth, Math.max(96, availableWidth - controlsWidth - frameGap))
+  const phoneWidth = Math.min(requestedPhoneWidth, Math.max(96, availableWidth - controlsWidth - frameGap - (pickerOpen ? pickerWidth + frameGap : 0)))
   const phoneHeight = Math.round(phoneWidth * (session.frame ? session.frame.height / session.frame.width : 16 / 9))
   const controlsLeft = settings.controlsSide === "left"
-  const frameSize = { width: phoneWidth + controlsWidth + frameGap, height: phoneHeight }
+  const frameSize = { width: phoneWidth + controlsWidth + frameGap + (pickerOpen ? pickerWidth + frameGap : 0), height: phoneHeight }
   const maxLeft = Number.isFinite(viewportWidth) ? Math.max(viewportMargin, viewportWidth - frameSize.width - viewportMargin) : position.x
   const positionStyle = pinned ? frameSize : { ...frameSize, left: Math.min(Math.max(viewportMargin, position.x), maxLeft), top: Math.max(viewportMargin, position.y) }
   const phoneFrameStyle = { width: phoneWidth, minWidth: phoneWidth, maxWidth: phoneWidth, height: phoneHeight, boxSizing: "border-box" as const }
   const controlsFrameStyle = { width: controlsWidth, minWidth: controlsWidth, maxWidth: controlsWidth, height: phoneHeight, boxSizing: "border-box" as const }
-  return <div className={`${pinned ? "relative z-20 self-start" : `fixed ${liveMirrorCopy.layers.floatingFrame}`} flex items-start gap-3 ${controlsLeft ? "flex-row-reverse" : ""}`} style={positionStyle}>
+  const pickerFrameStyle = { width: pickerWidth, minWidth: pickerWidth, maxWidth: pickerWidth, height: phoneHeight, boxSizing: "border-box" as const }
+  const controlsColumn = <div aria-label={`${device.displayName} floating device controls`} className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-popover text-foreground" style={controlsFrameStyle}>
+    <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><LiveMirrorInfo session={session} /><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
+    <div className="min-h-0 flex-1 overflow-y-auto p-2">{livePictureHeld(session.phase) ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><ChangeDeviceButton open={pickerOpen} onToggle={() => setPickerOpen((current) => !current)} /><PanelKeyCommands session={session} /><ControlButton icon={Image} label="Screenshot" onClick={onCapture} /><PanelSettingCommands device={device} dispatch={dispatch} /><PanelOperationCommands device={device} artifacts={artifacts} dispatch={dispatch} /></div>
+    <div className="shrink-0 border-t border-border px-2 py-2">
+      <p data-testid="live-mirror-followers" className="mb-1 text-center text-[10px] text-muted-foreground">Controlling {device.displayName} · {followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
+      <LiveMirrorDeviceKeys session={session} />
+    </div>
+  </div>
+  // The controls column sits on the side the operator chose; the picker is drawn
+  // AFTER the pair, so it is to the RIGHT of the frame whichever side the
+  // controls are on, and it is a SIBLING of the frame element rather than an
+  // overlay portal: a panel that opens beside the frame can be read with the
+  // frame, and a menu portalled over it cannot.
+  return <div className={`${pinned ? "relative z-20 self-start" : `fixed ${liveMirrorCopy.layers.floatingFrame}`} flex items-start gap-3`} style={positionStyle}>
+    {controlsLeft ? controlsColumn : null}
     <div aria-label={`${device.displayName} floating phone frame`} className="flex shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-slate-900 text-white" style={phoneFrameStyle}>
       <LiveMirrorSurface session={session} />
     </div>
-    <div aria-label={`${device.displayName} floating device controls`} className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-popover text-foreground" style={controlsFrameStyle}>
-      <div className={`flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2 ${pinned ? "" : "cursor-grab active:cursor-grabbing"}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}><span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">{device.displayName}</span><LiveMirrorInfo session={session} /><Button size="icon-sm" variant="ghost" aria-label={pinned ? "Unpin floating device" : "Pin floating device beside frames"} aria-pressed={pinned} onClick={() => onPinChange(!pinned)}><Pin className="size-3.5" /></Button><Button size="icon-sm" variant="ghost" aria-label="Close floating device" onClick={onClose}><X className="size-3.5" /></Button></div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">{livePictureHeld(session.phase) ? <Button type="button" size="sm" variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={session.stop} data-testid="live-mirror-stop"><X className="size-3.5 text-muted-foreground" aria-hidden="true" />Stop mirror</Button> : null}<div className="my-2 border-t border-border" /><PanelDevicePicker devices={devices} currentId={device.id} onSelect={onChangeDevice} /><PanelKeyCommands session={session} /><ControlButton icon={Image} label="Screenshot" onClick={onCapture} /><PanelSettingCommands device={device} dispatch={dispatch} /><PanelOperationCommands device={device} artifacts={artifacts} dispatch={dispatch} /></div>
-      <div className="shrink-0 border-t border-border px-2 py-2">
-        <p data-testid="live-mirror-followers" className="mb-1 text-center text-[10px] text-muted-foreground">Controlling {device.displayName} · {followers.length} follower{followers.length === 1 ? "" : "s"} selected</p>
-        <LiveMirrorDeviceKeys session={session} />
-      </div>
-    </div>
+    {controlsLeft ? null : controlsColumn}
+    {pickerOpen ? <DevicePickerPanel device={device} devices={devices} style={pickerFrameStyle} onSelect={(deviceId) => { setPickerOpen(false); onChangeDevice(deviceId) }} onClose={() => setPickerOpen(false)} /> : null}
   </div>
 }
 /**
@@ -1017,21 +1133,57 @@ function PanelQuickPhrase({ device, busy, run }: { device: DeviceView; busy: boo
 }
 
 /**
- * PanelDevicePicker is Change Device: the control that moves the frame to another
- * device of the workspace.
+ * ChangeDeviceButton opens the device list BESIDE the frame.
  *
- * It is panel navigation rather than a device command, and it is drawn here
- * because this is where the operator is looking. Its list is the workspace's own
- * projection, so this console offers the devices it has rather than asserting
- * which of them are reachable, and every entry carries the device's own status
- * label so an operator is not choosing blind. It is rendered only when there is
- * another device to move to: a picker with nothing in it is a control that cannot
- * act, which is the thing this column no longer carries.
+ * It is a toggle rather than a menu trigger: what it opens is a panel of its own
+ * in the frame's own row, not a popup anchored in the action column. The control
+ * stays rendered even when there is nothing to change to, because the panel is
+ * what says so - an operator who presses Change Device and sees nothing at all
+ * cannot tell an empty fleet from a broken control.
  */
-function PanelDevicePicker({ devices, currentId, onSelect }: { devices: readonly DeviceView[]; currentId: string; onSelect: (deviceId: string) => void }) {
-  const selectable = devices.filter((device) => device.id !== currentId)
-  if (selectable.length === 0) return null
-  return <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" aria-label="Change Device" className="h-9 w-full justify-start rounded-none px-2 text-xs" />}><Smartphone className="size-3.5 text-muted-foreground" aria-hidden="true" />Change Device</DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[var(--anchor-width)]">{selectable.map((device) => <DropdownMenuItem key={device.id} onClick={() => onSelect(device.id)}>{`${device.displayName} · ${deviceStatusLabels[device.status]}`}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
+function ChangeDeviceButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return <Button variant="ghost" aria-label="Change Device" aria-expanded={open} className="h-9 w-full justify-start rounded-none px-2 text-xs" onClick={onToggle}><Smartphone className="size-3.5 text-muted-foreground" aria-hidden="true" />Change Device</Button>
+}
+
+/**
+ * DevicePickerPanel is Change Device's list, as a surface beside the frame.
+ *
+ * Its list is the workspace's ONLINE fleet and nothing else. It used to offer
+ * every device the plane holds, offline and never-observed ones included, which
+ * is a list of devices the operator cannot switch to: this control's whole
+ * purpose is to move the frame, and a device that is not online cannot receive
+ * it. The reading is the console's ONE online reading (AGENTS.md section 2,
+ * `isOnlineDevice`), the same one the grid paints and an action resolves its
+ * candidates from, so the list cannot disagree with the board about which
+ * devices are online.
+ *
+ * Nothing online is a fact the panel STATES rather than a list that is simply
+ * empty: an empty box reads as a control that did not load.
+ */
+function DevicePickerPanel({ device, devices, style, onSelect, onClose }: { device: DeviceView; devices: readonly DeviceView[]; style: { width: number; minWidth: number; maxWidth: number; height: number; boxSizing: "border-box" }; onSelect: (deviceId: string) => void; onClose: () => void }) {
+  const others = devices.filter((candidate) => candidate.id !== device.id)
+  const online = onlineDevices(others)
+  return <aside aria-label={`Change device from ${device.displayName}`} data-testid="panel-device-picker" className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] border-[3px] border-primary bg-popover text-foreground" style={style}>
+    <div className="flex shrink-0 items-center gap-2 border-b border-primary/30 bg-secondary/50 px-3 py-2">
+      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-primary">Change Device</span>
+      <Button size="icon-sm" variant="ghost" aria-label="Close device picker" onClick={onClose}><X className="size-3.5" /></Button>
+    </div>
+    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      {online.length === 0
+        ? <p data-testid="panel-device-picker-empty" className="border border-border p-2 text-[11px] leading-4 text-muted-foreground">
+          {others.length === 0
+            ? `No other device is in this workspace, so there is nothing to change ${device.displayName} to.`
+            : `No other device is online. ${others.length} other device${others.length === 1 ? " is" : "s are"} in this workspace and none of them is read as online, and a device that is not online cannot be switched to.`}
+        </p>
+        : <ul className="space-y-1">{online.map((candidate) => <li key={candidate.id}>
+          <Button type="button" variant="ghost" className="h-9 w-full justify-start gap-2 rounded-none px-2 text-xs" onClick={() => onSelect(candidate.id)}>
+            <Smartphone className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate text-left">{candidate.displayName}</span>
+            <span className="shrink-0 text-[10px] text-muted-foreground">{deviceStatusLabels[candidate.status]}</span>
+          </Button>
+        </li>)}</ul>}
+    </div>
+  </aside>
 }
 
 function ControlButton({ icon: Icon, label, disabled = false, onClick }: { icon: typeof Smartphone; label: string; disabled?: boolean; onClick: () => void }) { return <Button variant="ghost" className="h-9 w-full justify-start rounded-none px-2 text-xs" disabled={disabled} onClick={onClick}><Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />{label}</Button> }
@@ -1055,4 +1207,27 @@ function ControlLabel({ label, explanation, htmlFor }: { label: string; explanat
 function Choice({ label, value, options, labels, explanation, onChange }: { label: string; value: string; options: readonly string[]; labels?: Record<string, string>; explanation?: string; onChange: (value: string) => void }) { const display = (option: string) => labels?.[option] ?? option.charAt(0).toUpperCase() + option.slice(1); const trigger = <DropdownMenuTrigger render={<Button type="button" variant="outline" aria-label={label} className="mt-2 h-9 w-full justify-between rounded-none px-2 text-xs font-normal" />}><span className="truncate">{display(value)}</span><ChevronDown className="size-3.5" aria-hidden="true" /></DropdownMenuTrigger>; return <div className="block"><ControlLabel label={label} explanation={explanation} /><DropdownMenu>{trigger}<DropdownMenuContent align="start" className="min-w-[var(--anchor-width)]">{options.map((option) => <DropdownMenuItem key={option} onClick={() => onChange(option)}>{display(option)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu></div> }
 function PositionToggle({ label, value, onChange }: { label: string; value: "left" | "right"; onChange: (value: "left" | "right") => void }) { return <div className="block text-xs font-medium"><span>{label}</span><div role="group" aria-label={label} className="mt-2 grid grid-cols-2 border border-input p-1"><Button type="button" size="sm" variant={value === "left" ? "default" : "ghost"} aria-pressed={value === "left"} onClick={() => onChange("left")} className="rounded-none">Left</Button><Button type="button" size="sm" variant={value === "right" ? "default" : "ghost"} aria-pressed={value === "right"} onClick={() => onChange("right")} className="rounded-none">Right</Button></div></div> }
 function IpAddressInput({ value, onChange, lockedOctets = 0 }: { value: string; onChange: (value: string) => void; lockedOctets?: number }) { const octets = value.split("."); const label = lockedOctets > 0 ? "IP Range End" : "IP Range Start"; return <div><fieldset aria-label={label}><legend className="sr-only">{label}</legend><div className="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-1">{octets.map((octet, index) => { const locked = index < lockedOctets; const field = <Input aria-label={`${label} octet ${index + 1}`} inputMode="numeric" maxLength={3} value={octet} disabled={locked} onChange={(event) => { const next = [...octets]; next[index] = event.target.value.replace(/\D/g, "").slice(0, 3); onChange(next.join(".")) }} className="h-9 min-w-0 px-1 text-center font-mono text-xs" />; return <span key={`${label}-${index}`} className="contents">{field}{index < 3 ? <span aria-hidden="true" className="text-muted-foreground">.</span> : null}</span> })}</div></fieldset></div> }
-function Slider({ label, value, min, max, unit, step = 1, onChange }: { label: string; value: number; min: number; max: number; step?: number; unit: string; onChange: (value: number) => void }) { const id = label.toLowerCase().replaceAll(" ", "-"); return <label htmlFor={id} className="block text-xs font-medium">{label}<span className="float-right font-mono text-muted-foreground">{value} {unit}</span><input id={id} type="range" min={min} max={max} value={value} step={step} onChange={(event) => onChange(Number(event.target.value))} className="mt-3 w-full accent-primary" /><span className="mt-1 flex justify-between text-[10px] text-muted-foreground"><span>{min} {unit}</span><span>{max} {unit}</span></span></label> }
+function Slider({ label, value, min, max, unit, step = 1, onChange }: { label: string; value: number; min: number; max: number; step?: number; unit: string; onChange: (value: number) => void }) {
+  const id = label.toLowerCase().replaceAll(" ", "-")
+  /**
+   * What the operator is CURRENTLY holding, which is not yet what is stored.
+   *
+   * The slider commits when the operator has finished choosing a value - on
+   * pointer release, on a key release, or when the control loses focus - rather
+   * than on every event the browser emits while a drag is in progress. The value
+   * this writes is a settings write, and a write is an audited state change on
+   * the workspace record: one drag would otherwise record forty of them for one
+   * decision, and every one of those writes would be a row an operator has to
+   * read past. What is drawn meanwhile is the number under the operator's own
+   * hand, so the control never lags the pointer.
+   */
+  const [held, setHeld] = useState<number | null>(null)
+  const shown = held ?? value
+  function commit() {
+    if (held === null) return
+    const next = held
+    setHeld(null)
+    if (next !== value) onChange(next)
+  }
+  return <label htmlFor={id} className="block text-xs font-medium">{label}<span className="float-right font-mono text-muted-foreground">{shown} {unit}</span><input id={id} type="range" min={min} max={max} value={shown} step={step} onChange={(event) => setHeld(Number(event.target.value))} onPointerUp={commit} onKeyUp={commit} onBlur={commit} className="mt-3 w-full accent-primary" /><span className="mt-1 flex justify-between text-[10px] text-muted-foreground"><span>{min} {unit}</span><span>{max} {unit}</span></span></label>
+}
