@@ -54,6 +54,10 @@ const (
 type DeviceMirrorServiceClient interface {
 	StartMirrorStream(context.Context, *connect.Request[v1.StartMirrorStreamRequest]) (*connect.Response[v1.StartMirrorStreamResponse], error)
 	NegotiateMirrorStream(context.Context, *connect.Request[v1.NegotiateMirrorStreamRequest]) (*connect.Response[v1.NegotiateMirrorStreamResponse], error)
+	// StopMirrorStream ends ONE VIEWING of a device's live stream: it detaches the
+	// browser holding the identity and leaves every other viewer of that device
+	// alone. The device's capture ends with its last viewer, on the plane's idle
+	// bound, and never on one viewer's departure while another is watching.
 	StopMirrorStream(context.Context, *connect.Request[v1.StopMirrorStreamRequest]) (*connect.Response[v1.StopMirrorStreamResponse], error)
 	GetMirrorStream(context.Context, *connect.Request[v1.GetMirrorStreamRequest]) (*connect.Response[v1.GetMirrorStreamResponse], error)
 	// GetMirrorCapacity reads the plane's device-session bound. It reads; it never
@@ -143,6 +147,10 @@ func (c *deviceMirrorServiceClient) GetMirrorCapacity(ctx context.Context, req *
 type DeviceMirrorServiceHandler interface {
 	StartMirrorStream(context.Context, *connect.Request[v1.StartMirrorStreamRequest]) (*connect.Response[v1.StartMirrorStreamResponse], error)
 	NegotiateMirrorStream(context.Context, *connect.Request[v1.NegotiateMirrorStreamRequest]) (*connect.Response[v1.NegotiateMirrorStreamResponse], error)
+	// StopMirrorStream ends ONE VIEWING of a device's live stream: it detaches the
+	// browser holding the identity and leaves every other viewer of that device
+	// alone. The device's capture ends with its last viewer, on the plane's idle
+	// bound, and never on one viewer's departure while another is watching.
 	StopMirrorStream(context.Context, *connect.Request[v1.StopMirrorStreamRequest]) (*connect.Response[v1.StopMirrorStreamResponse], error)
 	GetMirrorStream(context.Context, *connect.Request[v1.GetMirrorStreamRequest]) (*connect.Response[v1.GetMirrorStreamResponse], error)
 	// GetMirrorCapacity reads the plane's device-session bound. It reads; it never

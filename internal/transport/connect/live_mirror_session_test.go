@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -88,6 +89,11 @@ func (s *scriptedStream) ReadFrame(ctx context.Context) (media.StreamFrame, erro
 
 func (*scriptedStream) SendInput(context.Context, media.MirrorInput) error { return nil }
 
+// push hands the session one picture from the device. It blocks until the
+// session's own read loop takes it, which is what a device writing to its socket
+// does.
+func (s *scriptedStream) push(frame media.StreamFrame) { s.frames <- frame }
+
 func (*scriptedStream) RequestKeyframe(context.Context) error { return nil }
 
 func (s *scriptedStream) Close(context.Context) error {
@@ -103,6 +109,7 @@ func (s *scriptedStream) Close(context.Context) error {
 // each dial asked for, which is the bound the surface's request reached the device
 // with.
 type scriptedDialer struct {
+	mu       sync.Mutex
 	streams  []*scriptedStream
 	ctxs     []context.Context
 	purposes []media.MirrorViewerPurpose
@@ -111,11 +118,45 @@ type scriptedDialer struct {
 
 func (d *scriptedDialer) Dial(ctx context.Context, _, _ string, purpose media.MirrorViewerPurpose, preview media.MirrorPreview) (media.MirrorStream, error) {
 	stream := newScriptedStream()
+	d.mu.Lock()
 	d.streams = append(d.streams, stream)
 	d.ctxs = append(d.ctxs, ctx)
 	d.purposes = append(d.purposes, purpose)
 	d.previews = append(d.previews, preview)
+	d.mu.Unlock()
 	return stream, nil
+}
+
+// waitForStream waits for a device's capture to have been dialled and reports it,
+// so a case that hands the device's pictures on does not race the dial: a dial is
+// made by a session's own worker rather than by the request that asked for it.
+func (d *scriptedDialer) waitForStream(t *testing.T, dial int) *scriptedStream {
+	t.Helper()
+	var stream *scriptedStream
+	waitFor(t, "the dial that opens a device's capture", func() bool {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		if dial >= len(d.streams) {
+			return false
+		}
+		stream = d.streams[dial]
+		return true
+	})
+	return stream
+}
+
+// streamCount reports how many captures have been dialled.
+func (d *scriptedDialer) streamCount() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return len(d.streams)
+}
+
+// contexts copies the contexts the dials were made under.
+func (d *scriptedDialer) contexts() []context.Context {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]context.Context(nil), d.ctxs...)
 }
 
 // liveSurface wires the production stream path over a real HTTP surface and
@@ -176,8 +217,8 @@ func TestAStreamOpenedOverTheSurfaceIsStillCarriedAfterTheOpeningRequestReturns(
 	if opened.GetStreamId() == "" {
 		t.Fatal("the opening request answered with no stream identity")
 	}
-	if len(dialer.streams) != 1 {
-		t.Fatalf("the opening request dialed %d stream(s), want 1", len(dialer.streams))
+	if dialer.streamCount() != 1 {
+		t.Fatalf("the opening request dialed %d stream(s), want 1", dialer.streamCount())
 	}
 
 	// Everything the opening request handed down has returned by now, and the
@@ -230,16 +271,17 @@ func TestTheLiveStreamOutlivesTheRequestThatOpenedIt(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if len(dialer.streams) != 1 {
-		t.Fatalf("the device's stream was dialed %d time(s), want exactly one session", len(dialer.streams))
+	if dialer.streamCount() != 1 {
+		t.Fatalf("the device's stream was dialed %d time(s), want exactly one session", dialer.streamCount())
 	}
 	select {
-	case <-dialer.streams[0].closed:
+	case <-dialer.waitForStream(t, 0).closed:
 		t.Fatal("the device's stream was released while a browser was attached to it")
 	default:
 	}
-	if len(dialer.ctxs) != 1 || dialer.ctxs[0].Err() != nil {
-		t.Fatalf("the session's context was cancelled by the request that opened it (err=%v): the session outlives that request", firstErr(dialer.ctxs))
+	ctxs := dialer.contexts()
+	if len(ctxs) != 1 || ctxs[0].Err() != nil {
+		t.Fatalf("the session's context was cancelled by the request that opened it (err=%v): the session outlives that request", firstErr(ctxs))
 	}
 }
 

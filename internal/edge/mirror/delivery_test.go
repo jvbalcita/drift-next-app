@@ -30,38 +30,73 @@ const (
 )
 
 // liveStubSession is a live mirror session as this delivery sees it: it exists, and
-// nothing else about it is used. The methods it must satisfy are the engine's
-// own session interface.
-type liveStubSession struct{ deviceID string }
+// the stream identities it has handed to its viewers are what an observation is
+// reconciled against. The methods it must satisfy are the engine's own session
+// interface.
+type liveStubSession struct {
+	deviceID string
+	// identities are the stream identities this session's viewers hold, one per
+	// viewing. Empty means the fixture's single-viewer default.
+	identities []string
+}
 
 func (s liveStubSession) DeviceID() string                 { return s.deviceID }
 func (s liveStubSession) Serial() string                   { return "serial-" + s.deviceID }
 func (s liveStubSession) FrameSize() (int, int)            { return deviceFrameW, deviceFrameH }
-func (s liveStubSession) StreamKey() string                { return "drift-" + s.deviceID }
 func (s liveStubSession) Frames() <-chan media.StreamFrame { return nil }
 func (s liveStubSession) Fails() error                     { return nil }
 func (s liveStubSession) EndClass() media.MirrorEndClass   { return "" }
 func (s liveStubSession) Done() <-chan struct{}            { return nil }
 func (s liveStubSession) LastFrameAt() time.Time           { return time.Time{} }
+
+// ViewerIdentities reports what this session's viewers were each given: the
+// fixture's one identity, unless a case stated the several an operator's frame
+// and a grid tile hold over one device's stream.
+func (s liveStubSession) ViewerIdentities() []string {
+	if len(s.identities) > 0 {
+		return append([]string(nil), s.identities...)
+	}
+	return []string{"drift-" + s.deviceID}
+}
+
 func (s liveStubSession) Subscribe(media.MirrorViewerPurpose) (media.MirrorViewer, error) {
 	return nil, errors.New("this session is a stub")
 }
 
+func (s liveStubSession) SubscribeReader(media.MirrorViewerPurpose) (media.MirrorViewer, error) {
+	return nil, errors.New("this session is a stub")
+}
+
 // stubEngine is a deterministic stand-in for the mirror engine: it knows which
-// devices have a session and records the typed input it was handed.
+// devices have a session, which stream identities each of those sessions handed
+// to its viewers, and records the typed input it was handed.
 type stubEngine struct {
 	mu       sync.Mutex
 	sessions map[string]bool
-	inputs   []media.MirrorInput
-	err      error
+	// handedOut is what each device's session gave its viewers, one identity per
+	// viewing. A device with no entry reports the fixture's single identity.
+	handedOut map[string][]string
+	inputs    []media.MirrorInput
+	err       error
 }
 
 func newStubEngine(mirrored ...string) *stubEngine {
-	engine := &stubEngine{sessions: make(map[string]bool, len(mirrored))}
+	engine := &stubEngine{sessions: make(map[string]bool, len(mirrored)), handedOut: make(map[string][]string)}
 	for _, deviceID := range mirrored {
 		engine.sessions[deviceID] = true
 	}
 	return engine
+}
+
+// withViewerIdentities states what one device's session gave its viewers - one
+// identity per viewing of the device's stream - for a case about an observation
+// that is, or is not, one of them.
+func (e *stubEngine) withViewerIdentities(deviceID string, identities ...string) *stubEngine {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.sessions[deviceID] = true
+	e.handedOut[deviceID] = append([]string(nil), identities...)
+	return e
 }
 
 func (e *stubEngine) Session(deviceID string) (media.MirrorSession, bool) {
@@ -70,7 +105,7 @@ func (e *stubEngine) Session(deviceID string) (media.MirrorSession, bool) {
 	if !e.sessions[deviceID] {
 		return nil, false
 	}
-	return liveStubSession{deviceID: deviceID}, true
+	return liveStubSession{deviceID: deviceID, identities: e.handedOut[deviceID]}, true
 }
 
 func (e *stubEngine) Input(ctx context.Context, deviceID string, input media.MirrorInput) error {
@@ -106,11 +141,11 @@ func deviceFrame() execution.RenderSpace {
 }
 
 // deviceObservation is the observation an input for this device names: the
-// device's own live stream, which is the identity its session reports. A test
-// that wants a MISMATCH writes a different string rather than emptying this one,
-// so the mismatch is never an accident of the fixture.
+// identity the device's session handed to its viewer, which is that viewing's
+// own live stream. A test that wants a MISMATCH writes a different string rather
+// than emptying this one, so the mismatch is never an accident of the fixture.
 func deviceObservation() string {
-	return liveStubSession{deviceID: deliveryDevice}.StreamKey()
+	return liveStubSession{deviceID: deliveryDevice}.ViewerIdentities()[0]
 }
 
 // TestADeliveryRequiresAnEngine: a delivery over nothing would refuse every
@@ -345,6 +380,43 @@ func TestAnInputThatNamesAnotherObservationIsRefused(t *testing.T) {
 				t.Fatal("an input for another observation reached the device's session")
 			}
 		})
+	}
+}
+
+// TestAnInputNamingEitherIdentityOfOneStreamIsAccepted is the other half of that
+// reconciliation, and it is the case ARC-253 exists for: the operator's own frame
+// and one of the console's grid tiles are two VIEWINGS of ONE device, so the
+// device's session carries its frames to both and each viewing holds a stream
+// identity of its own. Both identities name that one stream's live frames, so an
+// input measured from either picture was measured from the stream that would
+// carry it and is delivered - while an identity the session never handed out is
+// still refused, as the case above pins.
+func TestAnInputNamingEitherIdentityOfOneStreamIsAccepted(t *testing.T) {
+	ctx := context.Background()
+	// The shape the plane mints: the session's own name, then a suffix per
+	// viewing of it.
+	tile := "drift-" + deliveryDevice + "-5f3a91c4-v1"
+	frame := "drift-" + deliveryDevice + "-5f3a91c4-v2"
+	engine := newStubEngine().withViewerIdentities(deliveryDevice, tile, frame)
+	delivery := newDelivery(t, engine)
+
+	for _, identity := range []string{tile, frame} {
+		t.Run(identity, func(t *testing.T) {
+			err := delivery.DeliverInput(ctx, execution.MirrorDeliveryInput{
+				DeviceID: deliveryDevice, Kind: action.Tap,
+				Point: execution.Point{X: 540, Y: 960},
+				Frame: execution.RenderSpace{Width: deviceFrameW, Height: deviceFrameH, ObservationToken: identity},
+				// Each viewing measures from its own picture and names the
+				// identity it was given, which is what a console sends.
+				ObservationToken: identity,
+			})
+			if err != nil {
+				t.Fatalf("an input measured from the picture %s carries was refused: %v", identity, err)
+			}
+		})
+	}
+	if carried := len(engine.carried()); carried != 2 {
+		t.Fatalf("the session carried %d input(s), want one from each viewing of its stream", carried)
 	}
 }
 

@@ -55,7 +55,9 @@ func notFoundError(message string) error {
 // DeviceMirrorStream is one browser's stream over one device, as this surface
 // needs it. *media.StreamPeer satisfies it.
 type DeviceMirrorStream interface {
-	// StreamKey is the per-device stream identity the browser was given.
+	// StreamKey is the identity the viewing this stream carries was given: the
+	// only handle its browser holds. It names ONE viewing of a device's stream,
+	// so a stream this surface resolves by it can only ever be the caller's own.
 	StreamKey() string
 	// Answer completes the handshake with the browser's offer.
 	Answer(ctx context.Context, offerSDP string) (string, error)
@@ -92,6 +94,11 @@ type DeviceMirrors interface {
 	// device-session capacity against the purpose the viewer is and carrying the
 	// stream at the bound that purpose requires.
 	//
+	// The identity of the stream it returns belongs to THIS VIEWING and is never
+	// shared: a device already being mirrored is JOINED - the capture is not
+	// started twice - and the caller is handed an identity of its own over that
+	// one session, so nothing it does afterwards reaches another viewer.
+	//
 	// Opening is what subscribes a viewer, and the subscription is what starts
 	// the device's capture. The preview setting bounds an ambient viewer's
 	// stream and never the operator's own frame; a caller that states none gets
@@ -101,12 +108,21 @@ type DeviceMirrors interface {
 	// none. It is how a negotiation, a poll and a stop find the stream a caller
 	// named, and it confers nothing: the stream it returns is already this
 	// service's own.
+	//
+	// One identity names ONE viewing, so what this resolves is exactly the
+	// stream that viewing holds - never a second viewer's stream of the same
+	// device. That is what makes a stop a viewer detach from this surface's side
+	// as well: a caller cannot name a stream that is not its own.
 	Stream(streamKey string) (DeviceMirrorStream, bool)
 	// Carrying reports the identities of the streams this transport is carrying
 	// right now, in a stable order. It exists for one refusal - see
 	// noSuchStreamError - because "that identity is not being carried" is not
 	// actionable without the identities that ARE, and the alternative an operator
 	// has is reading the service's own database to find out.
+	//
+	// The list is one identity per VIEWING, so a device two surfaces are watching
+	// is named twice: that is the fact the refusal is for, and it says which
+	// identities are live without the plane having to name a device.
 	//
 	// What it returns is a stream identity and nothing else: no device address, no
 	// adb serial and no media-server URL is reachable through it.

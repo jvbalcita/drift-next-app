@@ -134,12 +134,15 @@ func newMirrorEndpoint(transport *StreamTransport, session MirrorSession, owned 
 	}
 }
 
-// StreamKey is the per-device stream identity the browser was given.
+// StreamKey is the identity the viewing this endpoint was opened for was given,
+// which is what its browser fetches the stream by. One endpoint is one viewing:
+// a second viewer of the same device is a second endpoint with an identity of
+// its own, over the one session both are carried by.
 func (e *MirrorEndpoint) StreamKey() string {
 	if e == nil {
 		return ""
 	}
-	return e.session.StreamKey()
+	return e.owned.StreamKey()
 }
 
 // Answer refuses a negotiation. This stream is not negotiated: the browser
@@ -167,7 +170,7 @@ func (e *MirrorEndpoint) Stats() StreamStats {
 	defer e.mu.Unlock()
 	width, height := e.session.FrameSize()
 	stats := StreamStats{
-		StreamKey:    e.session.StreamKey(),
+		StreamKey:    e.owned.StreamKey(),
 		DeviceID:     e.session.DeviceID(),
 		Serial:       e.session.Serial(),
 		RenderWidth:  width,
@@ -224,7 +227,7 @@ func (e *MirrorEndpoint) Serve(ctx context.Context, writer io.Writer, flush func
 		return fmt.Errorf("%w: the stream for %s had already ended", ErrNoSuchStream, e.StreamKey())
 	default:
 	}
-	viewer, err := e.session.Subscribe(e.purpose)
+	viewer, err := e.session.SubscribeReader(e.purpose)
 	if err != nil {
 		return fmt.Errorf("media: the stream for %s could not be carried: %w", e.session.DeviceID(), err)
 	}
