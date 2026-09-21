@@ -260,7 +260,7 @@ export const gridStillCopy = {
   /** A picture the plane captured and still calls current. */
   current: { short: "Still", prefix: "Still:" },
   /** The plane is capturing this device and nothing has been captured yet. */
-  pending: { short: "Waiting", prefix: "Waiting:" },
+  pending: { short: "Loading", prefix: "Loading:" },
   /** A capture succeeded and a later one failed: the picture the plane holds is not this device's screen. */
   stale: { short: "Not current", prefix: "Not current:" },
   /** This device cannot be captured at all, and the plane says why. */
@@ -529,13 +529,16 @@ export interface StillPictureShape {
  * consolePortraitShape is the shape a tile draws when the plane stated no size for
  * its still.
  *
- * It is this console's own portrait shape - the 9:16 box the fleet grid has always
- * laid a frame out at, and the same fallback the big frame uses when its stream has
- * not reported a size yet - and it is only ever the shape of a tile with no
- * picture: the plane states the delivered still's size WITH the picture, so a tile
- * whose still is pending, stale or unavailable has no size of its own to take.
+ * It is the standard device shape the fleet previews use when the plane has not
+ * supplied a picture's size yet. The delivered phones are 9:19 (for example,
+ * 360x760), so using the old 9:16 placeholder made a loading tile visibly shorter
+ * than its peers. This is presentation geometry only: it does not claim an
+ * unobserved device has supplied a size of its own.
  */
-const consolePortraitShape: StillPictureShape = { width: 9, height: 16 }
+const consolePortraitShape: StillPictureShape = { width: 9, height: 19 }
+
+/** The grid keeps its established width scale; only a tile's fallback height changed. */
+const compactFrameWidthShape: StillPictureShape = { width: 9, height: 16 }
 
 /**
  * stillPictureShape is the shape the picture of one tile is drawn at.
@@ -580,7 +583,7 @@ export function stillTileShape(tile: GridTileStill, orientation: "portrait" | "l
  * device's screen at that width.
  */
 export function stillFrameWidth(size: number, orientation: "portrait" | "landscape"): number {
-  return orientation === "portrait" ? Math.round(size * consolePortraitShape.width / consolePortraitShape.height) : size
+  return orientation === "portrait" ? Math.round(size * compactFrameWidthShape.width / compactFrameWidthShape.height) : size
 }
 
 /**

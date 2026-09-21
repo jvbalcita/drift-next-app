@@ -104,7 +104,7 @@ describe("what a tile says about its still", () => {
 
   it("says a device the plane is capturing and has not captured yet is neither a failure nor a picture", () => {
     const sentence = gridTileSentence(hold(still({ state: GridStillState.PENDING })), gridProfile())
-    expect(sentence.short).toBe("Waiting")
+    expect(sentence.short).toBe("Loading")
     expect(sentence.long).toContain("has not delivered its first still yet")
     expect(sentence.long).toContain("not showing a picture")
     expect(sentence.long).toContain("This is not a failure")
@@ -206,7 +206,7 @@ describe("what a tile says about its still", () => {
         : state === "unreadable"
           ? gridTileStill("atlas-04", { stills: {}, refusedDeviceIds: [], unreadable: true })
           : hold(still(state === "stale" ? { state: GridStillState.STALE } : state === "pending" ? { state: GridStillState.PENDING } : state === "unavailable" ? { state: GridStillState.UNAVAILABLE } : {}))
-    expect(gridTileSentence(tile("pending"), gridProfile()).short).toBe("Waiting")
+    expect(gridTileSentence(tile("pending"), gridProfile()).short).toBe("Loading")
     expect(gridTileSentence(tile("stale"), gridProfile()).short).toBe("Not current")
     expect(gridTileSentence(tile("unavailable"), gridProfile()).short).toBe("No picture")
     expect(gridTileSentence(tile("refused"), gridProfile()).short).toBe("Not shown")
@@ -294,7 +294,7 @@ describe("the profile the plane publishes", () => {
 describe("the copy table", () => {
   it("carries the short mark for every state a tile can be in", () => {
     expect(gridStillCopy.current.short).toBe("Still")
-    expect(gridStillCopy.pending.short).toBe("Waiting")
+    expect(gridStillCopy.pending.short).toBe("Loading")
     expect(gridStillCopy.stale.short).toBe("Not current")
     expect(gridStillCopy.unavailable.short).toBe("No picture")
     expect(gridStillCopy.refused.short).toBe("Not shown")
