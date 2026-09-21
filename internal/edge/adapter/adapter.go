@@ -56,10 +56,21 @@ type Execution struct {
 // ExecutionError carries the only uncertainty an adapter may add: whether a
 // transport failure happened before or after dispatch. The caller must keep a
 // post-dispatch failure indeterminate.
+//
+// ObservationToken is the fresh reading the boundary took AFTER the attempt,
+// when it took one. An attempt that did not reach the device still has to be
+// completed, and the kernel requires a completion to name a reading taken after
+// the action - so a boundary that refuses an input takes the reading its
+// completion will be submitted against and reports it here. An EMPTY token means
+// no reading was taken (the device could not be read), and the caller must not
+// complete the attempt at all: a completion carrying the token the attempt was
+// dispatched with, or none, is refused as stale, and that refusal would replace
+// the reason the input failed with a sentence about an observation nobody took.
 type ExecutionError struct {
-	Cause        error
-	Dispatched   bool
-	FailureClass domain.FailureClass
+	Cause            error
+	Dispatched       bool
+	FailureClass     domain.FailureClass
+	ObservationToken string
 }
 
 func (e *ExecutionError) Error() string {

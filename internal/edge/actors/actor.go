@@ -199,6 +199,12 @@ func (a *Actor) execute(parent context.Context, input Request) (Response, error)
 		var executionErr *adapter.ExecutionError
 		if errors.As(err, &executionErr) {
 			response.Dispatched = executionErr.Dispatched
+			// The reading this failed attempt took, when it took one. A
+			// boundary that refused an input before the device still has to
+			// have its attempt completed, and the kernel completes an attempt
+			// only against a reading taken after it - so the token travels with
+			// the failure rather than being invented by the caller.
+			response.ObservationToken = executionErr.ObservationToken
 			if executionErr.Dispatched {
 				response.Outcome = action.OutcomeIndeterminate
 				response.Postcondition = action.PostconditionUnknown
@@ -208,8 +214,14 @@ func (a *Actor) execute(parent context.Context, input Request) (Response, error)
 				response.Postcondition = action.PostconditionUnknown
 				response.FailureClass = domain.FailureTimeout
 			} else {
+				// The input did not reach the device, so the action did not
+				// happen and its postcondition is FAILED rather than unknown:
+				// "unknown" is for an attempt whose outcome cannot be stated,
+				// and this one's can - no device call was ever made. The class
+				// stays the boundary's own, so the attempt records WHY it was
+				// refused rather than being flattened into a transport failure.
 				response.Outcome = action.OutcomeFailed
-				response.Postcondition = action.PostconditionUnknown
+				response.Postcondition = action.PostconditionFailed
 				response.FailureClass = executionErr.FailureClass
 			}
 		} else {
