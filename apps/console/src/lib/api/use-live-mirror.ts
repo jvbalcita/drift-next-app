@@ -323,6 +323,11 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
     let cancelScheduled: (() => void) | null = null
     let readFailures = 0
     let reopens = 0
+    // The plane's own answer to the last read it refused, kept so the report made
+    // when the re-entry bound runs out can carry it: the plane's answer is the
+    // cause, and a sentence that only says the plane forgot the stream sends an
+    // operator to the plane's bookkeeping instead of to the device (ARC-264).
+    let planeSaid = ""
 
     // The workspace's encode setting, as this effect's own value: it is built once
     // per run of the effect from the two values it depends on, so the request
@@ -470,6 +475,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       } catch (cause: unknown) {
         if (disposed || settled) return
         if (isNotFound(cause)) {
+          planeSaid = errorSentence(cause)
           forget()
           return
         }
@@ -509,7 +515,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       streamId = ""
       reopens += 1
       if (reopens > reopenLimit) {
-        finish("failed", liveMirrorCopy.failure.unresumable, false)
+        finish("failed", liveMirrorCopy.failure.unresumable(planeSaid), false)
         return
       }
       setPhase("opening")
@@ -632,6 +638,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
         // a read's is, so a plane that hands out an identity and forgets it on EVERY
         // open is still reported rather than asked forever.
         if (isNotFound(cause)) {
+          planeSaid = errorSentence(cause)
           forget()
           return
         }

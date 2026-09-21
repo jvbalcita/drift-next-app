@@ -395,7 +395,12 @@ describe("the console's live mirror session", () => {
       await clock.runNext()
     }
     await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
-    expect(screen.getByTestId("failure")).toHaveTextContent(liveMirrorCopy.failure.unresumable)
+    // The plane's own answer is carried, not replaced: this console reports the
+    // plane's words for the read it refused on the end of its own sentence, so an
+    // operator reads the cause rather than only "the plane forgot the stream"
+    // (ARC-264).
+    expect(screen.getByTestId("failure")).toHaveTextContent(liveMirrorCopy.failure.unresumable("no live stream is carried under stream-1"))
+    expect(screen.getByTestId("failure")).toHaveTextContent("no live stream is carried under stream-1")
     expect(handle.calls.filter((call) => call.startsWith("start:"))).toHaveLength(2)
     // Nothing was stopped even here, where the plane is the one that forgot the
     // stream: the report names the plane's own fact and no stop was issued for it.

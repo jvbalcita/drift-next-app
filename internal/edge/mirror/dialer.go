@@ -194,13 +194,16 @@ func encodeProfileFor(purpose media.MirrorViewerPurpose, preview media.MirrorPre
 
 // dialEndClass classifies a session that could not be opened.
 //
-// It is the one place the two halves of this failure are told apart, and it is
+// It is the one place the three halves of this failure are told apart, and it is
 // here because here is where the device's own process is: a server that is not
 // there, that will not launch, or that exits the moment it is launched is the
-// DEVICE-side server failing, while everything else - the push, the loopback
-// listener, the reverse tunnel, the handshake - is the adapter or the tunnel
-// failing to be established. The two have different fixes and an operator
-// reading "the stream failed" has neither of them.
+// DEVICE-side server failing; a device this plane could not clear of a server a
+// previous session left behind is the device holding a capture of its own, which
+// is a third fact with a third fix (wait for the device, or clear it - never the
+// network); and everything else - the push, the loopback listener, the reverse
+// tunnel, the handshake - is the adapter or the tunnel failing to be
+// established. The three have different fixes and an operator reading "the
+// stream failed" has none of them.
 //
 // The sentinels are read rather than the words: this fleet's errors are sentences
 // for people, and a classifier that matched on prose would break the first time
@@ -211,6 +214,8 @@ func dialEndClass(err error) media.MirrorEndClass {
 		errors.Is(err, scrcpy.ErrServerStart),
 		errors.Is(err, scrcpy.ErrServerExited):
 		return media.MirrorEndDeviceServerFailed
+	case errors.Is(err, scrcpy.ErrServerLeftover):
+		return media.MirrorEndDeviceServerLeftover
 	default:
 		return media.MirrorEndTransportUnavailable
 	}

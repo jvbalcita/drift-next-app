@@ -178,6 +178,20 @@ const (
 	// sentence that sends somebody to check a network, a hub and a device that
 	// were all working while the fault was local.
 	MirrorEndPushCancelled MirrorEndClass = "push_cancelled"
+	// MirrorEndDeviceServerLeftover: the device was still holding a device-side
+	// server a previous session of this plane left behind, so this plane did not
+	// launch another capture on it.
+	//
+	// It is its own class because it is its own layer, and because the class it
+	// was being reported as sends an operator to the wrong place. A device that
+	// holds a leftover refuses the next capture from INSIDE the device - the
+	// encoder, the display, or the socket the server already owns - so the host
+	// sees a stream that never came up; measured on the lab fleet on 2026-09-21,
+	// that reached an operator as `transport_unavailable`, which names a network,
+	// a hub and a device that are all working. The fault is a process on the
+	// device that this plane itself started and did not reap, and the fix is on
+	// the device rather than on the path to it.
+	MirrorEndDeviceServerLeftover MirrorEndClass = "device_server_leftover"
 )
 
 // Valid reports whether this class is one the plane states. A class this
@@ -188,7 +202,7 @@ func (c MirrorEndClass) Valid() bool {
 	switch c {
 	case MirrorEndViewerDetached, MirrorEndEngineStopped, MirrorEndDeviceStreamEnded,
 		MirrorEndTransportUnavailable, MirrorEndDeviceServerFailed, MirrorEndNoStreamableScreen,
-		MirrorEndPushCancelled:
+		MirrorEndPushCancelled, MirrorEndDeviceServerLeftover:
 		return true
 	default:
 		return false
@@ -239,6 +253,8 @@ func (c MirrorEndClass) Sentence() string {
 		return "media: the device reported no screen this plane can stream"
 	case MirrorEndPushCancelled:
 		return "media: this plane cancelled the push of the device-side server, so the stream was never opened"
+	case MirrorEndDeviceServerLeftover:
+		return "media: the device is holding a server a previous session left behind, so this plane did not open a capture on it"
 	default:
 		return ""
 	}
