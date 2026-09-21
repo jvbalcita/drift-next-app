@@ -69,6 +69,8 @@ func (s *fakeStream) fail(err error) {
 }
 
 func (s *fakeStream) FrameSize(context.Context) (int, int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.sizeErr != nil {
 		return 0, 0, s.sizeErr
 	}
@@ -188,6 +190,12 @@ type fakeDialer struct {
 	// before the dial rather than injected after it: the frame size is the first
 	// thing a session's worker reads.
 	sizeErr error
+	// ambientSize is the frame size an ambient dial is opened at, when a case
+	// states one. A grid tile is carried at the workspace's preview level, and
+	// this fleet's levels cap the encoder's dimension (480 for "low" against the
+	// operator profile's 1080), so a tile opened into the operator's own frame is
+	// re-encoded at a DIFFERENT size as well as a different profile.
+	ambientSize [2]int
 }
 
 // dialAsk is one dial as the engine made it: the device, the purpose the session
@@ -212,6 +220,9 @@ func (d *fakeDialer) Dial(_ context.Context, deviceID, _ string, purpose MirrorV
 	d.asks = append(d.asks, dialAsk{deviceID: deviceID, purpose: purpose, preview: preview})
 	stream := newFakeStream(deviceID)
 	stream.sizeErr = d.sizeErr
+	if purposeOrDefault(purpose) == PurposeAmbient && d.ambientSize != [2]int{} {
+		stream.width, stream.height = d.ambientSize[0], d.ambientSize[1]
+	}
 	d.streams[deviceID] = stream
 	return stream, nil
 }
@@ -260,6 +271,22 @@ func (d *fakeDialer) streamFor(t *testing.T, deviceID string) *fakeStream {
 		defer d.mu.Unlock()
 		stream = d.streams[deviceID]
 		return stream != nil
+	})
+	return stream
+}
+
+// streamAfter waits for the dialer to open one device's stream AGAIN, replacing
+// the one a session was reading: this is a session re-dialled for a stronger
+// viewer, which is a different device-side encoder and therefore different
+// parameter sets.
+func (d *fakeDialer) streamAfter(t *testing.T, deviceID string, previous *fakeStream) *fakeStream {
+	t.Helper()
+	var stream *fakeStream
+	waitFor(t, "the dial that re-encodes "+deviceID, func() bool {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		stream = d.streams[deviceID]
+		return stream != nil && stream != previous
 	})
 	return stream
 }

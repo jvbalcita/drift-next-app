@@ -28,7 +28,7 @@ import (
 // starting a second one, and a browser that goes away ends only its own
 // subscription.
 //
-// Four behaviours are what make it correct, and three of them are the same
+// Five behaviours are what make it correct, and three of them are the same
 // correctness this fleet forces on every transport:
 //
 //   - Every response begins at a key frame, primed from the cached IDR when the
@@ -36,6 +36,13 @@ import (
 //   - A configuration packet is never written as a picture.
 //   - A stream that carries NO picture within the bound is reported as black
 //     rather than left as a response that opens and shows nothing.
+//   - A device that re-encodes mid-response is a NEW DECLARATION on the same
+//     stream and never the end of it: the container writes a second
+//     initialisation segment where the encoder changed (see MP4Writer), and the
+//     console's player accepts one. That is what makes the product's own primary
+//     gesture - a grid tile opened into the operator's frame, which re-dials the
+//     device at the operator profile - a transition this transport carries rather
+//     than the end of a stream the moment it is looked at properly.
 //   - The subscription IS the fetch: when a response ends for any reason it
 //     releases its viewer, so a device whose browser went away is not carried to
 //     nobody - and a stream that was opened and never fetched is released by its
@@ -289,6 +296,21 @@ func (e *MirrorEndpoint) Serve(ctx context.Context, writer io.Writer, flush func
 				// initialisation segment, so writing this as a fragment would be
 				// a sample a decoder draws nothing from.
 				continue
+			}
+			// The size the device streams at can change under this response: a
+			// session re-dialled for a stronger viewer (a grid tile opened into
+			// the operator's own frame) re-encodes at that profile's size. The
+			// container states the size in its initialisation segment, and that
+			// declaration is the coordinate frame an operator's input is measured
+			// in, so the writer is told the new one and re-declares at the next
+			// picture rather than carrying frames its declaration misdescribes.
+			if w, h := e.session.FrameSize(); w > 0 && h > 0 && (w != width || h != height) {
+				if err := container.SetSize(w, h); err != nil {
+					wrapped := fmt.Errorf("media: the live mirror for %s could not be re-declared at %dx%d: %w", e.session.DeviceID(), w, h, err)
+					e.fail(wrapped)
+					return wrapped
+				}
+				width, height = w, h
 			}
 			if !baseSet {
 				base = frame.PTSUS
