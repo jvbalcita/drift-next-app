@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { DispatchIntent, SettingView } from "@/lib/domain/control-plane"
+import type { DeviceView, DispatchIntent, EndpointView, GroupView, MembershipView, SettingView } from "@/lib/domain/control-plane"
 import type { LiveMirrorTransportChoice } from "@/lib/live-mirror"
+import { deviceAddress } from "@/lib/device-endpoints"
+import { placementRanks, type PlacementRank } from "@/lib/device-placement"
 
 /**
  * The Control page's own settings, and where they live.
@@ -17,25 +19,43 @@ import type { LiveMirrorTransportChoice } from "@/lib/live-mirror"
  * Settings page reads and writes. The frame ORDER is why this is not merely
  * convenient: AGENTS.md requires persisted operator order to be written as a
  * whole order in one transaction, and the workspace record is the only place a
- * workspace-wide order can be written that way (see `frameOrderKey`).
+ * workspace-wide order can be written that way (see `workspaceLayoutKey`).
  */
 
 /**
  * The key the Control page's workspace layout is stored under.
  *
  * The domain has a persisted placement order already - a group membership's
- * `position` - and this console reuses it nowhere, because it cannot express
- * what this grid draws. A membership orders the devices INSIDE one group, and
- * "Ungrouped" is a computed view over devices with no active membership rather
- * than a group that could hold a position, so the memberships can order neither
- * the ungrouped devices nor the grid as a whole - this grid draws EVERY device
- * it is given, in the workspace's own order, whatever its group. So this key was
- * added, and it is written the way AGENTS.md requires an order to be written:
- * the whole order, in ONE settings write, never a single occupied slot, and
- * every reader resolves a device's position by looking the id up in that array
- * rather than by trusting the array's insertion order for anything else.
+ * `position` - and that order is READ here, by the `placement` sort key, because
+ * it is the durable operator order and a console may not keep a second one. What
+ * this key holds is therefore not an order at all: it holds which of the sort
+ * keys the board is drawn by (`frameSortKey`), together with the frame sizes and
+ * the orientation.
+ *
+ * RETIRED RULE. This key used to hold `frameOrder`, a whole order over device
+ * ids that an operator arranged frame by frame. The owner's verdict was that it
+ * is too long to manage, and it is retired in favour of the sort key. Its stored
+ * value is handled deliberately rather than ignored:
+ *
+ *  - it is READ as nothing. A stored `frameOrder` is not reinterpreted as a
+ *    placement order (it is this console's own arrangement, not the domain's),
+ *    and it is not turned into a sort key, because a key is a choice the operator
+ *    makes and inferring one from a retired field would be this console choosing
+ *    how their board is drawn. `readWorkspaceLayout` reads the fields it
+ *    understands and falls back per field, so the sizes and the orientation an
+ *    operator set in the same record survive the retirement;
+ *  - it is DROPPED on the next write. `encodeWorkspaceLayout` writes the layout
+ *    as this build knows it, so the dead field does not linger in the record
+ *    where a later reader could mistake it for a live rule. The convergence is
+ *    one write, and every field the operator is still using is written back with
+ *    it.
+ *
+ * AGENTS.md section 11 requires the retired rule be corrected in the same change
+ * as the code, and it is: the operator order a surface may read is the domain's
+ * group and placement order, and the Control page's board is drawn by a chosen
+ * sort key rather than by an order of its own.
  */
-export const frameOrderKey = "control_workspace_layout"
+export const workspaceLayoutKey = "control_workspace_layout"
 
 /** The key the Control page's per-console settings are stored under. */
 export const consoleSettingsKey = "control_console_settings"
@@ -46,17 +66,69 @@ export const controlSettingsScope = "workspace"
 export type Orientation = "portrait" | "landscape"
 
 /**
- * How big the frames are drawn, which way round, and in what order.
+ * How the board is ordered.
  *
- * `frameOrder` is a whole order over device ids. A device the stored order does
- * not name keeps the order the plane gave it and is drawn after the devices the
- * order does name, so adding a device cannot disturb an order an operator set.
+ * A sort KEY rather than an arrangement: the owner's verdict on the manual
+ * `frameOrder` was that it is too long to manage, and what an operator wants is
+ * to choose how the board is ordered rather than to place every frame by hand.
+ *
+ * The three keys are deliberately of two kinds, and the difference matters:
+ * `placement` reads an order the OPERATOR already arranged and the domain
+ * persists (a group's position, then a membership's position inside it), while
+ * `name` and `address` are orders this console derives from a fact about each
+ * device. None of them is an order this console stores: what is stored is which
+ * key is chosen.
+ */
+export type FrameSortKey = "placement" | "name" | "address"
+
+export interface FrameSortKeyOption {
+  value: FrameSortKey
+  label: string
+  /** What the key orders by, in one clause, stated once and drawn by the control. */
+  explanation: string
+}
+
+/**
+ * The keys the board may be ordered by, stated ONCE.
+ *
+ * The control draws this list and the reader parses a stored value against it,
+ * so a key that exists and is not offered, or is offered and cannot be read
+ * back, cannot happen: both sides read the same array.
+ */
+export const frameSortKeys: readonly FrameSortKeyOption[] = [
+  {
+    value: "placement",
+    label: "Placement Order",
+    explanation: "The order the workspace already holds: each device's group by the group's own position, then its place inside that group. It is the durable operator order, so it is the same for every operator reading this workspace.",
+  },
+  {
+    value: "name",
+    label: "Device Name",
+    explanation: "Alphabetical by the device's display name, with numbers read as numbers so a name ending 10 does not sort before a name ending 2. A device added later finds its place by its name rather than at the end.",
+  },
+  {
+    value: "address",
+    label: "Device Address",
+    explanation: "By the address on each device's current transport endpoint, the same address its frame shows. A device the control plane holds no address for is drawn after the ones it can place.",
+  },
+]
+
+/** The key a workspace that has never chosen one draws: the order that already exists. */
+export const frameSortKeyDefault: FrameSortKey = "placement"
+
+/**
+ * How big the frames are drawn, which way round, and by which key they are ordered.
  */
 export interface WorkspaceLayout {
   largeHeight: number
   smallHeight: number
   orientation: Orientation
-  frameOrder: readonly string[]
+  /**
+   * The chosen order. It is a key and not an order: the retired `frameOrder`
+   * this record used to carry is gone, and no order over device ids is stored
+   * here at all (see `workspaceLayoutKey`).
+   */
+  frameSortKey: FrameSortKey
 }
 
 /**
@@ -80,7 +152,15 @@ export interface ConsoleSettings {
   showTag: boolean
   showIndex: boolean
   showName: boolean
-  showIp: boolean
+  /**
+   * Whether a compact frame draws the device's ADDRESS.
+   *
+   * It was `showIp` and it drew the device's endpoint ID: an identifier, not an
+   * address. The name now says the fact rather than the transport it was expected
+   * to be, because a tile that answers "where is this device" with an identifier
+   * is answering a different question.
+   */
+  showAddress: boolean
   liveMirrorTransport: LiveMirrorTransportChoice
 }
 
@@ -104,9 +184,9 @@ export const workspaceLayoutBounds = {
  * driven at, and they are DEFAULTS: a workspace that has already stored a size
  * keeps it, because these are only ever reached where no value was stored.
  */
-export const workspaceLayoutDefaults: WorkspaceLayout = { largeHeight: 680, smallHeight: 264, orientation: "portrait", frameOrder: [] }
+export const workspaceLayoutDefaults: WorkspaceLayout = { largeHeight: 680, smallHeight: 264, orientation: "portrait", frameSortKey: frameSortKeyDefault }
 
-export const consoleSettingsDefaults: ConsoleSettings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showIp: true, liveMirrorTransport: "tcp" }
+export const consoleSettingsDefaults: ConsoleSettings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showAddress: true, liveMirrorTransport: "tcp" }
 
 /** The workspace-scoped setting this page reads a key from, or nothing. */
 export function controlSetting(settings: readonly SettingView[], key: string): SettingView | undefined {
@@ -145,16 +225,17 @@ function orientation(value: unknown): Orientation {
   return value === "landscape" ? "landscape" : "portrait"
 }
 
-function stringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  const seen = new Set<string>()
-  const ids: string[] = []
-  for (const entry of value) {
-    if (typeof entry !== "string" || entry.trim() === "" || seen.has(entry)) continue
-    seen.add(entry)
-    ids.push(entry)
-  }
-  return ids
+/**
+ * frameSortKey reads a stored key against the SAME list the control offers.
+ *
+ * A value this build does not know - one a later build added and this one has
+ * never heard of, or a retired one - falls back to the default rather than being
+ * drawn, and nothing is written back: the record is the operator's, and a read
+ * that repaired what it read would be this console editing a setting it was only
+ * asked to project.
+ */
+function frameSortKey(value: unknown): FrameSortKey {
+  return frameSortKeys.some((key) => key.value === value) ? (value as FrameSortKey) : frameSortKeyDefault
 }
 
 /**
@@ -162,16 +243,18 @@ function stringArray(value: unknown): string[] {
  *
  * A field the stored value does not carry - or carries unusably - falls back to
  * that field's own default rather than discarding the rest of the layout, so a
- * layout written by a later build that added a field is still readable here.
+ * layout written by a later build that added a field is still readable here, and
+ * a layout written by an EARLIER one that carried the retired `frameOrder` still
+ * gives up the sizes and the orientation it holds (see `workspaceLayoutKey`).
  */
 export function readWorkspaceLayout(settings: readonly SettingView[]): WorkspaceLayout {
-  const stored = parseControlValue(settings, frameOrderKey)
-  if (!stored) return { ...workspaceLayoutDefaults, frameOrder: [] }
+  const stored = parseControlValue(settings, workspaceLayoutKey)
+  if (!stored) return { ...workspaceLayoutDefaults }
   return {
     largeHeight: bounded(stored.largeHeight, workspaceLayoutBounds.largeHeight, workspaceLayoutDefaults.largeHeight),
     smallHeight: bounded(stored.smallHeight, workspaceLayoutBounds.smallHeight, workspaceLayoutDefaults.smallHeight),
     orientation: orientation(stored.orientation),
-    frameOrder: stringArray(stored.frameOrder),
+    frameSortKey: frameSortKey(stored.frameSortKey),
   }
 }
 
@@ -188,13 +271,21 @@ export function readConsoleSettings(settings: readonly SettingView[]): ConsoleSe
     showTag: boolean(stored.showTag, consoleSettingsDefaults.showTag),
     showIndex: boolean(stored.showIndex, consoleSettingsDefaults.showIndex),
     showName: boolean(stored.showName, consoleSettingsDefaults.showName),
-    showIp: boolean(stored.showIp, consoleSettingsDefaults.showIp),
+    showAddress: boolean(stored.showAddress, consoleSettingsDefaults.showAddress),
     liveMirrorTransport: stored.liveMirrorTransport === "webrtc" ? "webrtc" : "tcp",
   }
 }
 
+/**
+ * encodeWorkspaceLayout writes the layout as this build knows it.
+ *
+ * It writes every field by name and no others, which is what retires `frameOrder`
+ * in the record: the next write of this setting carries the sizes, the
+ * orientation and the chosen key, and the dead order is gone rather than left
+ * behind for a later reader to find (see `workspaceLayoutKey`).
+ */
 export function encodeWorkspaceLayout(layout: WorkspaceLayout): string {
-  return JSON.stringify({ largeHeight: layout.largeHeight, smallHeight: layout.smallHeight, orientation: layout.orientation, frameOrder: [...layout.frameOrder] })
+  return JSON.stringify({ largeHeight: layout.largeHeight, smallHeight: layout.smallHeight, orientation: layout.orientation, frameSortKey: layout.frameSortKey })
 }
 
 export function encodeConsoleSettings(settings: ConsoleSettings): string {
@@ -202,26 +293,65 @@ export function encodeConsoleSettings(settings: ConsoleSettings): string {
 }
 
 /**
- * applyFrameOrder is the grid's order: the persisted operator order first, then
- * every device it does not name in the order the plane gave them.
- *
- * A device the stored order has never seen is DRAWN - this grid draws every
- * device it is given - and it is drawn last rather than dropped or inserted at
- * an invented position. The sort is stable, so two devices the order does not
- * name keep their relative reading order.
+ * What the board's order is resolved from: the fleet's own facts, not a stored
+ * arrangement. The endpoints are where each device IS (the `address` key), and
+ * the groups and memberships are the operator's persisted placement (the
+ * `placement` key).
  */
-export function applyFrameOrder<T extends { id: string }>(devices: readonly T[], order: readonly string[]): T[] {
-  const rank = new Map<string, number>()
-  order.forEach((id, index) => { if (!rank.has(id)) rank.set(id, index) })
-  return devices
-    .map((device, index) => ({ device, index }))
-    .sort((left, right) => (rank.get(left.device.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right.device.id) ?? Number.MAX_SAFE_INTEGER) || left.index - right.index)
+export interface FrameSortContext {
+  endpoints: readonly EndpointView[]
+  groups: readonly GroupView[]
+  memberships: readonly MembershipView[]
+}
+
+/** Text ordering that reads numbers as numbers, so "Bay 10" follows "Bay 2". */
+function compareText(left: string, right: string): number {
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" })
+}
+
+/**
+ * applyFrameSort is the board's order, and the ONLY place it is decided.
+ *
+ * The grid, the frame sort control and every other consumer of this page read
+ * one list produced here, so no surface can draw an order another one disagrees
+ * with. The three keys:
+ *
+ *  - `placement` reads the operator's persisted arrangement through
+ *    `placementRanks`: group by the group's own position, then the membership's
+ *    position inside it. A device with no active membership is UNPLACED - the
+ *    domain holds no position for it - and is drawn after the placed devices
+ *    rather than at a position this console invented, exactly as "Ungrouped" is
+ *    a computed view rather than a stored group;
+ *  - `name` orders by the device's display name;
+ *  - `address` orders by the address on the device's current endpoint, the same
+ *    reading the frames are labelled with. A device the plane holds no current
+ *    endpoint for has no address and is drawn after the devices it can place.
+ *
+ * Unplaced or addressless devices are not dropped: this board draws every device
+ * it is given, and the order is stable for the devices a key cannot separate, so
+ * two equal names keep the relative order the plane reported them in. That
+ * tiebreak is the reading order and never the arrangement: where the operators'
+ * own order exists it is the placement key, read from the domain.
+ */
+export function applyFrameSort<T extends DeviceView>(devices: readonly T[], key: FrameSortKey, context: FrameSortContext): T[] {
+  const ranks = placementRanks(context.groups, context.memberships)
+  const decorated = devices.map((device, index) => ({ device, index, address: deviceAddress(device, context.endpoints), rank: ranks.get(device.id) }))
+  const byKey: Record<FrameSortKey, (left: (typeof decorated)[number], right: (typeof decorated)[number]) => number> = {
+    placement: (left, right) => comparePlacement(left.rank, right.rank),
+    name: (left, right) => compareText(left.device.displayName, right.device.displayName),
+    // An addressless device is drawn after every device that has one, whichever
+    // address it has: "" is the reading, and it is not a string that sorts first.
+    address: (left, right) => (left.address === "" ? 1 : 0) - (right.address === "" ? 1 : 0) || compareText(left.address, right.address),
+  }
+  return decorated
+    .sort((left, right) => byKey[key](left, right) || compareText(left.device.displayName, right.device.displayName) || left.index - right.index)
     .map((entry) => entry.device)
 }
 
-/** The whole order over the devices the grid holds, as it would be written. */
-export function wholeFrameOrder(devices: readonly { id: string }[], order: readonly string[]): string[] {
-  return applyFrameOrder(devices, order).map((device) => device.id)
+/** comparePlacement orders two placements: unplaced last, then group, then position. */
+function comparePlacement(left: PlacementRank | undefined, right: PlacementRank | undefined): number {
+  if (!left || !right) return (left ? 0 : 1) - (right ? 0 : 1)
+  return left.group - right.group || left.position - right.position
 }
 
 /**
@@ -315,7 +445,7 @@ export function useControlPageSettings(settings: readonly SettingView[], dispatc
 
   const updateLayout = useCallback((next: WorkspaceLayout) => {
     setDraftLayout(next)
-    void writer.write(frameOrderKey, encodeWorkspaceLayout(next)).then((result) => {
+    void writer.write(workspaceLayoutKey, encodeWorkspaceLayout(next)).then((result) => {
       if (result.ok) return
       setDraftLayout(null)
       onFailureRef.current(result.message)

@@ -1,4 +1,14 @@
 import type { DeviceView, EndpointView } from "@/lib/domain/control-plane"
+import { activeMemberships, orderedGroups, ungroupedDevices } from "@/lib/device-placement"
+import { currentEndpointFor } from "@/lib/device-endpoints"
+
+/**
+ * The placement reading now lives in `@/lib/device-placement`, because the
+ * Control page's board can be ordered by the same arrangement the Groups page
+ * draws and one rule may not have two implementations. It is re-exported here
+ * so the surfaces that already import it keep one import path.
+ */
+export { activeMemberships, orderedGroups, ungroupedDevices }
 
 export function textForDevice(devices: readonly DeviceView[], deviceId: string): string {
   return devices.find((device) => device.id === deviceId)?.displayName ?? deviceId
@@ -19,34 +29,12 @@ export function resolvedDeviceIds(deviceIds: readonly string[], selected: readon
 // captureSerialForDevice names the transport to observe for the selected device.
 // It resolves the device's single current endpoint serial and never falls back
 // to an ambient or previously confirmed lab target: with no current endpoint or
-// more than one, it refuses rather than choosing.
+// more than one, it refuses rather than choosing. Which endpoint is the current
+// one is read through the same helper the compact frames answer their address
+// with, so "the device's current endpoint" has one implementation.
 export function captureSerialForDevice(
   endpoints: readonly Pick<EndpointView, "deviceId" | "serial" | "state">[],
   deviceId: string,
 ): string {
-  const current = endpoints.filter((endpoint) => endpoint.deviceId === deviceId && endpoint.state === "current")
-  if (current.length !== 1) return ""
-  return current[0]?.serial.trim() ?? ""
-}
-
-export function activeMemberships<T extends { state: string }>(items: readonly T[]): T[] {
-  return items.filter((item) => item.state === "active")
-}
-
-// orderedGroups is the persisted operator order. It never falls back to
-// discovery order or id order for equal positions: name is the tiebreak so the
-// surface is deterministic without inventing an implicit authority.
-export function orderedGroups<T extends { position: number; name: string }>(groups: readonly T[]): T[] {
-  return [...groups].sort((left, right) => left.position - right.position || left.name.localeCompare(right.name))
-}
-
-// ungroupedDevices is a computed view, never a persisted authority: a device is
-// ungrouped exactly when it has no active membership. There is no Ungrouped
-// group row, and none is invented here.
-export function ungroupedDevices(
-  devices: readonly DeviceView[],
-  memberships: readonly { deviceId: string; state: string }[],
-): DeviceView[] {
-  const grouped = new Set(activeMemberships(memberships).map((membership) => membership.deviceId))
-  return devices.filter((device) => !grouped.has(device.id))
+  return currentEndpointFor(deviceId, endpoints)?.serial.trim() ?? ""
 }
