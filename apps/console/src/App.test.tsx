@@ -230,7 +230,12 @@ describe("Drift command center", () => {
     expect(screen.getByRole("button", { name: /Atlas 04/i })).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
     expect(screen.getByLabelText(/Atlas 04 floating phone frame/i)).toHaveStyle({ width: "270px", height: "480px" })
-    expect(screen.getByRole("button", { name: /Atlas 07/i })).toHaveStyle({ width: "108px", height: "192px" })
+    // A compact frame is as wide as the console's own shape at the workspace's size and
+    // as tall as the shape its TILE draws: this plane states no size for a still, so the
+    // tile draws the console's own portrait shape and the frame is 108 x 192.
+    const compact = screen.getByRole("button", { name: /Atlas 07/i })
+    expect(compact).toHaveStyle({ width: "108px" })
+    expect(within(compact).getByTestId(/^still-tile-picture-/)).toHaveStyle({ aspectRatio: "9 / 16" })
   })
 
   it("opens a source and selects followers by clicking compact frames, with no preview control to press", async () => {
