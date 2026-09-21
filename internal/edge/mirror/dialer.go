@@ -262,10 +262,13 @@ func (s *stream) ReadFrame(ctx context.Context) (media.StreamFrame, error) {
 		return media.StreamFrame{}, media.ClassifyMirrorEnd(err, readEndClass(err))
 	}
 	return media.StreamFrame{
-		Config: unit.Config,
-		Key:    unit.Key,
-		PTSUS:  unit.PTSUS,
-		Data:   unit.Data,
+		Config:         unit.Config,
+		Key:            unit.Key,
+		PTSUS:          unit.PTSUS,
+		Data:           unit.Data,
+		Declared:       unit.Declared,
+		DeclaredWidth:  unit.DeclaredWidth,
+		DeclaredHeight: unit.DeclaredHeight,
 	}, nil
 }
 

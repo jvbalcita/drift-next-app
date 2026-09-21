@@ -68,6 +68,11 @@ const (
 	packetFlagConfig   uint64 = 1 << 62
 	packetFlagKeyFrame uint64 = 1 << 61
 	packetPTSMask      uint64 = (1 << 61) - 1
+
+	// sessionFlag32 is packetFlagSession in the u32 flags word a session packet
+	// leads with, which is how that packet states itself: a session packet has no
+	// frame flags to carry, so the top bit of its first word is the whole of it.
+	sessionFlag32 uint32 = 1 << 31
 )
 
 // StreamMeta is the head of the video socket: the encoded frame size the device
@@ -104,6 +109,21 @@ type AccessUnit struct {
 	// Data is the packet payload, in Annex-B form: NAL units separated by start
 	// codes.
 	Data []byte
+	// Declared reports a DECLARATION rather than a packet: the device's encoder
+	// restarted and announced a new encoding session, at DeclaredWidth x
+	// DeclaredHeight. It carries no picture and no timestamp of its own -
+	// DeclaredWidth and DeclaredHeight are set, and the session's Meta() reports
+	// the new size from here on.
+	//
+	// It is the device doing what a re-dial does, unasked: the same event the
+	// media layer must carry rather than end a stream over, one protocol layer
+	// below it. What follows on the socket is the new session's configuration
+	// packet and its key frame.
+	Declared bool
+	// DeclaredWidth and DeclaredHeight are the encoded size the new encoding
+	// session streams at, set when Declared is.
+	DeclaredWidth  int
+	DeclaredHeight int
 }
 
 // ParseStreamMeta reads the codec identifier and the session packet that open
@@ -126,16 +146,48 @@ func ParseStreamMeta(head []byte) (StreamMeta, error) {
 	default:
 		return StreamMeta{}, fmt.Errorf("scrcpy: device streams codec %#08x, not h264", codec)
 	}
-	flags := binary.BigEndian.Uint32(head[4:8])
-	if flags&0x80000000 == 0 {
+	return ParseSessionPacket(head[CodecHeaderSize:], codec)
+}
+
+// ParseSessionPacket reads one session packet, given the codec the stream is
+// already known to be carrying.
+//
+// A session packet opens an ENCODING SESSION, and the device sends one for each
+// of them on the same video socket: the stream's first is preceded by its codec
+// identifier and is read by ParseStreamMeta, and every one after it arrives bare,
+// because the codec belongs to the stream and not to the session. What follows
+// it is that session's own configuration packet and key frame. A session that
+// starts mid-stream is the device's encoder having restarted - a rotation, a
+// display size change, an application going full-screen, or the video reset this
+// package asks for - and it is why a stream can change shape without anybody
+// ending it.
+func ParseSessionPacket(head []byte, codec uint32) (StreamMeta, error) {
+	if len(head) < SessionPacketSize {
+		return StreamMeta{}, fmt.Errorf("scrcpy: session packet is %d bytes, want %d", len(head), SessionPacketSize)
+	}
+	flags := binary.BigEndian.Uint32(head[0:4])
+	if flags&sessionFlag32 == 0 {
 		return StreamMeta{}, fmt.Errorf("scrcpy: expected a session packet, got flags %#08x", flags)
 	}
-	width := int(binary.BigEndian.Uint32(head[8:12]))
-	height := int(binary.BigEndian.Uint32(head[12:16]))
+	width := int(binary.BigEndian.Uint32(head[4:8]))
+	height := int(binary.BigEndian.Uint32(head[8:12]))
 	if width <= 0 || height <= 0 || width > maxFrameDimension || height > maxFrameDimension {
 		return StreamMeta{}, fmt.Errorf("scrcpy: device reported a %dx%d stream", width, height)
 	}
 	return StreamMeta{Codec: codec, Width: width, Height: height}, nil
+}
+
+// isSessionPacket reports whether a packet header announces an encoding session
+// rather than carrying a picture.
+//
+// The header is the same twelve bytes either way, so the flag decides: a session
+// packet leads with it, and a frame packet cannot - the same bit is part of the
+// frame's own flags word.
+func isSessionPacket(header []byte) bool {
+	if len(header) < PacketHeaderSize {
+		return false
+	}
+	return binary.BigEndian.Uint64(header[0:8])&packetFlagSession != 0
 }
 
 // maxFrameDimension bounds an encoded frame size. It is the same bound the
@@ -149,7 +201,7 @@ func parseFrameHeader(header []byte) (config, key bool, ptsUS uint64, size int, 
 		return false, false, 0, 0, fmt.Errorf("scrcpy: frame header is %d bytes, want %d", len(header), PacketHeaderSize)
 	}
 	flags := binary.BigEndian.Uint64(header[0:8])
-	if flags&packetFlagSession != 0 {
+	if isSessionPacket(header) {
 		return false, false, 0, 0, errors.New("scrcpy: expected a frame packet, got a session packet")
 	}
 	size32 := binary.BigEndian.Uint32(header[8:12])

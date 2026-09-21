@@ -829,6 +829,81 @@ func TestReadAccessUnitContextStopsWhenTheCallerStops(t *testing.T) {
 	}
 }
 
+// sessionPacket announces one encoding session on the video socket: the twelve
+// bytes that open it, carrying the encoded size. The stream's first is preceded by
+// its codec identifier; every one after it is bare, because the codec belongs to
+// the stream.
+func sessionPacket(width, height int) []byte {
+	packet := make([]byte, SessionPacketSize)
+	putUint32(packet[0:4], sessionFlag32)
+	putUint32(packet[4:8], uint32(width))
+	putUint32(packet[8:12], uint32(height))
+	return packet
+}
+
+// TestAnEncoderThatRestartsIsADeclarationAndNotAnEnd is the device-side event this
+// whole path has to survive: the device's encoder restarted - a rotation, a display
+// size change, an application going full-screen, or the video reset this package
+// itself asks for - and scrcpy announces every encoding session with a session
+// packet on the same video socket. Read as an error, that announcement ends the
+// stream over an ordinary device event; read as what it is, the session re-declares
+// at the new size and goes on with the packets that follow it, which are the new
+// session's own configuration packet and key frame.
+func TestAnEncoderThatRestartsIsADeclarationAndNotAnEnd(t *testing.T) {
+	idr := []byte{0, 0, 0, 1, 0x65, 0xb8, 0x48}
+	landscape := []byte{0, 0, 0, 1, 0x65, 0xc4, 0x11}
+	restarted := []byte{0, 0, 0, 1, 0x67, 0x64, 0x00, 0x28}
+	h := newHarness(t, headFromDevice, [][]byte{
+		configFrame([]byte{0, 0, 0, 1, 0x67, 0x42, 0x00, 0x32}),
+		frame(idr, true, 22265830649),
+		sessionPacket(2280, 1080),
+		configFrame(restarted),
+		frame(landscape, true, 1000),
+	}, nil)
+
+	if _, err := h.session.ReadAccessUnit(); err != nil {
+		t.Fatalf("reading the device's configuration packet: %v", err)
+	}
+	if _, err := h.session.ReadAccessUnit(); err != nil {
+		t.Fatalf("reading the device's key frame: %v", err)
+	}
+
+	declared, err := h.session.ReadAccessUnit()
+	if err != nil {
+		t.Fatalf("the device's own encoder restart ended the session: %v", err)
+	}
+	if !declared.Declared || declared.Config || declared.Key {
+		t.Fatalf("the session packet was read as config=%v key=%v declared=%v, want a declaration and no picture", declared.Config, declared.Key, declared.Declared)
+	}
+	if declared.DeclaredWidth != 2280 || declared.DeclaredHeight != 1080 {
+		t.Errorf("the declaration reports %dx%d, want the size the device announced, 2280x1080", declared.DeclaredWidth, declared.DeclaredHeight)
+	}
+	if width, height := h.session.Meta().Size(); width != 2280 || height != 1080 {
+		t.Errorf("the session reports %dx%d after the device announced a new encoding session, want 2280x1080", width, height)
+	}
+	if h.session.Stats().Declarations != 1 {
+		t.Errorf("the session counted %d declarations, want the device's one", h.session.Stats().Declarations)
+	}
+
+	// The packets after the declaration are that session's own, and are read as
+	// ordinary packets: a stream that carried a declaration and then read nothing
+	// would be a picture that stopped instead of one that changed shape.
+	next, err := h.session.ReadAccessUnit()
+	if err != nil {
+		t.Fatalf("reading the restarted session's configuration packet: %v", err)
+	}
+	if !next.Config {
+		t.Errorf("the packet after the declaration is config=%v, want the new session's configuration packet", next.Config)
+	}
+	key, err := h.session.ReadAccessUnit()
+	if err != nil {
+		t.Fatalf("reading the restarted session's key frame: %v", err)
+	}
+	if !key.Key || !bytes.Equal(key.Data, landscape) {
+		t.Errorf("the packet after the declaration is key=%v data=% x, want the new session's key frame % x", key.Key, key.Data, landscape)
+	}
+}
+
 // TestReadAccessUnitContextReturnsTheDevicesPackets is the other half: the
 // bounded waiting above must not lose a packet that does arrive, or the mirror
 // would be quiet rather than live.
