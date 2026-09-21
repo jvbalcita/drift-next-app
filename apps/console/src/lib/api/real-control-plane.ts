@@ -1533,6 +1533,27 @@ function deleteDeviceRefusalMessage(reason: DeleteDeviceRefusalReason): string {
   }
 }
 
+type DeviceLifecycleBatchOutcome = { deviceId: string; ok: boolean; message: string }
+
+function deviceLifecycleBatchSummary(action: "retired" | "deleted", outcomes: readonly DeviceLifecycleBatchOutcome[]): string {
+  const succeeded = outcomes.filter((outcome) => outcome.ok).length
+  const refused = outcomes.length - succeeded
+  const verb = action === "retired" ? "retired" : "deleted from the registry"
+  return refused === 0
+    ? `${succeeded} device${succeeded === 1 ? "" : "s"} ${verb}.`
+    : `${succeeded} device${succeeded === 1 ? "" : "s"} ${verb}; ${refused} refused. Review the per-device reasons.`
+}
+
+function uniqueDeviceIds(deviceIds: readonly string[]): string[] {
+  return [...new Set(deviceIds.map((deviceId) => deviceId.trim()).filter(Boolean))]
+}
+
+function sameDeviceIdSet(left: readonly string[], right: readonly string[]): boolean {
+  const leftIds = uniqueDeviceIds(left)
+  const rightIds = uniqueDeviceIds(right)
+  return leftIds.length === rightIds.length && leftIds.every((deviceId) => rightIds.includes(deviceId))
+}
+
 /**
  * fleetActivationReport states what Activate did, per serial, because a count is
  * not something an operator can act on: the device that was refused, the one
@@ -1896,7 +1917,7 @@ export class RealControlPlaneClient implements ControlPlaneClient {
       // per-device report. Reading it again here can replace a good reload with
       // a transiently incomplete second projection, so keep that action to one
       // bounded read just like the explicit refresh path below.
-      if (result.ok && intent.type !== "refresh" && intent.type !== "reloadDevices") {
+      if ((result.ok || result.deviceLifecycleBatch) && intent.type !== "refresh" && intent.type !== "reloadDevices") {
         await this.refresh()
       }
       if (intent.type === "refresh") {
@@ -1944,6 +1965,51 @@ export class RealControlPlaneClient implements ControlPlaneClient {
         }
         if (!response.deletionId) return failure(intent, "The control plane did not return a deletion record.", { errorCode: "precondition_failed", resourceId: intent.deviceId })
         return mutation(intent, "Device permanently deleted from the registry. Its audit and evidence history was preserved.", { resourceId: response.deletionId })
+      }
+      case "bulkRetireDevices": {
+        const deviceIds = uniqueDeviceIds(intent.deviceIds)
+        if (deviceIds.length === 0) return failure(intent, "Select at least one device to retire.", { errorCode: "invalid_input" })
+        if (!intent.reason.trim()) return failure(intent, "A reason is required to retire devices.", { errorCode: "invalid_input" })
+        const outcomes: DeviceLifecycleBatchOutcome[] = []
+        for (const deviceId of deviceIds) {
+          try {
+            await this.services.device.retireDevice(requestId, workspaceId, deviceId, intent.reason.trim())
+            outcomes.push({ deviceId, ok: true, message: "Device retired. Its registry history and evidence were preserved." })
+          } catch (cause: unknown) {
+            outcomes.push({ deviceId, ok: false, message: cause instanceof ConnectJsonError ? cause.message : "The control plane could not retire this device." })
+          }
+        }
+        const allSucceeded = outcomes.every((outcome) => outcome.ok)
+        const batch = { outcomes }
+        return allSucceeded
+          ? mutation(intent, deviceLifecycleBatchSummary("retired", outcomes), { deviceLifecycleBatch: batch })
+          : failure(intent, deviceLifecycleBatchSummary("retired", outcomes), { errorCode: "precondition_failed", deviceLifecycleBatch: batch })
+      }
+      case "bulkDeleteDevices": {
+        const deviceIds = uniqueDeviceIds(intent.deviceIds)
+        if (deviceIds.length === 0) return failure(intent, "Select at least one device to delete.", { errorCode: "invalid_input" })
+        if (!sameDeviceIdSet(deviceIds, intent.confirmationDeviceIds)) return failure(intent, "Permanent deletion refused: the confirmed device selection did not match the requested selection.", { errorCode: "precondition_failed" })
+        if (!intent.reason.trim()) return failure(intent, "A reason is required to permanently delete devices.", { errorCode: "invalid_input" })
+        const outcomes: DeviceLifecycleBatchOutcome[] = []
+        for (const deviceId of deviceIds) {
+          try {
+            const response = await this.services.device.deleteDevice(requestId, workspaceId, deviceId, deviceId, intent.reason.trim())
+            if (response.refusalReason !== DeleteDeviceRefusalReason.UNSPECIFIED) {
+              outcomes.push({ deviceId, ok: false, message: deleteDeviceRefusalMessage(response.refusalReason) })
+            } else if (!response.deletionId) {
+              outcomes.push({ deviceId, ok: false, message: "The control plane did not return a deletion record." })
+            } else {
+              outcomes.push({ deviceId, ok: true, message: "Device permanently deleted from the registry. Its audit and evidence history was preserved." })
+            }
+          } catch (cause: unknown) {
+            outcomes.push({ deviceId, ok: false, message: cause instanceof ConnectJsonError ? cause.message : "The control plane could not delete this device." })
+          }
+        }
+        const allSucceeded = outcomes.every((outcome) => outcome.ok)
+        const batch = { outcomes }
+        return allSucceeded
+          ? mutation(intent, deviceLifecycleBatchSummary("deleted", outcomes), { deviceLifecycleBatch: batch })
+          : failure(intent, deviceLifecycleBatchSummary("deleted", outcomes), { errorCode: "precondition_failed", deviceLifecycleBatch: batch })
       }
       case "setHalt": {
         if (!intent.confirmed) return failure(intent, `${intent.state === "emergency_stop" ? "Engaging" : "Releasing"} the emergency stop requires confirmation.`, { errorCode: "precondition_failed" })

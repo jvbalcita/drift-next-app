@@ -869,6 +869,8 @@ export type ControlPlaneIntent =
   | { type: "retireDevice"; deviceId: string; reason: string }
   | { type: "restoreDevice"; deviceId: string; reason: string }
   | { type: "deleteDevice"; deviceId: string; confirmationDeviceId: string; reason: string }
+  | { type: "bulkRetireDevices"; deviceIds: readonly string[]; reason: string }
+  | { type: "bulkDeleteDevices"; deviceIds: readonly string[]; confirmationDeviceIds: readonly string[]; reason: string }
   | { type: "startMirrorPreview"; sourceDeviceId: string; followerDeviceIds: readonly string[] }
   | { type: "stopMirrorPreview"; sessionId: string }
   | { type: "createNetworkProfile"; name: string; addressPolicy: string; ports: readonly number[]; isDefault: boolean }
@@ -1086,6 +1088,13 @@ export interface MutationResult {
    * advanced form, which report the same row shape.
    */
   deviceOperation?: DeviceOperationOutcomeView
+  /**
+   * Bulk device lifecycle actions preserve one outcome per selected identity,
+   * so a partial batch cannot be reported as an unqualified success.
+   */
+  deviceLifecycleBatch?: {
+    outcomes: readonly { deviceId: string; ok: boolean; message: string }[]
+  }
 }
 
 export interface ControlPlaneClient {

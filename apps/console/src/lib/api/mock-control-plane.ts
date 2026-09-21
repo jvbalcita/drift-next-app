@@ -1509,6 +1509,27 @@ function rejection(intent: ControlPlaneIntent, message: string, resourceId?: str
   }
 }
 
+type DeviceLifecycleBatchOutcome = { deviceId: string; ok: boolean; message: string }
+
+function uniqueDeviceIds(deviceIds: readonly string[]): string[] {
+  return [...new Set(deviceIds.map((deviceId) => deviceId.trim()).filter(Boolean))]
+}
+
+function sameDeviceIdSet(left: readonly string[], right: readonly string[]): boolean {
+  const leftIds = uniqueDeviceIds(left)
+  const rightIds = uniqueDeviceIds(right)
+  return leftIds.length === rightIds.length && leftIds.every((deviceId) => rightIds.includes(deviceId))
+}
+
+function deviceLifecycleBatchSummary(action: "retired" | "deleted", outcomes: readonly DeviceLifecycleBatchOutcome[]): string {
+  const succeeded = outcomes.filter((outcome) => outcome.ok).length
+  const refused = outcomes.length - succeeded
+  const verb = action === "retired" ? "retired" : "deleted from the registry"
+  return refused === 0
+    ? `${succeeded} device${succeeded === 1 ? "" : "s"} ${verb}.`
+    : `${succeeded} device${succeeded === 1 ? "" : "s"} ${verb}; ${refused} refused. Review the per-device reasons.`
+}
+
 function addEvent(snapshot: ControlPlaneSnapshot, event: EventView): readonly EventView[] {
   return [event, ...snapshot.events]
 }
@@ -1647,6 +1668,10 @@ export class MockControlPlaneClient implements ControlPlaneClient {
         return this.restoreDevice(intent)
       case "deleteDevice":
         return this.deleteDevice(intent)
+      case "bulkRetireDevices":
+        return this.bulkRetireDevices(intent)
+      case "bulkDeleteDevices":
+        return this.bulkDeleteDevices(intent)
       case "setHalt":
         if (!intent.confirmed) return rejection(intent, `${intent.state === "emergency_stop" ? "Engaging" : "Releasing"} the emergency stop requires confirmation.`, undefined, "precondition_failed")
         if (!intent.reason.trim()) return rejection(intent, "A reason is required for the emergency stop change.", undefined, "invalid_input")
@@ -3057,6 +3082,43 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       devices: this.snapshot.devices.filter((candidate) => candidate.id !== device.id),
     }
     return result(intent, "Device permanently deleted from the registry. Its audit and evidence history was preserved.", device.id)
+  }
+
+  private bulkRetireDevices(intent: Extract<ControlPlaneIntent, { type: "bulkRetireDevices" }>): MutationResult {
+    const deviceIds = uniqueDeviceIds(intent.deviceIds)
+    if (deviceIds.length === 0) return rejection(intent, "Select at least one device to retire.", "", "invalid_input")
+    if (!intent.reason.trim()) return rejection(intent, "A reason is required to retire devices.", "", "invalid_input")
+    const outcomes = deviceIds.map<DeviceLifecycleBatchOutcome>((deviceId) => {
+      const outcome = this.retireDevice({ type: "retireDevice", deviceId, reason: intent.reason })
+      return { deviceId, ok: outcome.ok, message: outcome.message }
+    })
+    const allSucceeded = outcomes.every((outcome) => outcome.ok)
+    return {
+      ok: allSucceeded,
+      kind: intent.type,
+      message: deviceLifecycleBatchSummary("retired", outcomes),
+      ...(allSucceeded ? {} : { errorCode: "precondition_failed" as const }),
+      deviceLifecycleBatch: { outcomes },
+    }
+  }
+
+  private bulkDeleteDevices(intent: Extract<ControlPlaneIntent, { type: "bulkDeleteDevices" }>): MutationResult {
+    const deviceIds = uniqueDeviceIds(intent.deviceIds)
+    if (deviceIds.length === 0) return rejection(intent, "Select at least one device to delete.", "", "invalid_input")
+    if (!sameDeviceIdSet(deviceIds, intent.confirmationDeviceIds)) return rejection(intent, "Permanent deletion refused: the confirmed device selection did not match the requested selection.", "", "precondition_failed")
+    if (!intent.reason.trim()) return rejection(intent, "A reason is required to permanently delete devices.", "", "invalid_input")
+    const outcomes = deviceIds.map<DeviceLifecycleBatchOutcome>((deviceId) => {
+      const outcome = this.deleteDevice({ type: "deleteDevice", deviceId, confirmationDeviceId: deviceId, reason: intent.reason })
+      return { deviceId, ok: outcome.ok, message: outcome.message }
+    })
+    const allSucceeded = outcomes.every((outcome) => outcome.ok)
+    return {
+      ok: allSucceeded,
+      kind: intent.type,
+      message: deviceLifecycleBatchSummary("deleted", outcomes),
+      ...(allSucceeded ? {} : { errorCode: "precondition_failed" as const }),
+      deviceLifecycleBatch: { outcomes },
+    }
   }
 
   private deleteDeviceGroup(intent: Extract<ControlPlaneIntent, { type: "deleteDeviceGroup" }>): MutationResult {
