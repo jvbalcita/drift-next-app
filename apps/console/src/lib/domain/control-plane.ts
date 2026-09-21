@@ -101,7 +101,7 @@ export type SpoolItemOutcome =
 export type IndeterminateResolutionKind = "fresh_observation" | "operator_confirmed"
 export type PrerequisiteErrorCode = "precondition_failed" | "policy_denied" | "unauthorized" | "invalid_input"
 export type MirrorSessionState = "requested" | "active" | "paused" | "stopping" | "completed" | "failed" | "cancelled"
-export type MirrorTargetOutcome = "preview_admitted" | "simulated_success" | "offline" | "incompatible" | "policy_denied" | "lease_conflict" | "target_resolution_failed" | "cancelled"
+export type MirrorTargetOutcome = "preview_admitted" | "offline" | "incompatible" | "policy_denied" | "lease_conflict" | "target_resolution_failed" | "cancelled"
 
 /**
  * How a device is currently reachable. It is a fact the control plane observed

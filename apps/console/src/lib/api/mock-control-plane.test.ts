@@ -19,8 +19,8 @@ describe("MockControlPlaneClient", () => {
     expect(session?.followerResults).toEqual([
       {
         deviceId: "atlas-07",
-        outcome: "simulated_success",
-        detail: "Preview accepted; no command sent.",
+        outcome: "preview_admitted",
+        detail: "Preview admitted; no command sent.",
       },
       {
         deviceId: "nova-05",

@@ -2424,21 +2424,24 @@ export class MockControlPlaneClient implements ControlPlaneClient {
     const source = this.snapshot.devices.find((device) => device.id === intent.sourceDeviceId)
     const followerIds = [...new Set(intent.followerDeviceIds)].filter((id) => id !== intent.sourceDeviceId)
     const followers = followerIds.map((id) => this.snapshot.devices.find((device) => device.id === id))
-    if (!source || followerIds.length === 0 || followers.some((device) => !device)) {
+    // A follower this projection does not hold is refused here, with the plane's own
+    // sentence, rather than answered as a per-target result: the plane refuses that
+    // selection the same way and reports no target row for it either.
+    if (!source || followerIds.length === 0 || followers.some((device) => device === undefined)) {
       return rejection(intent, "Preview needs one source and at least one follower.")
     }
+    const resolvedFollowers = followers.filter((device) => device !== undefined)
     if (source.status !== "online" || source.controlEligibility !== "eligible") {
       return rejection(intent, `Preview rejected: source is ${source.status === "online" ? source.controlEligibility.replaceAll("_", " ") : "not online"}.`, source.id)
     }
     const sessionId = `mirror-preview-${this.nextSequence++}`
-    const followerResults = followers.map((device) => {
-      if (!device) {
-        return {
-          deviceId: "unknown",
-          outcome: "target_resolution_failed" as const,
-          detail: "Target was not resolved in the mock projection.",
-        }
-      }
+    // The plane's own per-follower vocabulary, so a surface that renders this mock's
+    // results renders the results the real plane produces: an admitted follower reads
+    // `preview_admitted` here because it reads `preview_admitted` there (see
+    // `mapMirrorTargetOutcome`), and a withheld one is named by the eligibility the
+    // plane would classify it under. The admitted detail is the plane's own sentence,
+    // because the plane's record is where a reader goes to check it.
+    const followerResults = resolvedFollowers.map((device) => {
       if (device.controlEligibility !== "eligible") {
         return {
           deviceId: device.id,
@@ -2448,8 +2451,8 @@ export class MockControlPlaneClient implements ControlPlaneClient {
       }
       return {
         deviceId: device.id,
-        outcome: "simulated_success" as const,
-        detail: "Preview accepted; no command sent.",
+        outcome: "preview_admitted" as const,
+        detail: "Preview admitted; no command sent.",
       }
     })
     const session: MirrorSessionView = {
