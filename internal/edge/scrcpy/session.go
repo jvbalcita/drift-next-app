@@ -127,12 +127,17 @@ const DefaultAcceptWait = 15 * time.Second
 // send input.
 type Session struct {
 	opts  Options
-	meta  StreamMeta
 	scid  uint32
 	port  int
 	video net.Conn
 	ctrl  net.Conn
 	proc  adb.LongRunning
+
+	// metaMu guards meta: it is written by the single reader, which records a new
+	// encoding session's size when the device announces one mid-stream, and read
+	// by callers measuring an input coordinate in the frame.
+	metaMu sync.RWMutex
+	meta   StreamMeta
 
 	// writeMu serializes control-socket writes: two half-written messages
 	// interleaved would be one corrupt message, and the device would act on it.
@@ -155,7 +160,11 @@ type Stats struct {
 	KeyFrames  int
 	Inputs     int
 	ResetCalls int
-	StartedAt  time.Time
+	// Declarations counts the encoding sessions the device announced after the
+	// stream's own: each one is a re-declaration this session carried rather than
+	// an error it ended on.
+	Declarations int
+	StartedAt    time.Time
 }
 
 // Start pushes the server, opens the loopback listener, registers the reverse
@@ -279,7 +288,50 @@ func Start(ctx context.Context, opts Options) (*Session, error) {
 
 // Meta reports what the device said it is streaming, including the encoded frame
 // size that injected coordinates must be measured in.
-func (s *Session) Meta() StreamMeta { return s.meta }
+//
+// A device that restarts its encoder announces a new encoding session mid-stream,
+// and this is what follows it: the size read here is the size the pictures are
+// being encoded at now, not the one the stream opened with.
+func (s *Session) Meta() StreamMeta {
+	s.metaMu.RLock()
+	defer s.metaMu.RUnlock()
+	return s.meta
+}
+
+// declare records the size the device is streaming, under the lock the reader
+// writes it with and callers read it under.
+func (s *Session) declare(meta StreamMeta) {
+	s.metaMu.Lock()
+	s.meta = meta
+	s.metaMu.Unlock()
+}
+
+// declared records a session packet that arrived mid-stream and reports it.
+//
+// The device's encoder restarted: scrcpy sends a session packet to open every
+// encoding session, so one arriving here - after the stream's own header - is a
+// DECLARATION and not a stream that has lost its place in the protocol. Reading
+// it as an error is what ends a stream over a rotation, a display size change or
+// the video reset this package itself asks for; reading it as what it is carries
+// the stream through, with new parameter sets and, when the screen changed shape,
+// a new size. The packets that follow it are the new session's own configuration
+// packet and key frame, which is exactly what a decoder needs to continue.
+//
+// The codec is not carried by these: it belongs to the stream rather than to the
+// session, so the one this session is already carrying is used, and a device that
+// could change codec mid-stream would be declaring something this client did not
+// negotiate.
+func (s *Session) declared(header []byte) (AccessUnit, error) {
+	meta, err := ParseSessionPacket(header, s.Meta().Codec)
+	if err != nil {
+		return AccessUnit{}, err
+	}
+	s.declare(meta)
+	s.statsMu.Lock()
+	s.stats.Declarations++
+	s.statsMu.Unlock()
+	return AccessUnit{Declared: true, DeclaredWidth: meta.Width, DeclaredHeight: meta.Height}, nil
+}
 
 // Done is closed when the session has ended, whether by Close or by the device.
 func (s *Session) Done() <-chan struct{} { return s.closed }
@@ -317,6 +369,9 @@ func (s *Session) readAccessUnit() (AccessUnit, error) {
 	header := make([]byte, PacketHeaderSize)
 	if _, err := io.ReadFull(s.video, header); err != nil {
 		return AccessUnit{}, fmt.Errorf("scrcpy: reading a frame header: %w", err)
+	}
+	if isSessionPacket(header) {
+		return s.declared(header)
 	}
 	config, key, pts, size, err := parseFrameHeader(header)
 	if err != nil {
@@ -605,7 +660,7 @@ func (s *Session) readStreamMeta(deadline time.Time) error {
 	if err != nil {
 		return err
 	}
-	s.meta = meta
+	s.declare(meta)
 	_ = s.video.SetReadDeadline(time.Time{})
 	return nil
 }

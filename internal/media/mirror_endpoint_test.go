@@ -89,7 +89,16 @@ func startFetch(t *testing.T, transport *StreamTransport, streamKey string) *fet
 // openTCP opens one device's stream over the TCP transport.
 func openTCP(t *testing.T, transport *StreamTransport, deviceID, serial string) *MirrorEndpoint {
 	t.Helper()
-	carrier, err := transport.Open(context.Background(), deviceID, serial, TransportTCP, PurposeOperator, MirrorPreview{})
+	return openTCPAs(t, transport, deviceID, serial, PurposeOperator)
+}
+
+// openTCPAs opens one device's stream over the TCP transport as the viewer
+// purpose given, which is what decides the encode profile the device is dialled
+// at: a grid tile is carried at the workspace's preview level and the operator's
+// own frame at the operator profile.
+func openTCPAs(t *testing.T, transport *StreamTransport, deviceID, serial string, purpose MirrorViewerPurpose) *MirrorEndpoint {
+	t.Helper()
+	carrier, err := transport.Open(context.Background(), deviceID, serial, TransportTCP, purpose, MirrorPreview{})
 	if err != nil {
 		t.Fatalf("open the stream endpoint for %s: %v", deviceID, err)
 	}
@@ -224,6 +233,259 @@ func TestTheStreamEndpointCarriesTheContainerToTheBrowser(t *testing.T) {
 	if stats.RenderWidth == 0 || stats.RenderHeight == 0 {
 		t.Errorf("the stream reports no render size: %+v", stats)
 	}
+}
+
+// TestAReEncodedStreamRedeclaresTheContainerMidResponse is the operator's own
+// failure at the endpoint that carried it: a device already live as a grid tile -
+// the workspace's preview level, and on this fleet a smaller frame - is opened
+// into the operator's own frame, which re-dials it at the operator profile. That
+// is a different encoder and a different size at once, and the response that is
+// already open carries a SECOND initialisation segment where the encoder changed
+// instead of ending with a declaration that no longer describes its samples.
+func TestAReEncodedStreamRedeclaresTheContainerMidResponse(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	// This fleet's "low" preview level caps the encoder's largest dimension at
+	// 480, so a tile of a 1080x2280 device is carried at 480x1066 while the
+	// operator's own profile is the device's 1080x2280.
+	fixture.dialer.ambientSize = [2]int{480, 1066}
+	tile := openTCPAs(t, fixture.transport, "device-1", "SERIAL-device-1", PurposeAmbient)
+	tileStream := fixture.dialer.streamFor(t, "device-1")
+	sessionReady(t, fixture.mustSession(t, "device-1"))
+
+	served := startFetch(t, fixture.transport, tile.StreamKey())
+	tileStream.push(StreamFrame{Config: true, Data: configUnit})
+	tileStream.push(StreamFrame{Key: true, PTSUS: 100_000, Data: idrUnit})
+	waitFor(t, "the tile's browser to receive a picture", func() bool { return tile.Stats().Frames >= 1 })
+
+	// The operator opens the same device into the big frame. The console takes the
+	// device's stream again as the operator's own, so the plane re-dials it at the
+	// operator profile: another encoder, another size.
+	operatorConfig := []byte{
+		0x00, 0x00, 0x00, 0x01, 0x67, 0x64, 0x00, 0x28, 0xac, 0xd0,
+		0x00, 0x00, 0x00, 0x01, 0x68, 0xce, 0x3c, 0x80,
+	}
+	operatorIDR := []byte{0x65, 0x88, 0x84, 0x21, 0xe2}
+	operatorSlice := []byte{0x41, 0x9a, 0x00, 0x22}
+	operatorPicture := append(append(append([]byte{}, operatorConfig...), 0x00, 0x00, 0x00, 0x01), operatorIDR...)
+	operatorSliceFrame := append(append([]byte{}, 0x00, 0x00, 0x00, 0x01), operatorSlice...)
+	frame := openTCPAs(t, fixture.transport, "device-1", "SERIAL-device-1", PurposeOperator)
+	defer func() { _ = frame.Close() }()
+	reencoded := fixture.dialer.streamAfter(t, "device-1", tileStream)
+	reencoded.push(StreamFrame{Config: true, Data: operatorConfig})
+	reencoded.push(StreamFrame{Key: true, PTSUS: 40_000, Data: operatorPicture})
+	waitFor(t, "the browser to be carried a picture from the re-encoded stream", func() bool {
+		return tile.Stats().Frames >= 2
+	})
+	reencoded.push(StreamFrame{PTSUS: 73_000, Data: operatorSliceFrame})
+	waitFor(t, "the browser to be carried the next picture", func() bool { return tile.Stats().Frames >= 3 })
+
+	if err := tile.Close(); err != nil {
+		t.Fatalf("closing the tile's stream: %v", err)
+	}
+	served.wait(t)
+	if served.err != nil {
+		t.Fatalf("the response ended when the device's encoder changed: %v", served.err)
+	}
+
+	boxes := parseBoxes(t, served.bytes())
+	second := -1
+	for index := 2; index < len(boxes); index++ {
+		if boxes[index].typ == "ftyp" {
+			second = index
+			break
+		}
+	}
+	if second < 0 {
+		t.Fatalf("the response carried one declaration and no re-declaration: %s", strings.Join(boxTypes(boxes), ","))
+	}
+	if boxes[second+1].typ != "moov" || boxes[second+2].typ != "moof" || boxes[second+3].typ != "mdat" {
+		t.Fatalf("the re-declaration is followed by %s, want a moov and the picture it describes", strings.Join(boxTypes(boxes[second:]), ","))
+	}
+	if width, height := declaredSize(t, boxes[1]); width != 480 || height != 1066 {
+		t.Errorf("the stream opened declaring %dx%d, want the tile's own 480x1066", width, height)
+	}
+	// The re-declaration states the new codec AND the new size: the size is what
+	// an operator's coordinate frame is measured in, so a stale one is a
+	// coordinate frame nobody can verify.
+	if width, height := declaredSize(t, boxes[second+1]); width != 1080 || height != 2280 {
+		t.Errorf("the re-declaration states %dx%d, want the operator profile's 1080x2280", width, height)
+	}
+	if got, want := declaredCodec(t, boxes[second+1])[1:4], operatorConfig[5:8]; !bytes.Equal(got, want) {
+		t.Errorf("the re-declaration states profile/compatibility/level % x, want the operator encoder's own % x", got, want)
+	}
+	// And the pictures after it are the new encoder's: the picture that forced the
+	// re-declaration is written under the new declaration, and the one after it
+	// carries no parameter sets of its own.
+	if !bytes.Contains(boxes[second+3].body, operatorIDR) {
+		t.Error("the picture the re-declaration was written for is not the picture the re-encoded device sent")
+	}
+	if len(boxes) < second+6 || boxes[second+5].typ != "mdat" {
+		t.Fatalf("the re-declared stream did not carry on with fragments: %s", strings.Join(boxTypes(boxes[second:]), ","))
+	}
+	if !bytes.Contains(boxes[second+5].body, operatorSlice) {
+		t.Error("the picture after the re-declaration is not the one the re-encoded device sent")
+	}
+}
+
+// TestADeviceThatReDeclaresItsOwnStreamIsCarriedNotEnded is the other half of the
+// same event, with nobody having asked for it: the device's encoder restarted on
+// its own account - a screen that changed size, a rotation, an application going
+// full-screen, or the video reset this plane itself asks for - and announced a new
+// encoding session at a new size. No viewer changed, nothing was re-dialled, and
+// there is no second stream: the response already open carries a SECOND
+// initialisation segment and goes on. It is the case a rack of idle phones
+// produces without anyone touching it.
+func TestADeviceThatReDeclaresItsOwnStreamIsCarriedNotEnded(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	endpoint := openTCP(t, fixture.transport, "device-1", "SERIAL-device-1")
+	stream := fixture.dialer.streamFor(t, "device-1")
+	sessionReady(t, fixture.mustSession(t, "device-1"))
+	served := startFetch(t, fixture.transport, endpoint.StreamKey())
+
+	stream.push(StreamFrame{Config: true, Data: configUnit})
+	stream.push(StreamFrame{Key: true, PTSUS: 100_000, Data: idrUnit})
+	waitFor(t, "the browser to receive a picture", func() bool { return endpoint.Stats().Frames >= 1 })
+
+	// The device's encoder restarts: it announces a new encoding session at the
+	// size the screen is in now, and then sends that session's own configuration
+	// packet and key frame.
+	redeclared := []byte{
+		0x00, 0x00, 0x00, 0x01, 0x67, 0x64, 0x00, 0x28, 0xac, 0xd0,
+		0x00, 0x00, 0x00, 0x01, 0x68, 0xce, 0x3c, 0x80,
+	}
+	redeclaredIDR := []byte{0x65, 0x88, 0x84, 0x21, 0xe2}
+	redeclaredSlice := []byte{0x41, 0x9a, 0x00, 0x22}
+	landscape := append(append([]byte{}, 0x00, 0x00, 0x00, 0x01), redeclaredIDR...)
+	stream.push(StreamFrame{Declared: true, DeclaredWidth: 2280, DeclaredHeight: 1080})
+	waitFor(t, "the session to report the size the device declared", func() bool {
+		width, height := fixture.mustSession(t, "device-1").FrameSize()
+		return width == 2280 && height == 1080
+	})
+	stream.push(StreamFrame{Config: true, Data: redeclared})
+	stream.push(StreamFrame{Key: true, PTSUS: 200_000, Data: append(append([]byte{}, redeclared...), landscape...)})
+	waitFor(t, "the browser to be carried the declared session's picture", func() bool { return endpoint.Stats().Frames >= 2 })
+	stream.push(StreamFrame{PTSUS: 233_000, Data: append(append([]byte{}, 0x00, 0x00, 0x00, 0x01), redeclaredSlice...)})
+	waitFor(t, "the browser to be carried the next picture", func() bool { return endpoint.Stats().Frames >= 3 })
+
+	if err := endpoint.Close(); err != nil {
+		t.Fatalf("closing the stream endpoint: %v", err)
+	}
+	served.wait(t)
+	if served.err != nil {
+		t.Fatalf("the stream ended when the device re-declared its own encoder: %v", served.err)
+	}
+
+	boxes := parseBoxes(t, served.bytes())
+	second := -1
+	for index := 2; index < len(boxes); index++ {
+		if boxes[index].typ == "ftyp" {
+			second = index
+			break
+		}
+	}
+	if second < 0 {
+		t.Fatalf("the response carried one declaration and no re-declaration: %s", strings.Join(boxTypes(boxes), ","))
+	}
+	if boxes[second+1].typ != "moov" {
+		t.Fatalf("the re-declaration is not followed by its own declaration: %s", strings.Join(boxTypes(boxes[second:]), ","))
+	}
+	if width, height := declaredSize(t, boxes[second+1]); width != 2280 || height != 1080 {
+		t.Errorf("the re-declaration states %dx%d, want the size the device declared, 2280x1080", width, height)
+	}
+	if got, want := declaredCodec(t, boxes[second+1])[1:4], redeclared[5:8]; !bytes.Equal(got, want) {
+		t.Errorf("the re-declaration states profile/compatibility/level % x, want the device encoder's own % x", got, want)
+	}
+	// The declaration itself is not a picture and is not written as one: the
+	// response carries a fragment per picture and nothing else, so a decoder is
+	// never handed a sample that says what is coming instead of showing it.
+	fragments := 0
+	for index := 2; index < len(boxes); {
+		if boxes[index].typ == "ftyp" {
+			index += 2
+			continue
+		}
+		if index+1 >= len(boxes) || boxes[index].typ != "moof" || boxes[index+1].typ != "mdat" {
+			t.Fatalf("the response carries %s after its declaration, want moof+mdat pairs", strings.Join(boxTypes(boxes[index:]), ","))
+		}
+		fragments++
+		index += 2
+	}
+	if fragments != 3 {
+		t.Errorf("the response carried %d fragments for 3 pictures: a declaration was written as one, or a picture was lost", fragments)
+	}
+	// The size the stream is being carried at follows the device's own
+	// declaration: it is the coordinate frame an operator's input is measured in.
+	if stats := endpoint.Stats(); stats.RenderWidth != 2280 || stats.RenderHeight != 1080 {
+		t.Errorf("the stream reports %dx%d after the device re-declared at 2280x1080", stats.RenderWidth, stats.RenderHeight)
+	}
+}
+
+// TestALateBrowserIsNotPrimedFromTheEncoderTheDeviceReplaced is the black-screen
+// trap a re-declaration opens: a browser that attaches after the device's encoder
+// restarted must not be primed from the key frame the PREVIOUS encoder sent. That
+// frame belongs to an encoder that no longer exists, and a viewer primed with it
+// is primed with a picture and a declaration that do not go together - which
+// decodes to nothing and reports no error, this fleet's signature failure. What a
+// late viewer is primed with is the new session's own key frame.
+func TestALateBrowserIsNotPrimedFromTheEncoderTheDeviceReplaced(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	endpoint := openTCP(t, fixture.transport, "device-1", "SERIAL-device-1")
+	stream := fixture.dialer.streamFor(t, "device-1")
+	sessionReady(t, fixture.mustSession(t, "device-1"))
+
+	first := startFetch(t, fixture.transport, endpoint.StreamKey())
+	stream.push(StreamFrame{Config: true, Data: configUnit})
+	stream.push(StreamFrame{Key: true, PTSUS: 100_000, Data: idrUnit})
+	waitFor(t, "the first browser to receive a picture", func() bool { return endpoint.Stats().Frames >= 1 })
+
+	redeclared := []byte{
+		0x00, 0x00, 0x00, 0x01, 0x67, 0x64, 0x00, 0x28, 0xac, 0xd0,
+		0x00, 0x00, 0x00, 0x01, 0x68, 0xce, 0x3c, 0x80,
+	}
+	// The new session's key frame carries a picture of its own: the fixture's own
+	// key frame is the one the replaced encoder sent, and the two must be told
+	// apart for what a late browser was primed from to be assertable at all.
+	landscape := []byte{0x65, 0x91, 0x33, 0x77, 0x02}
+	replaced := append(append(append([]byte{}, redeclared...), 0x00, 0x00, 0x00, 0x01), landscape...)
+	stream.push(StreamFrame{Declared: true, DeclaredWidth: 2280, DeclaredHeight: 1080})
+	waitFor(t, "the session to report the size the device declared", func() bool {
+		width, height := fixture.mustSession(t, "device-1").FrameSize()
+		return width == 2280 && height == 1080
+	})
+
+	// A browser attaches now, after the declaration and before the new session's
+	// own key frame: there is nothing it may be primed from yet.
+	late := startFetch(t, fixture.transport, endpoint.StreamKey())
+	stream.push(StreamFrame{Config: true, Data: redeclared})
+	stream.push(StreamFrame{Key: true, PTSUS: 200_000, Data: replaced})
+	waitFor(t, "the late browser to be carried the new session's picture", func() bool {
+		boxes := parseBoxes(t, late.bytes())
+		return len(boxes) >= 4
+	})
+
+	boxes := parseBoxes(t, late.bytes())
+	if !isKeySample(t, boxes[2]) {
+		t.Fatal("the late browser's first fragment is not a key frame, so it decodes to nothing")
+	}
+	if bytes.Contains(late.bytes(), stripStartCode(idrUnit)) {
+		t.Error("the late browser was primed from the key frame of the encoder the device replaced")
+	}
+	if !bytes.Contains(boxes[3].body, landscape) {
+		t.Error("the late browser's first fragment is not the new session's own key frame")
+	}
+	// Its declaration is the new one too: a picture and a declaration that do not
+	// go together are exactly the pair that decodes to nothing and reports no error.
+	if width, height := declaredSize(t, boxes[1]); width != 2280 || height != 1080 {
+		t.Errorf("the late browser's declaration states %dx%d, want the size the device declared, 2280x1080", width, height)
+	}
+	if got, want := declaredCodec(t, boxes[1])[1:4], redeclared[5:8]; !bytes.Equal(got, want) {
+		t.Errorf("the late browser's declaration states profile/compatibility/level % x, want the device encoder's own % x", got, want)
+	}
+	if err := endpoint.Close(); err != nil {
+		t.Fatalf("closing the stream endpoint: %v", err)
+	}
+	first.wait(t)
+	late.wait(t)
 }
 
 // TestALateBrowserStartsAtAKeyFrameTheStreamAlreadyCarried is the black-screen

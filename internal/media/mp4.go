@@ -21,11 +21,15 @@
 //   - The stream must START at a key frame. A fragment timeline whose first
 //     sample is a delta frame decodes to nothing and reports nothing, which is
 //     this fleet's black-screen trap in another container.
-//   - The parameter sets are declared once, in the initialisation segment's
-//     avcC - the place a decoder reads them - and are stripped from the samples.
-//     They are also refused if they CHANGE mid-stream: an initialisation segment
-//     that no longer describes its samples is a stream a decoder cannot follow,
-//     and saying so is the only alternative to showing nothing.
+//   - The parameter sets are declared in the initialisation segment's avcC - the
+//     place a decoder reads them - and are stripped from the samples. A device
+//     that re-sends DIFFERENT sets mid-stream is a supported event rather than a
+//     failure: a new initialisation segment is written at that point, on the same
+//     byte stream, and every picture after it is described by it. That is the
+//     normal transition this product exists to support (a grid tile opened into
+//     the operator's own frame re-dials the device at a different encode profile)
+//     and the device's own behaviour (a screen that changed size); what ends a
+//     stream is a device that changed to a codec this container cannot declare.
 //   - The composition timeline never goes backwards. A fragment's decode time is
 //     a monotonic timeline derived from the device's own PTS deltas, so an
 //     encoder that restarts its clock mid-session advances the timeline by the
@@ -94,11 +98,13 @@ var (
 	// there is no initialisation segment to write and no stream to carry.
 	ErrMP4NoParameterSets = errors.New("media: a fragmented MP4 stream needs the codec's parameter sets before its first picture")
 
-	// ErrMP4CodecChanged reports a device that re-sent different parameter sets
-	// mid-stream. The initialisation segment already declared the old ones, and
-	// hand-holding a decoder through a reconfiguration this container cannot
-	// express is not something a hop may pretend it did.
-	ErrMP4CodecChanged = errors.New("media: the device's encoder changed its parameter sets mid-stream, so the stream's declaration no longer describes its samples")
+	// ErrMP4CodecChanged reports a mid-stream parameter-set change this container
+	// cannot express: a device whose new sets do not describe H.264 in the form
+	// an avcC states, so there is no declaration to rebuild. It is deliberately
+	// NOT what a device that re-sent different parameter sets of the same codec
+	// gets: that is a re-declaration, and the stream carries on under a new
+	// initialisation segment (see MP4Writer.WriteAccessUnit).
+	ErrMP4CodecChanged = errors.New("media: the device's encoder changed to a codec this stream cannot declare")
 
 	// ErrMP4NotConstructed reports a writer with no destination or no frame size.
 	ErrMP4NotConstructed = errors.New("media: the fragmented MP4 writer is not constructed")
@@ -115,8 +121,18 @@ var (
 // serving goroutine, which is also what keeps a fragment's boxes contiguous on
 // the wire.
 type MP4Writer struct {
-	writer        io.Writer
+	writer io.Writer
+	// width and height are the size the pictures being written are encoded at.
+	// They are what the NEXT declaration states, and they are told to the writer
+	// rather than fixed at construction because a live session's size can change
+	// under it (see SetSize).
 	width, height int
+	// declaredWidth and declaredHeight are the size the stream's CURRENT
+	// initialisation segment states, which is a different fact from the size the
+	// pictures are arriving at: a declaration that states the wrong size is a
+	// coordinate frame an operator's input would be measured in wrongly, so the
+	// stream is re-declared rather than carried under a stale one.
+	declaredWidth, declaredHeight int
 
 	params []byte
 	header []byte
@@ -151,10 +167,11 @@ func NewMP4Writer(writer io.Writer, width, height int) (*MP4Writer, error) {
 	}, nil
 }
 
-// InitSegment reports the initialisation segment this writer wrote, or nil
-// before it has written one. It is what a caller re-sends to a reader that
-// attached later, and it is a copy: nothing here hands out a buffer it may write
-// into again.
+// InitSegment reports the initialisation segment that describes the pictures the
+// writer is producing NOW - the stream's opening declaration, or the latest
+// re-declaration once the device's encoder changed under it - and nil before it
+// has written one. It is what a caller re-sends to a reader that attached later,
+// and it is a copy: nothing here hands out a buffer it may write into again.
 func (m *MP4Writer) InitSegment() []byte {
 	if m == nil || len(m.header) == 0 {
 		return nil
@@ -195,8 +212,10 @@ func (m *MP4Writer) Started() bool {
 //
 // The first unit of a stream must be a key frame and must carry (or have been
 // preceded by) the parameter sets: anything else produces a stream that decodes
-// to nothing. Later units are checked for a mid-stream reconfiguration, which it
-// refuses rather than carrying a stream whose declaration is stale.
+// to nothing. A LATER unit that carries different parameter sets re-declares the
+// stream instead of ending it: a new initialisation segment goes out at that
+// point, on the same byte stream, and the pictures after it are described by it.
+// So does a picture encoded at a size the current declaration does not state.
 func (m *MP4Writer) WriteAccessUnit(unit []byte, key bool, ptsUS uint64) error {
 	if m == nil || m.writer == nil || m.width <= 0 || m.height <= 0 {
 		return ErrMP4NotConstructed
@@ -206,6 +225,7 @@ func (m *MP4Writer) WriteAccessUnit(unit []byte, key bool, ptsUS uint64) error {
 	}
 	sps, pps := parameterSets(unit)
 	carries := len(sps) > 0 && len(pps) > 0
+	sets := append(append([]byte(nil), sps...), pps...)
 
 	if !m.started && !key {
 		return ErrMP4FirstFrameNotKey
@@ -217,27 +237,33 @@ func (m *MP4Writer) WriteAccessUnit(unit []byte, key bool, ptsUS uint64) error {
 		return err
 	}
 
-	if !m.started {
-		params := m.params
-		if carries {
-			params = append(append([]byte(nil), sps...), pps...)
+	switch {
+	case !m.started:
+		if !carries {
+			sets = m.params
 		}
-		if len(params) == 0 {
+		if len(sets) == 0 {
 			return ErrMP4NoParameterSets
 		}
-		avcC, err := avcCFromParameterSets(params)
-		if err != nil {
+		if err := m.declare(sets); err != nil {
 			return err
 		}
-		m.params = params
-		m.header = mp4InitSegment(m.width, m.height, avcC)
-		if err := m.write(m.header); err != nil {
+	case carries && !bytes.Equal(sets, m.params):
+		// The device's encoder re-declared: this is the event a live session is
+		// expected to meet (a re-dial at another encode profile, or a screen that
+		// changed size), so the stream is re-declared at its new sets rather than
+		// ended. A stream that ended here would take the picture down for a
+		// reconfiguration the container can express perfectly well.
+		if err := m.declare(sets); err != nil {
 			return err
 		}
-		m.started = true
-	} else if carries {
-		if !bytes.Equal(append(append([]byte(nil), sps...), pps...), m.params) {
-			return ErrMP4CodecChanged
+	case m.declaredWidth != m.width || m.declaredHeight != m.height:
+		// The pictures are arriving at a size the declaration does not state (see
+		// SetSize). The samples are unchanged, but the size a decoder and an
+		// operator's coordinate frame read is in the declaration, so it is
+		// re-declared before the first picture at the new size.
+		if err := m.declare(m.params); err != nil {
+			return err
 		}
 	}
 
@@ -257,6 +283,56 @@ func (m *MP4Writer) WriteAccessUnit(unit []byte, key bool, ptsUS uint64) error {
 	if key {
 		m.keys++
 	}
+	return nil
+}
+
+// SetSize tells the writer the pictures it will be handed are encoded at a
+// different size than the ones before them.
+//
+// The size is part of the initialisation segment - the sample entry states it,
+// and it is the coordinate frame an operator's input is measured in - so a stream
+// whose frames changed size is re-declared before its next picture rather than
+// carried under a declaration that describes the wrong frame. Nothing is written
+// here: the writer re-declares at the next picture, which is the first moment the
+// new size can be stated WITH a sample rather than as a segment a browser has
+// nothing to do with.
+func (m *MP4Writer) SetSize(width, height int) error {
+	if width <= 0 || height <= 0 {
+		return fmt.Errorf("media: a fragmented MP4 stream needs the size its frames are encoded at, not %dx%d", width, height)
+	}
+	m.width, m.height = width, height
+	return nil
+}
+
+// declare writes an initialisation segment that describes every picture from here
+// on, and records what it declared.
+//
+// It is the whole of what a re-declaration is: the avcC is rebuilt from the sets
+// the device just sent, the sample entry states the size the frames are now
+// encoded at, and the segment goes out BEFORE the picture that forced it - so
+// every sample is described by a declaration that precedes it, which is the order
+// a browser's source buffer reads.
+//
+// A set this container cannot declare (see avcCFromParameterSets) is the one
+// change left as an error, and it is stated as a codec change: there is no
+// initialisation segment to write, and carrying on under the old one would hand a
+// decoder samples nothing describes.
+func (m *MP4Writer) declare(params []byte) error {
+	avcC, err := avcCFromParameterSets(params)
+	if err != nil {
+		if m.started {
+			return fmt.Errorf("%w: %v", ErrMP4CodecChanged, err)
+		}
+		return err
+	}
+	header := mp4InitSegment(m.width, m.height, avcC)
+	if err := m.write(header); err != nil {
+		return err
+	}
+	m.params = append([]byte(nil), params...)
+	m.header = header
+	m.declaredWidth, m.declaredHeight = m.width, m.height
+	m.started = true
 	return nil
 }
 

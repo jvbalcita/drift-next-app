@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -408,11 +409,211 @@ func TestTheTimelineAdvancesWhenTheDeviceRestartsItsClock(t *testing.T) {
 	}
 }
 
-// TestAReconfigurationMidStreamIsRefused: the initialisation segment has already
-// declared the codec. Carrying samples the declaration no longer describes is a
-// stream a decoder cannot follow, so it is refused rather than carried.
-func TestAReconfigurationMidStreamIsRefused(t *testing.T) {
+// declaredSize reports the frame size an initialisation segment's own sample
+// entry states, which is the coordinate frame an operator's input is measured in.
+func declaredSize(t *testing.T, moov parsedBox) (int, int) {
+	t.Helper()
+	trak := child(t, moov, "trak")
+	mdia := child(t, trak, "mdia")
+	minf := child(t, mdia, "minf")
+	stbl := child(t, minf, "stbl")
+	stsd := child(t, stbl, "stsd")
+	avc1 := childAt(t, stsd, 8, "avc1")
+	offset := bytes.Index(avc1.body, []byte("avcC")) - 4
+	if offset < 54 {
+		t.Fatalf("the sample entry carries no size ahead of its codec declaration")
+	}
+	return int(binary.BigEndian.Uint16(avc1.body[offset-54 : offset-52])),
+		int(binary.BigEndian.Uint16(avc1.body[offset-52 : offset-50]))
+}
+
+// declaredCodec reports the codec declaration an initialisation segment carries.
+func declaredCodec(t *testing.T, moov parsedBox) []byte {
+	t.Helper()
+	trak := child(t, moov, "trak")
+	mdia := child(t, trak, "mdia")
+	minf := child(t, mdia, "minf")
+	stbl := child(t, minf, "stbl")
+	stsd := child(t, stbl, "stsd")
+	avc1 := childAt(t, stsd, 8, "avc1")
+	return embeddedBox(t, avc1, "avcC").body
+}
+
+// TestAMidStreamReconfigurationRedeclaresTheStream: a device re-sends its
+// parameter sets mid-stream, which on this fleet is the ordinary transition
+// rather than an exception - a grid tile opened into the operator's own frame
+// re-dials the device at the operator profile, and a screen that changed size
+// re-declares on its own. A live session is expected to be re-declared and
+// fragmented MP4 can express it, so the stream carries a SECOND initialisation
+// segment at that point and goes on. Ending there is what left an operator's frame
+// showing nothing, with "reopen the live stream" unable to bring it back.
+func TestAMidStreamReconfigurationRedeclaresTheStream(t *testing.T) {
 	otherSPS := []byte{0x67, 0x4d, 0x00, 0x2a, 0xab, 0xcd, 0x12, 0x34, 0x56, 0x78}
+	reconfigured := annexB(otherSPS, testPPS, []byte{0x65, 0x88})
+	after := annexB([]byte{0x41, 0x9b, 0x11, 0x7f})
+	// The re-declaration is written at the picture that carries it, so writeStream
+	// failing here IS the assertion that it is no longer an error.
+	data, writer := writeStream(t, 1080, 2280, []testFrame{
+		{unit: idrFrame(t), key: true, pts: 1_000_000},
+		{unit: deltaFrame(0x21), key: false, pts: 1_040_000},
+		{unit: reconfigured, key: true, pts: 80_000}, // and the encoder restarted its clock
+		{unit: after, key: false, pts: 120_000},
+	})
+
+	boxes := parseBoxes(t, data)
+	want := "ftyp,moov,moof,mdat,moof,mdat,ftyp,moov,moof,mdat,moof,mdat"
+	if got := strings.Join(boxTypes(boxes), ","); got != want {
+		t.Fatalf("a re-declared stream is %s, want %s", got, want)
+	}
+
+	// The declaration the stream opened with is still there, and the re-declaration
+	// is a second one rather than a replacement of the bytes a decoder already read.
+	opening := declaredCodec(t, boxes[1])
+	if !bytes.Equal(opening[1:4], testSPS[1:4]) {
+		t.Errorf("the opening declaration states profile % x, want the sets the stream opened with % x", opening[1:4], testSPS[1:4])
+	}
+	second := declaredCodec(t, boxes[7])
+	if bytes.Equal(second, opening) {
+		t.Fatal("the re-declaration carries the same codec declaration as the one before it")
+	}
+	if got := second[1:4]; !bytes.Equal(got, otherSPS[1:4]) {
+		t.Errorf("the re-declaration states profile/compatibility/level % x, want the device's new sets' own % x", got, otherSPS[1:4])
+	}
+	spsLength := int(binary.BigEndian.Uint16(second[6:8]))
+	if got := second[8 : 8+spsLength]; !bytes.Equal(got, otherSPS) {
+		t.Errorf("the re-declaration carries SPS % x, want % x", got, otherSPS)
+	}
+
+	// Every picture after the re-declaration belongs to the new one: the samples
+	// carry no parameter sets of their own, and the fragment that follows it is a
+	// complete sample.
+	if bytes.Contains(boxes[9].body, otherSPS) || bytes.Contains(boxes[11].body, otherSPS) {
+		t.Error("a sample after the re-declaration repeats the parameter sets the new declaration carries")
+	}
+	if got := boxes[11].body; !bytes.Equal(got, lengthPrefixed([]byte{0x41, 0x9b, 0x11, 0x7f})) {
+		t.Errorf("the picture after the re-declaration is % x, want % x", got, lengthPrefixed([]byte{0x41, 0x9b, 0x11, 0x7f}))
+	}
+
+	// The writer reports the declaration that describes what it is producing now,
+	// which is what a caller re-sends to a reader that attached later.
+	if !bytes.Contains(writer.InitSegment(), otherSPS) {
+		t.Error("the initialisation segment the writer reports does not carry the sets the stream is producing under")
+	}
+
+	// The timeline is one timeline across the re-declaration: the pictures after it
+	// carry decode times that continue where the ones before it stopped, and the
+	// restarted device clock did not rewind them.
+	traf := child(t, boxes[8], "traf")
+	if got := binary.BigEndian.Uint64(child(t, traf, "tfdt").body[4:12]); got == 0 {
+		t.Error("the picture after the re-declaration restarted the stream's decode timeline at zero")
+	}
+}
+
+// TestAKeyFrameThatRepeatsTheDeclaredSetsIsNotARedeclaration: this fleet's
+// encoder attaches the parameter sets to every key frame it sends, so a stream
+// that re-declared on every IDR would grow an initialisation segment per IDR
+// interval for a codec that never changed. Only a set that differs is one.
+func TestAKeyFrameThatRepeatsTheDeclaredSetsIsNotARedeclaration(t *testing.T) {
+	data, _ := writeStream(t, 1080, 2280, []testFrame{
+		{unit: idrFrame(t), key: true, pts: 1_000_000},
+		{unit: idrFrame(t), key: true, pts: 2_000_000},
+	})
+	want := "ftyp,moov,moof,mdat,moof,mdat"
+	if got := strings.Join(boxTypes(parseBoxes(t, data)), ","); got != want {
+		t.Errorf("a repeated key frame produced %s, want %s - the sets are the ones already declared", got, want)
+	}
+}
+
+// TestAReencodedSizeIsDeclaredBeforeTheNextPicture: the size in the
+// initialisation segment is the coordinate frame an operator's input is measured
+// in, so a stream whose frames changed size is re-declared at the new one rather
+// than carried under a declaration that describes the wrong frame.
+func TestAReencodedSizeIsDeclaredBeforeTheNextPicture(t *testing.T) {
+	var out bytes.Buffer
+	writer, err := NewMP4Writer(&out, 720, 1280)
+	if err != nil {
+		t.Fatalf("NewMP4Writer: %v", err)
+	}
+	if err := writer.WriteAccessUnit(idrFrame(t), true, 1_000_000); err != nil {
+		t.Fatalf("WriteAccessUnit: %v", err)
+	}
+	if err := writer.WriteAccessUnit(deltaFrame(0x21), false, 1_040_000); err != nil {
+		t.Fatalf("WriteAccessUnit: %v", err)
+	}
+	before := out.Len()
+	if err := writer.SetSize(1080, 2280); err != nil {
+		t.Fatalf("SetSize: %v", err)
+	}
+	if out.Len() != before {
+		t.Errorf("SetSize wrote %d bytes: the size belongs to the next picture's declaration, not to a segment of its own", out.Len()-before)
+	}
+	if err := writer.WriteAccessUnit(deltaFrame(0x22), false, 1_080_000); err != nil {
+		t.Fatalf("WriteAccessUnit: %v", err)
+	}
+	if err := writer.SetSize(0, 1280); err == nil {
+		t.Error("a writer was told the frames are encoded at 0x1280")
+	}
+
+	boxes := parseBoxes(t, out.Bytes())
+	want := "ftyp,moov,moof,mdat,moof,mdat,ftyp,moov,moof,mdat"
+	if got := strings.Join(boxTypes(boxes), ","); got != want {
+		t.Fatalf("a stream whose size changed is %s, want %s", got, want)
+	}
+	if width, height := declaredSize(t, boxes[1]); width != 720 || height != 1280 {
+		t.Errorf("the opening declaration states %dx%d, want 720x1280", width, height)
+	}
+	if width, height := declaredSize(t, boxes[7]); width != 1080 || height != 2280 {
+		t.Errorf("the re-declaration states %dx%d, want the size the frames are now encoded at, 1080x2280", width, height)
+	}
+	// The codec did not change: the declaration is re-stated, not re-declared into
+	// a different codec.
+	if !bytes.Equal(declaredCodec(t, boxes[7]), declaredCodec(t, boxes[1])) {
+		t.Error("a size change altered the codec declaration it was carried with")
+	}
+}
+
+// TestAReDialThatReconfiguresAndResizesDeclaresOnce is the shape the operator's
+// own screenshot reached: a grid tile opened into their frame, which re-dials the
+// device at the operator profile - a different encoder AND a different size at the
+// same moment. One re-declaration states both.
+func TestAReDialThatReconfiguresAndResizesDeclaresOnce(t *testing.T) {
+	otherSPS := []byte{0x67, 0x64, 0x00, 0x28, 0x11, 0x22, 0x33, 0x44, 0x55}
+	var out bytes.Buffer
+	writer, err := NewMP4Writer(&out, 480, 1066)
+	if err != nil {
+		t.Fatalf("NewMP4Writer: %v", err)
+	}
+	if err := writer.WriteAccessUnit(idrFrame(t), true, 1_000_000); err != nil {
+		t.Fatalf("WriteAccessUnit: %v", err)
+	}
+	if err := writer.SetSize(1080, 2280); err != nil {
+		t.Fatalf("SetSize: %v", err)
+	}
+	if err := writer.WriteAccessUnit(annexB(otherSPS, testPPS, []byte{0x65, 0x88}), true, 90_000); err != nil {
+		t.Fatalf("a re-dial at another profile and size ended the stream: %v", err)
+	}
+
+	boxes := parseBoxes(t, out.Bytes())
+	want := "ftyp,moov,moof,mdat,ftyp,moov,moof,mdat"
+	if got := strings.Join(boxTypes(boxes), ","); got != want {
+		t.Fatalf("a re-dial produced %s, want one re-declaration before the picture %s", got, want)
+	}
+	if width, height := declaredSize(t, boxes[5]); width != 1080 || height != 2280 {
+		t.Errorf("the re-declaration states %dx%d, want 1080x2280", width, height)
+	}
+	if got := declaredCodec(t, boxes[5]); !bytes.Equal(got[1:4], otherSPS[1:4]) {
+		t.Errorf("the re-declaration states profile % x, want the operator profile's own % x", got[1:4], otherSPS[1:4])
+	}
+}
+
+// TestAChangeThisContainerCannotExpressIsStillAnError: a re-declaration is not a
+// licence to carry anything. A device whose new sets are not a codec this
+// container can state has no initialisation segment to write, and the stream says
+// so rather than continuing under a declaration that describes nothing.
+func TestAChangeThisContainerCannotExpressIsStillAnError(t *testing.T) {
+	// Two bytes of SPS payload: too short to declare a profile, so there is no
+	// avcC to rebuild and no segment to write.
+	shortSPS := []byte{0x67, 0x42}
 	var out bytes.Buffer
 	writer, err := NewMP4Writer(&out, 1080, 2280)
 	if err != nil {
@@ -422,11 +623,17 @@ func TestAReconfigurationMidStreamIsRefused(t *testing.T) {
 		t.Fatalf("WriteAccessUnit: %v", err)
 	}
 	written := out.Len()
-	if err := writer.WriteAccessUnit(annexB(otherSPS, testPPS, []byte{0x65, 0x88}), true, 40_000); !errors.Is(err, ErrMP4CodecChanged) {
-		t.Fatalf("a mid-stream codec change was carried: %v", err)
+	err = writer.WriteAccessUnit(annexB(shortSPS, testPPS, []byte{0x65, 0x88}), true, 40_000)
+	if !errors.Is(err, ErrMP4CodecChanged) {
+		t.Fatalf("a change this container cannot express was carried: %v", err)
 	}
 	if out.Len() != written {
-		t.Fatalf("a refused reconfiguration still wrote %d bytes", out.Len()-written)
+		t.Errorf("a refused re-declaration still wrote %d bytes", out.Len()-written)
+	}
+	// And the stream is still usable at the declaration it has: the refusal was
+	// this picture's, not the stream's.
+	if err := writer.WriteAccessUnit(deltaFrame(0x31), false, 80_000); err != nil {
+		t.Fatalf("a picture after a refused re-declaration was refused too: %v", err)
 	}
 }
 

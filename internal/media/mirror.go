@@ -386,6 +386,21 @@ type StreamFrame struct {
 	// Data is the access unit in Annex-B form, with the parameter sets attached
 	// when it is an IDR that did not carry them.
 	Data []byte
+	// Declared reports a DECLARATION rather than a picture: the device's own
+	// encoder restarted and announced a new encoding session, at
+	// DeclaredWidth x DeclaredHeight. It is what a rotation, a display size
+	// change, an application going full-screen or the video reset this plane
+	// asks for produces, and it is the same event a re-dial is - the device
+	// re-declaring what it streams without this plane asking.
+	//
+	// It carries no picture of its own, and the size it states is the coordinate
+	// frame the pictures that follow it are in, so a viewer must never be offered
+	// it as a sample.
+	Declared bool
+	// DeclaredWidth and DeclaredHeight are the encoded size the new encoding
+	// session streams at, set when Declared is.
+	DeclaredWidth  int
+	DeclaredHeight int
 }
 
 // MirrorDialer starts one device's live session. It is the seam the engine is
@@ -1613,6 +1628,19 @@ func (s *mirrorSession) carryStream(redial bool) bool {
 	for {
 		frame, readErr := stream.ReadFrame(dialCtx)
 		if readErr == nil {
+			if frame.Declared {
+				// The device's own encoder restarted and announced a new
+				// encoding session at a size of its choosing. Nothing is offered
+				// to a viewer - this carries no picture - but the size the
+				// pictures are measured in follows it, so a container that states
+				// the size re-declares itself at the first picture of the new
+				// session (see the endpoint's writer) rather than carrying frames
+				// its declaration misdescribes. This is the device-side half of
+				// the event above: a screen that changed shape re-declares on its
+				// own, with no viewer change and no re-dial.
+				s.redeclared(frame.DeclaredWidth, frame.DeclaredHeight)
+				continue
+			}
 			s.publish(frame)
 			continue
 		}
@@ -1699,6 +1727,32 @@ func (s *mirrorSession) upgradeRequested() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// redeclared records the size a device's own encoder restarted at, mid-stream.
+//
+// It is the other half of publishStream: that one records a re-dial this plane
+// asked for, and this one records the device re-declaring without being asked.
+// Both make the size the frames are measured in a new one, and both make the
+// parameter sets and the cached key frame of the previous encoder state worth
+// nothing - the cached IDR belongs to an encoder that no longer exists, and a
+// viewer primed from it would be primed with a frame the new stream never
+// carried. The device sends a configuration packet and a key frame immediately
+// after announcing a session, so clearing the cache costs a viewer nothing.
+func (s *mirrorSession) redeclared(width, height int) {
+	if width <= 0 || height <= 0 {
+		return
+	}
+	s.mu.Lock()
+	unchanged := s.width == width && s.height == height
+	s.width, s.height = width, height
+	s.spsPPS = nil
+	s.lastIDR = nil
+	s.lastIDRPTS = 0
+	s.mu.Unlock()
+	if !unchanged {
+		log.Printf("live mirror for %s re-declared its stream at %dx%d, on the device's own account", s.deviceID, width, height)
 	}
 }
 
