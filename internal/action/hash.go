@@ -19,6 +19,7 @@ func RequestHash(intent Intent) (string, error) {
 		TextValue          string
 		ValueLength        int
 		Gesture            *GesturePath
+		LiveStart          *LiveGestureStart
 		KeyCode            int
 		ObservationToken   string
 		InvocationSurface  InvocationSurface
@@ -38,6 +39,7 @@ func RequestHash(intent Intent) (string, error) {
 		TextValue:          intent.TextValue,
 		ValueLength:        intent.ValueLength,
 		Gesture:            intent.Gesture,
+		LiveStart:          intent.LiveStart,
 		KeyCode:            intent.KeyCode,
 		ObservationToken:   intent.ObservationToken,
 		InvocationSurface:  intent.InvocationSurface,

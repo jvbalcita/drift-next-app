@@ -163,8 +163,8 @@ func ConnectionRoute(operations transportconnect.Connections, token string) Rout
 // The route carries the same constant-time token check as the other local
 // surfaces. It reaches devices and carries their screens, so loopback
 // reachability alone is not authority for a hostile local caller.
-func DeviceMirrorRoute(streams transportconnect.DeviceMirrors, serials transportconnect.DeviceSerialResolver, capacity transportconnect.MirrorCapacitySource, refusals transportconnect.MirrorRefusalRecorder, token string) Route {
-	handler := transportconnect.NewDeviceMirrorHandler(streams, serials, capacity, refusals)
+func DeviceMirrorRoute(streams transportconnect.DeviceMirrors, serials transportconnect.DeviceSerialResolver, capacity transportconnect.MirrorCapacitySource, refusals transportconnect.MirrorRefusalRecorder, token string, control ...transportconnect.MirrorControlBinder) Route {
+	handler := transportconnect.NewDeviceMirrorHandler(streams, serials, capacity, refusals, control...)
 	if handler == nil {
 		return Route{}
 	}

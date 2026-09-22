@@ -36,6 +36,9 @@ import (
 const (
 	envControlPlaneDB  = "DRIFT_CONTROL_PLANE_DB"
 	envArtifactCASRoot = "DRIFT_ARTIFACT_CAS_ROOT"
+	// An opt-in rollout gate: older consoles keep video-only negotiation, and
+	// realtime control is not exposed until a deployment enables this path.
+	envLiveMirrorControl = "DRIFT_LIVE_MIRROR_CONTROL"
 	// envTransferRoot points at the host directory a catalogued device file
 	// operation materializes a push under. It is a deployment input rather than
 	// a constant because the path has to be one the device adapter's own
@@ -455,7 +458,7 @@ func main() {
 		log.Printf("live mirror transport not started: %v", streamsErr)
 	}
 	mirrorMounted := false
-	if mirrorRoute := deviceMirrorRoute(mirrorStreams, mirrorEngine, actionRuntime, store.NewMirrorEventService(db), labToken); mirrorRoute.Path != "" {
+	if mirrorRoute := deviceMirrorRoute(mirrorStreams, mirrorEngine, actionRuntime, store.NewMirrorEventService(db), db, labToken); mirrorRoute.Path != "" {
 		routes = append(routes, mirrorRoute)
 		mirrorMounted = true
 	}
@@ -538,12 +541,29 @@ func mirrorStreamTransport(engine *media.MirrorEngine, engineErr error) (*media.
 // The resolver is the same registry the input surface resolves devices through:
 // one vocabulary decides which transport a device is currently reachable at, and
 // the browser never names or receives one.
-func deviceMirrorRoute(streams *media.StreamTransport, engine *media.MirrorEngine, resolver transportconnect.DeviceSerialResolver, refusals transportconnect.MirrorRefusalRecorder, token string) service.Route {
+func deviceMirrorRoute(streams *media.StreamTransport, engine *media.MirrorEngine, resolver transportconnect.DeviceSerialResolver, refusals transportconnect.MirrorRefusalRecorder, db *store.DB, token string) service.Route {
 	if streams == nil {
 		log.Print("live mirror surface not mounted: no stream transport was constructed")
 		return service.Route{}
 	}
-	return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
+	if db == nil {
+		log.Print("live control channel not armed: no action-safety store was constructed")
+		return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
+	}
+	if !liveMirrorControlEnabled(os.Getenv(envLiveMirrorControl)) {
+		log.Print("live control channel disabled: set DRIFT_LIVE_MIRROR_CONTROL=true after rollout checks")
+		return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
+	}
+	control, err := mirror.NewRealtimeControl(store.NewActionService(db), engine, db.IDs(), store.NewActionEvidenceService(db))
+	if err != nil {
+		log.Printf("live control channel not armed: %v", err)
+		return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
+	}
+	return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token, control)
+}
+
+func liveMirrorControlEnabled(value string) bool {
+	return strings.EqualFold(strings.TrimSpace(value), "true")
 }
 
 // gridPreviewRoute builds the fleet grid's still surface, or an empty Route when

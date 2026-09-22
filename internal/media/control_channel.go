@@ -37,6 +37,28 @@ type MirrorControlMessage struct {
 	Repeat      uint32
 }
 
+// MirrorControlBinding is the application-owned authority a single selected
+// viewing must prove before its DataChannel can carry input. A viewing claim
+// alone is not authority to control a device.
+type MirrorControlBinding struct {
+	WorkspaceID  string
+	DeviceID     string
+	SessionID    string
+	LeaseID      string
+	HolderID     string
+	FencingToken uint64
+	ActorType    string
+	ActorID      string
+}
+
+// MirrorControlPeer is the only part of a selected viewing the application
+// needs to arm input. The concrete Pion peer satisfies it.
+type MirrorControlPeer interface {
+	Stats() StreamStats
+	ViewingClaimMatches(MirrorViewingClaim) bool
+	BindControl(uint64, MirrorControlHandler) error
+}
+
 func DecodeMirrorControlMessage(data []byte) (MirrorControlMessage, error) {
 	if len(data) != MirrorControlMessageSize {
 		return MirrorControlMessage{}, fmt.Errorf("media: control message is %d bytes, want %d", len(data), MirrorControlMessageSize)

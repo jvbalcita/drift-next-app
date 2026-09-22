@@ -9,14 +9,11 @@ option go_package = "drift.local/drift-next/gen/go/drift/v1;driftv1";
 // The live mirror surface: one device's screen carried to the console as it is
 // encoded, with input travelling the same session's control socket.
 //
-// It is deliberately smaller than it looks. Input is NOT here. Tap, swipe, key
-// event and typed text are already first-class typed actions on DeviceInputService,
-// where the lease, fencing, policy, control-session and emergency-stop kernel
-// authorizes them, and a second input contract on this service would be a second
-// representation of a device input with a second authorization story. What this
-// service owns is the one thing that surface cannot express: the stream's own
-// lifecycle - opening a device's live session, negotiating the transport with a
-// browser, and ending it.
+// The stream's lifecycle and optional live-control binding are here. Semantic
+// tap, swipe, key and text RPCs remain on DeviceInputService; binary touch
+// phases on the selected WebRTC viewing are authorized through that same
+// lease, fencing, policy, control-session and emergency-stop kernel. A viewing
+// without an accepted binding is video-only.
 //
 // Where the frames come from is not in this contract at all, and that is
 // deliberate. The browser is given a stream identity, the frame size the stream
@@ -326,11 +323,24 @@ message NegotiateMirrorStreamRequest {
   // Optional for older video-only clients. When present, negotiation checks
   // it and the actor against the claim bound when the stream was opened.
   WorkspaceRef workspace = 4;
+  // Optional. A caller asking to send live input must prove the control
+  // session and device lease it already holds. Video-only callers omit it.
+  MirrorControlBinding control = 5;
 }
 
 message NegotiateMirrorStreamResponse {
   string answer_sdp = 1;
   MirrorStream stream = 2;
+  // Nonzero only when the server armed an authorized control channel. Binary
+  // input messages must name this generation, not a caller-selected value.
+  uint64 control_generation = 3;
+}
+
+message MirrorControlBinding {
+  string session_id = 1;
+  string lease_id = 2;
+  string holder_id = 3;
+  uint64 fencing_token = 4;
 }
 
 // StopMirrorStreamRequest ends the viewing that holds one stream identity.

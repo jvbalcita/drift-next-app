@@ -63,6 +63,70 @@ func (f controlledActionFixture) tap(id, key, observation string) action.Intent 
 	}
 }
 
+func TestRealtimeControlBindingTracksLeaseSessionFenceAndHalt(t *testing.T) {
+	ctx := context.Background()
+	check := func(f controlledActionFixture, sessionID string, token uint64) error {
+		return f.service.ValidateRealtimeControl(ctx, string(f.workspace), string(f.lease.DeviceID), sessionID, string(f.lease.ID), f.holder, token)
+	}
+	f := newControlledActionFixture(t)
+	if err := check(f, string(f.lease.SessionID), f.lease.FencingToken); err != nil {
+		t.Fatalf("active binding refused: %v", err)
+	}
+	if code := platformerrors.CodeOf(check(f, "another-session", f.lease.FencingToken)); code != platformerrors.CodeLeaseConflict {
+		t.Fatalf("wrong session code = %q, want lease conflict", code)
+	}
+	if code := platformerrors.CodeOf(check(f, string(f.lease.SessionID), f.lease.FencingToken+1)); code != platformerrors.CodeLeaseConflict {
+		t.Fatalf("stale fence code = %q, want lease conflict", code)
+	}
+	if _, err := store.NewHaltService(f.db).Set(ctx, f.workspace, store.HaltEmergencyStop, "operator stopped input", "operator", "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	if code := platformerrors.CodeOf(check(f, string(f.lease.SessionID), f.lease.FencingToken)); code != platformerrors.CodeEmergencyStopped {
+		t.Fatalf("halted binding code = %q, want emergency stop", code)
+	}
+	if _, err := store.NewHaltService(f.db).Set(ctx, f.workspace, store.HaltClear, "operator resumed input", "operator", "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.leases.Release(ctx, f.workspace, f.lease.ID, f.holder, f.lease.FencingToken, "operator", "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	if code := platformerrors.CodeOf(check(f, string(f.lease.SessionID), f.lease.FencingToken)); code != platformerrors.CodeLeaseConflict {
+		t.Fatalf("released lease code = %q, want lease conflict", code)
+	}
+}
+
+func TestLiveGestureUsesTheActionKernelOnceWithoutInventingAnObservation(t *testing.T) {
+	f := newControlledActionFixture(t)
+	ctx := context.Background()
+	intent := f.tap("live-gesture-1", "live:stream-1:9:19", "")
+	intent.Kind = action.LiveGesture
+	intent.LiveStart = &action.LiveGestureStart{X: 200, Y: 300, Width: 1080, Height: 1920}
+	intent.Target = action.SemanticTarget{}
+	intent.InvocationSurface = action.SurfaceMirror
+	intent.Capabilities = []action.Capability{action.CapabilityGesture}
+	if _, err := f.service.Authorize(ctx, intent, "operator", "operator-1"); err != nil {
+		t.Fatalf("authorize touch-down: %v", err)
+	}
+	if _, err := f.service.Dispatch(ctx, string(f.workspace), intent.ID, f.holder, f.lease.FencingToken, "operator", "operator-1"); err != nil {
+		t.Fatalf("dispatch touch-down: %v", err)
+	}
+	result, err := f.service.MarkIndeterminate(ctx, action.Completion{Workspace: string(f.workspace), AttemptID: intent.ID, DeviceID: intent.DeviceID, LeaseID: intent.LeaseID, HolderID: f.holder, FencingToken: f.lease.FencingToken}, "operator", "operator-1")
+	if platformerrors.CodeOf(err) != platformerrors.CodeIndeterminateCompletion || result.Outcome != action.OutcomeIndeterminate {
+		t.Fatalf("gesture completion = %#v, %v; want honest indeterminate result", result, err)
+	}
+	if err := store.NewActionEvidenceService(f.db).Append(ctx, store.ActionEvidence{
+		Workspace: string(f.workspace), DeviceID: intent.DeviceID, Serial: "SERIAL-1", AttemptID: intent.ID,
+		Kind: action.LiveGesture, InvocationSurface: action.SurfaceMirror, Disposition: store.EvidenceDispatched,
+		Outcome: action.OutcomeIndeterminate, Postcondition: action.PostconditionUnknown, FailureClass: domain.FailureIndeterminate,
+	}, "operator", "operator-1"); err != nil {
+		t.Fatalf("append bounded gesture evidence: %v", err)
+	}
+	records, err := store.NewActionEvidenceRepository(f.db).ListForAttempt(ctx, f.workspace, intent.ID)
+	if err != nil || len(records) != 1 || records[0].Outcome != action.OutcomeIndeterminate {
+		t.Fatalf("gesture evidence = %#v, %v; want one append-only record", records, err)
+	}
+}
+
 func TestActionServiceAuthorizesOnceAndRequiresFreshPostconditionObservation(t *testing.T) {
 	f := newControlledActionFixture(t)
 	ctx := context.Background()

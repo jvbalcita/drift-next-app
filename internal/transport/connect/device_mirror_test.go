@@ -73,6 +73,25 @@ func (s *fakeMirrorStream) ViewingClaimMatches(claim media.MirrorViewingClaim) b
 
 func (s *fakeMirrorStream) ControlBound() bool { return s.controlBound }
 
+func (s *fakeMirrorStream) BindControl(_ uint64, _ media.MirrorControlHandler) error {
+	s.controlBound = true
+	return nil
+}
+
+type fakeControlBinder struct {
+	binding media.MirrorControlBinding
+	calls   int
+}
+
+func (b *fakeControlBinder) Bind(_ context.Context, peer media.MirrorControlPeer, binding media.MirrorControlBinding) (uint64, error) {
+	b.calls++
+	b.binding = binding
+	if err := peer.BindControl(41, func(context.Context, media.MirrorControlMessage) error { return nil }); err != nil {
+		return 0, err
+	}
+	return 41, nil
+}
+
 func (s *fakeMirrorStream) Answer(_ context.Context, offer string) (string, error) {
 	s.offers = append(s.offers, offer)
 	if s.answerErr != nil {
@@ -564,6 +583,54 @@ func TestNegotiateMirrorStreamAnswersOnlyAKnownStream(t *testing.T) {
 	}
 	if len(stream.offers) != 1 || stream.offers[0] != "v=0\r\na=offer\r\n" {
 		t.Fatalf("the stream received %v, want the caller's offer unchanged", stream.offers)
+	}
+}
+
+func TestControlNegotiationBindsOnlyTheClaimedViewing(t *testing.T) {
+	stream := &fakeMirrorStream{key: mirrorStreamID, deviceID: mirrorDevice, width: 1080, height: 1920, answer: "v=0\r\na=answer\r\n"}
+	if err := stream.ClaimViewing(media.MirrorViewingClaim{WorkspaceID: mirrorWorkspace, ActorType: "operator", ActorID: "operator-1"}); err != nil {
+		t.Fatal(err)
+	}
+	binder := &fakeControlBinder{}
+	handler := transportconnect.NewDeviceMirrorHandler(newFakeMirrors(stream), &fixedSerials{serial: mirrorSerial}, nil, nil, binder)
+	request := func(actor string) *connectrpc.Request[driftv1.NegotiateMirrorStreamRequest] {
+		return connectrpc.NewRequest(&driftv1.NegotiateMirrorStreamRequest{
+			Context:   &driftv1.RequestContext{RequestId: "negotiate-control", ActorId: actor},
+			Workspace: &driftv1.WorkspaceRef{WorkspaceId: mirrorWorkspace}, StreamId: mirrorStreamID, OfferSdp: "v=0\r\na=offer\r\n",
+			Control: &driftv1.MirrorControlBinding{SessionId: "session-1", LeaseId: "lease-1", HolderId: "holder-1", FencingToken: 7},
+		})
+	}
+	if _, err := handler.NegotiateMirrorStream(context.Background(), request("another-operator")); connectrpc.CodeOf(err) != connectrpc.CodePermissionDenied {
+		t.Fatalf("other caller was not refused: %v", err)
+	}
+	if binder.calls != 0 || len(stream.offers) != 0 {
+		t.Fatal("other caller reached the binder or SDP negotiation")
+	}
+	response, err := handler.NegotiateMirrorStream(context.Background(), request("operator-1"))
+	if err != nil {
+		t.Fatalf("claimed control negotiation: %v", err)
+	}
+	if response.Msg.GetControlGeneration() != 41 || !stream.controlBound || binder.calls != 1 || len(stream.offers) != 1 {
+		t.Fatalf("generation = %d, bound = %t, binder calls = %d, offers = %d", response.Msg.GetControlGeneration(), stream.controlBound, binder.calls, len(stream.offers))
+	}
+	if binder.binding.WorkspaceID != mirrorWorkspace || binder.binding.DeviceID != mirrorDevice || binder.binding.ActorID != "operator-1" || binder.binding.SessionID != "session-1" || binder.binding.FencingToken != 7 {
+		t.Fatalf("control binding lost the claimed identity or lease: %#v", binder.binding)
+	}
+}
+
+func TestControlNegotiationWithoutAKernelFailsBeforeSDP(t *testing.T) {
+	stream := &fakeMirrorStream{key: mirrorStreamID, deviceID: mirrorDevice, answer: "v=0\r\na=answer\r\n"}
+	if err := stream.ClaimViewing(media.MirrorViewingClaim{WorkspaceID: mirrorWorkspace, ActorType: "operator", ActorID: "operator-1"}); err != nil {
+		t.Fatal(err)
+	}
+	handler := mirrorHandler(t, newFakeMirrors(stream))
+	_, err := handler.NegotiateMirrorStream(context.Background(), connectrpc.NewRequest(&driftv1.NegotiateMirrorStreamRequest{
+		Context: mirrorRequestContext(), Workspace: &driftv1.WorkspaceRef{WorkspaceId: mirrorWorkspace},
+		StreamId: mirrorStreamID, OfferSdp: "v=0\r\na=offer\r\n",
+		Control: &driftv1.MirrorControlBinding{SessionId: "session-1", LeaseId: "lease-1", HolderId: "holder-1", FencingToken: 7},
+	}))
+	if connectrpc.CodeOf(err) != connectrpc.CodeUnavailable || len(stream.offers) != 0 || stream.controlBound {
+		t.Fatalf("unconfigured control = %v, offers = %d, bound = %t; want refusal before SDP", err, len(stream.offers), stream.controlBound)
 	}
 }
 

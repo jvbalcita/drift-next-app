@@ -34,3 +34,14 @@ func TestMirrorInputDeliveryIsBoundExactlyWhenTheLiveEngineExists(t *testing.T) 
 		t.Fatal("an engine with no subscribed session reported a mirrored device")
 	}
 }
+
+func TestLiveMirrorControlRolloutDefaultsOff(t *testing.T) {
+	for _, value := range []string{"", "false", "1", "yes", "invalid"} {
+		if liveMirrorControlEnabled(value) {
+			t.Fatalf("setting %q armed live control", value)
+		}
+	}
+	if !liveMirrorControlEnabled(" TRUE ") {
+		t.Fatal("explicit true did not arm live control")
+	}
+}
