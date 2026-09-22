@@ -129,7 +129,7 @@ func newOperationsFixture(t *testing.T, fleet map[string]string) operationsFixtu
 	evidence := &auditEvidence{inner: store.NewActionEvidenceService(db)}
 	probe := execution.NewStoreControlProbe(db, execution.DeviceTransportObserverFunc(func(context.Context, string) (adb.DeviceAuthState, error) {
 		return adb.StateDevice, nil
-	}))
+	}), nil)
 	if probe == nil {
 		t.Fatal("store-backed readiness probe was not constructed")
 	}

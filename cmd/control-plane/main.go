@@ -781,7 +781,7 @@ func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry
 	}
 	return execution.NewInputDispatcher(
 		store.NewActionService(db),
-		execution.NewStoreControlProbe(db, deviceState),
+		execution.NewStoreControlProbe(db, deviceState, delivery),
 		observer,
 		transport,
 		// The typed-text resolver: the same registry the registration surface
