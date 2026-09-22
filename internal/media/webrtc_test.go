@@ -407,6 +407,27 @@ func TestControlRequiresAnImmutableViewingClaim(t *testing.T) {
 	}
 }
 
+func TestAmbientViewingCannotBindControl(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	carrier, err := fixture.transport.Open(context.Background(), "device-1", "SERIAL-device-1", TransportWebRTC, PurposeAmbient, MirrorPreview{})
+	if err != nil {
+		t.Fatalf("open ambient viewing: %v", err)
+	}
+	peer, ok := carrier.(*StreamPeer)
+	if !ok {
+		t.Fatalf("ambient carrier = %T, want *StreamPeer", carrier)
+	}
+	if err := peer.ClaimViewing(MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}); err != nil {
+		t.Fatalf("claim ambient viewing: %v", err)
+	}
+	if err := peer.BindControl(9, func(context.Context, MirrorControlMessage) error { return nil }); err == nil {
+		t.Fatal("ambient viewing accepted a control binding")
+	}
+	if peer.ControlBound() {
+		t.Fatal("ambient viewing retained a control handler")
+	}
+}
+
 func TestControlChannelCloseDropsQueuedInput(t *testing.T) {
 	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
 	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")

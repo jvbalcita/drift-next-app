@@ -258,7 +258,7 @@ func (t *StreamTransport) openPeer(ctx context.Context, deviceID, serial string,
 	if err != nil {
 		return nil, err
 	}
-	peer, err := newStreamPeer(t, session, viewer)
+	peer, err := newStreamPeer(t, session, viewer, purposeOrDefault(purpose))
 	if err != nil {
 		// The subscription is released rather than left holding a capture open.
 		viewer.Close()
@@ -516,6 +516,7 @@ type StreamPeer struct {
 	transport *StreamTransport
 	session   MirrorSession
 	viewer    MirrorViewer
+	purpose   MirrorViewerPurpose
 
 	pc    *webrtc.PeerConnection
 	track *webrtc.TrackLocalStaticSample
@@ -626,7 +627,7 @@ func (p *StreamPeer) ControlBound() bool {
 	return p.controlHandler != nil
 }
 
-func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer MirrorViewer) (*StreamPeer, error) {
+func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer MirrorViewer, purpose MirrorViewerPurpose) (*StreamPeer, error) {
 	if session == nil || viewer == nil {
 		return nil, errors.New("media: a stream peer requires a session and a subscription on it")
 	}
@@ -666,6 +667,7 @@ func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer Mir
 		transport: transport,
 		session:   session,
 		viewer:    viewer,
+		purpose:   purpose,
 		pc:        pc,
 		track:     track,
 		started:   time.Now().UTC(),
@@ -710,6 +712,9 @@ func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer Mir
 func (p *StreamPeer) BindControl(generation uint64, handler MirrorControlHandler) error {
 	if p == nil || handler == nil {
 		return errors.New("media: a control binding requires a peer and an authorized handler")
+	}
+	if p.purpose != PurposeOperator {
+		return errors.New("media: control requires an operator viewing")
 	}
 	sequence, err := NewMirrorControlSequence(generation)
 	if err != nil {
