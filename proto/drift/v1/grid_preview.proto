@@ -130,6 +130,13 @@ message GridStill {
   // have succeeded, and it is how a tile states how fresh its picture is: the
   // configured cadence is what the plane aims for, and this is what it did.
   uint32 observed_cadence_millis = 16;
+  // Scheduler telemetry is additive and never changes whether the still may be
+  // painted. It explains why a tile is waiting and whether the adaptive worker
+  // is meeting the deployment freshness ceiling.
+  string worker_state = 17;
+  double effective_fps = 18;
+  uint32 restart_count = 19;
+  string freshness = 20;
 }
 
 // GridPreviewProfile is what this plane's grid costs and what it is carried at.
@@ -150,6 +157,10 @@ message GridPreviewProfile {
   uint32 max_devices = 6;
   // subscribed is how many devices the plane is capturing for this grid.
   uint32 subscribed = 7;
+  uint32 concurrent_captures = 8;
+  uint32 active_cadence_millis = 9;
+  uint32 idle_cadence_millis = 10;
+  uint32 freshness_ceiling_millis = 11;
 }
 
 // SyncGridPreviewsRequest names the devices the console's grid is drawing.

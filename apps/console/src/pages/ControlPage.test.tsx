@@ -943,10 +943,9 @@ describe("ControlPage live mirror frame", () => {
 
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
     // The frame opens over the transport the operator's setting holds, and that
-    // setting starts at the measured default - TCP, which these devices carried a
-    // first picture over in 1-2 ms against WebRTC's 41-95 ms
-    // (docs/operations/mirror-transport-measurement.md).
-    expect(mirror.calls.some((call) => call === "start:atlas-04:tcp")).toBe(true)
+    // setting starts at the low-latency default - WebRTC, while TCP remains the
+    // compatibility path.
+    expect(mirror.calls.some((call) => call === "start:atlas-04:webrtc")).toBe(true)
     // The frame states its purpose: it is the operator's OWN viewer, which is the
     // demand the plane's reserve of its capacity exists for. A frame that opened as
     // one of the grid's tiles could be refused for the grid's spending while the

@@ -107,6 +107,10 @@ func gridStillProto(deviceID string, frame media.Frame) *driftv1.GridStill {
 		FailureClass:          string(frame.FailureClass),
 		FailureDetail:         frame.FailureDetail,
 		ObservedCadenceMillis: media.GridStillDuration(frame.ObservedCadence),
+		WorkerState:           frame.WorkerState,
+		EffectiveFps:          frame.EffectiveFPS,
+		RestartCount:          uint32(frame.RestartCount),
+		Freshness:             frame.Freshness,
 	}
 	if !frame.CapturedAt.IsZero() {
 		still.CapturedAt = frame.CapturedAt.UTC().Format(time.RFC3339)
@@ -149,13 +153,17 @@ func gridUnavailableStillProto(deviceID, detail string) *driftv1.GridStill {
 // this surface removes.
 func gridPreviewProfileProto(cost media.GridCost) *driftv1.GridPreviewProfile {
 	return &driftv1.GridPreviewProfile{
-		CadenceMillis:    media.GridStillDuration(cost.Cadence),
-		Level:            gridStillLevelProto(cost.Profile.Level),
-		LevelMaxWidth:    uint32(cost.Profile.MaxWidth),
-		LevelJpegQuality: uint32(cost.Profile.JPEGQuality),
-		StillByteBound:   uint32(cost.Profile.ByteBound),
-		MaxDevices:       uint32(cost.MaxDevices),
-		Subscribed:       uint32(cost.Subscribed),
+		CadenceMillis:          media.GridStillDuration(cost.Cadence),
+		Level:                  gridStillLevelProto(cost.Profile.Level),
+		LevelMaxWidth:          uint32(cost.Profile.MaxWidth),
+		LevelJpegQuality:       uint32(cost.Profile.JPEGQuality),
+		StillByteBound:         uint32(cost.Profile.ByteBound),
+		MaxDevices:             uint32(cost.MaxDevices),
+		Subscribed:             uint32(cost.Subscribed),
+		ConcurrentCaptures:     uint32(cost.ConcurrentCaptures),
+		ActiveCadenceMillis:    media.GridStillDuration(cost.ActiveCadence),
+		IdleCadenceMillis:      media.GridStillDuration(cost.IdleCadence),
+		FreshnessCeilingMillis: media.GridStillDuration(cost.FreshnessCeiling),
 	}
 }
 

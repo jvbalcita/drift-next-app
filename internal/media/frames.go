@@ -109,6 +109,20 @@ type Frame struct {
 	// FailedAt is when the most recent failed attempt ran, zero when the most
 	// recent attempt succeeded.
 	FailedAt time.Time
+	// WorkerState states what the bounded scheduler is doing for this device.
+	WorkerState string
+	// EffectiveFPS is derived from the measured successful-capture cadence.
+	EffectiveFPS float64
+	// RestartCount counts recovery transitions after a failed capture.
+	RestartCount int
+	// Freshness is current, aging or stale against the deployment's freshness
+	// ceiling. It is telemetry; State remains the authority on whether a picture
+	// may be painted.
+	Freshness string
+
+	nextCaptureAt time.Time
+	unchanged     int
+	lastFailed    bool
 }
 
 // HasFrame reports whether a capture has succeeded since the subscription began.
@@ -251,6 +265,15 @@ type FrameEngineConfig struct {
 	// set, the sweep's own duration is reported in the outcome, and each device's
 	// OBSERVED cadence is stated on its frame rather than implied.
 	MaxSubscribers int
+	// ConcurrentCaptures bounds simultaneous device work. It defaults to two so
+	// a fleet cannot stampede the shared adb server when a grid first opens.
+	ConcurrentCaptures int
+	// ActiveInterval is the target cadence for new, changed or recently failed
+	// devices. IdleInterval is used after consecutive unchanged frames.
+	ActiveInterval time.Duration
+	IdleInterval   time.Duration
+	// FreshnessCeiling is the age after which telemetry calls a held frame stale.
+	FreshnessCeiling time.Duration
 	// Profile is the level every still is carried at; a zero value uses
 	// DefaultGridStillProfile.
 	Profile GridStillProfile
@@ -286,15 +309,20 @@ type FrameEngineConfig struct {
 // composition root starts it on the process's shutdown context and waits for it
 // before the process returns.
 type FrameEngine struct {
-	capturer       FrameCapturer
-	interval       time.Duration
-	captureTimeout time.Duration
-	maxSubscribers int
-	previewBytes   int
-	profile        GridStillProfile
-	encoder        StillEncoder
-	logf           func(string, ...any)
-	now            func() time.Time
+	capturer           FrameCapturer
+	interval           time.Duration
+	captureTimeout     time.Duration
+	maxSubscribers     int
+	concurrentCaptures int
+	activeInterval     time.Duration
+	idleInterval       time.Duration
+	freshnessCeiling   time.Duration
+	adaptive           bool
+	previewBytes       int
+	profile            GridStillProfile
+	encoder            StillEncoder
+	logf               func(string, ...any)
+	now                func() time.Time
 
 	// mu guards subscribers. Subscribe and Unsubscribe are called from whatever
 	// request path a console uses, and the capture loop reads the set on its own
@@ -326,6 +354,26 @@ func NewFrameEngine(cfg FrameEngineConfig) (*FrameEngine, error) {
 	if maxSubscribers <= 0 {
 		maxSubscribers = DefaultGridMaxDevices
 	}
+	concurrentCaptures := cfg.ConcurrentCaptures
+	if concurrentCaptures <= 0 {
+		concurrentCaptures = 2
+	}
+	adaptive := cfg.ActiveInterval > 0 || cfg.IdleInterval > 0
+	activeInterval := cfg.ActiveInterval
+	if activeInterval <= 0 {
+		activeInterval = interval
+	}
+	idleInterval := cfg.IdleInterval
+	if idleInterval <= 0 {
+		idleInterval = activeInterval
+	}
+	if idleInterval < activeInterval {
+		return nil, platformerrors.New(platformerrors.CodeInvalidInput, "the idle frame interval may not be shorter than the active interval")
+	}
+	freshnessCeiling := cfg.FreshnessCeiling
+	if freshnessCeiling <= 0 {
+		freshnessCeiling = 10 * time.Second
+	}
 	profile := cfg.Profile
 	if profile.MaxWidth <= 0 || profile.JPEGQuality <= 0 {
 		profile = DefaultGridStillProfile()
@@ -351,16 +399,21 @@ func NewFrameEngine(cfg FrameEngineConfig) (*FrameEngine, error) {
 		now = time.Now
 	}
 	return &FrameEngine{
-		capturer:       cfg.Capturer,
-		interval:       interval,
-		captureTimeout: captureTimeout,
-		maxSubscribers: maxSubscribers,
-		previewBytes:   previewBytes,
-		profile:        profile,
-		encoder:        encoder,
-		logf:           logf,
-		now:            now,
-		subscribers:    make(map[string]Frame),
+		capturer:           cfg.Capturer,
+		interval:           interval,
+		captureTimeout:     captureTimeout,
+		maxSubscribers:     maxSubscribers,
+		concurrentCaptures: concurrentCaptures,
+		activeInterval:     activeInterval,
+		idleInterval:       idleInterval,
+		freshnessCeiling:   freshnessCeiling,
+		adaptive:           adaptive,
+		previewBytes:       previewBytes,
+		profile:            profile,
+		encoder:            encoder,
+		logf:               logf,
+		now:                now,
+		subscribers:        make(map[string]Frame),
 	}, nil
 }
 
@@ -380,7 +433,11 @@ type GridCost struct {
 	// MaxDevices is how many devices one sweep may carry.
 	MaxDevices int
 	// Subscribed is how many devices are being captured right now.
-	Subscribed int
+	Subscribed         int
+	ConcurrentCaptures int
+	ActiveCadence      time.Duration
+	IdleCadence        time.Duration
+	FreshnessCeiling   time.Duration
 }
 
 // GridCost reports the grid this engine is carrying.
@@ -391,10 +448,14 @@ func (e *FrameEngine) GridCost() GridCost {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return GridCost{
-		Cadence:    e.interval,
-		Profile:    e.profile,
-		MaxDevices: e.maxSubscribers,
-		Subscribed: len(e.subscribers),
+		Cadence:            e.interval,
+		Profile:            e.profile,
+		MaxDevices:         e.maxSubscribers,
+		Subscribed:         len(e.subscribers),
+		ConcurrentCaptures: e.concurrentCaptures,
+		ActiveCadence:      e.activeInterval,
+		IdleCadence:        e.idleInterval,
+		FreshnessCeiling:   e.freshnessCeiling,
 	}
 }
 
@@ -477,7 +538,7 @@ func (e *FrameEngine) SyncSubscriptions(serials []string) GridSubscription {
 			result.Refused = append(result.Refused, serial)
 			continue
 		}
-		e.subscribers[serial] = Frame{Serial: serial}
+		e.subscribers[serial] = Frame{Serial: serial, WorkerState: "queued"}
 		result.Admitted = append(result.Admitted, serial)
 	}
 	return result
@@ -522,7 +583,7 @@ func (e *FrameEngine) Subscribe(serial string) error {
 		return platformerrors.New(platformerrors.CodeUnavailable,
 			fmt.Sprintf("the frame engine captures at most %d subscribed devices", e.maxSubscribers))
 	}
-	e.subscribers[serial] = Frame{Serial: serial}
+	e.subscribers[serial] = Frame{Serial: serial, WorkerState: "queued"}
 	e.logf("frame engine subscribed %s: %d of %d device(s) subscribed", serial, len(e.subscribers), e.maxSubscribers)
 	return nil
 }
@@ -553,6 +614,7 @@ func (e *FrameEngine) Frame(serial string) (Frame, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	frame, subscribed := e.subscribers[serial]
+	e.decorateFreshness(&frame, e.now())
 	return frame, subscribed
 }
 
@@ -566,6 +628,7 @@ func (e *FrameEngine) Frames() []Frame {
 	defer e.mu.Unlock()
 	frames := make([]Frame, 0, len(e.subscribers))
 	for _, frame := range e.subscribers {
+		e.decorateFreshness(&frame, e.now())
 		frames = append(frames, frame)
 	}
 	sort.Slice(frames, func(i, j int) bool { return frames[i].Serial < frames[j].Serial })
@@ -622,25 +685,115 @@ func (e *FrameEngine) capture(ctx context.Context) FrameEngineOutcome {
 	}
 }
 
-// tick captures one frame for every subscribed device. The set is read fresh each
-// tick, so a subscription that starts or ends between two ticks is honored on the
-// next one, and the captures are sequential: one frame per subscribed device per
-// tick, each on its own bounded context, never a fan-out.
+// tick captures every due device through a bounded worker set. A cold grid may
+// name the whole fleet at once, but only ConcurrentCaptures calls may enter adb;
+// this is admission control, not an unbounded goroutine per device.
 func (e *FrameEngine) tick(ctx context.Context, outcome *FrameEngineOutcome) {
 	serials := e.Subscribers()
 	started := e.now()
 	outcome.Ticks++
 	outcome.Subscribed = len(serials)
+	sem := make(chan struct{}, e.concurrentCaptures)
+	var workers sync.WaitGroup
+	var outcomeMu sync.Mutex
 	for _, serial := range serials {
 		if ctx.Err() != nil {
 			// Shutdown began mid-tick. The devices left in this tick are not
 			// captured on a dead context; they are simply not this tick's work.
 			break
 		}
-		e.captureOne(ctx, serial, outcome)
+		if !e.captureDue(serial, started) {
+			continue
+		}
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			workers.Wait()
+			return
+		}
+		workers.Add(1)
+		go func(serial string) {
+			defer workers.Done()
+			defer func() { <-sem }()
+			local := FrameEngineOutcome{}
+			e.markWorkerState(serial, "capturing")
+			e.captureOne(ctx, serial, &local)
+			e.scheduleNext(serial, e.now())
+			outcomeMu.Lock()
+			mergeFrameOutcome(outcome, local)
+			outcomeMu.Unlock()
+		}(serial)
 	}
+	workers.Wait()
 	if sweep := e.now().Sub(started); sweep > outcome.LongestSweep {
 		outcome.LongestSweep = sweep
+	}
+}
+
+func (e *FrameEngine) captureDue(serial string, now time.Time) bool {
+	if !e.adaptive {
+		return true
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	frame, ok := e.subscribers[serial]
+	return ok && (frame.nextCaptureAt.IsZero() || !now.Before(frame.nextCaptureAt))
+}
+
+func (e *FrameEngine) markWorkerState(serial, state string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	frame, ok := e.subscribers[serial]
+	if !ok {
+		return
+	}
+	frame.WorkerState = state
+	e.subscribers[serial] = frame
+}
+
+func (e *FrameEngine) scheduleNext(serial string, now time.Time) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	frame, ok := e.subscribers[serial]
+	if !ok {
+		return
+	}
+	interval := e.activeInterval
+	if frame.unchanged >= 2 && !frame.lastFailed {
+		interval = e.idleInterval
+	}
+	frame.nextCaptureAt = now.Add(interval)
+	frame.WorkerState = "waiting"
+	e.subscribers[serial] = frame
+}
+
+func (e *FrameEngine) decorateFreshness(frame *Frame, now time.Time) {
+	if frame == nil || frame.CapturedAt.IsZero() {
+		return
+	}
+	age := now.Sub(frame.CapturedAt)
+	switch {
+	case age > e.freshnessCeiling:
+		frame.Freshness = "stale"
+	case age > e.freshnessCeiling/2:
+		frame.Freshness = "aging"
+	default:
+		frame.Freshness = "current"
+	}
+	if frame.ObservedCadence > 0 {
+		frame.EffectiveFPS = 1 / frame.ObservedCadence.Seconds()
+	}
+}
+
+func mergeFrameOutcome(dst *FrameEngineOutcome, src FrameEngineOutcome) {
+	dst.Captures += src.Captures
+	dst.Frames += src.Frames
+	dst.Failures += src.Failures
+	dst.Truncated += src.Truncated
+	dst.Cancelled += src.Cancelled
+	if src.LastFailureClass != "" {
+		dst.LastFailureClass = src.LastFailureClass
+		dst.LastFailureDetail = src.LastFailureDetail
 	}
 }
 
@@ -727,6 +880,15 @@ func (e *FrameEngine) recordFrame(serial string, shot adb.ScreenshotResult, stil
 	if !frame.CapturedAt.IsZero() && at.After(frame.CapturedAt) {
 		frame.ObservedCadence = at.Sub(frame.CapturedAt)
 	}
+	if frame.ContentHash != "" && frame.ContentHash == shot.Hash {
+		frame.unchanged++
+	} else {
+		frame.unchanged = 0
+	}
+	if frame.lastFailed {
+		frame.RestartCount++
+	}
+	frame.lastFailed = false
 	frame.Serial = serial
 	frame.CapturedAt = at
 	frame.ContentHash = shot.Hash
@@ -741,6 +903,7 @@ func (e *FrameEngine) recordFrame(serial string, shot adb.ScreenshotResult, stil
 	frame.FailureClass = ""
 	frame.FailureDetail = ""
 	frame.FailedAt = time.Time{}
+	frame.WorkerState = "waiting"
 	e.subscribers[serial] = frame
 	return frame, true
 }
@@ -761,6 +924,8 @@ func (e *FrameEngine) recordFailure(serial string, class domain.FailureClass, de
 	frame.FailureClass = class
 	frame.FailureDetail = detail
 	frame.FailedAt = e.now().UTC()
+	frame.lastFailed = true
+	frame.WorkerState = "backoff"
 	e.subscribers[serial] = frame
 	return true
 }

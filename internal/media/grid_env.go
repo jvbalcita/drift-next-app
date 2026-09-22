@@ -36,7 +36,11 @@ const (
 	// by a console that names a fleet it does not have. A device the bound does
 	// not reach is reported as not shown, with the bound named, rather than
 	// silently dropped.
-	EnvGridMaxDevices = "DRIFT_GRID_MAX_DEVICES"
+	EnvGridMaxDevices         = "DRIFT_GRID_MAX_DEVICES"
+	EnvGridConcurrentCaptures = "DRIFT_GRID_CONCURRENT_CAPTURES"
+	EnvGridActiveCadence      = "DRIFT_GRID_ACTIVE_CADENCE"
+	EnvGridIdleCadence        = "DRIFT_GRID_IDLE_CADENCE"
+	EnvGridFreshnessCeiling   = "DRIFT_GRID_FRESHNESS_CEILING"
 )
 
 const (
@@ -97,14 +101,18 @@ type GridSettings struct {
 	// Profile is the level every tile's still is carried at.
 	Profile GridStillProfile
 	// MaxDevices is how many devices one sweep may carry.
-	MaxDevices int
+	MaxDevices         int
+	ConcurrentCaptures int
+	ActiveCadence      time.Duration
+	IdleCadence        time.Duration
+	FreshnessCeiling   time.Duration
 }
 
 // Report renders the settings as the one line a deployment reads back at startup:
 // what the grid resolved to, in the numbers it resolved to.
 func (s GridSettings) Report() string {
-	return fmt.Sprintf("grid stills: every %s, at %s, up to %d device(s) per sweep",
-		s.Cadence, s.Profile.Report(), s.MaxDevices)
+	return fmt.Sprintf("grid stills: every %s, at %s, up to %d device(s) per sweep, %d concurrent capture(s), adaptive %s-%s, freshness ceiling %s",
+		s.Cadence, s.Profile.Report(), s.MaxDevices, s.ConcurrentCaptures, s.ActiveCadence, s.IdleCadence, s.FreshnessCeiling)
 }
 
 // GridSettingsFromEnv reads the grid's configuration from the deployment's own
@@ -128,9 +136,13 @@ func GridSettingsFromEnv(lookup EnvLookup) (GridSettings, error) {
 		lookup = func(string) (string, bool) { return "", false }
 	}
 	settings := GridSettings{
-		Cadence:    DefaultGridStillCadence,
-		Profile:    DefaultGridStillProfile(),
-		MaxDevices: DefaultGridMaxDevices,
+		Cadence:            DefaultGridStillCadence,
+		Profile:            DefaultGridStillProfile(),
+		MaxDevices:         DefaultGridMaxDevices,
+		ConcurrentCaptures: 2,
+		ActiveCadence:      time.Second,
+		IdleCadence:        5 * time.Second,
+		FreshnessCeiling:   10 * time.Second,
 	}
 	if raw, ok := lookup(EnvGridStillLevel); ok && strings.TrimSpace(raw) != "" {
 		settings.Profile = GridStillProfileFor(GridStillLevelFromString(raw))
@@ -150,6 +162,35 @@ func GridSettingsFromEnv(lookup EnvLookup) (GridSettings, error) {
 				EnvGridMaxDevices, strings.TrimSpace(raw))
 		}
 		settings.MaxDevices = devices
+	}
+	if raw, ok := lookup(EnvGridConcurrentCaptures); ok && strings.TrimSpace(raw) != "" {
+		workers, parseErr := strconv.Atoi(strings.TrimSpace(raw))
+		if parseErr != nil || workers < 1 || workers > 25 {
+			return GridSettings{}, fmt.Errorf("%s must be between 1 and 25, and this deployment configured %q", EnvGridConcurrentCaptures, strings.TrimSpace(raw))
+		}
+		settings.ConcurrentCaptures = workers
+	}
+	var err error
+	if raw, ok := lookup(EnvGridActiveCadence); ok && strings.TrimSpace(raw) != "" {
+		settings.ActiveCadence, err = gridCadence(strings.TrimSpace(raw))
+		if err != nil {
+			return GridSettings{}, err
+		}
+	}
+	if raw, ok := lookup(EnvGridIdleCadence); ok && strings.TrimSpace(raw) != "" {
+		settings.IdleCadence, err = gridCadence(strings.TrimSpace(raw))
+		if err != nil {
+			return GridSettings{}, err
+		}
+	}
+	if settings.IdleCadence < settings.ActiveCadence {
+		return GridSettings{}, fmt.Errorf("%s may not be shorter than %s", EnvGridIdleCadence, EnvGridActiveCadence)
+	}
+	if raw, ok := lookup(EnvGridFreshnessCeiling); ok && strings.TrimSpace(raw) != "" {
+		settings.FreshnessCeiling, err = gridCadence(strings.TrimSpace(raw))
+		if err != nil {
+			return GridSettings{}, err
+		}
 	}
 	return settings, nil
 }

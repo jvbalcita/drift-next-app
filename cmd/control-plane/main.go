@@ -256,10 +256,14 @@ func main() {
 		log.Printf("%s", gridSettings.Report())
 	}
 	frameEngine, frameEngineErr := media.NewFrameEngine(media.FrameEngineConfig{
-		Capturer:       labService.FrameTransport(),
-		Interval:       gridSettings.Cadence,
-		Profile:        gridSettings.Profile,
-		MaxSubscribers: gridSettings.MaxDevices,
+		Capturer:           labService.FrameTransport(),
+		Interval:           gridSettings.Cadence,
+		Profile:            gridSettings.Profile,
+		MaxSubscribers:     gridSettings.MaxDevices,
+		ConcurrentCaptures: gridSettings.ConcurrentCaptures,
+		ActiveInterval:     gridSettings.ActiveCadence,
+		IdleInterval:       gridSettings.IdleCadence,
+		FreshnessCeiling:   gridSettings.FreshnessCeiling,
 	})
 	if frameEngineErr != nil {
 		log.Printf("frame engine not started: %v", frameEngineErr)

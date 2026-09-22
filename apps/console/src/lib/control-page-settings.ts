@@ -186,7 +186,7 @@ export const workspaceLayoutBounds = {
  */
 export const workspaceLayoutDefaults: WorkspaceLayout = { largeHeight: 680, smallHeight: 264, orientation: "portrait", frameSortKey: frameSortKeyDefault }
 
-export const consoleSettingsDefaults: ConsoleSettings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showAddress: true, liveMirrorTransport: "tcp" }
+export const consoleSettingsDefaults: ConsoleSettings = { gap: 16, opacity: 100, autoScreenOff: false, controlSmall: false, controlsSide: "right", workspaceSide: "left", showTag: true, showIndex: true, showName: true, showAddress: true, liveMirrorTransport: "webrtc" }
 
 /** The workspace-scoped setting this page reads a key from, or nothing. */
 export function controlSetting(settings: readonly SettingView[], key: string): SettingView | undefined {

@@ -683,7 +683,7 @@ export const liveMirrorCopy = {
       webrtc: "WebRTC (pion, inside the control plane)",
       tcp: "TCP (MSE, the service's stream endpoint)",
     } satisfies Record<LiveMirrorTransportChoice, string>,
-    notice: "Both transports carry this console. WebRTC negotiates a peer connection and pushes the pictures to it; TCP fetches this device's own stream endpoint and plays it as MSE. Measured on this fleet (192.168.1.123:5555, three 60-second runs each, 2026-09-21): TCP carried its first picture in 1-2 ms against WebRTC's 41-95 ms, both at about 59 pictures/s, and TCP held that with no gap over one second and a worst gap of 250-277 ms, where WebRTC stalled twice for 1.2 s and showed worst gaps of 98-1250 ms. TCP is the default for that reason, and the choice is sent with every stream this console opens.",
+    notice: "WebRTC is the default low-latency path for the frame you control. TCP/MSE remains available as a compatibility path while the bounded WebCodecs fallback is being qualified. The choice is sent with every stream this console opens.",
   },
 } as const
 

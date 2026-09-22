@@ -49,6 +49,10 @@ export function gridProfile(overrides: Partial<GridProfileView> = {}): GridProfi
     stillByteBound: 80_000,
     maxDevices: 64,
     subscribed: 0,
+    concurrentCaptures: 2,
+    activeCadenceMillis: 1_000,
+    idleCadenceMillis: 5_000,
+    freshnessCeilingMillis: 10_000,
     ...overrides,
   }
 }
@@ -65,6 +69,10 @@ export function gridProfileProto(profile: GridProfileView = gridProfile()): Grid
     stillByteBound: profile.stillByteBound,
     maxDevices: profile.maxDevices,
     subscribed: profile.subscribed,
+    concurrentCaptures: profile.concurrentCaptures,
+    activeCadenceMillis: profile.activeCadenceMillis,
+    idleCadenceMillis: profile.idleCadenceMillis,
+    freshnessCeilingMillis: profile.freshnessCeilingMillis,
   })
 }
 
