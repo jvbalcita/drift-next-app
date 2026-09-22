@@ -388,8 +388,8 @@ export type NegotiateMirrorStreamRequest = Message<"drift.v1.NegotiateMirrorStre
   offerSdp: string;
 
   /**
-   * The workspace that opened this viewing. Negotiation checks it together
-   * with the actor against the claim bound when the stream was opened.
+   * Optional for older video-only clients. When present, negotiation checks
+   * it and the actor against the claim bound when the stream was opened.
    *
    * @generated from field: drift.v1.WorkspaceRef workspace = 4;
    */

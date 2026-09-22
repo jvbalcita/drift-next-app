@@ -31,6 +31,7 @@ const (
 // fakeMirrorStream is one browser's stream as the surface sees it.
 type fakeMirrorStream struct {
 	claim           media.MirrorViewingClaim
+	controlBound    bool
 	key             string
 	deviceID        string
 	serial          string
@@ -69,6 +70,8 @@ func (s *fakeMirrorStream) ClaimViewing(claim media.MirrorViewingClaim) error {
 func (s *fakeMirrorStream) ViewingClaimMatches(claim media.MirrorViewingClaim) bool {
 	return s.claim.ActorID != "" && s.claim == claim
 }
+
+func (s *fakeMirrorStream) ControlBound() bool { return s.controlBound }
 
 func (s *fakeMirrorStream) Answer(_ context.Context, offer string) (string, error) {
 	s.offers = append(s.offers, offer)
@@ -597,6 +600,31 @@ func TestNegotiationRequiresTheViewingOpener(t *testing.T) {
 	}
 	if len(stream.offers) != 1 {
 		t.Fatalf("the opening caller sent %d offers, want one", len(stream.offers))
+	}
+}
+
+func TestLegacyNegotiationCarriesVideoOnly(t *testing.T) {
+	stream := &fakeMirrorStream{key: mirrorStreamID, deviceID: mirrorDevice, answer: "v=0\r\na=answer\r\n"}
+	mirrors := newFakeMirrors()
+	mirrors.openFunc = func(_, _ string) *fakeMirrorStream { return stream }
+	handler := mirrorHandler(t, mirrors)
+	if _, err := handler.StartMirrorStream(context.Background(), startRequest(mirrorWorkspace, mirrorDevice, driftv1.MirrorTransport_MIRROR_TRANSPORT_WEBRTC)); err != nil {
+		t.Fatalf("start viewing: %v", err)
+	}
+	request := connectrpc.NewRequest(&driftv1.NegotiateMirrorStreamRequest{
+		Context:  mirrorRequestContext(),
+		StreamId: mirrorStreamID,
+		OfferSdp: "v=0\r\na=offer\r\n",
+	})
+	if _, err := handler.NegotiateMirrorStream(context.Background(), request); err != nil {
+		t.Fatalf("legacy video negotiation: %v", err)
+	}
+	stream.controlBound = true
+	if _, err := handler.NegotiateMirrorStream(context.Background(), request); connectrpc.CodeOf(err) != connectrpc.CodePermissionDenied {
+		t.Fatalf("legacy request negotiated an armed peer: %v", err)
+	}
+	if len(stream.offers) != 1 {
+		t.Fatalf("legacy request reached an armed peer: %d offers", len(stream.offers))
 	}
 }
 

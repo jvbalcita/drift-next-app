@@ -615,6 +615,17 @@ func (p *StreamPeer) ViewingClaimMatches(claim MirrorViewingClaim) bool {
 	return p.viewingClaim == claim
 }
 
+// ControlBound reports whether this peer has an application-owned input
+// handler. A legacy video-only negotiation must refuse an armed peer.
+func (p *StreamPeer) ControlBound() bool {
+	if p == nil {
+		return false
+	}
+	p.controlMu.Lock()
+	defer p.controlMu.Unlock()
+	return p.controlHandler != nil
+}
+
 func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer MirrorViewer) (*StreamPeer, error) {
 	if session == nil || viewer == nil {
 		return nil, errors.New("media: a stream peer requires a session and a subscription on it")

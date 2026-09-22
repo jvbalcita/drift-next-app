@@ -880,8 +880,8 @@ type NegotiateMirrorStreamRequest struct {
 	// another viewer's stream of the same device.
 	StreamId string `protobuf:"bytes,2,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
 	OfferSdp string `protobuf:"bytes,3,opt,name=offer_sdp,json=offerSdp,proto3" json:"offer_sdp,omitempty"`
-	// The workspace that opened this viewing. Negotiation checks it together
-	// with the actor against the claim bound when the stream was opened.
+	// Optional for older video-only clients. When present, negotiation checks
+	// it and the actor against the claim bound when the stream was opened.
 	Workspace     *WorkspaceRef `protobuf:"bytes,4,opt,name=workspace,proto3" json:"workspace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

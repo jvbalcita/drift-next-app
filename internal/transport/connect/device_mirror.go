@@ -74,6 +74,7 @@ type DeviceMirrorClaimedStream interface {
 	DeviceMirrorStream
 	ClaimViewing(media.MirrorViewingClaim) error
 	ViewingClaimMatches(media.MirrorViewingClaim) bool
+	ControlBound() bool
 }
 
 // DeviceMirrorEndpointStream is a stream carried as bytes from this service's

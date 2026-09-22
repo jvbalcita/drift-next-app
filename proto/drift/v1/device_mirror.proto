@@ -323,8 +323,8 @@ message NegotiateMirrorStreamRequest {
   // another viewer's stream of the same device.
   string stream_id = 2;
   string offer_sdp = 3;
-  // The workspace that opened this viewing. Negotiation checks it together
-  // with the actor against the claim bound when the stream was opened.
+  // Optional for older video-only clients. When present, negotiation checks
+  // it and the actor against the claim bound when the stream was opened.
   WorkspaceRef workspace = 4;
 }
 

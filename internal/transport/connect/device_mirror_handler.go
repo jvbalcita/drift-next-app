@@ -215,16 +215,23 @@ func (h *DeviceMirrorHandler) NegotiateMirrorStream(ctx context.Context, request
 	if err != nil {
 		return nil, err
 	}
-	if err := validateWorkspace(message.GetWorkspace()); err != nil {
-		return nil, err
-	}
 	stream, err := h.stream(message.GetStreamId())
 	if err != nil {
 		return nil, err
 	}
-	claimed, ok := stream.(DeviceMirrorClaimedStream)
-	if !ok || !claimed.ViewingClaimMatches(media.MirrorViewingClaim{WorkspaceID: message.GetWorkspace().GetWorkspaceId(), ActorType: actorType, ActorID: actorID}) {
-		return nil, connectrpc.NewError(connectrpc.CodePermissionDenied, &safeError{message: "the live viewing belongs to another caller"})
+	// Existing packaged consoles omit workspace. They may still negotiate
+	// video, but this legacy path carries no claim that can bind input. A
+	// caller that supplies a workspace must match the opening viewing exactly.
+	if message.GetWorkspace() != nil {
+		if err := validateWorkspace(message.GetWorkspace()); err != nil {
+			return nil, err
+		}
+		claimed, ok := stream.(DeviceMirrorClaimedStream)
+		if !ok || !claimed.ViewingClaimMatches(media.MirrorViewingClaim{WorkspaceID: message.GetWorkspace().GetWorkspaceId(), ActorType: actorType, ActorID: actorID}) {
+			return nil, connectrpc.NewError(connectrpc.CodePermissionDenied, &safeError{message: "the live viewing belongs to another caller"})
+		}
+	} else if claimed, ok := stream.(DeviceMirrorClaimedStream); ok && claimed.ControlBound() {
+		return nil, connectrpc.NewError(connectrpc.CodePermissionDenied, &safeError{message: "the live viewing requires its opening workspace"})
 	}
 	answer, answerErr := stream.Answer(ctx, message.GetOfferSdp())
 	if answerErr != nil {
