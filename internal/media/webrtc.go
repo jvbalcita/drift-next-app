@@ -73,6 +73,13 @@ const (
 	// picture states the device's own PTS delta, so the RTP timestamps follow the
 	// device's cadence rather than an assumed rate.
 	nominalFrameDurationUS = 33333
+
+	// mirrorControlQueueCapacity bounds the work a browser can place between
+	// the SCTP reader and the authorized delivery bound to this peer. Realtime
+	// input is never allowed to grow an unbounded backlog: once this many
+	// already-validated events are waiting, the control channel is closed and
+	// the video peer remains usable.
+	mirrorControlQueueCapacity = 64
 )
 
 var (
@@ -531,6 +538,14 @@ type StreamPeer struct {
 	// the forwarder gates its writes on.
 	connectedAt time.Time
 
+	controlMu       sync.Mutex
+	controlSequence *MirrorControlSequence
+	controlHandler  MirrorControlHandler
+	controlQueue    chan MirrorControlMessage
+	controlChannel  *webrtc.DataChannel
+	controlContext  context.Context
+	controlCancel   context.CancelFunc
+
 	// connected is closed when the peer connection can carry RTP. It is what
 	// lets the forwarder prime at the right moment without a second writer.
 	connected   chan struct{}
@@ -540,6 +555,12 @@ type StreamPeer struct {
 	closed      chan struct{}
 	finished    chan struct{}
 }
+
+// MirrorControlHandler is the application-owned delivery bound to one peer.
+// The media transport validates framing and ordering, but this callback remains
+// responsible for revalidating the lease, fence, control session and stream
+// generation before it delivers anything to a device.
+type MirrorControlHandler func(context.Context, MirrorControlMessage) error
 
 func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer MirrorViewer) (*StreamPeer, error) {
 	if session == nil || viewer == nil {
@@ -605,6 +626,7 @@ func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer Mir
 			peer.fail(fmt.Errorf("media: the browser's peer connection is %s", state))
 		}
 	})
+	pc.OnDataChannel(peer.acceptControlChannel)
 	// An unread RTCP queue stalls the interceptor chain, so the sender's
 	// feedback is drained for as long as the peer lives.
 	go func() {
@@ -616,6 +638,96 @@ func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer Mir
 		}
 	}()
 	return peer, nil
+}
+
+// BindControl arms this peer's realtime input channel for one stream
+// generation. It must happen before SDP negotiation, so a browser can never
+// race an unbound channel open and later gain authority on it.
+func (p *StreamPeer) BindControl(generation uint64, handler MirrorControlHandler) error {
+	if p == nil || handler == nil {
+		return errors.New("media: a control binding requires a peer and an authorized handler")
+	}
+	sequence, err := NewMirrorControlSequence(generation)
+	if err != nil {
+		return err
+	}
+	p.controlMu.Lock()
+	defer p.controlMu.Unlock()
+	if p.answered {
+		return errors.New("media: control must be bound before the stream is negotiated")
+	}
+	if p.controlHandler != nil {
+		return errors.New("media: control is already bound to this stream")
+	}
+	p.controlSequence = sequence
+	p.controlHandler = handler
+	p.controlQueue = make(chan MirrorControlMessage, mirrorControlQueueCapacity)
+	p.controlContext, p.controlCancel = context.WithCancel(context.Background())
+	go p.deliverControl()
+	return nil
+}
+
+func (p *StreamPeer) acceptControlChannel(channel *webrtc.DataChannel) {
+	if channel == nil {
+		return
+	}
+	p.controlMu.Lock()
+	bound := p.controlHandler != nil
+	alreadyOpen := p.controlChannel != nil
+	valid := channel.Label() == MirrorControlChannelLabel && channel.Ordered() && channel.MaxPacketLifeTime() == nil && channel.MaxRetransmits() == nil
+	if bound && !alreadyOpen && valid {
+		p.controlChannel = channel
+	}
+	p.controlMu.Unlock()
+	if !bound || alreadyOpen || !valid {
+		_ = channel.Close()
+		return
+	}
+	channel.OnMessage(func(message webrtc.DataChannelMessage) {
+		if message.IsString {
+			_ = channel.Close()
+			return
+		}
+		decoded, err := DecodeMirrorControlMessage(message.Data)
+		if err != nil {
+			_ = channel.Close()
+			return
+		}
+		p.controlMu.Lock()
+		err = p.controlSequence.Accept(decoded)
+		queue := p.controlQueue
+		p.controlMu.Unlock()
+		if err != nil {
+			_ = channel.Close()
+			return
+		}
+		select {
+		case queue <- decoded:
+		default:
+			_ = channel.Close()
+		}
+	})
+}
+
+func (p *StreamPeer) deliverControl() {
+	for {
+		select {
+		case <-p.closed:
+			return
+		case message := <-p.controlQueue:
+			p.controlMu.Lock()
+			handler := p.controlHandler
+			channel := p.controlChannel
+			p.controlMu.Unlock()
+			if handler == nil {
+				continue
+			}
+			if err := handler(p.controlContext, message); err != nil && channel != nil {
+				_ = channel.Close()
+				return
+			}
+		}
+	}
 }
 
 // Answer completes the handshake with a browser's offer and returns the answer.
@@ -633,10 +745,10 @@ func (p *StreamPeer) Answer(ctx context.Context, offerSDP string) (string, error
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	p.mu.Lock()
+	p.controlMu.Lock()
 	answered := p.answered
 	p.answered = true
-	p.mu.Unlock()
+	p.controlMu.Unlock()
 	if answered {
 		return "", errors.New("media: this stream has already been negotiated")
 	}
@@ -715,6 +827,11 @@ func (p *StreamPeer) Close() error {
 	}
 	p.closeOnce.Do(func() {
 		close(p.closed)
+		p.controlMu.Lock()
+		if p.controlCancel != nil {
+			p.controlCancel()
+		}
+		p.controlMu.Unlock()
 		p.viewer.Close()
 		if err := p.pc.Close(); err != nil {
 			p.fail(fmt.Errorf("media: closing the peer connection: %w", err))

@@ -136,6 +136,17 @@ func (b *browser) accept(t *testing.T, answerSDP string) {
 	}
 }
 
+func (b *browser) controlChannel(t *testing.T) (*webrtc.DataChannel, <-chan struct{}) {
+	t.Helper()
+	channel, err := b.pc.CreateDataChannel(MirrorControlChannelLabel, nil)
+	if err != nil {
+		t.Fatalf("create the browser control channel: %v", err)
+	}
+	opened := make(chan struct{})
+	channel.OnOpen(func() { close(opened) })
+	return channel, opened
+}
+
 func (b *browser) received() []receivedNAL {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -315,6 +326,58 @@ func openBrowser(t *testing.T, fixture streamFixture, deviceID string) (*StreamP
 	}
 	client.accept(t, answer)
 	return peer, client, session
+}
+
+func TestAnAuthorizedBinaryControlChannelCarriesOrderedMessages(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	sessionReady(t, fixture.mustSession(t, "device-1"))
+	delivered := make(chan MirrorControlMessage, 3)
+	if err := peer.BindControl(9, func(_ context.Context, message MirrorControlMessage) error {
+		delivered <- message
+		return nil
+	}); err != nil {
+		t.Fatalf("bind control: %v", err)
+	}
+	client := newBrowser(t)
+	channel, opened := client.controlChannel(t)
+	answer, err := peer.Answer(context.Background(), client.offer(t))
+	if err != nil {
+		t.Fatalf("answer the browser's offer: %v", err)
+	}
+	client.accept(t, answer)
+	select {
+	case <-opened:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the browser control channel never opened")
+	}
+	for _, data := range [][]byte{
+		controlBytes(MirrorControlTouchDown, 1, 7, 9, false),
+		controlBytes(MirrorControlTouchMove, 2, 7, 9, false),
+		controlBytes(MirrorControlTouchUp, 3, 7, 9, true),
+	} {
+		if err := channel.Send(data); err != nil {
+			t.Fatalf("send control message: %v", err)
+		}
+	}
+	for index, want := range []MirrorControlEventKind{MirrorControlTouchDown, MirrorControlTouchMove, MirrorControlTouchUp} {
+		select {
+		case message := <-delivered:
+			if message.Kind != want || message.Sequence != uint64(index+1) {
+				t.Fatalf("delivered message %d = %#v, want kind %d sequence %d", index, message, want, index+1)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("control message %d was not delivered", index)
+		}
+	}
+}
+
+func TestControlCannotBeBoundAfterNegotiation(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer, _, _ := openBrowser(t, fixture, "device-1")
+	if err := peer.BindControl(9, func(context.Context, MirrorControlMessage) error { return nil }); err == nil {
+		t.Fatal("control was bound after the stream was negotiated")
+	}
 }
 
 // TestALateBrowserIsPrimedFromTheCachedKeyFrame covers the case a browser hits
