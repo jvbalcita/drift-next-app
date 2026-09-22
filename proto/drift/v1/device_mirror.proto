@@ -108,6 +108,19 @@ message MirrorStream {
   // empty for a stream carried over WebRTC, which is negotiated with
   // NegotiateMirrorStream instead.
   string stream_url = 10;
+  // bytes is the encoded access-unit payload this viewing has carried. It is
+  // bounded accounting, not a media buffer: no frame history is retained for it.
+  uint64 bytes = 11;
+  // started_at_unix_millis is when this viewing's carrier opened. Together with
+  // last_frame_at_unix_millis it makes startup and current frame age measurable
+  // without asking a browser to infer either from a frame count.
+  int64 started_at_unix_millis = 12;
+  // last_frame_at_unix_millis is when the carrier most recently forwarded a
+  // picture. Zero means no picture has been forwarded yet.
+  int64 last_frame_at_unix_millis = 13;
+  // connection_state is the carrier's own bounded transport state. WebRTC uses
+  // the peer connection state; compatibility transports may leave it empty.
+  string connection_state = 14;
 }
 
 // MirrorViewerPurpose is what a viewer of a device's live stream IS, and it is

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	connectrpc "connectrpc.com/connect"
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
@@ -29,12 +30,16 @@ const (
 
 // fakeMirrorStream is one browser's stream as the surface sees it.
 type fakeMirrorStream struct {
-	key       string
-	deviceID  string
-	serial    string
-	frames    uint64
-	keyFrames uint64
-	failure   string
+	key             string
+	deviceID        string
+	serial          string
+	frames          uint64
+	keyFrames       uint64
+	bytes           uint64
+	startedAt       time.Time
+	lastAt          time.Time
+	connectionState string
+	failure         string
 	// endClass is how the stream's session ended, in the plane's own vocabulary.
 	// It is what tells an ENDED stream from a FAILED one, and it is stated
 	// separately from failure on purpose: the surface must never read the state
@@ -62,15 +67,19 @@ func (s *fakeMirrorStream) Answer(_ context.Context, offer string) (string, erro
 
 func (s *fakeMirrorStream) Stats() media.StreamStats {
 	return media.StreamStats{
-		StreamKey:    s.key,
-		DeviceID:     s.deviceID,
-		Serial:       s.serial,
-		RenderWidth:  s.width,
-		RenderHeight: s.height,
-		Frames:       s.frames,
-		KeyFrames:    s.keyFrames,
-		Failure:      s.failure,
-		EndClass:     s.endClass,
+		StreamKey:       s.key,
+		DeviceID:        s.deviceID,
+		Serial:          s.serial,
+		RenderWidth:     s.width,
+		RenderHeight:    s.height,
+		Frames:          s.frames,
+		KeyFrames:       s.keyFrames,
+		Bytes:           s.bytes,
+		StartedAt:       s.startedAt,
+		LastFrameAt:     s.lastAt,
+		ConnectionState: s.connectionState,
+		Failure:         s.failure,
+		EndClass:        s.endClass,
 	}
 }
 
@@ -276,7 +285,17 @@ func TestStartMirrorStreamRefusesBeforeAnythingIsOpened(t *testing.T) {
 // encoded at - never the serial, never an address a browser could reach the device
 // at directly.
 func TestStartMirrorStreamOpensTheDevicesCurrentTransportAndNamesNothingElse(t *testing.T) {
+	startedAt := time.UnixMilli(1_700_000_000_000)
+	lastFrameAt := startedAt.Add(125 * time.Millisecond)
 	mirrors := newFakeMirrors()
+	mirrors.openFunc = func(deviceID, serial string) *fakeMirrorStream {
+		return &fakeMirrorStream{
+			key: "drift-" + deviceID + "-2abc1234", deviceID: deviceID, serial: serial,
+			width: 1080, height: 2280, answer: "v=0\r\na=answer\r\n",
+			frames: 1, keyFrames: 1, bytes: 4096, startedAt: startedAt, lastAt: lastFrameAt,
+			connectionState: "connected",
+		}
+	}
 	handler := mirrorHandler(t, mirrors)
 
 	response, err := handler.StartMirrorStream(context.Background(), startRequest(mirrorWorkspace, mirrorDevice, driftv1.MirrorTransport_MIRROR_TRANSPORT_UNSPECIFIED))
@@ -299,8 +318,14 @@ func TestStartMirrorStreamOpensTheDevicesCurrentTransportAndNamesNothingElse(t *
 	if stream.GetRenderWidth() != 1080 || stream.GetRenderHeight() != 2280 {
 		t.Fatalf("render size = %dx%d, want the size the stream is encoded at - it is the coordinate frame an input must be measured in", stream.GetRenderWidth(), stream.GetRenderHeight())
 	}
-	if stream.GetState() != driftv1.MirrorStreamState_MIRROR_STREAM_STATE_STARTING {
-		t.Fatalf("state = %v, want STARTING for a stream that has carried no picture yet: connected is not live", stream.GetState())
+	if stream.GetState() != driftv1.MirrorStreamState_MIRROR_STREAM_STATE_LIVE {
+		t.Fatalf("state = %v, want LIVE for a stream that carried a picture", stream.GetState())
+	}
+	if stream.GetBytes() != 4096 || stream.GetStartedAtUnixMillis() != startedAt.UnixMilli() || stream.GetLastFrameAtUnixMillis() != lastFrameAt.UnixMilli() {
+		t.Fatalf("stream telemetry = bytes %d, start %d, last %d; want carrier accounting", stream.GetBytes(), stream.GetStartedAtUnixMillis(), stream.GetLastFrameAtUnixMillis())
+	}
+	if stream.GetConnectionState() != "connected" {
+		t.Fatalf("connection state = %q, want the carrier state", stream.GetConnectionState())
 	}
 	// The one thing a browser must never be handed: something it could use to
 	// reach the device around this service.

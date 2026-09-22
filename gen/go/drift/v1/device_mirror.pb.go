@@ -411,9 +411,22 @@ type MirrorStream struct {
 	// address, an adb serial, an RTSP address or a media-server control URL. It is
 	// empty for a stream carried over WebRTC, which is negotiated with
 	// NegotiateMirrorStream instead.
-	StreamUrl     string `protobuf:"bytes,10,opt,name=stream_url,json=streamUrl,proto3" json:"stream_url,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	StreamUrl string `protobuf:"bytes,10,opt,name=stream_url,json=streamUrl,proto3" json:"stream_url,omitempty"`
+	// bytes is the encoded access-unit payload this viewing has carried. It is
+	// bounded accounting, not a media buffer: no frame history is retained for it.
+	Bytes uint64 `protobuf:"varint,11,opt,name=bytes,proto3" json:"bytes,omitempty"`
+	// started_at_unix_millis is when this viewing's carrier opened. Together with
+	// last_frame_at_unix_millis it makes startup and current frame age measurable
+	// without asking a browser to infer either from a frame count.
+	StartedAtUnixMillis int64 `protobuf:"varint,12,opt,name=started_at_unix_millis,json=startedAtUnixMillis,proto3" json:"started_at_unix_millis,omitempty"`
+	// last_frame_at_unix_millis is when the carrier most recently forwarded a
+	// picture. Zero means no picture has been forwarded yet.
+	LastFrameAtUnixMillis int64 `protobuf:"varint,13,opt,name=last_frame_at_unix_millis,json=lastFrameAtUnixMillis,proto3" json:"last_frame_at_unix_millis,omitempty"`
+	// connection_state is the carrier's own bounded transport state. WebRTC uses
+	// the peer connection state; compatibility transports may leave it empty.
+	ConnectionState string `protobuf:"bytes,14,opt,name=connection_state,json=connectionState,proto3" json:"connection_state,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *MirrorStream) Reset() {
@@ -512,6 +525,34 @@ func (x *MirrorStream) GetKeyFrames() uint64 {
 func (x *MirrorStream) GetStreamUrl() string {
 	if x != nil {
 		return x.StreamUrl
+	}
+	return ""
+}
+
+func (x *MirrorStream) GetBytes() uint64 {
+	if x != nil {
+		return x.Bytes
+	}
+	return 0
+}
+
+func (x *MirrorStream) GetStartedAtUnixMillis() int64 {
+	if x != nil {
+		return x.StartedAtUnixMillis
+	}
+	return 0
+}
+
+func (x *MirrorStream) GetLastFrameAtUnixMillis() int64 {
+	if x != nil {
+		return x.LastFrameAtUnixMillis
+	}
+	return 0
+}
+
+func (x *MirrorStream) GetConnectionState() string {
+	if x != nil {
+		return x.ConnectionState
 	}
 	return ""
 }
@@ -1231,7 +1272,7 @@ var File_drift_v1_device_mirror_proto protoreflect.FileDescriptor
 
 const file_drift_v1_device_mirror_proto_rawDesc = "" +
 	"\n" +
-	"\x1cdrift/v1/device_mirror.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xec\x02\n" +
+	"\x1cdrift/v1/device_mirror.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x9c\x04\n" +
 	"\fMirrorStream\x12\x1b\n" +
 	"\tstream_id\x18\x01 \x01(\tR\bstreamId\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x127\n" +
@@ -1245,7 +1286,11 @@ const file_drift_v1_device_mirror_proto_rawDesc = "" +
 	"key_frames\x18\t \x01(\x04R\tkeyFrames\x12\x1d\n" +
 	"\n" +
 	"stream_url\x18\n" +
-	" \x01(\tR\tstreamUrl\"\xa2\x03\n" +
+	" \x01(\tR\tstreamUrl\x12\x14\n" +
+	"\x05bytes\x18\v \x01(\x04R\x05bytes\x123\n" +
+	"\x16started_at_unix_millis\x18\f \x01(\x03R\x13startedAtUnixMillis\x128\n" +
+	"\x19last_frame_at_unix_millis\x18\r \x01(\x03R\x15lastFrameAtUnixMillis\x12)\n" +
+	"\x10connection_state\x18\x0e \x01(\tR\x0fconnectionState\"\xa2\x03\n" +
 	"\x0eMirrorCapacity\x12)\n" +
 	"\x10session_capacity\x18\x01 \x01(\rR\x0fsessionCapacity\x12)\n" +
 	"\x10operator_reserve\x18\x02 \x01(\rR\x0foperatorReserve\x12G\n" +

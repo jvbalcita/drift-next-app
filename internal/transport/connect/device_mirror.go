@@ -397,13 +397,21 @@ func mirrorStreamProto(stream DeviceMirrorStream) *driftv1.MirrorStream {
 		failure = ""
 	}
 	message := &driftv1.MirrorStream{
-		StreamId:  stream.StreamKey(),
-		DeviceId:  stats.DeviceID,
-		Transport: driftv1.MirrorTransport_MIRROR_TRANSPORT_WEBRTC,
-		State:     state,
-		Failure:   failure,
-		Frames:    stats.Frames,
-		KeyFrames: stats.KeyFrames,
+		StreamId:        stream.StreamKey(),
+		DeviceId:        stats.DeviceID,
+		Transport:       driftv1.MirrorTransport_MIRROR_TRANSPORT_WEBRTC,
+		State:           state,
+		Failure:         failure,
+		Frames:          stats.Frames,
+		KeyFrames:       stats.KeyFrames,
+		Bytes:           stats.Bytes,
+		ConnectionState: stats.ConnectionState,
+	}
+	if !stats.StartedAt.IsZero() {
+		message.StartedAtUnixMillis = stats.StartedAt.UnixMilli()
+	}
+	if !stats.LastFrameAt.IsZero() {
+		message.LastFrameAtUnixMillis = stats.LastFrameAt.UnixMilli()
 	}
 	// A stream that serves its own bytes from the stream endpoint is the TCP
 	// transport, and what the browser is given to reach it is that endpoint and

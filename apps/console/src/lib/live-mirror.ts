@@ -68,6 +68,10 @@ export interface LiveStreamView {
   failure: string
   frames: number
   keyFrames: number
+  bytes: number
+  startedAtUnixMillis: number
+  lastFrameAtUnixMillis: number
+  connectionState: string
   /**
    * streamUrl is the per-device stream endpoint a TCP stream is fetched from, as
    * this service named it. It is empty for a stream carried over WebRTC, which is
@@ -293,8 +297,58 @@ export function liveStreamView(stream: MirrorStream): LiveStreamView {
     failure: stream.failure,
     frames: Number(stream.frames),
     keyFrames: Number(stream.keyFrames),
+    bytes: Number(stream.bytes),
+    startedAtUnixMillis: Number(stream.startedAtUnixMillis),
+    lastFrameAtUnixMillis: Number(stream.lastFrameAtUnixMillis),
+    connectionState: stream.connectionState,
     streamUrl: stream.streamUrl,
   }
+}
+
+export interface LiveStreamDiagnostics {
+  startupMs: number | null
+  frameAgeMs: number | null
+  bytes: number
+  connectionState: string
+}
+
+export interface VideoRenderPerformance {
+  samples: number
+  p50Ms: number
+  p95Ms: number
+}
+
+export const emptyVideoRenderPerformance: VideoRenderPerformance = { samples: 0, p50Ms: 0, p95Ms: 0 }
+const maximumRenderSamples = 120
+
+/** Summarize a bounded window of browser receive-to-render samples. */
+export function summarizeVideoRenderPerformance(samples: readonly number[]): VideoRenderPerformance {
+  const valid = samples.filter((sample) => Number.isFinite(sample) && sample >= 0).slice(-maximumRenderSamples)
+  valid.sort((a, b) => a - b)
+  if (valid.length === 0) return emptyVideoRenderPerformance
+  return { samples: valid.length, p50Ms: percentile(valid, 0.5), p95Ms: percentile(valid, 0.95) }
+}
+
+function percentile(sorted: readonly number[], fraction: number): number {
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1))
+  return Math.round((sorted[index] ?? 0) * 10) / 10
+}
+
+/** liveStreamDiagnostics derives operator-facing measurements from the carrier's clock. */
+export function liveStreamDiagnostics(view: LiveStreamView | null, nowUnixMillis = Date.now()): LiveStreamDiagnostics {
+  if (!view) return { startupMs: null, frameAgeMs: null, bytes: 0, connectionState: "" }
+  const started = finitePositive(view.startedAtUnixMillis)
+  const lastFrame = finitePositive(view.lastFrameAtUnixMillis)
+  return {
+    startupMs: started !== null && lastFrame !== null ? Math.max(0, lastFrame - started) : null,
+    frameAgeMs: lastFrame !== null && Number.isFinite(nowUnixMillis) ? Math.max(0, nowUnixMillis - lastFrame) : null,
+    bytes: Number.isFinite(view.bytes) && view.bytes > 0 ? view.bytes : 0,
+    connectionState: view.connectionState.trim(),
+  }
+}
+
+function finitePositive(value: number): number | null {
+  return Number.isFinite(value) && value > 0 ? value : null
 }
 
 /**

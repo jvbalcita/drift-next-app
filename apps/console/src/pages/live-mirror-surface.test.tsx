@@ -12,7 +12,7 @@ import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { ControlPlaneIntent, DispatchIntent, DeviceView } from "@/lib/domain/control-plane"
 import { deviceStatusMeanings } from "@/lib/device-status"
 import { controlPointerCursor } from "@/lib/control-pointer"
-import { keyRepeatIntervalMs, liveMirrorCopy, liveStreamView, scrollStepUnits, type LiveStreamView } from "@/lib/live-mirror"
+import { keyRepeatIntervalMs, liveMirrorCopy, liveStreamView, scrollStepUnits, summarizeVideoRenderPerformance, type LiveStreamView } from "@/lib/live-mirror"
 import { FloatingDevice } from "./ControlPage"
 import { LiveMirrorInfo, LiveMirrorSurface, type LiveMirrorSessionView } from "./live-mirror-surface"
 import { planeCapacity } from "@/test/mirror-fixtures"
@@ -47,6 +47,10 @@ function stream(overrides: { state?: MirrorStreamState; failure?: string; frames
     renderHeight: overrides.height ?? 1920,
     state: overrides.state ?? MirrorStreamState.LIVE,
     frames: overrides.frames ?? 12n,
+    bytes: 1_572_864n,
+    startedAtUnixMillis: BigInt(Date.now() - 250),
+    lastFrameAtUnixMillis: BigInt(Date.now() - 50),
+    connectionState: "connected",
     failure: overrides.failure ?? "",
   }))
 }
@@ -236,6 +240,9 @@ describe("the big frame is the device's screen", () => {
     expect(within(details).getByTestId("live-mirror-transport")).toHaveTextContent("frame 1080x1920")
     expect(within(details).getByTestId("live-mirror-phase")).toHaveTextContent("12 picture(s) carried")
     expect(within(details).getByTestId("live-mirror-drawn")).toHaveTextContent("540x960")
+    expect(within(details).getByTestId("live-mirror-performance")).toHaveTextContent("first frame 200 ms")
+    expect(within(details).getByTestId("live-mirror-performance")).toHaveTextContent("1.5 MiB carried")
+    expect(within(details).getByTestId("live-mirror-performance")).toHaveTextContent("connection connected")
     expect(within(details).getByText(liveMirrorCopy.details.pointer)).toBeInTheDocument()
   })
 
@@ -1085,6 +1092,7 @@ function sessionView(overrides: Partial<LiveMirrorSessionView>): LiveMirrorSessi
     observationToken: streamToken,
     detailsAttention: "",
     reducedMotion: false,
+    renderPerformance: { samples: 0, p50Ms: 0, p95Ms: 0 },
     attachVideo: () => undefined,
     retry: () => undefined,
     stop: () => undefined,
@@ -1102,6 +1110,14 @@ function sessionView(overrides: Partial<LiveMirrorSessionView>): LiveMirrorSessi
     ...overrides,
   }
 }
+
+describe("live mirror render measurements", () => {
+  it("keeps a bounded window and reports deterministic p50 and p95 receive-to-render latency", () => {
+    const samples = Array.from({ length: 130 }, (_, index) => index + 1)
+    expect(summarizeVideoRenderPerformance(samples)).toEqual({ samples: 120, p50Ms: 70, p95Ms: 124 })
+    expect(summarizeVideoRenderPerformance([Number.NaN, -1])).toEqual({ samples: 0, p50Ms: 0, p95Ms: 0 })
+  })
+})
 
 describe("a read the console could not complete", () => {
   /**

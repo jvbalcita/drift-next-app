@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useLiveMirror } from "@/lib/api/use-live-mirror"
 import type { DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
-import { drawnContentRect, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, livePictureHeld, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, transportSentence, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect } from "@/lib/live-mirror"
+import { drawnContentRect, emptyVideoRenderPerformance, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, livePictureHeld, liveStreamDiagnostics, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, summarizeVideoRenderPerformance, transportSentence, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect, type VideoRenderPerformance } from "@/lib/live-mirror"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import { controlPointerCursor } from "@/lib/control-pointer"
 
@@ -122,6 +122,7 @@ export interface LiveMirrorSessionView {
   /** detailsAttention is what this frame's info control is holding, as the sentence it names itself with; empty when it holds nothing. */
   detailsAttention: string
   reducedMotion: boolean
+  renderPerformance: VideoRenderPerformance
   attachVideo: (element: HTMLVideoElement | null) => void
   retry: () => void
   stop: () => void
@@ -171,6 +172,7 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
   const { phase, stream, failure, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport, purpose: "operator" })
   const frame = liveStreamFrame(stream)
   const video = useRef<HTMLVideoElement | null>(null)
+  const { value: renderPerformance, attach: attachRenderPerformance } = useVideoRenderPerformance()
   // stage is the element whose FOCUS is the capture boundary, and heldKeys is
   // when each held key last reached the device, which is what bounds its
   // auto-repeat to this control session's own rate.
@@ -190,8 +192,9 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
 
   const attachMirrorVideo = useCallback((element: HTMLVideoElement | null) => {
     video.current = element
+    attachRenderPerformance(element)
     attachVideo(element)
-  }, [attachVideo])
+  }, [attachRenderPerformance, attachVideo])
 
   const sessionOpen = livePictureHeld(phase)
   /**
@@ -461,6 +464,7 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
       refusal !== "" || failure !== "" || leaseRefusal !== "" || coordinateRuleHolds ? liveMirrorCopy.details.unread : "",
     ].filter((sentence) => sentence !== "").join(" "),
     reducedMotion,
+    renderPerformance,
     attachVideo: attachMirrorVideo,
     retry,
     stop,
@@ -583,6 +587,7 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
   const { phase, stream, frame, failure, refusal, leaseRefusal, inputBlockedReason, observationToken, detailsAttention } = session
   const [open, setOpen] = useState(false)
   const drawn = session.readDrawn()
+  const diagnostics = liveStreamDiagnostics(stream)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <TooltipProvider delay={0}>
@@ -622,6 +627,12 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
             <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">{liveMirrorCopy.details.field.frame}</dt>
             <dd className="mt-1" data-testid="live-mirror-frame">
               {frame ? `${frame.width}x${frame.height}` : liveMirrorCopy.input.noFrame}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">Performance</dt>
+            <dd className="mt-1" data-testid="live-mirror-performance">
+              {performanceSentence(diagnostics, session.renderPerformance)}
             </dd>
           </div>
           <div>
@@ -813,4 +824,71 @@ function StreamStateOverlay({ phase, sentence }: { phase: LiveMirrorPhase; sente
 function drawnSentence(drawn: SurfaceRect | null): string {
   if (!drawn) return liveMirrorCopy.details.drawnUnmeasured
   return `The picture is drawn at ${Math.round(drawn.width)}x${Math.round(drawn.height)} of this element's pixels, its top-left corner at (${Math.round(drawn.left)}, ${Math.round(drawn.top)}). A point is measured through this box and never through the element's own box.`
+}
+
+function performanceSentence(diagnostics: ReturnType<typeof liveStreamDiagnostics>, render: VideoRenderPerformance): string {
+  const parts = [
+    diagnostics.startupMs === null ? "startup not measured" : `first frame ${diagnostics.startupMs} ms`,
+    diagnostics.frameAgeMs === null ? "frame age unavailable" : `frame age ${diagnostics.frameAgeMs} ms`,
+    `${formatBytes(diagnostics.bytes)} carried`,
+  ]
+  if (render.samples > 0) parts.push(`receive-to-render p50 ${render.p50Ms} ms / p95 ${render.p95Ms} ms (${render.samples} frames)`)
+  if (diagnostics.connectionState !== "") parts.push(`connection ${diagnostics.connectionState}`)
+  return parts.join(" · ")
+}
+
+const maximumRenderSamples = 120
+
+/**
+ * useVideoRenderPerformance samples the browser's native receive-to-render path.
+ * Samples stay in a fixed ring and React is updated at most once per second;
+ * high-frequency frame callbacks never become high-frequency component state.
+ */
+function useVideoRenderPerformance(): { value: VideoRenderPerformance; attach: (element: HTMLVideoElement | null) => void } {
+  const [value, setValue] = useState<VideoRenderPerformance>(emptyVideoRenderPerformance)
+  const active = useRef<{ element: HTMLVideoElement; callback: number } | null>(null)
+  const samples = useRef<number[]>([])
+  const lastPublishedAt = useRef(0)
+
+  const attach = useCallback((element: HTMLVideoElement | null) => {
+    const previous = active.current
+    if (previous && typeof previous.element.cancelVideoFrameCallback === "function") previous.element.cancelVideoFrameCallback(previous.callback)
+    active.current = null
+    samples.current = []
+    lastPublishedAt.current = 0
+    setValue(emptyVideoRenderPerformance)
+    if (!element || typeof element.requestVideoFrameCallback !== "function") return
+
+    const sample = (now: number, metadata: VideoFrameCallbackMetadata) => {
+      if (active.current?.element !== element) return
+      const receivedAt = metadata.receiveTime
+      const renderedAt = metadata.expectedDisplayTime
+      if (receivedAt !== undefined && Number.isFinite(receivedAt) && Number.isFinite(renderedAt) && renderedAt >= receivedAt) {
+        const values = samples.current
+        values.push(renderedAt - receivedAt)
+        if (values.length > maximumRenderSamples) values.splice(0, values.length - maximumRenderSamples)
+        if (now - lastPublishedAt.current >= 1_000 || values.length === 1) {
+          lastPublishedAt.current = now
+          setValue(summarizeVideoRenderPerformance(values))
+        }
+      }
+      const callback = element.requestVideoFrameCallback(sample)
+      active.current = { element, callback }
+    }
+    const callback = element.requestVideoFrameCallback(sample)
+    active.current = { element, callback }
+  }, [])
+
+  useEffect(() => () => {
+    const previous = active.current
+    if (previous && typeof previous.element.cancelVideoFrameCallback === "function") previous.element.cancelVideoFrameCallback(previous.callback)
+    active.current = null
+  }, [])
+  return { value, attach }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1_024) return `${Math.round(bytes)} B`
+  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(1)} KiB`
+  return `${(bytes / 1_048_576).toFixed(1)} MiB`
 }
