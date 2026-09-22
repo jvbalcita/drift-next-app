@@ -40,6 +40,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"drift.local/drift-next/internal/action"
 	"drift.local/drift-next/internal/domain"
@@ -192,6 +193,11 @@ type FollowerInputOutcome struct {
 	// declared frame, unchanged: this plane refuses a follower whose frames cannot
 	// be reconciled and never converts a coordinate into the follower's frame.
 	Frame RenderSpace
+	// AcceptanceLatency is the bounded queue admission time reported to the
+	// source response. QueueWait and CompletionLatency belong to the final event.
+	AcceptanceLatency time.Duration
+	QueueWait         time.Duration
+	CompletionLatency time.Duration
 }
 
 // FollowerFanoutReport is the whole of one fan-out, and the count an operator
@@ -212,6 +218,9 @@ type FollowerFanoutReport struct {
 	// Followers carries one row per follower the caller NAMED, in the order the
 	// caller named them, deduplicated by device.
 	Followers []FollowerInputOutcome
+	// AcceptanceDuration covers resolution and queue admission only. It never
+	// includes follower execution, which proceeds independently.
+	AcceptanceDuration time.Duration
 }
 
 // Named counts the followers the report carries a row for, which is the set the
@@ -340,6 +349,9 @@ type FollowerInputJob struct {
 	// Kind is the kind the payload addresses, resolved once at accept time so a
 	// follower's run cannot disagree with the row the operator was shown.
 	Kind action.Kind
+	// AcceptedAt starts the follower's queue-wait and completion clocks. It is
+	// process-local telemetry and is never an authorization fact.
+	AcceptedAt time.Time
 }
 
 // --- the fan-out ------------------------------------------------------------
@@ -453,6 +465,7 @@ func FannableFollowerKind(kind action.Kind) bool {
 // fan-out identity that could not be assigned. Every follower the operator named
 // is in the report either way, and a follower's own refusal never ends the run.
 func (f *FollowerFanout) FanOut(ctx context.Context, request FollowerFanoutRequest) (FollowerFanoutReport, error) {
+	acceptanceStarted := time.Now()
 	report := FollowerFanoutReport{SourceDeviceID: strings.TrimSpace(request.SourceDeviceID)}
 	if ctx == nil || f == nil {
 		return report, platformerrors.New(platformerrors.CodeInvalidInput, "context and follower fan-out are required")
@@ -542,6 +555,7 @@ func (f *FollowerFanout) FanOut(ctx context.Context, request FollowerFanoutReque
 				Detail:      fmt.Sprintf("A %s input is not carried to followers; this device received nothing. It was dispatched to the source only.", kind),
 			})
 		}
+		report.AcceptanceDuration = time.Since(acceptanceStarted)
 		return report, nil
 	}
 
@@ -602,15 +616,19 @@ func (f *FollowerFanout) FanOut(ctx context.Context, request FollowerFanoutReque
 	// have happened - and, being per-follower, it cannot end the run for the
 	// followers whose runs WERE accepted.
 	for _, job := range jobs {
+		job.AcceptedAt = time.Now()
+		admissionStarted := time.Now()
 		startErr := f.runs.Start(ctx, job)
+		acceptanceLatency := time.Since(admissionStarted)
 		if startErr == nil {
 			report.Followers = append(report.Followers, FollowerInputOutcome{
-				DeviceID:       job.DeviceID,
-				Disposition:    FollowerInputAccepted,
-				Reason:         FollowerReasonDelivered,
-				Detail:         "The gesture was dispatched to this follower as its own action. This row is the acceptance; the device's own outcome is recorded beside it as the run completes.",
-				IdempotencyKey: job.IdempotencyKey,
-				Frame:          job.Frame,
+				DeviceID:          job.DeviceID,
+				Disposition:       FollowerInputAccepted,
+				Reason:            FollowerReasonDelivered,
+				Detail:            "The gesture was dispatched to this follower as its own action. This row is the acceptance; the device's own outcome is recorded beside it as the run completes.",
+				IdempotencyKey:    job.IdempotencyKey,
+				Frame:             job.Frame,
+				AcceptanceLatency: acceptanceLatency,
 			})
 			continue
 		}
@@ -621,14 +639,16 @@ func (f *FollowerFanout) FanOut(ctx context.Context, request FollowerFanoutReque
 			detail = "The fan-out is not carrying work right now, so nothing was sent to this follower."
 		}
 		report.Followers = append(report.Followers, FollowerInputOutcome{
-			DeviceID:       job.DeviceID,
-			Disposition:    FollowerInputRefused,
-			Reason:         reason,
-			Detail:         detail,
-			IdempotencyKey: job.IdempotencyKey,
-			Frame:          job.Frame,
+			DeviceID:          job.DeviceID,
+			Disposition:       FollowerInputRefused,
+			Reason:            reason,
+			Detail:            detail,
+			IdempotencyKey:    job.IdempotencyKey,
+			Frame:             job.Frame,
+			AcceptanceLatency: acceptanceLatency,
 		})
 	}
+	report.AcceptanceDuration = time.Since(acceptanceStarted)
 	return report, nil
 }
 

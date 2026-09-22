@@ -269,7 +269,13 @@ func (e *FollowerFanoutExecutor) runOne(job FollowerInputJob) {
 	// gesture is owed its own row whether or not this plane is still serving.
 	runCtx, cancel := context.WithTimeout(context.WithoutCancel(context.Background()), e.timeout)
 	defer cancel()
+	startedAt := time.Now()
+	if job.AcceptedAt.IsZero() {
+		job.AcceptedAt = startedAt
+	}
 	outcome := e.runner.Execute(runCtx, job)
+	outcome.QueueWait = nonNegativeDuration(startedAt.Sub(job.AcceptedAt))
+	outcome.CompletionLatency = nonNegativeDuration(time.Since(job.AcceptedAt))
 	if err := e.sink.RecordFollowerInputOutcome(runCtx, job, outcome); err != nil {
 		// A row this plane could not write is a follower's outcome the operator
 		// cannot read, and it is reported rather than swallowed - with identifiers
@@ -277,6 +283,13 @@ func (e *FollowerFanoutExecutor) runOne(job FollowerInputJob) {
 		log.Printf("event=follower_fanout_record_failed run=%s device=%s disposition=%s reason=%s diagnostic=%q",
 			job.RunID, job.DeviceID, outcome.Disposition, outcome.Reason, err.Error())
 	}
+}
+
+func nonNegativeDuration(value time.Duration) time.Duration {
+	if value < 0 {
+		return 0
+	}
+	return value
 }
 
 // platformerrorFor is the one sentence shape this file refuses with: a

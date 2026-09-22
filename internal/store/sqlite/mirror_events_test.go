@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/mirrors"
@@ -13,6 +14,34 @@ import (
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 	store "drift.local/drift-next/internal/store/sqlite"
 )
+
+func TestFollowerOutcomeRecordsBoundedLatencyDimensions(t *testing.T) {
+	db := openTestDB(t)
+	seedMirrorWorkspace(t, db)
+	events := store.NewMirrorEventService(db)
+	err := events.RecordFollowerInputOutcome(context.Background(), mirrors.FollowerInputOutcomeRecord{
+		WorkspaceID: mirrorEventWorkspace, SourceDeviceID: mirrorEventSource, DeviceID: mirrorEventFollower,
+		RunID: "fanout-1", Disposition: "accepted", Reason: "delivered", Detail: "The follower received the gesture.",
+		AcceptanceLatencyMillis: (3 * time.Millisecond).Milliseconds(), QueueWaitMillis: (7 * time.Millisecond).Milliseconds(),
+		CompletionLatencyMillis: (41 * time.Millisecond).Milliseconds(), ActorID: "op-1",
+	})
+	if err != nil {
+		t.Fatalf("RecordFollowerInputOutcome: %v", err)
+	}
+	recorded := readMirrorEvents(t, db, mirrorEventFollower)
+	if len(recorded) != 1 {
+		t.Fatalf("recorded %d events, want one", len(recorded))
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(recorded[0].Payload), &payload); err != nil {
+		t.Fatalf("decode follower outcome payload: %v", err)
+	}
+	for field, want := range map[string]float64{"acceptance_latency_ms": 3, "queue_wait_ms": 7, "completion_latency_ms": 41} {
+		if got, ok := payload[field].(float64); !ok || got != want {
+			t.Fatalf("%s = %v, want %.0f", field, payload[field], want)
+		}
+	}
+}
 
 // A refused live stream has to be readable from the PLANE's own record, because
 // the console that asked keeps the sentence only while it is showing the frame.

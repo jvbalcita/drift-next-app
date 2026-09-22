@@ -149,7 +149,7 @@ const followerInputOutcome = "mirror.follower_input_outcome"
 // followerInputOutcomeSchemaVersion is the shape of the payload below, stated per
 // row because a later version must be readable beside this one and never instead
 // of it.
-const followerInputOutcomeSchemaVersion = 1
+const followerInputOutcomeSchemaVersion = 2
 
 // RecordFollowerInputOutcome appends ONE follower's own finished outcome.
 //
@@ -181,31 +181,37 @@ func (s *MirrorEventService) RecordFollowerInputOutcome(ctx context.Context, rec
 	}
 	occurredAt := s.store.clock.Now().UTC().Format(time.RFC3339Nano)
 	payload, err := json.Marshal(struct {
-		SourceDeviceID string `json:"source_device_id"`
-		RunID          string `json:"run_id"`
-		Disposition    string `json:"disposition"`
-		Reason         string `json:"reason"`
-		Detail         string `json:"detail"`
-		RefusalReason  string `json:"refusal_reason,omitempty"`
-		FailureClass   string `json:"failure_class,omitempty"`
-		KernelOutcome  string `json:"kernel_outcome,omitempty"`
-		AttemptID      string `json:"attempt_id,omitempty"`
-		IdempotencyKey string `json:"idempotency_key,omitempty"`
-		FrameWidth     uint32 `json:"frame_width,omitempty"`
-		FrameHeight    uint32 `json:"frame_height,omitempty"`
+		SourceDeviceID          string `json:"source_device_id"`
+		RunID                   string `json:"run_id"`
+		Disposition             string `json:"disposition"`
+		Reason                  string `json:"reason"`
+		Detail                  string `json:"detail"`
+		RefusalReason           string `json:"refusal_reason,omitempty"`
+		FailureClass            string `json:"failure_class,omitempty"`
+		KernelOutcome           string `json:"kernel_outcome,omitempty"`
+		AttemptID               string `json:"attempt_id,omitempty"`
+		IdempotencyKey          string `json:"idempotency_key,omitempty"`
+		FrameWidth              uint32 `json:"frame_width,omitempty"`
+		FrameHeight             uint32 `json:"frame_height,omitempty"`
+		AcceptanceLatencyMillis int64  `json:"acceptance_latency_ms,omitempty"`
+		QueueWaitMillis         int64  `json:"queue_wait_ms,omitempty"`
+		CompletionLatencyMillis int64  `json:"completion_latency_ms,omitempty"`
 	}{
-		SourceDeviceID: record.SourceDeviceID,
-		RunID:          record.RunID,
-		Disposition:    record.Disposition,
-		Reason:         record.Reason,
-		Detail:         record.Detail,
-		RefusalReason:  record.RefusalReason,
-		FailureClass:   record.FailureClass,
-		KernelOutcome:  record.KernelOutcome,
-		AttemptID:      record.AttemptID,
-		IdempotencyKey: record.IdempotencyKey,
-		FrameWidth:     record.FrameWidth,
-		FrameHeight:    record.FrameHeight,
+		SourceDeviceID:          record.SourceDeviceID,
+		RunID:                   record.RunID,
+		Disposition:             record.Disposition,
+		Reason:                  record.Reason,
+		Detail:                  record.Detail,
+		RefusalReason:           record.RefusalReason,
+		FailureClass:            record.FailureClass,
+		KernelOutcome:           record.KernelOutcome,
+		AttemptID:               record.AttemptID,
+		IdempotencyKey:          record.IdempotencyKey,
+		FrameWidth:              record.FrameWidth,
+		FrameHeight:             record.FrameHeight,
+		AcceptanceLatencyMillis: record.AcceptanceLatencyMillis,
+		QueueWaitMillis:         record.QueueWaitMillis,
+		CompletionLatencyMillis: record.CompletionLatencyMillis,
 	})
 	if err != nil {
 		return platformerrors.Wrap(platformerrors.CodeInternal, "encode follower input outcome", err)
