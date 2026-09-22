@@ -636,7 +636,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
         })
         const offer = await created.createOffer()
         if (disposed || settled) return
-        const answer = await client!.negotiate(streamId, offer)
+        const answer = await client!.negotiate(streamId, offer, workspaceId)
         if (disposed || settled) return
         setStream(answer.stream)
         // The same rule for the stream the handshake returns: an answer that

@@ -1127,7 +1127,7 @@ export interface LiveMirrorClient {
    * frame.
    */
   getCapacity(workspaceId: string): Promise<MirrorCapacityView>
-  negotiate(streamId: string, offerSdp: string): Promise<LiveStreamAnswer>
+  negotiate(streamId: string, offerSdp: string, workspaceId: string): Promise<LiveStreamAnswer>
   stopStream(streamId: string): Promise<LiveStreamView>
   getStream(streamId: string): Promise<LiveStreamView>
   /**
@@ -1176,11 +1176,12 @@ export class DeviceMirrorClient implements LiveMirrorClient {
   streamEndpoint(path: string): { url: string; headers: Record<string, string> } {
     return this.json.endpoint(path)
   }
-  async negotiate(streamId: string, offerSdp: string): Promise<LiveStreamAnswer> {
+  async negotiate(streamId: string, offerSdp: string, workspaceId: string): Promise<LiveStreamAnswer> {
     const response = await this.rpc.call("NegotiateMirrorStream", NegotiateMirrorStreamRequestSchema, NegotiateMirrorStreamResponseSchema, {
       context: requestContext({ requestId: newRequestId(), actorId: this.operatorId }),
       streamId,
       offerSdp,
+      workspace: workspaceRef(workspaceId),
     })
     return { answerSdp: response.answerSdp, stream: requireStream(response.stream) }
   }

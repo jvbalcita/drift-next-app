@@ -68,6 +68,14 @@ type DeviceMirrorStream interface {
 	Close() error
 }
 
+// DeviceMirrorClaimedStream is a WebRTC viewing whose opener is bound to its
+// lifetime. Only a claimed viewing may negotiate a peer or later bind control.
+type DeviceMirrorClaimedStream interface {
+	DeviceMirrorStream
+	ClaimViewing(media.MirrorViewingClaim) error
+	ViewingClaimMatches(media.MirrorViewingClaim) bool
+}
+
 // DeviceMirrorEndpointStream is a stream carried as bytes from this service's
 // own stream endpoint rather than negotiated peer-to-peer: the browser fetches
 // MirrorStreamPath and the response body is the container.

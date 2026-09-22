@@ -539,6 +539,7 @@ type StreamPeer struct {
 	connectedAt time.Time
 
 	controlMu       sync.Mutex
+	viewingClaim    MirrorViewingClaim
 	controlSequence *MirrorControlSequence
 	controlHandler  MirrorControlHandler
 	controlQueue    chan MirrorControlMessage
@@ -561,6 +562,58 @@ type StreamPeer struct {
 // responsible for revalidating the lease, fence, control session and stream
 // generation before it delivers anything to a device.
 type MirrorControlHandler func(context.Context, MirrorControlMessage) error
+
+// MirrorViewingClaim identifies the caller that opened one WebRTC viewing.
+// It is transport metadata; the application still decides whether that caller
+// holds a valid control lease before binding any input handler.
+type MirrorViewingClaim struct {
+	WorkspaceID string
+	ActorType   string
+	ActorID     string
+}
+
+func (c MirrorViewingClaim) valid() bool {
+	return strings.TrimSpace(c.WorkspaceID) != "" && strings.TrimSpace(c.ActorType) != "" && strings.TrimSpace(c.ActorID) != ""
+}
+
+// ClaimViewing binds one caller to this peer before the stream identity is
+// returned. A claim cannot be replaced, including with identical values.
+func (p *StreamPeer) ClaimViewing(claim MirrorViewingClaim) error {
+	if p == nil || !claim.valid() {
+		return errors.New("media: a live viewing requires a complete caller claim")
+	}
+	p.controlMu.Lock()
+	defer p.controlMu.Unlock()
+	select {
+	case <-p.closed:
+		return errors.New("media: a closed viewing cannot be claimed")
+	default:
+	}
+	if p.answered {
+		return errors.New("media: a viewing must be claimed before negotiation")
+	}
+	if p.viewingClaim.valid() {
+		return errors.New("media: the viewing is already claimed")
+	}
+	p.viewingClaim = claim
+	return nil
+}
+
+// ViewingClaimMatches compares the caller with the immutable claim on this
+// viewing. It grants no input authority.
+func (p *StreamPeer) ViewingClaimMatches(claim MirrorViewingClaim) bool {
+	if p == nil || !claim.valid() {
+		return false
+	}
+	p.controlMu.Lock()
+	defer p.controlMu.Unlock()
+	select {
+	case <-p.closed:
+		return false
+	default:
+	}
+	return p.viewingClaim == claim
+}
 
 func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer MirrorViewer) (*StreamPeer, error) {
 	if session == nil || viewer == nil {
@@ -660,6 +713,9 @@ func (p *StreamPeer) BindControl(generation uint64, handler MirrorControlHandler
 	}
 	if p.answered {
 		return errors.New("media: control must be bound before the stream is negotiated")
+	}
+	if !p.viewingClaim.valid() {
+		return errors.New("media: control requires a claimed viewing")
 	}
 	if p.controlHandler != nil {
 		return errors.New("media: control is already bound to this stream")

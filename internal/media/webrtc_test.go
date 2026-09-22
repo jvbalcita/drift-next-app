@@ -331,6 +331,9 @@ func openBrowser(t *testing.T, fixture streamFixture, deviceID string) (*StreamP
 func TestAnAuthorizedBinaryControlChannelCarriesOrderedMessages(t *testing.T) {
 	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
 	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	if err := peer.ClaimViewing(MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}); err != nil {
+		t.Fatalf("claim viewing: %v", err)
+	}
 	sessionReady(t, fixture.mustSession(t, "device-1"))
 	delivered := make(chan MirrorControlMessage, 3)
 	if err := peer.BindControl(9, func(_ context.Context, message MirrorControlMessage) error {
@@ -380,9 +383,36 @@ func TestControlCannotBeBoundAfterNegotiation(t *testing.T) {
 	}
 }
 
+func TestControlRequiresAnImmutableViewingClaim(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	claim := MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}
+	if err := peer.BindControl(9, func(context.Context, MirrorControlMessage) error { return nil }); err == nil {
+		t.Fatal("an unclaimed viewing accepted control")
+	}
+	if err := peer.ClaimViewing(claim); err != nil {
+		t.Fatalf("claim viewing: %v", err)
+	}
+	if !peer.ViewingClaimMatches(claim) || peer.ViewingClaimMatches(MirrorViewingClaim{WorkspaceID: "other", ActorType: "operator", ActorID: "operator-1"}) {
+		t.Fatal("viewing claim did not bind the exact workspace and caller")
+	}
+	if err := peer.ClaimViewing(claim); err == nil {
+		t.Fatal("a viewing claim was replaced")
+	}
+	if err := peer.Close(); err != nil {
+		t.Fatalf("close viewing: %v", err)
+	}
+	if peer.ViewingClaimMatches(claim) {
+		t.Fatal("closed viewing still matched its old claim")
+	}
+}
+
 func TestControlChannelCloseDropsQueuedInput(t *testing.T) {
 	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
 	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	if err := peer.ClaimViewing(MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}); err != nil {
+		t.Fatalf("claim viewing: %v", err)
+	}
 	sessionReady(t, fixture.mustSession(t, "device-1"))
 	entered := make(chan struct{})
 	release := make(chan struct{})

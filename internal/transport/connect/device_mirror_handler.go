@@ -111,6 +111,17 @@ func (h *DeviceMirrorHandler) StartMirrorStream(ctx context.Context, request *co
 		}
 		return nil, MapError(openErr)
 	}
+	if transport == media.TransportWebRTC {
+		claimed, ok := stream.(DeviceMirrorClaimedStream)
+		if !ok {
+			_ = stream.Close()
+			return nil, unavailableError("the live peer cannot bind its viewing to the caller")
+		}
+		if err := claimed.ClaimViewing(media.MirrorViewingClaim{WorkspaceID: workspaceID, ActorType: actorType, ActorID: actorID}); err != nil {
+			_ = stream.Close()
+			return nil, unavailableError("the live peer could not bind its viewing to the caller")
+		}
+	}
 	return connectrpc.NewResponse(&driftv1.StartMirrorStreamResponse{Stream: mirrorStreamProto(stream)}), nil
 }
 
@@ -200,12 +211,20 @@ func (h *DeviceMirrorHandler) NegotiateMirrorStream(ctx context.Context, request
 		return nil, invalidArgument("a negotiate mirror stream request is required")
 	}
 	message := request.Msg
-	if _, _, err := requireActor(message.GetContext()); err != nil {
+	actorType, actorID, err := requireActor(message.GetContext())
+	if err != nil {
+		return nil, err
+	}
+	if err := validateWorkspace(message.GetWorkspace()); err != nil {
 		return nil, err
 	}
 	stream, err := h.stream(message.GetStreamId())
 	if err != nil {
 		return nil, err
+	}
+	claimed, ok := stream.(DeviceMirrorClaimedStream)
+	if !ok || !claimed.ViewingClaimMatches(media.MirrorViewingClaim{WorkspaceID: message.GetWorkspace().GetWorkspaceId(), ActorType: actorType, ActorID: actorID}) {
+		return nil, connectrpc.NewError(connectrpc.CodePermissionDenied, &safeError{message: "the live viewing belongs to another caller"})
 	}
 	answer, answerErr := stream.Answer(ctx, message.GetOfferSdp())
 	if answerErr != nil {

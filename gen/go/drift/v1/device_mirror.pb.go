@@ -878,8 +878,11 @@ type NegotiateMirrorStreamRequest struct {
 	// viewers has one of these per viewer, so a handshake can only ever be
 	// negotiated against the stream its own browser was handed - never against
 	// another viewer's stream of the same device.
-	StreamId      string `protobuf:"bytes,2,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
-	OfferSdp      string `protobuf:"bytes,3,opt,name=offer_sdp,json=offerSdp,proto3" json:"offer_sdp,omitempty"`
+	StreamId string `protobuf:"bytes,2,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
+	OfferSdp string `protobuf:"bytes,3,opt,name=offer_sdp,json=offerSdp,proto3" json:"offer_sdp,omitempty"`
+	// The workspace that opened this viewing. Negotiation checks it together
+	// with the actor against the claim bound when the stream was opened.
+	Workspace     *WorkspaceRef `protobuf:"bytes,4,opt,name=workspace,proto3" json:"workspace,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -933,6 +936,13 @@ func (x *NegotiateMirrorStreamRequest) GetOfferSdp() string {
 		return x.OfferSdp
 	}
 	return ""
+}
+
+func (x *NegotiateMirrorStreamRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
 }
 
 type NegotiateMirrorStreamResponse struct {
@@ -1312,11 +1322,12 @@ const file_drift_v1_device_mirror_proto_rawDesc = "" +
 	"\n" +
 	"frame_rate\x18\a \x01(\rR\tframeRate\"K\n" +
 	"\x19StartMirrorStreamResponse\x12.\n" +
-	"\x06stream\x18\x01 \x01(\v2\x16.drift.v1.MirrorStreamR\x06stream\"\x8c\x01\n" +
+	"\x06stream\x18\x01 \x01(\v2\x16.drift.v1.MirrorStreamR\x06stream\"\xc2\x01\n" +
 	"\x1cNegotiateMirrorStreamRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12\x1b\n" +
 	"\tstream_id\x18\x02 \x01(\tR\bstreamId\x12\x1b\n" +
-	"\toffer_sdp\x18\x03 \x01(\tR\bofferSdp\"n\n" +
+	"\toffer_sdp\x18\x03 \x01(\tR\bofferSdp\x124\n" +
+	"\tworkspace\x18\x04 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\"n\n" +
 	"\x1dNegotiateMirrorStreamResponse\x12\x1d\n" +
 	"\n" +
 	"answer_sdp\x18\x01 \x01(\tR\tanswerSdp\x12.\n" +
@@ -1412,27 +1423,28 @@ var file_drift_v1_device_mirror_proto_depIdxs = []int32{
 	3,  // 8: drift.v1.StartMirrorStreamRequest.preview_quality:type_name -> drift.v1.MirrorPreviewQuality
 	5,  // 9: drift.v1.StartMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
 	17, // 10: drift.v1.NegotiateMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
-	5,  // 11: drift.v1.NegotiateMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
-	17, // 12: drift.v1.StopMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
-	5,  // 13: drift.v1.StopMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
-	5,  // 14: drift.v1.GetMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
-	18, // 15: drift.v1.GetMirrorCapacityRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	6,  // 16: drift.v1.GetMirrorCapacityResponse.capacity:type_name -> drift.v1.MirrorCapacity
-	7,  // 17: drift.v1.DeviceMirrorService.StartMirrorStream:input_type -> drift.v1.StartMirrorStreamRequest
-	9,  // 18: drift.v1.DeviceMirrorService.NegotiateMirrorStream:input_type -> drift.v1.NegotiateMirrorStreamRequest
-	11, // 19: drift.v1.DeviceMirrorService.StopMirrorStream:input_type -> drift.v1.StopMirrorStreamRequest
-	13, // 20: drift.v1.DeviceMirrorService.GetMirrorStream:input_type -> drift.v1.GetMirrorStreamRequest
-	15, // 21: drift.v1.DeviceMirrorService.GetMirrorCapacity:input_type -> drift.v1.GetMirrorCapacityRequest
-	8,  // 22: drift.v1.DeviceMirrorService.StartMirrorStream:output_type -> drift.v1.StartMirrorStreamResponse
-	10, // 23: drift.v1.DeviceMirrorService.NegotiateMirrorStream:output_type -> drift.v1.NegotiateMirrorStreamResponse
-	12, // 24: drift.v1.DeviceMirrorService.StopMirrorStream:output_type -> drift.v1.StopMirrorStreamResponse
-	14, // 25: drift.v1.DeviceMirrorService.GetMirrorStream:output_type -> drift.v1.GetMirrorStreamResponse
-	16, // 26: drift.v1.DeviceMirrorService.GetMirrorCapacity:output_type -> drift.v1.GetMirrorCapacityResponse
-	22, // [22:27] is the sub-list for method output_type
-	17, // [17:22] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	18, // 11: drift.v1.NegotiateMirrorStreamRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	5,  // 12: drift.v1.NegotiateMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
+	17, // 13: drift.v1.StopMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
+	5,  // 14: drift.v1.StopMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
+	5,  // 15: drift.v1.GetMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
+	18, // 16: drift.v1.GetMirrorCapacityRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	6,  // 17: drift.v1.GetMirrorCapacityResponse.capacity:type_name -> drift.v1.MirrorCapacity
+	7,  // 18: drift.v1.DeviceMirrorService.StartMirrorStream:input_type -> drift.v1.StartMirrorStreamRequest
+	9,  // 19: drift.v1.DeviceMirrorService.NegotiateMirrorStream:input_type -> drift.v1.NegotiateMirrorStreamRequest
+	11, // 20: drift.v1.DeviceMirrorService.StopMirrorStream:input_type -> drift.v1.StopMirrorStreamRequest
+	13, // 21: drift.v1.DeviceMirrorService.GetMirrorStream:input_type -> drift.v1.GetMirrorStreamRequest
+	15, // 22: drift.v1.DeviceMirrorService.GetMirrorCapacity:input_type -> drift.v1.GetMirrorCapacityRequest
+	8,  // 23: drift.v1.DeviceMirrorService.StartMirrorStream:output_type -> drift.v1.StartMirrorStreamResponse
+	10, // 24: drift.v1.DeviceMirrorService.NegotiateMirrorStream:output_type -> drift.v1.NegotiateMirrorStreamResponse
+	12, // 25: drift.v1.DeviceMirrorService.StopMirrorStream:output_type -> drift.v1.StopMirrorStreamResponse
+	14, // 26: drift.v1.DeviceMirrorService.GetMirrorStream:output_type -> drift.v1.GetMirrorStreamResponse
+	16, // 27: drift.v1.DeviceMirrorService.GetMirrorCapacity:output_type -> drift.v1.GetMirrorCapacityResponse
+	23, // [23:28] is the sub-list for method output_type
+	18, // [18:23] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_device_mirror_proto_init() }

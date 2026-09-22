@@ -30,6 +30,7 @@ const (
 
 // fakeMirrorStream is one browser's stream as the surface sees it.
 type fakeMirrorStream struct {
+	claim           media.MirrorViewingClaim
 	key             string
 	deviceID        string
 	serial          string
@@ -56,6 +57,18 @@ type fakeMirrorStream struct {
 }
 
 func (s *fakeMirrorStream) StreamKey() string { return s.key }
+
+func (s *fakeMirrorStream) ClaimViewing(claim media.MirrorViewingClaim) error {
+	if s.claim.ActorID != "" {
+		return fmt.Errorf("viewing already claimed")
+	}
+	s.claim = claim
+	return nil
+}
+
+func (s *fakeMirrorStream) ViewingClaimMatches(claim media.MirrorViewingClaim) bool {
+	return s.claim.ActorID != "" && s.claim == claim
+}
 
 func (s *fakeMirrorStream) Answer(_ context.Context, offer string) (string, error) {
 	s.offers = append(s.offers, offer)
@@ -509,13 +522,17 @@ func TestStartMirrorStreamReportsARefusedDeviceAsARefusal(t *testing.T) {
 // stream, and a stream this service is not carrying answers not-found.
 func TestNegotiateMirrorStreamAnswersOnlyAKnownStream(t *testing.T) {
 	stream := &fakeMirrorStream{key: mirrorStreamID, deviceID: mirrorDevice, answer: "v=0\r\na=answer\r\n"}
+	if err := stream.ClaimViewing(media.MirrorViewingClaim{WorkspaceID: mirrorWorkspace, ActorType: "operator", ActorID: "operator-1"}); err != nil {
+		t.Fatal(err)
+	}
 	mirrors := newFakeMirrors(stream)
 	handler := mirrorHandler(t, mirrors)
 
 	_, err := handler.NegotiateMirrorStream(context.Background(), connectrpc.NewRequest(&driftv1.NegotiateMirrorStreamRequest{
-		Context:  mirrorRequestContext(),
-		StreamId: "drift-nobody-00000000",
-		OfferSdp: "v=0\r\na=offer\r\n",
+		Context:   mirrorRequestContext(),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: mirrorWorkspace},
+		StreamId:  "drift-nobody-00000000",
+		OfferSdp:  "v=0\r\na=offer\r\n",
 	}))
 	if err == nil {
 		t.Fatal("an unknown stream was negotiated")
@@ -531,9 +548,10 @@ func TestNegotiateMirrorStreamAnswersOnlyAKnownStream(t *testing.T) {
 	}
 
 	response, err := handler.NegotiateMirrorStream(context.Background(), connectrpc.NewRequest(&driftv1.NegotiateMirrorStreamRequest{
-		Context:  mirrorRequestContext(),
-		StreamId: mirrorStreamID,
-		OfferSdp: "v=0\r\na=offer\r\n",
+		Context:   mirrorRequestContext(),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: mirrorWorkspace},
+		StreamId:  mirrorStreamID,
+		OfferSdp:  "v=0\r\na=offer\r\n",
 	}))
 	if err != nil {
 		t.Fatalf("negotiate the stream: %v", err)
@@ -543,6 +561,42 @@ func TestNegotiateMirrorStreamAnswersOnlyAKnownStream(t *testing.T) {
 	}
 	if len(stream.offers) != 1 || stream.offers[0] != "v=0\r\na=offer\r\n" {
 		t.Fatalf("the stream received %v, want the caller's offer unchanged", stream.offers)
+	}
+}
+
+func TestNegotiationRequiresTheViewingOpener(t *testing.T) {
+	stream := &fakeMirrorStream{key: mirrorStreamID, deviceID: mirrorDevice, answer: "v=0\r\na=answer\r\n"}
+	mirrors := newFakeMirrors()
+	mirrors.openFunc = func(_, _ string) *fakeMirrorStream { return stream }
+	handler := mirrorHandler(t, mirrors)
+	opened, err := handler.StartMirrorStream(context.Background(), startRequest(mirrorWorkspace, mirrorDevice, driftv1.MirrorTransport_MIRROR_TRANSPORT_WEBRTC))
+	if err != nil {
+		t.Fatalf("start viewing: %v", err)
+	}
+	request := func(workspace, actor string) *connectrpc.Request[driftv1.NegotiateMirrorStreamRequest] {
+		return connectrpc.NewRequest(&driftv1.NegotiateMirrorStreamRequest{
+			Context:   &driftv1.RequestContext{RequestId: "negotiate-1", ActorId: actor},
+			Workspace: &driftv1.WorkspaceRef{WorkspaceId: workspace},
+			StreamId:  opened.Msg.GetStream().GetStreamId(),
+			OfferSdp:  "v=0\r\na=offer\r\n",
+		})
+	}
+	for _, mismatch := range []struct{ workspace, actor string }{
+		{mirrorWorkspace, "other-operator"},
+		{"other-workspace", "operator-1"},
+	} {
+		if _, err := handler.NegotiateMirrorStream(context.Background(), request(mismatch.workspace, mismatch.actor)); connectrpc.CodeOf(err) != connectrpc.CodePermissionDenied {
+			t.Fatalf("mismatched viewing returned %v, want permission denied", err)
+		}
+	}
+	if len(stream.offers) != 0 {
+		t.Fatal("a mismatched caller's offer reached the peer")
+	}
+	if _, err := handler.NegotiateMirrorStream(context.Background(), request(mirrorWorkspace, "operator-1")); err != nil {
+		t.Fatalf("the opening caller could not negotiate its viewing: %v", err)
+	}
+	if len(stream.offers) != 1 {
+		t.Fatalf("the opening caller sent %d offers, want one", len(stream.offers))
 	}
 }
 

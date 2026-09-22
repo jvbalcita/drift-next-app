@@ -64,6 +64,7 @@ interface FakeClient {
   transports: string[]
   /** purposes are the purposes each stream was opened as: a tile or the operator's frame. */
   purposes: string[]
+  negotiateWorkspaces: string[]
   setState(next: LiveStreamView): void
   failReads(failure: unknown | null): void
   /** unknown answers every read the way a control plane that RESTARTED does. */
@@ -75,6 +76,7 @@ function fakeClient(initial: LiveStreamView = stream()): FakeClient {
   const calls: string[] = []
   const transports: string[] = []
   const purposes: string[] = []
+  const negotiateWorkspaces: string[] = []
   let state = initial
   let readFailure: unknown | null = null
   let unknown = false
@@ -82,6 +84,7 @@ function fakeClient(initial: LiveStreamView = stream()): FakeClient {
     calls,
     transports,
     purposes,
+    negotiateWorkspaces,
     get reads() { return calls.filter((call) => call.startsWith("get:")).length },
     setState(next) { state = next },
     failReads(failure) { readFailure = failure },
@@ -94,8 +97,9 @@ function fakeClient(initial: LiveStreamView = stream()): FakeClient {
         return state
       },
       async getCapacity() { return planeCapacity(4, 1) },
-      async negotiate(streamId, offerSdp) {
+      async negotiate(streamId, offerSdp, workspaceId) {
         calls.push(`negotiate:${streamId}:${offerSdp}`)
+        negotiateWorkspaces.push(workspaceId)
         return { answerSdp: "answer-sdp", stream: state }
       },
       async stopStream(streamId) {
@@ -232,6 +236,7 @@ describe("the console's live mirror session", () => {
 
     await waitFor(() => expect(peer.calls).toContain("answer:answer-sdp"))
     expect(handle.calls.slice(0, 2)).toEqual(["start:device-1", "negotiate:stream-1:offer-sdp"])
+    expect(handle.negotiateWorkspaces).toEqual(["workspace-lab-local"])
     expect(screen.getByTestId("phase")).toHaveTextContent("starting")
 
     peer.emitStream()

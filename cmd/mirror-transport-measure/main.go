@@ -539,9 +539,10 @@ func watchWebRTC(ctx context.Context, r *runner, streamID, streamURL string, win
 	}
 
 	answer, err := r.mirror.NegotiateMirrorStream(ctx, connectrpc.NewRequest(&driftv1.NegotiateMirrorStreamRequest{
-		Context:  r.requestContext("measure-negotiate-" + time.Now().UTC().Format("150405.000000")),
-		StreamId: streamID,
-		OfferSdp: local.SDP,
+		Context:   r.requestContext("measure-negotiate-" + time.Now().UTC().Format("150405.000000")),
+		Workspace: r.workspaceRef(),
+		StreamId:  streamID,
+		OfferSdp:  local.SDP,
 	}))
 	if err != nil {
 		return nil, time.Time{}, time.Time{}, fmt.Errorf("negotiate: %w", err)
