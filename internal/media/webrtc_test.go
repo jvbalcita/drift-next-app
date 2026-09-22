@@ -380,6 +380,83 @@ func TestControlCannotBeBoundAfterNegotiation(t *testing.T) {
 	}
 }
 
+func TestControlChannelCloseDropsQueuedInput(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	sessionReady(t, fixture.mustSession(t, "device-1"))
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	delivered := make(chan uint64, 2)
+	if err := peer.BindControl(9, func(_ context.Context, message MirrorControlMessage) error {
+		delivered <- message.Sequence
+		if message.Sequence == 1 {
+			close(entered)
+			<-release
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("bind control: %v", err)
+	}
+	client := newBrowser(t)
+	channel, opened := client.controlChannel(t)
+	answer, err := peer.Answer(context.Background(), client.offer(t))
+	if err != nil {
+		t.Fatalf("answer the browser's offer: %v", err)
+	}
+	client.accept(t, answer)
+	select {
+	case <-opened:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the browser control channel never opened")
+	}
+	if err := channel.Send(controlBytes(MirrorControlTouchDown, 1, 7, 9, false)); err != nil {
+		t.Fatalf("send touch down: %v", err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first control message was not delivered")
+	}
+	if err := channel.Send(controlBytes(MirrorControlTouchMove, 2, 7, 9, false)); err != nil {
+		t.Fatalf("send queued move: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		peer.controlMu.Lock()
+		accepted := peer.controlSequence.last == 2
+		peer.controlMu.Unlock()
+		if accepted {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the queued move was not accepted before channel close")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err := channel.Close(); err != nil {
+		t.Fatalf("close browser control channel: %v", err)
+	}
+	select {
+	case <-peer.controlContext.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("control binding remained active after channel close")
+	}
+	close(release)
+	select {
+	case got := <-delivered:
+		if got != 1 {
+			t.Fatalf("first delivered sequence = %d, want 1", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("first message was not recorded")
+	}
+	select {
+	case got := <-delivered:
+		t.Fatalf("delivered sequence %d after channel close", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
 // TestALateBrowserIsPrimedFromTheCachedKeyFrame covers the case a browser hits
 // whenever it opens a device somebody else is already watching, or reloads:
 // nothing new is pushed after it attaches, so a receiver that is not primed from

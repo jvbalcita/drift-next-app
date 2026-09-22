@@ -653,6 +653,11 @@ func (p *StreamPeer) BindControl(generation uint64, handler MirrorControlHandler
 	}
 	p.controlMu.Lock()
 	defer p.controlMu.Unlock()
+	select {
+	case <-p.closed:
+		return errors.New("media: control cannot be bound to a closed stream")
+	default:
+	}
 	if p.answered {
 		return errors.New("media: control must be bound before the stream is negotiated")
 	}
@@ -673,6 +678,11 @@ func (p *StreamPeer) acceptControlChannel(channel *webrtc.DataChannel) {
 	}
 	p.controlMu.Lock()
 	bound := p.controlHandler != nil
+	select {
+	case <-p.closed:
+		bound = false
+	default:
+	}
 	alreadyOpen := p.controlChannel != nil
 	valid := channel.Label() == MirrorControlChannelLabel && channel.Ordered() && channel.MaxPacketLifeTime() == nil && channel.MaxRetransmits() == nil
 	if bound && !alreadyOpen && valid {
@@ -683,7 +693,20 @@ func (p *StreamPeer) acceptControlChannel(channel *webrtc.DataChannel) {
 		_ = channel.Close()
 		return
 	}
+	channel.OnClose(func() {
+		p.controlMu.Lock()
+		if p.controlCancel != nil {
+			p.controlCancel()
+		}
+		p.controlMu.Unlock()
+	})
 	channel.OnMessage(func(message webrtc.DataChannelMessage) {
+		select {
+		case <-p.closed:
+			_ = channel.Close()
+			return
+		default:
+		}
 		if message.IsString {
 			_ = channel.Close()
 			return
@@ -694,6 +717,11 @@ func (p *StreamPeer) acceptControlChannel(channel *webrtc.DataChannel) {
 			return
 		}
 		p.controlMu.Lock()
+		if p.controlContext.Err() != nil {
+			p.controlMu.Unlock()
+			_ = channel.Close()
+			return
+		}
 		err = p.controlSequence.Accept(decoded)
 		queue := p.controlQueue
 		p.controlMu.Unlock()
@@ -714,15 +742,23 @@ func (p *StreamPeer) deliverControl() {
 		select {
 		case <-p.closed:
 			return
+		case <-p.controlContext.Done():
+			return
 		case message := <-p.controlQueue:
+			// A closed peer must never drain an already queued input. Select may
+			// choose a ready queue even when the close signal is also ready.
+			if p.controlContext.Err() != nil {
+				return
+			}
 			p.controlMu.Lock()
 			handler := p.controlHandler
 			channel := p.controlChannel
+			controlContext := p.controlContext
 			p.controlMu.Unlock()
-			if handler == nil {
+			if handler == nil || controlContext.Err() != nil {
 				continue
 			}
-			if err := handler(p.controlContext, message); err != nil && channel != nil {
+			if err := handler(controlContext, message); err != nil && channel != nil {
 				_ = channel.Close()
 				return
 			}
