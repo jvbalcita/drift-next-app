@@ -815,9 +815,18 @@ func TestMirrorCarriesInputForALiveDeviceAndRefusesEveryOtherCase(t *testing.T) 
 	if err := engine.Input(context.Background(), "device-1", MirrorInput{Kind: MirrorInputKeyEvent, KeyCode: 3}); err != nil {
 		t.Fatalf("a key event on a live mirror was refused: %v", err)
 	}
+	for _, input := range []MirrorInput{
+		{Kind: MirrorInputTouchDown, X: 100, Y: 200, FrameWidth: 1080, FrameHeight: 2280},
+		{Kind: MirrorInputTouchMove, X: 110, Y: 220, FrameWidth: 1080, FrameHeight: 2280},
+		{Kind: MirrorInputTouchUp, X: 120, Y: 240, FrameWidth: 1080, FrameHeight: 2280},
+	} {
+		if err := engine.Input(context.Background(), "device-1", input); err != nil {
+			t.Fatalf("a %s on a live mirror was refused: %v", input.Kind, err)
+		}
+	}
 	sent := stream.sentInputs()
-	if len(sent) != 3 || sent[0].Kind != MirrorInputTap || sent[1].Kind != MirrorInputSwipe || sent[2].Kind != MirrorInputKeyEvent {
-		t.Fatalf("the stream received %+v, want the tap, the swipe and the key event", sent)
+	if len(sent) != 6 || sent[0].Kind != MirrorInputTap || sent[1].Kind != MirrorInputSwipe || sent[2].Kind != MirrorInputKeyEvent || sent[3].Kind != MirrorInputTouchDown || sent[4].Kind != MirrorInputTouchMove || sent[5].Kind != MirrorInputTouchUp {
+		t.Fatalf("the stream received %+v, want the semantic inputs followed by the physical touch phases", sent)
 	}
 	if sent[0].X != 540 || sent[0].Y != 1140 {
 		t.Fatalf("the tap reached the device as (%d,%d), want (540,1140)", sent[0].X, sent[0].Y)
@@ -860,7 +869,7 @@ func TestMirrorCarriesInputForALiveDeviceAndRefusesEveryOtherCase(t *testing.T) 
 	if err := engine.Input(context.Background(), "device-1", MirrorInput{}); err == nil {
 		t.Fatal("an input with no kind was accepted")
 	}
-	if got := stream.sentInputs(); len(got) != 3 {
+	if got := stream.sentInputs(); len(got) != 6 {
 		t.Fatalf("a refused input reached the device: %+v", got)
 	}
 

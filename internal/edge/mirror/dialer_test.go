@@ -476,6 +476,18 @@ func TestEveryTypedInputReachesTheControlSocketAsItsOwnMessage(t *testing.T) {
 	if err := stream.SendInput(ctx, media.MirrorInput{Kind: media.MirrorInputSwipe, X: 10, Y: 20, EndX: 30, EndY: 40, Duration: 200 * time.Millisecond, FrameWidth: 1080, FrameHeight: 2280}); err != nil {
 		t.Fatalf("swipe: %v", err)
 	}
+	// A realtime gesture is delivered as its physical phases instead of being
+	// buffered into one swipe after release.
+	for _, input := range []media.MirrorInput{
+		{Kind: media.MirrorInputTouchDown, X: 100, Y: 200, FrameWidth: 1080, FrameHeight: 2280},
+		{Kind: media.MirrorInputTouchMove, X: 110, Y: 220, FrameWidth: 1080, FrameHeight: 2280},
+		{Kind: media.MirrorInputTouchUp, X: 120, Y: 240, FrameWidth: 1080, FrameHeight: 2280},
+		{Kind: media.MirrorInputTouchCancel, X: 130, Y: 260, FrameWidth: 1080, FrameHeight: 2280},
+	} {
+		if err := stream.SendInput(ctx, input); err != nil {
+			t.Fatalf("%s: %v", input.Kind, err)
+		}
+	}
 	if err := stream.SendInput(ctx, media.MirrorInput{Kind: media.MirrorInputText, Text: "hello"}); err != nil {
 		t.Fatalf("text: %v", err)
 	}
@@ -484,7 +496,14 @@ func TestEveryTypedInputReachesTheControlSocketAsItsOwnMessage(t *testing.T) {
 	}
 
 	touches, swipes, texts, keys := session.sent()
-	want := []touch{{action: scrcpy.ActionDown, x: 540, y: 1140}, {action: scrcpy.ActionUp, x: 540, y: 1140}}
+	want := []touch{
+		{action: scrcpy.ActionDown, x: 540, y: 1140},
+		{action: scrcpy.ActionUp, x: 540, y: 1140},
+		{action: scrcpy.ActionDown, x: 100, y: 200},
+		{action: scrcpy.ActionMove, x: 110, y: 220},
+		{action: scrcpy.ActionUp, x: 120, y: 240},
+		{action: scrcpy.ActionUp, x: 130, y: 260},
+	}
 	if len(touches) != len(want) {
 		t.Fatalf("the device received %d touch messages %+v, want %+v", len(touches), touches, want)
 	}
@@ -509,7 +528,7 @@ func TestEveryTypedInputReachesTheControlSocketAsItsOwnMessage(t *testing.T) {
 		t.Fatal("a shape that is not a typed input reached the session")
 	}
 	touches, _, texts, _ = session.sent()
-	if len(touches) != 2 || len(texts) != 1 {
+	if len(touches) != len(want) || len(texts) != 1 {
 		t.Fatalf("a refused input reached the device: touches %+v, texts %+v", touches, texts)
 	}
 }

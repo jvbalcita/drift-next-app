@@ -88,13 +88,46 @@ func (m MirrorControlMessage) Validate() error {
 			return errors.New("media: touch control message must not carry a key")
 		}
 	case MirrorControlKey:
-		if !m.Final || m.GestureID != 0 || m.Width != 0 || m.Height != 0 || m.X != 0 || m.Y != 0 || m.KeyCode == 0 || m.KeyCode > 10000 || m.Repeat > 1000 {
+		if !m.Final || m.GestureID != 0 || m.Width != 0 || m.Height != 0 || m.X != 0 || m.Y != 0 || m.KeyCode == 0 || m.KeyCode > 10000 || m.Repeat == 0 || m.Repeat > 32 {
 			return errors.New("media: key control message requires one terminal key event and no touch payload")
 		}
 	default:
 		return fmt.Errorf("media: control event kind %d is not supported", m.Kind)
 	}
 	return nil
+}
+
+// MirrorInput maps a validated realtime event into the live session's closed
+// input vocabulary. It performs no authorization: callers may use the result
+// only after the application kernel accepted and revalidated the binding that
+// delivered this message.
+func (m MirrorControlMessage) MirrorInput() (MirrorInput, error) {
+	if err := m.Validate(); err != nil {
+		return MirrorInput{}, err
+	}
+	input := MirrorInput{
+		X:           int(m.X),
+		Y:           int(m.Y),
+		FrameWidth:  int(m.Width),
+		FrameHeight: int(m.Height),
+		KeyCode:     m.KeyCode,
+		Repeat:      m.Repeat,
+	}
+	switch m.Kind {
+	case MirrorControlTouchDown:
+		input.Kind = MirrorInputTouchDown
+	case MirrorControlTouchMove:
+		input.Kind = MirrorInputTouchMove
+	case MirrorControlTouchUp:
+		input.Kind = MirrorInputTouchUp
+	case MirrorControlTouchCancel:
+		input.Kind = MirrorInputTouchCancel
+	case MirrorControlKey:
+		input.Kind = MirrorInputKeyEvent
+	default:
+		return MirrorInput{}, fmt.Errorf("media: control event kind %d has no mirror input", m.Kind)
+	}
+	return input, nil
 }
 
 type MirrorControlSequence struct {

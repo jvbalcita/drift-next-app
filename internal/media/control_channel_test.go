@@ -16,6 +16,7 @@ func controlBytes(kind MirrorControlEventKind, sequence, gesture, generation uin
 	binary.BigEndian.PutUint64(data[32:40], generation)
 	if kind == MirrorControlKey {
 		binary.BigEndian.PutUint32(data[56:60], 3)
+		binary.BigEndian.PutUint32(data[60:64], 1)
 	} else {
 		binary.BigEndian.PutUint32(data[40:44], 1080)
 		binary.BigEndian.PutUint32(data[44:48], 2280)
@@ -23,6 +24,40 @@ func controlBytes(kind MirrorControlEventKind, sequence, gesture, generation uin
 		binary.BigEndian.PutUint32(data[52:56], 1140)
 	}
 	return data
+}
+
+func TestMirrorControlMessageMapsToPhysicalSessionInput(t *testing.T) {
+	for name, testCase := range map[string]struct {
+		message []byte
+		kind    string
+	}{
+		"down":   {controlBytes(MirrorControlTouchDown, 1, 7, 9, false), MirrorInputTouchDown},
+		"move":   {controlBytes(MirrorControlTouchMove, 2, 7, 9, false), MirrorInputTouchMove},
+		"up":     {controlBytes(MirrorControlTouchUp, 3, 7, 9, true), MirrorInputTouchUp},
+		"cancel": {controlBytes(MirrorControlTouchCancel, 3, 7, 9, true), MirrorInputTouchCancel},
+		"key":    {controlBytes(MirrorControlKey, 4, 0, 9, true), MirrorInputKeyEvent},
+	} {
+		t.Run(name, func(t *testing.T) {
+			message, err := DecodeMirrorControlMessage(testCase.message)
+			if err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			input, err := message.MirrorInput()
+			if err != nil {
+				t.Fatalf("map: %v", err)
+			}
+			if input.Kind != testCase.kind {
+				t.Fatalf("kind = %q, want %q", input.Kind, testCase.kind)
+			}
+			if message.Kind == MirrorControlKey {
+				if input.KeyCode != 3 || input.Repeat != 1 {
+					t.Fatalf("key input = %#v", input)
+				}
+			} else if input.X != 540 || input.Y != 1140 || input.FrameWidth != 1080 || input.FrameHeight != 2280 {
+				t.Fatalf("touch input = %#v", input)
+			}
+		})
+	}
 }
 
 func TestMirrorControlMessageDecodesOnlyTheBoundedBinaryContract(t *testing.T) {

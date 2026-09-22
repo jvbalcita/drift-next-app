@@ -297,6 +297,16 @@ func (s *stream) SendInput(ctx context.Context, input media.MirrorInput) error {
 		return s.session.Touch(scrcpy.ActionUp, input.X, input.Y)
 	case media.MirrorInputSwipe:
 		return s.session.Swipe(ctx, input.X, input.Y, input.EndX, input.EndY, input.Duration)
+	case media.MirrorInputTouchDown:
+		return s.session.Touch(scrcpy.ActionDown, input.X, input.Y)
+	case media.MirrorInputTouchMove:
+		return s.session.Touch(scrcpy.ActionMove, input.X, input.Y)
+	case media.MirrorInputTouchUp, media.MirrorInputTouchCancel:
+		// scrcpy's public control protocol has down, move and up but no
+		// cancel action. A cancelled browser gesture must still release the
+		// pointer the device is holding, so cancel is encoded as up at the
+		// latest accepted point rather than leaving a stuck touch behind.
+		return s.session.Touch(scrcpy.ActionUp, input.X, input.Y)
 	case media.MirrorInputText:
 		return s.session.TypeText(input.Text)
 	case media.MirrorInputKeyEvent:

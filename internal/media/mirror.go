@@ -530,16 +530,25 @@ type MirrorInput struct {
 // before it reaches a session, so an unrecognised shape cannot be mistaken for a
 // typed input by a layer that only forwards.
 const (
-	MirrorInputTap      = "tap"
-	MirrorInputSwipe    = "swipe"
-	MirrorInputText     = "text"
-	MirrorInputKeyEvent = "keyevent"
+	MirrorInputTap         = "tap"
+	MirrorInputSwipe       = "swipe"
+	MirrorInputTouchDown   = "touch_down"
+	MirrorInputTouchMove   = "touch_move"
+	MirrorInputTouchUp     = "touch_up"
+	MirrorInputTouchCancel = "touch_cancel"
+	MirrorInputText        = "text"
+	MirrorInputKeyEvent    = "keyevent"
 )
 
 // carriesCoordinate reports whether this kind's payload is a coordinate, and so
 // whether it must state the frame it was measured in.
 func (i MirrorInput) carriesCoordinate() bool {
-	return i.Kind == MirrorInputTap || i.Kind == MirrorInputSwipe
+	switch i.Kind {
+	case MirrorInputTap, MirrorInputSwipe, MirrorInputTouchDown, MirrorInputTouchMove, MirrorInputTouchUp, MirrorInputTouchCancel:
+		return true
+	default:
+		return false
+	}
 }
 
 // validate refuses an input the engine does not carry, before a device is
@@ -548,7 +557,7 @@ func (i MirrorInput) carriesCoordinate() bool {
 // or drop the coordinate.
 func (i MirrorInput) validate() error {
 	switch i.Kind {
-	case MirrorInputTap, MirrorInputSwipe:
+	case MirrorInputTap, MirrorInputSwipe, MirrorInputTouchDown, MirrorInputTouchMove, MirrorInputTouchUp, MirrorInputTouchCancel:
 		if i.FrameWidth <= 0 || i.FrameHeight <= 0 {
 			return fmt.Errorf("media: a %s carries coordinates and states no render space to measure them in", i.Kind)
 		}
