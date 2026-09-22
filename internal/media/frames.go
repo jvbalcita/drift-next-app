@@ -43,6 +43,14 @@ type FrameCapturer interface {
 	Screenshot(ctx context.Context, serial string) (adb.ScreenshotResult, error)
 }
 
+type frameCaptureReleaser interface {
+	Release(serial string)
+}
+
+type frameCaptureCloser interface {
+	Close()
+}
+
 // Frame is one device's grid tile as the engine holds it: the most recent bounded
 // still at the profile's level, plus the classified outcome of the most recent
 // capture attempt. It is never a video frame, and nothing here may be presented
@@ -513,7 +521,6 @@ func (e *FrameEngine) SyncSubscriptions(serials []string) GridSubscription {
 		wanted = append(wanted, trimmed)
 	}
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	keep := make(map[string]bool, len(wanted))
 	for _, serial := range wanted {
 		keep[serial] = true
@@ -541,6 +548,12 @@ func (e *FrameEngine) SyncSubscriptions(serials []string) GridSubscription {
 		e.subscribers[serial] = Frame{Serial: serial, WorkerState: "queued"}
 		result.Admitted = append(result.Admitted, serial)
 	}
+	e.mu.Unlock()
+	if releaser, ok := e.capturer.(frameCaptureReleaser); ok {
+		for _, serial := range result.Released {
+			releaser.Release(serial)
+		}
+	}
 	return result
 }
 
@@ -552,9 +565,18 @@ func (e *FrameEngine) StopSubscriptions() int {
 		return 0
 	}
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	released := len(e.subscribers)
+	serials := make([]string, 0, released)
+	for serial := range e.subscribers {
+		serials = append(serials, serial)
+	}
 	e.subscribers = make(map[string]Frame)
+	e.mu.Unlock()
+	if releaser, ok := e.capturer.(frameCaptureReleaser); ok {
+		for _, serial := range serials {
+			releaser.Release(serial)
+		}
+	}
 	return released
 }
 
@@ -596,12 +618,17 @@ func (e *FrameEngine) Unsubscribe(serial string) {
 		return
 	}
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	if _, subscribed := e.subscribers[serial]; !subscribed {
+		e.mu.Unlock()
 		return
 	}
 	delete(e.subscribers, serial)
-	e.logf("frame engine unsubscribed %s: %d of %d device(s) subscribed", serial, len(e.subscribers), e.maxSubscribers)
+	remaining := len(e.subscribers)
+	e.mu.Unlock()
+	if releaser, ok := e.capturer.(frameCaptureReleaser); ok {
+		releaser.Release(serial)
+	}
+	e.logf("frame engine unsubscribed %s: %d of %d device(s) subscribed", serial, remaining, e.maxSubscribers)
 }
 
 // Frame returns the frame held for a subscribed device. ok is false for a device
@@ -666,6 +693,9 @@ func (e *FrameEngine) Run(ctx context.Context) FrameEngineOutcome {
 }
 
 func (e *FrameEngine) capture(ctx context.Context) FrameEngineOutcome {
+	if closer, ok := e.capturer.(frameCaptureCloser); ok {
+		defer closer.Close()
+	}
 	if err := ctx.Err(); err != nil {
 		// Shutdown began before the first tick: nothing is captured, and the
 		// engine reports why it stopped rather than capturing on a dead context.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -255,8 +256,34 @@ func main() {
 	} else {
 		log.Printf("%s", gridSettings.Report())
 	}
+	// The live and grid paths share the one deployment-configured scrcpy dialer.
+	// A grid with persistent previews receives only the capture interface and never
+	// exposes the stream's input methods; the live mirror keeps its own session
+	// ownership and authorization boundary.
+	mirrorDialer, mirrorDialerErr := mirror.NewDialerFromEnv(os.LookupEnv, labService.DeviceTransport())
+	var frameCapturer media.FrameCapturer = labService.FrameTransport()
+	var streamPreview *media.StreamPreviewCapturer
+	if gridSettingsErr == nil && gridSettings.StreamPreviews {
+		if mirrorDialerErr != nil {
+			gridSettingsErr = fmt.Errorf("persistent grid previews require the live mirror dialer: %w", mirrorDialerErr)
+		} else if decoder, err := media.NewFFmpegPreviewDecoder(gridSettings.FFmpegPath); err != nil {
+			gridSettingsErr = err
+		} else {
+			streamPreview, gridSettingsErr = media.NewStreamPreviewCapturer(media.StreamPreviewCapturerConfig{
+				Dialer: mirrorDialer, Decoder: decoder, MaxWorkers: gridSettings.MaxDevices,
+				StartWorkers: gridSettings.ConcurrentCaptures, DecodeWorkers: gridSettings.ConcurrentCaptures,
+				Preview: media.MirrorPreview{Quality: media.PreviewLow, FrameRate: 1},
+			})
+			if gridSettingsErr == nil {
+				frameCapturer = streamPreview
+			}
+		}
+	}
+	if gridSettingsErr != nil {
+		log.Printf("grid preview surface not mounted: %v", gridSettingsErr)
+	}
 	frameEngine, frameEngineErr := media.NewFrameEngine(media.FrameEngineConfig{
-		Capturer:           labService.FrameTransport(),
+		Capturer:           frameCapturer,
 		Interval:           gridSettings.Cadence,
 		Profile:            gridSettings.Profile,
 		MaxSubscribers:     gridSettings.MaxDevices,
@@ -287,7 +314,7 @@ func main() {
 	// no allow-listed runner - says so in the startup line instead of leaving an
 	// operator with a frame that shows nothing and no diagnosis: the same rule
 	// that made "no default network profile" a one-look answer.
-	mirrorEngine, mirrorErr := mirrorEngineFrom(labService)
+	mirrorEngine, mirrorErr := mirrorEngineFrom(mirrorDialer, mirrorDialerErr)
 	mirrorHost := media.NewMirrorHost(media.MirrorHostConfig{Engine: mirrorEngine, Reason: mirrorErr})
 	log.Printf("%s", mirrorHost.State())
 	mirrorDone := make(chan struct{})
@@ -605,10 +632,12 @@ func mirrorMountState(mounted bool) string {
 // allow-list admission every other device command in this process passes. The
 // engine it returns is owned by the caller - the process - and the composition's
 // MirrorHost is what stops it.
-func mirrorEngineFrom(labService *lab.Service) (*media.MirrorEngine, error) {
-	dialer, err := mirror.NewDialerFromEnv(os.LookupEnv, labService.DeviceTransport())
-	if err != nil {
-		return nil, err
+func mirrorEngineFrom(dialer media.MirrorDialer, dialerErr error) (*media.MirrorEngine, error) {
+	if dialerErr != nil {
+		return nil, dialerErr
+	}
+	if dialer == nil {
+		return nil, platformerrors.New(platformerrors.CodeUnavailable, "the live mirror dialer was not constructed")
 	}
 	// The bound is decided HERE and nowhere else. It is the plane's own
 	// device-session capacity, stated at composition from the deployment's

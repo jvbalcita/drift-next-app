@@ -47,6 +47,35 @@ func TestGridSettingsFromEnvDefaultsEveryInput(t *testing.T) {
 	}
 }
 
+func TestGridSettingsFromEnvEnablesBoundedPersistentWorkers(t *testing.T) {
+	t.Parallel()
+	settings, err := media.GridSettingsFromEnv(lookupOf(map[string]string{
+		media.EnvGridStreamPreviews: "true",
+		media.EnvGridFFmpegPath:     "/opt/preview/ffmpeg",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !settings.StreamPreviews || settings.FFmpegPath != "/opt/preview/ffmpeg" {
+		t.Fatalf("settings = %+v, want the persistent capture inputs", settings)
+	}
+	if settings.MaxDevices != media.DefaultStreamPreviewMaxWorkers {
+		t.Fatalf("worker bound = %d, want %d", settings.MaxDevices, media.DefaultStreamPreviewMaxWorkers)
+	}
+}
+
+func TestGridSettingsFromEnvRefusesUnboundedPersistentWorkers(t *testing.T) {
+	t.Parallel()
+	_, err := media.GridSettingsFromEnv(lookupOf(map[string]string{
+		media.EnvGridStreamPreviews: "true",
+		media.EnvGridFFmpegPath:     "/opt/preview/ffmpeg",
+		media.EnvGridMaxDevices:     "26",
+	}))
+	if err == nil || !strings.Contains(err.Error(), media.EnvGridMaxDevices) {
+		t.Fatalf("GridSettingsFromEnv error = %v, want the persistent worker bound named", err)
+	}
+}
+
 // TestGridSettingsFromEnvReadsADeploymentThatStatesItsNumbers pins the reading of
 // each input, including a cadence written as a duration and as a bare number of
 // seconds.

@@ -41,6 +41,8 @@ const (
 	EnvGridActiveCadence      = "DRIFT_GRID_ACTIVE_CADENCE"
 	EnvGridIdleCadence        = "DRIFT_GRID_IDLE_CADENCE"
 	EnvGridFreshnessCeiling   = "DRIFT_GRID_FRESHNESS_CEILING"
+	EnvGridStreamPreviews     = "DRIFT_GRID_STREAM_PREVIEWS"
+	EnvGridFFmpegPath         = "DRIFT_GRID_FFMPEG"
 )
 
 const (
@@ -91,6 +93,10 @@ const (
 	// deployment can see which of the two is binding for it (evidence:
 	// tests/compatibility/grid/evidence-2026-09-21-fleet-still-grid.md).
 	DefaultGridMaxDevices = 64
+	// DefaultStreamPreviewMaxWorkers is the hard persistent-session bound. It is
+	// lower than the legacy screenshot sweep bound because every admitted device
+	// owns an encoder and socket until the grid releases it.
+	DefaultStreamPreviewMaxWorkers = 25
 )
 
 // GridSettings is the grid's resolved configuration: what one sweep costs and how
@@ -106,13 +112,19 @@ type GridSettings struct {
 	ActiveCadence      time.Duration
 	IdleCadence        time.Duration
 	FreshnessCeiling   time.Duration
+	StreamPreviews     bool
+	FFmpegPath         string
 }
 
 // Report renders the settings as the one line a deployment reads back at startup:
 // what the grid resolved to, in the numbers it resolved to.
 func (s GridSettings) Report() string {
-	return fmt.Sprintf("grid stills: every %s, at %s, up to %d device(s) per sweep, %d concurrent capture(s), adaptive %s-%s, freshness ceiling %s",
-		s.Cadence, s.Profile.Report(), s.MaxDevices, s.ConcurrentCaptures, s.ActiveCadence, s.IdleCadence, s.FreshnessCeiling)
+	mode := "bounded screenshots"
+	if s.StreamPreviews {
+		mode = "persistent scrcpy workers"
+	}
+	return fmt.Sprintf("grid stills: %s, every %s, at %s, up to %d device(s) per sweep, %d concurrent start/decode worker(s), adaptive %s-%s, freshness ceiling %s",
+		mode, s.Cadence, s.Profile.Report(), s.MaxDevices, s.ConcurrentCaptures, s.ActiveCadence, s.IdleCadence, s.FreshnessCeiling)
 }
 
 // GridSettingsFromEnv reads the grid's configuration from the deployment's own
@@ -154,7 +166,9 @@ func GridSettingsFromEnv(lookup EnvLookup) (GridSettings, error) {
 		}
 		settings.Cadence = cadence
 	}
+	maxDevicesConfigured := false
 	if raw, ok := lookup(EnvGridMaxDevices); ok && strings.TrimSpace(raw) != "" {
+		maxDevicesConfigured = true
 		devices, parseErr := strconv.Atoi(strings.TrimSpace(raw))
 		if parseErr != nil || devices <= 0 {
 			return GridSettings{}, fmt.Errorf(
@@ -169,6 +183,28 @@ func GridSettingsFromEnv(lookup EnvLookup) (GridSettings, error) {
 			return GridSettings{}, fmt.Errorf("%s must be between 1 and 25, and this deployment configured %q", EnvGridConcurrentCaptures, strings.TrimSpace(raw))
 		}
 		settings.ConcurrentCaptures = workers
+	}
+	if raw, ok := lookup(EnvGridStreamPreviews); ok && strings.TrimSpace(raw) != "" {
+		switch strings.ToLower(strings.TrimSpace(raw)) {
+		case "1", "true", "yes", "on":
+			settings.StreamPreviews = true
+		case "0", "false", "no", "off":
+		case "":
+		default:
+			return GridSettings{}, fmt.Errorf("%s must be one of 1/0, true/false, yes/no or on/off; this deployment set %q", EnvGridStreamPreviews, raw)
+		}
+	}
+	if raw, ok := lookup(EnvGridFFmpegPath); ok {
+		settings.FFmpegPath = strings.TrimSpace(raw)
+	}
+	if settings.StreamPreviews && settings.FFmpegPath == "" {
+		return GridSettings{}, fmt.Errorf("%s is required when %s is enabled", EnvGridFFmpegPath, EnvGridStreamPreviews)
+	}
+	if settings.StreamPreviews && settings.MaxDevices > DefaultStreamPreviewMaxWorkers {
+		if maxDevicesConfigured {
+			return GridSettings{}, fmt.Errorf("%s may not exceed %d when %s is enabled", EnvGridMaxDevices, DefaultStreamPreviewMaxWorkers, EnvGridStreamPreviews)
+		}
+		settings.MaxDevices = DefaultStreamPreviewMaxWorkers
 	}
 	var err error
 	if raw, ok := lookup(EnvGridActiveCadence); ok && strings.TrimSpace(raw) != "" {
