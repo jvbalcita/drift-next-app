@@ -364,7 +364,7 @@ func main() {
 	} else {
 		log.Printf("device file transfer directory resolved at %s", transferRoot)
 	}
-	dispatcher, dispatcherErr := deviceInputDispatcher(labService, actionRuntime, textReferences, db, fileArtifacts, transferRoot)
+	dispatcher, dispatcherErr := deviceInputDispatcher(labService, actionRuntime, textReferences, db, fileArtifacts, transferRoot, mirrorEngine)
 	if dispatcherErr != nil {
 		log.Printf("device dispatch path not constructed: %v", dispatcherErr)
 	}
@@ -733,7 +733,7 @@ func observationSource(labService *lab.Service) execution.ObservationSourceFacto
 // because the dispatcher owns one serialized actor per device: two dispatchers
 // would be two actors for one device, and the per-device serialization the actor
 // exists to provide would be defeated by having two of them.
-func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry, textReferences *execution.TextReferenceRegistry, db *store.DB, artifactSource *transportconnect.DeviceArtifactSource, transferRoot string) (*execution.InputDispatcher, error) {
+func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry, textReferences *execution.TextReferenceRegistry, db *store.DB, artifactSource *transportconnect.DeviceArtifactSource, transferRoot string, mirrorEngine *media.MirrorEngine) (*execution.InputDispatcher, error) {
 	transport, err := execution.NewInputTransportFromAllowlisted(labService.DeviceTransport())
 	if err != nil {
 		return nil, err
@@ -759,6 +759,17 @@ func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry
 		execution.WithEvidenceRecorder(store.NewActionEvidenceService(db)),
 		execution.WithOperationDepartureObserver(departures),
 	}
+	delivery, deliveryErr := mirrorInputDelivery(mirrorEngine)
+	if deliveryErr != nil {
+		return nil, deliveryErr
+	}
+	if delivery != nil {
+		// This is only a delivery choice after the existing kernel has
+		// authorized and dispatched the typed attempt. A device with no live
+		// session continues through the allow-listed argv path; a device being
+		// mirrored uses its already-open scrcpy control socket.
+		options = append(options, execution.WithMirrorDelivery(delivery))
+	}
 	if strings.TrimSpace(transferRoot) != "" {
 		options = append(options, execution.WithOperationTransferRoot(transferRoot))
 	}
@@ -780,6 +791,17 @@ func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry
 		textReferences,
 		options...,
 	)
+}
+
+// mirrorInputDelivery binds the dispatcher to the live engine when this
+// deployment constructed one. No engine is a supported deployment shape: the
+// input surface still runs through its allow-listed argv path, so absence is
+// represented by no option rather than by a delivery that refuses everything.
+func mirrorInputDelivery(engine *media.MirrorEngine) (execution.MirrorDelivery, error) {
+	if engine == nil {
+		return nil, nil
+	}
+	return mirror.NewInputDelivery(engine)
 }
 
 // deviceTransferRoot resolves the host directory a catalogued device file
