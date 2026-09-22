@@ -12,7 +12,7 @@ import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { ControlPlaneIntent, DispatchIntent, DeviceView } from "@/lib/domain/control-plane"
 import { deviceStatusMeanings } from "@/lib/device-status"
 import { controlPointerCursor } from "@/lib/control-pointer"
-import { keyRepeatIntervalMs, liveMirrorCopy, liveStreamView, scrollStepUnits, summarizeVideoRenderPerformance, type LiveStreamView } from "@/lib/live-mirror"
+import { keyRepeatIntervalMs, liveMirrorCopy, liveStreamView, scrollStepUnits, summarizeInputVisiblePerformance, summarizeVideoRenderPerformance, videoSignaturesDiffer, type LiveStreamView } from "@/lib/live-mirror"
 import { FloatingDevice } from "./ControlPage"
 import { LiveMirrorInfo, LiveMirrorSurface, type LiveMirrorSessionView } from "./live-mirror-surface"
 import { planeCapacity } from "@/test/mirror-fixtures"
@@ -1093,6 +1093,7 @@ function sessionView(overrides: Partial<LiveMirrorSessionView>): LiveMirrorSessi
     detailsAttention: "",
     reducedMotion: false,
     renderPerformance: { samples: 0, p50Ms: 0, p95Ms: 0 },
+    inputVisiblePerformance: { samples: 0, p50Ms: 0, p95Ms: 0, lastMs: null, timeouts: 0 },
     recovery: { attempts: 0, successes: 0, lastReason: "" },
     attachVideo: () => undefined,
     retry: () => undefined,
@@ -1119,6 +1120,17 @@ describe("live mirror render measurements", () => {
     expect(summarizeVideoRenderPerformance([Number.NaN, -1])).toEqual({ samples: 0, p50Ms: 0, p95Ms: 0 })
   })
 
+  it("keeps accepted input-to-visible-change samples bounded and rejects codec noise", () => {
+    const samples = Array.from({ length: 40 }, (_, index) => index + 1)
+    expect(summarizeInputVisiblePerformance(samples, 2)).toEqual({ samples: 32, p50Ms: 24, p95Ms: 39, lastMs: 40, timeouts: 2 })
+
+    const before = new Uint8Array(144).fill(100)
+    const noise = new Uint8Array(before).fill(104, 0, 3)
+    const changed = new Uint8Array(before).fill(140, 0, 16)
+    expect(videoSignaturesDiffer(before, noise)).toBe(false)
+    expect(videoSignaturesDiffer(before, changed)).toBe(true)
+  })
+
   it("shows bounded recovery totals and the latest reason in operator diagnostics", async () => {
     const user = userEvent.setup()
     render(<LiveMirrorInfo session={sessionView({ recovery: { attempts: 2, successes: 1, lastReason: "the control plane restarted" } })} />)
@@ -1126,6 +1138,15 @@ describe("live mirror render measurements", () => {
     await user.click(screen.getByTestId("live-mirror-info"))
     expect(screen.getByTestId("live-mirror-performance")).toHaveTextContent("recoveries 1/2")
     expect(screen.getByTestId("live-mirror-performance")).toHaveTextContent("last reason: the control plane restarted")
+  })
+
+  it("shows input-to-visible-change latency and bounded timeout counts in operator diagnostics", async () => {
+    const user = userEvent.setup()
+    render(<LiveMirrorInfo session={sessionView({ inputVisiblePerformance: { samples: 3, p50Ms: 84, p95Ms: 173, lastMs: 91, timeouts: 1 } })} />)
+
+    await user.click(screen.getByTestId("live-mirror-info"))
+    expect(screen.getByTestId("live-mirror-performance")).toHaveTextContent("input-to-visible-change p50 84 ms / p95 173 ms")
+    expect(screen.getByTestId("live-mirror-performance")).toHaveTextContent("1 accepted input had no visible change within 3 s")
   })
 })
 

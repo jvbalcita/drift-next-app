@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { useLiveMirror, type MirrorRecoveryTelemetry } from "@/lib/api/use-live-mirror"
 import type { DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
-import { drawnContentRect, emptyVideoRenderPerformance, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, livePictureHeld, liveStreamDiagnostics, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, summarizeVideoRenderPerformance, transportSentence, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect, type VideoRenderPerformance } from "@/lib/live-mirror"
+import { drawnContentRect, emptyInputVisiblePerformance, emptyVideoRenderPerformance, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, livePictureHeld, liveStreamDiagnostics, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, summarizeInputVisiblePerformance, summarizeVideoRenderPerformance, transportSentence, videoSignaturesDiffer, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type InputVisiblePerformance, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect, type VideoRenderPerformance } from "@/lib/live-mirror"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import { controlPointerCursor } from "@/lib/control-pointer"
 
@@ -123,6 +123,7 @@ export interface LiveMirrorSessionView {
   detailsAttention: string
   reducedMotion: boolean
   renderPerformance: VideoRenderPerformance
+  inputVisiblePerformance: InputVisiblePerformance
   recovery: MirrorRecoveryTelemetry
   attachVideo: (element: HTMLVideoElement | null) => void
   retry: () => void
@@ -173,7 +174,7 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
   const { phase, stream, failure, recovery, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport, purpose: "operator" })
   const frame = liveStreamFrame(stream)
   const video = useRef<HTMLVideoElement | null>(null)
-  const { value: renderPerformance, attach: attachRenderPerformance } = useVideoRenderPerformance()
+  const { value: renderPerformance, inputVisible: inputVisiblePerformance, attach: attachRenderPerformance, beginInput, settleInput } = useVideoRenderPerformance()
   // stage is the element whose FOCUS is the capture boundary, and heldKeys is
   // when each held key last reached the device, which is what bounds its
   // auto-repeat to this control session's own rate.
@@ -253,13 +254,17 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
 
   async function sendTap(x: number, y: number) {
     if (!frame) return
+    const measurement = beginInput()
     const result = await dispatch({ type: "submitDeviceTap", deviceId: device.id, x, y, renderWidth: frame.width, renderHeight: frame.height, observationToken: coordinateObservation, confirmed: true, followerDeviceIds })
+    settleInput(measurement, result.ok)
     setNotice(`${result.message}`)
   }
 
   async function sendSwipe(startX: number, startY: number, endX: number, endY: number, durationMs: number) {
     if (!frame) return
+    const measurement = beginInput()
     const result = await dispatch({ type: "submitDeviceSwipe", deviceId: device.id, startX, startY, endX, endY, durationMs, renderWidth: frame.width, renderHeight: frame.height, observationToken: coordinateObservation, confirmed: true, followerDeviceIds })
+    settleInput(measurement, result.ok)
     setNotice(`${result.message}`)
   }
 
@@ -288,7 +293,9 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
       setRefusal(inputBlockedReason)
       return
     }
+    const measurement = beginInput()
     const result = await dispatch({ type: "submitDeviceKeyEvent", deviceId: device.id, keyCode, observationToken: coordinateObservation, confirmed: true, followerDeviceIds })
+    settleInput(measurement, result.ok)
     setNotice(`${label}: ${result.message}`)
     setRefusal(result.ok ? "" : result.message)
   }
@@ -466,6 +473,7 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     ].filter((sentence) => sentence !== "").join(" "),
     reducedMotion,
     renderPerformance,
+    inputVisiblePerformance,
     recovery,
     attachVideo: attachMirrorVideo,
     retry,
@@ -634,7 +642,7 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
           <div>
             <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">Performance</dt>
             <dd className="mt-1" data-testid="live-mirror-performance">
-              {performanceSentence(diagnostics, session.renderPerformance, session.recovery)}
+              {performanceSentence(diagnostics, session.renderPerformance, session.inputVisiblePerformance, session.recovery)}
             </dd>
           </div>
           <div>
@@ -828,30 +836,126 @@ function drawnSentence(drawn: SurfaceRect | null): string {
   return `The picture is drawn at ${Math.round(drawn.width)}x${Math.round(drawn.height)} of this element's pixels, its top-left corner at (${Math.round(drawn.left)}, ${Math.round(drawn.top)}). A point is measured through this box and never through the element's own box.`
 }
 
-function performanceSentence(diagnostics: ReturnType<typeof liveStreamDiagnostics>, render: VideoRenderPerformance, recovery: MirrorRecoveryTelemetry): string {
+function performanceSentence(diagnostics: ReturnType<typeof liveStreamDiagnostics>, render: VideoRenderPerformance, inputVisible: InputVisiblePerformance, recovery: MirrorRecoveryTelemetry): string {
   const parts = [
     diagnostics.lastFrameOffsetMs === null ? "carrier activity not measured" : `latest frame +${diagnostics.lastFrameOffsetMs} ms from carrier start`,
     diagnostics.frameAgeMs === null ? "frame age unavailable" : `frame age ${diagnostics.frameAgeMs} ms`,
     `${formatBytes(diagnostics.bytes)} carried`,
   ]
   if (render.samples > 0) parts.push(`receive-to-render p50 ${render.p50Ms} ms / p95 ${render.p95Ms} ms (${render.samples} frames)`)
+  if (inputVisible.samples > 0) parts.push(`input-to-visible-change p50 ${inputVisible.p50Ms} ms / p95 ${inputVisible.p95Ms} ms (${inputVisible.samples} accepted inputs; latest ${inputVisible.lastMs} ms)`)
+  if (inputVisible.timeouts > 0) parts.push(`${inputVisible.timeouts} accepted input${inputVisible.timeouts === 1 ? "" : "s"} had no visible change within ${inputVisibleChangeTimeoutMs / 1_000} s`)
   if (diagnostics.connectionState !== "") parts.push(`connection ${diagnostics.connectionState}`)
   if (recovery.attempts > 0) parts.push(`recoveries ${recovery.successes}/${recovery.attempts}${recovery.lastReason === "" ? "" : ` · last reason: ${recovery.lastReason}`}`)
   return parts.join(" · ")
 }
 
 const maximumRenderSamples = 120
+const inputVisibleChangeTimeoutMs = 3_000
+const inputVisibleSampleIntervalMs = 100
+const inputSignatureSize = 12
+
+interface PendingInputVisibleMeasurement {
+  id: number
+  startedAt: number
+  baseline: Uint8Array
+  accepted: boolean
+  changedAt: number | null
+  timeout: ReturnType<typeof setTimeout>
+}
 
 /**
  * useVideoRenderPerformance samples the browser's native receive-to-render path.
  * Samples stay in a fixed ring and React is updated at most once per second;
  * high-frequency frame callbacks never become high-frequency component state.
  */
-function useVideoRenderPerformance(): { value: VideoRenderPerformance; attach: (element: HTMLVideoElement | null) => void } {
+function useVideoRenderPerformance(): {
+  value: VideoRenderPerformance
+  inputVisible: InputVisiblePerformance
+  attach: (element: HTMLVideoElement | null) => void
+  beginInput: () => number | null
+  settleInput: (id: number | null, accepted: boolean) => void
+} {
   const [value, setValue] = useState<VideoRenderPerformance>(emptyVideoRenderPerformance)
+  const [inputVisible, setInputVisible] = useState<InputVisiblePerformance>(emptyInputVisiblePerformance)
   const active = useRef<{ element: HTMLVideoElement; callback: number } | null>(null)
   const samples = useRef<number[]>([])
   const lastPublishedAt = useRef(0)
+  const signatureCanvas = useRef<HTMLCanvasElement | null>(null)
+  const pendingInput = useRef<PendingInputVisibleMeasurement | null>(null)
+  const inputSamples = useRef<number[]>([])
+  const inputTimeouts = useRef(0)
+  const nextInputID = useRef(0)
+  const lastSignatureSampleAt = useRef(0)
+
+  const readSignature = useCallback((element: HTMLVideoElement): Uint8Array | null => {
+    if (element.videoWidth <= 0 || element.videoHeight <= 0) return null
+    const canvas = signatureCanvas.current ?? document.createElement("canvas")
+    signatureCanvas.current = canvas
+    canvas.width = inputSignatureSize
+    canvas.height = inputSignatureSize
+    const context = canvas.getContext("2d", { willReadFrequently: true })
+    if (!context) return null
+    try {
+      context.drawImage(element, 0, 0, inputSignatureSize, inputSignatureSize)
+      const pixels = context.getImageData(0, 0, inputSignatureSize, inputSignatureSize).data
+      const signature = new Uint8Array(inputSignatureSize * inputSignatureSize)
+      for (let pixel = 0, cell = 0; pixel < pixels.length; pixel += 4, cell += 1) {
+        signature[cell] = Math.round(((pixels[pixel] ?? 0) * 299 + (pixels[pixel + 1] ?? 0) * 587 + (pixels[pixel + 2] ?? 0) * 114) / 1_000)
+      }
+      return signature
+    } catch {
+      return null
+    }
+  }, [])
+
+  const publishInputMeasurement = useCallback((measurement: PendingInputVisibleMeasurement) => {
+    if (!measurement.accepted || measurement.changedAt === null) return
+    clearTimeout(measurement.timeout)
+    inputSamples.current.push(measurement.changedAt - measurement.startedAt)
+    if (inputSamples.current.length > 32) inputSamples.current.splice(0, inputSamples.current.length - 32)
+    setInputVisible(summarizeInputVisiblePerformance(inputSamples.current, inputTimeouts.current))
+    if (pendingInput.current?.id === measurement.id) pendingInput.current = null
+  }, [])
+
+  const beginInput = useCallback((): number | null => {
+    const element = active.current?.element
+    if (!element) return null
+    const baseline = readSignature(element)
+    if (!baseline) return null
+    if (pendingInput.current) clearTimeout(pendingInput.current.timeout)
+    const id = nextInputID.current + 1
+    nextInputID.current = id
+    const measurement: PendingInputVisibleMeasurement = {
+      id,
+      startedAt: performance.now(),
+      baseline,
+      accepted: false,
+      changedAt: null,
+      timeout: setTimeout(() => {
+        if (pendingInput.current?.id !== id) return
+        if (pendingInput.current.accepted) {
+          inputTimeouts.current += 1
+          setInputVisible(summarizeInputVisiblePerformance(inputSamples.current, inputTimeouts.current))
+        }
+        pendingInput.current = null
+      }, inputVisibleChangeTimeoutMs),
+    }
+    pendingInput.current = measurement
+    return id
+  }, [readSignature])
+
+  const settleInput = useCallback((id: number | null, accepted: boolean) => {
+    if (id === null || pendingInput.current?.id !== id) return
+    const measurement = pendingInput.current
+    if (!accepted) {
+      clearTimeout(measurement.timeout)
+      pendingInput.current = null
+      return
+    }
+    measurement.accepted = true
+    publishInputMeasurement(measurement)
+  }, [publishInputMeasurement])
 
   const attach = useCallback((element: HTMLVideoElement | null) => {
     const previous = active.current
@@ -859,7 +963,13 @@ function useVideoRenderPerformance(): { value: VideoRenderPerformance; attach: (
     active.current = null
     samples.current = []
     lastPublishedAt.current = 0
+    if (pendingInput.current) clearTimeout(pendingInput.current.timeout)
+    pendingInput.current = null
+    inputSamples.current = []
+    inputTimeouts.current = 0
+    lastSignatureSampleAt.current = 0
     setValue(emptyVideoRenderPerformance)
+    setInputVisible(emptyInputVisiblePerformance)
     if (!element || typeof element.requestVideoFrameCallback !== "function") return
 
     const sample = (now: number, metadata: VideoFrameCallbackMetadata) => {
@@ -875,19 +985,30 @@ function useVideoRenderPerformance(): { value: VideoRenderPerformance; attach: (
           setValue(summarizeVideoRenderPerformance(values))
         }
       }
+      const pending = pendingInput.current
+      if (pending && now - lastSignatureSampleAt.current >= inputVisibleSampleIntervalMs) {
+        lastSignatureSampleAt.current = now
+        const signature = readSignature(element)
+        if (pending.changedAt === null && signature && videoSignaturesDiffer(pending.baseline, signature)) {
+          pending.changedAt = now
+          publishInputMeasurement(pending)
+        }
+      }
       const callback = element.requestVideoFrameCallback(sample)
       active.current = { element, callback }
     }
     const callback = element.requestVideoFrameCallback(sample)
     active.current = { element, callback }
-  }, [])
+  }, [publishInputMeasurement, readSignature])
 
   useEffect(() => () => {
     const previous = active.current
     if (previous && typeof previous.element.cancelVideoFrameCallback === "function") previous.element.cancelVideoFrameCallback(previous.callback)
     active.current = null
+    if (pendingInput.current) clearTimeout(pendingInput.current.timeout)
+    pendingInput.current = null
   }, [])
-  return { value, attach }
+  return { value, inputVisible, attach, beginInput, settleInput }
 }
 
 function formatBytes(bytes: number): string {

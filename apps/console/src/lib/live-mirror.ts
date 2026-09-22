@@ -321,6 +321,57 @@ export interface VideoRenderPerformance {
 export const emptyVideoRenderPerformance: VideoRenderPerformance = { samples: 0, p50Ms: 0, p95Ms: 0 }
 const maximumRenderSamples = 120
 
+/**
+ * A bounded reading of the first visible content change after an accepted input.
+ *
+ * This is intentionally described as correlation rather than causation: a live
+ * application may animate without the input. The browser records the first
+ * materially different sampled frame after the dispatch, and only publishes it
+ * when the control plane accepted that dispatch.
+ */
+export interface InputVisiblePerformance {
+  samples: number
+  p50Ms: number
+  p95Ms: number
+  lastMs: number | null
+  timeouts: number
+}
+
+export const emptyInputVisiblePerformance: InputVisiblePerformance = { samples: 0, p50Ms: 0, p95Ms: 0, lastMs: null, timeouts: 0 }
+const maximumInputVisibleSamples = 32
+
+/** Summarize the fixed-size input-to-visible-change window shown to operators. */
+export function summarizeInputVisiblePerformance(samples: readonly number[], timeouts = 0): InputVisiblePerformance {
+  const valid = samples.filter((sample) => Number.isFinite(sample) && sample >= 0).slice(-maximumInputVisibleSamples)
+  const lastMs = valid.at(-1) ?? null
+  valid.sort((a, b) => a - b)
+  if (valid.length === 0) return { ...emptyInputVisiblePerformance, timeouts: Math.max(0, Math.floor(timeouts)) }
+  return {
+    samples: valid.length,
+    p50Ms: percentile(valid, 0.5),
+    p95Ms: percentile(valid, 0.95),
+    lastMs: lastMs === null ? null : Math.round(lastMs * 10) / 10,
+    timeouts: Math.max(0, Math.floor(timeouts)),
+  }
+}
+
+/**
+ * Compare two tiny luminance signatures without retaining a video frame.
+ * A change must affect several cells and be visibly material in each one, which
+ * filters codec noise while still detecting local taps and navigation changes.
+ */
+export function videoSignaturesDiffer(before: Uint8Array, after: Uint8Array): boolean {
+  if (before.length === 0 || before.length !== after.length) return false
+  let changed = 0
+  let totalDelta = 0
+  for (let index = 0; index < before.length; index += 1) {
+    const delta = Math.abs((before[index] ?? 0) - (after[index] ?? 0))
+    totalDelta += delta
+    if (delta >= 16) changed += 1
+  }
+  return changed >= Math.max(4, Math.ceil(before.length * 0.05)) && totalDelta / before.length >= 4
+}
+
 /** Summarize a bounded window of browser receive-to-render samples. */
 export function summarizeVideoRenderPerformance(samples: readonly number[]): VideoRenderPerformance {
   const valid = samples.filter((sample) => Number.isFinite(sample) && sample >= 0).slice(-maximumRenderSamples)
