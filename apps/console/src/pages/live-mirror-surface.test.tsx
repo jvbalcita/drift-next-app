@@ -1146,6 +1146,7 @@ describe("live mirror render measurements", () => {
 
     await user.click(screen.getByTestId("live-mirror-info"))
     expect(screen.getByTestId("live-mirror-performance")).toHaveTextContent("input-to-visible-change p50 84 ms / p95 173 ms")
+    expect(screen.getByTestId("live-mirror-performance")).toHaveTextContent("3 accepted inputs")
     expect(screen.getByTestId("live-mirror-performance")).toHaveTextContent("1 accepted input had no visible change within 3 s")
   })
 })

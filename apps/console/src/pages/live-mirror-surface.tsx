@@ -843,7 +843,7 @@ function performanceSentence(diagnostics: ReturnType<typeof liveStreamDiagnostic
     `${formatBytes(diagnostics.bytes)} carried`,
   ]
   if (render.samples > 0) parts.push(`receive-to-render p50 ${render.p50Ms} ms / p95 ${render.p95Ms} ms (${render.samples} frames)`)
-  if (inputVisible.samples > 0) parts.push(`input-to-visible-change p50 ${inputVisible.p50Ms} ms / p95 ${inputVisible.p95Ms} ms (${inputVisible.samples} accepted inputs; latest ${inputVisible.lastMs} ms)`)
+  if (inputVisible.samples > 0) parts.push(`input-to-visible-change p50 ${inputVisible.p50Ms} ms / p95 ${inputVisible.p95Ms} ms (${inputVisible.samples} accepted input${inputVisible.samples === 1 ? "" : "s"}; latest ${inputVisible.lastMs} ms)`)
   if (inputVisible.timeouts > 0) parts.push(`${inputVisible.timeouts} accepted input${inputVisible.timeouts === 1 ? "" : "s"} had no visible change within ${inputVisibleChangeTimeoutMs / 1_000} s`)
   if (diagnostics.connectionState !== "") parts.push(`connection ${diagnostics.connectionState}`)
   if (recovery.attempts > 0) parts.push(`recoveries ${recovery.successes}/${recovery.attempts}${recovery.lastReason === "" ? "" : ` · last reason: ${recovery.lastReason}`}`)
