@@ -9,7 +9,7 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { MirrorPlayback, MirrorPlaybackFactory, MirrorPlaybackRequest } from "@/lib/api/mirror-playback"
-import { defaultMirrorEstablishTimeoutMs, mirrorRetryDelayMs, useLiveMirror, type MirrorSchedule } from "@/lib/api/use-live-mirror"
+import { boundedMirrorRecoveryReason, defaultMirrorEstablishTimeoutMs, maximumMirrorRecoveryReasonLength, mirrorRetryDelayMs, useLiveMirror, type MirrorSchedule } from "@/lib/api/use-live-mirror"
 import { liveMirrorCopy, livePictureHeld, liveStreamView, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
 import { planeCapacity } from "@/test/mirror-fixtures"
 
@@ -182,6 +182,7 @@ function Harness({ client, peerFactory, playbackFactory, transport, purpose, dev
       <span data-testid="phase">{session.phase}</span>
       <span data-testid="failure">{session.failure}</span>
       <span data-testid="frames">{session.stream?.frames ?? -1}</span>
+      <span data-testid="recovery">{session.recovery.successes}/{session.recovery.attempts}:{session.recovery.lastReason}</span>
       <video data-testid="video" ref={session.attachVideo} />
       <button type="button" onClick={session.stop}>stop</button>
     </div>
@@ -196,6 +197,10 @@ function Harness({ client, peerFactory, playbackFactory, transport, purpose, dev
  * that waited for these delays would be measuring the host, not the policy.
  */
 describe("the console's read retry policy", () => {
+  it("bounds the latest recovery reason instead of retaining arbitrary failure text", () => {
+    expect(boundedMirrorRecoveryReason(`  ${"x".repeat(800)}  `)).toHaveLength(maximumMirrorRecoveryReasonLength)
+  })
+
   it("doubles the wait from the poll cadence, and never past its bound", () => {
     const waits = [1, 2, 3, 4, 5, 20].map((failures) => mirrorRetryDelayMs(failures, 1_000, 4_000))
     expect(waits).toEqual([1_000, 2_000, 4_000, 4_000, 4_000, 4_000])
@@ -262,6 +267,7 @@ describe("the console's live mirror session", () => {
 
     handle.setState(stream({ state: MirrorStreamState.LIVE, frames: 7n }))
     await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("live"))
+    expect(screen.getByTestId("recovery")).toHaveTextContent("0/0:")
     expect(screen.getByTestId("frames")).toHaveTextContent("7")
   })
 
@@ -378,6 +384,9 @@ describe("the console's live mirror session", () => {
     await waitFor(() => expect(handle.calls.filter((call) => call.startsWith("start:"))).toHaveLength(2))
     expect(handle.calls).toContain("start:device-1")
     await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("live"))
+    expect(screen.getByTestId("recovery")).toHaveTextContent("0/1:no live stream is carried under stream-1")
+    await clock.runNext()
+    expect(screen.getByTestId("recovery")).toHaveTextContent("1/1:no live stream is carried under stream-1")
     expect(screen.getByTestId("frames")).toHaveTextContent("7")
     expect(screen.getByTestId("phase")).not.toHaveTextContent("failed")
     expect(handle.calls.some((call) => call.startsWith("stop:"))).toBe(false)

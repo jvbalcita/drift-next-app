@@ -112,8 +112,8 @@ message MirrorStream {
   // bounded accounting, not a media buffer: no frame history is retained for it.
   uint64 bytes = 11;
   // started_at_unix_millis is when this viewing's carrier opened. Together with
-  // last_frame_at_unix_millis it makes startup and current frame age measurable
-  // without asking a browser to infer either from a frame count.
+  // last_frame_at_unix_millis it makes carrier activity span and current frame
+  // age measurable without asking a browser to infer either from a frame count.
   int64 started_at_unix_millis = 12;
   // last_frame_at_unix_millis is when the carrier most recently forwarded a
   // picture. Zero means no picture has been forwarded yet.

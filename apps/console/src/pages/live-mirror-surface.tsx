@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import { useLiveMirror } from "@/lib/api/use-live-mirror"
+import { useLiveMirror, type MirrorRecoveryTelemetry } from "@/lib/api/use-live-mirror"
 import type { DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
 import { drawnContentRect, emptyVideoRenderPerformance, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, livePictureHeld, liveStreamDiagnostics, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, summarizeVideoRenderPerformance, transportSentence, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect, type VideoRenderPerformance } from "@/lib/live-mirror"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
@@ -123,6 +123,7 @@ export interface LiveMirrorSessionView {
   detailsAttention: string
   reducedMotion: boolean
   renderPerformance: VideoRenderPerformance
+  recovery: MirrorRecoveryTelemetry
   attachVideo: (element: HTMLVideoElement | null) => void
   retry: () => void
   stop: () => void
@@ -169,7 +170,7 @@ export interface LiveMirrorSessionView {
  */
 export function useLiveMirrorSession({ device, mirror, transport = "webrtc", workspaceId, hasLease, leaseRefusal = "", followerDeviceIds = [], dispatch }: LiveMirrorSurfaceProps): LiveMirrorSessionView {
   const reducedMotion = useReducedMotion()
-  const { phase, stream, failure, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport, purpose: "operator" })
+  const { phase, stream, failure, recovery, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport, purpose: "operator" })
   const frame = liveStreamFrame(stream)
   const video = useRef<HTMLVideoElement | null>(null)
   const { value: renderPerformance, attach: attachRenderPerformance } = useVideoRenderPerformance()
@@ -465,6 +466,7 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     ].filter((sentence) => sentence !== "").join(" "),
     reducedMotion,
     renderPerformance,
+    recovery,
     attachVideo: attachMirrorVideo,
     retry,
     stop,
@@ -632,7 +634,7 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
           <div>
             <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">Performance</dt>
             <dd className="mt-1" data-testid="live-mirror-performance">
-              {performanceSentence(diagnostics, session.renderPerformance)}
+              {performanceSentence(diagnostics, session.renderPerformance, session.recovery)}
             </dd>
           </div>
           <div>
@@ -826,14 +828,15 @@ function drawnSentence(drawn: SurfaceRect | null): string {
   return `The picture is drawn at ${Math.round(drawn.width)}x${Math.round(drawn.height)} of this element's pixels, its top-left corner at (${Math.round(drawn.left)}, ${Math.round(drawn.top)}). A point is measured through this box and never through the element's own box.`
 }
 
-function performanceSentence(diagnostics: ReturnType<typeof liveStreamDiagnostics>, render: VideoRenderPerformance): string {
+function performanceSentence(diagnostics: ReturnType<typeof liveStreamDiagnostics>, render: VideoRenderPerformance, recovery: MirrorRecoveryTelemetry): string {
   const parts = [
-    diagnostics.startupMs === null ? "startup not measured" : `first frame ${diagnostics.startupMs} ms`,
+    diagnostics.lastFrameOffsetMs === null ? "carrier activity not measured" : `latest frame +${diagnostics.lastFrameOffsetMs} ms from carrier start`,
     diagnostics.frameAgeMs === null ? "frame age unavailable" : `frame age ${diagnostics.frameAgeMs} ms`,
     `${formatBytes(diagnostics.bytes)} carried`,
   ]
   if (render.samples > 0) parts.push(`receive-to-render p50 ${render.p50Ms} ms / p95 ${render.p95Ms} ms (${render.samples} frames)`)
   if (diagnostics.connectionState !== "") parts.push(`connection ${diagnostics.connectionState}`)
+  if (recovery.attempts > 0) parts.push(`recoveries ${recovery.successes}/${recovery.attempts}${recovery.lastReason === "" ? "" : ` · last reason: ${recovery.lastReason}`}`)
   return parts.join(" · ")
 }
 

@@ -306,7 +306,7 @@ export function liveStreamView(stream: MirrorStream): LiveStreamView {
 }
 
 export interface LiveStreamDiagnostics {
-  startupMs: number | null
+  lastFrameOffsetMs: number | null
   frameAgeMs: number | null
   bytes: number
   connectionState: string
@@ -336,11 +336,11 @@ function percentile(sorted: readonly number[], fraction: number): number {
 
 /** liveStreamDiagnostics derives operator-facing measurements from the carrier's clock. */
 export function liveStreamDiagnostics(view: LiveStreamView | null, nowUnixMillis = Date.now()): LiveStreamDiagnostics {
-  if (!view) return { startupMs: null, frameAgeMs: null, bytes: 0, connectionState: "" }
+  if (!view) return { lastFrameOffsetMs: null, frameAgeMs: null, bytes: 0, connectionState: "" }
   const started = finitePositive(view.startedAtUnixMillis)
   const lastFrame = finitePositive(view.lastFrameAtUnixMillis)
   return {
-    startupMs: started !== null && lastFrame !== null ? Math.max(0, lastFrame - started) : null,
+    lastFrameOffsetMs: started !== null && lastFrame !== null ? Math.max(0, lastFrame - started) : null,
     frameAgeMs: lastFrame !== null && Number.isFinite(nowUnixMillis) ? Math.max(0, nowUnixMillis - lastFrame) : null,
     bytes: Number.isFinite(view.bytes) && view.bytes > 0 ? view.bytes : 0,
     connectionState: view.connectionState.trim(),

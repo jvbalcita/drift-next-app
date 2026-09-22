@@ -89,13 +89,13 @@ describe("the console's view of a live stream", () => {
     }))
     expect(view).toMatchObject({ streamId: "stream-1", transport: "webrtc", state: "live", frames: 41, keyFrames: 3, bytes: 4096, connectionState: "connected" })
     expect(liveStreamFrame(view)).toEqual({ width: 1080, height: 1920 })
-    expect(liveStreamDiagnostics(view, 1_250)).toEqual({ startupMs: 125, frameAgeMs: 125, bytes: 4096, connectionState: "connected" })
+    expect(liveStreamDiagnostics(view, 1_250)).toEqual({ lastFrameOffsetMs: 125, frameAgeMs: 125, bytes: 4096, connectionState: "connected" })
     expect(transportSentence(view, named("online"))).toBe(liveMirrorCopy.transport.webrtc)
   })
 
   it("reports unavailable telemetry instead of inventing timings", () => {
     const view = liveStreamView(create(MirrorStreamSchema, { streamId: "stream-1" }))
-    expect(liveStreamDiagnostics(view, 1_250)).toEqual({ startupMs: null, frameAgeMs: null, bytes: 0, connectionState: "" })
+    expect(liveStreamDiagnostics(view, 1_250)).toEqual({ lastFrameOffsetMs: null, frameAgeMs: null, bytes: 0, connectionState: "" })
   })
 
   it("reports no frame for a stream that declares none, rather than a placeholder size", () => {

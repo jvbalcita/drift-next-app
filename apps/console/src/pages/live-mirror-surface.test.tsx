@@ -240,7 +240,7 @@ describe("the big frame is the device's screen", () => {
     expect(within(details).getByTestId("live-mirror-transport")).toHaveTextContent("frame 1080x1920")
     expect(within(details).getByTestId("live-mirror-phase")).toHaveTextContent("12 picture(s) carried")
     expect(within(details).getByTestId("live-mirror-drawn")).toHaveTextContent("540x960")
-    expect(within(details).getByTestId("live-mirror-performance")).toHaveTextContent("first frame 200 ms")
+    expect(within(details).getByTestId("live-mirror-performance")).toHaveTextContent("latest frame +200 ms from carrier start")
     expect(within(details).getByTestId("live-mirror-performance")).toHaveTextContent("1.5 MiB carried")
     expect(within(details).getByTestId("live-mirror-performance")).toHaveTextContent("connection connected")
     expect(within(details).getByText(liveMirrorCopy.details.pointer)).toBeInTheDocument()
@@ -1093,6 +1093,7 @@ function sessionView(overrides: Partial<LiveMirrorSessionView>): LiveMirrorSessi
     detailsAttention: "",
     reducedMotion: false,
     renderPerformance: { samples: 0, p50Ms: 0, p95Ms: 0 },
+    recovery: { attempts: 0, successes: 0, lastReason: "" },
     attachVideo: () => undefined,
     retry: () => undefined,
     stop: () => undefined,
@@ -1116,6 +1117,15 @@ describe("live mirror render measurements", () => {
     const samples = Array.from({ length: 130 }, (_, index) => index + 1)
     expect(summarizeVideoRenderPerformance(samples)).toEqual({ samples: 120, p50Ms: 70, p95Ms: 124 })
     expect(summarizeVideoRenderPerformance([Number.NaN, -1])).toEqual({ samples: 0, p50Ms: 0, p95Ms: 0 })
+  })
+
+  it("shows bounded recovery totals and the latest reason in operator diagnostics", async () => {
+    const user = userEvent.setup()
+    render(<LiveMirrorInfo session={sessionView({ recovery: { attempts: 2, successes: 1, lastReason: "the control plane restarted" } })} />)
+
+    await user.click(screen.getByTestId("live-mirror-info"))
+    expect(screen.getByTestId("live-mirror-performance")).toHaveTextContent("recoveries 1/2")
+    expect(screen.getByTestId("live-mirror-performance")).toHaveTextContent("last reason: the control plane restarted")
   })
 })
 

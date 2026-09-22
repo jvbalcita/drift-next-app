@@ -416,8 +416,8 @@ type MirrorStream struct {
 	// bounded accounting, not a media buffer: no frame history is retained for it.
 	Bytes uint64 `protobuf:"varint,11,opt,name=bytes,proto3" json:"bytes,omitempty"`
 	// started_at_unix_millis is when this viewing's carrier opened. Together with
-	// last_frame_at_unix_millis it makes startup and current frame age measurable
-	// without asking a browser to infer either from a frame count.
+	// last_frame_at_unix_millis it makes carrier activity span and current frame
+	// age measurable without asking a browser to infer either from a frame count.
 	StartedAtUnixMillis int64 `protobuf:"varint,12,opt,name=started_at_unix_millis,json=startedAtUnixMillis,proto3" json:"started_at_unix_millis,omitempty"`
 	// last_frame_at_unix_millis is when the carrier most recently forwarded a
 	// picture. Zero means no picture has been forwarded yet.

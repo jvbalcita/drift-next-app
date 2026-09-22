@@ -123,8 +123,8 @@ export type MirrorStream = Message<"drift.v1.MirrorStream"> & {
 
   /**
    * started_at_unix_millis is when this viewing's carrier opened. Together with
-   * last_frame_at_unix_millis it makes startup and current frame age measurable
-   * without asking a browser to infer either from a frame count.
+   * last_frame_at_unix_millis it makes carrier activity span and current frame
+   * age measurable without asking a browser to infer either from a frame count.
    *
    * @generated from field: int64 started_at_unix_millis = 12;
    */

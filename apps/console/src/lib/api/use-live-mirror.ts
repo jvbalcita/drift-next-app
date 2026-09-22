@@ -211,10 +211,25 @@ export interface LiveMirrorSession {
   stream: LiveStreamView | null
   /** failure is why the stream is not being shown, when it is not. */
   failure: string
+  /** recovery is bounded aggregate telemetry; it never retains a retry history. */
+  recovery: MirrorRecoveryTelemetry
   /** attachVideo is the video element the stream is painted into. */
   attachVideo: (element: HTMLVideoElement | null) => void
   retry: () => void
   stop: () => void
+}
+
+export interface MirrorRecoveryTelemetry {
+  attempts: number
+  successes: number
+  lastReason: string
+}
+
+export const emptyMirrorRecoveryTelemetry: MirrorRecoveryTelemetry = { attempts: 0, successes: 0, lastReason: "" }
+export const maximumMirrorRecoveryReasonLength = 512
+
+export function boundedMirrorRecoveryReason(reason: string): string {
+  return reason.trim().slice(0, maximumMirrorRecoveryReasonLength)
 }
 
 /**
@@ -288,6 +303,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
   const [phase, setPhase] = useState<LiveMirrorPhase>("idle")
   const [stream, setStream] = useState<LiveStreamView | null>(null)
   const [failure, setFailure] = useState("")
+  const [recovery, setRecovery] = useState<MirrorRecoveryTelemetry>(emptyMirrorRecoveryTelemetry)
   const [attempt, setAttempt] = useState(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const teardownRef = useRef<(() => void) | null>(null)
@@ -323,6 +339,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
     let cancelScheduled: (() => void) | null = null
     let readFailures = 0
     let reopens = 0
+    let recoveryPending = false
     // The plane's own answer to the last read it refused, kept so the report made
     // when the re-entry bound runs out can carry it: the plane's answer is the
     // cause, and a sentence that only says the plane forgot the stream sends an
@@ -467,7 +484,13 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
         // A stream that came back to LIVE also clears the re-entry bound: pictures
         // carried are the plane resolving a re-opened stream, which is the only
         // thing that bound protects against.
-        if (next.state === "live") reopens = 0
+        if (next.state === "live") {
+          if (recoveryPending) {
+            recoveryPending = false
+            setRecovery((current) => ({ ...current, successes: current.successes + 1 }))
+          }
+          reopens = 0
+        }
         // LIVE is the control plane reporting pictures carried, never something
         // this console infers from a peer connection.
         setPhase(next.state === "live" ? "live" : "starting")
@@ -514,6 +537,12 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       closePicture()
       streamId = ""
       reopens += 1
+      recoveryPending = true
+      setRecovery((current) => ({
+        attempts: current.attempts + 1,
+        successes: current.successes,
+        lastReason: boundedMirrorRecoveryReason(planeSaid || liveMirrorCopy.failure.openFailed),
+      }))
       if (reopens > reopenLimit) {
         finish("failed", liveMirrorCopy.failure.unresumable(planeSaid), false)
         return
@@ -648,6 +677,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
 
     setPhase("opening")
     setFailure("")
+    setRecovery(emptyMirrorRecoveryTelemetry)
 
     void open()
 
@@ -662,7 +692,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
     }
   }, [attempt, client, deviceId, establishTimeoutMs, peerFactory, playbackFactory, pollFailureLimit, pollRetryCeilingMs, pollIntervalMs, previewFrameRate, previewQuality, purpose, reopenLimit, schedule, transport, workspaceId])
 
-  return { phase, stream, failure, attachVideo, retry, stop }
+  return { phase, stream, failure, recovery, attachVideo, retry, stop }
 }
 
 function isNotFound(cause: unknown): boolean {
