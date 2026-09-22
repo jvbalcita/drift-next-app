@@ -31,13 +31,15 @@ type RealtimeKernel interface {
 // RealtimeControl binds a selected Pion peer to the kernel and its live scrcpy
 // session. It never grants authority merely because a peer can receive video.
 type RealtimeControl struct {
-	kernel   RealtimeKernel
-	engine   LiveSessions
-	ids      ids.IDGenerator
-	evidence RealtimeEvidenceRecorder
+	kernel        RealtimeKernel
+	engine        LiveSessions
+	ids           ids.IDGenerator
+	evidence      RealtimeEvidenceRecorder
+	checkInterval time.Duration
 }
 
 const liveGestureMaxDuration = 30 * time.Second
+const realtimeAuthorityCheckInterval = 250 * time.Millisecond
 
 type RealtimeEvidenceRecorder interface {
 	Append(context.Context, store.ActionEvidence, string, string) error
@@ -47,7 +49,7 @@ func NewRealtimeControl(kernel RealtimeKernel, engine LiveSessions, generator id
 	if kernel == nil || engine == nil || generator == nil || evidence == nil {
 		return nil, errors.New("mirror: realtime control requires a kernel, live sessions, IDs and evidence recorder")
 	}
-	return &RealtimeControl{kernel: kernel, engine: engine, ids: generator, evidence: evidence}, nil
+	return &RealtimeControl{kernel: kernel, engine: engine, ids: generator, evidence: evidence, checkInterval: realtimeAuthorityCheckInterval}, nil
 }
 
 // Bind verifies the exact opening claim, lease tuple and selected stream before
@@ -80,7 +82,34 @@ func (c *RealtimeControl) Bind(ctx context.Context, peer media.MirrorControlPeer
 	if err := peer.BindControl(generation, handler.handle); err != nil {
 		return 0, err
 	}
+	go c.watchAuthority(peer, binding)
 	return generation, nil
+}
+
+// The opening request is not the lifetime of a viewing. Recheck the peer's
+// authority while idle so an expired lease cannot leave input appearing armed.
+func (c *RealtimeControl) watchAuthority(peer media.MirrorControlPeer, binding media.MirrorControlBinding) {
+	done := peer.ControlDone()
+	if done == nil {
+		peer.RevokeControl()
+		return
+	}
+	ticker := time.NewTicker(c.checkInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), c.checkInterval)
+		err := c.kernel.ValidateRealtimeControl(ctx, binding.WorkspaceID, binding.DeviceID, binding.SessionID, binding.LeaseID, binding.HolderID, binding.FencingToken)
+		cancel()
+		if err != nil {
+			peer.RevokeControl()
+			return
+		}
+	}
 }
 
 type liveGestureHandler struct {

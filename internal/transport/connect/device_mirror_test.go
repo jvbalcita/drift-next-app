@@ -32,6 +32,7 @@ const (
 type fakeMirrorStream struct {
 	claim           media.MirrorViewingClaim
 	controlBound    bool
+	controlDone     chan struct{}
 	key             string
 	deviceID        string
 	serial          string
@@ -75,7 +76,17 @@ func (s *fakeMirrorStream) ControlBound() bool { return s.controlBound }
 
 func (s *fakeMirrorStream) BindControl(_ uint64, _ media.MirrorControlHandler) error {
 	s.controlBound = true
+	s.controlDone = make(chan struct{})
 	return nil
+}
+
+func (s *fakeMirrorStream) ControlDone() <-chan struct{} { return s.controlDone }
+
+func (s *fakeMirrorStream) RevokeControl() {
+	if s.controlDone != nil {
+		close(s.controlDone)
+		s.controlDone = nil
+	}
 }
 
 type fakeControlBinder struct {

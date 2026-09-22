@@ -17,6 +17,8 @@ type controlTestPeer struct {
 	stats   media.StreamStats
 	claim   media.MirrorViewingClaim
 	handler media.MirrorControlHandler
+	done    chan struct{}
+	once    sync.Once
 }
 
 func (p *controlTestPeer) Stats() media.StreamStats { return p.stats }
@@ -25,8 +27,11 @@ func (p *controlTestPeer) ViewingClaimMatches(claim media.MirrorViewingClaim) bo
 }
 func (p *controlTestPeer) BindControl(_ uint64, handler media.MirrorControlHandler) error {
 	p.handler = handler
+	p.done = make(chan struct{})
 	return nil
 }
+func (p *controlTestPeer) ControlDone() <-chan struct{} { return p.done }
+func (p *controlTestPeer) RevokeControl()               { p.once.Do(func() { close(p.done) }) }
 
 type controlTestKernel struct {
 	mu          sync.Mutex
@@ -100,7 +105,20 @@ func controlTestHarness(t *testing.T) (*RealtimeControl, *controlTestPeer, *cont
 	if err != nil || generation == 0 || peer.handler == nil {
 		t.Fatalf("bind control = %d, %v; handler present = %t", generation, err, peer.handler != nil)
 	}
+	t.Cleanup(peer.RevokeControl)
 	return control, peer, kernel, sessions, evidence, generation
+}
+
+func TestLiveControlRevokesIdleChannelAfterLeaseLoss(t *testing.T) {
+	_, peer, kernel, _, _, _ := controlTestHarness(t)
+	kernel.mu.Lock()
+	kernel.revoked = true
+	kernel.mu.Unlock()
+	select {
+	case <-peer.ControlDone():
+	case <-time.After(time.Second):
+		t.Fatal("idle control remained armed after lease revocation")
+	}
 }
 
 func TestLiveGestureUsesOneKernelAttemptAndThreePhysicalPhases(t *testing.T) {

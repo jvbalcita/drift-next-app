@@ -745,12 +745,44 @@ func (p *StreamPeer) BindControl(generation uint64, handler MirrorControlHandler
 	return nil
 }
 
+// ControlDone closes when input is no longer armed, independently of video.
+func (p *StreamPeer) ControlDone() <-chan struct{} {
+	if p == nil {
+		return nil
+	}
+	p.controlMu.Lock()
+	defer p.controlMu.Unlock()
+	if p.controlContext == nil {
+		return nil
+	}
+	return p.controlContext.Done()
+}
+
+// RevokeControl fails input closed without ending the viewing's video track.
+func (p *StreamPeer) RevokeControl() {
+	if p == nil {
+		return
+	}
+	p.controlMu.Lock()
+	if p.controlCancel != nil {
+		p.controlCancel()
+	}
+	channel := p.controlChannel
+	p.controlMu.Unlock()
+	if channel != nil {
+		_ = channel.Close()
+	}
+}
+
 func (p *StreamPeer) acceptControlChannel(channel *webrtc.DataChannel) {
 	if channel == nil {
 		return
 	}
 	p.controlMu.Lock()
 	bound := p.controlHandler != nil
+	if p.controlContext != nil && p.controlContext.Err() != nil {
+		bound = false
+	}
 	select {
 	case <-p.closed:
 		bound = false

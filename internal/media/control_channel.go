@@ -57,6 +57,8 @@ type MirrorControlPeer interface {
 	Stats() StreamStats
 	ViewingClaimMatches(MirrorViewingClaim) bool
 	BindControl(uint64, MirrorControlHandler) error
+	ControlDone() <-chan struct{}
+	RevokeControl()
 }
 
 func DecodeMirrorControlMessage(data []byte) (MirrorControlMessage, error) {
