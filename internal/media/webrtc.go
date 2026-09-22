@@ -75,10 +75,9 @@ const (
 	nominalFrameDurationUS = 33333
 
 	// mirrorControlQueueCapacity bounds the work a browser can place between
-	// the SCTP reader and the authorized delivery bound to this peer. Realtime
-	// input is never allowed to grow an unbounded backlog: once this many
-	// already-validated events are waiting, the control channel is closed and
-	// the video peer remains usable.
+	// the SCTP reader and the authorized delivery bound to this peer. Consecutive
+	// moves of one gesture replace the latest pending move; critical events
+	// retain their order. A full queue closes control, leaving video usable.
 	mirrorControlQueueCapacity = 64
 )
 
@@ -542,7 +541,8 @@ type StreamPeer struct {
 	viewingClaim    MirrorViewingClaim
 	controlSequence *MirrorControlSequence
 	controlHandler  MirrorControlHandler
-	controlQueue    chan MirrorControlMessage
+	controlPending  []MirrorControlMessage
+	controlWake     chan struct{}
 	controlChannel  *webrtc.DataChannel
 	controlContext  context.Context
 	controlCancel   context.CancelFunc
@@ -733,7 +733,8 @@ func (p *StreamPeer) BindControl(generation uint64, handler MirrorControlHandler
 	}
 	p.controlSequence = sequence
 	p.controlHandler = handler
-	p.controlQueue = make(chan MirrorControlMessage, mirrorControlQueueCapacity)
+	p.controlPending = make([]MirrorControlMessage, 0, mirrorControlQueueCapacity)
+	p.controlWake = make(chan struct{}, 1)
 	p.controlContext, p.controlCancel = context.WithCancel(context.Background())
 	go p.deliverControl()
 	return nil
@@ -790,18 +791,37 @@ func (p *StreamPeer) acceptControlChannel(channel *webrtc.DataChannel) {
 			return
 		}
 		err = p.controlSequence.Accept(decoded)
-		queue := p.controlQueue
+		if err == nil {
+			err = p.enqueueControlLocked(decoded)
+		}
 		p.controlMu.Unlock()
 		if err != nil {
 			_ = channel.Close()
-			return
-		}
-		select {
-		case queue <- decoded:
-		default:
-			_ = channel.Close()
 		}
 	})
+}
+
+// enqueueControlLocked keeps one pending latest move for a continuous gesture.
+// Its caller has accepted the sequence and holds controlMu. A terminal event
+// follows that latest move, so touch-up cannot overtake the final position.
+func (p *StreamPeer) enqueueControlLocked(message MirrorControlMessage) error {
+	count := len(p.controlPending)
+	if message.Kind == MirrorControlTouchMove && count > 0 {
+		last := &p.controlPending[count-1]
+		if last.Kind == MirrorControlTouchMove && last.GestureID == message.GestureID {
+			*last = message
+			return nil
+		}
+	}
+	if count == mirrorControlQueueCapacity {
+		return errors.New("media: the control queue is full")
+	}
+	p.controlPending = append(p.controlPending, message)
+	select {
+	case p.controlWake <- struct{}{}:
+	default:
+	}
+	return nil
 }
 
 func (p *StreamPeer) deliverControl() {
@@ -811,13 +831,23 @@ func (p *StreamPeer) deliverControl() {
 			return
 		case <-p.controlContext.Done():
 			return
-		case message := <-p.controlQueue:
+		case <-p.controlWake:
+		}
+		for {
 			// A closed peer must never drain an already queued input. Select may
 			// choose a ready queue even when the close signal is also ready.
 			if p.controlContext.Err() != nil {
 				return
 			}
 			p.controlMu.Lock()
+			if len(p.controlPending) == 0 {
+				p.controlMu.Unlock()
+				break
+			}
+			message := p.controlPending[0]
+			copy(p.controlPending, p.controlPending[1:])
+			p.controlPending[len(p.controlPending)-1] = MirrorControlMessage{}
+			p.controlPending = p.controlPending[:len(p.controlPending)-1]
 			handler := p.controlHandler
 			channel := p.controlChannel
 			controlContext := p.controlContext

@@ -487,6 +487,84 @@ func TestControlChannelCloseDropsQueuedInput(t *testing.T) {
 	}
 }
 
+func TestControlCoalescesPendingMovesBeforeTouchUp(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	if err := peer.ClaimViewing(MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}); err != nil {
+		t.Fatalf("claim viewing: %v", err)
+	}
+	sessionReady(t, fixture.mustSession(t, "device-1"))
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	delivered := make(chan MirrorControlMessage, 3)
+	if err := peer.BindControl(9, func(_ context.Context, message MirrorControlMessage) error {
+		if message.Sequence == 1 {
+			close(entered)
+			<-release
+		}
+		delivered <- message
+		return nil
+	}); err != nil {
+		t.Fatalf("bind control: %v", err)
+	}
+	client := newBrowser(t)
+	channel, opened := client.controlChannel(t)
+	answer, err := peer.Answer(context.Background(), client.offer(t))
+	if err != nil {
+		t.Fatalf("answer the browser's offer: %v", err)
+	}
+	client.accept(t, answer)
+	select {
+	case <-opened:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the browser control channel never opened")
+	}
+	if err := channel.Send(controlBytes(MirrorControlTouchDown, 1, 7, 9, false)); err != nil {
+		t.Fatalf("send down: %v", err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("touch down was not delivered")
+	}
+	for sequence := uint64(2); sequence <= 21; sequence++ {
+		if err := channel.Send(controlBytes(MirrorControlTouchMove, sequence, 7, 9, false)); err != nil {
+			t.Fatalf("send move %d: %v", sequence, err)
+		}
+	}
+	if err := channel.Send(controlBytes(MirrorControlTouchUp, 22, 7, 9, true)); err != nil {
+		t.Fatalf("send up: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		peer.controlMu.Lock()
+		accepted := peer.controlSequence.last == 22
+		pending := len(peer.controlPending)
+		peer.controlMu.Unlock()
+		if accepted {
+			if pending != 2 {
+				t.Fatalf("pending events = %d, want latest move and up", pending)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the final move and up were not accepted")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(release)
+	for index, want := range []uint64{1, 21, 22} {
+		select {
+		case message := <-delivered:
+			if message.Sequence != want {
+				t.Fatalf("delivery %d sequence = %d, want %d", index, message.Sequence, want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("delivery %d was not received", index)
+		}
+	}
+}
+
 // TestALateBrowserIsPrimedFromTheCachedKeyFrame covers the case a browser hits
 // whenever it opens a device somebody else is already watching, or reloads:
 // nothing new is pushed after it attaches, so a receiver that is not primed from
