@@ -210,6 +210,27 @@ func TestClosingTheControlChannelReleasesAHeldTouch(t *testing.T) {
 	}
 }
 
+func TestSilentOpenControlChannelReleasesHeldTouchAtGestureLimit(t *testing.T) {
+	control, peer, kernel, sessions, _, generation := controlTestHarness(t)
+	control.gestureLimit = 20 * time.Millisecond
+	if err := peer.handler(context.Background(), controlTestMessage(media.MirrorControlTouchDown, generation, 1)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-kernel.finished:
+	case <-time.After(time.Second):
+		t.Fatal("silent open channel kept its touch held beyond the gesture limit")
+	}
+	select {
+	case <-peer.ControlDone():
+	default:
+		t.Fatal("expired gesture left the control channel armed")
+	}
+	if len(sessions.inputs) != 2 || sessions.inputs[1].Kind != media.MirrorInputTouchCancel {
+		t.Fatalf("physical inputs = %#v, want touch-down and timed safety release", sessions.inputs)
+	}
+}
+
 func TestSafetyReleaseUsesTheLastDeliveredMove(t *testing.T) {
 	_, peer, kernel, sessions, _, generation := controlTestHarness(t)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -245,7 +266,7 @@ func TestRotationRefusesStaleCoordinatesBeforeDelivery(t *testing.T) {
 }
 
 func TestLiveGestureDurationIsBoundedWithoutTrustingClientTimestamps(t *testing.T) {
-	handler := &liveGestureHandler{active: &liveGestureAttempt{started: time.Now().Add(-liveGestureMaxDuration - time.Second)}}
+	handler := &liveGestureHandler{control: &RealtimeControl{gestureLimit: liveGestureMaxDuration}, active: &liveGestureAttempt{started: time.Now().Add(-liveGestureMaxDuration - time.Second)}}
 	if err := handler.handle(context.Background(), controlTestMessage(media.MirrorControlTouchMove, 1, 2)); err == nil {
 		t.Fatal("gesture beyond its authorized duration accepted another move")
 	}

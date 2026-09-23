@@ -37,6 +37,7 @@ type RealtimeControl struct {
 	ids           ids.IDGenerator
 	evidence      RealtimeEvidenceRecorder
 	checkInterval time.Duration
+	gestureLimit  time.Duration
 }
 
 const liveGestureMaxDuration = 30 * time.Second
@@ -50,7 +51,7 @@ func NewRealtimeControl(kernel RealtimeKernel, engine LiveSessions, generator id
 	if kernel == nil || engine == nil || generator == nil || evidence == nil {
 		return nil, errors.New("mirror: realtime control requires a kernel, live sessions, IDs and evidence recorder")
 	}
-	return &RealtimeControl{kernel: kernel, engine: engine, ids: generator, evidence: evidence, checkInterval: realtimeAuthorityCheckInterval}, nil
+	return &RealtimeControl{kernel: kernel, engine: engine, ids: generator, evidence: evidence, checkInterval: realtimeAuthorityCheckInterval, gestureLimit: liveGestureMaxDuration}, nil
 }
 
 // Bind verifies the exact opening claim, lease tuple and selected stream before
@@ -134,6 +135,7 @@ type liveGestureAttempt struct {
 	gesture   uint64
 	started   time.Time
 	stop      func() bool
+	timeout   *time.Timer
 	finish    sync.Once
 	finishErr error
 	mu        sync.Mutex
@@ -146,7 +148,7 @@ func (h *liveGestureHandler) handle(ctx context.Context, message media.MirrorCon
 	if message.Kind == media.MirrorControlKey {
 		return errors.New("mirror: live key input requires a separately approved action")
 	}
-	if h.active != nil && time.Since(h.active.started) > liveGestureMaxDuration {
+	if h.active != nil && time.Since(h.active.started) > h.control.gestureLimit {
 		return errors.New("mirror: live gesture exceeded its authorized duration")
 	}
 	stats := h.peer.Stats()
@@ -173,7 +175,7 @@ func (h *liveGestureHandler) handle(ctx context.Context, message media.MirrorCon
 			LeaseID: h.binding.LeaseID, HolderID: h.binding.HolderID, FencingToken: h.binding.FencingToken,
 			Kind: action.LiveGesture, InvocationSurface: action.SurfaceMirror,
 			LiveStart:    &action.LiveGestureStart{X: int(message.X), Y: int(message.Y), Width: int(message.Width), Height: int(message.Height)},
-			Capabilities: []action.Capability{action.CapabilityGesture}, Timeout: liveGestureMaxDuration,
+			Capabilities: []action.Capability{action.CapabilityGesture}, Timeout: h.control.gestureLimit,
 			IdempotencyKey: "live:" + h.streamKey + ":" + strconv.FormatUint(h.generation, 10) + ":" + strconv.FormatUint(message.GestureID, 10),
 		}
 		accepted, err := h.control.kernel.Authorize(ctx, intent, h.binding.ActorType, h.binding.ActorID)
@@ -188,7 +190,16 @@ func (h *liveGestureHandler) handle(ctx context.Context, message media.MirrorCon
 		}
 		attempt := &liveGestureAttempt{id: id, gesture: message.GestureID, started: time.Now()}
 		h.active = attempt
+		// An open but silent channel must not hold a finger down indefinitely.
+		attempt.timeout = time.AfterFunc(h.control.gestureLimit, func() {
+			h.peer.RevokeControl()
+			if err := h.releaseAttempt(attempt); err != nil {
+				log.Printf("live mirror timed safety release for %s failed: %v", h.binding.DeviceID, err)
+			}
+			_ = h.finishAttempt(attempt)
+		})
 		attempt.stop = context.AfterFunc(ctx, func() {
+			attempt.timeout.Stop()
 			if err := h.releaseAttempt(attempt); err != nil {
 				log.Printf("live mirror safety release for %s failed: %v", h.binding.DeviceID, err)
 			}
@@ -203,6 +214,9 @@ func (h *liveGestureHandler) handle(ctx context.Context, message media.MirrorCon
 		if attempt.stop != nil {
 			attempt.stop()
 		}
+		if attempt.timeout != nil {
+			attempt.timeout.Stop()
+		}
 		return errors.Join(err, h.releaseAttempt(attempt), h.finishAttempt(attempt))
 	}
 	if message.Final {
@@ -210,6 +224,9 @@ func (h *liveGestureHandler) handle(ctx context.Context, message media.MirrorCon
 		h.active = nil
 		if attempt.stop != nil {
 			attempt.stop()
+		}
+		if attempt.timeout != nil {
+			attempt.timeout.Stop()
 		}
 		return h.finishAttempt(attempt)
 	}
@@ -240,11 +257,15 @@ func (h *liveGestureHandler) sendPhysical(ctx context.Context, attempt *liveGest
 // This is only a release of an already-authorized touch, never a new gesture.
 func (h *liveGestureHandler) releaseAttempt(attempt *liveGestureAttempt) error {
 	attempt.mu.Lock()
-	if !attempt.pressed || attempt.released {
+	if attempt.released {
 		attempt.mu.Unlock()
 		return nil
 	}
 	attempt.released = true
+	if !attempt.pressed {
+		attempt.mu.Unlock()
+		return nil
+	}
 	input := attempt.last
 	input.Kind = media.MirrorInputTouchCancel
 	attempt.mu.Unlock()
