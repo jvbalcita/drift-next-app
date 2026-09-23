@@ -9,7 +9,7 @@ import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/dr
 import { MockControlPlaneClient } from "@/lib/api/mock-control-plane"
 import { ConnectJsonError } from "@/lib/api/connect-json"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import type { ControlPlaneIntent, DispatchIntent, DeviceView } from "@/lib/domain/control-plane"
+import type { ControlPlaneIntent, DispatchIntent, DeviceView, LeaseView } from "@/lib/domain/control-plane"
 import { deviceStatusMeanings } from "@/lib/device-status"
 import { controlPointerCursor } from "@/lib/control-pointer"
 import { keyRepeatIntervalMs, liveMirrorCopy, liveStreamView, scrollStepUnits, summarizeInputVisiblePerformance, summarizeVideoRenderPerformance, videoSignaturesDiffer, type LiveStreamView } from "@/lib/live-mirror"
@@ -92,7 +92,7 @@ function device(): DeviceView {
  * it. `picture` is the stream's shape unless a test says otherwise, which is the
  * case with no letterbox.
  */
-function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; leaseRefusal?: string; rect?: DOMRect; picture?: { width: number; height: number }; device?: DeviceView; devices?: readonly DeviceView[]; followers?: readonly DeviceView[]; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
+function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; controlLease?: LeaseView; leaseRefusal?: string; rect?: DOMRect; picture?: { width: number; height: number }; device?: DeviceView; devices?: readonly DeviceView[]; followers?: readonly DeviceView[]; reply?: (intent: ControlPlaneIntent) => { ok: boolean; message: string } } = {}) {
   const intents: ControlPlaneIntent[] = []
   const dispatch: DispatchIntent = async (intent) => {
     intents.push(intent)
@@ -120,6 +120,7 @@ function renderPanel(options: { mirror?: LiveMirrorClient; hasLease?: boolean; l
       workspaceId={workspaceId}
       leaseRefusal={options.leaseRefusal}
       hasLease={options.hasLease ?? true}
+      controlLease={options.controlLease}
       dispatch={dispatch}
     />,
   )
@@ -186,8 +187,14 @@ class FakeRTCPeerConnection {
   iceGatheringState = "complete"
   localDescription: { type: string; sdp: string } | null = null
   private tracks: ((event: { streams: MediaStream[] }) => void)[] = []
+  controlPackets: DataView[] = []
+  controlLabel = ""
   constructor() { livePeers.push(this) }
   addTransceiver() { return undefined }
+  createDataChannel(label: string) {
+    this.controlLabel = label
+    return { readyState: "open", send: (data: ArrayBuffer) => this.controlPackets.push(new DataView(data)), close() {} }
+  }
   async createOffer() { return { type: "offer", sdp: "offer-sdp" } }
   async setLocalDescription(description: { type: string; sdp: string }) { this.localDescription = description }
   async setRemoteDescription() { return undefined }
@@ -200,6 +207,49 @@ class FakeRTCPeerConnection {
   /** publish is the device's first picture arriving on the negotiated track. */
   publish(media: MediaStream) { for (const listener of this.tracks) listener({ streams: [media] }) }
 }
+
+describe("opt-in source-only realtime gestures", () => {
+  it("sends down and moves before release without a duplicate semantic action", async () => {
+    const lease = new MockControlPlaneClient().getSnapshot().leases.find((candidate) => candidate.deviceId === device().id && candidate.state === "active")
+    if (!lease) throw new Error("the fixture has no selected control lease")
+    const mirrorState = fakeMirror()
+    const mirror = mirrorState.client
+    mirror.realtimeControlEnabled = () => true
+    mirror.negotiate = async (_streamId, _offer, _workspace, binding) => {
+      expect(binding).toMatchObject({ sessionId: lease.controlSessionId, leaseId: lease.id, holderId: lease.holder, fencingToken: BigInt(lease.fencingToken) })
+      return { answerSdp: "answer-sdp", stream: stream(), controlGeneration: 11n }
+    }
+    const { stage, intents } = renderPanel({ mirror, controlLease: lease })
+    await waitFor(() => expect(livePeers[0]?.controlLabel).toBe("drift-control-v1"))
+    await waitFor(() => expect(screen.getByTestId("live-mirror-stage")).toHaveStyle({ cursor: controlPointerCursor }))
+    fireEvent.pointerDown(stage, { pointerId: 4, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(stage, { pointerId: 4, clientX: 200, clientY: 300 })
+    fireEvent.pointerUp(stage, { pointerId: 4, clientX: 200, clientY: 300 })
+    const packets = livePeers[0]?.controlPackets ?? []
+    expect(packets.map((packet) => packet.getUint8(1))).toEqual([1, 2, 3])
+    expect(packets.every((packet) => packet.getBigUint64(32) === 11n)).toBe(true)
+    expect(intents.filter((intent) => intent.type === "submitDeviceTap" || intent.type === "submitDeviceSwipe")).toHaveLength(0)
+    expect(mirrorState.calls.filter((call) => call.startsWith("start:"))).toHaveLength(1)
+  })
+
+  it("retains semantic fan-out while followers are selected", async () => {
+    const snapshot = new MockControlPlaneClient().getSnapshot()
+    const lease = snapshot.leases.find((candidate) => candidate.deviceId === device().id && candidate.state === "active")
+    const follower = snapshot.devices.find((candidate) => candidate.id !== device().id)
+    if (!lease || !follower) throw new Error("the fixture needs a selected lease and follower")
+    const mirror = fakeMirror().client
+    mirror.realtimeControlEnabled = () => true
+    mirror.negotiate = async () => ({ answerSdp: "answer-sdp", stream: stream(), controlGeneration: 11n })
+    const { stage, intents } = renderPanel({ mirror, controlLease: lease, followers: [follower] })
+    await waitFor(() => expect(livePeers[0]?.controlLabel).toBe("drift-control-v1"))
+    fireEvent.pointerDown(stage, { pointerId: 5, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(stage, { pointerId: 5, clientX: 200, clientY: 300 })
+    fireEvent.pointerUp(stage, { pointerId: 5, clientX: 200, clientY: 300 })
+    await waitFor(() => expect(intents.some((intent) => intent.type === "submitDeviceSwipe")).toBe(true))
+    expect(intents.find((intent) => intent.type === "submitDeviceSwipe")).toMatchObject({ followerDeviceIds: [follower.id] })
+    expect(livePeers[0]?.controlPackets).toHaveLength(0)
+  })
+})
 
 beforeEach(() => {
   originalMatchMedia = window.matchMedia

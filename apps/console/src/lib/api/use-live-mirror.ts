@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ConnectJsonError } from "@/lib/api/connect-json"
-import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
+import type { LiveControlBinding, LiveMirrorClient } from "@/lib/api/control-plane-clients"
+import { MirrorGestureSender, mirrorControlChannelLabel, type MirrorControlWire } from "@/lib/api/mirror-control-channel"
 import { browserMirrorPlaybackFactory, streamRefusalStatus, type MirrorPlayback, type MirrorPlaybackFactory, type MirrorPlaybackRequest } from "@/lib/api/mirror-playback"
 import { liveMirrorCopy, type LiveMirrorPhase, type LiveMirrorPreview, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
 
@@ -51,6 +52,7 @@ export interface MirrorPeer {
   createOffer(): Promise<string>
   acceptAnswer(answerSdp: string): Promise<void>
   onStream(listener: (stream: MediaStream) => void): void
+  createControlChannel?(): MirrorControlWire
   close(): void
 }
 
@@ -87,6 +89,9 @@ export function browserMirrorPeerFactory(): MirrorPeer {
     onStream(listener) {
       streamListeners.push(listener)
     },
+    createControlChannel() {
+      return peer.createDataChannel(mirrorControlChannelLabel, { ordered: true })
+    },
     close() {
       try {
         peer.close()
@@ -117,6 +122,8 @@ async function waitForIceGathering(peer: RTCPeerConnection): Promise<void> {
 export interface UseLiveMirrorOptions {
   /** client is the control plane's live mirror surface. Absent means this console has none. */
   client?: LiveMirrorClient
+  /** Read at negotiation, not as an effect dependency: lease projection refresh must not restart video. */
+  controlBinding?: LiveControlBinding
   workspaceId?: string
   /**
    * transport is the transport the operator chose in Console Settings. Every
@@ -217,6 +224,8 @@ export interface LiveMirrorSession {
   attachVideo: (element: HTMLVideoElement | null) => void
   retry: () => void
   stop: () => void
+  realtimeControl: () => MirrorGestureSender | null
+  negotiatedControlKey: () => string
 }
 
 export interface MirrorRecoveryTelemetry {
@@ -299,7 +308,7 @@ export function mirrorRetryDelayMs(consecutiveFailures: number, baseMs: number, 
 }
 
 export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = {}): LiveMirrorSession {
-  const { client, workspaceId = "", transport = "webrtc", purpose = "operator", previewQuality, previewFrameRate, peerFactory, playbackFactory, pollIntervalMs = defaultMirrorPollIntervalMs, establishTimeoutMs = defaultMirrorEstablishTimeoutMs, pollFailureLimit = defaultMirrorPollFailureLimit, pollRetryCeilingMs = defaultMirrorPollRetryCeilingMs, reopenLimit = defaultMirrorReopenLimit, schedule = browserMirrorSchedule } = options
+  const { client, workspaceId = "", transport = "webrtc", purpose = "operator", controlBinding, previewQuality, previewFrameRate, peerFactory, playbackFactory, pollIntervalMs = defaultMirrorPollIntervalMs, establishTimeoutMs = defaultMirrorEstablishTimeoutMs, pollFailureLimit = defaultMirrorPollFailureLimit, pollRetryCeilingMs = defaultMirrorPollRetryCeilingMs, reopenLimit = defaultMirrorReopenLimit, schedule = browserMirrorSchedule } = options
   const [phase, setPhase] = useState<LiveMirrorPhase>("idle")
   const [stream, setStream] = useState<LiveStreamView | null>(null)
   const [failure, setFailure] = useState("")
@@ -307,6 +316,20 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
   const [attempt, setAttempt] = useState(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const teardownRef = useRef<(() => void) | null>(null)
+  const controlBindingRef = useRef(controlBinding)
+  const controlSessionId = controlBinding?.sessionId
+  const controlLeaseId = controlBinding?.leaseId
+  const controlHolderId = controlBinding?.holderId
+  const controlFencingToken = controlBinding?.fencingToken
+  useEffect(() => {
+    controlBindingRef.current = controlSessionId && controlLeaseId && controlHolderId && controlFencingToken
+      ? { sessionId: controlSessionId, leaseId: controlLeaseId, holderId: controlHolderId, fencingToken: controlFencingToken }
+      : undefined
+  }, [controlSessionId, controlLeaseId, controlHolderId, controlFencingToken])
+  const realtimeRef = useRef<MirrorGestureSender | null>(null)
+  const negotiatedControlKeyRef = useRef("")
+  const realtimeControl = useCallback(() => realtimeRef.current?.ready ? realtimeRef.current : null, [])
+  const negotiatedControlKey = useCallback(() => negotiatedControlKeyRef.current, [])
 
   const attachVideo = useCallback((element: HTMLVideoElement | null) => {
     videoRef.current = element
@@ -335,6 +358,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
     let settled = false
     let streamId = ""
     let peer: MirrorPeer | null = null
+    let controlWire: MirrorControlWire | null = null
     let playback: MirrorPlayback | null = null
     let cancelScheduled: (() => void) | null = null
     let readFailures = 0
@@ -354,6 +378,10 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       previewQuality === undefined || previewFrameRate === undefined ? undefined : { quality: previewQuality, frameRate: previewFrameRate }
 
     const closePicture = () => {
+      if (realtimeRef.current) realtimeRef.current.close()
+      else controlWire?.close()
+      realtimeRef.current = null
+      controlWire = null
       peer?.close()
       peer = null
       // Both transports are torn down in the same order and for the same reason:
@@ -634,10 +662,33 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
           // and a refusal is the operator's own browser policy, not a broken stream.
           void element.play?.()?.catch(() => undefined)
         })
+        const binding = purpose === "operator" && client!.realtimeControlEnabled?.() && transport === "webrtc" ? controlBindingRef.current : undefined
+        negotiatedControlKeyRef.current = binding ? `${binding.sessionId}:${binding.leaseId}:${binding.fencingToken}` : ""
+        if (binding) {
+          try { controlWire = created.createControlChannel?.() ?? null } catch { controlWire = null }
+        }
         const offer = await created.createOffer()
         if (disposed || settled) return
-        const answer = await client!.negotiate(streamId, offer, workspaceId)
+        // An opt-in control refusal must not take the picture away. The same
+        // viewing can still negotiate video without granting this channel input.
+        let answer
+        try {
+          answer = await client!.negotiate(streamId, offer, workspaceId, controlWire ? binding : undefined)
+        } catch (cause) {
+          if (!controlWire || !binding) throw cause
+          try { controlWire.close() } catch { /* video-only fallback still proceeds */ }
+          controlWire = null
+          answer = await client!.negotiate(streamId, offer, workspaceId)
+        }
         if (disposed || settled) return
+        if (controlWire && answer.controlGeneration && answer.controlGeneration > 0n) {
+          const frame = answer.stream.renderWidth > 0 && answer.stream.renderHeight > 0 ? { width: answer.stream.renderWidth, height: answer.stream.renderHeight } : null
+          if (frame) realtimeRef.current = new MirrorGestureSender(controlWire, answer.controlGeneration, frame.width, frame.height)
+        }
+        if (controlWire && !realtimeRef.current) {
+          try { controlWire.close() } catch { /* video remains independent of input */ }
+          controlWire = null
+        }
         setStream(answer.stream)
         // The same rule for the stream the handshake returns: an answer that
         // carries a stream which is already over is reported as over rather than
@@ -692,7 +743,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
     }
   }, [attempt, client, deviceId, establishTimeoutMs, peerFactory, playbackFactory, pollFailureLimit, pollRetryCeilingMs, pollIntervalMs, previewFrameRate, previewQuality, purpose, reopenLimit, schedule, transport, workspaceId])
 
-  return { phase, stream, failure, recovery, attachVideo, retry, stop }
+  return { phase, stream, failure, recovery, attachVideo, retry, stop, realtimeControl, negotiatedControlKey }
 }
 
 function isNotFound(cause: unknown): boolean {

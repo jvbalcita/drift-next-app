@@ -604,6 +604,7 @@ export const liveMirrorCopy = {
   /** Why input cannot be sent, said before anything is dispatched. */
   input: {
     noLease: "Input needs this device's active lease, which this console has not acquired.",
+    unreadable: "Input is paused while this frame's current stream state cannot be confirmed.",
     /**
      * Said when this frame has no live stream to measure a coordinate in.
      *

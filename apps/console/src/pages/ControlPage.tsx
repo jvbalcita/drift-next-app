@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { ArtifactView, ControlPlaneIntent, ControlPlaneSnapshot, DeviceOperationName, DeviceOperationOutcomeView, DeviceSettingName, DeviceSettingOutcomeView, DeviceSettingsApplyView, DeviceView, DispatchIntent, MutationResult } from "@/lib/domain/control-plane"
+import type { ArtifactView, ControlPlaneIntent, ControlPlaneSnapshot, DeviceOperationName, DeviceOperationOutcomeView, DeviceSettingName, DeviceSettingOutcomeView, DeviceSettingsApplyView, DeviceView, DispatchIntent, LeaseView, MutationResult } from "@/lib/domain/control-plane"
 import type { GridPreviewClient, LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, livePictureHeld, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
 import { useGridStills } from "@/lib/api/use-grid-stills"
@@ -390,8 +390,8 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
    * here.
    */
   const mirrorOperator = mirror?.controlOperatorId?.()
-  const sourceLease = source ? snapshot.leases.some((candidate) => candidate.deviceId === source.id && candidate.state === "active" && (!mirrorOperator || candidate.holder === mirrorOperator)) : false
-  const deviceModal = source ? <FloatingDevice device={source} devices={snapshot.devices} artifacts={snapshot.artifacts} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onCapture={captureDeviceScreen} onChangeDevice={changeSource} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease} dispatch={dispatch} /> : null
+  const sourceLease = source ? snapshot.leases.find((candidate) => candidate.deviceId === source.id && candidate.state === "active" && (!mirrorOperator || candidate.holder === mirrorOperator)) : undefined
+  const deviceModal = source ? <FloatingDevice device={source} devices={snapshot.devices} artifacts={snapshot.artifacts} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onCapture={captureDeviceScreen} onChangeDevice={changeSource} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease !== undefined} controlLease={mirrorOperator ? sourceLease : undefined} dispatch={dispatch} /> : null
   const selectedCount = (source ? 1 : 0) + followers.length
   /**
    * chooseFrameSort writes the CHOSEN KEY, in one settings write.
@@ -872,8 +872,8 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
  * with no aspect to take - and the picture's drawn box stays honest either way,
  * so a pointer is still measured through the box the picture is actually in.
  */
-export function FloatingDevice({ device, devices, artifacts, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onCapture, onChangeDevice, mirror, mirrorTransport, workspaceId, leaseRefusal, hasLease, dispatch }: { device: DeviceView; devices: readonly DeviceView[]; artifacts: readonly ArtifactView[]; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onCapture: () => void; onChangeDevice: (deviceId: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; leaseRefusal?: string; hasLease: boolean; dispatch: DispatchIntent }) {
-  const session = useLiveMirrorSession({ device, mirror, transport: mirrorTransport, workspaceId, hasLease, leaseRefusal, followerDeviceIds: followers.map((follower) => follower.id), dispatch })
+export function FloatingDevice({ device, devices, artifacts, followers, workspace, settings, position, pinned, onPinChange, onPointerDown, onPointerMove, onPointerUp, onClose, onCapture, onChangeDevice, mirror, mirrorTransport, workspaceId, leaseRefusal, hasLease, controlLease, dispatch }: { device: DeviceView; devices: readonly DeviceView[]; artifacts: readonly ArtifactView[]; followers: readonly DeviceView[]; workspace: Workspace; settings: ConsoleSettings; position: FloatingPosition; pinned: boolean; onPinChange: (value: boolean) => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLDivElement>) => void; onPointerUp: (event: PointerEvent<HTMLDivElement>) => void; onClose: () => void; onCapture: () => void; onChangeDevice: (deviceId: string) => void; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; leaseRefusal?: string; hasLease: boolean; controlLease?: LeaseView; dispatch: DispatchIntent }) {
+  const session = useLiveMirrorSession({ device, mirror, transport: mirrorTransport, workspaceId, hasLease, controlLease, leaseRefusal, followerDeviceIds: followers.map((follower) => follower.id), dispatch })
   /**
    * Whether the device list is open BESIDE the frame.
    *

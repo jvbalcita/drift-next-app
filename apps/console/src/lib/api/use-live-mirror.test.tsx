@@ -7,7 +7,8 @@ import { describe, expect, it } from "vitest"
 import { create } from "@bufbuild/protobuf"
 import { MirrorStreamSchema, MirrorStreamState, MirrorTransport } from "@/gen/drift/v1/device_mirror_pb"
 import { ConnectJsonError } from "@/lib/api/connect-json"
-import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
+import type { MirrorControlWire } from "@/lib/api/mirror-control-channel"
+import type { LiveControlBinding, LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import type { MirrorPlayback, MirrorPlaybackFactory, MirrorPlaybackRequest } from "@/lib/api/mirror-playback"
 import { boundedMirrorRecoveryReason, defaultMirrorEstablishTimeoutMs, maximumMirrorRecoveryReasonLength, mirrorRetryDelayMs, useLiveMirror, type MirrorSchedule } from "@/lib/api/use-live-mirror"
 import { liveMirrorCopy, livePictureHeld, liveStreamView, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
@@ -166,6 +167,59 @@ interface FakePeer {
   media: MediaStream
 }
 
+describe("opt-in WebRTC control negotiation", () => {
+  it("creates the ordered channel before SDP and binds only the selected lease", async () => {
+    const calls: string[] = []
+    const packets: DataView[] = []
+    const wire: MirrorControlWire = { readyState: "open", send(data) { packets.push(new DataView(data)) }, close() { calls.push("channel-close") } }
+    const peerFactory = () => ({
+      createControlChannel() { calls.push("channel"); return wire },
+      async createOffer() { calls.push("offer"); return "offer-sdp" },
+      async acceptAnswer() { calls.push("answer") },
+      onStream() {},
+      close() { calls.push("peer-close") },
+    })
+    const client = fakeClient()
+    client.client.realtimeControlEnabled = () => true
+    client.client.negotiate = async (_streamId, _offer, _workspace, binding) => {
+      calls.push(`negotiate:${binding?.leaseId ?? "video-only"}`)
+      return { answerSdp: "answer-sdp", stream: stream(), controlGeneration: 9n }
+    }
+    const binding = { sessionId: "session-1", leaseId: "lease-1", holderId: "operator-1", fencingToken: 7n }
+    const view = render(<Harness client={client.client} peerFactory={peerFactory} controlBinding={binding} />)
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("starting"))
+    expect(calls.slice(0, 4)).toEqual(["channel", "offer", "negotiate:lease-1", "answer"])
+    await userEvent.click(screen.getByRole("button", { name: "send realtime touch" }))
+    expect(packets.map((packet) => packet.getUint8(1))).toEqual([1, 3])
+    view.unmount()
+    expect(calls).toContain("channel-close")
+  })
+
+  it("keeps video when the control binding is refused", async () => {
+    const calls: string[] = []
+    const wire: MirrorControlWire = { readyState: "open", send() {}, close() { calls.push("channel-close") } }
+    const peerFactory = () => ({
+      createControlChannel() { return wire },
+      async createOffer() { return "offer-sdp" },
+      async acceptAnswer() {},
+      onStream() {},
+      close() {},
+    })
+    const client = fakeClient()
+    client.client.realtimeControlEnabled = () => true
+    client.client.negotiate = async (_streamId, _offer, _workspace, binding) => {
+      calls.push(binding ? "control" : "video-only")
+      if (binding) throw new ConnectJsonError("permission_denied", "lease refused")
+      return { answerSdp: "answer-sdp", stream: stream() }
+    }
+    render(<Harness client={client.client} peerFactory={peerFactory} controlBinding={{ sessionId: "session-1", leaseId: "lease-1", holderId: "operator-1", fencingToken: 7n }} />)
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("starting"))
+    expect(calls).toEqual(["control", "channel-close", "video-only"])
+    await userEvent.click(screen.getByRole("button", { name: "send realtime touch" }))
+    expect(calls).toEqual(["control", "channel-close", "video-only"])
+  })
+})
+
 function fakePeer(): FakePeer {
   const calls: string[] = []
   const media = {} as MediaStream
@@ -179,14 +233,15 @@ function fakePeer(): FakePeer {
   return { factory: () => peer, calls, emitStream: () => listener?.(media), media }
 }
 
-function Harness({ client, peerFactory, playbackFactory, transport, purpose, deviceId = "device-1", schedule, pollIntervalMs = 5, pollRetryCeilingMs, reopenLimit }: { client?: LiveMirrorClient; peerFactory?: FakePeer["factory"]; playbackFactory?: MirrorPlaybackFactory; transport?: LiveMirrorTransportChoice; purpose?: LiveMirrorViewerPurpose; deviceId?: string; schedule?: MirrorSchedule; pollIntervalMs?: number; pollRetryCeilingMs?: number; reopenLimit?: number }) {
-  const session = useLiveMirror(deviceId, { client, peerFactory, playbackFactory, transport, purpose, workspaceId: "workspace-lab-local", pollIntervalMs, pollFailureLimit: 2, schedule, pollRetryCeilingMs, reopenLimit })
+function Harness({ client, peerFactory, playbackFactory, transport, purpose, controlBinding, deviceId = "device-1", schedule, pollIntervalMs = 5, pollRetryCeilingMs, reopenLimit }: { client?: LiveMirrorClient; peerFactory?: FakePeer["factory"]; playbackFactory?: MirrorPlaybackFactory; transport?: LiveMirrorTransportChoice; purpose?: LiveMirrorViewerPurpose; controlBinding?: LiveControlBinding; deviceId?: string; schedule?: MirrorSchedule; pollIntervalMs?: number; pollRetryCeilingMs?: number; reopenLimit?: number }) {
+  const session = useLiveMirror(deviceId, { client, peerFactory, playbackFactory, transport, purpose, controlBinding, workspaceId: "workspace-lab-local", pollIntervalMs, pollFailureLimit: 2, schedule, pollRetryCeilingMs, reopenLimit })
   return (
     <div>
       <span data-testid="phase">{session.phase}</span>
       <span data-testid="failure">{session.failure}</span>
       <span data-testid="frames">{session.stream?.frames ?? -1}</span>
       <span data-testid="recovery">{session.recovery.successes}/{session.recovery.attempts}:{session.recovery.lastReason}</span>
+      <button type="button" onClick={() => { const control = session.realtimeControl(); if (control) { control.down({ x: 1, y: 2 }); control.up({ x: 1, y: 2 }) } }}>send realtime touch</button>
       <video data-testid="video" ref={session.attachVideo} />
       <button type="button" onClick={session.stop}>stop</button>
     </div>

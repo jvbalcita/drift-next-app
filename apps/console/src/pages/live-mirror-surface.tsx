@@ -5,8 +5,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
+import type { MirrorGestureSender } from "@/lib/api/mirror-control-channel"
 import { useLiveMirror, type MirrorRecoveryTelemetry } from "@/lib/api/use-live-mirror"
-import type { DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
+import type { DeviceView, DispatchIntent, LeaseView } from "@/lib/domain/control-plane"
 import { drawnContentRect, emptyInputVisiblePerformance, emptyVideoRenderPerformance, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, livePictureHeld, liveStreamDiagnostics, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, summarizeInputVisiblePerformance, summarizeVideoRenderPerformance, transportSentence, videoSignaturesDiffer, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type InputVisiblePerformance, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect, type VideoRenderPerformance } from "@/lib/live-mirror"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import { controlPointerCursor } from "@/lib/control-pointer"
@@ -31,19 +32,17 @@ import { controlPointerCursor } from "@/lib/control-pointer"
  *    states are painted over it, so a stream that ends cannot leave its last
  *    frame on screen looking current: the ended and failed states are opaque and
  *    say what happened;
- *  - intermediate pointer points are compressed. A drag's moves only move the
- *    gesture's end point forward and one action is planned at the release, so a
- *    drag across the frame is one swipe on the device rather than the dozens of
- *    points the browser reported. A wheel is compressed the same way: turns are
- *    accumulated and spent in whole steps of the frame, so a trackpad flick is a
- *    few gestures rather than one per browser event;
+ *  - source-only WebRTC control sends touch-down before release and coalesces
+ *    moves to a bounded latest-value stream. The semantic fallback still turns
+ *    a completed drag into one swipe when control is unavailable or followers
+ *    are selected. A wheel is likewise spent in bounded whole steps;
  *  - the point is mapped through the box the picture is DRAWN in, read off the
  *    video element itself, never through the element's box, and the stage takes
  *    the stream's own aspect so there is normally no bar at all. A tap in a bar
  *    reaches no device - it is refused and named, not scaled onto the frame;
- *  - input is dispatched through the console's dispatch, which is the
- *    lease/fencing/policy/control-session kernel's path, and the render frame
- *    travels with every coordinate. The observation a coordinate is measured from
+ *  - semantic input uses the console's dispatch; opt-in realtime touch uses a
+ *    channel bound to the same lease/fencing/policy/control-session kernel. The
+ *    render frame travels with every coordinate. The observation a coordinate is measured from
  *    is the frame's OWN live stream (`streamObservationToken`), because the point
  *    is read off a picture that stream carried; the kernel still cross-checks the
  *    declared frame against the size the device presents at. The surface refuses
@@ -70,6 +69,8 @@ export interface LiveMirrorSurfaceProps {
   workspaceId: string
   /** hasLease is whether this console holds this device's active control lease. */
   hasLease: boolean
+  /** The exact current operator lease; absent still permits video-only viewing. */
+  controlLease?: LeaseView
   /**
    * leaseRefusal is the control plane's own answer when opening this frame's
    * control session or acquiring its lease did not leave the console holding the
@@ -169,9 +170,26 @@ export interface LiveMirrorSessionView {
  * and named, and the kernel cross-checks the declared frame against the size the
  * device presents at before anything reaches it.
  */
-export function useLiveMirrorSession({ device, mirror, transport = "webrtc", workspaceId, hasLease, leaseRefusal = "", followerDeviceIds = [], dispatch }: LiveMirrorSurfaceProps): LiveMirrorSessionView {
+export function useLiveMirrorSession({ device, mirror, transport = "webrtc", workspaceId, hasLease, controlLease, leaseRefusal = "", followerDeviceIds = [], dispatch }: LiveMirrorSurfaceProps): LiveMirrorSessionView {
   const reducedMotion = useReducedMotion()
-  const { phase, stream, failure, recovery, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport, purpose: "operator" })
+  const controlBinding = controlLease && Number.isSafeInteger(controlLease.fencingToken) && controlLease.fencingToken > 0
+    ? { sessionId: controlLease.controlSessionId, leaseId: controlLease.id, holderId: controlLease.holder, fencingToken: BigInt(controlLease.fencingToken) }
+    : undefined
+  const { phase, stream, failure, recovery, attachVideo, retry, stop, realtimeControl, negotiatedControlKey } = useLiveMirror(device.id, { client: mirror, workspaceId, transport, purpose: "operator", controlBinding })
+  const leaseKey = controlBinding ? `${controlBinding.sessionId}:${controlBinding.leaseId}:${controlBinding.fencingToken}` : ""
+  const rearmedLeaseKey = useRef("")
+  const previousLeaseKey = useRef(leaseKey)
+  useEffect(() => {
+    const changed = previousLeaseKey.current !== leaseKey
+    previousLeaseKey.current = leaseKey
+    if (!leaseKey) { rearmedLeaseKey.current = ""; return }
+    // The frame can open before its lease arrives. Re-negotiate once on that
+    // authority transition; ordinary snapshot refreshes do not restart video.
+    if (transport === "webrtc" && mirror?.realtimeControlEnabled?.() && (changed || negotiatedControlKey() !== leaseKey) && rearmedLeaseKey.current !== leaseKey && (phase === "live" || phase === "starting")) {
+      rearmedLeaseKey.current = leaseKey
+      retry()
+    }
+  }, [leaseKey, mirror, negotiatedControlKey, phase, retry, transport])
   const frame = liveStreamFrame(stream)
   const video = useRef<HTMLVideoElement | null>(null)
   const { value: renderPerformance, inputVisible: inputVisiblePerformance, attach: attachRenderPerformance, beginInput, settleInput } = useVideoRenderPerformance()
@@ -187,7 +205,7 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
   // renders it either: the frame's own focus ring is the state an operator sees,
   // and the info control states how the keyboard is given back.
   const holdKeyboard = useRef(false)
-  const gesture = useRef<{ down: PointerSample; last: PointerSample } | null>(null)
+  const gesture = useRef<{ down: PointerSample; last: PointerSample; realtime: MirrorGestureSender | null } | null>(null)
   const pendingScroll = useRef<FrameScroll>({ x: 0, y: 0 })
   const [notice, setNotice] = useState("")
   const [refusal, setRefusal] = useState("")
@@ -216,12 +234,21 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
 
   const inputBlockedReason = !hasLease
     ? liveMirrorCopy.input.noLease
-    : coordinateObservation === ""
-      ? liveMirrorCopy.input.noObservation
-      : frame === null
-        ? liveMirrorCopy.input.noFrame
-        : ""
+    : phase === "unreadable"
+      ? liveMirrorCopy.input.unreadable
+      : coordinateObservation === ""
+        ? liveMirrorCopy.input.noObservation
+        : frame === null
+          ? liveMirrorCopy.input.noFrame
+          : ""
   const inputReady = inputBlockedReason === "" && sessionOpen
+
+  useEffect(() => {
+    if (inputReady || !gesture.current) return
+    const current = gesture.current
+    gesture.current = null
+    current.realtime?.cancel(current.last)
+  }, [inputReady])
 
   /**
    * picture is the two DOM facts the mapping needs, read at the moment a pointer
@@ -377,24 +404,36 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     setRefusal("")
     setNotice("")
     const atMs = event.timeStamp
-    gesture.current = { down: { x: point.x, y: point.y, atMs }, last: { x: point.x, y: point.y, atMs } }
+    // Followers still use the semantic fan-out until the realtime follower
+    // workers exist. Only a source-only gesture may take this lower-latency path.
+    const candidate = followerDeviceIds.length === 0 && frame ? realtimeControl() : null
+    const realtime = candidate?.matchesFrame(frame!.width, frame!.height) && candidate.down(point) ? candidate : null
+    gesture.current = { down: { x: point.x, y: point.y, atMs }, last: { x: point.x, y: point.y, atMs }, realtime }
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }
 
   const movePointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     const current = gesture.current
     if (!current) return
+    if (!inputReady) { cancelPointer(); return }
     const point = pointOf(event)
     // A point that left the surface does not move the gesture, and nothing is
     // dispatched here at all: this is the compression, not an optimization.
     if (!point.ok) return
     current.last = { x: point.x, y: point.y, atMs: event.timeStamp }
+    if (current.realtime && !current.realtime.move(point)) setRefusal("Live input disconnected; release this gesture and try again.")
   }
 
   const endPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     const current = gesture.current
     gesture.current = null
     if (!current || !frame) return
+    if (current.realtime) {
+      const released = pointOf(event)
+      const point = released.ok ? released : current.last
+      if (!current.realtime.up(point)) setRefusal("Live input disconnected; this gesture was safely released.")
+      return
+    }
     const threshold = gestureThresholdFor(drawnRect(), frame)
     const plan = planGesture({ down: current.down, last: current.last, releasedAtMs: event.timeStamp }, frame, threshold)
     if (plan.kind === "refused") {
@@ -407,6 +446,8 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
   }
 
   const cancelPointer = () => {
+    const current = gesture.current
+    if (current?.realtime) current.realtime.cancel(current.last)
     gesture.current = null
   }
 
