@@ -946,3 +946,36 @@ func TestReadAccessUnitContextReturnsTheDevicesPackets(t *testing.T) {
 		t.Fatalf("the packet's timestamp is %d, want the device's own %d", unit.PTSUS, 22265830649)
 	}
 }
+
+// A device may pause in the middle of one packet while an application opens or
+// closes. Polling for cancellation must not discard bytes already read from the
+// socket, or the next poll mistakes the packet tail for a new header.
+func TestReadAccessUnitContextPreservesAPacketAcrossPollDeadlines(t *testing.T) {
+	video, device := net.Pipe()
+	defer video.Close()
+	defer device.Close()
+	session := &Session{video: video, closed: make(chan struct{})}
+	payload := []byte{0, 0, 0, 1, 0x65, 0xb8, 0x48}
+	packet := frame(payload, true, 1234)
+	go func() {
+		_, _ = device.Write(packet[:5])
+		time.Sleep(readPollInterval + 50*time.Millisecond)
+		_, _ = device.Write(packet[5 : PacketHeaderSize+2])
+		time.Sleep(readPollInterval + 50*time.Millisecond)
+		_, _ = device.Write(packet[PacketHeaderSize+2:])
+		_, _ = device.Write(frame([]byte{0, 0, 0, 1, 0x21}, false, 1235))
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	unit, err := session.ReadAccessUnitContext(ctx)
+	if err != nil {
+		t.Fatalf("a delayed packet ended the live stream: %v", err)
+	}
+	if !unit.Key || unit.PTSUS != 1234 || !bytes.Equal(unit.Data, payload) {
+		t.Fatalf("decoded unit = %+v, want the intact delayed key frame", unit)
+	}
+	next, err := session.ReadAccessUnitContext(ctx)
+	if err != nil || next.Key || next.PTSUS != 1235 {
+		t.Fatalf("stream did not continue after the delayed packet: unit=%+v err=%v", next, err)
+	}
+}
