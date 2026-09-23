@@ -1100,6 +1100,8 @@ export interface LiveStreamAnswer {
  * service's own stream identity, which is the whole of what the frames hang off.
  */
 export interface LiveMirrorClient {
+  /** The actor this client uses for its viewing and negotiation claims. */
+  controlOperatorId?(): string
   /**
    * startStream opens one device's live stream over the transport the operator
    * chose. The transport is asked for by name rather than left to the control
@@ -1146,6 +1148,7 @@ export class DeviceMirrorClient implements LiveMirrorClient {
     this.json = json
     this.operatorId = operatorId
   }
+  controlOperatorId(): string { return this.operatorId }
   async startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice; purpose: LiveMirrorViewerPurpose; preview?: LiveMirrorPreview }): Promise<LiveStreamView> {
     const requestId = newRequestId()
     // The workspace's preview setting travels with the viewer that stated it and

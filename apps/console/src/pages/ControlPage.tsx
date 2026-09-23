@@ -389,7 +389,8 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
    * own business now - the live stream it draws - so nothing about it is read
    * here.
    */
-  const sourceLease = source ? snapshot.leases.some((candidate) => candidate.deviceId === source.id && candidate.state === "active") : false
+  const mirrorOperator = mirror?.controlOperatorId?.()
+  const sourceLease = source ? snapshot.leases.some((candidate) => candidate.deviceId === source.id && candidate.state === "active" && (!mirrorOperator || candidate.holder === mirrorOperator)) : false
   const deviceModal = source ? <FloatingDevice device={source} devices={snapshot.devices} artifacts={snapshot.artifacts} followers={followers} workspace={workspace} settings={settings} position={position} pinned={modalPinned} onPinChange={setModalPinned} onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onClose={() => { void reportDispatch(dispatch, { type: "endDeviceControl", deviceId: source.id }, showToastMessage); setSourceId(null); setFollowerIds([]); setControlRefusal("") }} onCapture={captureDeviceScreen} onChangeDevice={changeSource} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} leaseRefusal={controlRefusal} hasLease={sourceLease} dispatch={dispatch} /> : null
   const selectedCount = (source ? 1 : 0) + followers.length
   /**

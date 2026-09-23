@@ -1344,6 +1344,22 @@ describe("ControlPage big-frame device commands", () => {
     expect(within(details).getByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.noLease)
   })
 
+  it("does not treat another operator's active lease as this frame's authority", async () => {
+    const user = userEvent.setup({ delay: null })
+    const client = new MockControlPlaneClient()
+    const snapshot = client.getSnapshot()
+    const intents: ControlPlaneIntent[] = []
+    const mirror = fakeMirror().client
+    mirror.controlOperatorId = () => "another-operator"
+    render(<ControlPage snapshot={snapshot} dispatch={async (intent) => { intents.push(intent); return client.dispatch(intent) }} mirror={mirror} />)
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+    expect(within(controls).getByRole("button", { name: "Volume Up" })).toBeDisabled()
+    expect(intents.some((intent) => intent.type === "submitDeviceKeyEvent")).toBe(false)
+    await user.click(screen.getByTestId("live-mirror-info"))
+    expect(within(await screen.findByTestId("live-mirror-details")).getByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.noLease)
+  })
+
   it("moves the frame's control session to another device through the control plane", async () => {
     const user = userEvent.setup({ delay: null })
     const { intents } = frameHarness()
