@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"sync"
 	"time"
@@ -135,6 +136,10 @@ type liveGestureAttempt struct {
 	stop      func() bool
 	finish    sync.Once
 	finishErr error
+	mu        sync.Mutex
+	last      media.MirrorInput
+	pressed   bool
+	released  bool
 }
 
 func (h *liveGestureHandler) handle(ctx context.Context, message media.MirrorControlMessage) error {
@@ -183,15 +188,22 @@ func (h *liveGestureHandler) handle(ctx context.Context, message media.MirrorCon
 		}
 		attempt := &liveGestureAttempt{id: id, gesture: message.GestureID, started: time.Now()}
 		h.active = attempt
-		attempt.stop = context.AfterFunc(ctx, func() { _ = h.finishAttempt(attempt) })
+		attempt.stop = context.AfterFunc(ctx, func() {
+			if err := h.releaseAttempt(attempt); err != nil {
+				log.Printf("live mirror safety release for %s failed: %v", h.binding.DeviceID, err)
+			}
+			_ = h.finishAttempt(attempt)
+		})
 	} else if h.active == nil || h.active.gesture != message.GestureID {
 		return errors.New("mirror: touch event does not belong to an authorized gesture")
 	}
-	if err := h.control.engine.Input(ctx, h.binding.DeviceID, input); err != nil {
-		if h.active != nil {
-			_ = h.finishAttempt(h.active)
+	attempt := h.active
+	if err := h.sendPhysical(ctx, attempt, input); err != nil {
+		h.active = nil
+		if attempt.stop != nil {
+			attempt.stop()
 		}
-		return err
+		return errors.Join(err, h.releaseAttempt(attempt), h.finishAttempt(attempt))
 	}
 	if message.Final {
 		attempt := h.active
@@ -202,6 +214,43 @@ func (h *liveGestureHandler) handle(ctx context.Context, message media.MirrorCon
 		return h.finishAttempt(attempt)
 	}
 	return nil
+}
+
+func (h *liveGestureHandler) sendPhysical(ctx context.Context, attempt *liveGestureAttempt, input media.MirrorInput) error {
+	attempt.mu.Lock()
+	defer attempt.mu.Unlock()
+	if attempt.released {
+		return errors.New("mirror: live touch has already been released")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := h.control.engine.Input(ctx, h.binding.DeviceID, input); err != nil {
+		return err
+	}
+	attempt.pressed = true
+	attempt.last = input
+	if input.Kind == media.MirrorInputTouchUp || input.Kind == media.MirrorInputTouchCancel {
+		attempt.released = true
+	}
+	return nil
+}
+
+// A channel ending mid-gesture cannot leave the device holding a finger down.
+// This is only a release of an already-authorized touch, never a new gesture.
+func (h *liveGestureHandler) releaseAttempt(attempt *liveGestureAttempt) error {
+	attempt.mu.Lock()
+	if !attempt.pressed || attempt.released {
+		attempt.mu.Unlock()
+		return nil
+	}
+	attempt.released = true
+	input := attempt.last
+	input.Kind = media.MirrorInputTouchCancel
+	attempt.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	return h.control.engine.Input(ctx, h.binding.DeviceID, input)
 }
 
 // A completed transport send does not prove the UI changed. Persist an honest

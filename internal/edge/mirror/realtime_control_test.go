@@ -187,8 +187,49 @@ func TestRevokedLeaseClosesGestureWithoutAnotherPhysicalEvent(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("closed channel left the dispatched gesture unaudited")
 	}
-	if len(sessions.inputs) != 1 {
-		t.Fatalf("physical inputs = %d, want only touch-down", len(sessions.inputs))
+	if len(sessions.inputs) != 2 || sessions.inputs[1].Kind != media.MirrorInputTouchCancel {
+		t.Fatalf("physical inputs = %#v, want touch-down then one safety release", sessions.inputs)
+	}
+}
+
+func TestClosingTheControlChannelReleasesAHeldTouch(t *testing.T) {
+	_, peer, kernel, sessions, _, generation := controlTestHarness(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := peer.handler(ctx, controlTestMessage(media.MirrorControlTouchDown, generation, 1)); err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	select {
+	case <-kernel.finished:
+	case <-time.After(time.Second):
+		t.Fatal("closed channel left the held touch without a durable outcome")
+	}
+	if len(sessions.inputs) != 2 || sessions.inputs[1].Kind != media.MirrorInputTouchCancel {
+		t.Fatalf("physical inputs = %#v, want touch-down then one safety release", sessions.inputs)
+	}
+}
+
+func TestSafetyReleaseUsesTheLastDeliveredMove(t *testing.T) {
+	_, peer, kernel, sessions, _, generation := controlTestHarness(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := peer.handler(ctx, controlTestMessage(media.MirrorControlTouchDown, generation, 1)); err != nil {
+		t.Fatal(err)
+	}
+	move := controlTestMessage(media.MirrorControlTouchMove, generation, 2)
+	move.X, move.Y = 360, 720
+	if err := peer.handler(ctx, move); err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	select {
+	case <-kernel.finished:
+	case <-time.After(time.Second):
+		t.Fatal("held touch was not finalized")
+	}
+	if len(sessions.inputs) != 3 || sessions.inputs[2].Kind != media.MirrorInputTouchCancel || sessions.inputs[2].X != 360 || sessions.inputs[2].Y != 720 {
+		t.Fatalf("physical inputs = %#v, want one release at the last delivered move", sessions.inputs)
 	}
 }
 
