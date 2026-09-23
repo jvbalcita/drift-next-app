@@ -83,7 +83,7 @@ func (e *controlTestEvidence) Append(_ context.Context, record store.ActionEvide
 }
 
 func controlTestBinding() media.MirrorControlBinding {
-	return media.MirrorControlBinding{WorkspaceID: "workspace", DeviceID: "device-1", SessionID: "session-1", LeaseID: "lease-1", HolderID: "holder-1", FencingToken: 7, ActorType: "operator", ActorID: "operator-1"}
+	return media.MirrorControlBinding{WorkspaceID: "workspace", DeviceID: "device-1", SessionID: "session-1", LeaseID: "lease-1", HolderID: "operator-1", FencingToken: 7, ActorType: "operator", ActorID: "operator-1"}
 }
 
 func controlTestMessage(kind media.MirrorControlEventKind, generation, sequence uint64) media.MirrorControlMessage {
@@ -118,6 +118,27 @@ func TestLiveControlRevokesIdleChannelAfterLeaseLoss(t *testing.T) {
 	case <-peer.ControlDone():
 	case <-time.After(time.Second):
 		t.Fatal("idle control remained armed after lease revocation")
+	}
+}
+
+func TestLiveControlRefusesAViewingWhoseOperatorDoesNotHoldTheLease(t *testing.T) {
+	binding := controlTestBinding()
+	binding.HolderID = "another-operator"
+	peer := &controlTestPeer{
+		stats: media.StreamStats{StreamKey: "stream-1", DeviceID: binding.DeviceID, RenderWidth: 1080, RenderHeight: 1920},
+		claim: media.MirrorViewingClaim{WorkspaceID: binding.WorkspaceID, ActorType: binding.ActorType, ActorID: binding.ActorID},
+	}
+	kernel := &controlTestKernel{finished: make(chan action.Completion, 1)}
+	control, err := NewRealtimeControl(kernel, &controlTestSessions{}, ids.NewSequence("attempt-1"), &controlTestEvidence{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := control.Bind(context.Background(), peer, binding); err == nil {
+		peer.RevokeControl()
+		t.Fatal("another operator's lease armed realtime input")
+	}
+	if peer.handler != nil || kernel.validations != 0 {
+		t.Fatalf("unauthorized binding reached handler=%t validations=%d", peer.handler != nil, kernel.validations)
 	}
 }
 

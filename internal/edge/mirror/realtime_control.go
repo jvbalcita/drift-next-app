@@ -63,6 +63,11 @@ func (c *RealtimeControl) Bind(ctx context.Context, peer media.MirrorControlPeer
 	if !peer.ViewingClaimMatches(claim) {
 		return 0, errors.New("mirror: realtime control does not match the opening viewing")
 	}
+	// A stream opened by one operator must not borrow another holder's active
+	// lease merely because its ID and fence were supplied in negotiation.
+	if binding.HolderID == "" || binding.HolderID != binding.ActorID {
+		return 0, platformerrors.New(platformerrors.CodeLeaseConflict, "live control requires the viewing operator's own lease")
+	}
 	stats := peer.Stats()
 	if stats.DeviceID != binding.DeviceID || stats.RenderWidth <= 0 || stats.RenderHeight <= 0 || stats.StreamKey == "" {
 		return 0, errors.New("mirror: realtime control requires the selected stream's active render frame")
