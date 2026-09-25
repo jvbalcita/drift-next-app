@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -35,6 +36,9 @@ import (
 const (
 	envControlPlaneDB  = "DRIFT_CONTROL_PLANE_DB"
 	envArtifactCASRoot = "DRIFT_ARTIFACT_CAS_ROOT"
+	// An opt-in rollout gate: older consoles keep video-only negotiation, and
+	// realtime control is not exposed until a deployment enables this path.
+	envLiveMirrorControl = "DRIFT_LIVE_MIRROR_CONTROL"
 	// envTransferRoot points at the host directory a catalogued device file
 	// operation materializes a push under. It is a deployment input rather than
 	// a constant because the path has to be one the device adapter's own
@@ -255,11 +259,40 @@ func main() {
 	} else {
 		log.Printf("%s", gridSettings.Report())
 	}
+	// The live and grid paths share the one deployment-configured scrcpy dialer.
+	// A grid with persistent previews receives only the capture interface and never
+	// exposes the stream's input methods; the live mirror keeps its own session
+	// ownership and authorization boundary.
+	mirrorDialer, mirrorDialerErr := mirror.NewDialerFromEnv(os.LookupEnv, labService.DeviceTransport())
+	var frameCapturer media.FrameCapturer = labService.FrameTransport()
+	var streamPreview *media.StreamPreviewCapturer
+	if gridSettingsErr == nil && gridSettings.StreamPreviews {
+		if mirrorDialerErr != nil {
+			gridSettingsErr = fmt.Errorf("persistent grid previews require the live mirror dialer: %w", mirrorDialerErr)
+		} else if decoder, err := media.NewFFmpegPreviewDecoder(gridSettings.FFmpegPath); err != nil {
+			gridSettingsErr = err
+		} else {
+			streamPreview, gridSettingsErr = media.NewStreamPreviewCapturer(media.StreamPreviewCapturerConfig{
+				Dialer: mirrorDialer, Decoder: decoder, MaxWorkers: gridSettings.MaxDevices,
+				Preview: media.MirrorPreview{Quality: media.PreviewLow, FrameRate: 1},
+			})
+			if gridSettingsErr == nil {
+				frameCapturer = streamPreview
+			}
+		}
+	}
+	if gridSettingsErr != nil {
+		log.Printf("grid preview surface not mounted: %v", gridSettingsErr)
+	}
 	frameEngine, frameEngineErr := media.NewFrameEngine(media.FrameEngineConfig{
-		Capturer:       labService.FrameTransport(),
-		Interval:       gridSettings.Cadence,
-		Profile:        gridSettings.Profile,
-		MaxSubscribers: gridSettings.MaxDevices,
+		Capturer:           frameCapturer,
+		Interval:           gridSettings.Cadence,
+		Profile:            gridSettings.Profile,
+		MaxSubscribers:     gridSettings.MaxDevices,
+		ConcurrentCaptures: gridSettings.ConcurrentCaptures,
+		ActiveInterval:     gridSettings.ActiveCadence,
+		IdleInterval:       gridSettings.IdleCadence,
+		FreshnessCeiling:   gridSettings.FreshnessCeiling,
 	})
 	if frameEngineErr != nil {
 		log.Printf("frame engine not started: %v", frameEngineErr)
@@ -283,7 +316,10 @@ func main() {
 	// no allow-listed runner - says so in the startup line instead of leaving an
 	// operator with a frame that shows nothing and no diagnosis: the same rule
 	// that made "no default network profile" a one-look answer.
-	mirrorEngine, mirrorErr := mirrorEngineFrom(labService)
+	mirrorEngine, mirrorErr := mirrorEngineFrom(mirrorDialer, mirrorDialerErr)
+	if frameEngine != nil && mirrorEngine != nil {
+		frameEngine.SetLiveHold(mirrorEngine.HasLiveSerial)
+	}
 	mirrorHost := media.NewMirrorHost(media.MirrorHostConfig{Engine: mirrorEngine, Reason: mirrorErr})
 	log.Printf("%s", mirrorHost.State())
 	mirrorDone := make(chan struct{})
@@ -333,7 +369,7 @@ func main() {
 	} else {
 		log.Printf("device file transfer directory resolved at %s", transferRoot)
 	}
-	dispatcher, dispatcherErr := deviceInputDispatcher(labService, actionRuntime, textReferences, db, fileArtifacts, transferRoot)
+	dispatcher, dispatcherErr := deviceInputDispatcher(labService, actionRuntime, textReferences, db, fileArtifacts, transferRoot, mirrorEngine)
 	if dispatcherErr != nil {
 		log.Printf("device dispatch path not constructed: %v", dispatcherErr)
 	}
@@ -356,6 +392,7 @@ func main() {
 	fanoutExecutor, executorErr := followerFanoutExecutor(fanout, db)
 	if executorErr != nil {
 		log.Printf("follower fan-out not carried: %v", executorErr)
+		fanout = nil
 	}
 	fanoutDone := make(chan struct{})
 	if fanoutExecutor != nil {
@@ -424,7 +461,7 @@ func main() {
 		log.Printf("live mirror transport not started: %v", streamsErr)
 	}
 	mirrorMounted := false
-	if mirrorRoute := deviceMirrorRoute(mirrorStreams, mirrorEngine, actionRuntime, store.NewMirrorEventService(db), labToken); mirrorRoute.Path != "" {
+	if mirrorRoute := deviceMirrorRoute(mirrorStreams, mirrorEngine, actionRuntime, store.NewMirrorEventService(db), db, fanout, labToken); mirrorRoute.Path != "" {
 		routes = append(routes, mirrorRoute)
 		mirrorMounted = true
 	}
@@ -438,6 +475,15 @@ func main() {
 		streamEndpointMounted = true
 	}
 	log.Printf("live mirror stream endpoint %s at %s (a browser is given a per-device path on this service's own guarded surface; the loopback bind and the token check above are what stand in front of it)", mountState(streamEndpointMounted), transportconnect.MirrorStreamPath)
+	h264Mounted := false
+	for _, route := range service.MirrorH264Routes(mirrorStreamPort{transport: mirrorStreams}, labToken) {
+		if route.Path == "" {
+			continue
+		}
+		routes = append(routes, route)
+		h264Mounted = true
+	}
+	log.Printf("live mirror raw H.264 WebSocket %s at %s (ticket minting uses the lab-token header and a supported local console origin; tickets are one-use and short-lived)", mountState(h264Mounted), transportconnect.MirrorH264SocketPath)
 	// The fleet grid's still previews: the surface that carries a still for EVERY
 	// device without spending a device session, so the operator's own frame keeps
 	// the one live session it needs. It is mounted only when the capture set was
@@ -507,12 +553,39 @@ func mirrorStreamTransport(engine *media.MirrorEngine, engineErr error) (*media.
 // The resolver is the same registry the input surface resolves devices through:
 // one vocabulary decides which transport a device is currently reachable at, and
 // the browser never names or receives one.
-func deviceMirrorRoute(streams *media.StreamTransport, engine *media.MirrorEngine, resolver transportconnect.DeviceSerialResolver, refusals transportconnect.MirrorRefusalRecorder, token string) service.Route {
+func deviceMirrorRoute(streams *media.StreamTransport, engine *media.MirrorEngine, resolver transportconnect.DeviceSerialResolver, refusals transportconnect.MirrorRefusalRecorder, db *store.DB, fanout *execution.FollowerFanout, token string) service.Route {
 	if streams == nil {
 		log.Print("live mirror surface not mounted: no stream transport was constructed")
 		return service.Route{}
 	}
-	return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
+	if db == nil {
+		log.Print("live control channel not armed: no action-safety store was constructed")
+		return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
+	}
+	if !liveMirrorControlEnabled(os.Getenv(envLiveMirrorControl)) {
+		log.Print("live control channel disabled: set DRIFT_LIVE_MIRROR_CONTROL=false was explicit")
+		return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
+	}
+	if fanout == nil {
+		log.Print("live control channel not armed: the follower fan-out executor is unavailable")
+		return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
+	}
+	control, err := mirror.NewRealtimeControl(store.NewActionService(db), engine, db.IDs(), store.NewActionEvidenceService(db), mirror.WithRealtimeFollowerFanout(fanout))
+	if err != nil {
+		log.Printf("live control channel not armed: %v", err)
+		return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
+	}
+	return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token, control)
+}
+
+func liveMirrorControlEnabled(value string) bool {
+	// Unset defaults on: follow-the-finger TouchMove needs the data channel armed.
+	// Explicit false stays the rollout kill-switch.
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return true
+	}
+	return !strings.EqualFold(trimmed, "false") && !strings.EqualFold(trimmed, "0") && !strings.EqualFold(trimmed, "off")
 }
 
 // gridPreviewRoute builds the fleet grid's still surface, or an empty Route when
@@ -601,10 +674,12 @@ func mirrorMountState(mounted bool) string {
 // allow-list admission every other device command in this process passes. The
 // engine it returns is owned by the caller - the process - and the composition's
 // MirrorHost is what stops it.
-func mirrorEngineFrom(labService *lab.Service) (*media.MirrorEngine, error) {
-	dialer, err := mirror.NewDialerFromEnv(os.LookupEnv, labService.DeviceTransport())
-	if err != nil {
-		return nil, err
+func mirrorEngineFrom(dialer media.MirrorDialer, dialerErr error) (*media.MirrorEngine, error) {
+	if dialerErr != nil {
+		return nil, dialerErr
+	}
+	if dialer == nil {
+		return nil, platformerrors.New(platformerrors.CodeUnavailable, "the live mirror dialer was not constructed")
 	}
 	// The bound is decided HERE and nowhere else. It is the plane's own
 	// device-session capacity, stated at composition from the deployment's
@@ -700,7 +775,7 @@ func observationSource(labService *lab.Service) execution.ObservationSourceFacto
 // because the dispatcher owns one serialized actor per device: two dispatchers
 // would be two actors for one device, and the per-device serialization the actor
 // exists to provide would be defeated by having two of them.
-func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry, textReferences *execution.TextReferenceRegistry, db *store.DB, artifactSource *transportconnect.DeviceArtifactSource, transferRoot string) (*execution.InputDispatcher, error) {
+func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry, textReferences *execution.TextReferenceRegistry, db *store.DB, artifactSource *transportconnect.DeviceArtifactSource, transferRoot string, mirrorEngine *media.MirrorEngine) (*execution.InputDispatcher, error) {
 	transport, err := execution.NewInputTransportFromAllowlisted(labService.DeviceTransport())
 	if err != nil {
 		return nil, err
@@ -726,6 +801,17 @@ func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry
 		execution.WithEvidenceRecorder(store.NewActionEvidenceService(db)),
 		execution.WithOperationDepartureObserver(departures),
 	}
+	delivery, deliveryErr := mirrorInputDelivery(mirrorEngine)
+	if deliveryErr != nil {
+		return nil, deliveryErr
+	}
+	if delivery != nil {
+		// This is only a delivery choice after the existing kernel has
+		// authorized and dispatched the typed attempt. A device with no live
+		// session continues through the allow-listed argv path; a device being
+		// mirrored uses its already-open scrcpy control socket.
+		options = append(options, execution.WithMirrorDelivery(delivery))
+	}
 	if strings.TrimSpace(transferRoot) != "" {
 		options = append(options, execution.WithOperationTransferRoot(transferRoot))
 	}
@@ -737,7 +823,7 @@ func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry
 	}
 	return execution.NewInputDispatcher(
 		store.NewActionService(db),
-		execution.NewStoreControlProbe(db, deviceState),
+		execution.NewStoreControlProbe(db, deviceState, delivery),
 		observer,
 		transport,
 		// The typed-text resolver: the same registry the registration surface
@@ -747,6 +833,17 @@ func deviceInputDispatcher(labService *lab.Service, resolver *execution.Registry
 		textReferences,
 		options...,
 	)
+}
+
+// mirrorInputDelivery binds the dispatcher to the live engine when this
+// deployment constructed one. No engine is a supported deployment shape: the
+// input surface still runs through its allow-listed argv path, so absence is
+// represented by no option rather than by a delivery that refuses everything.
+func mirrorInputDelivery(engine *media.MirrorEngine) (execution.MirrorDelivery, error) {
+	if engine == nil {
+		return nil, nil
+	}
+	return mirror.NewInputDelivery(engine)
 }
 
 // deviceTransferRoot resolves the host directory a catalogued device file

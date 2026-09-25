@@ -105,7 +105,7 @@ export function StillTile({ device, tile, profile, orientation }: StillTileProps
       role={gridStillClassified(tile) ? "alert" : undefined}
       title={sentence.long}
       aria-label={sentence.long}
-      className="pointer-events-none absolute inset-x-0 bottom-8 flex items-center justify-center gap-1 px-1 text-[8px] font-semibold uppercase tracking-wide text-white/90"
+      className={tile.state === "current" ? "sr-only" : "pointer-events-none absolute inset-x-0 bottom-8 flex items-center justify-center gap-1 px-1 text-[8px] font-semibold uppercase tracking-wide text-white/90"}
     >
       {tile.state === "current" ? <span aria-hidden="true" className="inline-block size-1.5 bg-emerald-400" /> : null}
       <span>{sentence.short}</span>

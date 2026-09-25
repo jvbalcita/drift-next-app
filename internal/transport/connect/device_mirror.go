@@ -68,6 +68,15 @@ type DeviceMirrorStream interface {
 	Close() error
 }
 
+// DeviceMirrorClaimedStream is a WebRTC viewing whose opener is bound to its
+// lifetime. Only a claimed viewing may negotiate a peer or later bind control.
+type DeviceMirrorClaimedStream interface {
+	DeviceMirrorStream
+	ClaimViewing(media.MirrorViewingClaim) error
+	ViewingClaimMatches(media.MirrorViewingClaim) bool
+	ControlBound() bool
+}
+
 // DeviceMirrorEndpointStream is a stream carried as bytes from this service's
 // own stream endpoint rather than negotiated peer-to-peer: the browser fetches
 // MirrorStreamPath and the response body is the container.
@@ -397,13 +406,21 @@ func mirrorStreamProto(stream DeviceMirrorStream) *driftv1.MirrorStream {
 		failure = ""
 	}
 	message := &driftv1.MirrorStream{
-		StreamId:  stream.StreamKey(),
-		DeviceId:  stats.DeviceID,
-		Transport: driftv1.MirrorTransport_MIRROR_TRANSPORT_WEBRTC,
-		State:     state,
-		Failure:   failure,
-		Frames:    stats.Frames,
-		KeyFrames: stats.KeyFrames,
+		StreamId:        stream.StreamKey(),
+		DeviceId:        stats.DeviceID,
+		Transport:       driftv1.MirrorTransport_MIRROR_TRANSPORT_WEBRTC,
+		State:           state,
+		Failure:         failure,
+		Frames:          stats.Frames,
+		KeyFrames:       stats.KeyFrames,
+		Bytes:           stats.Bytes,
+		ConnectionState: stats.ConnectionState,
+	}
+	if !stats.StartedAt.IsZero() {
+		message.StartedAtUnixMillis = stats.StartedAt.UnixMilli()
+	}
+	if !stats.LastFrameAt.IsZero() {
+		message.LastFrameAtUnixMillis = stats.LastFrameAt.UnixMilli()
 	}
 	// A stream that serves its own bytes from the stream endpoint is the TCP
 	// transport, and what the browser is given to reach it is that endpoint and

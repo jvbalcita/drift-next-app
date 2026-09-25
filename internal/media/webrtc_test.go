@@ -136,6 +136,17 @@ func (b *browser) accept(t *testing.T, answerSDP string) {
 	}
 }
 
+func (b *browser) controlChannel(t *testing.T) (*webrtc.DataChannel, <-chan struct{}) {
+	t.Helper()
+	channel, err := b.pc.CreateDataChannel(MirrorControlChannelLabel, nil)
+	if err != nil {
+		t.Fatalf("create the browser control channel: %v", err)
+	}
+	opened := make(chan struct{})
+	channel.OnOpen(func() { close(opened) })
+	return channel, opened
+}
+
 func (b *browser) received() []receivedNAL {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -315,6 +326,304 @@ func openBrowser(t *testing.T, fixture streamFixture, deviceID string) (*StreamP
 	}
 	client.accept(t, answer)
 	return peer, client, session
+}
+
+func TestAnAuthorizedBinaryControlChannelCarriesOrderedMessages(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	if err := peer.ClaimViewing(MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}); err != nil {
+		t.Fatalf("claim viewing: %v", err)
+	}
+	sessionReady(t, fixture.mustSession(t, "device-1"))
+	delivered := make(chan MirrorControlMessage, 4)
+	if err := peer.BindControl(9, func(_ context.Context, message MirrorControlMessage) error {
+		delivered <- message
+		return nil
+	}); err != nil {
+		t.Fatalf("bind control: %v", err)
+	}
+	client := newBrowser(t)
+	channel, opened := client.controlChannel(t)
+	answer, err := peer.Answer(context.Background(), client.offer(t))
+	if err != nil {
+		t.Fatalf("answer the browser's offer: %v", err)
+	}
+	client.accept(t, answer)
+	select {
+	case <-opened:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the browser control channel never opened")
+	}
+	for _, data := range [][]byte{
+		controlBytes(MirrorControlTouchDown, 1, 7, 9, false),
+		controlBytes(MirrorControlTouchMove, 2, 7, 9, false),
+		controlBytes(MirrorControlTouchUp, 3, 7, 9, true),
+		controlBytes(MirrorControlKey, 4, 0, 9, true),
+	} {
+		if err := channel.Send(data); err != nil {
+			t.Fatalf("send control message: %v", err)
+		}
+	}
+	for index, want := range []MirrorControlEventKind{MirrorControlTouchDown, MirrorControlTouchMove, MirrorControlTouchUp, MirrorControlKey} {
+		select {
+		case message := <-delivered:
+			if message.Kind != want || message.Sequence != uint64(index+1) {
+				t.Fatalf("delivered message %d = %#v, want kind %d sequence %d", index, message, want, index+1)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("control message %d was not delivered", index)
+		}
+	}
+}
+
+func TestAuthorizedControlChannelCarriesBoundedTextReportsToTheOperator(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	claim := MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}
+	if err := peer.ClaimViewing(claim); err != nil {
+		t.Fatalf("claim viewing: %v", err)
+	}
+	sessionReady(t, fixture.mustSession(t, "device-1"))
+	if err := peer.BindControl(9, func(context.Context, MirrorControlMessage) error { return nil }); err != nil {
+		t.Fatalf("bind control: %v", err)
+	}
+	client := newBrowser(t)
+	channel, opened := client.controlChannel(t)
+	received := make(chan webrtc.DataChannelMessage, 1)
+	channel.OnMessage(func(message webrtc.DataChannelMessage) { received <- message })
+	answer, err := peer.Answer(context.Background(), client.offer(t))
+	if err != nil {
+		t.Fatalf("answer the browser's offer: %v", err)
+	}
+	client.accept(t, answer)
+	select {
+	case <-opened:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the browser control channel never opened")
+	}
+	want := `{"type":"follower_fanout","runId":"run-1"}`
+	if err := peer.SendControlReport([]byte(want)); err != nil {
+		t.Fatalf("send the bounded report over the authorized channel: %v", err)
+	}
+	select {
+	case message := <-received:
+		if !message.IsString || string(message.Data) != want {
+			t.Fatalf("control report = %#v, want the exact text report", message)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the browser did not receive the control report")
+	}
+}
+
+func TestControlCannotBeBoundAfterNegotiation(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer, _, _ := openBrowser(t, fixture, "device-1")
+	if err := peer.BindControl(9, func(context.Context, MirrorControlMessage) error { return nil }); err == nil {
+		t.Fatal("control was bound after the stream was negotiated")
+	}
+}
+
+func TestControlRequiresAnImmutableViewingClaim(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	claim := MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}
+	if err := peer.BindControl(9, func(context.Context, MirrorControlMessage) error { return nil }); err == nil {
+		t.Fatal("an unclaimed viewing accepted control")
+	}
+	if err := peer.ClaimViewing(claim); err != nil {
+		t.Fatalf("claim viewing: %v", err)
+	}
+	if !peer.ViewingClaimMatches(claim) || peer.ViewingClaimMatches(MirrorViewingClaim{WorkspaceID: "other", ActorType: "operator", ActorID: "operator-1"}) {
+		t.Fatal("viewing claim did not bind the exact workspace and caller")
+	}
+	if err := peer.ClaimViewing(claim); err == nil {
+		t.Fatal("a viewing claim was replaced")
+	}
+	if err := peer.Close(); err != nil {
+		t.Fatalf("close viewing: %v", err)
+	}
+	if peer.ViewingClaimMatches(claim) {
+		t.Fatal("closed viewing still matched its old claim")
+	}
+}
+
+func TestAmbientViewingCannotBindControl(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	carrier, err := fixture.transport.Open(context.Background(), "device-1", "SERIAL-device-1", TransportWebRTC, PurposeAmbient, MirrorPreview{})
+	if err != nil {
+		t.Fatalf("open ambient viewing: %v", err)
+	}
+	peer, ok := carrier.(*StreamPeer)
+	if !ok {
+		t.Fatalf("ambient carrier = %T, want *StreamPeer", carrier)
+	}
+	if err := peer.ClaimViewing(MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}); err != nil {
+		t.Fatalf("claim ambient viewing: %v", err)
+	}
+	if err := peer.BindControl(9, func(context.Context, MirrorControlMessage) error { return nil }); err == nil {
+		t.Fatal("ambient viewing accepted a control binding")
+	}
+	if peer.ControlBound() {
+		t.Fatal("ambient viewing retained a control handler")
+	}
+}
+
+func TestControlChannelCloseDropsQueuedInput(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	if err := peer.ClaimViewing(MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}); err != nil {
+		t.Fatalf("claim viewing: %v", err)
+	}
+	sessionReady(t, fixture.mustSession(t, "device-1"))
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	delivered := make(chan uint64, 2)
+	if err := peer.BindControl(9, func(_ context.Context, message MirrorControlMessage) error {
+		delivered <- message.Sequence
+		if message.Sequence == 1 {
+			close(entered)
+			<-release
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("bind control: %v", err)
+	}
+	client := newBrowser(t)
+	channel, opened := client.controlChannel(t)
+	answer, err := peer.Answer(context.Background(), client.offer(t))
+	if err != nil {
+		t.Fatalf("answer the browser's offer: %v", err)
+	}
+	client.accept(t, answer)
+	select {
+	case <-opened:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the browser control channel never opened")
+	}
+	if err := channel.Send(controlBytes(MirrorControlTouchDown, 1, 7, 9, false)); err != nil {
+		t.Fatalf("send touch down: %v", err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first control message was not delivered")
+	}
+	if err := channel.Send(controlBytes(MirrorControlTouchMove, 2, 7, 9, false)); err != nil {
+		t.Fatalf("send queued move: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		peer.controlMu.Lock()
+		accepted := peer.controlSequence.last == 2
+		peer.controlMu.Unlock()
+		if accepted {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the queued move was not accepted before channel close")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err := channel.Close(); err != nil {
+		t.Fatalf("close browser control channel: %v", err)
+	}
+	select {
+	case <-peer.controlContext.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("control binding remained active after channel close")
+	}
+	close(release)
+	select {
+	case got := <-delivered:
+		if got != 1 {
+			t.Fatalf("first delivered sequence = %d, want 1", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("first message was not recorded")
+	}
+	select {
+	case got := <-delivered:
+		t.Fatalf("delivered sequence %d after channel close", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestControlCoalescesPendingMovesBeforeTouchUp(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	if err := peer.ClaimViewing(MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}); err != nil {
+		t.Fatalf("claim viewing: %v", err)
+	}
+	sessionReady(t, fixture.mustSession(t, "device-1"))
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	delivered := make(chan MirrorControlMessage, 3)
+	if err := peer.BindControl(9, func(_ context.Context, message MirrorControlMessage) error {
+		if message.Sequence == 1 {
+			close(entered)
+			<-release
+		}
+		delivered <- message
+		return nil
+	}); err != nil {
+		t.Fatalf("bind control: %v", err)
+	}
+	client := newBrowser(t)
+	channel, opened := client.controlChannel(t)
+	answer, err := peer.Answer(context.Background(), client.offer(t))
+	if err != nil {
+		t.Fatalf("answer the browser's offer: %v", err)
+	}
+	client.accept(t, answer)
+	select {
+	case <-opened:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the browser control channel never opened")
+	}
+	if err := channel.Send(controlBytes(MirrorControlTouchDown, 1, 7, 9, false)); err != nil {
+		t.Fatalf("send down: %v", err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("touch down was not delivered")
+	}
+	for sequence := uint64(2); sequence <= 21; sequence++ {
+		if err := channel.Send(controlBytes(MirrorControlTouchMove, sequence, 7, 9, false)); err != nil {
+			t.Fatalf("send move %d: %v", sequence, err)
+		}
+	}
+	if err := channel.Send(controlBytes(MirrorControlTouchUp, 22, 7, 9, true)); err != nil {
+		t.Fatalf("send up: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		peer.controlMu.Lock()
+		accepted := peer.controlSequence.last == 22
+		pending := len(peer.controlPending)
+		peer.controlMu.Unlock()
+		if accepted {
+			if pending != 2 {
+				t.Fatalf("pending events = %d, want latest move and up", pending)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the final move and up were not accepted")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(release)
+	for index, want := range []uint64{1, 21, 22} {
+		select {
+		case message := <-delivered:
+			if message.Sequence != want {
+				t.Fatalf("delivery %d sequence = %d, want %d", index, message.Sequence, want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("delivery %d was not received", index)
+		}
+	}
 }
 
 // TestALateBrowserIsPrimedFromTheCachedKeyFrame covers the case a browser hits

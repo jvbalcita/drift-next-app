@@ -274,7 +274,7 @@ describe("what this console says about the whole grid", () => {
 describe("the profile the plane publishes", () => {
   it("reads the level with its own numbers rather than a label looked up here", () => {
     const profile = gridProfileView(gridProfileProto(gridProfile({ level: "low", levelMaxWidth: 240, levelJpegQuality: 60, maxDevices: 8 })))
-    expect(profile).toEqual<GridProfileView>({ cadenceMillis: 4_000, level: "low", levelMaxWidth: 240, levelJpegQuality: 60, stillByteBound: 80_000, maxDevices: 8, subscribed: 0 })
+    expect(profile).toEqual<GridProfileView>({ cadenceMillis: 4_000, level: "low", levelMaxWidth: 240, levelJpegQuality: 60, stillByteBound: 80_000, maxDevices: 8, subscribed: 0, concurrentCaptures: 2, activeCadenceMillis: 1_000, idleCadenceMillis: 5_000, freshnessCeilingMillis: 10_000 })
   })
 
   it("is null when the answer carried no profile, which is a fact the grid states rather than invents", () => {

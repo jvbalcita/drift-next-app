@@ -235,6 +235,79 @@ func TestTheStreamEndpointCarriesTheContainerToTheBrowser(t *testing.T) {
 	}
 }
 
+func TestTheH264EndpointCarriesBoundedFramesAndTheNewSizeAfterReDeclaration(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	endpoint := openTCP(t, fixture.transport, "device-h264", "SERIAL-device-h264")
+	stream := fixture.dialer.streamFor(t, "device-h264")
+	sessionReady(t, fixture.mustSession(t, "device-h264"))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	packets := make(chan []byte, 8)
+	serveDone := make(chan error, 1)
+	go func() {
+		serveDone <- endpoint.ServeH264(ctx, func(packet []byte) error {
+			packets <- append([]byte(nil), packet...)
+			return nil
+		})
+	}()
+	stream.push(StreamFrame{Config: true, Data: configUnit})
+	stream.push(StreamFrame{Key: true, PTSUS: 100_000, Data: idrUnit})
+	first := readH264Packet(t, packets)
+	if first.Sequence != 1 || !first.Key || first.Width != 1080 || first.Height != 2280 || !bytes.Contains(first.Data, idrFixture) {
+		t.Fatalf("first H.264 packet = %+v, want the active operator key frame", first)
+	}
+
+	stream.push(StreamFrame{PTSUS: 133_000, Data: sliceUnit})
+	var delta H264FramePacket
+	for range 4 {
+		candidate := readH264Packet(t, packets)
+		if bytes.Contains(candidate.Data, sliceUnit) {
+			delta = candidate
+			break
+		}
+		// A frame that arrives while a reader is attaching can be present both
+		// in the cached keyframe and that reader's queue. It is safe to deliver
+		// the duplicate IDR, so consume it rather than making the test depend on
+		// the scheduler's order of those two valid copies.
+	}
+	if delta.Sequence == 0 || delta.Key || delta.TimestampUS <= first.TimestampUS {
+		t.Fatalf("delta H.264 packet = %+v, want the next delta access unit", delta)
+	}
+
+	stream.push(StreamFrame{Declared: true, DeclaredWidth: 2280, DeclaredHeight: 1080})
+	stream.push(StreamFrame{Config: true, Data: configUnit})
+	stream.push(StreamFrame{Key: true, PTSUS: 10_000, Data: idrUnit})
+	redeclared := readH264Packet(t, packets)
+	if redeclared.Sequence != delta.Sequence+1 || !redeclared.Key || redeclared.Width != 2280 || redeclared.Height != 1080 || redeclared.TimestampUS <= delta.TimestampUS {
+		t.Fatalf("re-declared H.264 packet = %+v, want dimensions from the device's new declaration", redeclared)
+	}
+
+	cancel()
+	select {
+	case err := <-serveDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("H.264 endpoint ended with %v, want request cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("H.264 endpoint did not release its viewer after cancellation")
+	}
+}
+
+func readH264Packet(t *testing.T, packets <-chan []byte) H264FramePacket {
+	t.Helper()
+	select {
+	case wire := <-packets:
+		packet, err := DecodeH264FramePacket(wire)
+		if err != nil {
+			t.Fatalf("decode H.264 endpoint packet: %v", err)
+		}
+		return packet
+	case <-time.After(5 * time.Second):
+		t.Fatal("the H.264 endpoint did not carry a frame")
+		return H264FramePacket{}
+	}
+}
+
 // TestAReEncodedStreamRedeclaresTheContainerMidResponse is the operator's own
 // failure at the endpoint that carried it: a device already live as a grid tile -
 // the workspace's preview level, and on this fleet a smaller frame - is opened

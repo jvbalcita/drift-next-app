@@ -11,6 +11,7 @@ import (
 	"drift.local/drift-next/internal/devices"
 	"drift.local/drift-next/internal/endpoints"
 	"drift.local/drift-next/internal/organizations"
+	"drift.local/drift-next/internal/platform/clock"
 	store "drift.local/drift-next/internal/store/sqlite"
 	transportconnect "drift.local/drift-next/internal/transport/connect"
 )
@@ -52,6 +53,7 @@ func TestRefreshDiagnosticsIsOnlineOnlyPartialAndRetainsLastKnownProjection(t *t
 	level := uint32(90)
 	collector := &diagnosticCollector{values: map[string]devices.Diagnostics{"SERIAL-OK": {ObservedAt: now, Brand: &brand, BatteryLevelPercent: &level}}, fails: map[string]bool{"SERIAL-FAIL": true}}
 	handler := transportconnect.NewDeviceHandler(db)
+	handler.SetClock(clock.NewFixed(now))
 	handler.SetDiagnosticsCollector(collector)
 	ref := &driftv1.WorkspaceRef{WorkspaceId: "workspace-a"}
 

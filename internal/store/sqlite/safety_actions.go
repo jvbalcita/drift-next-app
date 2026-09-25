@@ -113,6 +113,46 @@ type ActionService struct{ store *DB }
 
 func NewActionService(store *DB) *ActionService { return &ActionService{store: store} }
 
+// ValidateRealtimeControl is a read-only gate for an already-open control
+// channel. It does not create authority: Authorize and Dispatch still make the
+// policy decision for each gesture. Rechecking this tuple before each physical
+// event stops a revoked lease, closed session, stale fence or emergency halt
+// from continuing a gesture through a long-lived socket.
+func (s *ActionService) ValidateRealtimeControl(ctx context.Context, workspace, deviceID, sessionID, leaseID, holderID string, fencingToken uint64) error {
+	if ctx == nil || s == nil || s.store == nil || s.store.db == nil {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "context and SQLite store are required")
+	}
+	if err := validateWorkspace(workspace); err != nil {
+		return err
+	}
+	if strings.TrimSpace(deviceID) == "" || strings.TrimSpace(sessionID) == "" || strings.TrimSpace(leaseID) == "" || strings.TrimSpace(holderID) == "" || fencingToken == 0 {
+		return platformerrors.New(platformerrors.CodeInvalidInput, "complete realtime control binding is required")
+	}
+	tx, err := s.store.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := validateLeaseTupleTx(ctx, tx, workspace, deviceID, leaseID, holderID, fencingToken, s.store.clock.Now().UTC()); err != nil {
+		return err
+	}
+	var actualSession, sessionHolder string
+	if err := tx.QueryRowContext(ctx, `SELECT s.id, s.holder_id FROM device_leases l JOIN control_sessions s ON s.workspace_id=l.workspace_id AND s.id=l.session_id WHERE l.workspace_id=? AND l.id=?`, workspace, leaseID).Scan(&actualSession, &sessionHolder); err != nil {
+		return err
+	}
+	if actualSession != sessionID || sessionHolder != holderID {
+		return platformerrors.New(platformerrors.CodeLeaseConflict, "control session does not own the device lease")
+	}
+	state, err := haltStateTx(ctx, tx, workspace)
+	if err != nil {
+		return err
+	}
+	if state == HaltEmergencyStop {
+		return platformerrors.New(platformerrors.CodeEmergencyStopped, "emergency stop blocks realtime control")
+	}
+	return nil
+}
+
 func (s *ActionService) Authorize(ctx context.Context, intent action.Intent, actorType, actorID string) (action.Result, error) {
 	var result action.Result
 	if ctx == nil || s == nil || s.store == nil || s.store.db == nil {

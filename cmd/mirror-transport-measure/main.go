@@ -31,10 +31,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -52,35 +54,42 @@ import (
 const labTokenHeader = service.LabTokenHeader
 
 type sample struct {
-	Transport    string  `json:"transport"`
-	Run          int     `json:"run"`
-	DeviceID     string  `json:"device_id"`
-	Serial       string  `json:"serial"`
-	OpenMs       float64 `json:"open_ms"`
-	HandshakeMs  float64 `json:"handshake_ms"`
-	TTFFMs       float64 `json:"ttff_ms"`
-	KeyframeMs   float64 `json:"keyframe_ms"`
-	WindowS      float64 `json:"window_s"`
-	Pictures     int     `json:"pictures"`
-	PicturesPerS float64 `json:"pictures_per_s"`
-	GapP50Ms     float64 `json:"gap_p50_ms"`
-	GapP95Ms     float64 `json:"gap_p95_ms"`
-	GapP99Ms     float64 `json:"gap_p99_ms"`
-	GapMaxMs     float64 `json:"gap_max_ms"`
-	StallsOver1s int     `json:"stalls_over_1s"`
-	State        string  `json:"state"`
-	Failure      string  `json:"failure"`
-	Error        string  `json:"error,omitempty"`
+	Transport        string  `json:"transport"`
+	Run              int     `json:"run"`
+	DeviceID         string  `json:"device_id"`
+	Serial           string  `json:"serial"`
+	OpenMs           float64 `json:"open_ms"`
+	HandshakeMs      float64 `json:"handshake_ms"`
+	TTFFMs           float64 `json:"ttff_ms"`
+	KeyframeMs       float64 `json:"keyframe_ms"`
+	WindowS          float64 `json:"window_s"`
+	Pictures         int     `json:"pictures"`
+	PicturesPerS     float64 `json:"pictures_per_s"`
+	GapP50Ms         float64 `json:"gap_p50_ms"`
+	GapP95Ms         float64 `json:"gap_p95_ms"`
+	GapP99Ms         float64 `json:"gap_p99_ms"`
+	GapMaxMs         float64 `json:"gap_max_ms"`
+	StallsOver1s     int     `json:"stalls_over_1s"`
+	State            string  `json:"state"`
+	Failure          string  `json:"failure"`
+	Error            string  `json:"error,omitempty"`
+	EncodedBytes     uint64  `json:"encoded_bytes"`
+	FrameAgeMs       float64 `json:"frame_age_ms"`
+	ConnectionState  string  `json:"connection_state"`
+	ProcessRSSPeakMB float64 `json:"process_rss_peak_mb,omitempty"`
+	ProcessCPUMean   float64 `json:"process_cpu_mean_percent,omitempty"`
+	ProcessSamples   int     `json:"process_samples,omitempty"`
 }
 
 type runner struct {
-	base      string
-	token     string
-	workspace string
-	http      *http.Client
-	discovery driftv1connect.DiscoveryServiceClient
-	devices   driftv1connect.DeviceServiceClient
-	mirror    driftv1connect.DeviceMirrorServiceClient
+	base       string
+	token      string
+	workspace  string
+	http       *http.Client
+	discovery  driftv1connect.DiscoveryServiceClient
+	devices    driftv1connect.DeviceServiceClient
+	mirror     driftv1connect.DeviceMirrorServiceClient
+	processPID int
 }
 
 func newRunner(base, token, workspace string) *runner {
@@ -198,6 +207,7 @@ func main() {
 	adbPath := flag.String("adb", "adb", "adb executable used for the motion driver")
 	only := flag.String("only", "", "comma-separated transports to measure (webrtc,tcp); empty measures both in that order")
 	out := flag.String("out", "", "JSONL output path; empty writes to stdout")
+	controlPlanePID := flag.Int("control-plane-pid", 0, "control-plane process id to sample for RSS and CPU; zero disables process sampling")
 	flag.Parse()
 
 	if strings.TrimSpace(*token) == "" {
@@ -207,6 +217,7 @@ func main() {
 
 	ctx := context.Background()
 	r := newRunner(*address, *token, *workspace)
+	r.processPID = *controlPlanePID
 
 	observed, err := r.observe(ctx, *addressPolicy, uint32(*port))
 	if err != nil {
@@ -288,8 +299,8 @@ func main() {
 
 // measureOne opens one stream, waits for its first picture, then watches it for
 // the steady-state window and reports what it carried.
-func (r *runner) measureOne(ctx context.Context, device *driftv1.ObservedDevice, name string, kind driftv1.MirrorTransport, run int, window float64) sample {
-	result := sample{
+func (r *runner) measureOne(ctx context.Context, device *driftv1.ObservedDevice, name string, kind driftv1.MirrorTransport, run int, window float64) (result sample) {
+	result = sample{
 		Transport: name,
 		Run:       run,
 		DeviceID:  device.GetDeviceId(),
@@ -297,6 +308,13 @@ func (r *runner) measureOne(ctx context.Context, device *driftv1.ObservedDevice,
 		WindowS:   window,
 	}
 	requestedAt := time.Now()
+	stopProcessSampler := startProcessSampler(ctx, r.processPID)
+	defer func() {
+		metrics := stopProcessSampler()
+		result.ProcessRSSPeakMB = metrics.rssPeakMB
+		result.ProcessCPUMean = metrics.cpuMean
+		result.ProcessSamples = metrics.samples
+	}()
 	stream, err := r.start(ctx, device.GetDeviceId(), kind)
 	if err != nil {
 		result.Error = "start: " + err.Error()
@@ -339,8 +357,79 @@ func (r *runner) measureOne(ctx context.Context, device *driftv1.ObservedDevice,
 	if state := r.state(context.Background(), streamID); state != nil {
 		result.State = state.GetState().String()
 		result.Failure = state.GetFailure()
+		result.EncodedBytes = state.GetBytes()
+		result.ConnectionState = state.GetConnectionState()
+		if last := state.GetLastFrameAtUnixMillis(); last > 0 {
+			result.FrameAgeMs = float64(max(0, time.Now().UnixMilli()-last))
+		}
 	}
 	return result
+}
+
+type processMetrics struct {
+	rssPeakMB float64
+	cpuMean   float64
+	samples   int
+}
+
+// startProcessSampler samples one explicitly named process on a bounded cadence.
+// It never discovers or kills a process, and retains only aggregate numbers.
+func startProcessSampler(parent context.Context, pid int) func() processMetrics {
+	if pid <= 0 {
+		return func() processMetrics { return processMetrics{} }
+	}
+	ctx, cancel := context.WithCancel(parent)
+	done := make(chan processMetrics, 1)
+	go func() {
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+		metrics := processMetrics{}
+		for {
+			if rssMB, cpu, ok := readProcessSample(ctx, pid); ok {
+				metrics.samples++
+				if rssMB > metrics.rssPeakMB {
+					metrics.rssPeakMB = rssMB
+				}
+				metrics.cpuMean += (cpu - metrics.cpuMean) / float64(metrics.samples)
+			}
+			select {
+			case <-ctx.Done():
+				done <- metrics
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	var once sync.Once
+	metrics := processMetrics{}
+	return func() processMetrics {
+		once.Do(func() {
+			cancel()
+			metrics = <-done
+		})
+		return metrics
+	}
+}
+
+func readProcessSample(ctx context.Context, pid int) (rssMB, cpuPercent float64, ok bool) {
+	output, err := exec.CommandContext(ctx, "ps", "-o", "rss=,%cpu=", "-p", strconv.Itoa(pid)).Output()
+	if err != nil {
+		return 0, 0, false
+	}
+	return parseProcessSample(string(output))
+}
+
+func parseProcessSample(output string) (rssMB, cpuPercent float64, ok bool) {
+	fields := strings.Fields(output)
+	if len(fields) != 2 {
+		return 0, 0, false
+	}
+	rssKB, rssErr := strconv.ParseFloat(fields[0], 64)
+	cpu, cpuErr := strconv.ParseFloat(fields[1], 64)
+	if rssErr != nil || cpuErr != nil || rssKB < 0 || cpu < 0 || math.IsNaN(rssKB) || math.IsNaN(cpu) || math.IsInf(rssKB, 0) || math.IsInf(cpu, 0) {
+		return 0, 0, false
+	}
+	return rssKB / 1024, cpu, true
 }
 
 // fillGaps reports the inter-arrival distribution and the stalls in it. A gap is
@@ -450,9 +539,10 @@ func watchWebRTC(ctx context.Context, r *runner, streamID, streamURL string, win
 	}
 
 	answer, err := r.mirror.NegotiateMirrorStream(ctx, connectrpc.NewRequest(&driftv1.NegotiateMirrorStreamRequest{
-		Context:  r.requestContext("measure-negotiate-" + time.Now().UTC().Format("150405.000000")),
-		StreamId: streamID,
-		OfferSdp: local.SDP,
+		Context:   r.requestContext("measure-negotiate-" + time.Now().UTC().Format("150405.000000")),
+		Workspace: r.workspaceRef(),
+		StreamId:  streamID,
+		OfferSdp:  local.SDP,
 	}))
 	if err != nil {
 		return nil, time.Time{}, time.Time{}, fmt.Errorf("negotiate: %w", err)

@@ -13,6 +13,9 @@ interface ImportMetaEnv {
   readonly VITE_DRIFT_RUNTIME_OPERATOR_ID?: string
   // VITE_DRIFT_CONTROL_PLANE_URL is the Go control-plane base URL.
   readonly VITE_DRIFT_CONTROL_PLANE_URL?: string
+  // VITE_DRIFT_LIVE_MIRROR_CONTROL arms TouchMove-on-hold via the WebRTC data
+  // channel. Unset defaults on; set to "false" to force Connect tap/swipe on release.
+  readonly VITE_DRIFT_LIVE_MIRROR_CONTROL?: string
   // VITE_DRIFT_USE_MOCK forces the in-process client outside Vitest.
   readonly VITE_DRIFT_USE_MOCK?: string
 }

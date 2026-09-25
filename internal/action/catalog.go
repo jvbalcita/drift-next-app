@@ -26,6 +26,9 @@ const (
 	Swipe       Kind = "swipe"
 	Scroll      Kind = "scroll"
 	Drag        Kind = "drag"
+	// LiveGesture begins at touch-down, before the path or terminal point is
+	// known. One bounded attempt covers its down, moves and terminal event.
+	LiveGesture Kind = "live_gesture"
 	Back        Kind = "back"
 	Home        Kind = "home"
 	Enter       Kind = "enter"
@@ -216,17 +219,20 @@ func (g GesturePath) Validate() error {
 }
 
 type Intent struct {
-	ID                 string
-	Workspace          string
-	DeviceID           string
-	LeaseID            string
-	HolderID           string
-	FencingToken       uint64
-	Kind               Kind
-	Target             SemanticTarget
-	TextValue          string
-	ValueLength        int
-	Gesture            *GesturePath
+	ID           string
+	Workspace    string
+	DeviceID     string
+	LeaseID      string
+	HolderID     string
+	FencingToken uint64
+	Kind         Kind
+	Target       SemanticTarget
+	TextValue    string
+	ValueLength  int
+	Gesture      *GesturePath
+	// LiveStart is the bounded down point known when a streamed gesture is
+	// authorized; later moves are checked against the same encoded frame.
+	LiveStart          *LiveGestureStart
 	KeyCode            int
 	IdempotencyKey     string
 	ObservationToken   string
@@ -241,6 +247,18 @@ type Intent struct {
 	// every other kind, and it is covered by the request hash, so two launches
 	// naming different targets stay two different requests.
 	Launch *LaunchTarget
+}
+
+type LiveGestureStart struct {
+	X, Y          int
+	Width, Height int
+}
+
+func (s LiveGestureStart) Validate() error {
+	if s.Width <= 0 || s.Height <= 0 || s.Width > 10000 || s.Height > 10000 || s.X < 0 || s.Y < 0 || s.X >= s.Width || s.Y >= s.Height {
+		return fmt.Errorf("live gesture start is outside its bounded render frame")
+	}
+	return nil
 }
 
 // LaunchTarget is the target of an app launch. Both names are bounded
@@ -539,6 +557,22 @@ var catalog = map[Kind]Specification{
 		EvidenceRequired:     true,
 		AllowedSurfaces:      []InvocationSurface{SurfaceManual, SurfaceRecorder, SurfaceReplay},
 	},
+	LiveGesture: {
+		Kind:                 LiveGesture,
+		RequiredCapabilities: []Capability{CapabilityGesture},
+		Risk:                 RiskMedium,
+		Retry:                RetryNeverBlind,
+		Mutating:             true,
+		MutationReason:       "dispatch begins a live touch sequence whose terminal point is unknown until the operator releases it",
+		Postcondition:        "a fresh observation after the terminal touch event establishes the result of the gesture",
+		EvidenceRequired:     true,
+		AllowedSurfaces:      []InvocationSurface{SurfaceMirror},
+		Lifted: &DeferralLift{
+			Record:       deviceInputLiftRecord,
+			Precondition: liftedInputPrecondition,
+			Reason:       "the bounded binary touch sequence is authorized at down through the same lease, fencing, policy, session and emergency-stop kernel as other typed input",
+		},
+	},
 	Back: {
 		Kind:                 Back,
 		RequiredCapabilities: []Capability{CapabilitySystemInput},
@@ -585,11 +619,11 @@ var catalog = map[Kind]Specification{
 		Postcondition:        "a fresh observation shows the effect of the delivered key event",
 		RequiresObservation:  true,
 		EvidenceRequired:     true,
-		AllowedSurfaces:      []InvocationSurface{SurfaceManual, SurfaceRecorder, SurfaceReplay},
+		AllowedSurfaces:      []InvocationSurface{SurfaceManual, SurfaceRecorder, SurfaceReplay, SurfaceMirror},
 		Lifted: &DeferralLift{
 			Record:       deviceInputLiftRecord,
 			Precondition: liftedInputPrecondition,
-			Reason:       "ADR-0008 lifts the device-command deferral for typed input; a key event is a bounded key code with a typed payload, not a command, an argv list or free-form text",
+			Reason:       "ADR-0008 lifts the device-command deferral for typed input; a mirror key event is one bounded key code carried by the selected, lease-bound live control channel, not a command, an argv list or free-form text",
 		},
 	},
 	LaunchApp: {
@@ -865,6 +899,16 @@ func (i Intent) Validate() error {
 		if err := i.Gesture.Validate(); err != nil {
 			return err
 		}
+	}
+	if i.Kind == LiveGesture {
+		if i.LiveStart == nil || i.Gesture != nil {
+			return fmt.Errorf("a live gesture requires exactly its initial render-frame point")
+		}
+		if err := i.LiveStart.Validate(); err != nil {
+			return err
+		}
+	} else if i.LiveStart != nil {
+		return fmt.Errorf("action %q carries a live gesture start", i.Kind)
 	}
 	if i.CoordinateFallback != nil {
 		if !validConfirmedCoordinateFallback(i.CoordinateFallback) || !i.ApprovalGranted {

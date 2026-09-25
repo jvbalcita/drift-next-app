@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ConnectJsonError } from "@/lib/api/connect-json"
-import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
+import type { LiveControlBinding, LiveMirrorClient } from "@/lib/api/control-plane-clients"
+import { MirrorGestureSender, mirrorControlChannelLabel, type MirrorControlWire } from "@/lib/api/mirror-control-channel"
 import { browserMirrorPlaybackFactory, streamRefusalStatus, type MirrorPlayback, type MirrorPlaybackFactory, type MirrorPlaybackRequest } from "@/lib/api/mirror-playback"
+import { mirrorH264SocketPath, mirrorH264TicketPath, type MirrorPlaybackTransport } from "@/lib/api/mirror-webcodecs-playback"
 import { liveMirrorCopy, type LiveMirrorPhase, type LiveMirrorPreview, type LiveMirrorTransportChoice, type LiveMirrorViewerPurpose, type LiveStreamView } from "@/lib/live-mirror"
 
 /**
@@ -51,7 +53,25 @@ export interface MirrorPeer {
   createOffer(): Promise<string>
   acceptAnswer(answerSdp: string): Promise<void>
   onStream(listener: (stream: MediaStream) => void): void
+  /** onMediaActivity marks the remote track's first packet or a later unmute. */
+  onMediaActivity?(listener: () => void): void
+  /** onFailure reports an established peer that has entered a terminal failed state. */
+  onFailure?(listener: (cause: unknown) => void): void
+  /** diagnostics exposes privacy-bounded peer/media counters, never candidate addresses. */
+  diagnostics?(): Promise<MirrorPeerDiagnostics>
+  createControlChannel?(): MirrorControlWire
   close(): void
+}
+
+export interface MirrorPeerDiagnostics {
+  connectionState: string
+  iceConnectionState: string
+  trackState: string
+  trackStreams: number
+  inboundPackets: number
+  inboundBytes: number
+  decodedFrames: number
+  roundTripTimeMs: number | null
 }
 
 export type MirrorPeerFactory = () => MirrorPeer
@@ -69,10 +89,31 @@ export function browserMirrorPeerFactory(): MirrorPeer {
   // recvonly: this console watches a device's screen and publishes nothing back.
   peer.addTransceiver("video", { direction: "recvonly" })
   const streamListeners: ((stream: MediaStream) => void)[] = []
+  const mediaActivityListeners: (() => void)[] = []
+  const failureListeners: ((cause: unknown) => void)[] = []
+  let remoteTrack: MediaStreamTrack | null = null
+  let remoteTrackStreams = 0
+  let remoteTrackUnmute: (() => void) | null = null
   peer.addEventListener("track", (event) => {
-    const media = event.streams[0]
-    if (!media) return
+    if (remoteTrack && remoteTrackUnmute) remoteTrack.removeEventListener("unmute", remoteTrackUnmute)
+    remoteTrack = event.track
+    remoteTrackStreams = event.streams.length
+    remoteTrackUnmute = () => {
+      for (const listener of mediaActivityListeners) listener()
+    }
+    event.track.addEventListener("unmute", remoteTrackUnmute)
+    if (!event.track.muted) {
+      for (const listener of mediaActivityListeners) listener()
+    }
+    // Streamless tracks are valid WebRTC. Give the video element a stream rather
+    // than silently discarding the track when the remote SDP has no msid group.
+    const media = event.streams[0] ?? new MediaStream([event.track])
     for (const listener of streamListeners) listener(media)
+  })
+  peer.addEventListener("connectionstatechange", () => {
+    if (peer.connectionState !== "failed") return
+    const cause = new Error("The WebRTC peer entered its failed connection state")
+    for (const listener of failureListeners) listener(cause)
   })
   return {
     async createOffer() {
@@ -87,7 +128,61 @@ export function browserMirrorPeerFactory(): MirrorPeer {
     onStream(listener) {
       streamListeners.push(listener)
     },
+    onMediaActivity(listener) {
+      mediaActivityListeners.push(listener)
+      if (remoteTrack && !remoteTrack.muted) listener()
+    },
+    onFailure(listener) {
+      failureListeners.push(listener)
+      if (peer.connectionState === "failed") listener(new Error("The WebRTC peer entered its failed connection state"))
+    },
+    async diagnostics() {
+      const result: MirrorPeerDiagnostics = {
+        connectionState: peer.connectionState,
+        iceConnectionState: peer.iceConnectionState,
+        trackState: remoteTrack?.readyState ?? "not-observed",
+        trackStreams: remoteTrackStreams,
+        inboundPackets: 0,
+        inboundBytes: 0,
+        decodedFrames: 0,
+        roundTripTimeMs: null,
+      }
+      try {
+        const stats = await peer.getStats()
+        for (const report of stats.values()) {
+          const values = report as RTCStats & Record<string, unknown>
+          if (values.type === "inbound-rtp" && (values.kind === "video" || values.mediaType === "video")) {
+            result.inboundPackets += finiteCounter(values.packetsReceived)
+            result.inboundBytes += finiteCounter(values.bytesReceived)
+            result.decodedFrames += finiteCounter(values.framesDecoded)
+          }
+        }
+        const transports = [...stats.values()].filter((report) => report.type === "transport") as (RTCStats & Record<string, unknown>)[]
+        const selectedPairIds = new Set(transports.map((report) => report.selectedCandidatePairId).filter((value): value is string => typeof value === "string"))
+        for (const report of stats.values()) {
+          const values = report as RTCStats & Record<string, unknown>
+          if (values.type !== "candidate-pair" || (selectedPairIds.size > 0 && !selectedPairIds.has(values.id))) continue
+          const seconds = values.currentRoundTripTime
+          if (typeof seconds === "number" && Number.isFinite(seconds) && seconds >= 0) {
+            result.roundTripTimeMs = Math.round(seconds * 1_000)
+            break
+          }
+        }
+      } catch {
+        // State fields remain useful when the browser's optional stats report is unavailable.
+      }
+      return result
+    },
+    createControlChannel() {
+      return peer.createDataChannel(mirrorControlChannelLabel, { ordered: true })
+    },
     close() {
+      if (remoteTrack && remoteTrackUnmute) remoteTrack.removeEventListener("unmute", remoteTrackUnmute)
+      remoteTrack = null
+      remoteTrackUnmute = null
+      streamListeners.length = 0
+      mediaActivityListeners.length = 0
+      failureListeners.length = 0
       try {
         peer.close()
       } catch {
@@ -96,6 +191,21 @@ export function browserMirrorPeerFactory(): MirrorPeer {
       }
     },
   }
+}
+
+function finiteCounter(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0
+}
+
+function renderedFrameStallReason(diagnostics: MirrorPeerDiagnostics, element: HTMLVideoElement | null): string {
+  const peer = `peer ${diagnostics.connectionState || "unknown"}, ICE ${diagnostics.iceConnectionState || "unknown"}, track ${diagnostics.trackState || "unknown"}, ${diagnostics.trackStreams} associated stream(s)`
+  if (diagnostics.inboundPackets === 0) return `WebRTC received no video packets (${peer})`
+  if (diagnostics.decodedFrames === 0) return `WebRTC received ${diagnostics.inboundPackets} video packets (${diagnostics.inboundBytes} bytes) but decoded no frames (${peer})`
+  const dimensions = element
+    ? `${element.videoWidth}x${element.videoHeight}, readyState ${element.readyState}, ${element.paused ? "paused" : "playing"}, ${element.srcObject ? "stream attached" : "no stream attached"}`
+    : "video element unavailable"
+  const rtt = diagnostics.roundTripTimeMs === null ? "" : `, RTT ${diagnostics.roundTripTimeMs} ms`
+  return `WebRTC decoded ${diagnostics.decodedFrames} frames but no render callback occurred (video ${dimensions}${rtt}; ${peer})`
 }
 
 async function waitForIceGathering(peer: RTCPeerConnection): Promise<void> {
@@ -117,6 +227,8 @@ async function waitForIceGathering(peer: RTCPeerConnection): Promise<void> {
 export interface UseLiveMirrorOptions {
   /** client is the control plane's live mirror surface. Absent means this console has none. */
   client?: LiveMirrorClient
+  /** Read at negotiation, not as an effect dependency: lease projection refresh must not restart video. */
+  controlBinding?: LiveControlBinding
   workspaceId?: string
   /**
    * transport is the transport the operator chose in Console Settings. Every
@@ -156,6 +268,8 @@ export interface UseLiveMirrorOptions {
   peerFactory?: MirrorPeerFactory
   /** playbackFactory is the seam a test supplies in place of the browser's media stack. */
   playbackFactory?: MirrorPlaybackFactory
+  /** onWebCodecsRendered receives bounded receive-to-render samples from the canvas decoder. */
+  onWebCodecsRendered?: (latencyMs: number) => void
   /** pollIntervalMs is how often the stream's own state is read while it is open. */
   pollIntervalMs?: number
   /**
@@ -211,10 +325,33 @@ export interface LiveMirrorSession {
   stream: LiveStreamView | null
   /** failure is why the stream is not being shown, when it is not. */
   failure: string
+  /** recovery is bounded aggregate telemetry; it never retains a retry history. */
+  recovery: MirrorRecoveryTelemetry
+  /** fallbackReason is one bounded cause for a WebRTC-to-WebSocket transport change. */
+  fallbackReason: string
   /** attachVideo is the video element the stream is painted into. */
   attachVideo: (element: HTMLVideoElement | null) => void
+  /** attachCanvas is the native WebCodecs frame surface. */
+  attachCanvas: (element: HTMLCanvasElement | null) => void
+  /** playbackTransport is the active fetched-stream decoder path. */
+  playbackTransport: MirrorPlaybackTransport | "webrtc" | null
   retry: () => void
   stop: () => void
+  realtimeControl: () => MirrorGestureSender | null
+  negotiatedControlKey: () => string
+}
+
+export interface MirrorRecoveryTelemetry {
+  attempts: number
+  successes: number
+  lastReason: string
+}
+
+export const emptyMirrorRecoveryTelemetry: MirrorRecoveryTelemetry = { attempts: 0, successes: 0, lastReason: "" }
+export const maximumMirrorRecoveryReasonLength = 512
+
+export function boundedMirrorRecoveryReason(reason: string): string {
+  return reason.trim().slice(0, maximumMirrorRecoveryReasonLength)
 }
 
 /**
@@ -246,6 +383,9 @@ export const defaultMirrorPollFailureLimit = 2
 export const defaultMirrorPollRetryCeilingMs = 4_000
 /** How many times one frame's stream may be re-opened after the plane forgot it. */
 export const defaultMirrorReopenLimit = 3
+export const defaultMirrorNegotiationTimeoutMs = 5_000
+export const defaultMirrorRenderedFrameStallTimeoutMs = 4_000
+export const defaultMirrorDiagnosticsTimeoutMs = 500
 /**
  * The bound on establishing a FETCHED stream: how long this console waits for the
  * stream endpoint to answer with its first bytes before it reports that the picture
@@ -284,16 +424,37 @@ export function mirrorRetryDelayMs(consecutiveFailures: number, baseMs: number, 
 }
 
 export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = {}): LiveMirrorSession {
-  const { client, workspaceId = "", transport = "webrtc", purpose = "operator", previewQuality, previewFrameRate, peerFactory, playbackFactory, pollIntervalMs = defaultMirrorPollIntervalMs, establishTimeoutMs = defaultMirrorEstablishTimeoutMs, pollFailureLimit = defaultMirrorPollFailureLimit, pollRetryCeilingMs = defaultMirrorPollRetryCeilingMs, reopenLimit = defaultMirrorReopenLimit, schedule = browserMirrorSchedule } = options
+  const { client, workspaceId = "", transport = "webrtc", purpose = "operator", controlBinding, previewQuality, previewFrameRate, peerFactory, playbackFactory, onWebCodecsRendered, pollIntervalMs = defaultMirrorPollIntervalMs, establishTimeoutMs = defaultMirrorEstablishTimeoutMs, pollFailureLimit = defaultMirrorPollFailureLimit, pollRetryCeilingMs = defaultMirrorPollRetryCeilingMs, reopenLimit = defaultMirrorReopenLimit, schedule = browserMirrorSchedule } = options
   const [phase, setPhase] = useState<LiveMirrorPhase>("idle")
   const [stream, setStream] = useState<LiveStreamView | null>(null)
   const [failure, setFailure] = useState("")
+  const [recovery, setRecovery] = useState<MirrorRecoveryTelemetry>(emptyMirrorRecoveryTelemetry)
+  const [fallbackReason, setFallbackReason] = useState("")
+  const [playbackTransport, setPlaybackTransport] = useState<MirrorPlaybackTransport | "webrtc" | null>(null)
   const [attempt, setAttempt] = useState(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const teardownRef = useRef<(() => void) | null>(null)
+  const controlBindingRef = useRef(controlBinding)
+  const controlSessionId = controlBinding?.sessionId
+  const controlLeaseId = controlBinding?.leaseId
+  const controlHolderId = controlBinding?.holderId
+  const controlFencingToken = controlBinding?.fencingToken
+  useEffect(() => {
+    controlBindingRef.current = controlSessionId && controlLeaseId && controlHolderId && controlFencingToken
+      ? { sessionId: controlSessionId, leaseId: controlLeaseId, holderId: controlHolderId, fencingToken: controlFencingToken }
+      : undefined
+  }, [controlSessionId, controlLeaseId, controlHolderId, controlFencingToken])
+  const realtimeRef = useRef<MirrorGestureSender | null>(null)
+  const negotiatedControlKeyRef = useRef("")
+  const realtimeControl = useCallback(() => realtimeRef.current?.ready ? realtimeRef.current : null, [])
+  const negotiatedControlKey = useCallback(() => negotiatedControlKeyRef.current, [])
 
   const attachVideo = useCallback((element: HTMLVideoElement | null) => {
     videoRef.current = element
+  }, [])
+  const attachCanvas = useCallback((element: HTMLCanvasElement | null) => {
+    canvasRef.current = element
   }, [])
   const retry = useCallback(() => setAttempt((current) => current + 1), [])
   const stop = useCallback(() => {
@@ -307,22 +468,33 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       setPhase("idle")
       setStream(null)
       setFailure("")
+      setFallbackReason("")
       return
     }
     if (!client) {
       setPhase("unavailable")
       setStream(null)
       setFailure("")
+      setFallbackReason("")
       return
     }
     let disposed = false
     let settled = false
     let streamId = ""
     let peer: MirrorPeer | null = null
+    let activeTransport = transport
+    let fallbackAttempted = false
+    let fallbackInProgress = false
+    let controlWire: MirrorControlWire | null = null
     let playback: MirrorPlayback | null = null
     let cancelScheduled: (() => void) | null = null
+    const negotiationControllers = new Set<AbortController>()
+    let cancelPeerWatch: (() => void) | null = null
+    let watchedVideo: HTMLVideoElement | null = null
+    let videoFrameCallback: number | null = null
     let readFailures = 0
     let reopens = 0
+    let recoveryPending = false
     // The plane's own answer to the last read it refused, kept so the report made
     // when the re-entry bound runs out can carry it: the plane's answer is the
     // cause, and a sentence that only says the plane forgot the stream sends an
@@ -337,6 +509,20 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       previewQuality === undefined || previewFrameRate === undefined ? undefined : { quality: previewQuality, frameRate: previewFrameRate }
 
     const closePicture = () => {
+      for (const controller of negotiationControllers) controller.abort()
+      negotiationControllers.clear()
+      cancelPeerWatch?.()
+      cancelPeerWatch = null
+      if (watchedVideo && videoFrameCallback !== null) {
+        try { watchedVideo.cancelVideoFrameCallback?.(videoFrameCallback) } catch { /* The browser may have detached the element. */ }
+      }
+      watchedVideo = null
+      videoFrameCallback = null
+      if (realtimeRef.current) realtimeRef.current.close()
+      else controlWire?.close()
+      realtimeRef.current = null
+      negotiatedControlKeyRef.current = ""
+      controlWire = null
       peer?.close()
       peer = null
       // Both transports are torn down in the same order and for the same reason:
@@ -346,7 +532,19 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       playback?.stop()
       playback = null
       const element = videoRef.current
-      if (element) element.srcObject = null
+      if (element) {
+        element.srcObject = null
+        element.hidden = false
+      }
+      const canvas = canvasRef.current
+      if (canvas) {
+        if (canvas.width > 0 && canvas.height > 0) {
+          try { canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height) } catch { /* The surface may already be detached. */ }
+        }
+        canvas.width = 0
+        canvas.height = 0
+        canvas.hidden = true
+      }
     }
     const cancelRead = () => {
       cancelScheduled?.()
@@ -360,6 +558,38 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       // A stream the control plane has already forgotten answers not-found, and
       // that is not a failure of the ending.
       void client.stopStream(ended).catch(() => undefined)
+    }
+    /**
+     * Fallback spends one new stream only after the previous one has been released.
+     * That ordering prevents a failed WebRTC attempt and its TCP replacement from
+     * occupying two device sessions at once. The per-effect latch bounds the
+     * transition: a TCP failure is reported rather than starting another path.
+     */
+    async function fallbackToTCP(reason: string, cause: unknown = new Error(reason)): Promise<boolean> {
+      if (activeTransport !== "webrtc" || fallbackAttempted || disposed || settled || !shouldFallbackToTCP(cause)) return false
+      const previousStream = streamId
+      if (!previousStream) return false
+      fallbackAttempted = true
+      fallbackInProgress = true
+      cancelRead()
+      setFallbackReason(boundedMirrorRecoveryReason(reason))
+      setPhase("opening")
+      closePicture()
+      setPlaybackTransport(null)
+      streamId = ""
+      try {
+        await client!.stopStream(previousStream)
+      } catch (cause) {
+        fallbackInProgress = false
+        streamId = previousStream
+        if (!disposed && !settled) finish("failed", `WebRTC failed (${boundedMirrorRecoveryReason(reason)}); the prior stream could not be released: ${errorSentence(cause)}`, true)
+        return false
+      }
+      if (disposed || settled) return true
+      activeTransport = "tcp"
+      fallbackInProgress = false
+      await open()
+      return true
     }
     /**
      * finish tears the session down completely and only then states how it ended.
@@ -445,7 +675,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       })
 
     async function read() {
-      if (disposed || settled) return
+      if (disposed || settled || fallbackInProgress) return
       if (streamId === "") {
         await open()
         return
@@ -467,13 +697,19 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
         // A stream that came back to LIVE also clears the re-entry bound: pictures
         // carried are the plane resolving a re-opened stream, which is the only
         // thing that bound protects against.
-        if (next.state === "live") reopens = 0
+        if (next.state === "live") {
+          if (recoveryPending) {
+            recoveryPending = false
+            setRecovery((current) => ({ ...current, successes: current.successes + 1 }))
+          }
+          reopens = 0
+        }
         // LIVE is the control plane reporting pictures carried, never something
         // this console infers from a peer connection.
         setPhase(next.state === "live" ? "live" : "starting")
         readAgain(pollIntervalMs)
       } catch (cause: unknown) {
-        if (disposed || settled) return
+        if (disposed || settled || streamId !== asked) return
         if (isNotFound(cause)) {
           planeSaid = errorSentence(cause)
           forget()
@@ -514,12 +750,94 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       closePicture()
       streamId = ""
       reopens += 1
+      recoveryPending = true
+      setRecovery((current) => ({
+        attempts: current.attempts + 1,
+        successes: current.successes,
+        lastReason: boundedMirrorRecoveryReason(planeSaid || liveMirrorCopy.failure.openFailed),
+      }))
       if (reopens > reopenLimit) {
         finish("failed", liveMirrorCopy.failure.unresumable(planeSaid), false)
         return
       }
       setPhase("opening")
       readAgain(mirrorRetryDelayMs(reopens, pollIntervalMs, pollRetryCeilingMs))
+    }
+
+    async function negotiateBounded(offerSdp: string, binding?: LiveControlBinding) {
+      const controller = new AbortController()
+      negotiationControllers.add(controller)
+      try {
+        return await withTimeout(
+          client!.negotiate(streamId, offerSdp, workspaceId, binding, controller.signal),
+          defaultMirrorNegotiationTimeoutMs,
+          "WebRTC negotiation timed out",
+          () => controller.abort(),
+        )
+      } finally {
+        negotiationControllers.delete(controller)
+      }
+    }
+
+    function armRenderedFrameStall(created: MirrorPeer, element: HTMLVideoElement | null) {
+      if (!element || disposed || settled || activeTransport !== "webrtc" || peer !== created) return
+      cancelPeerWatch?.()
+      cancelPeerWatch = schedule(defaultMirrorRenderedFrameStallTimeoutMs, () => {
+        cancelPeerWatch = null
+        void diagnoseRenderedFrameStall(created, element)
+      })
+    }
+
+    function watchRenderedFrames(created: MirrorPeer, element: HTMLVideoElement | null) {
+      // Callback absence is not a failure signal. On browsers that do expose it,
+      // however, start watching as soon as the peer is accepted, even if no track
+      // event ever arrives.
+      if (!element || typeof element.requestVideoFrameCallback !== "function") return
+      if (watchedVideo === element && videoFrameCallback !== null) return
+      if (watchedVideo && watchedVideo !== element) {
+        cancelPeerWatch?.()
+        cancelPeerWatch = null
+        if (videoFrameCallback !== null) {
+          try { watchedVideo.cancelVideoFrameCallback?.(videoFrameCallback) } catch { /* The old element may already be detached. */ }
+        }
+        videoFrameCallback = null
+      }
+      watchedVideo = element
+      const requestNextFrame = () => {
+        if (disposed || settled || activeTransport !== "webrtc" || peer !== created || watchedVideo !== element) return
+        armRenderedFrameStall(created, element)
+        videoFrameCallback = element.requestVideoFrameCallback(() => {
+          videoFrameCallback = null
+          if (disposed || settled || activeTransport !== "webrtc" || peer !== created || watchedVideo !== element) return
+          requestNextFrame()
+        })
+      }
+      requestNextFrame()
+    }
+
+    async function diagnoseRenderedFrameStall(created: MirrorPeer, element: HTMLVideoElement | null) {
+      // A render callback that goes quiet is not a dead transport. Another live
+      // tile can pause painting for longer than this bound while packets are
+      // still arriving. Switching to TCP here stops the WebRTC control channel,
+      // which is what drops a drag to release-only. Keep the stream. The next
+      // painted frame re-arms this watch. A peer that delivered no packets has
+      // no picture to keep, and that one still moves to TCP.
+      if (!created.diagnostics) {
+        await fallbackToTCP("WebRTC rendering stopped making frame progress")
+        return
+      }
+      let diagnostics: MirrorPeerDiagnostics
+      try {
+        diagnostics = await withTimeout(
+          created.diagnostics(),
+          defaultMirrorDiagnosticsTimeoutMs,
+          "WebRTC peer diagnostics timed out",
+        )
+      } catch {
+        return
+      }
+      if (diagnostics.inboundPackets > 0) return
+      await fallbackToTCP(renderedFrameStallReason(diagnostics, element))
     }
 
     /**
@@ -536,7 +854,7 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
      */
     async function open() {
       try {
-        const opened = await client!.startStream({ workspaceId, deviceId, transport, purpose, preview: workspacePreview })
+        const opened = await client!.startStream({ workspaceId, deviceId, transport: activeTransport, purpose, preview: workspacePreview })
         if (disposed || settled) {
           // A stream that arrived after this session ended is given straight back:
           // this is the third deliberate stop above.
@@ -567,10 +885,22 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
             return
           }
           const endpoint = client!.streamEndpoint(opened.streamUrl)
+          const socketEndpoint = client!.streamEndpoint(mirrorH264SocketPath)
+          const ticketEndpoint = client!.streamEndpoint(mirrorH264TicketPath)
           const request: MirrorPlaybackRequest = {
             element: videoRef.current,
+            canvas: canvasRef.current,
             url: endpoint.url,
             headers: endpoint.headers,
+            webCodecs: {
+              streamId: opened.streamId,
+              socketUrl: websocketURL(socketEndpoint.url),
+              ticketUrl: ticketEndpoint.url,
+            },
+            onTransportChange: (active) => {
+              if (!disposed && !settled) setPlaybackTransport(active)
+            },
+            onRendered: onWebCodecsRendered,
             // The body is the picture, so a body that dies after the endpoint was
             // accepted cannot reach this console as a refusal `start` threw: it is
             // reported here, and reported as a failure of the picture this console
@@ -594,9 +924,20 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
           readAgain(pollIntervalMs)
           return
         }
+        if (activeTransport === "tcp") {
+          finish("failed", "The control plane did not establish the requested TCP fallback transport", true)
+          return
+        }
         const created = peerFactory ? peerFactory() : browserMirrorPeerFactory()
         peer = created
+        setPlaybackTransport("webrtc")
+        created.onFailure?.((cause) => { void fallbackToTCP(errorSentence(cause), cause) })
+        created.onMediaActivity?.(() => {
+          if (disposed || settled || activeTransport !== "webrtc" || peer !== created) return
+          armRenderedFrameStall(created, videoRef.current)
+        })
         created.onStream((media) => {
+          if (disposed || settled || activeTransport !== "webrtc" || peer !== created) return
           const element = videoRef.current
           if (!element) return
           element.srcObject = media
@@ -604,11 +945,35 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
           // Neither is a stream failure: the picture is in the element either way,
           // and a refusal is the operator's own browser policy, not a broken stream.
           void element.play?.()?.catch(() => undefined)
+          watchRenderedFrames(created, element)
         })
-        const offer = await created.createOffer()
+        const binding = purpose === "operator" && client!.realtimeControlEnabled?.() && activeTransport === "webrtc" ? controlBindingRef.current : undefined
+        negotiatedControlKeyRef.current = binding ? `${binding.sessionId}:${binding.leaseId}:${binding.fencingToken}` : ""
+        if (binding) {
+          try { controlWire = created.createControlChannel?.() ?? null } catch { controlWire = null }
+        }
+        const offer = await withTimeout(created.createOffer(), defaultMirrorNegotiationTimeoutMs, "WebRTC offer creation timed out")
         if (disposed || settled) return
-        const answer = await client!.negotiate(streamId, offer)
+        // An opt-in control refusal must not take the picture away. The same
+        // viewing can still negotiate video without granting this channel input.
+        let answer
+        try {
+          answer = await negotiateBounded(offer, controlWire ? binding : undefined)
+        } catch (cause) {
+          if (!controlWire || !binding || !isControlBindingRefusal(cause)) throw cause
+          try { controlWire.close() } catch { /* video-only fallback still proceeds */ }
+          controlWire = null
+          answer = await negotiateBounded(offer)
+        }
         if (disposed || settled) return
+        if (controlWire && answer.controlGeneration && answer.controlGeneration > 0n) {
+          const frame = answer.stream.renderWidth > 0 && answer.stream.renderHeight > 0 ? { width: answer.stream.renderWidth, height: answer.stream.renderHeight } : null
+          if (frame) realtimeRef.current = new MirrorGestureSender(controlWire, answer.controlGeneration, frame.width, frame.height)
+        }
+        if (controlWire && !realtimeRef.current) {
+          try { controlWire.close() } catch { /* video remains independent of input */ }
+          controlWire = null
+        }
         setStream(answer.stream)
         // The same rule for the stream the handshake returns: an answer that
         // carries a stream which is already over is reported as over rather than
@@ -621,8 +986,9 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
           finish("ended", "", true)
           return
         }
-        await created.acceptAnswer(answer.answerSdp)
+        await withTimeout(created.acceptAnswer(answer.answerSdp), defaultMirrorNegotiationTimeoutMs, "WebRTC answer acceptance timed out")
         if (disposed || settled) return
+        watchRenderedFrames(created, videoRef.current)
         setPhase(answer.stream.state === "live" ? "live" : "starting")
         readAgain(pollIntervalMs)
       } catch (cause: unknown) {
@@ -642,12 +1008,16 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
           forget()
           return
         }
+        if (activeTransport === "webrtc" && await fallbackToTCP(errorSentence(cause), cause)) return
         finish("failed", errorSentence(cause), true)
       }
     }
 
     setPhase("opening")
     setFailure("")
+    setRecovery(emptyMirrorRecoveryTelemetry)
+    setFallbackReason("")
+    setPlaybackTransport(null)
 
     void open()
 
@@ -660,9 +1030,58 @@ export function useLiveMirror(deviceId: string, options: UseLiveMirrorOptions = 
       release()
       teardownRef.current = null
     }
-  }, [attempt, client, deviceId, establishTimeoutMs, peerFactory, playbackFactory, pollFailureLimit, pollRetryCeilingMs, pollIntervalMs, previewFrameRate, previewQuality, purpose, reopenLimit, schedule, transport, workspaceId])
+  }, [attempt, attachCanvas, client, deviceId, establishTimeoutMs, onWebCodecsRendered, peerFactory, playbackFactory, pollFailureLimit, pollRetryCeilingMs, pollIntervalMs, previewFrameRate, previewQuality, purpose, reopenLimit, schedule, transport, workspaceId])
 
-  return { phase, stream, failure, attachVideo, retry, stop }
+  return { phase, stream, failure, recovery, fallbackReason, attachVideo, attachCanvas, playbackTransport, retry, stop, realtimeControl, negotiatedControlKey }
+}
+
+function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string, onTimeout?: () => void): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let completed = false
+    const timeout = setTimeout(() => {
+      if (completed) return
+      completed = true
+      onTimeout?.()
+      reject(new Error(message))
+    }, timeoutMs)
+    operation.then(
+      (value) => {
+        if (completed) return
+        completed = true
+        clearTimeout(timeout)
+        resolve(value)
+      },
+      (cause: unknown) => {
+        if (completed) return
+        completed = true
+        clearTimeout(timeout)
+        reject(cause)
+      },
+    )
+  })
+}
+
+function shouldFallbackToTCP(cause: unknown): boolean {
+  if (isNotFound(cause)) return false
+  if (cause instanceof ConnectJsonError) {
+    return ["deadline_exceeded", "internal", "unavailable", "unknown"].includes(cause.code)
+  }
+  if (!(cause instanceof Error)) return false
+  const status = streamRefusalStatus(cause)
+  if (status > 0 && status < 500) return false
+  return true
+}
+
+function isControlBindingRefusal(cause: unknown): boolean {
+  return cause instanceof ConnectJsonError && ["failed_precondition", "permission_denied"].includes(cause.code)
+}
+
+function websocketURL(url: string): string {
+  const endpoint = new URL(url)
+  if (endpoint.protocol === "http:") endpoint.protocol = "ws:"
+  else if (endpoint.protocol === "https:") endpoint.protocol = "wss:"
+  if (endpoint.protocol !== "ws:" && endpoint.protocol !== "wss:") throw new Error("The live mirror endpoint must use HTTP or HTTPS")
+  return endpoint.toString()
 }
 
 function isNotFound(cause: unknown): boolean {

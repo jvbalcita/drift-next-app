@@ -1608,6 +1608,7 @@ describe("RealControlPlaneClient key events", () => {
           fanout: {
             runId: "run-1",
             targetCount: 1,
+            acceptanceDurationMs: 12,
             followers: [
               { deviceId: "device-pixel-2", disposition: 1, reason: "delivered" },
               { deviceId: "device-pixel-3", disposition: 3, reason: "follower_not_online" },
@@ -1641,7 +1642,7 @@ describe("RealControlPlaneClient key events", () => {
     expect(body.followerDeviceIds).toEqual(["device-pixel-2", "device-pixel-3"])
     // The count is the set the run TARGETED, and the follower that was not
     // contacted is named with its own reason.
-    expect(result.message).toContain("Followers: 1 of 2 targeted.")
+    expect(result.message).toContain("Followers: 1 of 2 targeted in 12 ms.")
     expect(result.message).toContain("device-pixel-3 excluded (follower_not_online)")
     expect(result.message).not.toContain("device-pixel-2 ")
   })

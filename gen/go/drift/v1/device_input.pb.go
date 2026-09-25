@@ -318,9 +318,13 @@ type FollowerInputFanout struct {
 	// followers carries one row per follower the operator named, in the order the
 	// operator named them, deduplicated by device. Nothing the operator selected is
 	// absent from it.
-	Followers     []*FollowerInputOutcome `protobuf:"bytes,3,rep,name=followers,proto3" json:"followers,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Followers []*FollowerInputOutcome `protobuf:"bytes,3,rep,name=followers,proto3" json:"followers,omitempty"`
+	// acceptance_duration_ms is how long the plane spent resolving and offering
+	// every selected follower to the bounded executor. It never includes follower
+	// execution: the source response must not wait for the slowest device.
+	AcceptanceDurationMs uint32 `protobuf:"varint,4,opt,name=acceptance_duration_ms,json=acceptanceDurationMs,proto3" json:"acceptance_duration_ms,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *FollowerInputFanout) Reset() {
@@ -374,6 +378,13 @@ func (x *FollowerInputFanout) GetFollowers() []*FollowerInputOutcome {
 	return nil
 }
 
+func (x *FollowerInputFanout) GetAcceptanceDurationMs() uint32 {
+	if x != nil {
+		return x.AcceptanceDurationMs
+	}
+	return 0
+}
+
 // FollowerInputDisposition is what happened to ONE follower's copy of the gesture.
 //
 // It is deliberately four values rather than a boolean. ACCEPTED says the
@@ -408,10 +419,13 @@ type FollowerInputOutcome struct {
 	// are the SOURCE's declared frame, unchanged: this plane refuses a follower that
 	// does not present at that frame and never rescales a coordinate into the
 	// follower's own size.
-	FrameWidth    uint32 `protobuf:"varint,9,opt,name=frame_width,json=frameWidth,proto3" json:"frame_width,omitempty"`
-	FrameHeight   uint32 `protobuf:"varint,10,opt,name=frame_height,json=frameHeight,proto3" json:"frame_height,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	FrameWidth  uint32 `protobuf:"varint,9,opt,name=frame_width,json=frameWidth,proto3" json:"frame_width,omitempty"`
+	FrameHeight uint32 `protobuf:"varint,10,opt,name=frame_height,json=frameHeight,proto3" json:"frame_height,omitempty"`
+	// acceptance_latency_ms is how long this follower's bounded queue admission
+	// took. It is zero for a follower that was excluded before admission.
+	AcceptanceLatencyMs uint32 `protobuf:"varint,11,opt,name=acceptance_latency_ms,json=acceptanceLatencyMs,proto3" json:"acceptance_latency_ms,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *FollowerInputOutcome) Reset() {
@@ -510,6 +524,13 @@ func (x *FollowerInputOutcome) GetFrameWidth() uint32 {
 func (x *FollowerInputOutcome) GetFrameHeight() uint32 {
 	if x != nil {
 		return x.FrameHeight
+	}
+	return 0
+}
+
+func (x *FollowerInputOutcome) GetAcceptanceLatencyMs() uint32 {
+	if x != nil {
+		return x.AcceptanceLatencyMs
 	}
 	return 0
 }
@@ -1224,11 +1245,12 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"\x06reason\x18\x01 \x01(\x0e2\".drift.v1.DeviceInputRefusalReasonR\x06reason\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12#\n" +
 	"\rfailure_class\x18\x03 \x01(\tR\ffailureClass\x12\x18\n" +
-	"\amessage\x18\x04 \x01(\tR\amessage\"\x8d\x01\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\"\xc3\x01\n" +
 	"\x13FollowerInputFanout\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12!\n" +
 	"\ftarget_count\x18\x02 \x01(\x05R\vtargetCount\x12<\n" +
-	"\tfollowers\x18\x03 \x03(\v2\x1e.drift.v1.FollowerInputOutcomeR\tfollowers\"\x87\x03\n" +
+	"\tfollowers\x18\x03 \x03(\v2\x1e.drift.v1.FollowerInputOutcomeR\tfollowers\x124\n" +
+	"\x16acceptance_duration_ms\x18\x04 \x01(\rR\x14acceptanceDurationMs\"\xbb\x03\n" +
 	"\x14FollowerInputOutcome\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12D\n" +
 	"\vdisposition\x18\x02 \x01(\x0e2\".drift.v1.FollowerInputDispositionR\vdisposition\x12\x16\n" +
@@ -1242,7 +1264,8 @@ const file_drift_v1_device_input_proto_rawDesc = "" +
 	"\vframe_width\x18\t \x01(\rR\n" +
 	"frameWidth\x12!\n" +
 	"\fframe_height\x18\n" +
-	" \x01(\rR\vframeHeight\"\xaa\x03\n" +
+	" \x01(\rR\vframeHeight\x122\n" +
+	"\x15acceptance_latency_ms\x18\v \x01(\rR\x13acceptanceLatencyMs\"\xaa\x03\n" +
 	"\n" +
 	"TapRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +

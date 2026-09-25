@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file drift/v1/device_mirror.proto.
  */
 export const file_drift_v1_device_mirror: GenFile = /*@__PURE__*/
-  fileDesc("ChxkcmlmdC92MS9kZXZpY2VfbWlycm9yLnByb3RvEghkcmlmdC52MSKEAgoMTWlycm9yU3RyZWFtEhEKCXN0cmVhbV9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSLAoJdHJhbnNwb3J0GAMgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0EhQKDHJlbmRlcl93aWR0aBgEIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAUgASgNEioKBXN0YXRlGAYgASgOMhsuZHJpZnQudjEuTWlycm9yU3RyZWFtU3RhdGUSDwoHZmFpbHVyZRgHIAEoCRIOCgZmcmFtZXMYCCABKAQSEgoKa2V5X2ZyYW1lcxgJIAEoBBISCgpzdHJlYW1fdXJsGAogASgJIpwCCg5NaXJyb3JDYXBhY2l0eRIYChBzZXNzaW9uX2NhcGFjaXR5GAEgASgNEhgKEG9wZXJhdG9yX3Jlc2VydmUYAiABKA0SNwoPcHJldmlld19xdWFsaXR5GAMgASgOMh4uZHJpZnQudjEuTWlycm9yUHJldmlld1F1YWxpdHkSHAoUcHJldmlld19iaXRyYXRlX2ticHMYBCABKA0SHQoVdHJhbnNwb3J0X2J1ZGdldF9rYnBzGAUgASgNEhwKFHRyYW5zcG9ydF9zcGVuZF9rYnBzGAYgASgNEhMKC3RpbGVfcGxhY2VzGAcgASgNEi0KCnRpbGVfYm91bmQYCCABKA4yGS5kcmlmdC52MS5NaXJyb3JUaWxlQm91bmQirgIKGFN0YXJ0TWlycm9yU3RyZWFtUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIsCgl0cmFuc3BvcnQYBCABKA4yGS5kcmlmdC52MS5NaXJyb3JUcmFuc3BvcnQSLgoHcHVycG9zZRgFIAEoDjIdLmRyaWZ0LnYxLk1pcnJvclZpZXdlclB1cnBvc2USNwoPcHJldmlld19xdWFsaXR5GAYgASgOMh4uZHJpZnQudjEuTWlycm9yUHJldmlld1F1YWxpdHkSEgoKZnJhbWVfcmF0ZRgHIAEoDSJDChlTdGFydE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSJvChxOZWdvdGlhdGVNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIRCglzdHJlYW1faWQYAiABKAkSEQoJb2ZmZXJfc2RwGAMgASgJIlsKHU5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlEhIKCmFuc3dlcl9zZHAYASABKAkSJgoGc3RyZWFtGAIgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtIlcKF1N0b3BNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIRCglzdHJlYW1faWQYAiABKAkiQgoYU3RvcE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSIrChZHZXRNaXJyb3JTdHJlYW1SZXF1ZXN0EhEKCXN0cmVhbV9pZBgBIAEoCSJBChdHZXRNaXJyb3JTdHJlYW1SZXNwb25zZRImCgZzdHJlYW0YASABKAsyFi5kcmlmdC52MS5NaXJyb3JTdHJlYW0iRQoYR2V0TWlycm9yQ2FwYWNpdHlSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZiJHChlHZXRNaXJyb3JDYXBhY2l0eVJlc3BvbnNlEioKCGNhcGFjaXR5GAEgASgLMhguZHJpZnQudjEuTWlycm9yQ2FwYWNpdHkqagoPTWlycm9yVHJhbnNwb3J0EiAKHE1JUlJPUl9UUkFOU1BPUlRfVU5TUEVDSUZJRUQQABIbChdNSVJST1JfVFJBTlNQT1JUX1dFQlJUQxABEhgKFE1JUlJPUl9UUkFOU1BPUlRfVENQEAIqtwEKEU1pcnJvclN0cmVhbVN0YXRlEiMKH01JUlJPUl9TVFJFQU1fU1RBVEVfVU5TUEVDSUZJRUQQABIgChxNSVJST1JfU1RSRUFNX1NUQVRFX1NUQVJUSU5HEAESHAoYTUlSUk9SX1NUUkVBTV9TVEFURV9MSVZFEAISHQoZTUlSUk9SX1NUUkVBTV9TVEFURV9FTkRFRBADEh4KGk1JUlJPUl9TVFJFQU1fU1RBVEVfRkFJTEVEEAQqgwEKE01pcnJvclZpZXdlclB1cnBvc2USJQohTUlSUk9SX1ZJRVdFUl9QVVJQT1NFX1VOU1BFQ0lGSUVEEAASIQodTUlSUk9SX1ZJRVdFUl9QVVJQT1NFX0FNQklFTlQQARIiCh5NSVJST1JfVklFV0VSX1BVUlBPU0VfT1BFUkFUT1IQAirEAQoUTWlycm9yUHJldmlld1F1YWxpdHkSJgoiTUlSUk9SX1BSRVZJRVdfUVVBTElUWV9VTlNQRUNJRklFRBAAEh4KGk1JUlJPUl9QUkVWSUVXX1FVQUxJVFlfTE9XEAESIQodTUlSUk9SX1BSRVZJRVdfUVVBTElUWV9NRURJVU0QAhIfChtNSVJST1JfUFJFVklFV19RVUFMSVRZX0hJR0gQAxIgChxNSVJST1JfUFJFVklFV19RVUFMSVRZX0VYVFJBEAQqgQEKD01pcnJvclRpbGVCb3VuZBIhCh1NSVJST1JfVElMRV9CT1VORF9VTlNQRUNJRklFRBAAEiMKH01JUlJPUl9USUxFX0JPVU5EX1NFU1NJT05fU0hBUkUQARImCiJNSVJST1JfVElMRV9CT1VORF9UUkFOU1BPUlRfQlVER0VUEAIy7gMKE0RldmljZU1pcnJvclNlcnZpY2USXAoRU3RhcnRNaXJyb3JTdHJlYW0SIi5kcmlmdC52MS5TdGFydE1pcnJvclN0cmVhbVJlcXVlc3QaIy5kcmlmdC52MS5TdGFydE1pcnJvclN0cmVhbVJlc3BvbnNlEmgKFU5lZ290aWF0ZU1pcnJvclN0cmVhbRImLmRyaWZ0LnYxLk5lZ290aWF0ZU1pcnJvclN0cmVhbVJlcXVlc3QaJy5kcmlmdC52MS5OZWdvdGlhdGVNaXJyb3JTdHJlYW1SZXNwb25zZRJZChBTdG9wTWlycm9yU3RyZWFtEiEuZHJpZnQudjEuU3RvcE1pcnJvclN0cmVhbVJlcXVlc3QaIi5kcmlmdC52MS5TdG9wTWlycm9yU3RyZWFtUmVzcG9uc2USVgoPR2V0TWlycm9yU3RyZWFtEiAuZHJpZnQudjEuR2V0TWlycm9yU3RyZWFtUmVxdWVzdBohLmRyaWZ0LnYxLkdldE1pcnJvclN0cmVhbVJlc3BvbnNlElwKEUdldE1pcnJvckNhcGFjaXR5EiIuZHJpZnQudjEuR2V0TWlycm9yQ2FwYWNpdHlSZXF1ZXN0GiMuZHJpZnQudjEuR2V0TWlycm9yQ2FwYWNpdHlSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
+  fileDesc("ChxkcmlmdC92MS9kZXZpY2VfbWlycm9yLnByb3RvEghkcmlmdC52MSLwAgoMTWlycm9yU3RyZWFtEhEKCXN0cmVhbV9pZBgBIAEoCRIRCglkZXZpY2VfaWQYAiABKAkSLAoJdHJhbnNwb3J0GAMgASgOMhkuZHJpZnQudjEuTWlycm9yVHJhbnNwb3J0EhQKDHJlbmRlcl93aWR0aBgEIAEoDRIVCg1yZW5kZXJfaGVpZ2h0GAUgASgNEioKBXN0YXRlGAYgASgOMhsuZHJpZnQudjEuTWlycm9yU3RyZWFtU3RhdGUSDwoHZmFpbHVyZRgHIAEoCRIOCgZmcmFtZXMYCCABKAQSEgoKa2V5X2ZyYW1lcxgJIAEoBBISCgpzdHJlYW1fdXJsGAogASgJEg0KBWJ5dGVzGAsgASgEEh4KFnN0YXJ0ZWRfYXRfdW5peF9taWxsaXMYDCABKAMSIQoZbGFzdF9mcmFtZV9hdF91bml4X21pbGxpcxgNIAEoAxIYChBjb25uZWN0aW9uX3N0YXRlGA4gASgJIpwCCg5NaXJyb3JDYXBhY2l0eRIYChBzZXNzaW9uX2NhcGFjaXR5GAEgASgNEhgKEG9wZXJhdG9yX3Jlc2VydmUYAiABKA0SNwoPcHJldmlld19xdWFsaXR5GAMgASgOMh4uZHJpZnQudjEuTWlycm9yUHJldmlld1F1YWxpdHkSHAoUcHJldmlld19iaXRyYXRlX2ticHMYBCABKA0SHQoVdHJhbnNwb3J0X2J1ZGdldF9rYnBzGAUgASgNEhwKFHRyYW5zcG9ydF9zcGVuZF9rYnBzGAYgASgNEhMKC3RpbGVfcGxhY2VzGAcgASgNEi0KCnRpbGVfYm91bmQYCCABKA4yGS5kcmlmdC52MS5NaXJyb3JUaWxlQm91bmQirgIKGFN0YXJ0TWlycm9yU3RyZWFtUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSKQoJd29ya3NwYWNlGAIgASgLMhYuZHJpZnQudjEuV29ya3NwYWNlUmVmEhEKCWRldmljZV9pZBgDIAEoCRIsCgl0cmFuc3BvcnQYBCABKA4yGS5kcmlmdC52MS5NaXJyb3JUcmFuc3BvcnQSLgoHcHVycG9zZRgFIAEoDjIdLmRyaWZ0LnYxLk1pcnJvclZpZXdlclB1cnBvc2USNwoPcHJldmlld19xdWFsaXR5GAYgASgOMh4uZHJpZnQudjEuTWlycm9yUHJldmlld1F1YWxpdHkSEgoKZnJhbWVfcmF0ZRgHIAEoDSJDChlTdGFydE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSLLAQocTmVnb3RpYXRlTWlycm9yU3RyZWFtUmVxdWVzdBIpCgdjb250ZXh0GAEgASgLMhguZHJpZnQudjEuUmVxdWVzdENvbnRleHQSEQoJc3RyZWFtX2lkGAIgASgJEhEKCW9mZmVyX3NkcBgDIAEoCRIpCgl3b3Jrc3BhY2UYBCABKAsyFi5kcmlmdC52MS5Xb3Jrc3BhY2VSZWYSLwoHY29udHJvbBgFIAEoCzIeLmRyaWZ0LnYxLk1pcnJvckNvbnRyb2xCaW5kaW5nIncKHU5lZ290aWF0ZU1pcnJvclN0cmVhbVJlc3BvbnNlEhIKCmFuc3dlcl9zZHAYASABKAkSJgoGc3RyZWFtGAIgASgLMhYuZHJpZnQudjEuTWlycm9yU3RyZWFtEhoKEmNvbnRyb2xfZ2VuZXJhdGlvbhgDIAEoBCJmChRNaXJyb3JDb250cm9sQmluZGluZxISCgpzZXNzaW9uX2lkGAEgASgJEhAKCGxlYXNlX2lkGAIgASgJEhEKCWhvbGRlcl9pZBgDIAEoCRIVCg1mZW5jaW5nX3Rva2VuGAQgASgEIlcKF1N0b3BNaXJyb3JTdHJlYW1SZXF1ZXN0EikKB2NvbnRleHQYASABKAsyGC5kcmlmdC52MS5SZXF1ZXN0Q29udGV4dBIRCglzdHJlYW1faWQYAiABKAkiQgoYU3RvcE1pcnJvclN0cmVhbVJlc3BvbnNlEiYKBnN0cmVhbRgBIAEoCzIWLmRyaWZ0LnYxLk1pcnJvclN0cmVhbSIrChZHZXRNaXJyb3JTdHJlYW1SZXF1ZXN0EhEKCXN0cmVhbV9pZBgBIAEoCSJBChdHZXRNaXJyb3JTdHJlYW1SZXNwb25zZRImCgZzdHJlYW0YASABKAsyFi5kcmlmdC52MS5NaXJyb3JTdHJlYW0iRQoYR2V0TWlycm9yQ2FwYWNpdHlSZXF1ZXN0EikKCXdvcmtzcGFjZRgBIAEoCzIWLmRyaWZ0LnYxLldvcmtzcGFjZVJlZiJHChlHZXRNaXJyb3JDYXBhY2l0eVJlc3BvbnNlEioKCGNhcGFjaXR5GAEgASgLMhguZHJpZnQudjEuTWlycm9yQ2FwYWNpdHkqagoPTWlycm9yVHJhbnNwb3J0EiAKHE1JUlJPUl9UUkFOU1BPUlRfVU5TUEVDSUZJRUQQABIbChdNSVJST1JfVFJBTlNQT1JUX1dFQlJUQxABEhgKFE1JUlJPUl9UUkFOU1BPUlRfVENQEAIqtwEKEU1pcnJvclN0cmVhbVN0YXRlEiMKH01JUlJPUl9TVFJFQU1fU1RBVEVfVU5TUEVDSUZJRUQQABIgChxNSVJST1JfU1RSRUFNX1NUQVRFX1NUQVJUSU5HEAESHAoYTUlSUk9SX1NUUkVBTV9TVEFURV9MSVZFEAISHQoZTUlSUk9SX1NUUkVBTV9TVEFURV9FTkRFRBADEh4KGk1JUlJPUl9TVFJFQU1fU1RBVEVfRkFJTEVEEAQqgwEKE01pcnJvclZpZXdlclB1cnBvc2USJQohTUlSUk9SX1ZJRVdFUl9QVVJQT1NFX1VOU1BFQ0lGSUVEEAASIQodTUlSUk9SX1ZJRVdFUl9QVVJQT1NFX0FNQklFTlQQARIiCh5NSVJST1JfVklFV0VSX1BVUlBPU0VfT1BFUkFUT1IQAirEAQoUTWlycm9yUHJldmlld1F1YWxpdHkSJgoiTUlSUk9SX1BSRVZJRVdfUVVBTElUWV9VTlNQRUNJRklFRBAAEh4KGk1JUlJPUl9QUkVWSUVXX1FVQUxJVFlfTE9XEAESIQodTUlSUk9SX1BSRVZJRVdfUVVBTElUWV9NRURJVU0QAhIfChtNSVJST1JfUFJFVklFV19RVUFMSVRZX0hJR0gQAxIgChxNSVJST1JfUFJFVklFV19RVUFMSVRZX0VYVFJBEAQqgQEKD01pcnJvclRpbGVCb3VuZBIhCh1NSVJST1JfVElMRV9CT1VORF9VTlNQRUNJRklFRBAAEiMKH01JUlJPUl9USUxFX0JPVU5EX1NFU1NJT05fU0hBUkUQARImCiJNSVJST1JfVElMRV9CT1VORF9UUkFOU1BPUlRfQlVER0VUEAIy7gMKE0RldmljZU1pcnJvclNlcnZpY2USXAoRU3RhcnRNaXJyb3JTdHJlYW0SIi5kcmlmdC52MS5TdGFydE1pcnJvclN0cmVhbVJlcXVlc3QaIy5kcmlmdC52MS5TdGFydE1pcnJvclN0cmVhbVJlc3BvbnNlEmgKFU5lZ290aWF0ZU1pcnJvclN0cmVhbRImLmRyaWZ0LnYxLk5lZ290aWF0ZU1pcnJvclN0cmVhbVJlcXVlc3QaJy5kcmlmdC52MS5OZWdvdGlhdGVNaXJyb3JTdHJlYW1SZXNwb25zZRJZChBTdG9wTWlycm9yU3RyZWFtEiEuZHJpZnQudjEuU3RvcE1pcnJvclN0cmVhbVJlcXVlc3QaIi5kcmlmdC52MS5TdG9wTWlycm9yU3RyZWFtUmVzcG9uc2USVgoPR2V0TWlycm9yU3RyZWFtEiAuZHJpZnQudjEuR2V0TWlycm9yU3RyZWFtUmVxdWVzdBohLmRyaWZ0LnYxLkdldE1pcnJvclN0cmVhbVJlc3BvbnNlElwKEUdldE1pcnJvckNhcGFjaXR5EiIuZHJpZnQudjEuR2V0TWlycm9yQ2FwYWNpdHlSZXF1ZXN0GiMuZHJpZnQudjEuR2V0TWlycm9yQ2FwYWNpdHlSZXNwb25zZUIwWi5kcmlmdC5sb2NhbC9kcmlmdC1uZXh0L2dlbi9nby9kcmlmdC92MTtkcmlmdHYxYgZwcm90bzM", [file_drift_v1_common]);
 
 /**
  * MirrorStream is one device's live stream as the console sees it.
@@ -112,6 +112,39 @@ export type MirrorStream = Message<"drift.v1.MirrorStream"> & {
    * @generated from field: string stream_url = 10;
    */
   streamUrl: string;
+
+  /**
+   * bytes is the encoded access-unit payload this viewing has carried. It is
+   * bounded accounting, not a media buffer: no frame history is retained for it.
+   *
+   * @generated from field: uint64 bytes = 11;
+   */
+  bytes: bigint;
+
+  /**
+   * started_at_unix_millis is when this viewing's carrier opened. Together with
+   * last_frame_at_unix_millis it makes carrier activity span and current frame
+   * age measurable without asking a browser to infer either from a frame count.
+   *
+   * @generated from field: int64 started_at_unix_millis = 12;
+   */
+  startedAtUnixMillis: bigint;
+
+  /**
+   * last_frame_at_unix_millis is when the carrier most recently forwarded a
+   * picture. Zero means no picture has been forwarded yet.
+   *
+   * @generated from field: int64 last_frame_at_unix_millis = 13;
+   */
+  lastFrameAtUnixMillis: bigint;
+
+  /**
+   * connection_state is the carrier's own bounded transport state. WebRTC uses
+   * the peer connection state; compatibility transports may leave it empty.
+   *
+   * @generated from field: string connection_state = 14;
+   */
+  connectionState: string;
 };
 
 /**
@@ -353,6 +386,22 @@ export type NegotiateMirrorStreamRequest = Message<"drift.v1.NegotiateMirrorStre
    * @generated from field: string offer_sdp = 3;
    */
   offerSdp: string;
+
+  /**
+   * Optional for older video-only clients. When present, negotiation checks
+   * it and the actor against the claim bound when the stream was opened.
+   *
+   * @generated from field: drift.v1.WorkspaceRef workspace = 4;
+   */
+  workspace?: WorkspaceRef;
+
+  /**
+   * Optional. A caller asking to send live input must prove the control
+   * session and device lease it already holds. Video-only callers omit it.
+   *
+   * @generated from field: drift.v1.MirrorControlBinding control = 5;
+   */
+  control?: MirrorControlBinding;
 };
 
 /**
@@ -375,6 +424,14 @@ export type NegotiateMirrorStreamResponse = Message<"drift.v1.NegotiateMirrorStr
    * @generated from field: drift.v1.MirrorStream stream = 2;
    */
   stream?: MirrorStream;
+
+  /**
+   * Nonzero only when the server armed an authorized control channel. Binary
+   * input messages must name this generation, not a caller-selected value.
+   *
+   * @generated from field: uint64 control_generation = 3;
+   */
+  controlGeneration: bigint;
 };
 
 /**
@@ -383,6 +440,38 @@ export type NegotiateMirrorStreamResponse = Message<"drift.v1.NegotiateMirrorStr
  */
 export const NegotiateMirrorStreamResponseSchema: GenMessage<NegotiateMirrorStreamResponse> = /*@__PURE__*/
   messageDesc(file_drift_v1_device_mirror, 5);
+
+/**
+ * @generated from message drift.v1.MirrorControlBinding
+ */
+export type MirrorControlBinding = Message<"drift.v1.MirrorControlBinding"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string lease_id = 2;
+   */
+  leaseId: string;
+
+  /**
+   * @generated from field: string holder_id = 3;
+   */
+  holderId: string;
+
+  /**
+   * @generated from field: uint64 fencing_token = 4;
+   */
+  fencingToken: bigint;
+};
+
+/**
+ * Describes the message drift.v1.MirrorControlBinding.
+ * Use `create(MirrorControlBindingSchema)` to create a new message.
+ */
+export const MirrorControlBindingSchema: GenMessage<MirrorControlBinding> = /*@__PURE__*/
+  messageDesc(file_drift_v1_device_mirror, 6);
 
 /**
  * StopMirrorStreamRequest ends the viewing that holds one stream identity.
@@ -412,7 +501,7 @@ export type StopMirrorStreamRequest = Message<"drift.v1.StopMirrorStreamRequest"
  * Use `create(StopMirrorStreamRequestSchema)` to create a new message.
  */
 export const StopMirrorStreamRequestSchema: GenMessage<StopMirrorStreamRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 6);
+  messageDesc(file_drift_v1_device_mirror, 7);
 
 /**
  * @generated from message drift.v1.StopMirrorStreamResponse
@@ -429,7 +518,7 @@ export type StopMirrorStreamResponse = Message<"drift.v1.StopMirrorStreamRespons
  * Use `create(StopMirrorStreamResponseSchema)` to create a new message.
  */
 export const StopMirrorStreamResponseSchema: GenMessage<StopMirrorStreamResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 7);
+  messageDesc(file_drift_v1_device_mirror, 8);
 
 /**
  * GetMirrorStreamRequest polls one stream's state while the console shows it.
@@ -448,7 +537,7 @@ export type GetMirrorStreamRequest = Message<"drift.v1.GetMirrorStreamRequest"> 
  * Use `create(GetMirrorStreamRequestSchema)` to create a new message.
  */
 export const GetMirrorStreamRequestSchema: GenMessage<GetMirrorStreamRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 8);
+  messageDesc(file_drift_v1_device_mirror, 9);
 
 /**
  * @generated from message drift.v1.GetMirrorStreamResponse
@@ -465,7 +554,7 @@ export type GetMirrorStreamResponse = Message<"drift.v1.GetMirrorStreamResponse"
  * Use `create(GetMirrorStreamResponseSchema)` to create a new message.
  */
 export const GetMirrorStreamResponseSchema: GenMessage<GetMirrorStreamResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 9);
+  messageDesc(file_drift_v1_device_mirror, 10);
 
 /**
  * GetMirrorCapacityRequest asks how much room this plane has for streams.
@@ -484,7 +573,7 @@ export type GetMirrorCapacityRequest = Message<"drift.v1.GetMirrorCapacityReques
  * Use `create(GetMirrorCapacityRequestSchema)` to create a new message.
  */
 export const GetMirrorCapacityRequestSchema: GenMessage<GetMirrorCapacityRequest> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 10);
+  messageDesc(file_drift_v1_device_mirror, 11);
 
 /**
  * @generated from message drift.v1.GetMirrorCapacityResponse
@@ -501,7 +590,7 @@ export type GetMirrorCapacityResponse = Message<"drift.v1.GetMirrorCapacityRespo
  * Use `create(GetMirrorCapacityResponseSchema)` to create a new message.
  */
 export const GetMirrorCapacityResponseSchema: GenMessage<GetMirrorCapacityResponse> = /*@__PURE__*/
-  messageDesc(file_drift_v1_device_mirror, 11);
+  messageDesc(file_drift_v1_device_mirror, 12);
 
 /**
  * MirrorTransport names how a device's live stream reaches a browser.

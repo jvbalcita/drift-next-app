@@ -597,6 +597,17 @@ func TestFollowerFanoutAnswersTheSourceWithoutWaitingForTheSlowestFollower(t *te
 	case <-time.After(10 * time.Second):
 		t.Fatal("the executor did not stop")
 	}
+	if sink, ok := executor.sink.(*recordingSink); ok {
+		sink.mu.Lock()
+		defer sink.mu.Unlock()
+		if len(sink.outcomes) != 1 {
+			t.Fatalf("recorded %d final outcomes, want one", len(sink.outcomes))
+		}
+		outcome := sink.outcomes[0]
+		if outcome.QueueWait < 0 || outcome.CompletionLatency <= 0 || outcome.CompletionLatency < outcome.QueueWait {
+			t.Fatalf("queue/completion timing = %s/%s, want non-negative queue wait inside a positive completion latency", outcome.QueueWait, outcome.CompletionLatency)
+		}
+	}
 }
 
 // recordingSink keeps the rows the executor records, so a case can assert what an

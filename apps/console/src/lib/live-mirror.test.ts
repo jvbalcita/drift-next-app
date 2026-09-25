@@ -14,6 +14,7 @@ import {
   liveMirrorCopy,
   livePhaseSentence,
   liveStateOf,
+  liveStreamDiagnostics,
   liveStreamFrame,
   liveStreamView,
   liveTransportOf,
@@ -81,10 +82,20 @@ describe("the console's view of a live stream", () => {
       state: MirrorStreamState.LIVE,
       frames: 41n,
       keyFrames: 3n,
+      bytes: 4096n,
+      startedAtUnixMillis: 1_000n,
+      lastFrameAtUnixMillis: 1_125n,
+      connectionState: "connected",
     }))
-    expect(view).toMatchObject({ streamId: "stream-1", transport: "webrtc", state: "live", frames: 41, keyFrames: 3 })
+    expect(view).toMatchObject({ streamId: "stream-1", transport: "webrtc", state: "live", frames: 41, keyFrames: 3, bytes: 4096, connectionState: "connected" })
     expect(liveStreamFrame(view)).toEqual({ width: 1080, height: 1920 })
+    expect(liveStreamDiagnostics(view, 1_250)).toEqual({ lastFrameOffsetMs: 125, frameAgeMs: 125, bytes: 4096, connectionState: "connected" })
     expect(transportSentence(view, named("online"))).toBe(liveMirrorCopy.transport.webrtc)
+  })
+
+  it("reports unavailable telemetry instead of inventing timings", () => {
+    const view = liveStreamView(create(MirrorStreamSchema, { streamId: "stream-1" }))
+    expect(liveStreamDiagnostics(view, 1_250)).toEqual({ lastFrameOffsetMs: null, frameAgeMs: null, bytes: 0, connectionState: "" })
   })
 
   it("reports no frame for a stream that declares none, rather than a placeholder size", () => {
@@ -170,6 +181,21 @@ describe("a point on the rendered surface, in the stream's own frame", () => {
     // frame as it is into the element.
     const quarter: SurfaceRect = { left: 100, top: 50, width: 270, height: 480 }
     expect(streamPoint({ box: quarter, content: frame }, frame, 100 + 135, 50 + 240)).toEqual({ ok: true, x: 540, y: 960 })
+  })
+
+  it("maps from a WebCodecs canvas bitmap size the same way it maps from a video picture", () => {
+    // The WebCodecs path paints into a canvas whose width/height are the
+    // decoded display size. Pointer mapping must use that bitmap, not a video
+    // element whose videoWidth is still 0.
+    const canvasBox: SurfaceRect = { left: 0, top: 0, width: 270, height: 480 }
+    const canvasBitmap = { width: 540, height: 960 }
+    const streamFrame = { width: 540, height: 960 }
+    expect(streamPoint({ box: canvasBox, content: canvasBitmap }, streamFrame, 135, 240)).toEqual({
+      ok: true,
+      x: 270,
+      y: 480,
+    })
+    expect(drawnContentRect(canvasBox, canvasBitmap)).toEqual(canvasBox)
   })
 
   it("absorbs the boundary pixel the mapping can round past, and refuses a point off the picture", () => {

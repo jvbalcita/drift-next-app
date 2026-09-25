@@ -291,8 +291,9 @@ class TypedConnectClient {
     requestSchema: Request,
     responseSchema: Response,
     init: MessageInitShape<Request>,
+    signal?: AbortSignal,
   ): Promise<MessageShape<Response>> {
-    return this.json.call(this.serviceName, method, requestSchema, responseSchema, init)
+    return this.json.call(this.serviceName, method, requestSchema, responseSchema, init, signal)
   }
 }
 
@@ -1083,6 +1084,14 @@ export class SkillClient {
 export interface LiveStreamAnswer {
   answerSdp: string
   stream: LiveStreamView
+  controlGeneration?: bigint
+}
+
+export interface LiveControlBinding {
+  sessionId: string
+  leaseId: string
+  holderId: string
+  fencingToken: bigint
 }
 
 /**
@@ -1100,6 +1109,10 @@ export interface LiveStreamAnswer {
  * service's own stream identity, which is the whole of what the frames hang off.
  */
 export interface LiveMirrorClient {
+  /** The actor this client uses for its viewing and negotiation claims. */
+  controlOperatorId?(): string
+  /** Live input remains an explicit deployment opt-in. */
+  realtimeControlEnabled?(): boolean
   /**
    * startStream opens one device's live stream over the transport the operator
    * chose. The transport is asked for by name rather than left to the control
@@ -1127,7 +1140,7 @@ export interface LiveMirrorClient {
    * frame.
    */
   getCapacity(workspaceId: string): Promise<MirrorCapacityView>
-  negotiate(streamId: string, offerSdp: string): Promise<LiveStreamAnswer>
+  negotiate(streamId: string, offerSdp: string, workspaceId: string, control?: LiveControlBinding, signal?: AbortSignal): Promise<LiveStreamAnswer>
   stopStream(streamId: string): Promise<LiveStreamView>
   getStream(streamId: string): Promise<LiveStreamView>
   /**
@@ -1145,6 +1158,12 @@ export class DeviceMirrorClient implements LiveMirrorClient {
     this.rpc = new TypedConnectClient(json, "drift.v1.DeviceMirrorService")
     this.json = json
     this.operatorId = operatorId
+  }
+  controlOperatorId(): string { return this.operatorId }
+  realtimeControlEnabled(): boolean {
+    // Unset defaults on so TouchMove follows the finger on WebRTC. Explicit false is the kill-switch.
+    const value = import.meta.env.VITE_DRIFT_LIVE_MIRROR_CONTROL
+    return value !== "false" && value !== "0" && value !== "off"
   }
   async startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice; purpose: LiveMirrorViewerPurpose; preview?: LiveMirrorPreview }): Promise<LiveStreamView> {
     const requestId = newRequestId()
@@ -1176,13 +1195,15 @@ export class DeviceMirrorClient implements LiveMirrorClient {
   streamEndpoint(path: string): { url: string; headers: Record<string, string> } {
     return this.json.endpoint(path)
   }
-  async negotiate(streamId: string, offerSdp: string): Promise<LiveStreamAnswer> {
+  async negotiate(streamId: string, offerSdp: string, workspaceId: string, control?: LiveControlBinding, signal?: AbortSignal): Promise<LiveStreamAnswer> {
     const response = await this.rpc.call("NegotiateMirrorStream", NegotiateMirrorStreamRequestSchema, NegotiateMirrorStreamResponseSchema, {
       context: requestContext({ requestId: newRequestId(), actorId: this.operatorId }),
       streamId,
       offerSdp,
-    })
-    return { answerSdp: response.answerSdp, stream: requireStream(response.stream) }
+      workspace: workspaceRef(workspaceId),
+      control,
+    }, signal)
+    return { answerSdp: response.answerSdp, stream: requireStream(response.stream), controlGeneration: response.controlGeneration }
   }
   async stopStream(streamId: string): Promise<LiveStreamView> {
     const response = await this.rpc.call("StopMirrorStream", StopMirrorStreamRequestSchema, StopMirrorStreamResponseSchema, {

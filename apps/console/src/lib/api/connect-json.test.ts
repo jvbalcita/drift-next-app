@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest"
-import { requestContext, resolvedOperatorId } from "@/lib/api/connect-json"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { ConnectJsonClient, requestContext, resolvedOperatorId } from "@/lib/api/connect-json"
+import { DeviceMirrorClient } from "@/lib/api/control-plane-clients"
+
+afterEach(() => vi.restoreAllMocks())
 
 describe("resolvedOperatorId", () => {
   it("prefers an explicit configured operator id", () => {
@@ -28,5 +31,22 @@ describe("resolvedOperatorId", () => {
 
   it("always includes an actor id in mutation contexts", () => {
     expect(requestContext({ requestId: "request-1", actorId: "  " }).actorId).toBeTruthy()
+  })
+
+  it("propagates the mirror negotiation abort signal to the authenticated RPC fetch", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("The negotiation was cancelled", "AbortError")), { once: true })
+    }))
+    const controller = new AbortController()
+    const client = new DeviceMirrorClient(new ConnectJsonClient("http://control-plane.test", "lab-token"))
+    const request = client.negotiate("stream-1", "offer-sdp", "workspace-1", undefined, controller.signal)
+
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce())
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://control-plane.test/drift.v1.DeviceMirrorService/NegotiateMirrorStream",
+      expect.objectContaining({ signal: controller.signal }),
+    )
+    controller.abort()
+    await expect(request).rejects.toMatchObject({ name: "AbortError" })
   })
 })

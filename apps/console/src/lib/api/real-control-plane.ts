@@ -680,7 +680,8 @@ function mapMirrorSessionState(state: MirrorSessionState): MirrorViewState {
 export function followerFanoutSentence(fanout: FollowerInputFanout | undefined): string {
   if (!fanout || fanout.followers.length === 0) return ""
   const named = fanout.followers.filter((row) => row.disposition !== FollowerInputDisposition.ACCEPTED)
-  const head = `Followers: ${fanout.targetCount} of ${fanout.followers.length} targeted.`
+  const timing = fanout.acceptanceDurationMs > 0 ? ` in ${fanout.acceptanceDurationMs} ms` : ""
+  const head = `Followers: ${fanout.targetCount} of ${fanout.followers.length} targeted${timing}.`
   if (named.length === 0) return ` ${head}`
   const sentences = named.map((row) => {
     const label = row.disposition === FollowerInputDisposition.EXCLUDED ? "excluded" : row.disposition === FollowerInputDisposition.INDETERMINATE ? "indeterminate" : "refused"

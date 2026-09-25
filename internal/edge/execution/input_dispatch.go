@@ -491,6 +491,9 @@ type InputRequest struct {
 	Timeout           time.Duration
 	Target            action.SemanticTarget
 	Payload           InputPayload
+	// mirrorRoute is selected by the dispatcher, never by the caller. It pins
+	// the readiness probe and executing adapter to the same delivery path.
+	mirrorRoute bool
 }
 
 // --- the dispatcher ---------------------------------------------------------
@@ -858,6 +861,7 @@ func (d *InputDispatcher) dispatch(ctx context.Context, request InputRequest, ac
 		return dispatchOutcome{err: err}
 	}
 	outcome := dispatchOutcome{kind: intent.Kind, attemptID: intent.ID}
+	request.mirrorRoute = d.mirror != nil && mirrorInputKinds(intent.Kind) && d.mirror.Mirrored(request.DeviceID)
 	reason, probeErr := d.probe.ProbeControl(ctx, request)
 	if probeErr != nil {
 		outcome.err = probeErr
@@ -884,7 +888,7 @@ func (d *InputDispatcher) dispatch(ctx context.Context, request InputRequest, ac
 		return outcome
 	}
 	report := &attemptReportSink{}
-	device.adapter.bind(intent.ID, request.Payload, report, actorType, actorID)
+	device.adapter.bind(intent.ID, request.Payload, report, actorType, actorID, request.mirrorRoute)
 	defer device.adapter.release(intent.ID)
 	result, runErr := runner.New(d.control, device.actor).Run(ctx, intent, actorType, actorID)
 	outcome.result = result
@@ -1015,13 +1019,16 @@ type StoreControlProbe struct {
 	leases   *store.LeaseService
 	sessions *store.SessionService
 	devices  DeviceTransportObserver
+	mirror   MirrorDelivery
 	clock    clock.Clock
 }
 
 // NewStoreControlProbe returns a probe over one SQLite store. The transport
-// observer may be nil, in which case a device-scoped refusal is reported rather
-// than a device being assumed usable.
-func NewStoreControlProbe(db *store.DB, devices DeviceTransportObserver) *StoreControlProbe {
+// observer may be nil, in which case an argv-routed action is refused. A
+// mirror-routed action uses the same live-session delivery the dispatcher pins
+// for the attempt, so it never needs an ADB enumeration to prove an unrelated
+// transport is attached.
+func NewStoreControlProbe(db *store.DB, devices DeviceTransportObserver, mirror MirrorDelivery) *StoreControlProbe {
 	if db == nil {
 		return nil
 	}
@@ -1029,6 +1036,7 @@ func NewStoreControlProbe(db *store.DB, devices DeviceTransportObserver) *StoreC
 		leases:   store.NewLeaseService(db, 0),
 		sessions: store.NewSessionService(db, 0),
 		devices:  devices,
+		mirror:   mirror,
 		clock:    db.Clock(),
 	}
 }
@@ -1073,6 +1081,15 @@ func (p *StoreControlProbe) ProbeControl(ctx context.Context, request InputReque
 	}
 	if session.State != sessions.Active || !now.Before(session.ExpiresAt) {
 		return RefusalNoControlSession, nil
+	}
+	// A pinned live-session attempt uses the already-open scrcpy socket, not an
+	// ADB command. The kernel still checks the lease, fence, session, policy and
+	// halt at dispatch; the session's own delivery fails closed if it ends.
+	if request.mirrorRoute {
+		if p.mirror == nil || !p.mirror.Mirrored(request.DeviceID) {
+			return RefusalDeviceUnavailable, nil
+		}
+		return "", nil
 	}
 	if p.devices == nil {
 		return RefusalDeviceUnavailable, nil

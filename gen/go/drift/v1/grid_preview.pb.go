@@ -220,8 +220,15 @@ type GridStill struct {
 	// have succeeded, and it is how a tile states how fresh its picture is: the
 	// configured cadence is what the plane aims for, and this is what it did.
 	ObservedCadenceMillis uint32 `protobuf:"varint,16,opt,name=observed_cadence_millis,json=observedCadenceMillis,proto3" json:"observed_cadence_millis,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Scheduler telemetry is additive and never changes whether the still may be
+	// painted. It explains why a tile is waiting and whether the adaptive worker
+	// is meeting the deployment freshness ceiling.
+	WorkerState   string  `protobuf:"bytes,17,opt,name=worker_state,json=workerState,proto3" json:"worker_state,omitempty"`
+	EffectiveFps  float64 `protobuf:"fixed64,18,opt,name=effective_fps,json=effectiveFps,proto3" json:"effective_fps,omitempty"`
+	RestartCount  uint32  `protobuf:"varint,19,opt,name=restart_count,json=restartCount,proto3" json:"restart_count,omitempty"`
+	Freshness     string  `protobuf:"bytes,20,opt,name=freshness,proto3" json:"freshness,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GridStill) Reset() {
@@ -366,6 +373,34 @@ func (x *GridStill) GetObservedCadenceMillis() uint32 {
 	return 0
 }
 
+func (x *GridStill) GetWorkerState() string {
+	if x != nil {
+		return x.WorkerState
+	}
+	return ""
+}
+
+func (x *GridStill) GetEffectiveFps() float64 {
+	if x != nil {
+		return x.EffectiveFps
+	}
+	return 0
+}
+
+func (x *GridStill) GetRestartCount() uint32 {
+	if x != nil {
+		return x.RestartCount
+	}
+	return 0
+}
+
+func (x *GridStill) GetFreshness() string {
+	if x != nil {
+		return x.Freshness
+	}
+	return ""
+}
+
 // GridPreviewProfile is what this plane's grid costs and what it is carried at.
 type GridPreviewProfile struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -384,9 +419,13 @@ type GridPreviewProfile struct {
 	// inferred.
 	MaxDevices uint32 `protobuf:"varint,6,opt,name=max_devices,json=maxDevices,proto3" json:"max_devices,omitempty"`
 	// subscribed is how many devices the plane is capturing for this grid.
-	Subscribed    uint32 `protobuf:"varint,7,opt,name=subscribed,proto3" json:"subscribed,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Subscribed             uint32 `protobuf:"varint,7,opt,name=subscribed,proto3" json:"subscribed,omitempty"`
+	ConcurrentCaptures     uint32 `protobuf:"varint,8,opt,name=concurrent_captures,json=concurrentCaptures,proto3" json:"concurrent_captures,omitempty"`
+	ActiveCadenceMillis    uint32 `protobuf:"varint,9,opt,name=active_cadence_millis,json=activeCadenceMillis,proto3" json:"active_cadence_millis,omitempty"`
+	IdleCadenceMillis      uint32 `protobuf:"varint,10,opt,name=idle_cadence_millis,json=idleCadenceMillis,proto3" json:"idle_cadence_millis,omitempty"`
+	FreshnessCeilingMillis uint32 `protobuf:"varint,11,opt,name=freshness_ceiling_millis,json=freshnessCeilingMillis,proto3" json:"freshness_ceiling_millis,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *GridPreviewProfile) Reset() {
@@ -464,6 +503,34 @@ func (x *GridPreviewProfile) GetMaxDevices() uint32 {
 func (x *GridPreviewProfile) GetSubscribed() uint32 {
 	if x != nil {
 		return x.Subscribed
+	}
+	return 0
+}
+
+func (x *GridPreviewProfile) GetConcurrentCaptures() uint32 {
+	if x != nil {
+		return x.ConcurrentCaptures
+	}
+	return 0
+}
+
+func (x *GridPreviewProfile) GetActiveCadenceMillis() uint32 {
+	if x != nil {
+		return x.ActiveCadenceMillis
+	}
+	return 0
+}
+
+func (x *GridPreviewProfile) GetIdleCadenceMillis() uint32 {
+	if x != nil {
+		return x.IdleCadenceMillis
+	}
+	return 0
+}
+
+func (x *GridPreviewProfile) GetFreshnessCeilingMillis() uint32 {
+	if x != nil {
+		return x.FreshnessCeilingMillis
 	}
 	return 0
 }
@@ -702,7 +769,7 @@ var File_drift_v1_grid_preview_proto protoreflect.FileDescriptor
 
 const file_drift_v1_grid_preview_proto_rawDesc = "" +
 	"\n" +
-	"\x1bdrift/v1/grid_preview.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x9b\x04\n" +
+	"\x1bdrift/v1/grid_preview.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xa6\x05\n" +
 	"\tGridStill\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12.\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x18.drift.v1.GridStillStateR\x05state\x12\x1f\n" +
@@ -722,7 +789,11 @@ const file_drift_v1_grid_preview_proto_rawDesc = "" +
 	"\bfailures\x18\r \x01(\rR\bfailures\x12#\n" +
 	"\rfailure_class\x18\x0e \x01(\tR\ffailureClass\x12%\n" +
 	"\x0efailure_detail\x18\x0f \x01(\tR\rfailureDetail\x126\n" +
-	"\x17observed_cadence_millis\x18\x10 \x01(\rR\x15observedCadenceMillis\"\xac\x02\n" +
+	"\x17observed_cadence_millis\x18\x10 \x01(\rR\x15observedCadenceMillis\x12!\n" +
+	"\fworker_state\x18\x11 \x01(\tR\vworkerState\x12#\n" +
+	"\reffective_fps\x18\x12 \x01(\x01R\feffectiveFps\x12#\n" +
+	"\rrestart_count\x18\x13 \x01(\rR\frestartCount\x12\x1c\n" +
+	"\tfreshness\x18\x14 \x01(\tR\tfreshness\"\xfb\x03\n" +
 	"\x12GridPreviewProfile\x12%\n" +
 	"\x0ecadence_millis\x18\x01 \x01(\rR\rcadenceMillis\x12.\n" +
 	"\x05level\x18\x02 \x01(\x0e2\x18.drift.v1.GridStillLevelR\x05level\x12&\n" +
@@ -733,7 +804,12 @@ const file_drift_v1_grid_preview_proto_rawDesc = "" +
 	"maxDevices\x12\x1e\n" +
 	"\n" +
 	"subscribed\x18\a \x01(\rR\n" +
-	"subscribed\"\xa2\x01\n" +
+	"subscribed\x12/\n" +
+	"\x13concurrent_captures\x18\b \x01(\rR\x12concurrentCaptures\x122\n" +
+	"\x15active_cadence_millis\x18\t \x01(\rR\x13activeCadenceMillis\x12.\n" +
+	"\x13idle_cadence_millis\x18\n" +
+	" \x01(\rR\x11idleCadenceMillis\x128\n" +
+	"\x18freshness_ceiling_millis\x18\v \x01(\rR\x16freshnessCeilingMillis\"\xa2\x01\n" +
 	"\x17SyncGridPreviewsRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x124\n" +
 	"\tworkspace\x18\x02 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x12\x1d\n" +

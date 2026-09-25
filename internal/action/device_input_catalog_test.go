@@ -162,7 +162,7 @@ var cataloguedDeviceOperations = []Kind{Reboot, KeyboardSwitch, InstallApk, Impo
 // quietly acquired a lift, or one that became dispatchable without recording
 // why, fails here.
 func TestOnlyTheReviewedKindsCarryARecordedDeferralLift(t *testing.T) {
-	want := append(append(append([]Kind{}, typedDeviceInputs...), cataloguedDeviceSettings...), cataloguedDeviceOperations...)
+	want := append(append(append(append([]Kind{}, typedDeviceInputs...), LiveGesture), cataloguedDeviceSettings...), cataloguedDeviceOperations...)
 	lifted := map[Kind]bool{}
 	for _, spec := range Catalog() {
 		if spec.Lifted == nil {

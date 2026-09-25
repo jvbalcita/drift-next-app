@@ -143,8 +143,8 @@ func (r *ProcessRunner) Run(ctx context.Context, executable string, args []strin
 	started := time.Now()
 	runErr := cmd.Run()
 	result := Result{
-		Stdout:          stdout.Bytes(),
-		Stderr:          stderr.Bytes(),
+		Stdout:          stdout.takeBytes(),
+		Stderr:          stderr.takeBytes(),
 		Duration:        time.Since(started),
 		StdoutTruncated: stdout.truncated,
 		StderrTruncated: stderr.truncated,
@@ -209,6 +209,19 @@ func (b *boundedBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// takeBytes transfers the buffer's storage to the completed result. Run calls it
+// only after the child and its bounded pipe-copy workers have finished, so no
+// writer can mutate the returned bytes; retaining a second full copy here is
+// especially costly for concurrent multi-megabyte screenshots.
+func (b *boundedBuffer) takeBytes() []byte {
+	if b.buf.Len() == 0 {
+		return nil
+	}
+	return b.buf.Bytes()
+}
+
+// Bytes returns a stable snapshot for callers that inspect a buffer while it is
+// still writable. ProcessRunner uses takeBytes after the process has been joined.
 func (b *boundedBuffer) Bytes() []byte {
 	if b.buf.Len() == 0 {
 		return nil

@@ -243,9 +243,10 @@ func TestAStreamOpenedOverTheSurfaceIsStillCarriedAfterTheOpeningRequestReturns(
 	// refused because the identity is unknown is the failure, and any other
 	// refusal means the identity resolved and the stream was there to negotiate.
 	if _, err := client.NegotiateMirrorStream(context.Background(), connectrpc.NewRequest(&driftv1.NegotiateMirrorStreamRequest{
-		Context:  mirrorRequestContext(),
-		StreamId: opened.GetStreamId(),
-		OfferSdp: "v=0\r\n",
+		Context:   mirrorRequestContext(),
+		Workspace: &driftv1.WorkspaceRef{WorkspaceId: mirrorWorkspace},
+		StreamId:  opened.GetStreamId(),
+		OfferSdp:  "v=0\r\n",
 	})); err != nil && connectrpc.CodeOf(err) == connectrpc.CodeNotFound {
 		t.Fatalf("the stream %s was no longer carried when the browser attached to it: %v", opened.GetStreamId(), err)
 	}

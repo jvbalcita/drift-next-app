@@ -3,6 +3,8 @@ package transportconnect
 import (
 	"context"
 	"log"
+	"math"
+	"time"
 
 	driftv1 "drift.local/drift-next/gen/go/drift/v1"
 
@@ -95,18 +97,19 @@ func (b *DeviceInputBoundary) RunFollowers(ctx context.Context, input DeviceInpu
 // vocabulary table the refusal mapping uses, so a client reads one reason and never
 // a reason re-derived from an error's text.
 func followerFanoutMessage(report execution.FollowerFanoutReport) *driftv1.FollowerInputFanout {
-	message := &driftv1.FollowerInputFanout{RunId: report.RunID, TargetCount: int32(report.TargetCount)}
+	message := &driftv1.FollowerInputFanout{RunId: report.RunID, TargetCount: int32(report.TargetCount), AcceptanceDurationMs: boundedDurationMillis(report.AcceptanceDuration)}
 	for _, row := range report.Followers {
 		out := &driftv1.FollowerInputOutcome{
-			DeviceId:       row.DeviceID,
-			Disposition:    protoFollowerDisposition(row.Disposition),
-			Reason:         string(row.Reason),
-			Detail:         row.Detail,
-			Outcome:        string(row.Outcome),
-			AttemptId:      row.AttemptID,
-			IdempotencyKey: row.IdempotencyKey,
-			FrameWidth:     row.Frame.Width,
-			FrameHeight:    row.Frame.Height,
+			DeviceId:            row.DeviceID,
+			Disposition:         protoFollowerDisposition(row.Disposition),
+			Reason:              string(row.Reason),
+			Detail:              row.Detail,
+			Outcome:             string(row.Outcome),
+			AttemptId:           row.AttemptID,
+			IdempotencyKey:      row.IdempotencyKey,
+			FrameWidth:          row.Frame.Width,
+			FrameHeight:         row.Frame.Height,
+			AcceptanceLatencyMs: boundedDurationMillis(row.AcceptanceLatency),
 		}
 		if row.RefusalReason != "" {
 			if definition, ok := refusalDefinitionFor(row.RefusalReason); ok {
@@ -127,6 +130,17 @@ func followerFanoutMessage(report execution.FollowerFanoutReport) *driftv1.Follo
 		message.Followers = append(message.Followers, out)
 	}
 	return message
+}
+
+func boundedDurationMillis(value time.Duration) uint32 {
+	if value <= 0 {
+		return 0
+	}
+	millis := value.Milliseconds()
+	if millis > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(millis)
 }
 
 // protoFollowerDisposition maps one disposition onto the contract's enum. A value

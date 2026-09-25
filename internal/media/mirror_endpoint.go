@@ -326,6 +326,147 @@ func (e *MirrorEndpoint) Serve(ctx context.Context, writer io.Writer, flush func
 	}
 }
 
+// ServeH264 carries bounded Annex-B access units to one browser without wrapping
+// them in fragmented MP4. It is the WebCodecs tier: each callback receives one
+// binary packet and the caller writes it immediately, keeping only a single
+// frame in flight. MSE remains available through Serve for compatibility.
+func (e *MirrorEndpoint) ServeH264(ctx context.Context, write func([]byte) error) error {
+	if e == nil || write == nil {
+		return ErrMP4NotConstructed
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-e.closed:
+		return fmt.Errorf("%w: the stream for %s had already ended", ErrNoSuchStream, e.StreamKey())
+	default:
+	}
+	viewer, err := e.session.SubscribeReader(e.purpose)
+	if err != nil {
+		return fmt.Errorf("media: the stream for %s could not be carried: %w", e.session.DeviceID(), err)
+	}
+	browser := &endpointBrowser{viewer: viewer}
+	if err := e.admit(browser); err != nil {
+		viewer.Close()
+		return err
+	}
+	e.serveOnce.Do(func() { close(e.served) })
+	defer e.forget(browser)
+
+	first, _, err := e.firstPicture(ctx, browser)
+	if err != nil {
+		e.fail(err)
+		return err
+	}
+	width, height := e.session.FrameSize()
+	if width <= 0 || height <= 0 {
+		black := fmt.Errorf("%w: the stream for %s has not reported the size it is encoded at", ErrNoPictures, e.session.DeviceID())
+		e.fail(black)
+		return black
+	}
+	var sequence uint64
+	var lastSourcePTS uint64
+	var lastOutputPTS uint64
+	timestampSet := false
+	carry := func(frame StreamFrame, key bool) error {
+		if w, h := e.session.FrameSize(); w > 0 && h > 0 {
+			width, height = w, h
+		}
+		if width <= 0 || height <= 0 || width > maxH264FrameDimension || height > maxH264FrameDimension {
+			wrapped := fmt.Errorf("media: the live mirror for %s has unsupported H.264 dimensions %dx%d", e.session.DeviceID(), width, height)
+			e.fail(wrapped)
+			return wrapped
+		}
+		sequence++
+		timestamp := uint64(0)
+		if timestampSet {
+			if frame.PTSUS > lastSourcePTS {
+				delta := frame.PTSUS - lastSourcePTS
+				if ^uint64(0)-lastOutputPTS < delta {
+					wrapped := fmt.Errorf("media: the live mirror for %s exceeded the H.264 timeline bound", e.session.DeviceID())
+					e.fail(wrapped)
+					return wrapped
+				}
+				timestamp = lastOutputPTS + delta
+			} else {
+				if lastOutputPTS == ^uint64(0) {
+					wrapped := fmt.Errorf("media: the live mirror for %s exceeded the H.264 timeline bound", e.session.DeviceID())
+					e.fail(wrapped)
+					return wrapped
+				}
+				timestamp = lastOutputPTS + 1
+			}
+		}
+		packet, err := EncodeH264FramePacket(H264FramePacket{
+			Sequence:    sequence,
+			TimestampUS: timestamp,
+			Key:         key,
+			Width:       uint32(width),
+			Height:      uint32(height),
+			Data:        frame.Data,
+		})
+		if err != nil {
+			wrapped := fmt.Errorf("media: the live mirror for %s carried a frame WebCodecs cannot accept: %w", e.session.DeviceID(), err)
+			e.fail(wrapped)
+			return wrapped
+		}
+		if err := write(packet); err != nil {
+			// A browser write failure is local to this viewing; another viewer of
+			// this endpoint must not inherit it as the stream's failure.
+			return fmt.Errorf("media: the H.264 frame for %s could not be delivered: %w", e.session.DeviceID(), err)
+		}
+		lastSourcePTS = frame.PTSUS
+		lastOutputPTS = timestamp
+		timestampSet = true
+		written := uint64(len(packet))
+		now := time.Now().UTC()
+		e.mu.Lock()
+		browser.frames++
+		if key {
+			browser.keys++
+		}
+		e.frames = max(e.frames, browser.frames)
+		e.keys = max(e.keys, browser.keys)
+		e.bytes += written
+		browser.bytes += written
+		browser.lastAt = now
+		if now.After(e.lastAt) {
+			e.lastAt = now
+		}
+		e.mu.Unlock()
+		return nil
+	}
+	if err := carry(first, true); err != nil {
+		return err
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-e.closed:
+			return nil
+		case frame, ok := <-browser.viewer.Frames():
+			if !ok {
+				if end := e.session.EndClass(); end.Failed() {
+					if reason := e.session.Fails(); reason != nil {
+						wrapped := fmt.Errorf("media: the live mirror for %s ended: %w", e.session.DeviceID(), reason)
+						e.fail(wrapped)
+						return wrapped
+					}
+				}
+				return nil
+			}
+			if frame.Config || frame.Declared {
+				continue
+			}
+			if err := carry(frame, frame.Key); err != nil {
+				return err
+			}
+		}
+	}
+}
+
 // admit registers one browser's fetch, refusing a stream that has already ended.
 func (e *MirrorEndpoint) admit(browser *endpointBrowser) error {
 	e.mu.Lock()

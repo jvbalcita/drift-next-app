@@ -175,8 +175,11 @@ type FollowerInputOutcomeRecord struct {
 	IdempotencyKey string
 	// FrameWidth and FrameHeight are the render space this follower was given: the
 	// SOURCE's declared frame, unchanged.
-	FrameWidth  uint32
-	FrameHeight uint32
+	FrameWidth              uint32
+	FrameHeight             uint32
+	AcceptanceLatencyMillis int64
+	QueueWaitMillis         int64
+	CompletionLatencyMillis int64
 	// ActorID is the holder the follower's lease was taken for.
 	ActorID string
 }

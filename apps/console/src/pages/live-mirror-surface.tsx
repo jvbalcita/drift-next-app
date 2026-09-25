@@ -5,9 +5,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { LiveMirrorClient } from "@/lib/api/control-plane-clients"
-import { useLiveMirror } from "@/lib/api/use-live-mirror"
-import type { DeviceView, DispatchIntent } from "@/lib/domain/control-plane"
-import { drawnContentRect, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, livePictureHeld, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, transportSentence, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect } from "@/lib/live-mirror"
+import type { MirrorGestureSender, RealtimeFollowerFanoutReport, RealtimeFollowerOutcome } from "@/lib/api/mirror-control-channel"
+import { useLiveMirror, type MirrorRecoveryTelemetry } from "@/lib/api/use-live-mirror"
+import type { MirrorPlaybackTransport } from "@/lib/api/mirror-webcodecs-playback"
+import type { DeviceView, DispatchIntent, LeaseView } from "@/lib/domain/control-plane"
+import { drawnContentRect, emptyInputVisiblePerformance, emptyVideoRenderPerformance, gestureThresholdFor, liveMirrorCopy, livePhaseSentence, livePictureHeld, liveStreamDiagnostics, liveStreamFrame, planGesture, planKeystroke, planWheelScrolls, refusedStreamSentence, repeatDue, streamObservationToken, streamPoint, summarizeInputVisiblePerformance, summarizeVideoRenderPerformance, transportSentence, videoSignaturesDiffer, wheelScrollDelta, type DrawnPicture, type FramePoint, type FrameScroll, type InputVisiblePerformance, type LiveMirrorPhase, type LiveMirrorTransportChoice, type LiveStreamView, type PointerSample, type StreamFrame, type SurfaceRect, type VideoRenderPerformance } from "@/lib/live-mirror"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import { controlPointerCursor } from "@/lib/control-pointer"
 
@@ -31,19 +33,17 @@ import { controlPointerCursor } from "@/lib/control-pointer"
  *    states are painted over it, so a stream that ends cannot leave its last
  *    frame on screen looking current: the ended and failed states are opaque and
  *    say what happened;
- *  - intermediate pointer points are compressed. A drag's moves only move the
- *    gesture's end point forward and one action is planned at the release, so a
- *    drag across the frame is one swipe on the device rather than the dozens of
- *    points the browser reported. A wheel is compressed the same way: turns are
- *    accumulated and spent in whole steps of the frame, so a trackpad flick is a
- *    few gestures rather than one per browser event;
+ *  - source-only WebRTC control sends touch-down before release and coalesces
+ *    moves to a bounded latest-value stream. The semantic fallback still turns
+ *    a completed drag into one swipe when control is unavailable or followers
+ *    are selected. A wheel is likewise spent in bounded whole steps;
  *  - the point is mapped through the box the picture is DRAWN in, read off the
  *    video element itself, never through the element's box, and the stage takes
  *    the stream's own aspect so there is normally no bar at all. A tap in a bar
  *    reaches no device - it is refused and named, not scaled onto the frame;
- *  - input is dispatched through the console's dispatch, which is the
- *    lease/fencing/policy/control-session kernel's path, and the render frame
- *    travels with every coordinate. The observation a coordinate is measured from
+ *  - semantic input uses the console's dispatch; opt-in realtime touch uses a
+ *    channel bound to the same lease/fencing/policy/control-session kernel. The
+ *    render frame travels with every coordinate. The observation a coordinate is measured from
  *    is the frame's OWN live stream (`streamObservationToken`), because the point
  *    is read off a picture that stream carried; the kernel still cross-checks the
  *    declared frame against the size the device presents at. The surface refuses
@@ -70,6 +70,8 @@ export interface LiveMirrorSurfaceProps {
   workspaceId: string
   /** hasLease is whether this console holds this device's active control lease. */
   hasLease: boolean
+  /** The exact current operator lease; absent still permits video-only viewing. */
+  controlLease?: LeaseView
   /**
    * leaseRefusal is the control plane's own answer when opening this frame's
    * control session or acquiring its lease did not leave the console holding the
@@ -122,7 +124,15 @@ export interface LiveMirrorSessionView {
   /** detailsAttention is what this frame's info control is holding, as the sentence it names itself with; empty when it holds nothing. */
   detailsAttention: string
   reducedMotion: boolean
+  renderPerformance: VideoRenderPerformance
+  inputVisiblePerformance: InputVisiblePerformance
+  followerOutcomes: RealtimeFollowerOutcome[]
+  recovery: MirrorRecoveryTelemetry
+  /** fallbackReason is the bounded cause recorded for the one transport downgrade. */
+  fallbackReason?: string
+  playbackTransport?: MirrorPlaybackTransport | "webrtc" | null
   attachVideo: (element: HTMLVideoElement | null) => void
+  attachCanvas?: (element: HTMLCanvasElement | null) => void
   retry: () => void
   stop: () => void
   /** readDrawn is the box the picture is drawn in, read at the moment it is asked for. */
@@ -130,7 +140,7 @@ export interface LiveMirrorSessionView {
   beginPointer: (event: ReactPointerEvent<HTMLDivElement>) => void
   movePointer: (event: ReactPointerEvent<HTMLDivElement>) => void
   endPointer: (event: ReactPointerEvent<HTMLDivElement>) => void
-  cancelPointer: () => void
+  cancelPointer: (event: ReactPointerEvent<HTMLDivElement>) => void
   wheelScroll: (event: WheelEvent) => void
   sendKey: (keyCode: number, label: string) => void
   /**
@@ -166,11 +176,37 @@ export interface LiveMirrorSessionView {
  * and named, and the kernel cross-checks the declared frame against the size the
  * device presents at before anything reaches it.
  */
-export function useLiveMirrorSession({ device, mirror, transport = "webrtc", workspaceId, hasLease, leaseRefusal = "", followerDeviceIds = [], dispatch }: LiveMirrorSurfaceProps): LiveMirrorSessionView {
+export function useLiveMirrorSession({ device, mirror, transport = "webrtc", workspaceId, hasLease, controlLease, leaseRefusal = "", followerDeviceIds = [], dispatch }: LiveMirrorSurfaceProps): LiveMirrorSessionView {
   const reducedMotion = useReducedMotion()
-  const { phase, stream, failure, attachVideo, retry, stop } = useLiveMirror(device.id, { client: mirror, workspaceId, transport, purpose: "operator" })
+  const controlBinding = controlLease && Number.isSafeInteger(controlLease.fencingToken) && controlLease.fencingToken > 0
+    ? { sessionId: controlLease.controlSessionId, leaseId: controlLease.id, holderId: controlLease.holder, fencingToken: BigInt(controlLease.fencingToken) }
+    : undefined
+  const { value: renderPerformance, inputVisible: inputVisiblePerformance, attach: attachRenderPerformance, recordWebCodecsRender, beginInput, settleInput } = useVideoRenderPerformance()
+  const { phase, stream, failure, recovery, fallbackReason, attachVideo, attachCanvas, playbackTransport, retry, stop, realtimeControl, negotiatedControlKey } = useLiveMirror(device.id, {
+    client: mirror,
+    workspaceId,
+    transport,
+    purpose: "operator",
+    controlBinding,
+    onWebCodecsRendered: recordWebCodecsRender,
+  })
+  const leaseKey = controlBinding ? `${controlBinding.sessionId}:${controlBinding.leaseId}:${controlBinding.fencingToken}` : ""
+  const rearmedLeaseKey = useRef("")
+  const previousLeaseKey = useRef(leaseKey)
+  useEffect(() => {
+    const changed = previousLeaseKey.current !== leaseKey
+    previousLeaseKey.current = leaseKey
+    if (!leaseKey) { rearmedLeaseKey.current = ""; return }
+    // The frame can open before its lease arrives. Re-negotiate once on that
+    // authority transition; ordinary snapshot refreshes do not restart video.
+    if (transport === "webrtc" && mirror?.realtimeControlEnabled?.() && (changed || negotiatedControlKey() !== leaseKey) && rearmedLeaseKey.current !== leaseKey && (phase === "live" || phase === "starting")) {
+      rearmedLeaseKey.current = leaseKey
+      retry()
+    }
+  }, [leaseKey, mirror, negotiatedControlKey, phase, retry, transport])
   const frame = liveStreamFrame(stream)
   const video = useRef<HTMLVideoElement | null>(null)
+  const canvas = useRef<HTMLCanvasElement | null>(null)
   // stage is the element whose FOCUS is the capture boundary, and heldKeys is
   // when each held key last reached the device, which is what bounds its
   // auto-repeat to this control session's own rate.
@@ -183,15 +219,21 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
   // renders it either: the frame's own focus ring is the state an operator sees,
   // and the info control states how the keyboard is given back.
   const holdKeyboard = useRef(false)
-  const gesture = useRef<{ down: PointerSample; last: PointerSample } | null>(null)
+  const gesture = useRef<{ pointerId: number; down: PointerSample; last: PointerSample; realtime: MirrorGestureSender | null } | null>(null)
   const pendingScroll = useRef<FrameScroll>({ x: 0, y: 0 })
   const [notice, setNotice] = useState("")
   const [refusal, setRefusal] = useState("")
+  const [followerOutcomes, setFollowerOutcomes] = useState<RealtimeFollowerOutcome[]>([])
 
   const attachMirrorVideo = useCallback((element: HTMLVideoElement | null) => {
     video.current = element
+    attachRenderPerformance(element)
     attachVideo(element)
-  }, [attachVideo])
+  }, [attachRenderPerformance, attachVideo])
+  const attachMirrorCanvas = useCallback((element: HTMLCanvasElement | null) => {
+    canvas.current = element
+    attachCanvas(element)
+  }, [attachCanvas])
 
   const sessionOpen = livePictureHeld(phase)
   /**
@@ -211,16 +253,30 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
 
   const inputBlockedReason = !hasLease
     ? liveMirrorCopy.input.noLease
-    : coordinateObservation === ""
-      ? liveMirrorCopy.input.noObservation
-      : frame === null
-        ? liveMirrorCopy.input.noFrame
-        : ""
+    : phase === "unreadable"
+      ? liveMirrorCopy.input.unreadable
+      : coordinateObservation === ""
+        ? liveMirrorCopy.input.noObservation
+        : frame === null
+          ? liveMirrorCopy.input.noFrame
+          : ""
   const inputReady = inputBlockedReason === "" && sessionOpen
+
+  useEffect(() => {
+    if (inputReady || !gesture.current) return
+    const current = gesture.current
+    gesture.current = null
+    current.realtime?.cancel(current.last)
+  }, [inputReady])
 
   /**
    * picture is the two DOM facts the mapping needs, read at the moment a pointer
    * event is handled rather than held in state.
+   *
+   * WebCodecs paints onto the canvas; MSE/WebRTC paint the <video>. Prefer the
+   * canvas whenever it holds a bitmap and WebCodecs is the active transport (or
+   * the canvas is already shown) so drawnContentRect / streamPoint measure in
+   * the painted size rather than a video element whose videoWidth is still 0.
    *
    * The picture's own size changes when the browser decodes its first frame, and
    * a pointer that arrived before that has no drawn frame to be measured in, so
@@ -228,6 +284,20 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
    * last re-rendered at, which is one frame behind exactly when it matters.
    */
   function picture(): DrawnPicture | null {
+    const canvasElement = canvas.current
+    const webCodecsActive = playbackTransport === "webcodecs"
+    if (
+      canvasElement
+      && canvasElement.width > 0
+      && canvasElement.height > 0
+      && (webCodecsActive || !canvasElement.hidden)
+    ) {
+      const box = canvasElement.getBoundingClientRect()
+      return {
+        box: { left: box.left, top: box.top, width: box.width, height: box.height },
+        content: { width: canvasElement.width, height: canvasElement.height },
+      }
+    }
     const element = video.current
     if (!element) return null
     const box = element.getBoundingClientRect()
@@ -247,15 +317,39 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     return streamPoint(picture(), frame, event.clientX, event.clientY)
   }
 
+  /**
+   * armRealtimeControl prepares the live TouchMove sender for one input.
+   *
+   * Follower selection is applied when possible, but a SetFollowers failure must
+   * not take the source channel away: that gate is what turned "add a follower"
+   * into Connect swipe-on-release with releaseOnlyGesture.
+   */
+  function armRealtimeControl(): { sender: MirrorGestureSender | null; reason: string; followerNotice: string } {
+    const candidate = frame ? realtimeControl() : null
+    if (!candidate || !frame) return { sender: null, reason: liveMirrorCopy.input.releaseOnlyGesture, followerNotice: "" }
+    if (!candidate.matchesFrame(frame.width, frame.height) && !candidate.adoptFrame(frame.width, frame.height)) {
+      return { sender: null, reason: liveMirrorCopy.input.frameMismatch, followerNotice: "" }
+    }
+    let followerNotice = ""
+    if (followerDeviceIds.length > 0 && !candidate.setFollowers(followerDeviceIds)) {
+      followerNotice = liveMirrorCopy.input.followersNotArmed
+    }
+    return { sender: candidate, reason: "", followerNotice }
+  }
+
   async function sendTap(x: number, y: number) {
     if (!frame) return
+    const measurement = beginInput()
     const result = await dispatch({ type: "submitDeviceTap", deviceId: device.id, x, y, renderWidth: frame.width, renderHeight: frame.height, observationToken: coordinateObservation, confirmed: true, followerDeviceIds })
+    settleInput(measurement, result.ok)
     setNotice(`${result.message}`)
   }
 
   async function sendSwipe(startX: number, startY: number, endX: number, endY: number, durationMs: number) {
     if (!frame) return
+    const measurement = beginInput()
     const result = await dispatch({ type: "submitDeviceSwipe", deviceId: device.id, startX, startY, endX, endY, durationMs, renderWidth: frame.width, renderHeight: frame.height, observationToken: coordinateObservation, confirmed: true, followerDeviceIds })
+    settleInput(measurement, result.ok)
     setNotice(`${result.message}`)
   }
 
@@ -284,9 +378,34 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
       setRefusal(inputBlockedReason)
       return
     }
+    setFollowerOutcomes([])
+    const measurement = beginInput()
+    const armed = armRealtimeControl()
+    if (armed.sender) {
+      armed.sender.onFollowerReport((report) => showRealtimeFollowerReport(report))
+      if (armed.sender.key(keyCode)) {
+        settleInput(measurement, true)
+        setNotice(armed.followerNotice || `${label}: sent over live control; the effect is not yet verified.`)
+        setRefusal("")
+        return
+      }
+    }
     const result = await dispatch({ type: "submitDeviceKeyEvent", deviceId: device.id, keyCode, observationToken: coordinateObservation, confirmed: true, followerDeviceIds })
+    settleInput(measurement, result.ok)
     setNotice(`${label}: ${result.message}`)
     setRefusal(result.ok ? "" : result.message)
+  }
+
+  function showRealtimeFollowerReport(report: RealtimeFollowerFanoutReport) {
+    setFollowerOutcomes(report.followers)
+    const accepted = report.followers.filter((row) => row.disposition === "accepted").length
+    const notAccepted = report.followers.filter((row) => row.disposition !== "accepted")
+    const summary = report.error
+      ? `Follower fan-out could not be queued: ${report.error}`
+      : `Followers: ${accepted} action(s) queued${notAccepted.length ? `; ${notAccepted.length} excluded or refused` : ""}.`
+    const detail = notAccepted[0]
+    setNotice(detail ? `${summary} ${detail.deviceId || "Follower"}: ${detail.detail}` : summary)
+    setRefusal(report.error ?? notAccepted.find((row) => row.disposition === "refused")?.detail ?? "")
   }
 
   /**
@@ -351,6 +470,10 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
   }
 
   const beginPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // A gesture is a single physical contact. In particular, a second touch must
+    // not replace the first touch's DataChannel sender: doing so would leave the
+    // first device-side pointer held until the server's safety timeout.
+    if (gesture.current) return
     // Clicking the picture gives the frame the operator's keyboard: the press
     // focuses the frame, which is the capture boundary, so an operator can click
     // into the device and type. A frame whose input is not ready still takes
@@ -365,25 +488,55 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     }
     setRefusal("")
     setNotice("")
+    setFollowerOutcomes([])
     const atMs = event.timeStamp
-    gesture.current = { down: { x: point.x, y: point.y, atMs }, last: { x: point.x, y: point.y, atMs } }
+    // Follower arming is best-effort: a SetFollowers failure must not drop the
+    // source TouchMove path (that was how selecting a follower silently fell
+    // back to Connect swipe-on-release and showed releaseOnlyGesture).
+    const armed = armRealtimeControl()
+    let realtime: MirrorGestureSender | null = null
+    if (armed.sender) {
+      armed.sender.onFollowerReport((report) => showRealtimeFollowerReport(report))
+      if (armed.sender.down(point)) realtime = armed.sender
+    }
+    if (!realtime) setNotice(armed.reason || liveMirrorCopy.input.releaseOnlyGesture)
+    else if (armed.followerNotice) setNotice(armed.followerNotice)
+    gesture.current = { pointerId: event.pointerId, down: { x: point.x, y: point.y, atMs }, last: { x: point.x, y: point.y, atMs }, realtime }
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }
 
   const movePointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     const current = gesture.current
-    if (!current) return
+    if (!current || event.pointerId !== current.pointerId) return
+    if (!inputReady) { cancelActivePointer(); return }
     const point = pointOf(event)
     // A point that left the surface does not move the gesture, and nothing is
     // dispatched here at all: this is the compression, not an optimization.
     if (!point.ok) return
     current.last = { x: point.x, y: point.y, atMs: event.timeStamp }
+    if (current.realtime && !current.realtime.move(point)) setRefusal("Live input disconnected; release this gesture and try again.")
   }
 
   const endPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     const current = gesture.current
+    if (!current || event.pointerId !== current.pointerId) return
     gesture.current = null
-    if (!current || !frame) return
+    if (!frame) return
+    if (current.realtime) {
+      const released = pointOf(event)
+      const point = released.ok ? released : current.last
+      const last = released.ok ? { x: released.x, y: released.y, atMs: event.timeStamp } : current.last
+      const plan = planGesture({ down: current.down, last, releasedAtMs: event.timeStamp }, frame, gestureThresholdFor(drawnRect(), frame))
+      if (plan.kind === "refused") {
+        current.realtime.cancel(point)
+        setRefusal(plan.refusal)
+        return
+      }
+      const kind = plan.kind
+      const durationMs = plan.kind === "swipe" ? plan.durationMs : 0
+      if (!current.realtime.up(point, kind, durationMs)) setRefusal("Live input disconnected; this gesture was safely released.")
+      return
+    }
     const threshold = gestureThresholdFor(drawnRect(), frame)
     const plan = planGesture({ down: current.down, last: current.last, releasedAtMs: event.timeStamp }, frame, threshold)
     if (plan.kind === "refused") {
@@ -395,8 +548,15 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     else void sendSwipe(plan.startX, plan.startY, plan.endX, plan.endY, plan.durationMs)
   }
 
-  const cancelPointer = () => {
+  const cancelActivePointer = () => {
+    const current = gesture.current
+    if (current?.realtime) current.realtime.cancel(current.last)
     gesture.current = null
+  }
+
+  const cancelPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (gesture.current?.pointerId !== event.pointerId) return
+    cancelActivePointer()
   }
 
   /**
@@ -410,6 +570,7 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
    */
   const wheelScroll = (event: WheelEvent) => {
     if (!frame || !inputReady) return
+    setFollowerOutcomes([])
     // The page must not scroll under the device's own scroll: this listener is
     // mounted by the stage as non-passive for exactly this call.
     event.preventDefault()
@@ -459,9 +620,17 @@ export function useLiveMirrorSession({ device, mirror, transport = "webrtc", wor
     detailsAttention: [
       phase === "unreadable" ? liveMirrorCopy.details.unreadable : "",
       refusal !== "" || failure !== "" || leaseRefusal !== "" || coordinateRuleHolds ? liveMirrorCopy.details.unread : "",
+      followerOutcomes.length > 0 ? "Follower action results are available in live mirror details." : "",
     ].filter((sentence) => sentence !== "").join(" "),
     reducedMotion,
+    renderPerformance,
+    inputVisiblePerformance,
+    followerOutcomes,
+    recovery,
+    fallbackReason,
+    playbackTransport,
     attachVideo: attachMirrorVideo,
+    attachCanvas: attachMirrorCanvas,
     retry,
     stop,
     readDrawn: drawnRect,
@@ -547,6 +716,7 @@ export function LiveMirrorSurface({ session }: { session: LiveMirrorSessionView 
       onPointerCancel={session.cancelPointer}
     >
       <video ref={session.attachVideo} data-testid="live-mirror-video" muted playsInline autoPlay aria-hidden="true" className="absolute inset-0 size-full max-w-full object-contain" />
+      <canvas ref={(element) => session.attachCanvas?.(element)} data-testid="live-mirror-canvas" width={0} height={0} aria-hidden="true" hidden className="absolute inset-0 size-full max-w-full object-contain" />
       {livePictureHeld(session.phase) ? null : <StreamStateOverlay phase={session.phase} sentence={session.failure} />}
     </div>
   )
@@ -583,6 +753,7 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
   const { phase, stream, frame, failure, refusal, leaseRefusal, inputBlockedReason, observationToken, detailsAttention } = session
   const [open, setOpen] = useState(false)
   const drawn = session.readDrawn()
+  const diagnostics = liveStreamDiagnostics(stream)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <TooltipProvider delay={0}>
@@ -615,6 +786,8 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
             <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">{liveMirrorCopy.details.field.transport}</dt>
             <dd className="mt-1" data-testid="live-mirror-transport">
               Transport: {transportSentence(stream, session.device)}
+              {session.playbackTransport ? ` · playback ${session.playbackTransport}` : ""}
+              {session.fallbackReason ? ` · fallback: ${session.fallbackReason}` : ""}
               {frame ? ` · frame ${frame.width}x${frame.height}` : ""}
             </dd>
           </div>
@@ -624,6 +797,30 @@ export function LiveMirrorInfo({ session }: { session: LiveMirrorSessionView }) 
               {frame ? `${frame.width}x${frame.height}` : liveMirrorCopy.input.noFrame}
             </dd>
           </div>
+          <div>
+            <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">Performance</dt>
+            <dd className="mt-1" data-testid="live-mirror-performance">
+              {performanceSentence(diagnostics, session.renderPerformance, session.inputVisiblePerformance, session.recovery)}
+            </dd>
+          </div>
+          {session.followerOutcomes.length > 0 ? (
+            <div>
+              <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">Follower action acceptance</dt>
+              <dd className="mt-1" data-testid="live-mirror-follower-outcomes">
+                <ul className="space-y-2">
+                  {session.followerOutcomes.map((outcome, index) => (
+                    <li key={`${outcome.deviceId}:${outcome.idempotencyKey}:${index}`} className="break-words rounded border border-border p-2">
+                      <p>{outcome.deviceId || "Selected follower"}: {outcome.disposition} · {outcome.reason}</p>
+                      <p className="mt-1 text-muted-foreground">{outcome.detail}</p>
+                      {outcome.outcome ? <p className="mt-1">Device outcome: {outcome.outcome}</p> : outcome.disposition === "accepted" ? <p className="mt-1 text-muted-foreground">Accepted for its own follower run; the final device outcome is recorded there.</p> : null}
+                      {outcome.attemptId ? <p className="mt-1 font-mono text-[10px]">Attempt: {outcome.attemptId}</p> : null}
+                      {outcome.idempotencyKey ? <p className="mt-1 break-all font-mono text-[10px]">Idempotency: {outcome.idempotencyKey}</p> : null}
+                    </li>
+                  ))}
+                </ul>
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-[10px] uppercase tracking-[.08em] text-muted-foreground">{liveMirrorCopy.details.field.observation}</dt>
             <dd className="mt-1" data-testid="live-mirror-observation">
@@ -813,4 +1010,198 @@ function StreamStateOverlay({ phase, sentence }: { phase: LiveMirrorPhase; sente
 function drawnSentence(drawn: SurfaceRect | null): string {
   if (!drawn) return liveMirrorCopy.details.drawnUnmeasured
   return `The picture is drawn at ${Math.round(drawn.width)}x${Math.round(drawn.height)} of this element's pixels, its top-left corner at (${Math.round(drawn.left)}, ${Math.round(drawn.top)}). A point is measured through this box and never through the element's own box.`
+}
+
+function performanceSentence(diagnostics: ReturnType<typeof liveStreamDiagnostics>, render: VideoRenderPerformance, inputVisible: InputVisiblePerformance, recovery: MirrorRecoveryTelemetry): string {
+  const parts = [
+    diagnostics.lastFrameOffsetMs === null ? "carrier activity not measured" : `latest frame +${diagnostics.lastFrameOffsetMs} ms from carrier start`,
+    diagnostics.frameAgeMs === null ? "frame age unavailable" : `frame age ${diagnostics.frameAgeMs} ms`,
+    `${formatBytes(diagnostics.bytes)} carried`,
+  ]
+  if (render.samples > 0) parts.push(`receive-to-render p50 ${render.p50Ms} ms / p95 ${render.p95Ms} ms (${render.samples} frames)`)
+  if (inputVisible.samples > 0) parts.push(`input-to-visible-change p50 ${inputVisible.p50Ms} ms / p95 ${inputVisible.p95Ms} ms (${inputVisible.samples} accepted input${inputVisible.samples === 1 ? "" : "s"}; latest ${inputVisible.lastMs} ms)`)
+  if (inputVisible.timeouts > 0) parts.push(`${inputVisible.timeouts} accepted input${inputVisible.timeouts === 1 ? "" : "s"} had no visible change within ${inputVisibleChangeTimeoutMs / 1_000} s`)
+  if (diagnostics.connectionState !== "") parts.push(`connection ${diagnostics.connectionState}`)
+  if (recovery.attempts > 0) parts.push(`recoveries ${recovery.successes}/${recovery.attempts}${recovery.lastReason === "" ? "" : ` · last reason: ${recovery.lastReason}`}`)
+  return parts.join(" · ")
+}
+
+const maximumRenderSamples = 120
+const inputVisibleChangeTimeoutMs = 3_000
+const inputVisibleSampleIntervalMs = 100
+const inputSignatureSize = 12
+
+interface PendingInputVisibleMeasurement {
+  id: number
+  startedAt: number
+  baseline: Uint8Array
+  accepted: boolean
+  changedAt: number | null
+  timeout: ReturnType<typeof setTimeout>
+}
+
+/**
+ * useVideoRenderPerformance samples the browser's native receive-to-render path.
+ * Samples stay in a fixed ring and React is updated at most once per second;
+ * high-frequency frame callbacks never become high-frequency component state.
+ */
+function useVideoRenderPerformance(): {
+  value: VideoRenderPerformance
+  inputVisible: InputVisiblePerformance
+  attach: (element: HTMLVideoElement | null) => void
+  recordWebCodecsRender: (receiveToRenderMs: number) => void
+  beginInput: () => number | null
+  settleInput: (id: number | null, accepted: boolean) => void
+} {
+  const [value, setValue] = useState<VideoRenderPerformance>(emptyVideoRenderPerformance)
+  const [inputVisible, setInputVisible] = useState<InputVisiblePerformance>(emptyInputVisiblePerformance)
+  const active = useRef<{ element: HTMLVideoElement; callback: number } | null>(null)
+  const samples = useRef<number[]>([])
+  const lastPublishedAt = useRef(0)
+  const signatureCanvas = useRef<HTMLCanvasElement | null>(null)
+  const pendingInput = useRef<PendingInputVisibleMeasurement | null>(null)
+  const inputSamples = useRef<number[]>([])
+  const inputTimeouts = useRef(0)
+  const nextInputID = useRef(0)
+  const lastSignatureSampleAt = useRef(0)
+
+  const readSignature = useCallback((element: HTMLVideoElement): Uint8Array | null => {
+    if (element.videoWidth <= 0 || element.videoHeight <= 0) return null
+    const canvas = signatureCanvas.current ?? document.createElement("canvas")
+    signatureCanvas.current = canvas
+    canvas.width = inputSignatureSize
+    canvas.height = inputSignatureSize
+    const context = canvas.getContext("2d", { willReadFrequently: true })
+    if (!context) return null
+    try {
+      context.drawImage(element, 0, 0, inputSignatureSize, inputSignatureSize)
+      const pixels = context.getImageData(0, 0, inputSignatureSize, inputSignatureSize).data
+      const signature = new Uint8Array(inputSignatureSize * inputSignatureSize)
+      for (let pixel = 0, cell = 0; pixel < pixels.length; pixel += 4, cell += 1) {
+        signature[cell] = Math.round(((pixels[pixel] ?? 0) * 299 + (pixels[pixel + 1] ?? 0) * 587 + (pixels[pixel + 2] ?? 0) * 114) / 1_000)
+      }
+      return signature
+    } catch {
+      return null
+    }
+  }, [])
+
+  const publishInputMeasurement = useCallback((measurement: PendingInputVisibleMeasurement) => {
+    if (!measurement.accepted || measurement.changedAt === null) return
+    clearTimeout(measurement.timeout)
+    inputSamples.current.push(measurement.changedAt - measurement.startedAt)
+    if (inputSamples.current.length > 32) inputSamples.current.splice(0, inputSamples.current.length - 32)
+    setInputVisible(summarizeInputVisiblePerformance(inputSamples.current, inputTimeouts.current))
+    if (pendingInput.current?.id === measurement.id) pendingInput.current = null
+  }, [])
+
+  const recordWebCodecsRender = useCallback((receiveToRenderMs: number) => {
+    if (!Number.isFinite(receiveToRenderMs) || receiveToRenderMs < 0) return
+    const now = performance.now()
+    const values = samples.current
+    values.push(receiveToRenderMs)
+    if (values.length > maximumRenderSamples) values.splice(0, values.length - maximumRenderSamples)
+    if (now - lastPublishedAt.current >= 1_000 || values.length === 1) {
+      lastPublishedAt.current = now
+      setValue(summarizeVideoRenderPerformance(values))
+    }
+  }, [])
+
+  const beginInput = useCallback((): number | null => {
+    const element = active.current?.element
+    if (!element) return null
+    const baseline = readSignature(element)
+    if (!baseline) return null
+    if (pendingInput.current) clearTimeout(pendingInput.current.timeout)
+    const id = nextInputID.current + 1
+    nextInputID.current = id
+    const measurement: PendingInputVisibleMeasurement = {
+      id,
+      startedAt: performance.now(),
+      baseline,
+      accepted: false,
+      changedAt: null,
+      timeout: setTimeout(() => {
+        if (pendingInput.current?.id !== id) return
+        if (pendingInput.current.accepted) {
+          inputTimeouts.current += 1
+          setInputVisible(summarizeInputVisiblePerformance(inputSamples.current, inputTimeouts.current))
+        }
+        pendingInput.current = null
+      }, inputVisibleChangeTimeoutMs),
+    }
+    pendingInput.current = measurement
+    return id
+  }, [readSignature])
+
+  const settleInput = useCallback((id: number | null, accepted: boolean) => {
+    if (id === null || pendingInput.current?.id !== id) return
+    const measurement = pendingInput.current
+    if (!accepted) {
+      clearTimeout(measurement.timeout)
+      pendingInput.current = null
+      return
+    }
+    measurement.accepted = true
+    publishInputMeasurement(measurement)
+  }, [publishInputMeasurement])
+
+  const attach = useCallback((element: HTMLVideoElement | null) => {
+    const previous = active.current
+    if (previous && typeof previous.element.cancelVideoFrameCallback === "function") previous.element.cancelVideoFrameCallback(previous.callback)
+    active.current = null
+    samples.current = []
+    lastPublishedAt.current = 0
+    if (pendingInput.current) clearTimeout(pendingInput.current.timeout)
+    pendingInput.current = null
+    inputSamples.current = []
+    inputTimeouts.current = 0
+    lastSignatureSampleAt.current = 0
+    setValue(emptyVideoRenderPerformance)
+    setInputVisible(emptyInputVisiblePerformance)
+    if (!element || typeof element.requestVideoFrameCallback !== "function") return
+
+    const sample = (now: number, metadata: VideoFrameCallbackMetadata) => {
+      if (active.current?.element !== element) return
+      const receivedAt = metadata.receiveTime
+      const renderedAt = metadata.expectedDisplayTime
+      if (receivedAt !== undefined && Number.isFinite(receivedAt) && Number.isFinite(renderedAt) && renderedAt >= receivedAt) {
+        const values = samples.current
+        values.push(renderedAt - receivedAt)
+        if (values.length > maximumRenderSamples) values.splice(0, values.length - maximumRenderSamples)
+        if (now - lastPublishedAt.current >= 1_000 || values.length === 1) {
+          lastPublishedAt.current = now
+          setValue(summarizeVideoRenderPerformance(values))
+        }
+      }
+      const pending = pendingInput.current
+      if (pending && now - lastSignatureSampleAt.current >= inputVisibleSampleIntervalMs) {
+        lastSignatureSampleAt.current = now
+        const signature = readSignature(element)
+        if (pending.changedAt === null && signature && videoSignaturesDiffer(pending.baseline, signature)) {
+          pending.changedAt = now
+          publishInputMeasurement(pending)
+        }
+      }
+      const callback = element.requestVideoFrameCallback(sample)
+      active.current = { element, callback }
+    }
+    const callback = element.requestVideoFrameCallback(sample)
+    active.current = { element, callback }
+  }, [publishInputMeasurement, readSignature])
+
+  useEffect(() => () => {
+    const previous = active.current
+    if (previous && typeof previous.element.cancelVideoFrameCallback === "function") previous.element.cancelVideoFrameCallback(previous.callback)
+    active.current = null
+    if (pendingInput.current) clearTimeout(pendingInput.current.timeout)
+    pendingInput.current = null
+  }, [])
+  return { value, inputVisible, attach, recordWebCodecsRender, beginInput, settleInput }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1_024) return `${Math.round(bytes)} B`
+  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(1)} KiB`
+  return `${(bytes / 1_048_576).toFixed(1)} MiB`
 }

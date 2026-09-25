@@ -1,0 +1,195 @@
+{
+  "MeasuredAt": "2026-09-24T03:54:54Z",
+  "Host": "ArtisanClaws-MacBook-Pro.local",
+  "HostLoad": " 9.99 11.62 12.32 ",
+  "DeviceCount": 18,
+  "CadenceMillis": 4000,
+  "ProbeIntervalMillis": 300000,
+  "ActiveCadenceMillis": 1000,
+  "IdleCadenceMillis": 5000,
+  "ConcurrentCaptures": 2,
+  "RequestedAttemptsPerDevice": 1,
+  "ProbeTimeoutMillis": 300000,
+  "FreshnessCeilingMillis": 10000,
+  "MaxDevices": 64,
+  "CaptureTimeoutMillis": 15000,
+  "LongestSweepMillis": 33291,
+  "Ticks": 1,
+  "Captures": 18,
+  "Frames": 18,
+  "Failures": 0,
+  "Cancelled": 0,
+  "GoHeapPeakInuseBytes": 60448768,
+  "GoHeapPeakSysBytes": 74776576,
+  "ProcessPeakRSSBytes": 82182144,
+  "RSSMeasurementNote": "process RSS is sampled every 250ms for this opt-in Go test process only; it excludes the shared ADB server, console and other control-plane processes",
+  "Truncated": 0,
+  "CurrentTiles": 18,
+  "FreshTiles": 5,
+  "P95TileAgeMillis": 29773,
+  "MaxTileAgeMillis": 29773,
+  "Tiles": [
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 29693,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 29773,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 26293,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 26119,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 22596,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 22097,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 18906,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 18426,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 15285,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 17845,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 13812,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 11398,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "stale",
+      "AgeMillis": 10147,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "aging",
+      "AgeMillis": 7512,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "aging",
+      "AgeMillis": 6164,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "current",
+      "AgeMillis": 3534,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "current",
+      "AgeMillis": 2280,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    },
+    {
+      "SerialMask": "192....5555",
+      "State": "current",
+      "Freshness": "current",
+      "AgeMillis": 15,
+      "Frames": 1,
+      "Failures": 0,
+      "WorkerState": "waiting"
+    }
+  ]
+}

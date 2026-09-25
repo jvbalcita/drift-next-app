@@ -943,10 +943,9 @@ describe("ControlPage live mirror frame", () => {
 
     await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
     // The frame opens over the transport the operator's setting holds, and that
-    // setting starts at the measured default - TCP, which these devices carried a
-    // first picture over in 1-2 ms against WebRTC's 41-95 ms
-    // (docs/operations/mirror-transport-measurement.md).
-    expect(mirror.calls.some((call) => call === "start:atlas-04:tcp")).toBe(true)
+    // setting starts at the low-latency default - WebRTC, while TCP remains the
+    // compatibility path.
+    expect(mirror.calls.some((call) => call === "start:atlas-04:webrtc")).toBe(true)
     // The frame states its purpose: it is the operator's OWN viewer, which is the
     // demand the plane's reserve of its capacity exists for. A frame that opened as
     // one of the grid's tiles could be refused for the grid's spending while the
@@ -965,6 +964,28 @@ describe("ControlPage live mirror frame", () => {
     const details = await openLiveMirrorDetails(user)
     expect(within(details).getByTestId("live-mirror-transport")).toHaveTextContent(/WebRTC \(pion/i)
     expect(within(details).getByTestId("live-mirror-transport")).toHaveTextContent("1080x1920")
+  })
+
+  it("opens a selected follower at the operator encode profile so a drag can be copied while the finger is down", async () => {
+    const user = userEvent.setup({ delay: null })
+    const mock = new MockControlPlaneClient()
+    const mirror = fakeMirror()
+    render(<ControlPage snapshot={mock.getSnapshot()} dispatch={async (intent) => mock.dispatch(intent)} mirror={mirror.client} />)
+
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    await user.click(screen.getByRole("button", { name: /Atlas 07/i }))
+
+    await waitFor(() => expect(mirror.calls).toContain("start:atlas-07:webrtc"))
+    expect(mirror.purposes.filter((purpose) => purpose === "operator").length).toBeGreaterThanOrEqual(2)
+    expect(mirror.previews.at(-1)).toBeUndefined()
+    expect(screen.getByTestId("follower-live-video-atlas-07")).toBeInTheDocument()
+    expect(screen.getByTestId("tile-following-atlas-07")).toHaveAccessibleName("Atlas 07 is following")
+    expect(screen.queryByText(/^Follower$/)).not.toBeInTheDocument()
+
+    const sourceTile = screen.getByRole("button", { name: /Atlas 04/i })
+    expect(sourceTile).toBeDisabled()
+    expect(screen.getByTestId("tile-controlled-atlas-04")).toHaveAccessibleName("Atlas 04 is being controlled in the big frame")
+    expect(screen.queryByText(/^Open$/)).not.toBeInTheDocument()
   })
 
   it("offers both transports, and opens the device's stream over the one chosen", async () => {
@@ -1343,6 +1364,22 @@ describe("ControlPage big-frame device commands", () => {
     await user.click(screen.getByTestId("live-mirror-info"))
     const details = await screen.findByTestId("live-mirror-details")
     expect(within(details).getByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.noLease)
+  })
+
+  it("does not treat another operator's active lease as this frame's authority", async () => {
+    const user = userEvent.setup({ delay: null })
+    const client = new MockControlPlaneClient()
+    const snapshot = client.getSnapshot()
+    const intents: ControlPlaneIntent[] = []
+    const mirror = fakeMirror().client
+    mirror.controlOperatorId = () => "another-operator"
+    render(<ControlPage snapshot={snapshot} dispatch={async (intent) => { intents.push(intent); return client.dispatch(intent) }} mirror={mirror} />)
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    const controls = await screen.findByLabelText(/Atlas 04 floating device controls/i)
+    expect(within(controls).getByRole("button", { name: "Volume Up" })).toBeDisabled()
+    expect(intents.some((intent) => intent.type === "submitDeviceKeyEvent")).toBe(false)
+    await user.click(screen.getByTestId("live-mirror-info"))
+    expect(within(await screen.findByTestId("live-mirror-details")).getByTestId("live-mirror-input-blocked")).toHaveTextContent(liveMirrorCopy.input.noLease)
   })
 
   it("moves the frame's control session to another device through the control plane", async () => {

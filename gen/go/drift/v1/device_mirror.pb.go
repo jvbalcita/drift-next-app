@@ -411,9 +411,22 @@ type MirrorStream struct {
 	// address, an adb serial, an RTSP address or a media-server control URL. It is
 	// empty for a stream carried over WebRTC, which is negotiated with
 	// NegotiateMirrorStream instead.
-	StreamUrl     string `protobuf:"bytes,10,opt,name=stream_url,json=streamUrl,proto3" json:"stream_url,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	StreamUrl string `protobuf:"bytes,10,opt,name=stream_url,json=streamUrl,proto3" json:"stream_url,omitempty"`
+	// bytes is the encoded access-unit payload this viewing has carried. It is
+	// bounded accounting, not a media buffer: no frame history is retained for it.
+	Bytes uint64 `protobuf:"varint,11,opt,name=bytes,proto3" json:"bytes,omitempty"`
+	// started_at_unix_millis is when this viewing's carrier opened. Together with
+	// last_frame_at_unix_millis it makes carrier activity span and current frame
+	// age measurable without asking a browser to infer either from a frame count.
+	StartedAtUnixMillis int64 `protobuf:"varint,12,opt,name=started_at_unix_millis,json=startedAtUnixMillis,proto3" json:"started_at_unix_millis,omitempty"`
+	// last_frame_at_unix_millis is when the carrier most recently forwarded a
+	// picture. Zero means no picture has been forwarded yet.
+	LastFrameAtUnixMillis int64 `protobuf:"varint,13,opt,name=last_frame_at_unix_millis,json=lastFrameAtUnixMillis,proto3" json:"last_frame_at_unix_millis,omitempty"`
+	// connection_state is the carrier's own bounded transport state. WebRTC uses
+	// the peer connection state; compatibility transports may leave it empty.
+	ConnectionState string `protobuf:"bytes,14,opt,name=connection_state,json=connectionState,proto3" json:"connection_state,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *MirrorStream) Reset() {
@@ -512,6 +525,34 @@ func (x *MirrorStream) GetKeyFrames() uint64 {
 func (x *MirrorStream) GetStreamUrl() string {
 	if x != nil {
 		return x.StreamUrl
+	}
+	return ""
+}
+
+func (x *MirrorStream) GetBytes() uint64 {
+	if x != nil {
+		return x.Bytes
+	}
+	return 0
+}
+
+func (x *MirrorStream) GetStartedAtUnixMillis() int64 {
+	if x != nil {
+		return x.StartedAtUnixMillis
+	}
+	return 0
+}
+
+func (x *MirrorStream) GetLastFrameAtUnixMillis() int64 {
+	if x != nil {
+		return x.LastFrameAtUnixMillis
+	}
+	return 0
+}
+
+func (x *MirrorStream) GetConnectionState() string {
+	if x != nil {
+		return x.ConnectionState
 	}
 	return ""
 }
@@ -837,8 +878,14 @@ type NegotiateMirrorStreamRequest struct {
 	// viewers has one of these per viewer, so a handshake can only ever be
 	// negotiated against the stream its own browser was handed - never against
 	// another viewer's stream of the same device.
-	StreamId      string `protobuf:"bytes,2,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
-	OfferSdp      string `protobuf:"bytes,3,opt,name=offer_sdp,json=offerSdp,proto3" json:"offer_sdp,omitempty"`
+	StreamId string `protobuf:"bytes,2,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
+	OfferSdp string `protobuf:"bytes,3,opt,name=offer_sdp,json=offerSdp,proto3" json:"offer_sdp,omitempty"`
+	// Optional for older video-only clients. When present, negotiation checks
+	// it and the actor against the claim bound when the stream was opened.
+	Workspace *WorkspaceRef `protobuf:"bytes,4,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	// Optional. A caller asking to send live input must prove the control
+	// session and device lease it already holds. Video-only callers omit it.
+	Control       *MirrorControlBinding `protobuf:"bytes,5,opt,name=control,proto3" json:"control,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -894,12 +941,29 @@ func (x *NegotiateMirrorStreamRequest) GetOfferSdp() string {
 	return ""
 }
 
+func (x *NegotiateMirrorStreamRequest) GetWorkspace() *WorkspaceRef {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *NegotiateMirrorStreamRequest) GetControl() *MirrorControlBinding {
+	if x != nil {
+		return x.Control
+	}
+	return nil
+}
+
 type NegotiateMirrorStreamResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AnswerSdp     string                 `protobuf:"bytes,1,opt,name=answer_sdp,json=answerSdp,proto3" json:"answer_sdp,omitempty"`
-	Stream        *MirrorStream          `protobuf:"bytes,2,opt,name=stream,proto3" json:"stream,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	AnswerSdp string                 `protobuf:"bytes,1,opt,name=answer_sdp,json=answerSdp,proto3" json:"answer_sdp,omitempty"`
+	Stream    *MirrorStream          `protobuf:"bytes,2,opt,name=stream,proto3" json:"stream,omitempty"`
+	// Nonzero only when the server armed an authorized control channel. Binary
+	// input messages must name this generation, not a caller-selected value.
+	ControlGeneration uint64 `protobuf:"varint,3,opt,name=control_generation,json=controlGeneration,proto3" json:"control_generation,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *NegotiateMirrorStreamResponse) Reset() {
@@ -946,6 +1010,81 @@ func (x *NegotiateMirrorStreamResponse) GetStream() *MirrorStream {
 	return nil
 }
 
+func (x *NegotiateMirrorStreamResponse) GetControlGeneration() uint64 {
+	if x != nil {
+		return x.ControlGeneration
+	}
+	return 0
+}
+
+type MirrorControlBinding struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	LeaseId       string                 `protobuf:"bytes,2,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	HolderId      string                 `protobuf:"bytes,3,opt,name=holder_id,json=holderId,proto3" json:"holder_id,omitempty"`
+	FencingToken  uint64                 `protobuf:"varint,4,opt,name=fencing_token,json=fencingToken,proto3" json:"fencing_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MirrorControlBinding) Reset() {
+	*x = MirrorControlBinding{}
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MirrorControlBinding) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MirrorControlBinding) ProtoMessage() {}
+
+func (x *MirrorControlBinding) ProtoReflect() protoreflect.Message {
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MirrorControlBinding.ProtoReflect.Descriptor instead.
+func (*MirrorControlBinding) Descriptor() ([]byte, []int) {
+	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *MirrorControlBinding) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *MirrorControlBinding) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+func (x *MirrorControlBinding) GetHolderId() string {
+	if x != nil {
+		return x.HolderId
+	}
+	return ""
+}
+
+func (x *MirrorControlBinding) GetFencingToken() uint64 {
+	if x != nil {
+		return x.FencingToken
+	}
+	return 0
+}
+
 // StopMirrorStreamRequest ends the viewing that holds one stream identity.
 //
 // A stop is a VIEWER DETACH, not a capture-wide operation, and the identity is
@@ -963,7 +1102,7 @@ type StopMirrorStreamRequest struct {
 
 func (x *StopMirrorStreamRequest) Reset() {
 	*x = StopMirrorStreamRequest{}
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[6]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -975,7 +1114,7 @@ func (x *StopMirrorStreamRequest) String() string {
 func (*StopMirrorStreamRequest) ProtoMessage() {}
 
 func (x *StopMirrorStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[6]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -988,7 +1127,7 @@ func (x *StopMirrorStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopMirrorStreamRequest.ProtoReflect.Descriptor instead.
 func (*StopMirrorStreamRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{6}
+	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *StopMirrorStreamRequest) GetContext() *RequestContext {
@@ -1014,7 +1153,7 @@ type StopMirrorStreamResponse struct {
 
 func (x *StopMirrorStreamResponse) Reset() {
 	*x = StopMirrorStreamResponse{}
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[7]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1026,7 +1165,7 @@ func (x *StopMirrorStreamResponse) String() string {
 func (*StopMirrorStreamResponse) ProtoMessage() {}
 
 func (x *StopMirrorStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[7]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1039,7 +1178,7 @@ func (x *StopMirrorStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopMirrorStreamResponse.ProtoReflect.Descriptor instead.
 func (*StopMirrorStreamResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{7}
+	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *StopMirrorStreamResponse) GetStream() *MirrorStream {
@@ -1059,7 +1198,7 @@ type GetMirrorStreamRequest struct {
 
 func (x *GetMirrorStreamRequest) Reset() {
 	*x = GetMirrorStreamRequest{}
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[8]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1071,7 +1210,7 @@ func (x *GetMirrorStreamRequest) String() string {
 func (*GetMirrorStreamRequest) ProtoMessage() {}
 
 func (x *GetMirrorStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[8]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1084,7 +1223,7 @@ func (x *GetMirrorStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMirrorStreamRequest.ProtoReflect.Descriptor instead.
 func (*GetMirrorStreamRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{8}
+	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetMirrorStreamRequest) GetStreamId() string {
@@ -1103,7 +1242,7 @@ type GetMirrorStreamResponse struct {
 
 func (x *GetMirrorStreamResponse) Reset() {
 	*x = GetMirrorStreamResponse{}
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[9]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1115,7 +1254,7 @@ func (x *GetMirrorStreamResponse) String() string {
 func (*GetMirrorStreamResponse) ProtoMessage() {}
 
 func (x *GetMirrorStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[9]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1128,7 +1267,7 @@ func (x *GetMirrorStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMirrorStreamResponse.ProtoReflect.Descriptor instead.
 func (*GetMirrorStreamResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{9}
+	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetMirrorStreamResponse) GetStream() *MirrorStream {
@@ -1148,7 +1287,7 @@ type GetMirrorCapacityRequest struct {
 
 func (x *GetMirrorCapacityRequest) Reset() {
 	*x = GetMirrorCapacityRequest{}
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[10]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1160,7 +1299,7 @@ func (x *GetMirrorCapacityRequest) String() string {
 func (*GetMirrorCapacityRequest) ProtoMessage() {}
 
 func (x *GetMirrorCapacityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[10]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1173,7 +1312,7 @@ func (x *GetMirrorCapacityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMirrorCapacityRequest.ProtoReflect.Descriptor instead.
 func (*GetMirrorCapacityRequest) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{10}
+	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetMirrorCapacityRequest) GetWorkspace() *WorkspaceRef {
@@ -1192,7 +1331,7 @@ type GetMirrorCapacityResponse struct {
 
 func (x *GetMirrorCapacityResponse) Reset() {
 	*x = GetMirrorCapacityResponse{}
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[11]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1204,7 +1343,7 @@ func (x *GetMirrorCapacityResponse) String() string {
 func (*GetMirrorCapacityResponse) ProtoMessage() {}
 
 func (x *GetMirrorCapacityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_drift_v1_device_mirror_proto_msgTypes[11]
+	mi := &file_drift_v1_device_mirror_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1217,7 +1356,7 @@ func (x *GetMirrorCapacityResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMirrorCapacityResponse.ProtoReflect.Descriptor instead.
 func (*GetMirrorCapacityResponse) Descriptor() ([]byte, []int) {
-	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{11}
+	return file_drift_v1_device_mirror_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetMirrorCapacityResponse) GetCapacity() *MirrorCapacity {
@@ -1231,7 +1370,7 @@ var File_drift_v1_device_mirror_proto protoreflect.FileDescriptor
 
 const file_drift_v1_device_mirror_proto_rawDesc = "" +
 	"\n" +
-	"\x1cdrift/v1/device_mirror.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\xec\x02\n" +
+	"\x1cdrift/v1/device_mirror.proto\x12\bdrift.v1\x1a\x15drift/v1/common.proto\"\x9c\x04\n" +
 	"\fMirrorStream\x12\x1b\n" +
 	"\tstream_id\x18\x01 \x01(\tR\bstreamId\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x127\n" +
@@ -1245,7 +1384,11 @@ const file_drift_v1_device_mirror_proto_rawDesc = "" +
 	"key_frames\x18\t \x01(\x04R\tkeyFrames\x12\x1d\n" +
 	"\n" +
 	"stream_url\x18\n" +
-	" \x01(\tR\tstreamUrl\"\xa2\x03\n" +
+	" \x01(\tR\tstreamUrl\x12\x14\n" +
+	"\x05bytes\x18\v \x01(\x04R\x05bytes\x123\n" +
+	"\x16started_at_unix_millis\x18\f \x01(\x03R\x13startedAtUnixMillis\x128\n" +
+	"\x19last_frame_at_unix_millis\x18\r \x01(\x03R\x15lastFrameAtUnixMillis\x12)\n" +
+	"\x10connection_state\x18\x0e \x01(\tR\x0fconnectionState\"\xa2\x03\n" +
 	"\x0eMirrorCapacity\x12)\n" +
 	"\x10session_capacity\x18\x01 \x01(\rR\x0fsessionCapacity\x12)\n" +
 	"\x10operator_reserve\x18\x02 \x01(\rR\x0foperatorReserve\x12G\n" +
@@ -1267,15 +1410,24 @@ const file_drift_v1_device_mirror_proto_rawDesc = "" +
 	"\n" +
 	"frame_rate\x18\a \x01(\rR\tframeRate\"K\n" +
 	"\x19StartMirrorStreamResponse\x12.\n" +
-	"\x06stream\x18\x01 \x01(\v2\x16.drift.v1.MirrorStreamR\x06stream\"\x8c\x01\n" +
+	"\x06stream\x18\x01 \x01(\v2\x16.drift.v1.MirrorStreamR\x06stream\"\xfc\x01\n" +
 	"\x1cNegotiateMirrorStreamRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12\x1b\n" +
 	"\tstream_id\x18\x02 \x01(\tR\bstreamId\x12\x1b\n" +
-	"\toffer_sdp\x18\x03 \x01(\tR\bofferSdp\"n\n" +
+	"\toffer_sdp\x18\x03 \x01(\tR\bofferSdp\x124\n" +
+	"\tworkspace\x18\x04 \x01(\v2\x16.drift.v1.WorkspaceRefR\tworkspace\x128\n" +
+	"\acontrol\x18\x05 \x01(\v2\x1e.drift.v1.MirrorControlBindingR\acontrol\"\x9d\x01\n" +
 	"\x1dNegotiateMirrorStreamResponse\x12\x1d\n" +
 	"\n" +
 	"answer_sdp\x18\x01 \x01(\tR\tanswerSdp\x12.\n" +
-	"\x06stream\x18\x02 \x01(\v2\x16.drift.v1.MirrorStreamR\x06stream\"j\n" +
+	"\x06stream\x18\x02 \x01(\v2\x16.drift.v1.MirrorStreamR\x06stream\x12-\n" +
+	"\x12control_generation\x18\x03 \x01(\x04R\x11controlGeneration\"\x92\x01\n" +
+	"\x14MirrorControlBinding\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x19\n" +
+	"\blease_id\x18\x02 \x01(\tR\aleaseId\x12\x1b\n" +
+	"\tholder_id\x18\x03 \x01(\tR\bholderId\x12#\n" +
+	"\rfencing_token\x18\x04 \x01(\x04R\ffencingToken\"j\n" +
 	"\x17StopMirrorStreamRequest\x122\n" +
 	"\acontext\x18\x01 \x01(\v2\x18.drift.v1.RequestContextR\acontext\x12\x1b\n" +
 	"\tstream_id\x18\x02 \x01(\tR\bstreamId\"J\n" +
@@ -1333,7 +1485,7 @@ func file_drift_v1_device_mirror_proto_rawDescGZIP() []byte {
 }
 
 var file_drift_v1_device_mirror_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_drift_v1_device_mirror_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_drift_v1_device_mirror_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_drift_v1_device_mirror_proto_goTypes = []any{
 	(MirrorTransport)(0),                  // 0: drift.v1.MirrorTransport
 	(MirrorStreamState)(0),                // 1: drift.v1.MirrorStreamState
@@ -1346,48 +1498,51 @@ var file_drift_v1_device_mirror_proto_goTypes = []any{
 	(*StartMirrorStreamResponse)(nil),     // 8: drift.v1.StartMirrorStreamResponse
 	(*NegotiateMirrorStreamRequest)(nil),  // 9: drift.v1.NegotiateMirrorStreamRequest
 	(*NegotiateMirrorStreamResponse)(nil), // 10: drift.v1.NegotiateMirrorStreamResponse
-	(*StopMirrorStreamRequest)(nil),       // 11: drift.v1.StopMirrorStreamRequest
-	(*StopMirrorStreamResponse)(nil),      // 12: drift.v1.StopMirrorStreamResponse
-	(*GetMirrorStreamRequest)(nil),        // 13: drift.v1.GetMirrorStreamRequest
-	(*GetMirrorStreamResponse)(nil),       // 14: drift.v1.GetMirrorStreamResponse
-	(*GetMirrorCapacityRequest)(nil),      // 15: drift.v1.GetMirrorCapacityRequest
-	(*GetMirrorCapacityResponse)(nil),     // 16: drift.v1.GetMirrorCapacityResponse
-	(*RequestContext)(nil),                // 17: drift.v1.RequestContext
-	(*WorkspaceRef)(nil),                  // 18: drift.v1.WorkspaceRef
+	(*MirrorControlBinding)(nil),          // 11: drift.v1.MirrorControlBinding
+	(*StopMirrorStreamRequest)(nil),       // 12: drift.v1.StopMirrorStreamRequest
+	(*StopMirrorStreamResponse)(nil),      // 13: drift.v1.StopMirrorStreamResponse
+	(*GetMirrorStreamRequest)(nil),        // 14: drift.v1.GetMirrorStreamRequest
+	(*GetMirrorStreamResponse)(nil),       // 15: drift.v1.GetMirrorStreamResponse
+	(*GetMirrorCapacityRequest)(nil),      // 16: drift.v1.GetMirrorCapacityRequest
+	(*GetMirrorCapacityResponse)(nil),     // 17: drift.v1.GetMirrorCapacityResponse
+	(*RequestContext)(nil),                // 18: drift.v1.RequestContext
+	(*WorkspaceRef)(nil),                  // 19: drift.v1.WorkspaceRef
 }
 var file_drift_v1_device_mirror_proto_depIdxs = []int32{
 	0,  // 0: drift.v1.MirrorStream.transport:type_name -> drift.v1.MirrorTransport
 	1,  // 1: drift.v1.MirrorStream.state:type_name -> drift.v1.MirrorStreamState
 	3,  // 2: drift.v1.MirrorCapacity.preview_quality:type_name -> drift.v1.MirrorPreviewQuality
 	4,  // 3: drift.v1.MirrorCapacity.tile_bound:type_name -> drift.v1.MirrorTileBound
-	17, // 4: drift.v1.StartMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
-	18, // 5: drift.v1.StartMirrorStreamRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	18, // 4: drift.v1.StartMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
+	19, // 5: drift.v1.StartMirrorStreamRequest.workspace:type_name -> drift.v1.WorkspaceRef
 	0,  // 6: drift.v1.StartMirrorStreamRequest.transport:type_name -> drift.v1.MirrorTransport
 	2,  // 7: drift.v1.StartMirrorStreamRequest.purpose:type_name -> drift.v1.MirrorViewerPurpose
 	3,  // 8: drift.v1.StartMirrorStreamRequest.preview_quality:type_name -> drift.v1.MirrorPreviewQuality
 	5,  // 9: drift.v1.StartMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
-	17, // 10: drift.v1.NegotiateMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
-	5,  // 11: drift.v1.NegotiateMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
-	17, // 12: drift.v1.StopMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
-	5,  // 13: drift.v1.StopMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
-	5,  // 14: drift.v1.GetMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
-	18, // 15: drift.v1.GetMirrorCapacityRequest.workspace:type_name -> drift.v1.WorkspaceRef
-	6,  // 16: drift.v1.GetMirrorCapacityResponse.capacity:type_name -> drift.v1.MirrorCapacity
-	7,  // 17: drift.v1.DeviceMirrorService.StartMirrorStream:input_type -> drift.v1.StartMirrorStreamRequest
-	9,  // 18: drift.v1.DeviceMirrorService.NegotiateMirrorStream:input_type -> drift.v1.NegotiateMirrorStreamRequest
-	11, // 19: drift.v1.DeviceMirrorService.StopMirrorStream:input_type -> drift.v1.StopMirrorStreamRequest
-	13, // 20: drift.v1.DeviceMirrorService.GetMirrorStream:input_type -> drift.v1.GetMirrorStreamRequest
-	15, // 21: drift.v1.DeviceMirrorService.GetMirrorCapacity:input_type -> drift.v1.GetMirrorCapacityRequest
-	8,  // 22: drift.v1.DeviceMirrorService.StartMirrorStream:output_type -> drift.v1.StartMirrorStreamResponse
-	10, // 23: drift.v1.DeviceMirrorService.NegotiateMirrorStream:output_type -> drift.v1.NegotiateMirrorStreamResponse
-	12, // 24: drift.v1.DeviceMirrorService.StopMirrorStream:output_type -> drift.v1.StopMirrorStreamResponse
-	14, // 25: drift.v1.DeviceMirrorService.GetMirrorStream:output_type -> drift.v1.GetMirrorStreamResponse
-	16, // 26: drift.v1.DeviceMirrorService.GetMirrorCapacity:output_type -> drift.v1.GetMirrorCapacityResponse
-	22, // [22:27] is the sub-list for method output_type
-	17, // [17:22] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	18, // 10: drift.v1.NegotiateMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
+	19, // 11: drift.v1.NegotiateMirrorStreamRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	11, // 12: drift.v1.NegotiateMirrorStreamRequest.control:type_name -> drift.v1.MirrorControlBinding
+	5,  // 13: drift.v1.NegotiateMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
+	18, // 14: drift.v1.StopMirrorStreamRequest.context:type_name -> drift.v1.RequestContext
+	5,  // 15: drift.v1.StopMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
+	5,  // 16: drift.v1.GetMirrorStreamResponse.stream:type_name -> drift.v1.MirrorStream
+	19, // 17: drift.v1.GetMirrorCapacityRequest.workspace:type_name -> drift.v1.WorkspaceRef
+	6,  // 18: drift.v1.GetMirrorCapacityResponse.capacity:type_name -> drift.v1.MirrorCapacity
+	7,  // 19: drift.v1.DeviceMirrorService.StartMirrorStream:input_type -> drift.v1.StartMirrorStreamRequest
+	9,  // 20: drift.v1.DeviceMirrorService.NegotiateMirrorStream:input_type -> drift.v1.NegotiateMirrorStreamRequest
+	12, // 21: drift.v1.DeviceMirrorService.StopMirrorStream:input_type -> drift.v1.StopMirrorStreamRequest
+	14, // 22: drift.v1.DeviceMirrorService.GetMirrorStream:input_type -> drift.v1.GetMirrorStreamRequest
+	16, // 23: drift.v1.DeviceMirrorService.GetMirrorCapacity:input_type -> drift.v1.GetMirrorCapacityRequest
+	8,  // 24: drift.v1.DeviceMirrorService.StartMirrorStream:output_type -> drift.v1.StartMirrorStreamResponse
+	10, // 25: drift.v1.DeviceMirrorService.NegotiateMirrorStream:output_type -> drift.v1.NegotiateMirrorStreamResponse
+	13, // 26: drift.v1.DeviceMirrorService.StopMirrorStream:output_type -> drift.v1.StopMirrorStreamResponse
+	15, // 27: drift.v1.DeviceMirrorService.GetMirrorStream:output_type -> drift.v1.GetMirrorStreamResponse
+	17, // 28: drift.v1.DeviceMirrorService.GetMirrorCapacity:output_type -> drift.v1.GetMirrorCapacityResponse
+	24, // [24:29] is the sub-list for method output_type
+	19, // [19:24] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_drift_v1_device_mirror_proto_init() }
@@ -1402,7 +1557,7 @@ func file_drift_v1_device_mirror_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_drift_v1_device_mirror_proto_rawDesc), len(file_drift_v1_device_mirror_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

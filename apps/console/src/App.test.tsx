@@ -300,10 +300,11 @@ describe("Drift command center", () => {
     expect(screen.getByRole("switch", { name: /Control small screen/i })).not.toBeChecked()
     // Both transports work, so the transport is CHOSEN here rather than stated:
     // the setting an operator reads is the one this console opens its streams
-    // over, and the notice says what each one is. The default is the measured
-    // one, so the control reads the transport this fleet was faster over.
+    // over, and the notice says what each one is. The operator frame defaults to
+    // the low-latency WebRTC path; TCP/MSE remains the explicit compatibility
+    // choice rather than silently receiving the first session.
     expect(screen.queryByRole("button", { name: /^Connection$/i })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Live Mirror Transport/i })).toHaveTextContent(liveMirrorCopy.settings.choice.tcp)
+    expect(screen.getByRole("button", { name: /Live Mirror Transport/i })).toHaveTextContent(liveMirrorCopy.settings.choice.webrtc)
     expect(screen.getByText(liveMirrorCopy.settings.notice)).toBeInTheDocument()
 
     await user.click(screen.getByRole("tab", { name: "Presentation" }))

@@ -168,6 +168,10 @@ message FollowerInputFanout {
   // operator named them, deduplicated by device. Nothing the operator selected is
   // absent from it.
   repeated FollowerInputOutcome followers = 3;
+  // acceptance_duration_ms is how long the plane spent resolving and offering
+  // every selected follower to the bounded executor. It never includes follower
+  // execution: the source response must not wait for the slowest device.
+  uint32 acceptance_duration_ms = 4;
 }
 
 // FollowerInputDisposition is what happened to ONE follower's copy of the gesture.
@@ -205,6 +209,9 @@ message FollowerInputOutcome {
   // follower's own size.
   uint32 frame_width = 9;
   uint32 frame_height = 10;
+  // acceptance_latency_ms is how long this follower's bounded queue admission
+  // took. It is zero for a follower that was excluded before admission.
+  uint32 acceptance_latency_ms = 11;
 }
 
 // FollowerInputDisposition names what happened to one follower's copy of a gesture.

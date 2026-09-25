@@ -68,6 +68,10 @@ export interface LiveStreamView {
   failure: string
   frames: number
   keyFrames: number
+  bytes: number
+  startedAtUnixMillis: number
+  lastFrameAtUnixMillis: number
+  connectionState: string
   /**
    * streamUrl is the per-device stream endpoint a TCP stream is fetched from, as
    * this service named it. It is empty for a stream carried over WebRTC, which is
@@ -293,8 +297,109 @@ export function liveStreamView(stream: MirrorStream): LiveStreamView {
     failure: stream.failure,
     frames: Number(stream.frames),
     keyFrames: Number(stream.keyFrames),
+    bytes: Number(stream.bytes),
+    startedAtUnixMillis: Number(stream.startedAtUnixMillis),
+    lastFrameAtUnixMillis: Number(stream.lastFrameAtUnixMillis),
+    connectionState: stream.connectionState,
     streamUrl: stream.streamUrl,
   }
+}
+
+export interface LiveStreamDiagnostics {
+  lastFrameOffsetMs: number | null
+  frameAgeMs: number | null
+  bytes: number
+  connectionState: string
+}
+
+export interface VideoRenderPerformance {
+  samples: number
+  p50Ms: number
+  p95Ms: number
+}
+
+export const emptyVideoRenderPerformance: VideoRenderPerformance = { samples: 0, p50Ms: 0, p95Ms: 0 }
+const maximumRenderSamples = 120
+
+/**
+ * A bounded reading of the first visible content change after an accepted input.
+ *
+ * This is intentionally described as correlation rather than causation: a live
+ * application may animate without the input. The browser records the first
+ * materially different sampled frame after the dispatch, and only publishes it
+ * when the control plane accepted that dispatch.
+ */
+export interface InputVisiblePerformance {
+  samples: number
+  p50Ms: number
+  p95Ms: number
+  lastMs: number | null
+  timeouts: number
+}
+
+export const emptyInputVisiblePerformance: InputVisiblePerformance = { samples: 0, p50Ms: 0, p95Ms: 0, lastMs: null, timeouts: 0 }
+const maximumInputVisibleSamples = 32
+
+/** Summarize the fixed-size input-to-visible-change window shown to operators. */
+export function summarizeInputVisiblePerformance(samples: readonly number[], timeouts = 0): InputVisiblePerformance {
+  const valid = samples.filter((sample) => Number.isFinite(sample) && sample >= 0).slice(-maximumInputVisibleSamples)
+  const lastMs = valid.at(-1) ?? null
+  valid.sort((a, b) => a - b)
+  if (valid.length === 0) return { ...emptyInputVisiblePerformance, timeouts: Math.max(0, Math.floor(timeouts)) }
+  return {
+    samples: valid.length,
+    p50Ms: percentile(valid, 0.5),
+    p95Ms: percentile(valid, 0.95),
+    lastMs: lastMs === null ? null : Math.round(lastMs * 10) / 10,
+    timeouts: Math.max(0, Math.floor(timeouts)),
+  }
+}
+
+/**
+ * Compare two tiny luminance signatures without retaining a video frame.
+ * A change must affect several cells and be visibly material in each one, which
+ * filters codec noise while still detecting local taps and navigation changes.
+ */
+export function videoSignaturesDiffer(before: Uint8Array, after: Uint8Array): boolean {
+  if (before.length === 0 || before.length !== after.length) return false
+  let changed = 0
+  let totalDelta = 0
+  for (let index = 0; index < before.length; index += 1) {
+    const delta = Math.abs((before[index] ?? 0) - (after[index] ?? 0))
+    totalDelta += delta
+    if (delta >= 16) changed += 1
+  }
+  return changed >= Math.max(4, Math.ceil(before.length * 0.05)) && totalDelta / before.length >= 4
+}
+
+/** Summarize a bounded window of browser receive-to-render samples. */
+export function summarizeVideoRenderPerformance(samples: readonly number[]): VideoRenderPerformance {
+  const valid = samples.filter((sample) => Number.isFinite(sample) && sample >= 0).slice(-maximumRenderSamples)
+  valid.sort((a, b) => a - b)
+  if (valid.length === 0) return emptyVideoRenderPerformance
+  return { samples: valid.length, p50Ms: percentile(valid, 0.5), p95Ms: percentile(valid, 0.95) }
+}
+
+function percentile(sorted: readonly number[], fraction: number): number {
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1))
+  return Math.round((sorted[index] ?? 0) * 10) / 10
+}
+
+/** liveStreamDiagnostics derives operator-facing measurements from the carrier's clock. */
+export function liveStreamDiagnostics(view: LiveStreamView | null, nowUnixMillis = Date.now()): LiveStreamDiagnostics {
+  if (!view) return { lastFrameOffsetMs: null, frameAgeMs: null, bytes: 0, connectionState: "" }
+  const started = finitePositive(view.startedAtUnixMillis)
+  const lastFrame = finitePositive(view.lastFrameAtUnixMillis)
+  return {
+    lastFrameOffsetMs: started !== null && lastFrame !== null ? Math.max(0, lastFrame - started) : null,
+    frameAgeMs: lastFrame !== null && Number.isFinite(nowUnixMillis) ? Math.max(0, nowUnixMillis - lastFrame) : null,
+    bytes: Number.isFinite(view.bytes) && view.bytes > 0 ? view.bytes : 0,
+    connectionState: view.connectionState.trim(),
+  }
+}
+
+function finitePositive(value: number): number | null {
+  return Number.isFinite(value) && value > 0 ? value : null
 }
 
 /**
@@ -499,6 +604,7 @@ export const liveMirrorCopy = {
   /** Why input cannot be sent, said before anything is dispatched. */
   input: {
     noLease: "Input needs this device's active lease, which this console has not acquired.",
+    unreadable: "Input is paused while this frame's current stream state cannot be confirmed.",
     /**
      * Said when this frame has no live stream to measure a coordinate in.
      *
@@ -511,6 +617,19 @@ export const liveMirrorCopy = {
     noFrame: "Input needs the frame the stream is encoded at, and this stream has not reported one.",
     refused: "The control plane refused that input.",
     tapSent: "Tap dispatched.",
+    /**
+     * Said when a held drag cannot stream TouchMove and will only apply on release.
+     * Live follow-the-finger needs the WebRTC control channel; TCP/WebCodecs video
+     * alone has no path for mid-gesture moves.
+     */
+    releaseOnlyGesture: "Live drag needs the WebRTC control channel; this gesture will apply when you release.",
+    /** Said when the control channel is up but its encode size no longer matches the stream. */
+    frameMismatch: "Live drag paused: the stream's encode size changed. Release and try again.",
+    /**
+     * Said when source TouchMove still runs but the follower set could not be
+     * armed on the control channel. Followers will not receive this gesture.
+     */
+    followersNotArmed: "Live drag follows on the source; followers could not be armed for this gesture.",
   },
   /**
    * The info control and everything the frame's own body no longer carries.
@@ -683,7 +802,7 @@ export const liveMirrorCopy = {
       webrtc: "WebRTC (pion, inside the control plane)",
       tcp: "TCP (MSE, the service's stream endpoint)",
     } satisfies Record<LiveMirrorTransportChoice, string>,
-    notice: "Both transports carry this console. WebRTC negotiates a peer connection and pushes the pictures to it; TCP fetches this device's own stream endpoint and plays it as MSE. Measured on this fleet (192.168.1.123:5555, three 60-second runs each, 2026-09-21): TCP carried its first picture in 1-2 ms against WebRTC's 41-95 ms, both at about 59 pictures/s, and TCP held that with no gap over one second and a worst gap of 250-277 ms, where WebRTC stalled twice for 1.2 s and showed worst gaps of 98-1250 ms. TCP is the default for that reason, and the choice is sent with every stream this console opens.",
+    notice: "WebRTC is the default low-latency path for the frame you control. TCP/MSE remains available as a compatibility path while the bounded WebCodecs fallback is being qualified. The choice is sent with every stream this console opens.",
   },
 } as const
 

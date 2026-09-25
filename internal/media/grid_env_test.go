@@ -35,6 +35,9 @@ func TestGridSettingsFromEnvDefaultsEveryInput(t *testing.T) {
 	if settings.MaxDevices != media.DefaultGridMaxDevices {
 		t.Fatalf("max devices = %d, want the default %d", settings.MaxDevices, media.DefaultGridMaxDevices)
 	}
+	if settings.ConcurrentCaptures != media.DefaultGridConcurrentCaptures {
+		t.Fatalf("concurrent captures = %d, want the measured default %d", settings.ConcurrentCaptures, media.DefaultGridConcurrentCaptures)
+	}
 	if settings.Profile.ByteBound != media.DefaultPreviewLimit {
 		t.Fatalf("the default level's byte bound = %d, want the one-shot preview bound %d",
 			settings.Profile.ByteBound, media.DefaultPreviewLimit)
@@ -44,6 +47,35 @@ func TestGridSettingsFromEnvDefaultsEveryInput(t *testing.T) {
 		if !strings.Contains(report, want) {
 			t.Fatalf("startup report %q does not state %q", report, want)
 		}
+	}
+}
+
+func TestGridSettingsFromEnvEnablesBoundedPersistentWorkers(t *testing.T) {
+	t.Parallel()
+	settings, err := media.GridSettingsFromEnv(lookupOf(map[string]string{
+		media.EnvGridStreamPreviews: "true",
+		media.EnvGridFFmpegPath:     "/opt/preview/ffmpeg",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !settings.StreamPreviews || settings.FFmpegPath != "/opt/preview/ffmpeg" {
+		t.Fatalf("settings = %+v, want the persistent capture inputs", settings)
+	}
+	if settings.MaxDevices != media.DefaultStreamPreviewMaxWorkers {
+		t.Fatalf("worker bound = %d, want %d", settings.MaxDevices, media.DefaultStreamPreviewMaxWorkers)
+	}
+}
+
+func TestGridSettingsFromEnvRefusesUnboundedPersistentWorkers(t *testing.T) {
+	t.Parallel()
+	_, err := media.GridSettingsFromEnv(lookupOf(map[string]string{
+		media.EnvGridStreamPreviews: "true",
+		media.EnvGridFFmpegPath:     "/opt/preview/ffmpeg",
+		media.EnvGridMaxDevices:     "26",
+	}))
+	if err == nil || !strings.Contains(err.Error(), media.EnvGridMaxDevices) {
+		t.Fatalf("GridSettingsFromEnv error = %v, want the persistent worker bound named", err)
 	}
 }
 

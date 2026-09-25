@@ -73,6 +73,12 @@ const (
 	// picture states the device's own PTS delta, so the RTP timestamps follow the
 	// device's cadence rather than an assumed rate.
 	nominalFrameDurationUS = 33333
+
+	// mirrorControlQueueCapacity bounds the work a browser can place between
+	// the SCTP reader and the authorized delivery bound to this peer. Consecutive
+	// moves of one gesture replace the latest pending move; critical events
+	// retain their order. A full queue closes control, leaving video usable.
+	mirrorControlQueueCapacity = 64
 )
 
 var (
@@ -252,7 +258,7 @@ func (t *StreamTransport) openPeer(ctx context.Context, deviceID, serial string,
 	if err != nil {
 		return nil, err
 	}
-	peer, err := newStreamPeer(t, session, viewer)
+	peer, err := newStreamPeer(t, session, viewer, purposeOrDefault(purpose))
 	if err != nil {
 		// The subscription is released rather than left holding a capture open.
 		viewer.Close()
@@ -510,6 +516,7 @@ type StreamPeer struct {
 	transport *StreamTransport
 	session   MirrorSession
 	viewer    MirrorViewer
+	purpose   MirrorViewerPurpose
 
 	pc    *webrtc.PeerConnection
 	track *webrtc.TrackLocalStaticSample
@@ -531,6 +538,16 @@ type StreamPeer struct {
 	// the forwarder gates its writes on.
 	connectedAt time.Time
 
+	controlMu       sync.Mutex
+	viewingClaim    MirrorViewingClaim
+	controlSequence *MirrorControlSequence
+	controlHandler  MirrorControlHandler
+	controlPending  []MirrorControlMessage
+	controlWake     chan struct{}
+	controlChannel  *webrtc.DataChannel
+	controlContext  context.Context
+	controlCancel   context.CancelFunc
+
 	// connected is closed when the peer connection can carry RTP. It is what
 	// lets the forwarder prime at the right moment without a second writer.
 	connected   chan struct{}
@@ -541,7 +558,76 @@ type StreamPeer struct {
 	finished    chan struct{}
 }
 
-func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer MirrorViewer) (*StreamPeer, error) {
+// MirrorControlHandler is the application-owned delivery bound to one peer.
+// The media transport validates framing and ordering, but this callback remains
+// responsible for revalidating the lease, fence, control session and stream
+// generation before it delivers anything to a device.
+type MirrorControlHandler func(context.Context, MirrorControlMessage) error
+
+// MirrorViewingClaim identifies the caller that opened one WebRTC viewing.
+// It is transport metadata; the application still decides whether that caller
+// holds a valid control lease before binding any input handler.
+type MirrorViewingClaim struct {
+	WorkspaceID string
+	ActorType   string
+	ActorID     string
+}
+
+func (c MirrorViewingClaim) valid() bool {
+	return strings.TrimSpace(c.WorkspaceID) != "" && strings.TrimSpace(c.ActorType) != "" && strings.TrimSpace(c.ActorID) != ""
+}
+
+// ClaimViewing binds one caller to this peer before the stream identity is
+// returned. A claim cannot be replaced, including with identical values.
+func (p *StreamPeer) ClaimViewing(claim MirrorViewingClaim) error {
+	if p == nil || !claim.valid() {
+		return errors.New("media: a live viewing requires a complete caller claim")
+	}
+	p.controlMu.Lock()
+	defer p.controlMu.Unlock()
+	select {
+	case <-p.closed:
+		return errors.New("media: a closed viewing cannot be claimed")
+	default:
+	}
+	if p.answered {
+		return errors.New("media: a viewing must be claimed before negotiation")
+	}
+	if p.viewingClaim.valid() {
+		return errors.New("media: the viewing is already claimed")
+	}
+	p.viewingClaim = claim
+	return nil
+}
+
+// ViewingClaimMatches compares the caller with the immutable claim on this
+// viewing. It grants no input authority.
+func (p *StreamPeer) ViewingClaimMatches(claim MirrorViewingClaim) bool {
+	if p == nil || !claim.valid() {
+		return false
+	}
+	p.controlMu.Lock()
+	defer p.controlMu.Unlock()
+	select {
+	case <-p.closed:
+		return false
+	default:
+	}
+	return p.viewingClaim == claim
+}
+
+// ControlBound reports whether this peer has an application-owned input
+// handler. A legacy video-only negotiation must refuse an armed peer.
+func (p *StreamPeer) ControlBound() bool {
+	if p == nil {
+		return false
+	}
+	p.controlMu.Lock()
+	defer p.controlMu.Unlock()
+	return p.controlHandler != nil
+}
+
+func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer MirrorViewer, purpose MirrorViewerPurpose) (*StreamPeer, error) {
 	if session == nil || viewer == nil {
 		return nil, errors.New("media: a stream peer requires a session and a subscription on it")
 	}
@@ -581,6 +667,7 @@ func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer Mir
 		transport: transport,
 		session:   session,
 		viewer:    viewer,
+		purpose:   purpose,
 		pc:        pc,
 		track:     track,
 		started:   time.Now().UTC(),
@@ -605,6 +692,7 @@ func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer Mir
 			peer.fail(fmt.Errorf("media: the browser's peer connection is %s", state))
 		}
 	})
+	pc.OnDataChannel(peer.acceptControlChannel)
 	// An unread RTCP queue stalls the interceptor chain, so the sender's
 	// feedback is drained for as long as the peer lives.
 	go func() {
@@ -616,6 +704,217 @@ func newStreamPeer(transport *StreamTransport, session MirrorSession, viewer Mir
 		}
 	}()
 	return peer, nil
+}
+
+// BindControl arms this peer's realtime input channel for one stream
+// generation. It must happen before SDP negotiation, so a browser can never
+// race an unbound channel open and later gain authority on it.
+func (p *StreamPeer) BindControl(generation uint64, handler MirrorControlHandler) error {
+	if p == nil || handler == nil {
+		return errors.New("media: a control binding requires a peer and an authorized handler")
+	}
+	if p.purpose != PurposeOperator {
+		return errors.New("media: control requires an operator viewing")
+	}
+	sequence, err := NewMirrorControlSequence(generation)
+	if err != nil {
+		return err
+	}
+	p.controlMu.Lock()
+	defer p.controlMu.Unlock()
+	select {
+	case <-p.closed:
+		return errors.New("media: control cannot be bound to a closed stream")
+	default:
+	}
+	if p.answered {
+		return errors.New("media: control must be bound before the stream is negotiated")
+	}
+	if !p.viewingClaim.valid() {
+		return errors.New("media: control requires a claimed viewing")
+	}
+	if p.controlHandler != nil {
+		return errors.New("media: control is already bound to this stream")
+	}
+	p.controlSequence = sequence
+	p.controlHandler = handler
+	p.controlPending = make([]MirrorControlMessage, 0, mirrorControlQueueCapacity)
+	p.controlWake = make(chan struct{}, 1)
+	p.controlContext, p.controlCancel = context.WithCancel(context.Background())
+	go p.deliverControl()
+	return nil
+}
+
+// ControlDone closes when input is no longer armed, independently of video.
+func (p *StreamPeer) ControlDone() <-chan struct{} {
+	if p == nil {
+		return nil
+	}
+	p.controlMu.Lock()
+	defer p.controlMu.Unlock()
+	if p.controlContext == nil {
+		return nil
+	}
+	return p.controlContext.Done()
+}
+
+// RevokeControl fails input closed without ending the viewing's video track.
+func (p *StreamPeer) RevokeControl() {
+	if p == nil {
+		return
+	}
+	p.controlMu.Lock()
+	if p.controlCancel != nil {
+		p.controlCancel()
+	}
+	channel := p.controlChannel
+	p.controlMu.Unlock()
+	if channel != nil {
+		_ = channel.Close()
+	}
+}
+
+// SendControlReport sends a bounded, non-authoritative result to the operator
+// over the already-bound control channel. It never opens a channel or changes
+// the peer's authority.
+func (p *StreamPeer) SendControlReport(data []byte) error {
+	if p == nil || len(data) == 0 || len(data) > 64*1024 {
+		return errors.New("media: a control report must be between 1 and 65536 bytes")
+	}
+	p.controlMu.Lock()
+	channel := p.controlChannel
+	active := p.controlContext != nil && p.controlContext.Err() == nil
+	p.controlMu.Unlock()
+	if !active || channel == nil || channel.ReadyState() != webrtc.DataChannelStateOpen {
+		return errors.New("media: the authorized control channel is not open for reports")
+	}
+	return channel.SendText(string(data))
+}
+
+func (p *StreamPeer) acceptControlChannel(channel *webrtc.DataChannel) {
+	if channel == nil {
+		return
+	}
+	p.controlMu.Lock()
+	bound := p.controlHandler != nil
+	if p.controlContext != nil && p.controlContext.Err() != nil {
+		bound = false
+	}
+	select {
+	case <-p.closed:
+		bound = false
+	default:
+	}
+	alreadyOpen := p.controlChannel != nil
+	valid := channel.Label() == MirrorControlChannelLabel && channel.Ordered() && channel.MaxPacketLifeTime() == nil && channel.MaxRetransmits() == nil
+	if bound && !alreadyOpen && valid {
+		p.controlChannel = channel
+	}
+	p.controlMu.Unlock()
+	if !bound || alreadyOpen || !valid {
+		_ = channel.Close()
+		return
+	}
+	channel.OnClose(func() {
+		p.controlMu.Lock()
+		if p.controlCancel != nil {
+			p.controlCancel()
+		}
+		p.controlMu.Unlock()
+	})
+	channel.OnMessage(func(message webrtc.DataChannelMessage) {
+		select {
+		case <-p.closed:
+			_ = channel.Close()
+			return
+		default:
+		}
+		if message.IsString {
+			_ = channel.Close()
+			return
+		}
+		decoded, err := DecodeMirrorControlMessage(message.Data)
+		if err != nil {
+			_ = channel.Close()
+			return
+		}
+		p.controlMu.Lock()
+		if p.controlContext.Err() != nil {
+			p.controlMu.Unlock()
+			_ = channel.Close()
+			return
+		}
+		err = p.controlSequence.Accept(decoded)
+		if err == nil {
+			err = p.enqueueControlLocked(decoded)
+		}
+		p.controlMu.Unlock()
+		if err != nil {
+			_ = channel.Close()
+		}
+	})
+}
+
+// enqueueControlLocked keeps one pending latest move for a continuous gesture.
+// Its caller has accepted the sequence and holds controlMu. A terminal event
+// follows that latest move, so touch-up cannot overtake the final position.
+func (p *StreamPeer) enqueueControlLocked(message MirrorControlMessage) error {
+	count := len(p.controlPending)
+	if message.Kind == MirrorControlTouchMove && count > 0 {
+		last := &p.controlPending[count-1]
+		if last.Kind == MirrorControlTouchMove && last.GestureID == message.GestureID {
+			*last = message
+			return nil
+		}
+	}
+	if count == mirrorControlQueueCapacity {
+		return errors.New("media: the control queue is full")
+	}
+	p.controlPending = append(p.controlPending, message)
+	select {
+	case p.controlWake <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+func (p *StreamPeer) deliverControl() {
+	for {
+		select {
+		case <-p.closed:
+			return
+		case <-p.controlContext.Done():
+			return
+		case <-p.controlWake:
+		}
+		for {
+			// A closed peer must never drain an already queued input. Select may
+			// choose a ready queue even when the close signal is also ready.
+			if p.controlContext.Err() != nil {
+				return
+			}
+			p.controlMu.Lock()
+			if len(p.controlPending) == 0 {
+				p.controlMu.Unlock()
+				break
+			}
+			message := p.controlPending[0]
+			copy(p.controlPending, p.controlPending[1:])
+			p.controlPending[len(p.controlPending)-1] = MirrorControlMessage{}
+			p.controlPending = p.controlPending[:len(p.controlPending)-1]
+			handler := p.controlHandler
+			channel := p.controlChannel
+			controlContext := p.controlContext
+			p.controlMu.Unlock()
+			if handler == nil || controlContext.Err() != nil {
+				continue
+			}
+			if err := handler(controlContext, message); err != nil && channel != nil {
+				_ = channel.Close()
+				return
+			}
+		}
+	}
 }
 
 // Answer completes the handshake with a browser's offer and returns the answer.
@@ -633,10 +932,10 @@ func (p *StreamPeer) Answer(ctx context.Context, offerSDP string) (string, error
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	p.mu.Lock()
+	p.controlMu.Lock()
 	answered := p.answered
 	p.answered = true
-	p.mu.Unlock()
+	p.controlMu.Unlock()
 	if answered {
 		return "", errors.New("media: this stream has already been negotiated")
 	}
@@ -715,6 +1014,11 @@ func (p *StreamPeer) Close() error {
 	}
 	p.closeOnce.Do(func() {
 		close(p.closed)
+		p.controlMu.Lock()
+		if p.controlCancel != nil {
+			p.controlCancel()
+		}
+		p.controlMu.Unlock()
 		p.viewer.Close()
 		if err := p.pc.Close(); err != nil {
 			p.fail(fmt.Errorf("media: closing the peer connection: %w", err))

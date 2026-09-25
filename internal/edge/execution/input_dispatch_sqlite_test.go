@@ -2,6 +2,7 @@ package execution_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -14,6 +15,78 @@ import (
 	platformerrors "drift.local/drift-next/internal/platform/errors"
 	store "drift.local/drift-next/internal/store/sqlite"
 )
+
+// A live input is already travelling an open scrcpy socket. Its readiness
+// probe must not launch a fresh ADB enumeration for every tap, and losing that
+// socket after route selection must not silently reroute the same tap to ADB.
+func TestMirroredInputSkipsADBReadinessAndPinsItsRoute(t *testing.T) {
+	fixture := newSQLiteInputFixture(t, time.Hour, adb.StateDevice)
+	transportChecks := 0
+	mirror := newFakeMirrorDelivery(string(fixture.device))
+	probe := execution.NewStoreControlProbe(fixture.db, execution.DeviceTransportObserverFunc(func(context.Context, string) (adb.DeviceAuthState, error) {
+		transportChecks++
+		return adb.StateOffline, nil
+	}), mirror)
+	dispatcher, err := execution.NewInputDispatcher(fixture.control, probe, fixture.observer, fixture.transport, &fakeResolver{value: typedValueFixture},
+		execution.WithRenderSizeSourceFactory(testRenderSizeSource),
+		execution.WithMirrorDelivery(mirror),
+		execution.WithEvidenceRecorder(store.NewActionEvidenceService(fixture.db)))
+	if err != nil {
+		t.Fatalf("construct mirrored dispatcher: %v", err)
+	}
+	t.Cleanup(func() { _ = dispatcher.Close() })
+	result, err := dispatcher.Run(context.Background(), fixture.request("attempt-mirror-probe", "mirror-probe-key"), "operator", "operator-1")
+	if err != nil || result.Outcome != action.OutcomeVerified {
+		t.Fatalf("mirrored dispatch = %#v, %v", result, err)
+	}
+	if transportChecks != 0 || fixture.transport.invocationCount() != 0 || len(mirror.delivered()) != 1 {
+		t.Fatalf("readiness checks = %d, ADB inputs = %d, mirror inputs = %d; want 0, 0, 1", transportChecks, fixture.transport.invocationCount(), len(mirror.delivered()))
+	}
+
+	// A later session failure is a refusal on the pinned route, not permission
+	// to retry the command through the slower ADB transport.
+	mirror.inputErr = errors.New("the live control socket ended")
+	lost, err := dispatcher.Run(context.Background(), fixture.request("attempt-mirror-lost", "mirror-lost-key"), "operator", "operator-1")
+	if lost.Outcome != action.OutcomeFailed {
+		t.Fatalf("lost mirror outcome = %#v, %v; want failed", lost, err)
+	}
+	if transportChecks != 0 || fixture.transport.invocationCount() != 0 {
+		t.Fatalf("lost mirror triggered %d readiness checks and %d ADB inputs; want neither", transportChecks, fixture.transport.invocationCount())
+	}
+}
+
+type disappearingMirror struct {
+	*fakeMirrorDelivery
+	checks int
+}
+
+func (m *disappearingMirror) Mirrored(string) bool {
+	m.checks++
+	return m.checks == 1
+}
+
+func TestMirrorLostBeforeReadinessDoesNotFallBackToADB(t *testing.T) {
+	fixture := newSQLiteInputFixture(t, time.Hour, adb.StateDevice)
+	transportChecks := 0
+	mirror := &disappearingMirror{fakeMirrorDelivery: newFakeMirrorDelivery()}
+	probe := execution.NewStoreControlProbe(fixture.db, execution.DeviceTransportObserverFunc(func(context.Context, string) (adb.DeviceAuthState, error) {
+		transportChecks++
+		return adb.StateDevice, nil
+	}), mirror)
+	dispatcher, err := execution.NewInputDispatcher(fixture.control, probe, fixture.observer, fixture.transport, &fakeResolver{value: typedValueFixture},
+		execution.WithRenderSizeSourceFactory(testRenderSizeSource), execution.WithMirrorDelivery(mirror))
+	if err != nil {
+		t.Fatalf("construct mirrored dispatcher: %v", err)
+	}
+	t.Cleanup(func() { _ = dispatcher.Close() })
+	_, err = dispatcher.Run(context.Background(), fixture.request("attempt-mirror-vanished", "mirror-vanished-key"), "operator", "operator-1")
+	if err == nil {
+		t.Fatal("the vanished mirror did not refuse the input")
+	}
+	if mirror.checks != 2 || transportChecks != 0 || fixture.transport.invocationCount() != 0 {
+		t.Fatalf("mirror checks = %d, ADB checks = %d, ADB inputs = %d; want 2, 0, 0", mirror.checks, transportChecks, fixture.transport.invocationCount())
+	}
+}
 
 // This file is the integration proof. It runs against a disposable SQLite
 // database that the test creates and destroys, with the real kernel
@@ -69,7 +142,7 @@ func newSQLiteInputFixture(t *testing.T, leaseTTL time.Duration, transportState 
 	observer := &fakeObserver{observation: execution.PostconditionObservation{Token: postToken}}
 	probe := execution.NewStoreControlProbe(db, execution.DeviceTransportObserverFunc(func(context.Context, string) (adb.DeviceAuthState, error) {
 		return transportState, nil
-	}))
+	}), nil)
 	if probe == nil {
 		t.Fatal("store-backed readiness probe was not constructed")
 	}

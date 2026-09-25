@@ -60,6 +60,10 @@ export interface GridStillView {
   failureDetail: string
   /** observedCadenceMillis is the interval the plane MEASURED between this device's last two captures: 0 until two succeeded. */
   observedCadenceMillis: number
+  workerState: string
+  effectiveFps: number
+  restartCount: number
+  freshness: string
   /** truncated reports a capture larger than the plane's still bound, which is delivered as no picture rather than as a partial one. */
   truncated: boolean
   /**
@@ -96,6 +100,10 @@ export interface GridProfileView {
   maxDevices: number
   /** subscribed is how many devices the plane is capturing for this grid. */
   subscribed: number
+  concurrentCaptures: number
+  activeCadenceMillis: number
+  idleCadenceMillis: number
+  freshnessCeilingMillis: number
 }
 
 /**
@@ -189,6 +197,10 @@ export function gridStillView(still: GridStill, nowMs: number): GridStillView {
     failureClass: still.failureClass,
     failureDetail: still.failureDetail,
     observedCadenceMillis: still.observedCadenceMillis,
+    workerState: still.workerState,
+    effectiveFps: still.effectiveFps,
+    restartCount: still.restartCount,
+    freshness: still.freshness,
     truncated: still.truncated,
     noPictureReason: painted.reason !== "" ? painted.reason : unstated ? "the plane answered without stating what this device's still is" : "",
   }
@@ -205,6 +217,10 @@ export function gridProfileView(profile: GridPreviewProfile | undefined): GridPr
     stillByteBound: profile.stillByteBound,
     maxDevices: profile.maxDevices,
     subscribed: profile.subscribed,
+    concurrentCaptures: profile.concurrentCaptures,
+    activeCadenceMillis: profile.activeCadenceMillis,
+    idleCadenceMillis: profile.idleCadenceMillis,
+    freshnessCeilingMillis: profile.freshnessCeilingMillis,
   }
 }
 
@@ -629,6 +645,7 @@ function missingStill(deviceId: string): GridStillView {
   return {
     deviceId, state: "unavailable", picture: null, capturedAt: "", width: 0, height: 0, bytes: 0, sourceBytes: 0,
     ageMs: null, frames: 0, failures: 0, failureClass: "", failureDetail: "", observedCadenceMillis: 0, truncated: false,
+    workerState: "", effectiveFps: 0, restartCount: 0, freshness: "",
     noPictureReason: "the plane's answer named this device's state without the reading that belongs to it",
   }
 }

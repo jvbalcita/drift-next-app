@@ -19,6 +19,14 @@ type DeviceMirrorHandler struct {
 	serials  DeviceSerialResolver
 	capacity MirrorCapacitySource
 	refusals MirrorRefusalRecorder
+	control  MirrorControlBinder
+}
+
+// MirrorControlBinder is the application-owned authority for an optional live
+// input channel. The transport only checks the caller's viewing claim and
+// passes the lease tuple to it; it never decides lease or policy authority.
+type MirrorControlBinder interface {
+	Bind(context.Context, media.MirrorControlPeer, media.MirrorControlBinding) (uint64, error)
 }
 
 // NewDeviceMirrorHandler binds the surface to the stream transport and the
@@ -33,7 +41,7 @@ type DeviceMirrorHandler struct {
 // written down - and a handler given neither still serves streams; it just cannot
 // answer what the plane's bound is, and answers that it cannot rather than
 // claiming a bound of zero.
-func NewDeviceMirrorHandler(streams DeviceMirrors, serials DeviceSerialResolver, capacity MirrorCapacitySource, refusals MirrorRefusalRecorder) *DeviceMirrorHandler {
+func NewDeviceMirrorHandler(streams DeviceMirrors, serials DeviceSerialResolver, capacity MirrorCapacitySource, refusals MirrorRefusalRecorder, control ...MirrorControlBinder) *DeviceMirrorHandler {
 	if isAbsentDeviceMirrors(streams) || serials == nil {
 		return nil
 	}
@@ -43,7 +51,11 @@ func NewDeviceMirrorHandler(streams DeviceMirrors, serials DeviceSerialResolver,
 	if isNilInterface(refusals) {
 		refusals = nil
 	}
-	return &DeviceMirrorHandler{streams: streams, serials: serials, capacity: capacity, refusals: refusals}
+	handler := &DeviceMirrorHandler{streams: streams, serials: serials, capacity: capacity, refusals: refusals}
+	if len(control) > 0 && !isNilInterface(control[0]) {
+		handler.control = control[0]
+	}
+	return handler
 }
 
 // isAbsentDeviceMirrors reports a stream transport this boundary has nothing to
@@ -110,6 +122,17 @@ func (h *DeviceMirrorHandler) StartMirrorStream(ctx context.Context, request *co
 			return nil, MapError(platformerrors.Wrap(platformerrors.CodeUnavailable, capacity.Error(), openErr))
 		}
 		return nil, MapError(openErr)
+	}
+	if transport == media.TransportWebRTC {
+		claimed, ok := stream.(DeviceMirrorClaimedStream)
+		if !ok {
+			_ = stream.Close()
+			return nil, unavailableError("the live peer cannot bind its viewing to the caller")
+		}
+		if err := claimed.ClaimViewing(media.MirrorViewingClaim{WorkspaceID: workspaceID, ActorType: actorType, ActorID: actorID}); err != nil {
+			_ = stream.Close()
+			return nil, unavailableError("the live peer could not bind its viewing to the caller")
+		}
 	}
 	return connectrpc.NewResponse(&driftv1.StartMirrorStreamResponse{Stream: mirrorStreamProto(stream)}), nil
 }
@@ -200,20 +223,61 @@ func (h *DeviceMirrorHandler) NegotiateMirrorStream(ctx context.Context, request
 		return nil, invalidArgument("a negotiate mirror stream request is required")
 	}
 	message := request.Msg
-	if _, _, err := requireActor(message.GetContext()); err != nil {
+	actorType, actorID, err := requireActor(message.GetContext())
+	if err != nil {
 		return nil, err
 	}
 	stream, err := h.stream(message.GetStreamId())
 	if err != nil {
 		return nil, err
 	}
+	// Existing packaged consoles omit workspace. They may still negotiate
+	// video, but this legacy path carries no claim that can bind input. A
+	// caller that supplies a workspace must match the opening viewing exactly.
+	if message.GetWorkspace() != nil {
+		if err := validateWorkspace(message.GetWorkspace()); err != nil {
+			return nil, err
+		}
+		claimed, ok := stream.(DeviceMirrorClaimedStream)
+		if !ok || !claimed.ViewingClaimMatches(media.MirrorViewingClaim{WorkspaceID: message.GetWorkspace().GetWorkspaceId(), ActorType: actorType, ActorID: actorID}) {
+			return nil, connectrpc.NewError(connectrpc.CodePermissionDenied, &safeError{message: "the live viewing belongs to another caller"})
+		}
+	} else if claimed, ok := stream.(DeviceMirrorClaimedStream); ok && claimed.ControlBound() {
+		return nil, connectrpc.NewError(connectrpc.CodePermissionDenied, &safeError{message: "the live viewing requires its opening workspace"})
+	}
+	var generation uint64
+	if binding := message.GetControl(); binding != nil {
+		if message.GetWorkspace() == nil || h.control == nil {
+			return nil, unavailableError("live control requires the opening workspace and a configured control kernel")
+		}
+		peer, ok := stream.(media.MirrorControlPeer)
+		if !ok {
+			return nil, unavailableError("only a selected WebRTC viewing can carry live control")
+		}
+		generation, err = h.control.Bind(ctx, peer, media.MirrorControlBinding{
+			WorkspaceID: message.GetWorkspace().GetWorkspaceId(), DeviceID: stream.Stats().DeviceID,
+			SessionID: binding.GetSessionId(), LeaseID: binding.GetLeaseId(), HolderID: binding.GetHolderId(), FencingToken: binding.GetFencingToken(),
+			ActorType: actorType, ActorID: actorID,
+		})
+		if err != nil {
+			return nil, MapError(err)
+		}
+		if generation == 0 {
+			_ = stream.Close()
+			return nil, unavailableError("live control did not establish a stream generation")
+		}
+	}
 	answer, answerErr := stream.Answer(ctx, message.GetOfferSdp())
 	if answerErr != nil {
+		if generation != 0 {
+			_ = stream.Close()
+		}
 		return nil, MapError(answerErr)
 	}
 	return connectrpc.NewResponse(&driftv1.NegotiateMirrorStreamResponse{
-		AnswerSdp: answer,
-		Stream:    mirrorStreamProto(stream),
+		AnswerSdp:         answer,
+		Stream:            mirrorStreamProto(stream),
+		ControlGeneration: generation,
 	}), nil
 }
 

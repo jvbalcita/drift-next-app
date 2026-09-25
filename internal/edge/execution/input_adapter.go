@@ -167,10 +167,11 @@ type inputAdapter struct {
 // pulled into the artifact store ON THAT ACTOR'S BEHALF, so the store's audit
 // trail names the operator or agent that ran the action rather than the plane.
 type boundAttempt struct {
-	payload   InputPayload
-	sink      *attemptReportSink
-	actorType string
-	actorID   string
+	payload     InputPayload
+	sink        *attemptReportSink
+	actorType   string
+	actorID     string
+	mirrorRoute bool
 }
 
 func newInputAdapter(transport InputTransport, resolver TextResolver, observer PostconditionObserver, deviceID, serial string, renderSizes RenderSizeSourceFactory, delivery MirrorDelivery, departures DepartureObserver, transferRoot string, archive DeviceFileArchive) *inputAdapter {
@@ -201,17 +202,6 @@ func mirrorInputKinds(kind action.Kind) bool {
 	default:
 		return false
 	}
-}
-
-// carriesThroughMirror reports whether THIS dispatch travels the device's live
-// session: the kind has to be one a session can carry, a delivery has to be
-// bound, and the device has to have a session right now. A device with no live
-// session is not mirrored, and its input travels the argv path as before.
-func (a *inputAdapter) carriesThroughMirror(kind action.Kind) bool {
-	if a == nil || a.mirror == nil || !mirrorInputKinds(kind) {
-		return false
-	}
-	return a.mirror.Mirrored(a.deviceID)
 }
 
 // deliverToMirror carries one authorized typed input to the device's live
@@ -351,13 +341,13 @@ func (a *inputAdapter) Cleanup(context.Context, action.Intent) error { return ni
 // dispatch, together with the sink the executing adapter reports what it did
 // into, and the actor the attempt runs on behalf of. A payload is single-use:
 // Execute consumes it.
-func (a *inputAdapter) bind(attemptID string, payload InputPayload, sink *attemptReportSink, actorType, actorID string) {
+func (a *inputAdapter) bind(attemptID string, payload InputPayload, sink *attemptReportSink, actorType, actorID string, mirrorRoute bool) {
 	if a == nil || attemptID == "" {
 		return
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.pending[attemptID] = boundAttempt{payload: payload, sink: sink, actorType: actorType, actorID: actorID}
+	a.pending[attemptID] = boundAttempt{payload: payload, sink: sink, actorType: actorType, actorID: actorID, mirrorRoute: mirrorRoute}
 }
 
 func (a *inputAdapter) release(attemptID string) {
@@ -447,7 +437,7 @@ func (a *inputAdapter) Execute(ctx context.Context, intent action.Intent) (adapt
 	readback, readBack, runErr := SettingReadback{}, false, error(nil)
 	operation := OperationReadback{}
 	operationRead := false
-	if a.carriesThroughMirror(kind) {
+	if bound.mirrorRoute {
 		// The device has a live session, so this is the delivery. It is chosen
 		// after the render-space cross-check above and after the kernel
 		// authorized the attempt, and it is never fallen back from: an input

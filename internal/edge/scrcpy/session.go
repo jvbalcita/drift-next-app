@@ -372,7 +372,10 @@ func (s *Session) Stats() Stats {
 // one goroutine only, and a read that fails ends the session: a caller that
 // reads without a context has nothing else to bound the wait by.
 func (s *Session) ReadAccessUnit() (AccessUnit, error) {
-	unit, err := s.readAccessUnit()
+	unit, err := s.readAccessUnit(func(data []byte) error {
+		_, err := io.ReadFull(s.video, data)
+		return err
+	})
 	if err != nil {
 		return AccessUnit{}, s.end(err)
 	}
@@ -380,12 +383,11 @@ func (s *Session) ReadAccessUnit() (AccessUnit, error) {
 }
 
 // readAccessUnit reads one packet and reports a failure without deciding what it
-// means for the session. A bounded read that reaches its deadline is not a
-// failure - it is how a reader waits for a frame that has not arrived - so the
-// decision to end the session belongs to the caller of this function.
-func (s *Session) readAccessUnit() (AccessUnit, error) {
+// means for the session. Its reader owns cancellation and preserves its position
+// inside the header or payload across poll deadlines.
+func (s *Session) readAccessUnit(readFull func([]byte) error) (AccessUnit, error) {
 	header := make([]byte, PacketHeaderSize)
-	if _, err := io.ReadFull(s.video, header); err != nil {
+	if err := readFull(header); err != nil {
 		return AccessUnit{}, fmt.Errorf("scrcpy: reading a frame header: %w", err)
 	}
 	if isSessionPacket(header) {
@@ -396,7 +398,7 @@ func (s *Session) readAccessUnit() (AccessUnit, error) {
 		return AccessUnit{}, err
 	}
 	data := make([]byte, size)
-	if _, err := io.ReadFull(s.video, data); err != nil {
+	if err := readFull(data); err != nil {
 		return AccessUnit{}, fmt.Errorf("scrcpy: reading a frame payload of %d bytes: %w", size, err)
 	}
 	s.statsMu.Lock()
@@ -428,31 +430,57 @@ const readPollInterval = 250 * time.Millisecond
 // It is what a mirror's worker reads: the worker must stop when its session
 // ends, and a session that has ended must not go on being captured.
 func (s *Session) ReadAccessUnitContext(ctx context.Context) (AccessUnit, error) {
-	for {
+	defer func() { _ = s.video.SetReadDeadline(time.Time{}) }()
+	unit, err := s.readAccessUnit(func(data []byte) error { return s.readFullContext(ctx, data) })
+	if err != nil {
+		if ctx.Err() != nil {
+			return AccessUnit{}, ctx.Err()
+		}
+		return AccessUnit{}, s.end(err)
+	}
+	return unit, nil
+}
+
+// readFullContext preserves the byte offset across poll deadlines. A pause in
+// the middle of a packet is not a new packet boundary.
+func (s *Session) readFullContext(ctx context.Context, data []byte) error {
+	read := 0
+	emptyReads := 0
+	for read < len(data) {
 		if err := ctx.Err(); err != nil {
-			return AccessUnit{}, err
+			return err
 		}
 		deadline := time.Now().Add(readPollInterval)
 		if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
 			deadline = ctxDeadline
 		}
-		_ = s.video.SetReadDeadline(deadline)
-		unit, err := s.readAccessUnit()
-		if err == nil {
-			return unit, nil
+		if err := s.video.SetReadDeadline(deadline); err != nil {
+			return err
+		}
+		count, err := s.video.Read(data[read:])
+		read += count
+		if read == len(data) {
+			return nil
 		}
 		if ctx.Err() != nil {
-			// The wait was cut short by the caller, not by the device.
-			return AccessUnit{}, ctx.Err()
+			return ctx.Err()
 		}
 		if errors.Is(err, os.ErrDeadlineExceeded) {
-			// Nothing arrived within the bounded attempt. That is not a failure:
-			// this fleet's encoder sends nothing at all while the screen is
-			// static, so a quiet poll is a device with nothing new to show.
 			continue
 		}
-		return AccessUnit{}, s.end(err)
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			emptyReads++
+			if emptyReads >= 100 {
+				return io.ErrNoProgress
+			}
+			continue
+		}
+		emptyReads = 0
 	}
+	return nil
 }
 
 // Touch sends one touch action at a point inside the stream's own frame.
