@@ -69,9 +69,12 @@ function decoderFactory() {
   const closed: number[] = []
   const decoders: H264VideoDecoderPort[] = []
   let outputDisplay = { width: 0, height: 0 }
+  // VideoDecoder.decodeQueueSize is readonly. The backlog test changes it
+  // between packets, so the fake reads a value this factory can replace.
+  let decodeQueueSize = 0
   const createDecoder = (callbacks: H264DecoderCallbacks) => {
     const decoder: H264VideoDecoderPort = {
-      decodeQueueSize: 0,
+      get decodeQueueSize() { return decodeQueueSize },
       configure(config) { configurations.push(config) },
       decode(chunk) {
         const value = chunk as { type: string; timestamp: number; data: Uint8Array }
@@ -98,6 +101,9 @@ function decoderFactory() {
     decoders,
     setDisplaySize(width: number, height: number) {
       outputDisplay = { width, height }
+    },
+    setDecodeQueueSize(size: number) {
+      decodeQueueSize = size
     },
   }
 }
@@ -218,9 +224,9 @@ describe("the raw H.264 WebCodecs playback", () => {
         queueMicrotask(() => {
           socket.emit("open", new Event("open"))
           socket.emit("message", new MessageEvent("message", { data: packet(1n, 1_000n, true, 720, 1280, spsAndIDR) }))
-          if (decoder.decoders[0]) decoder.decoders[0].decodeQueueSize = 3
+          decoder.setDecodeQueueSize(3)
           socket.emit("message", new MessageEvent("message", { data: packet(2n, 2_000n, false, 720, 1280, delta) }))
-          if (decoder.decoders[0]) decoder.decoders[0].decodeQueueSize = 0
+          decoder.setDecodeQueueSize(0)
           socket.emit("message", new MessageEvent("message", { data: packet(3n, 3_000n, true, 720, 1280, spsAndIDR) }))
         })
         return socket
