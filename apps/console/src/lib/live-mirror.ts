@@ -617,6 +617,19 @@ export const liveMirrorCopy = {
     noFrame: "Input needs the frame the stream is encoded at, and this stream has not reported one.",
     refused: "The control plane refused that input.",
     tapSent: "Tap dispatched.",
+    /**
+     * Said when a held drag cannot stream TouchMove and will only apply on release.
+     * Live follow-the-finger needs the WebRTC control channel; TCP/WebCodecs video
+     * alone has no path for mid-gesture moves.
+     */
+    releaseOnlyGesture: "Live drag needs the WebRTC control channel; this gesture will apply when you release.",
+    /** Said when the control channel is up but its encode size no longer matches the stream. */
+    frameMismatch: "Live drag paused: the stream's encode size changed. Release and try again.",
+    /**
+     * Said when source TouchMove still runs but the follower set could not be
+     * armed on the control channel. Followers will not receive this gesture.
+     */
+    followersNotArmed: "Live drag follows on the source; followers could not be armed for this gesture.",
   },
   /**
    * The info control and everything the frame's own body no longer carries.

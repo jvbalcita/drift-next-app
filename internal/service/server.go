@@ -214,6 +214,36 @@ func MirrorStreamRoute(streams transportconnect.DeviceMirrors, token string) Rou
 	return Route{Path: transportconnect.MirrorStreamPath, Handler: RequireLabToken(token, handler)}
 }
 
+// MirrorH264Routes mounts raw-H.264 WebCodecs playback beside the established
+// fragmented-MP4 route. Ticket minting uses the regular lab-token header and is
+// restricted to supported local console origins; the WebSocket itself uses a
+// one-use ticket bound to that same origin because browser WebSocket APIs cannot
+// set the lab-token header.
+func MirrorH264Routes(streams transportconnect.DeviceMirrors, token string) []Route {
+	handlers := transportconnect.NewMirrorH264Handlers(streams)
+	if handlers == nil {
+		return nil
+	}
+	return []Route{
+		{Path: transportconnect.MirrorH264TicketPath, Handler: RequireLabToken(token, RequireLocalBrowserOrigin(handlers.TicketHandler()))},
+		{Path: transportconnect.MirrorH264SocketPath, Handler: handlers.WebSocketHandler()},
+	}
+}
+
+// RequireLocalBrowserOrigin limits ticket creation to the origins the desktop
+// and local development console actually use. The WebSocket endpoint then binds
+// and rechecks this exact value against the ticket before accepting the upgrade.
+func RequireLocalBrowserOrigin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		origin := request.Header.Get("Origin")
+		if _, allowed := localOrigins[origin]; origin == "" || !allowed {
+			http.Error(writer, "the live mirror ticket requires a supported local console origin", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(writer, request)
+	})
+}
+
 // ProductRoutes mounts the local product Connect surfaces when handlers were
 // constructed against an open SQLite store. Empty handlers are skipped.
 func ProductRoutes(handlers *transportconnect.ProductHandlers, token string) []Route {

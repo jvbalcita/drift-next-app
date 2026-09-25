@@ -115,13 +115,53 @@ func captureFailure(serial string, class domain.FailureClass) error {
 // a script is exhausted, and records what every capture was bounded by. It runs
 // no process, opens no socket, and reaches no device.
 type fakeFrameCapturer struct {
-	mu     sync.Mutex
-	steps  map[string][]frameStep
-	last   map[string]frameStep
-	calls  map[string]int
-	order  []string
-	gate   map[string]chan struct{}
-	bounds int
+	mu        sync.Mutex
+	steps     map[string][]frameStep
+	last      map[string]frameStep
+	calls     map[string]int
+	order     []string
+	gate      map[string]chan struct{}
+	bounds    int
+	active    int
+	maxActive int
+}
+
+type cadenceCaptureSample struct {
+	started  time.Time
+	finished time.Time
+}
+
+type delayedFrameCapturer struct {
+	inner   *fakeFrameCapturer
+	delay   time.Duration
+	mu      sync.Mutex
+	samples []cadenceCaptureSample
+}
+
+func (c *delayedFrameCapturer) Screenshot(ctx context.Context, serial string) (adb.ScreenshotResult, error) {
+	c.mu.Lock()
+	index := len(c.samples)
+	c.samples = append(c.samples, cadenceCaptureSample{started: time.Now()})
+	c.mu.Unlock()
+
+	timer := time.NewTimer(c.delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return adb.ScreenshotResult{}, unboundedCaptureFailure(serial, ctx.Err())
+	case <-timer.C:
+	}
+	result, err := c.inner.Screenshot(ctx, serial)
+	c.mu.Lock()
+	c.samples[index].finished = time.Now()
+	c.mu.Unlock()
+	return result, err
+}
+
+func (c *delayedFrameCapturer) captureSamples() []cadenceCaptureSample {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]cadenceCaptureSample(nil), c.samples...)
 }
 
 func newFakeFrameCapturer() *fakeFrameCapturer {
@@ -172,8 +212,17 @@ func (c *fakeFrameCapturer) Screenshot(ctx context.Context, serial string) (adb.
 	if _, ok := c.gate[serial]; !ok {
 		c.gate[serial] = make(chan struct{})
 	}
+	c.active++
+	if c.active > c.maxActive {
+		c.maxActive = c.active
+	}
 	gate := c.gate[serial]
 	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.active--
+		c.mu.Unlock()
+	}()
 
 	if step.hold {
 		select {
@@ -221,6 +270,12 @@ func (c *fakeFrameCapturer) total() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return len(c.order)
+}
+
+func (c *fakeFrameCapturer) maximumConcurrency() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.maxActive
 }
 
 // logCapture stands in for the engine's log seam so a subscription, a captured
@@ -364,19 +419,20 @@ func TestFrameEngineCapturesOnlySubscribedDevices(t *testing.T) {
 	stop()
 }
 
-// TestFrameEngineTakesOneBoundedCapturePerSubscribedDevicePerTick pins both
-// bounds at once: every capture runs on its own bounded context, and a tick
-// captures each subscribed device exactly once - never twice, and never as an
-// unbounded fan-out over the fleet.
-func TestFrameEngineTakesOneBoundedCapturePerSubscribedDevicePerTick(t *testing.T) {
+// TestFrameEngineBoundsCaptureConcurrencyAndSchedulesEverySubscriber pins both
+// bounds at once: every capture runs on its own bounded context, each subscribed
+// device continues to make progress, and the worker pool never exceeds its
+// configured limit.
+func TestFrameEngineBoundsCaptureConcurrencyAndSchedulesEverySubscriber(t *testing.T) {
 	t.Parallel()
 	capturer := newFakeFrameCapturer().
 		script("SERIAL-A", shot(pngBytes(64))).
 		script("SERIAL-B", shot(pngBytes(64))).
 		script("SERIAL-C", shot(pngBytes(64)))
 	engine, _ := newTestEngine(t, capturer, media.FrameEngineConfig{
-		Interval:       5 * time.Millisecond,
-		CaptureTimeout: 250 * time.Millisecond,
+		Interval:           5 * time.Millisecond,
+		CaptureTimeout:     250 * time.Millisecond,
+		ConcurrentCaptures: 2,
 	})
 	for _, serial := range []string{"SERIAL-A", "SERIAL-B", "SERIAL-C"} {
 		if err := engine.Subscribe(serial); err != nil {
@@ -384,7 +440,14 @@ func TestFrameEngineTakesOneBoundedCapturePerSubscribedDevicePerTick(t *testing.
 		}
 	}
 	start := startEngine(t, engine)
-	waitFor(t, func() bool { return capturer.callCount("SERIAL-C") >= 3 }, "three ticks over three subscribed devices")
+	waitFor(t, func() bool {
+		for _, serial := range []string{"SERIAL-A", "SERIAL-B", "SERIAL-C"} {
+			if capturer.callCount(serial) < 3 {
+				return false
+			}
+		}
+		return true
+	}, "three bounded captures for every subscribed device")
 	outcome := start()
 
 	if outcome.Ticks == 0 {
@@ -392,12 +455,12 @@ func TestFrameEngineTakesOneBoundedCapturePerSubscribedDevicePerTick(t *testing.
 	}
 	for _, serial := range []string{"SERIAL-A", "SERIAL-B", "SERIAL-C"} {
 		calls := capturer.callCount(serial)
-		if calls > outcome.Ticks {
-			t.Fatalf("%s was captured %d time(s) over %d tick(s): more than one capture per tick", serial, calls, outcome.Ticks)
+		if calls < 3 {
+			t.Fatalf("%s was captured %d time(s), want at least 3 scheduled captures", serial, calls)
 		}
-		if calls < outcome.Ticks-1 {
-			t.Fatalf("%s was captured %d time(s) over %d tick(s): a subscribed device was skipped", serial, calls, outcome.Ticks)
-		}
+	}
+	if maximum := capturer.maximumConcurrency(); maximum > 2 {
+		t.Fatalf("capture pool reached %d concurrent captures, over its configured bound of 2", maximum)
 	}
 	if bounded := capturer.bounded(); bounded != capturer.total() {
 		t.Fatalf("%d of %d capture(s) carried their own bound", bounded, capturer.total())
@@ -618,6 +681,9 @@ func TestFrameEngineBoundsAndReusesTheOneShotPreviewDiscipline(t *testing.T) {
 	// refused as a CAPTURE is delivered as a STILL at the level: that is the whole
 	// difference this card makes, and it is asserted rather than assumed.
 	engine, _ := newTestEngine(t, capturer, media.FrameEngineConfig{})
+	if cost := engine.GridCost(); cost.ConcurrentCaptures != media.DefaultGridConcurrentCaptures {
+		t.Fatalf("default capture concurrency = %d, want measured bound %d", cost.ConcurrentCaptures, media.DefaultGridConcurrentCaptures)
+	}
 	capturer.script("SERIAL-A", shot(pngBytes(media.DefaultPreviewLimit+1)))
 	if err := engine.Subscribe("SERIAL-A"); err != nil {
 		t.Fatalf("Subscribe(SERIAL-A): %v", err)
@@ -891,6 +957,79 @@ func TestFrameEngineDoesNotBlameADeviceForShutdown(t *testing.T) {
 	}
 }
 
+// TestFrameEngineSchedulesFastDevicesWhileAnotherCaptureIsStillInFlight pins
+// the scheduler's independent device progress: a slow device occupies only one
+// bounded capture slot, while another subscribed device can be refreshed without
+// waiting for the slow device's own timeout.
+func TestFrameEngineSchedulesFastDevicesWhileAnotherCaptureIsStillInFlight(t *testing.T) {
+	t.Parallel()
+	capturer := newFakeFrameCapturer().
+		script("SERIAL-A", heldCapture()).
+		script("SERIAL-B", shot(pngBytes(64)))
+	engine, _ := newTestEngine(t, capturer, media.FrameEngineConfig{
+		Interval:           5 * time.Millisecond,
+		CaptureTimeout:     5 * time.Second,
+		ConcurrentCaptures: 2,
+	})
+	for _, serial := range []string{"SERIAL-A", "SERIAL-B"} {
+		if err := engine.Subscribe(serial); err != nil {
+			t.Fatalf("Subscribe(%s): %v", serial, err)
+		}
+	}
+	stop := startEngine(t, engine)
+
+	waitFor(t, func() bool { return capturer.callCount("SERIAL-B") >= 4 }, "the responsive device to capture repeatedly")
+	if calls := capturer.callCount("SERIAL-A"); calls != 1 {
+		t.Fatalf("the slow device received %d capture attempts while its first capture was still held, want exactly 1", calls)
+	}
+	if frame, ok := engine.Frame("SERIAL-B"); !ok || !frame.Current() || frame.Frames < 3 {
+		t.Fatalf("the responsive device did not stay current while its neighbour was held: %+v", frame)
+	}
+
+	outcome := stop()
+	if outcome.Cancelled == 0 {
+		t.Fatalf("shutdown outcome = %+v, want the held device's capture cancelled", outcome)
+	}
+}
+
+// TestFrameEngineSchedulesCadenceFromCaptureStart pins the meaning of a cadence:
+// the next capture is due at start+interval, not completion+interval. A slow
+// capture that already consumed the cadence must be retried as soon as its result
+// is available; adding a second full cadence after it is what drives observed
+// still age past the freshness ceiling on real ADB fleets.
+func TestFrameEngineSchedulesCadenceFromCaptureStart(t *testing.T) {
+	t.Parallel()
+	base := newFakeFrameCapturer().script("SERIAL-A", shot(pngBytes(1)))
+	capturer := &delayedFrameCapturer{inner: base, delay: 200 * time.Millisecond}
+	engine, _ := newTestEngine(t, capturer, media.FrameEngineConfig{
+		ActiveInterval:     80 * time.Millisecond,
+		IdleInterval:       80 * time.Millisecond,
+		CaptureTimeout:     time.Second,
+		ConcurrentCaptures: 1,
+	})
+	if err := engine.Subscribe("SERIAL-A"); err != nil {
+		t.Fatalf("Subscribe(SERIAL-A): %v", err)
+	}
+	stop := startEngine(t, engine)
+	waitFor(t, func() bool { return len(capturer.captureSamples()) >= 4 }, "the fourth delayed capture to start")
+	stop()
+
+	samples := capturer.captureSamples()
+	if len(samples) < 3 {
+		t.Fatalf("capture samples = %d, want at least 3 completed captures", len(samples))
+	}
+	maxCadenceWait := 40 * time.Millisecond
+	for i := 1; i < 3; i++ {
+		if samples[i-1].finished.IsZero() {
+			t.Fatalf("capture %d did not finish before the next capture started: %+v", i-1, samples[i-1])
+		}
+		gap := samples[i].started.Sub(samples[i-1].finished)
+		if gap > maxCadenceWait {
+			t.Fatalf("capture %d waited %s after the prior capture completed; cadence should be start-to-start and already elapsed during capture (max wait %s)", i, gap, maxCadenceWait)
+		}
+	}
+}
+
 // TestFrameEngineDoesNotResurrectADeviceUnsubscribedMidCapture pins the race a
 // subscription that ends while its capture is in flight would otherwise lose: the
 // frame that arrives afterwards is discarded, because an unsubscribed device is
@@ -960,12 +1099,30 @@ func TestFrameEngineKeepsCapturingWhileOneDeviceStalls(t *testing.T) {
 	// The stall costs A's own bounded context and nothing else: the loop keeps
 	// ticking, so the device that answers keeps being captured while A stalls.
 	waitFor(t, func() bool { return capturer.callCount("SERIAL-B") >= 3 }, "the other device to keep being captured while the first stalls")
-	if count := capturer.callCount("SERIAL-A"); count < 2 {
-		t.Fatalf("the stalled device was attempted %d time(s), want the loop to keep trying it", count)
-	}
+	waitFor(t, func() bool { return capturer.callCount("SERIAL-A") >= 2 }, "the stalled device to be retried after its bounded timeout")
 	framed, _ := engine.Frame("SERIAL-B")
 	if !framed.Current() {
 		t.Fatalf("the other device is not reporting a current frame: %+v", framed)
 	}
 	stop()
+}
+
+func TestLiveMirrorHoldSkipsScreenshotAndStillCapturesTheRest(t *testing.T) {
+	capturer := newFakeFrameCapturer().
+		script("SERIAL-LIVE", shot(pngBytes(64))).
+		script("SERIAL-BOARD", shot(pngBytes(64)))
+	engine, _ := newTestEngine(t, capturer, media.FrameEngineConfig{Interval: 20 * time.Millisecond})
+	engine.SetLiveHold(func(serial string) bool { return serial == "SERIAL-LIVE" })
+	if err := engine.Subscribe("SERIAL-LIVE"); err != nil {
+		t.Fatalf("Subscribe live: %v", err)
+	}
+	if err := engine.Subscribe("SERIAL-BOARD"); err != nil {
+		t.Fatalf("Subscribe board: %v", err)
+	}
+	stop := startEngine(t, engine)
+	defer stop()
+	waitFor(t, func() bool { return capturer.callCount("SERIAL-BOARD") >= 1 }, "the board device to be captured")
+	if got := capturer.callCount("SERIAL-LIVE"); got != 0 {
+		t.Fatalf("the live-mirrored device was screenshotted %d time(s)", got)
+	}
 }

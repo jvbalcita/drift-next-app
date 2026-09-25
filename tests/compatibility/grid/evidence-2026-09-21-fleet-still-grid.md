@@ -196,12 +196,181 @@ Two honest caveats, both deliberate:
   surface as built draws stills for every device and leaves the one live session
   to the operator's own frame.
 
+## 6. Bounded parallel capture follow-up (2026-09-24)
+
+The still-only engine was measured again through its public grid seam
+(`GridSettingsFromEnv`, `SyncSubscriptions`, `Run`, and `Frame`) with all 19
+authorized Wi-Fi devices currently attached. Unlike the 2026-09-21 sweep above,
+these runs explicitly set the bounded capture concurrency and stopped after one
+or three attempts per subscribed device.
+
+| | concurrency 12 | concurrency 19 |
+| --- | ---: | ---: |
+| Devices subscribed | 19 | 19 |
+| Captures completed | 19 | 19 |
+| Longest sweep | 9.431 s | 7.257 s |
+| Tiles current and within 10 s at sweep completion | 19 / 19 | 19 / 19 |
+| p95 tile age at sweep completion | 5.111 s | 1.486 s |
+| Capture failures / cancellations | 0 / 0 | 0 / 0 |
+| Go probe process sampled peak RSS | 155.8 MB | 216.2 MB |
+
+The concurrency-19 report also records a 176.3 MB Go heap-in-use peak and a
+208.3 MB Go heap-system peak. The RSS was sampled every 250 ms and covers the
+opt-in Go test process only; it excludes the shared ADB server, console, and
+other control-plane processes. These single-sweep measurements show that bounded
+parallel ADB capture can meet the 10-second tile freshness target on this
+19-device lab fleet, and materially improve on the sequential sweep above.
+
+A sustained 19-device run then requested three captures per tile at the normal
+4 s plane tick. With the configured 5 s idle interval it completed 57 captures
+over six ticks with no capture failures; p95 tile age at shutdown was 5.437 s,
+and measured intervals between successful captures were 9.065–10.097 s (9.513 s
+mean). Two diagnostic repetitions changed only the idle interval to 3 s and 1 s:
+the observed capture intervals remained 9.304–10.201 s and 9.154–10.165 s,
+respectively, while sampled Go-test RSS was 217.4 MB (5 s idle), 266.6 MB (3 s
+idle), and 252.2 MB (1 s idle). All three runs kept 19/19 tiles current
+and under the freshness ceiling at shutdown, with no capture failures; 3, 5,
+and 12 in-flight attempts were cancelled as each probe shut down. This
+shows that the sweep/tick scheduling, not just the idle setting, bounds the
+refresh rate in this fleet. Those reports predate the start-to-start cadence and
+zero-copy ADB result path measured below. They do **not** prove total-host RSS
+below 500 MB, a 25-device fleet, repeated-cadence stability over an eight-hour
+soak, or independent recovery.
+
+## 7. Start-to-start cadence and bounded ADB memory (2026-09-24)
+
+The engine now counts capture work as start-to-start cadence: time spent waiting
+for a screenshot does not get added a second time after that screenshot
+completes. The ADB process runner also transfers its completed bounded output
+buffer to the capture result rather than keeping a duplicate multi-megabyte PNG
+copy live during each concurrent capture. The existing snapshot-copy behavior
+remains available to any caller inspecting a still-writable buffer.
+
+Two independent probes used the same 18 authorized Wi-Fi devices, 12 bounded
+capture workers, four attempts per device, 1 s active / 5 s idle cadence, and a
+10 s freshness ceiling. Peak tile age was sampled every 50 ms throughout each
+run, not only at shutdown.
+
+| | Run 1 | Run 2 |
+| --- | ---: | ---: |
+| Tiles current and within 10 s at shutdown | 18 / 18 | 18 / 18 |
+| p95 / max peak tile age during run | 9.500 / 9.500 s | 9.844 / 9.844 s |
+| ADB capture-call p50 / p95 | 4.726 / 5.225 s | 4.881 / 5.489 s |
+| Capture failures | 0 | 0 |
+| Go probe + local ADB process peak RSS | 353.8 MB | 354.4 MB |
+
+The RSS includes the opt-in Go test process and local ADB CLI/server processes,
+sampled every 250 ms. It excludes the control plane, console/browser, operating
+system, and unrelated processes, so it is **not** the whole-host memory figure.
+These repeated runs meet the 10 s peak freshness gate for this 18-device sample
+and support the 12-worker default; they do not establish the 500 MB whole-host
+limit, the optional persistent-stream configuration, a 25-device fleet, or an
+eight-hour recovery soak.
+
+Reproduce either run with the same bounded still-only path:
+
+```sh
+DRIFT_GRID_SWEEP_PROBE=1 \
+DRIFT_GRID_PROBE_ADB=/opt/homebrew/bin/adb \
+DRIFT_GRID_SWEEP_PROBE_OUT=$PWD/tests/compatibility/grid/probe-reports/probe-still-sweep-2026-09-24-18-device-concurrency-12-active-1s-zero-copy-repeat-four-sweeps.json \
+DRIFT_GRID_SWEEP_PROBE_SWEEPS=4 \
+DRIFT_GRID_CONCURRENT_CAPTURES=12 \
+DRIFT_GRID_ACTIVE_CADENCE=1s \
+DRIFT_GRID_IDLE_CADENCE=5s \
+go test ./internal/media -run '^TestGridStillSweepProbe$' -count=1 -v -timeout 300s
+```
+
+Reproduce the concurrency-19 measurement with the opt-in, still-only probe:
+
+```sh
+DRIFT_GRID_SWEEP_PROBE=1 \
+DRIFT_GRID_PROBE_ADB=/opt/homebrew/bin/adb \
+DRIFT_GRID_SWEEP_PROBE_OUT=$PWD/tests/compatibility/grid/probe-reports/probe-still-sweep-2026-09-24-concurrency-19.json \
+DRIFT_GRID_STREAM_PREVIEWS=false \
+DRIFT_GRID_CONCURRENT_CAPTURES=19 \
+go test ./internal/media -run '^TestGridStillSweepProbe$' -count=1 -v -timeout 6m
+```
+
+Add `DRIFT_GRID_SWEEP_PROBE_SWEEPS=3` to request three attempts per device, and
+optionally set `DRIFT_GRID_IDLE_CADENCE=3s` or `1s` to compare the deployment's
+adaptive idle profile. These are diagnostic overrides; they do not mutate the
+product's defaults.
+
+## 8. Bounded soak preflight results (2026-09-24)
+
+The opt-in soak harness was first checked with one device for 30 seconds, then
+with the full currently attached sample of 18 devices for 30 seconds. The
+single-device harness run passed, but the 18-device run did **not** reach its
+soak window: it spent the probe's bounded warmup attempting to bring all tiles
+current, and completed neither the preflight nor a post-soak refresh. That is a
+useful load/recovery failure, not evidence from a 30-second fleet soak.
+
+| | one-device harness check | 18-device preflight attempt |
+| --- | ---: | ---: |
+| Requested soak duration | 30 s | 30 s (not reached) |
+| Devices current / fresh at report | 1 / 1 | 17 / 11 |
+| Final p95 / max tile age | 42 / 42 ms | 64.314 / 64.314 s |
+| Peak p95 / max age during soak | 8.958 / 8.958 s | not measured; soak did not start |
+| Captures / failures / shutdown cancellations | 6 / 0 / 1 | 117 / 9 / 12 |
+| Capture-call p50 / p95 / max | 6.911 / 8.843 / 8.843 s | 10.129 / 15.001 / 15.010 s |
+| Probe plus local ADB peak RSS | 297.7 MB | 520.4 MB |
+| Host load at measurement | 17.94 / 14.71 / 15.84 | 12.43 / 17.41 / 17.25 |
+
+Both RSS readings include the probe process and local ADB processes only, not
+the control plane or console/browser; neither is whole-host memory acceptance.
+The 18-device report's zero peak-age counters are not a pass: the harness had
+not entered the interval from which those counters are sampled. That first
+report predates explicit `SoakStarted`, `SoakReached`, and `ProbeCompleted`
+fields; later reports carry those booleans so an aborted preflight cannot be
+mistaken for a completed soak. The one-device run validates the harness and its
+single-device cleanup path only. Keep the fleet freshness, recovery, memory, and
+eight-hour gates open.
+
+The harness was then corrected to persist `SoakStarted`, `SoakReached`, and
+`ProbeCompleted`, and three explicitly timed 18-device trials were run. They show
+the current trade-off rather than a stable pass: concurrency 12 stayed well below
+the process-only memory ceiling but exceeded freshness during the timed window;
+concurrency 18 left every tile fresh at shutdown but exceeded freshness during
+the run and came within 11.3 MB of the 500 MB ceiling before counting the plane
+or console.
+
+| | 12 capture workers | 16 capture workers | 18 capture workers |
+| --- | ---: | ---: | ---: |
+| Timed window started / reached / probe completed | yes / yes / yes | yes / yes / yes | yes / yes / yes |
+| Devices current / fresh at report | 18 / 16 | 18 / 18 | 18 / 18 |
+| Final p95 / max tile age | 10.182 / 10.182 s | 8.533 / 8.533 s | 8.214 / 8.214 s |
+| Peak p95 / max tile age | 15.530 / 15.530 s | 13.755 / 13.755 s | 12.028 / 12.028 s |
+| Captures / failures | 87 / 0 | 100 / 0 | 91 / 0 |
+| Capture-call p50 / p95 / max | 7.056 / 9.262 / 9.835 s | 7.991 / 10.446 / 12.143 s | 8.309 / 11.682 / 12.414 s |
+| Probe plus local ADB peak RSS | 418.2 MB | 469.9 MB | 488.7 MB |
+| Host load at measurement | 6.23 / 6.88 / 6.60 | 3.76 / 4.61 / 5.53 | 3.83 / 5.33 / 5.97 |
+
+The RSS again excludes the control plane and console/browser. The 18-worker arm
+is therefore not a memory pass, and all three timed arms fail the observed
+peak-age criterion despite zero capture failures. These runs do not authorize changing
+the product default to 18 workers; the earlier two four-sweep concurrency-12
+runs remain favorable but are not enough to establish stable soak acceptance.
+Do not start an eight-hour soak until freshness and whole-application memory are
+stable under repeated short runs.
+
 ## Reports
 
 | File | SHA-256 |
 | --- | --- |
 | `probe-reports/probe-still-fleet.json` | `847e62a54cceb4debd5de3d95d166d7ff2375854ddd3b4a3715ab1b78c10ba45` |
 | `probe-reports/probe-operator-baseline.json` | `c04934b2cff6202d3e22eac9dc732c012c8c0bc4e6a5e608854cc799bca59a2b` |
+| `probe-reports/probe-still-sweep-2026-09-24-concurrency-12.json` | `d0d0225137450acf51320bf9db6bd606f407f58cab343b525dd2927d56e33f2f` |
+| `probe-reports/probe-still-sweep-2026-09-24-concurrency-19.json` | `8f79597dbb5ccd317e7441b5ab2bd02641bf5b04a4fac15e5faa2b387513454c` |
+| `probe-reports/probe-still-cadence-2026-09-24-concurrency-19.json` | `54eaeabaf4cff0e2ecbcda2a91cc7b9497489d7b6d4bed533fe5b615d543c0b1` |
+| `probe-reports/probe-still-cadence-2026-09-24-concurrency-19-idle-3s.json` | `96efee2defd8201fd131e3b91a795b893777be56b0c09f5f8b663c4a8e28129e` |
+| `probe-reports/probe-still-cadence-2026-09-24-concurrency-19-idle-1s.json` | `146a6ab2e314b5bf594d6a358ff88bd4b642d6b991448ce498407641ee434860` |
+| `probe-reports/probe-still-sweep-2026-09-24-18-device-concurrency-12-active-1s-zero-copy-four-sweeps.json` | `185b4f023e7fb0861cfc5a54c5db69c6b2051dcb9e15f54e538f7e6ccb24911c` |
+| `probe-reports/probe-still-sweep-2026-09-24-18-device-concurrency-12-active-1s-zero-copy-repeat-four-sweeps.json` | `9e9e7156e587a7f3838afa6d2da98330c82039c2ca4d3fad75e12b121d16d03a` |
+| `probe-reports/probe-still-soak-2026-09-24-1-device-30s.json` | `4896445d43872ae1dc787aefa534eadbb51efafa8e3e9d4e0b5ee175fc0e2e35` |
+| `probe-reports/probe-still-soak-2026-09-24-18-device-30s.json` | `197ca0d54763412c84a83beb414956514bbe71883b4a62203253b30b5fd86c73` |
+| `probe-reports/probe-still-soak-2026-09-24-18-device-30s-continuation.json` | `6f7cf58443378e1b9b9b77235281c8d6ce5d1577161b8acffc225b9170f32b97` |
+| `probe-reports/probe-still-soak-2026-09-24-18-device-30s-concurrency-18.json` | `4bebf39fc7d5315e3473abe1e1abc95208787f161b21e95c86b542326b84de2a` |
+| `probe-reports/probe-still-soak-2026-09-24-18-device-30s-concurrency-16.json` | `6b4d03064453c2f0e91dd00ed08ab25ba55e5110b08b6e0e1e0cd73139daba48` |
 
 The still-fleet report carries the per-device table (state, bytes, delivered
 size, measured cadence), the per-level table, both operator arms second by

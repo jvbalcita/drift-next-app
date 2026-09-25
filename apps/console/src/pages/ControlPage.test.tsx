@@ -966,6 +966,28 @@ describe("ControlPage live mirror frame", () => {
     expect(within(details).getByTestId("live-mirror-transport")).toHaveTextContent("1080x1920")
   })
 
+  it("opens a selected follower at the operator encode profile so a drag can be copied while the finger is down", async () => {
+    const user = userEvent.setup({ delay: null })
+    const mock = new MockControlPlaneClient()
+    const mirror = fakeMirror()
+    render(<ControlPage snapshot={mock.getSnapshot()} dispatch={async (intent) => mock.dispatch(intent)} mirror={mirror.client} />)
+
+    await user.click(screen.getByRole("button", { name: /Atlas 04/i }))
+    await user.click(screen.getByRole("button", { name: /Atlas 07/i }))
+
+    await waitFor(() => expect(mirror.calls).toContain("start:atlas-07:webrtc"))
+    expect(mirror.purposes.filter((purpose) => purpose === "operator").length).toBeGreaterThanOrEqual(2)
+    expect(mirror.previews.at(-1)).toBeUndefined()
+    expect(screen.getByTestId("follower-live-video-atlas-07")).toBeInTheDocument()
+    expect(screen.getByTestId("tile-following-atlas-07")).toHaveAccessibleName("Atlas 07 is following")
+    expect(screen.queryByText(/^Follower$/)).not.toBeInTheDocument()
+
+    const sourceTile = screen.getByRole("button", { name: /Atlas 04/i })
+    expect(sourceTile).toBeDisabled()
+    expect(screen.getByTestId("tile-controlled-atlas-04")).toHaveAccessibleName("Atlas 04 is being controlled in the big frame")
+    expect(screen.queryByText(/^Open$/)).not.toBeInTheDocument()
+  })
+
   it("offers both transports, and opens the device's stream over the one chosen", async () => {
     const user = userEvent.setup({ delay: null })
     const mock = new MockControlPlaneClient()

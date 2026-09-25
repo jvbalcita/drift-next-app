@@ -1,5 +1,6 @@
 import { concatBytes, mp4MediaType, splitStream } from "@/lib/mp4-segments"
 import { liveMirrorCopy } from "@/lib/live-mirror"
+import { browserMirrorWebCodecsPlayback, isWebCodecsAvailable, type MirrorPlaybackTransport } from "@/lib/api/mirror-webcodecs-playback"
 
 /**
  * The browser's half of the TCP transport.
@@ -54,6 +55,14 @@ export interface MirrorPlaybackRequest {
   url: string
   /** headers are how this console authenticates to the control plane. */
   headers: Record<string, string>
+  /** canvas is where native WebCodecs draws raw H.264 frames, when supported. */
+  canvas?: HTMLCanvasElement | null
+  /** webCodecs carries the stream-specific ticket and the authenticated ticket endpoint. */
+  webCodecs?: { streamId: string; socketUrl: string; ticketUrl: string }
+  /** onRendered records one frame delivered to the visible surface. */
+  onRendered?: (receiveToRenderMs: number) => void
+  /** onTransportChange is the bounded diagnostic seam for active/fallback transport. */
+  onTransportChange?: (transport: MirrorPlaybackTransport, reason: string) => void
   /**
    * onFailure is where a body that failed AFTER the endpoint was accepted is
    * reported.
@@ -111,7 +120,62 @@ interface QueuedSegment {
 export const sourceOpenTimeoutMs = 5_000
 
 export function browserMirrorPlaybackFactory(request: MirrorPlaybackRequest): MirrorPlayback {
-  return browserMirrorPlayback(request)
+  return browserAdaptiveMirrorPlayback(request)
+}
+
+function browserAdaptiveMirrorPlayback(request: MirrorPlaybackRequest): MirrorPlayback {
+  const direct = request.webCodecs && request.canvas && isWebCodecsAvailable()
+    ? browserMirrorWebCodecsPlayback({
+      ...request,
+      onFailure: (cause) => {
+        if (stopped) return
+        void beginFallback(cause).catch((fallbackCause: unknown) => request.onFailure?.(fallbackCause))
+      },
+    })
+    : null
+  let active: MirrorPlayback | null = direct
+  let fallback: MirrorPlayback | null = null
+  let fallbackPromise: Promise<void> | null = null
+  let stopped = false
+
+  const beginFallback = (reason: unknown): Promise<void> => {
+    if (fallbackPromise) return fallbackPromise
+    if (stopped) return Promise.resolve()
+    direct?.stop()
+    if (request.canvas) request.canvas.hidden = true
+    if (request.element) request.element.hidden = false
+    request.onTransportChange?.("mse", errorMessage(reason))
+    fallback = browserMirrorPlayback(request)
+    active = fallback
+    fallbackPromise = fallback.start()
+    return fallbackPromise
+  }
+
+  return {
+    async start() {
+      if (!direct) {
+        request.onTransportChange?.("mse", "WebCodecs is unavailable in this browser")
+        fallback = browserMirrorPlayback(request)
+        active = fallback
+        await fallback.start()
+        return
+      }
+      try {
+        await direct.start()
+      } catch (cause: unknown) {
+        await beginFallback(cause)
+      }
+    },
+    stop() {
+      if (stopped) return
+      stopped = true
+      active?.stop()
+    },
+  }
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : "The WebCodecs transport could not be established"
 }
 
 export function browserMirrorPlayback(request: MirrorPlaybackRequest): MirrorPlayback {

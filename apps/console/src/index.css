@@ -150,6 +150,72 @@
     animation: drift-device-loading 1.6s ease-in-out infinite;
   }
 
+  .drift-follow-mark {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .drift-follow-pulse {
+    position: absolute;
+    inset: 0.45rem;
+    border: 1.5px solid #000;
+    outline: 1.5px solid #fff;
+    animation: drift-follow-pulse 1.6s cubic-bezier(0.16, 0.72, 0.28, 1) infinite;
+  }
+
+  .drift-follow-pulse-late {
+    animation-delay: 0.8s;
+  }
+
+  .drift-follow-chip {
+    position: absolute;
+    inset: 0.45rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid #000;
+    outline: 1px solid #fff;
+    outline-offset: 1px;
+    background: #fff;
+    color: #000;
+  }
+
+  .drift-follow-hand {
+    transform-origin: 46% 92%;
+    animation: drift-follow-wave 1.6s ease-in-out infinite;
+  }
+
+  @keyframes drift-follow-pulse {
+    0% {
+      transform: scale(0.82);
+      opacity: 0;
+    }
+
+    18% {
+      opacity: 0.95;
+    }
+
+    100% {
+      transform: scale(1.7);
+      opacity: 0;
+    }
+  }
+
+  @keyframes drift-follow-wave {
+    0%,
+    18%,
+    100% {
+      transform: rotate(0deg);
+    }
+
+    42% {
+      transform: rotate(-16deg);
+    }
+
+    68% {
+      transform: rotate(11deg);
+    }
+  }
+
   .drift-editorial-grid {
     position: relative;
     isolation: isolate;

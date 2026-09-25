@@ -26,6 +26,27 @@ func controlBytes(kind MirrorControlEventKind, sequence, gesture, generation uin
 	return data
 }
 
+func followerSelectionBytes(sequence, generation uint64, followers ...string) []byte {
+	size := MirrorControlMessageSize + 2
+	for _, follower := range followers {
+		size += 2 + len(follower)
+	}
+	data := make([]byte, size)
+	data[0], data[1] = MirrorControlCurrentVersion, byte(MirrorControlSetFollowers)
+	binary.BigEndian.PutUint64(data[8:16], sequence)
+	binary.BigEndian.PutUint64(data[32:40], generation)
+	payload := data[MirrorControlMessageSize:]
+	binary.BigEndian.PutUint16(payload[:2], uint16(len(followers)))
+	offset := 2
+	for _, follower := range followers {
+		binary.BigEndian.PutUint16(payload[offset:offset+2], uint16(len(follower)))
+		offset += 2
+		copy(payload[offset:], follower)
+		offset += len(follower)
+	}
+	return data
+}
+
 func TestMirrorControlMessageMapsToPhysicalSessionInput(t *testing.T) {
 	for name, testCase := range map[string]struct {
 		message []byte
@@ -70,9 +91,14 @@ func TestMirrorControlMessageDecodesOnlyTheBoundedBinaryContract(t *testing.T) {
 	}
 	for name, data := range map[string][]byte{
 		"short":             make([]byte, MirrorControlMessageSize-1),
-		"unknown version":   append([]byte{2}, make([]byte, MirrorControlMessageSize-1)...),
+		"unknown version":   append([]byte{3}, make([]byte, MirrorControlMessageSize-1)...),
 		"move marked final": controlBytes(MirrorControlTouchMove, 2, 7, 9, true),
 		"up not final":      controlBytes(MirrorControlTouchUp, 2, 7, 9, false),
+		"key repeats multiple untracked actions": func() []byte {
+			value := controlBytes(MirrorControlKey, 4, 0, 9, true)
+			binary.BigEndian.PutUint32(value[60:64], 2)
+			return value
+		}(),
 		"reserved payload": func() []byte {
 			value := controlBytes(MirrorControlTouchDown, 2, 7, 9, false)
 			value[64] = 1
@@ -85,6 +111,53 @@ func TestMirrorControlMessageDecodesOnlyTheBoundedBinaryContract(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMirrorControlMessageCarriesBoundedFollowerSelectionAndGestureKind(t *testing.T) {
+	selection, err := DecodeMirrorControlMessage(followerSelectionBytes(1, 9, "device-a", "device-b"))
+	if err != nil {
+		t.Fatalf("decode follower selection: %v", err)
+	}
+	if selection.Kind != MirrorControlSetFollowers || selection.Version != MirrorControlCurrentVersion || len(selection.FollowerDeviceIDs) != 2 || selection.FollowerDeviceIDs[0] != "device-a" || selection.FollowerDeviceIDs[1] != "device-b" {
+		t.Fatalf("decoded follower selection = %#v", selection)
+	}
+
+	up := controlBytes(MirrorControlTouchUp, 2, 7, 9, true)
+	up[0] = MirrorControlCurrentVersion
+	up[68] = MirrorControlGestureSwipe
+	binary.BigEndian.PutUint32(up[64:68], 900)
+	message, err := DecodeMirrorControlMessage(up)
+	if err != nil {
+		t.Fatalf("decode v2 swipe release: %v", err)
+	}
+	if message.GestureKind != MirrorControlGestureSwipe || message.DurationMS != 900 {
+		t.Fatalf("terminal gesture metadata = kind %d duration %d", message.GestureKind, message.DurationMS)
+	}
+
+	for name, data := range map[string][]byte{
+		"too many followers": followerSelectionBytes(1, 9, makeFollowerIDs(MirrorControlMaxFollowers+1)...),
+		"trailing follower bytes": append(followerSelectionBytes(1, 9, "device-a"), 0),
+		"swipe without duration": func() []byte {
+			value := controlBytes(MirrorControlTouchUp, 2, 7, 9, true)
+			value[0] = MirrorControlCurrentVersion
+			value[68] = MirrorControlGestureSwipe
+			return value
+		}(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := DecodeMirrorControlMessage(data); err == nil {
+				t.Fatal("invalid realtime follower message was accepted")
+			}
+		})
+	}
+}
+
+func makeFollowerIDs(count int) []string {
+	ids := make([]string, count)
+	for index := range ids {
+		ids[index] = "device-" + string(rune('a'+index))
+	}
+	return ids
 }
 
 func TestMirrorControlSequenceRejectsStaleAndOutOfOrderTerminalEvents(t *testing.T) {
@@ -107,6 +180,9 @@ func TestMirrorControlSequenceRejectsStaleAndOutOfOrderTerminalEvents(t *testing
 	}
 	if err := sequence.Accept(decode(controlBytes(MirrorControlTouchUp, 3, 7, 9, true))); err != nil {
 		t.Fatalf("up: %v", err)
+	}
+	if err := sequence.Accept(decode(followerSelectionBytes(4, 9, "follower-1"))); err != nil {
+		t.Fatalf("follower selection between gestures: %v", err)
 	}
 
 	for name, message := range map[string]MirrorControlMessage{

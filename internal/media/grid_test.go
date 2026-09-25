@@ -3,6 +3,7 @@ package media_test
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -298,11 +299,11 @@ func (c *advancingCapturer) Screenshot(ctx context.Context, serial string) (adb.
 	return c.fake.Screenshot(ctx, serial)
 }
 
-// TestFrameEngineRecordsTheSweepItRan pins the number that makes the cadence
-// honest: the engine reports how long its longest sweep took, so a fleet too large
-// to sweep inside the configured cadence says so in the plane's own report instead
-// of implying a freshness it did not achieve.
-func TestFrameEngineRecordsTheSweepItRan(t *testing.T) {
+// TestFrameEngineRecordsTheDueBatchItRan pins the number that makes the cadence
+// honest: the engine reports how long its longest due batch took, so work larger
+// than the configured cadence says so in the plane's own report instead of
+// implying a freshness it did not achieve.
+func TestFrameEngineRecordsTheDueBatchItRan(t *testing.T) {
 	t.Parallel()
 	clock := &steppingClock{at: time.Date(2026, 9, 21, 8, 0, 0, 0, time.UTC)}
 	step := 40 * time.Millisecond
@@ -318,16 +319,16 @@ func TestFrameEngineRecordsTheSweepItRan(t *testing.T) {
 	waitFor(t, func() bool {
 		frame, ok := engine.Frame("SERIAL-A")
 		return ok && frame.Frames >= 1
-	}, "a sweep to run")
+	}, "a due batch to run")
 	outcome := stop()
-	// One capture moves the clock on by exactly one step, so a sweep over a single
-	// device is exactly that step: the plane's report is a duration it measured
+	// One capture moves the clock on by exactly one step, so a due batch over a
+	// single device is exactly that step: the plane's report is a duration it measured
 	// rather than one it assumed from the cadence it was configured with.
 	if outcome.LongestSweep != step {
-		t.Fatalf("outcome states a longest sweep of %s, want the %s one capture took: %+v", outcome.LongestSweep, step, outcome)
+		t.Fatalf("outcome states a longest due batch of %s, want the %s one capture took: %+v", outcome.LongestSweep, step, outcome)
 	}
-	if report := outcome.Report(); !strings.Contains(report, "longest sweep") {
-		t.Fatalf("the report does not state the sweep it ran: %s", report)
+	if report := outcome.Report(); !strings.Contains(report, "longest due batch") {
+		t.Fatalf("the report does not state the due batch it ran: %s", report)
 	}
 }
 
@@ -335,10 +336,19 @@ func TestFrameEngineRecordsTheSweepItRan(t *testing.T) {
 // interval between two captures is a number the test chose rather than one it
 // waited for.
 type steppingClock struct {
+	mu   sync.Mutex
 	at   time.Time
 	step time.Duration
 }
 
-func (c *steppingClock) Now() time.Time { return c.at }
+func (c *steppingClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.at
+}
 
-func (c *steppingClock) Advance(step time.Duration) { c.at = c.at.Add(step) }
+func (c *steppingClock) Advance(step time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.at = c.at.Add(step)
+}

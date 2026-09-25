@@ -274,7 +274,6 @@ func main() {
 		} else {
 			streamPreview, gridSettingsErr = media.NewStreamPreviewCapturer(media.StreamPreviewCapturerConfig{
 				Dialer: mirrorDialer, Decoder: decoder, MaxWorkers: gridSettings.MaxDevices,
-				StartWorkers: gridSettings.ConcurrentCaptures, DecodeWorkers: gridSettings.ConcurrentCaptures,
 				Preview: media.MirrorPreview{Quality: media.PreviewLow, FrameRate: 1},
 			})
 			if gridSettingsErr == nil {
@@ -318,6 +317,9 @@ func main() {
 	// operator with a frame that shows nothing and no diagnosis: the same rule
 	// that made "no default network profile" a one-look answer.
 	mirrorEngine, mirrorErr := mirrorEngineFrom(mirrorDialer, mirrorDialerErr)
+	if frameEngine != nil && mirrorEngine != nil {
+		frameEngine.SetLiveHold(mirrorEngine.HasLiveSerial)
+	}
 	mirrorHost := media.NewMirrorHost(media.MirrorHostConfig{Engine: mirrorEngine, Reason: mirrorErr})
 	log.Printf("%s", mirrorHost.State())
 	mirrorDone := make(chan struct{})
@@ -390,6 +392,7 @@ func main() {
 	fanoutExecutor, executorErr := followerFanoutExecutor(fanout, db)
 	if executorErr != nil {
 		log.Printf("follower fan-out not carried: %v", executorErr)
+		fanout = nil
 	}
 	fanoutDone := make(chan struct{})
 	if fanoutExecutor != nil {
@@ -458,7 +461,7 @@ func main() {
 		log.Printf("live mirror transport not started: %v", streamsErr)
 	}
 	mirrorMounted := false
-	if mirrorRoute := deviceMirrorRoute(mirrorStreams, mirrorEngine, actionRuntime, store.NewMirrorEventService(db), db, labToken); mirrorRoute.Path != "" {
+	if mirrorRoute := deviceMirrorRoute(mirrorStreams, mirrorEngine, actionRuntime, store.NewMirrorEventService(db), db, fanout, labToken); mirrorRoute.Path != "" {
 		routes = append(routes, mirrorRoute)
 		mirrorMounted = true
 	}
@@ -472,6 +475,15 @@ func main() {
 		streamEndpointMounted = true
 	}
 	log.Printf("live mirror stream endpoint %s at %s (a browser is given a per-device path on this service's own guarded surface; the loopback bind and the token check above are what stand in front of it)", mountState(streamEndpointMounted), transportconnect.MirrorStreamPath)
+	h264Mounted := false
+	for _, route := range service.MirrorH264Routes(mirrorStreamPort{transport: mirrorStreams}, labToken) {
+		if route.Path == "" {
+			continue
+		}
+		routes = append(routes, route)
+		h264Mounted = true
+	}
+	log.Printf("live mirror raw H.264 WebSocket %s at %s (ticket minting uses the lab-token header and a supported local console origin; tickets are one-use and short-lived)", mountState(h264Mounted), transportconnect.MirrorH264SocketPath)
 	// The fleet grid's still previews: the surface that carries a still for EVERY
 	// device without spending a device session, so the operator's own frame keeps
 	// the one live session it needs. It is mounted only when the capture set was
@@ -541,7 +553,7 @@ func mirrorStreamTransport(engine *media.MirrorEngine, engineErr error) (*media.
 // The resolver is the same registry the input surface resolves devices through:
 // one vocabulary decides which transport a device is currently reachable at, and
 // the browser never names or receives one.
-func deviceMirrorRoute(streams *media.StreamTransport, engine *media.MirrorEngine, resolver transportconnect.DeviceSerialResolver, refusals transportconnect.MirrorRefusalRecorder, db *store.DB, token string) service.Route {
+func deviceMirrorRoute(streams *media.StreamTransport, engine *media.MirrorEngine, resolver transportconnect.DeviceSerialResolver, refusals transportconnect.MirrorRefusalRecorder, db *store.DB, fanout *execution.FollowerFanout, token string) service.Route {
 	if streams == nil {
 		log.Print("live mirror surface not mounted: no stream transport was constructed")
 		return service.Route{}
@@ -551,10 +563,14 @@ func deviceMirrorRoute(streams *media.StreamTransport, engine *media.MirrorEngin
 		return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
 	}
 	if !liveMirrorControlEnabled(os.Getenv(envLiveMirrorControl)) {
-		log.Print("live control channel disabled: set DRIFT_LIVE_MIRROR_CONTROL=true after rollout checks")
+		log.Print("live control channel disabled: set DRIFT_LIVE_MIRROR_CONTROL=false was explicit")
 		return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
 	}
-	control, err := mirror.NewRealtimeControl(store.NewActionService(db), engine, db.IDs(), store.NewActionEvidenceService(db))
+	if fanout == nil {
+		log.Print("live control channel not armed: the follower fan-out executor is unavailable")
+		return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
+	}
+	control, err := mirror.NewRealtimeControl(store.NewActionService(db), engine, db.IDs(), store.NewActionEvidenceService(db), mirror.WithRealtimeFollowerFanout(fanout))
 	if err != nil {
 		log.Printf("live control channel not armed: %v", err)
 		return service.DeviceMirrorRoute(mirrorStreamPort{transport: streams}, resolver, engine, refusals, token)
@@ -563,7 +579,13 @@ func deviceMirrorRoute(streams *media.StreamTransport, engine *media.MirrorEngin
 }
 
 func liveMirrorControlEnabled(value string) bool {
-	return strings.EqualFold(strings.TrimSpace(value), "true")
+	// Unset defaults on: follow-the-finger TouchMove needs the data channel armed.
+	// Explicit false stays the rollout kill-switch.
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return true
+	}
+	return !strings.EqualFold(trimmed, "false") && !strings.EqualFold(trimmed, "0") && !strings.EqualFold(trimmed, "off")
 }
 
 // gridPreviewRoute builds the fleet grid's still surface, or an empty Route when

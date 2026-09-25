@@ -774,6 +774,23 @@ func (p *StreamPeer) RevokeControl() {
 	}
 }
 
+// SendControlReport sends a bounded, non-authoritative result to the operator
+// over the already-bound control channel. It never opens a channel or changes
+// the peer's authority.
+func (p *StreamPeer) SendControlReport(data []byte) error {
+	if p == nil || len(data) == 0 || len(data) > 64*1024 {
+		return errors.New("media: a control report must be between 1 and 65536 bytes")
+	}
+	p.controlMu.Lock()
+	channel := p.controlChannel
+	active := p.controlContext != nil && p.controlContext.Err() == nil
+	p.controlMu.Unlock()
+	if !active || channel == nil || channel.ReadyState() != webrtc.DataChannelStateOpen {
+		return errors.New("media: the authorized control channel is not open for reports")
+	}
+	return channel.SendText(string(data))
+}
+
 func (p *StreamPeer) acceptControlChannel(channel *webrtc.DataChannel) {
 	if channel == nil {
 		return

@@ -619,11 +619,11 @@ var catalog = map[Kind]Specification{
 		Postcondition:        "a fresh observation shows the effect of the delivered key event",
 		RequiresObservation:  true,
 		EvidenceRequired:     true,
-		AllowedSurfaces:      []InvocationSurface{SurfaceManual, SurfaceRecorder, SurfaceReplay},
+		AllowedSurfaces:      []InvocationSurface{SurfaceManual, SurfaceRecorder, SurfaceReplay, SurfaceMirror},
 		Lifted: &DeferralLift{
 			Record:       deviceInputLiftRecord,
 			Precondition: liftedInputPrecondition,
-			Reason:       "ADR-0008 lifts the device-command deferral for typed input; a key event is a bounded key code with a typed payload, not a command, an argv list or free-form text",
+			Reason:       "ADR-0008 lifts the device-command deferral for typed input; a mirror key event is one bounded key code carried by the selected, lease-bound live control channel, not a command, an argv list or free-form text",
 		},
 	},
 	LaunchApp: {

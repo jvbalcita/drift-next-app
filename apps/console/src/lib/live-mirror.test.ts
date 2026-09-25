@@ -183,6 +183,21 @@ describe("a point on the rendered surface, in the stream's own frame", () => {
     expect(streamPoint({ box: quarter, content: frame }, frame, 100 + 135, 50 + 240)).toEqual({ ok: true, x: 540, y: 960 })
   })
 
+  it("maps from a WebCodecs canvas bitmap size the same way it maps from a video picture", () => {
+    // The WebCodecs path paints into a canvas whose width/height are the
+    // decoded display size. Pointer mapping must use that bitmap, not a video
+    // element whose videoWidth is still 0.
+    const canvasBox: SurfaceRect = { left: 0, top: 0, width: 270, height: 480 }
+    const canvasBitmap = { width: 540, height: 960 }
+    const streamFrame = { width: 540, height: 960 }
+    expect(streamPoint({ box: canvasBox, content: canvasBitmap }, streamFrame, 135, 240)).toEqual({
+      ok: true,
+      x: 270,
+      y: 480,
+    })
+    expect(drawnContentRect(canvasBox, canvasBitmap)).toEqual(canvasBox)
+  })
+
   it("absorbs the boundary pixel the mapping can round past, and refuses a point off the picture", () => {
     expect(streamPoint(halfPicture, frame, 540, 960)).toEqual({ ok: true, x: 1079, y: 1919 })
     expect(streamPoint(halfPicture, frame, -1, 10)).toEqual({ ok: false, refusal: liveMirrorCopy.refusal.outsideFrame })

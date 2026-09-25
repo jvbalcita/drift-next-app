@@ -19,8 +19,9 @@ describe("the big frame's pointer", () => {
     expect(controlPointerPath).toBe(path?.getAttribute("d"))
   })
 
-  it("draws that glyph solid black, and is never the crosshair it replaced", () => {
+  it("draws that glyph black with a white ring, and is never the crosshair it replaced", () => {
     expect(controlPointerSvg).toContain(`fill="#000000"`)
+    expect(controlPointerSvg).toContain(`stroke="#ffffff"`)
     expect(controlPointerSvg).toContain(`stroke="#000000"`)
     expect(controlPointerSvg).toContain(controlPointerPath)
     expect(controlPointerCursor.startsWith("url(\"data:image/svg+xml,")).toBe(true)

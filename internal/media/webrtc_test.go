@@ -335,7 +335,7 @@ func TestAnAuthorizedBinaryControlChannelCarriesOrderedMessages(t *testing.T) {
 		t.Fatalf("claim viewing: %v", err)
 	}
 	sessionReady(t, fixture.mustSession(t, "device-1"))
-	delivered := make(chan MirrorControlMessage, 3)
+	delivered := make(chan MirrorControlMessage, 4)
 	if err := peer.BindControl(9, func(_ context.Context, message MirrorControlMessage) error {
 		delivered <- message
 		return nil
@@ -358,12 +358,13 @@ func TestAnAuthorizedBinaryControlChannelCarriesOrderedMessages(t *testing.T) {
 		controlBytes(MirrorControlTouchDown, 1, 7, 9, false),
 		controlBytes(MirrorControlTouchMove, 2, 7, 9, false),
 		controlBytes(MirrorControlTouchUp, 3, 7, 9, true),
+		controlBytes(MirrorControlKey, 4, 0, 9, true),
 	} {
 		if err := channel.Send(data); err != nil {
 			t.Fatalf("send control message: %v", err)
 		}
 	}
-	for index, want := range []MirrorControlEventKind{MirrorControlTouchDown, MirrorControlTouchMove, MirrorControlTouchUp} {
+	for index, want := range []MirrorControlEventKind{MirrorControlTouchDown, MirrorControlTouchMove, MirrorControlTouchUp, MirrorControlKey} {
 		select {
 		case message := <-delivered:
 			if message.Kind != want || message.Sequence != uint64(index+1) {
@@ -372,6 +373,45 @@ func TestAnAuthorizedBinaryControlChannelCarriesOrderedMessages(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatalf("control message %d was not delivered", index)
 		}
+	}
+}
+
+func TestAuthorizedControlChannelCarriesBoundedTextReportsToTheOperator(t *testing.T) {
+	fixture := newStreamFixture(t, MirrorEngineConfig{}, StreamTransportConfig{})
+	peer := openPeer(t, fixture.transport, "device-1", "SERIAL-device-1")
+	claim := MirrorViewingClaim{WorkspaceID: "workspace", ActorType: "operator", ActorID: "operator-1"}
+	if err := peer.ClaimViewing(claim); err != nil {
+		t.Fatalf("claim viewing: %v", err)
+	}
+	sessionReady(t, fixture.mustSession(t, "device-1"))
+	if err := peer.BindControl(9, func(context.Context, MirrorControlMessage) error { return nil }); err != nil {
+		t.Fatalf("bind control: %v", err)
+	}
+	client := newBrowser(t)
+	channel, opened := client.controlChannel(t)
+	received := make(chan webrtc.DataChannelMessage, 1)
+	channel.OnMessage(func(message webrtc.DataChannelMessage) { received <- message })
+	answer, err := peer.Answer(context.Background(), client.offer(t))
+	if err != nil {
+		t.Fatalf("answer the browser's offer: %v", err)
+	}
+	client.accept(t, answer)
+	select {
+	case <-opened:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the browser control channel never opened")
+	}
+	want := `{"type":"follower_fanout","runId":"run-1"}`
+	if err := peer.SendControlReport([]byte(want)); err != nil {
+		t.Fatalf("send the bounded report over the authorized channel: %v", err)
+	}
+	select {
+	case message := <-received:
+		if !message.IsString || string(message.Data) != want {
+			t.Fatalf("control report = %#v, want the exact text report", message)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the browser did not receive the control report")
 	}
 }
 

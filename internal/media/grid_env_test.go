@@ -35,6 +35,9 @@ func TestGridSettingsFromEnvDefaultsEveryInput(t *testing.T) {
 	if settings.MaxDevices != media.DefaultGridMaxDevices {
 		t.Fatalf("max devices = %d, want the default %d", settings.MaxDevices, media.DefaultGridMaxDevices)
 	}
+	if settings.ConcurrentCaptures != media.DefaultGridConcurrentCaptures {
+		t.Fatalf("concurrent captures = %d, want the measured default %d", settings.ConcurrentCaptures, media.DefaultGridConcurrentCaptures)
+	}
 	if settings.Profile.ByteBound != media.DefaultPreviewLimit {
 		t.Fatalf("the default level's byte bound = %d, want the one-shot preview bound %d",
 			settings.Profile.ByteBound, media.DefaultPreviewLimit)

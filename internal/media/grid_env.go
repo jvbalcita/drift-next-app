@@ -31,18 +31,22 @@ const (
 	//
 	// It is a bound on the WORK, not on the fleet: a still spends no device
 	// session, so this is not a session capacity and it is deliberately far larger
-	// than one. What it bounds is one sweep's worst case - `max_devices x the
-	// capture timeout`, sequential - so a plane cannot be asked for unbounded work
-	// by a console that names a fleet it does not have. A device the bound does
-	// not reach is reported as not shown, with the bound named, rather than
-	// silently dropped.
+	// than one. What it bounds is one sweep's worst case -
+	// `ceil(max_devices / concurrent_captures) x the capture timeout` - so a plane
+	// cannot be asked for unbounded work by a console that names a fleet it does not
+	// have. A device the bound does not reach is reported as not shown, with the
+	// bound named, rather than silently dropped.
 	EnvGridMaxDevices         = "DRIFT_GRID_MAX_DEVICES"
 	EnvGridConcurrentCaptures = "DRIFT_GRID_CONCURRENT_CAPTURES"
 	EnvGridActiveCadence      = "DRIFT_GRID_ACTIVE_CADENCE"
 	EnvGridIdleCadence        = "DRIFT_GRID_IDLE_CADENCE"
 	EnvGridFreshnessCeiling   = "DRIFT_GRID_FRESHNESS_CEILING"
-	EnvGridStreamPreviews     = "DRIFT_GRID_STREAM_PREVIEWS"
-	EnvGridFFmpegPath         = "DRIFT_GRID_FFMPEG"
+	// EnvGridStreamPreviews opts into persistent scrcpy workers per tile. It
+	// defaults off: the fleet grid is JPEG stills (medium / concurrency 12 /
+	// adaptive cadence), and turning this on multiplies encoders and memory.
+	// Leave it off unless a deployment deliberately wants live tile previews.
+	EnvGridStreamPreviews = "DRIFT_GRID_STREAM_PREVIEWS"
+	EnvGridFFmpegPath     = "DRIFT_GRID_FFMPEG"
 )
 
 const (
@@ -50,15 +54,13 @@ const (
 	// four seconds, which is the freshness a fleet view is scanned at rather than
 	// the continuity a frame is worked at.
 	//
-	// It is an AIM, and the measurement says by how much the fleet can miss it: on
-	// the lab fleet one capture took a mean of 3.1-4.2 s over TCP (a 1080x2280
-	// screen arrives as a ~3.4 MB PNG, and the level is applied on the plane after
-	// it arrives), so a sweep of 19 devices took 59-71 s and that fleet's real
-	// refresh interval is the sweep, not this number. The engine coalesces missed
-	// ticks rather than queuing them and states each device's own MEASURED cadence
-	// on its frame, which is what a tile shows; a deployment that needs a shorter
-	// interval than its sweep can deliver has to shrink the fleet or the sweep's
-	// cost, not this constant (evidence:
+	// It is an AIM, and the engine states each device's own MEASURED cadence on its
+	// frame, which is what a tile shows. An earlier sequential capture path took a
+	// mean of 3.1-4.2 s per device over TCP (a 1080x2280 screen arrives as a ~3.4 MB
+	// PNG, and the level is applied on the plane after it arrives), so a sweep of
+	// 19 devices took 59-71 s. Bounded concurrent scheduling materially changes
+	// that cost; do not infer freshness from this configured cadence alone
+	// (evidence:
 	// tests/compatibility/grid/evidence-2026-09-21-fleet-still-grid.md).
 	DefaultGridStillCadence = 4 * time.Second
 
@@ -80,19 +82,24 @@ const (
 	// it bounds stays finite, and a deployment with a larger fleet states its own
 	// number and reads it back.
 	//
-	// The measurement behind the number: at the lab's own capture cost (a mean of
-	// 3.1-4.2 s per device over TCP), a sweep of this bound's worth of devices
-	// takes about 3-4.5 minutes of wall clock, and its worst case - every capture
-	// running to the capture path's own bound - is 64 x 15 s. The stills those
-	// devices deliver are NOT what binds it: measured at the medium level, the
-	// whole 19-device fleet's stills cost 0.77 Mbps, under 2% of the 40 Mbps one
-	// live operator-profile stream was measured at, so the transport would carry
-	// nearly a thousand such devices at a 4 s cadence. The bound is therefore a
-	// bound on the capture path's throughput, and the engine states the sweep it
-	// actually ran (LongestSweep) beside every device's measured cadence so a
-	// deployment can see which of the two is binding for it (evidence:
+	// A sweep's capture-time bound is the ceiling of this device bound divided by
+	// the concurrent capture bound, times the capture path's own timeout. With the
+	// measured default of 12 workers and the 15 s capture timeout, 64 devices are
+	// at most six timeout waves; actual duration is measured rather than assumed.
+	// The stills' delivered bandwidth is separate: at the medium level the earlier
+	// 19-device sample cost 0.77 Mbps, under 2% of the 40 Mbps one live operator
+	// profile stream measured at. The engine reports its actual sweep duration and
+	// per-device cadence so a deployment can see which bound is binding (evidence:
 	// tests/compatibility/grid/evidence-2026-09-21-fleet-still-grid.md).
 	DefaultGridMaxDevices = 64
+	// DefaultGridConcurrentCaptures bounds simultaneous ADB still captures. Twelve
+	// workers are the measured balance for 18 authorized lab devices under the
+	// still-only scheduler: two independent four-attempt runs stayed below the
+	// 10 s peak tile-age ceiling with no capture failures. The Go probe plus local
+	// ADB processes peaked near 354 MB; this excludes the control plane and
+	// console/browser, so it is tuning evidence rather than proof of the whole-host
+	// memory cap. Reproduction reports are listed in the fleet-grid evidence file.
+	DefaultGridConcurrentCaptures = 12
 	// DefaultStreamPreviewMaxWorkers is the hard persistent-session bound. It is
 	// lower than the legacy screenshot sweep bound because every admitted device
 	// owns an encoder and socket until the grid releases it.
@@ -123,7 +130,7 @@ func (s GridSettings) Report() string {
 	if s.StreamPreviews {
 		mode = "persistent scrcpy workers"
 	}
-	return fmt.Sprintf("grid stills: %s, every %s, at %s, up to %d device(s) per sweep, %d concurrent start/decode worker(s), adaptive %s-%s, freshness ceiling %s",
+	return fmt.Sprintf("grid stills: %s, every %s, at %s, up to %d device(s) per sweep, %d concurrent still capture(s), adaptive %s-%s, freshness ceiling %s",
 		mode, s.Cadence, s.Profile.Report(), s.MaxDevices, s.ConcurrentCaptures, s.ActiveCadence, s.IdleCadence, s.FreshnessCeiling)
 }
 
@@ -151,7 +158,7 @@ func GridSettingsFromEnv(lookup EnvLookup) (GridSettings, error) {
 		Cadence:            DefaultGridStillCadence,
 		Profile:            DefaultGridStillProfile(),
 		MaxDevices:         DefaultGridMaxDevices,
-		ConcurrentCaptures: 2,
+		ConcurrentCaptures: DefaultGridConcurrentCaptures,
 		ActiveCadence:      time.Second,
 		IdleCadence:        5 * time.Second,
 		FreshnessCeiling:   10 * time.Second,

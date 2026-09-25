@@ -136,18 +136,25 @@ function fakeClient(initial: LiveStreamView = stream()): FakeClient {
  */
 function fakeSchedule() {
   const waits: { delayMs: number; run: () => void }[] = []
+  let scheduled = 0
+  let cancelled = 0
   const schedule: MirrorSchedule = (delayMs, run) => {
     const entry = { delayMs, run }
     waits.push(entry)
+    scheduled += 1
     return () => {
       const at = waits.indexOf(entry)
-      if (at >= 0) waits.splice(at, 1)
+      if (at >= 0) {
+        waits.splice(at, 1)
+        cancelled += 1
+      }
     }
   }
   return {
     schedule,
     /** delays is what this console is waiting, in wall-clock milliseconds. */
     delays: () => waits.map((wait) => wait.delayMs),
+    counts: () => ({ scheduled, cancelled }),
     /** runNext does the work the console is waiting on, exactly once. */
     async runNext() {
       const next = waits.shift()
@@ -157,13 +164,23 @@ function fakeSchedule() {
         await Promise.resolve()
       })
     },
+    async runDelay(delayMs: number) {
+      const index = waits.findIndex((wait) => wait.delayMs === delayMs)
+      if (index < 0) throw new Error(`this console is waiting on no ${delayMs} ms task`)
+      const [next] = waits.splice(index, 1)
+      await act(async () => {
+        next.run()
+        await Promise.resolve()
+      })
+    },
   }
 }
 
 interface FakePeer {
-  factory: () => { createOffer(): Promise<string>; acceptAnswer(sdp: string): Promise<void>; onStream(listener: (stream: MediaStream) => void): void; close(): void }
+  factory: () => { createOffer(): Promise<string>; acceptAnswer(sdp: string): Promise<void>; onStream(listener: (stream: MediaStream) => void): void; onMediaActivity?(listener: () => void): void; diagnostics?(): Promise<{ connectionState: string; iceConnectionState: string; trackState: string; trackStreams: number; inboundPackets: number; inboundBytes: number; decodedFrames: number; roundTripTimeMs: number | null }>; close(): void }
   calls: string[]
   emitStream(): void
+  emitMediaActivity(): void
   media: MediaStream
 }
 
@@ -224,13 +241,27 @@ function fakePeer(): FakePeer {
   const calls: string[] = []
   const media = {} as MediaStream
   let listener: ((stream: MediaStream) => void) | null = null
+  let mediaActivityListener: (() => void) | null = null
   const peer = {
     async createOffer() { calls.push("offer"); return "offer-sdp" },
     async acceptAnswer(sdp: string) { calls.push(`answer:${sdp}`) },
     onStream(next: (stream: MediaStream) => void) { listener = next },
+    onMediaActivity(next: () => void) { mediaActivityListener = next },
+    async diagnostics() {
+      return {
+        connectionState: "connected",
+        iceConnectionState: "connected",
+        trackState: "live",
+        trackStreams: 1,
+        inboundPackets: 257,
+        inboundBytes: 42_000,
+        decodedFrames: 0,
+        roundTripTimeMs: 4.5,
+      }
+    },
     close() { calls.push("close") },
   }
-  return { factory: () => peer, calls, emitStream: () => listener?.(media), media }
+  return { factory: () => peer, calls, emitStream: () => listener?.(media), emitMediaActivity: () => mediaActivityListener?.(), media }
 }
 
 function Harness({ client, peerFactory, playbackFactory, transport, purpose, controlBinding, deviceId = "device-1", schedule, pollIntervalMs = 5, pollRetryCeilingMs, reopenLimit }: { client?: LiveMirrorClient; peerFactory?: FakePeer["factory"]; playbackFactory?: MirrorPlaybackFactory; transport?: LiveMirrorTransportChoice; purpose?: LiveMirrorViewerPurpose; controlBinding?: LiveControlBinding; deviceId?: string; schedule?: MirrorSchedule; pollIntervalMs?: number; pollRetryCeilingMs?: number; reopenLimit?: number }) {
@@ -239,6 +270,7 @@ function Harness({ client, peerFactory, playbackFactory, transport, purpose, con
     <div>
       <span data-testid="phase">{session.phase}</span>
       <span data-testid="failure">{session.failure}</span>
+      <span data-testid="fallback">{session.fallbackReason}</span>
       <span data-testid="frames">{session.stream?.frames ?? -1}</span>
       <span data-testid="recovery">{session.recovery.successes}/{session.recovery.attempts}:{session.recovery.lastReason}</span>
       <button type="button" onClick={() => { const control = session.realtimeControl(); if (control) { control.down({ x: 1, y: 2 }); control.up({ x: 1, y: 2 }) } }}>send realtime touch</button>
@@ -284,6 +316,147 @@ describe("the console's read retry policy", () => {
 })
 
 describe("the console's live mirror session", () => {
+  it("falls back to one TCP/WebCodecs request after a bounded WebRTC negotiation failure", async () => {
+    const handle = fakeClient()
+    const order: string[] = []
+    const startedPlayback = fakePlayback()
+    const tcpStream = stream({ transport: MirrorTransport.TCP, streamUrl: "/drift/v1/mirror/stream?stream_id=stream-1", state: MirrorStreamState.LIVE, frames: 3n })
+    const originalStart = handle.client.startStream.bind(handle.client)
+    const originalStop = handle.client.stopStream.bind(handle.client)
+    handle.client.startStream = async (request) => {
+      order.push(`start:${request.transport}`)
+      if (request.transport === "tcp") handle.setState(tcpStream)
+      return originalStart(request)
+    }
+    handle.client.stopStream = async (streamId) => {
+      order.push(`stop:${streamId}`)
+      return originalStop(streamId)
+    }
+    handle.client.negotiate = async () => { throw new Error("ICE could not establish the WebRTC peer") }
+    const controlCalls: string[] = []
+    const control: MirrorControlWire = { readyState: "open", send() {}, close() { controlCalls.push("close") } }
+    const peerFactory = () => ({
+      createControlChannel() { return control },
+      async createOffer() { return "offer-sdp" },
+      async acceptAnswer() {},
+      onStream() {},
+      onFailure() {},
+      close() { controlCalls.push("peer-close") },
+    })
+    handle.client.realtimeControlEnabled = () => true
+
+    render(<Harness
+      client={handle.client}
+      peerFactory={peerFactory}
+      playbackFactory={startedPlayback.factory}
+      controlBinding={{ sessionId: "session-1", leaseId: "lease-1", holderId: "operator-1", fencingToken: 7n }}
+    />)
+
+    await waitFor(() => expect(startedPlayback.starts).toHaveLength(1))
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("live"))
+    expect(handle.transports).toEqual(["webrtc", "tcp"])
+    expect(order).toEqual(["start:webrtc", "stop:stream-1", "start:tcp"])
+    expect(controlCalls).toEqual(["close", "peer-close"])
+    expect(screen.getByTestId("fallback")).toHaveTextContent("ICE could not establish the WebRTC peer")
+
+    await act(async () => { startedPlayback.starts[0].onFailure?.(new Error("TCP picture stopped")) })
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
+    expect(handle.transports).toEqual(["webrtc", "tcp"])
+    expect(handle.calls.filter((call) => call.startsWith("start:"))).toHaveLength(2)
+  })
+
+  it("does not turn a control-plane authorization refusal into a transport fallback", async () => {
+    const handle = fakeClient()
+    handle.client.negotiate = async () => { throw new ConnectJsonError("permission_denied", "operator permission refused") }
+    render(<Harness client={handle.client} peerFactory={fakePeer().factory} />)
+
+    await waitFor(() => expect(screen.getByTestId("phase")).toHaveTextContent("failed"))
+    expect(handle.transports).toEqual(["webrtc"])
+    expect(screen.getByTestId("fallback")).toHaveTextContent("")
+    expect(screen.getByTestId("failure")).toHaveTextContent("operator permission refused")
+  })
+
+  it("keeps WebRTC when a render stall still has video packets, and resets the bound when a frame renders", async () => {
+    const handle = fakeClient()
+    const peer = fakePeer()
+    const playback = fakePlayback()
+    const clock = fakeSchedule()
+    const callbacks: { frame: VideoFrameRequestCallback | null } = { frame: null }
+    render(<Harness client={handle.client} peerFactory={peer.factory} playbackFactory={playback.factory} schedule={clock.schedule} />)
+    const video = screen.getByTestId("video")
+    Object.defineProperty(video, "requestVideoFrameCallback", {
+      configurable: true,
+      value: (callback: VideoFrameRequestCallback) => { callbacks.frame = callback; return 1 },
+    })
+    Object.defineProperty(video, "cancelVideoFrameCallback", { configurable: true, value: () => { callbacks.frame = null } })
+
+    await waitFor(() => expect(handle.calls).toContain("negotiate:stream-1:offer-sdp"))
+    await waitFor(() => expect(clock.delays()).toContain(4_000))
+    peer.emitStream()
+    const rendered = callbacks.frame
+    expect(rendered).not.toBeNull()
+    await act(async () => { rendered?.(0, {} as VideoFrameCallbackMetadata) })
+    expect(clock.delays()).toContain(4_000)
+
+    await clock.runDelay(4_000)
+    expect(playback.starts).toHaveLength(0)
+    expect(handle.transports).toEqual(["webrtc"])
+    expect(handle.calls.filter((call) => call.startsWith("stop:"))).toHaveLength(0)
+    expect(screen.getByTestId("fallback")).toHaveTextContent("")
+  })
+
+  it("falls back when a render stall received no video packets", async () => {
+    const handle = fakeClient()
+    const originalStart = handle.client.startStream.bind(handle.client)
+    handle.client.startStream = async (request) => {
+      if (request.transport === "tcp") handle.setState(stream({ transport: MirrorTransport.TCP, streamUrl: "/drift/v1/mirror/stream?stream_id=stream-1", state: MirrorStreamState.LIVE }))
+      return originalStart(request)
+    }
+    const peer = fakePeer()
+    const playback = fakePlayback()
+    const clock = fakeSchedule()
+    const created = peer.factory()
+    created.diagnostics = async () => ({
+      connectionState: "connected",
+      iceConnectionState: "connected",
+      trackState: "live",
+      trackStreams: 1,
+      inboundPackets: 0,
+      inboundBytes: 0,
+      decodedFrames: 0,
+      roundTripTimeMs: null,
+    })
+    render(<Harness client={handle.client} peerFactory={() => created} playbackFactory={playback.factory} schedule={clock.schedule} />)
+    const video = screen.getByTestId("video")
+    Object.defineProperty(video, "requestVideoFrameCallback", { configurable: true, value: () => 1 })
+    Object.defineProperty(video, "cancelVideoFrameCallback", { configurable: true, value: () => undefined })
+
+    await waitFor(() => expect(clock.delays()).toContain(4_000))
+    await clock.runDelay(4_000)
+    await waitFor(() => expect(playback.starts).toHaveLength(1))
+    expect(handle.transports).toEqual(["webrtc", "tcp"])
+    expect(screen.getByTestId("fallback")).toHaveTextContent("WebRTC received no video packets")
+  })
+
+  it("starts a fresh bounded render window when the remote track first receives media", async () => {
+    const handle = fakeClient()
+    const peer = fakePeer()
+    const playback = fakePlayback()
+    const clock = fakeSchedule()
+    render(<Harness client={handle.client} peerFactory={peer.factory} playbackFactory={playback.factory} schedule={clock.schedule} />)
+    const video = screen.getByTestId("video")
+    Object.defineProperty(video, "requestVideoFrameCallback", { configurable: true, value: () => 1 })
+    Object.defineProperty(video, "cancelVideoFrameCallback", { configurable: true, value: () => undefined })
+
+    await waitFor(() => expect(handle.calls).toContain("negotiate:stream-1:offer-sdp"))
+    await waitFor(() => expect(clock.delays()).toContain(4_000))
+    const beforeMedia = clock.counts()
+    peer.emitMediaActivity()
+    await waitFor(() => expect(clock.counts()).toEqual({ scheduled: beforeMedia.scheduled + 1, cancelled: beforeMedia.cancelled + 1 }))
+    expect(clock.delays()).toContain(4_000)
+    expect(playback.starts).toHaveLength(0)
+  })
+
   it("opens the stream, negotiates the browser's own offer, and paints the peer's stream into the video", async () => {
     const handle = fakeClient()
     const peer = fakePeer()

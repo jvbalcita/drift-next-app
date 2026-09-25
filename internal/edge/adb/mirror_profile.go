@@ -143,7 +143,8 @@ var mirrorPreviewLevels = map[string]mirrorPreviewLevel{
 // operator's stream costs the transport. A 1080p cap here was exactly this
 // mistake: on a device that presents at 1080x2280 the encoder produced 510x1080,
 // the console declared 510x1080, and the device's own size refused every tap and
-// swipe.
+// swipe. Realtime `matchesFrame` also breaks when the stream re-declares at the
+// capped size while the control sender still holds the opening dimensions.
 var MirrorOperatorEncodeProfile = MirrorEncodeProfile{
 	MaxSize:            0,
 	MaxFPS:             24,

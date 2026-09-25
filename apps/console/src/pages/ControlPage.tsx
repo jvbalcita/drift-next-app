@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react"
 import { createPortal } from "react-dom"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Crosshair, Download, Image, Info, Keyboard, LoaderCircle, MessageSquareText, Network, Package, Pin, Power, RotateCcw, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Terminal, Unplug, Upload, Volume1, Volume2, X } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Crosshair, Download, Image, Info, Keyboard, LoaderCircle, MessageSquareText, MonitorSmartphone, Network, Package, Pin, Power, RotateCcw, RotateCw, ScanLine, SearchX, Settings2, SlidersHorizontal, Smartphone, Terminal, Unplug, Upload, Volume1, Volume2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -15,10 +15,11 @@ import type { ArtifactView, ControlPlaneIntent, ControlPlaneSnapshot, DeviceOper
 import type { GridPreviewClient, LiveMirrorClient } from "@/lib/api/control-plane-clients"
 import { liveMirrorCopy, livePictureHeld, type LiveMirrorTransportChoice } from "@/lib/live-mirror"
 import { useGridStills } from "@/lib/api/use-grid-stills"
+import { useLiveMirror } from "@/lib/api/use-live-mirror"
 import { gridSentence, gridTileStill, stillFrameWidth, type GridProfileView, type GridTileStill } from "@/lib/grid-stills"
 import { LiveMirrorDeviceKeys, LiveMirrorInfo, LiveMirrorSurface, useLiveMirrorSession, type LiveMirrorSessionView } from "./live-mirror-surface"
 import { StillTile } from "./still-tile"
-import { deviceObservationSentence, deviceStatusLabels, notObserved } from "@/lib/device-status"
+import { deviceObservationSentence, deviceStatusLabels, isOnlineDevice, notObserved } from "@/lib/device-status"
 import { deviceSettingLabels, deviceSettingNames, deviceSettingOutcomeSentence } from "@/lib/device-settings"
 import { deviceOperationLabels, deviceOperationOutcomeSentence } from "@/lib/device-operations"
 import { LabModeBadges, LabObservationFrame, LabStatusStrip } from "./lab-adapter"
@@ -178,12 +179,11 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
    * drawing.
    *
    * EVERY visible device is named in the request, with no allocation, no cap and
-   * nothing dropped, and a tile is drawn for every one of them. That is the whole
-   * difference this surface makes: a still spends no device session, so a tile is
-   * not a viewer competing for one of the plane's places - the only number that can
-   * ever leave a device without a picture is the plane's own sweep bound, and the
-   * tile says so when it is that one. The one live session this console opens is
-   * the operator's own big frame.
+   * nothing dropped, and a tile is drawn for every one of them. A still spends no
+   * device session. A selected follower that is online opens the operator encode
+   * profile as its own viewer, so a drag on the source can be copied onto that
+   * session at the source frame. Every other tile stays a still. The operator's
+   * own big frame is a separate viewer of the source.
    */
   const gridStills = useGridStills({ client: grid, workspaceId: snapshot.workspaceId, deviceIds: visibleDevices.map((device) => device.id) })
   /** What one tile holds: what the plane reported for the device, or the reason this console has no report for it. */
@@ -451,7 +451,7 @@ export function ControlPage({ snapshot, dispatch, dispatchLab, labNotice = "", m
         */}
         <p data-testid="grid-stills-line" className="mt-2 text-[11px] leading-4 text-muted-foreground">{gridSentence({ devices: visibleDevices.length, refused: gridStills.refusedDeviceIds.length, profile: gridStills.profile, unreadable: gridStills.unreadable, failure: gridStills.reading.failure })}</p>
         <div className={`grid items-start gap-4 ${modalPinned && source ? "xl:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
-          {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail={emptyBoardDetail(boardDevices.length, withheld.length)} /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${stillFrameWidth(workspace.smallHeight, workspace.orientation)}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} tile={stillFor(device.id)} profile={gridStills.profile} endpoints={snapshot.endpoints} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
+          {visibleDevices.length === 0 ? <EmptyState label="No Devices for This Connection" detail={emptyBoardDetail(boardDevices.length, withheld.length)} /> : <ScrollArea className="h-[calc(100vh-15rem)] min-h-[420px] min-w-0 border border-border bg-muted/20 p-3"><div className="grid content-start justify-start" style={{ gridTemplateColumns: `repeat(auto-fill, ${stillFrameWidth(workspace.smallHeight, workspace.orientation)}px)`, gap: settings.gap }} aria-label="Compact phone frames">{visibleDevices.map((device, index) => <CompactPhone key={device.id} device={device} index={index} size={workspace.smallHeight} orientation={workspace.orientation} active={source?.id === device.id} follower={followerIds.includes(device.id)} settings={settings} tile={stillFor(device.id)} profile={gridStills.profile} endpoints={snapshot.endpoints} mirror={mirror} mirrorTransport={settings.liveMirrorTransport} workspaceId={snapshot.workspaceId} onClick={() => choosePhone(device)} />)}</div></ScrollArea>}
           {modalPinned ? deviceModal : null}
         </div>
       </section>
@@ -780,7 +780,36 @@ function DeviceListDialog({ devices, endpoints, onReload, pendingAction }: { dev
   </DialogContent></Dialog>
 }
 
-function CompactPhone({ device, index, size, orientation, active, follower, settings, tile, profile, endpoints, onClick }: { device: DeviceView; index: number; size: number; orientation: Workspace["orientation"]; active: boolean; follower: boolean; settings: ConsoleSettings; tile: GridTileStill; profile: GridProfileView | null; endpoints: ControlPlaneSnapshot["endpoints"]; onClick: () => void }) {
+function FollowerLivePicture({ deviceId, mirror, transport, workspaceId }: { deviceId: string; mirror: LiveMirrorClient; transport: LiveMirrorTransportChoice; workspaceId: string }) {
+  // Operator purpose, and no control binding. The tile is a viewer of the same
+  // encode profile as the source frame, so a physical point measured there is a
+  // point this session can carry. It does not arm a second control channel.
+  const session = useLiveMirror(deviceId, { client: mirror, transport, workspaceId, purpose: "operator" })
+  const show = session.phase === "live" || session.phase === "unreadable"
+  return <>
+    <video ref={session.attachVideo} data-testid={`follower-live-video-${deviceId}`} muted playsInline autoPlay aria-hidden="true" className={`pointer-events-none absolute inset-0 size-full object-contain ${show ? "" : "invisible"}`} />
+    <canvas ref={session.attachCanvas} data-testid={`follower-live-canvas-${deviceId}`} aria-hidden="true" className="pointer-events-none absolute inset-0 hidden size-full object-contain" />
+  </>
+}
+
+function FollowerMark({ deviceId, name }: { deviceId: string; name: string }) {
+  return <span data-testid={`tile-following-${deviceId}`} role="img" aria-label={`${name} is following`} className="drift-follow-mark pointer-events-none absolute top-1 right-1 z-20">
+    <span className="drift-follow-pulse" aria-hidden="true" />
+    <span className="drift-follow-pulse drift-follow-pulse-late" aria-hidden="true" />
+    <span className="drift-follow-chip" aria-hidden="true">
+      <svg viewBox="0 0 16 16" className="drift-follow-hand size-4" fill="currentColor">
+        <path d="M4.8 8.7h6.4c.5 0 .85.4.85.95v1.5c0 2.05-1.35 3.4-3.75 3.4-2.35 0-3.5-1.3-3.5-3.2V9.55c0-.45.35-.85.8-.85z" />
+        <rect x="4.85" y="2.55" width="1.3" height="6.6" rx="0.65" />
+        <rect x="6.85" y="1.15" width="1.4" height="7.9" rx="0.7" />
+        <rect x="8.95" y="2.25" width="1.3" height="6.85" rx="0.65" />
+        <rect x="10.95" y="3.7" width="1.15" height="5.35" rx="0.58" />
+        <path d="M4.65 9.15C3.4 8.35 1.95 8.6 1.5 9.7c-.4 1 .25 2.15 1.5 2.5.5-1 .95-2 1.65-3.05z" />
+      </svg>
+    </span>
+  </span>
+}
+
+function CompactPhone({ device, index, size, orientation, active, follower, settings, tile, profile, endpoints, mirror, mirrorTransport, workspaceId, onClick }: { device: DeviceView; index: number; size: number; orientation: Workspace["orientation"]; active: boolean; follower: boolean; settings: ConsoleSettings; tile: GridTileStill; profile: GridProfileView | null; endpoints: ControlPlaneSnapshot["endpoints"]; mirror?: LiveMirrorClient; mirrorTransport: LiveMirrorTransportChoice; workspaceId: string; onClick: () => void }) {
   // The frame is as wide as the operator asked for and as TALL as the picture the
   // plane holds for this device: the still is drawn at the device's own shape, so a
   // frame at the console's own 9:16 would leave its own colour down both sides of a
@@ -827,7 +856,7 @@ function CompactPhone({ device, index, size, orientation, active, follower, sett
    * rendered text itself.
    */
   const address = deviceAddressCopy(device.displayName, deviceAddress(device, endpoints))
-  return <button type="button" aria-pressed={active || follower} onClick={onClick} className={`relative justify-self-center self-start overflow-hidden rounded-[9px] border-[3px] text-left text-white transition-colors focus-visible:outline-3 focus-visible:outline-primary ${active ? "border-primary ring-2 ring-primary/40" : follower ? "border-primary/70" : "border-slate-500"} ${frameColor}`} style={{ width, boxSizing: "border-box" }}><StillTile device={device} tile={tile} profile={profile} orientation={orientation} /><span className="absolute inset-0 bg-black/10" style={{ opacity: 1 - settings.opacity / 100 }} />{settings.showTag ? <span className="absolute left-0 top-0 bg-red-500 px-1 text-[8px] font-bold leading-4">{device.controlEligibility === "eligible" ? "OTG" : "HOLD"}</span> : null}<span className="absolute inset-x-0 top-6 text-center">{settings.showIndex ? <span className="block text-lg font-bold leading-none">{index + 1}</span> : null}{settings.showName ? <span className="mt-1 block text-[10px] font-semibold">{device.displayName}</span> : null}{settings.showAddress ? <span data-testid={`tile-address-${device.id}`} title={address.sentence} className="mt-1 block font-mono text-[8px] text-white/80">{address.text}</span> : null}</span>{absent ? <span className="pointer-events-none absolute inset-0 grid place-items-center"><span className="grid place-items-center border border-white/40 bg-slate-950/75 p-1.5"><AbsentIcon role="img" aria-label={deviceObservationSentence(device.displayName, device.status)} className="size-5" /></span></span> : null}<span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] text-white/90"><Smartphone className="size-3" aria-hidden="true" /><span>{deviceStatusLabels[device.status]}</span></span>{active ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Open</span> : follower ? <span className="absolute inset-x-0 bottom-7 text-center text-[8px] font-semibold uppercase">Follower</span> : null}</button>
+  return <button type="button" aria-pressed={active || follower} disabled={active} onClick={onClick} className={`relative justify-self-center self-start overflow-hidden rounded-[9px] border-[3px] text-left text-white transition-colors focus-visible:outline-3 focus-visible:outline-primary disabled:cursor-default ${active ? "border-primary" : follower ? "border-primary/70" : "border-slate-500"} ${frameColor}`} style={{ width, boxSizing: "border-box" }}><StillTile device={device} tile={tile} profile={profile} orientation={orientation} />{follower && isOnlineDevice(device) && mirror ? <FollowerLivePicture deviceId={device.id} mirror={mirror} transport={mirrorTransport} workspaceId={workspaceId} /> : null}<span className="absolute inset-0 bg-black/10" style={{ opacity: 1 - settings.opacity / 100 }} />{settings.showTag ? <span className="absolute left-0 top-0 bg-red-500 px-1 text-[8px] font-bold leading-4">{device.controlEligibility === "eligible" ? "OTG" : "HOLD"}</span> : null}<span className="absolute inset-x-0 top-6 text-center">{settings.showIndex ? <span className="block text-lg font-bold leading-none">{index + 1}</span> : null}{settings.showName ? <span className="mt-1 block text-[10px] font-semibold">{device.displayName}</span> : null}{settings.showAddress ? <span data-testid={`tile-address-${device.id}`} title={address.sentence} className="mt-1 block font-mono text-[8px] text-white/80">{address.text}</span> : null}</span>{absent ? <span className="pointer-events-none absolute inset-0 grid place-items-center"><span className="grid place-items-center border border-white/40 bg-slate-950/75 p-1.5"><AbsentIcon role="img" aria-label={deviceObservationSentence(device.displayName, device.status)} className="size-5" /></span></span> : null}<span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] text-white/90"><Smartphone className="size-3" aria-hidden="true" /><span>{deviceStatusLabels[device.status]}</span></span>{active ? <span data-testid={`tile-controlled-${device.id}`} className="absolute inset-0 z-20 grid place-items-center bg-slate-950 text-white" role="img" aria-label={`${device.displayName} is being controlled in the big frame`}><MonitorSmartphone className="size-7" aria-hidden="true" /></span> : null}{follower && !active ? <FollowerMark deviceId={device.id} name={device.displayName} /> : null}</button>
 }
 
 /**

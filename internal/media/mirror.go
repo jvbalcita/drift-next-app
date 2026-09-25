@@ -1148,6 +1148,22 @@ func (e *MirrorEngine) Sessions() []MirrorSession {
 	return out
 }
 
+// HasLiveSerial reports whether a live session is already streaming this serial.
+// The grid still sweep uses it to leave that device alone.
+func (e *MirrorEngine) HasLiveSerial(serial string) bool {
+	if e == nil || strings.TrimSpace(serial) == "" {
+		return false
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, session := range e.sessions {
+		if session.serial == serial && session.endClass == "" && session.failed == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // Session reports one device's live session, or false when it has none.
 func (e *MirrorEngine) Session(deviceID string) (MirrorSession, bool) {
 	e.mu.Lock()

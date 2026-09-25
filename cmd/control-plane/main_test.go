@@ -35,13 +35,15 @@ func TestMirrorInputDeliveryIsBoundExactlyWhenTheLiveEngineExists(t *testing.T) 
 	}
 }
 
-func TestLiveMirrorControlRolloutDefaultsOff(t *testing.T) {
-	for _, value := range []string{"", "false", "1", "yes", "invalid"} {
-		if liveMirrorControlEnabled(value) {
-			t.Fatalf("setting %q armed live control", value)
+func TestLiveMirrorControlDefaultsOnWithExplicitOff(t *testing.T) {
+	for _, value := range []string{"", "true", " TRUE ", "1", "yes", "on"} {
+		if !liveMirrorControlEnabled(value) {
+			t.Fatalf("setting %q should arm live control", value)
 		}
 	}
-	if !liveMirrorControlEnabled(" TRUE ") {
-		t.Fatal("explicit true did not arm live control")
+	for _, value := range []string{"false", "FALSE", "0", "off", "Off"} {
+		if liveMirrorControlEnabled(value) {
+			t.Fatalf("setting %q should disable live control", value)
+		}
 	}
 }

@@ -291,8 +291,9 @@ class TypedConnectClient {
     requestSchema: Request,
     responseSchema: Response,
     init: MessageInitShape<Request>,
+    signal?: AbortSignal,
   ): Promise<MessageShape<Response>> {
-    return this.json.call(this.serviceName, method, requestSchema, responseSchema, init)
+    return this.json.call(this.serviceName, method, requestSchema, responseSchema, init, signal)
   }
 }
 
@@ -1139,7 +1140,7 @@ export interface LiveMirrorClient {
    * frame.
    */
   getCapacity(workspaceId: string): Promise<MirrorCapacityView>
-  negotiate(streamId: string, offerSdp: string, workspaceId: string, control?: LiveControlBinding): Promise<LiveStreamAnswer>
+  negotiate(streamId: string, offerSdp: string, workspaceId: string, control?: LiveControlBinding, signal?: AbortSignal): Promise<LiveStreamAnswer>
   stopStream(streamId: string): Promise<LiveStreamView>
   getStream(streamId: string): Promise<LiveStreamView>
   /**
@@ -1159,7 +1160,11 @@ export class DeviceMirrorClient implements LiveMirrorClient {
     this.operatorId = operatorId
   }
   controlOperatorId(): string { return this.operatorId }
-  realtimeControlEnabled(): boolean { return import.meta.env.VITE_DRIFT_LIVE_MIRROR_CONTROL === "true" }
+  realtimeControlEnabled(): boolean {
+    // Unset defaults on so TouchMove follows the finger on WebRTC. Explicit false is the kill-switch.
+    const value = import.meta.env.VITE_DRIFT_LIVE_MIRROR_CONTROL
+    return value !== "false" && value !== "0" && value !== "off"
+  }
   async startStream(request: { workspaceId: string; deviceId: string; transport?: LiveMirrorTransportChoice; purpose: LiveMirrorViewerPurpose; preview?: LiveMirrorPreview }): Promise<LiveStreamView> {
     const requestId = newRequestId()
     // The workspace's preview setting travels with the viewer that stated it and
@@ -1190,14 +1195,14 @@ export class DeviceMirrorClient implements LiveMirrorClient {
   streamEndpoint(path: string): { url: string; headers: Record<string, string> } {
     return this.json.endpoint(path)
   }
-  async negotiate(streamId: string, offerSdp: string, workspaceId: string, control?: LiveControlBinding): Promise<LiveStreamAnswer> {
+  async negotiate(streamId: string, offerSdp: string, workspaceId: string, control?: LiveControlBinding, signal?: AbortSignal): Promise<LiveStreamAnswer> {
     const response = await this.rpc.call("NegotiateMirrorStream", NegotiateMirrorStreamRequestSchema, NegotiateMirrorStreamResponseSchema, {
       context: requestContext({ requestId: newRequestId(), actorId: this.operatorId }),
       streamId,
       offerSdp,
       workspace: workspaceRef(workspaceId),
       control,
-    })
+    }, signal)
     return { answerSdp: response.answerSdp, stream: requireStream(response.stream), controlGeneration: response.controlGeneration }
   }
   async stopStream(streamId: string): Promise<LiveStreamView> {

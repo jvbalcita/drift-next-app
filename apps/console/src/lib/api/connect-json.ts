@@ -160,6 +160,7 @@ export class ConnectJsonClient {
     requestSchema: Request,
     responseSchema: Response,
     init: MessageInitShape<Request>,
+    signal?: AbortSignal,
   ): Promise<MessageShape<Response>> {
     const response = await fetch(`${this.baseUrl}/${serviceName}/${method}`, {
       method: "POST",
@@ -168,6 +169,7 @@ export class ConnectJsonClient {
         ...(this.token ? { [labTokenHeader]: this.token } : {}),
       },
       body: JSON.stringify(toJson(requestSchema, create(requestSchema, init))),
+      signal,
     })
     const payload: unknown = await response.json().catch(() => undefined)
     if (!response.ok) {

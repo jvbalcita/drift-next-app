@@ -79,6 +79,17 @@ func TestHighRiskTextInputCannotUseMirrorOrAIInvocation(t *testing.T) {
 	}
 }
 
+func TestBoundedKeyEventCanUseTheAuthorizedLiveMirrorSurface(t *testing.T) {
+	intent := Intent{
+		ID: "live-key-1", Workspace: "workspace", DeviceID: "device", LeaseID: "lease", HolderID: "operator", FencingToken: 1,
+		Kind: KeyEvent, KeyCode: 3, ObservationToken: "stream-1", IdempotencyKey: "live-key:stream-1:1:1",
+		InvocationSurface: SurfaceMirror, Capabilities: []Capability{CapabilitySystemInput}, Timeout: time.Second,
+	}
+	if err := intent.Validate(); err != nil {
+		t.Fatalf("a bounded, observed key event from its authorized mirror was refused: %v", err)
+	}
+}
+
 func TestSemanticTargetValidationFailsClosedOnAmbiguity(t *testing.T) {
 	target := SemanticTarget{AccessibilityLabel: "Continue"}
 	if err := ValidateSemanticTarget(target, 2, true, true); err == nil {
