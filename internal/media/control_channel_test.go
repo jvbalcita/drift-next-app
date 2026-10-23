@@ -135,7 +135,7 @@ func TestMirrorControlMessageCarriesBoundedFollowerSelectionAndGestureKind(t *te
 	}
 
 	for name, data := range map[string][]byte{
-		"too many followers": followerSelectionBytes(1, 9, makeFollowerIDs(MirrorControlMaxFollowers+1)...),
+		"too many followers":      followerSelectionBytes(1, 9, makeFollowerIDs(MirrorControlMaxFollowers+1)...),
 		"trailing follower bytes": append(followerSelectionBytes(1, 9, "device-a"), 0),
 		"swipe without duration": func() []byte {
 			value := controlBytes(MirrorControlTouchUp, 2, 7, 9, true)

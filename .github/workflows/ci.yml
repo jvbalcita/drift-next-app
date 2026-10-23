@@ -43,6 +43,17 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Check formatting
+        run: |
+          # This is the only job that inspects Go sources; nothing else reads
+          # formatting, so a file that is not gofmt-clean is caught here or not
+          # at all.
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
       - run: go test ./...
       - run: go test ./internal/platform/migrations -count=1
       - run: go vet ./...

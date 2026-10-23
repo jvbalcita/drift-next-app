@@ -9,50 +9,50 @@ import (
 )
 
 const (
-	MirrorControlChannelLabel = "drift-control-v1"
-	MirrorControlMessageSize  = 72
-	MirrorControlVersion      = 1
-	MirrorControlCurrentVersion = 2
-	MirrorControlMaxMessageSize = 16 * 1024
-	MirrorControlMaxFollowers = 64
+	MirrorControlChannelLabel       = "drift-control-v1"
+	MirrorControlMessageSize        = 72
+	MirrorControlVersion            = 1
+	MirrorControlCurrentVersion     = 2
+	MirrorControlMaxMessageSize     = 16 * 1024
+	MirrorControlMaxFollowers       = 64
 	MirrorControlMaxFollowerIDBytes = 128
 )
 
 type MirrorControlEventKind uint8
 
 const (
-	MirrorControlTouchDown   MirrorControlEventKind = 1
-	MirrorControlTouchMove   MirrorControlEventKind = 2
-	MirrorControlTouchUp     MirrorControlEventKind = 3
-	MirrorControlTouchCancel MirrorControlEventKind = 4
-	MirrorControlKey         MirrorControlEventKind = 5
+	MirrorControlTouchDown    MirrorControlEventKind = 1
+	MirrorControlTouchMove    MirrorControlEventKind = 2
+	MirrorControlTouchUp      MirrorControlEventKind = 3
+	MirrorControlTouchCancel  MirrorControlEventKind = 4
+	MirrorControlKey          MirrorControlEventKind = 5
 	MirrorControlSetFollowers MirrorControlEventKind = 6
 )
 
 const (
-	MirrorControlGestureUnspecified uint8 = 0
-	MirrorControlGestureTap         uint8 = 1
-	MirrorControlGestureSwipe       uint8 = 2
+	MirrorControlGestureUnspecified uint8  = 0
+	MirrorControlGestureTap         uint8  = 1
+	MirrorControlGestureSwipe       uint8  = 2
 	MirrorControlMinSwipeDurationMS uint32 = 16
 	MirrorControlMaxSwipeDurationMS uint32 = 10_000
 )
 
 type MirrorControlMessage struct {
-	Version     uint8
-	Kind        MirrorControlEventKind
-	Final       bool
-	Sequence    uint64
-	GestureID   uint64
-	TimestampMS int64
-	Generation  uint64
-	Width       uint32
-	Height      uint32
-	X           uint32
-	Y           uint32
-	KeyCode     uint32
-	Repeat      uint32
-	GestureKind uint8
-	DurationMS  uint32
+	Version           uint8
+	Kind              MirrorControlEventKind
+	Final             bool
+	Sequence          uint64
+	GestureID         uint64
+	TimestampMS       int64
+	Generation        uint64
+	Width             uint32
+	Height            uint32
+	X                 uint32
+	Y                 uint32
+	KeyCode           uint32
+	Repeat            uint32
+	GestureKind       uint8
+	DurationMS        uint32
 	FollowerDeviceIDs []string
 }
 
