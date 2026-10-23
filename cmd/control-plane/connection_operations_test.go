@@ -59,31 +59,57 @@ func currentEndpoint(context.Context) ([]string, error) {
 	return []string{"10.0.0.5:5555"}, nil
 }
 
-// TestConnectionOperationsRefusesAServiceWithNoHostRunner is the mount's reason
-// for existing: the device runner and the enumerator are both bound and both
-// correct, and the transport surface still must not be built, because nothing
-// here can reach the adb server itself. A boundary composed in that state would
-// mount routes whose every host operation fails at the first call.
-func TestConnectionOperationsRefusesAServiceWithNoHostRunner(t *testing.T) {
-	adapter := &recordingAdapter{}
-	enumerator := &recordingEnumerator{}
-	service, err := lab.NewService(
-		lab.WithLabTransport(adapter),
-		lab.WithLabEnumerator(enumerator),
-	)
-	if err != nil {
-		t.Fatalf("construct lab service: %v", err)
+// TestConnectionOperationsRefusesAServiceWithAnIncompleteRunnerSet is the
+// mount's reason for existing: with a service that is missing one of its three
+// runners the transport surface must not be built at all, because a boundary
+// composed over the missing one would mount routes whose every operation fails
+// at the first call.
+//
+// The three prerequisites are pinned separately. Each constructor below refuses
+// a nil runner on its own, so the boundary is never built either way; what the
+// guard buys is the reason that reaches the log, and a clause that loses its
+// case loses that reason silently.
+func TestConnectionOperationsRefusesAServiceWithAnIncompleteRunnerSet(t *testing.T) {
+	cases := []struct {
+		name       string
+		host       bool
+		device     bool
+		enumerator bool
+	}{
+		{name: "no host runner", device: true, enumerator: true},
+		{name: "no device runner", host: true, enumerator: true},
+		{name: "no enumerator", host: true, device: true},
 	}
-	operations, err := connectionOperations(service, []uint16{5555}, connection.CurrentEndpointSourceFunc(currentEndpoint))
-	if platformerrors.CodeOf(err) != platformerrors.CodeUnavailable {
-		t.Fatalf("composing a boundary with no host runner returned %v, want %v", err, platformerrors.CodeUnavailable)
-	}
-	if operations.Connector != nil || operations.Restarter != nil || operations.Activator != nil {
-		t.Fatal("a refused composition returned a partially wired boundary")
-	}
-	if adapter.hostCalls != 0 || adapter.deviceCalls != 0 || enumerator.calls != 0 {
-		t.Fatalf("a refused composition reached a runner: host=%d device=%d enumerator=%d",
-			adapter.hostCalls, adapter.deviceCalls, enumerator.calls)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			adapter := &recordingAdapter{}
+			enumerator := &recordingEnumerator{}
+			options := make([]lab.Option, 0, 3)
+			if tc.host {
+				options = append(options, lab.WithLabHostTransport(adapter))
+			}
+			if tc.device {
+				options = append(options, lab.WithLabTransport(adapter))
+			}
+			if tc.enumerator {
+				options = append(options, lab.WithLabEnumerator(enumerator))
+			}
+			service, err := lab.NewService(options...)
+			if err != nil {
+				t.Fatalf("construct lab service: %v", err)
+			}
+			operations, err := connectionOperations(service, []uint16{5555}, connection.CurrentEndpointSourceFunc(currentEndpoint))
+			if platformerrors.CodeOf(err) != platformerrors.CodeUnavailable {
+				t.Fatalf("composing a boundary with %s returned %v, want %v", tc.name, err, platformerrors.CodeUnavailable)
+			}
+			if operations.Connector != nil || operations.Restarter != nil || operations.Activator != nil {
+				t.Fatal("a refused composition returned a partially wired boundary")
+			}
+			if adapter.hostCalls != 0 || adapter.deviceCalls != 0 || enumerator.calls != 0 {
+				t.Fatalf("a refused composition reached a runner: host=%d device=%d enumerator=%d",
+					adapter.hostCalls, adapter.deviceCalls, enumerator.calls)
+			}
+		})
 	}
 }
 
